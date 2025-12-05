@@ -218,11 +218,9 @@ export function getDayOfWeekName(date: Date): string {
  * Labels para tipos de solicitação
  */
 export const PAYMENT_TYPE_LABELS: Record<string, string> = {
-  'NOTA_FISCAL': 'Nota Fiscal',
-  'BOLETO': 'Boleto',
+  'PAGAMENTO': 'Pagamento',
   'REEMBOLSO': 'Reembolso',
-  'ADIANTAMENTO': 'Adiantamento',
-  'OUTROS': 'Outros'
+  'ADIANTAMENTO': 'Adiantamento'
 };
 
 /**
@@ -230,11 +228,10 @@ export const PAYMENT_TYPE_LABELS: Record<string, string> = {
  */
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   'PIX': 'PIX',
-  'TED': 'TED',
-  'BOLETO': 'Boleto Bancário',
-  'CARTAO_CREDITO': 'Cartão de Crédito',
-  'CARTAO_DEBITO': 'Cartão de Débito',
-  'DINHEIRO': 'Dinheiro'
+  'DINHEIRO': 'Dinheiro',
+  'BOLETO': 'Boleto',
+  'CAJU': 'Caju',
+  'SOLIDES': 'Solides'
 };
 
 /**

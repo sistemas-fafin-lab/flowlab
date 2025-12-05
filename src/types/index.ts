@@ -272,19 +272,16 @@ export interface DepartmentReport {
 
 // Payment Request types
 export type PaymentRequestType = 
-  | 'NOTA_FISCAL'
-  | 'BOLETO'
+  | 'PAGAMENTO'
   | 'REEMBOLSO'
-  | 'ADIANTAMENTO'
-  | 'OUTROS';
+  | 'ADIANTAMENTO';
 
 export type PaymentMethod = 
   | 'PIX'
-  | 'TED'
+  | 'DINHEIRO'
   | 'BOLETO'
-  | 'CARTAO_CREDITO'
-  | 'CARTAO_DEBITO'
-  | 'DINHEIRO';
+  | 'CAJU'
+  | 'SOLIDES';
 
 export type PaymentRequestStatus = 
   | 'pending'

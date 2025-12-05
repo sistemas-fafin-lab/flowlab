@@ -68,7 +68,7 @@ const PaymentRequestManagement: React.FC = () => {
 
   // Form data
   const [formData, setFormData] = useState<PaymentRequestFormValues>({
-    tipoSolicitacao: 'NOTA_FISCAL',
+    tipoSolicitacao: 'PAGAMENTO',
     documentoNumero: '',
     fornecedor: '',
     cpfCnpj: '',
@@ -169,7 +169,7 @@ const PaymentRequestManagement: React.FC = () => {
     e.preventDefault();
     
     // Validate required fields
-    if (!formData.fornecedor || !formData.valorTotal || !formData.dataPagamento) {
+    if (!formData.fornecedor || !formData.valorTotal || !formData.dataPagamento || !formData.autorizadoPor) {
       showError('Campos obrigatórios', 'Preencha todos os campos obrigatórios.');
       return;
     }
@@ -211,7 +211,7 @@ const PaymentRequestManagement: React.FC = () => {
   // Reset form
   const resetForm = () => {
     setFormData({
-      tipoSolicitacao: 'NOTA_FISCAL',
+      tipoSolicitacao: 'PAGAMENTO',
       documentoNumero: '',
       fornecedor: '',
       cpfCnpj: '',
@@ -553,13 +553,14 @@ const PaymentRequestManagement: React.FC = () => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Autorizado por (opcional)
+                  Autorizado por *
                 </label>
                 <input
                   type="text"
                   name="autorizadoPor"
                   value={formData.autorizadoPor}
                   onChange={handleInputChange}
+                  required
                   placeholder="Nome de quem autorizou"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 />
