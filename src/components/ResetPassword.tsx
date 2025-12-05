@@ -11,6 +11,11 @@ const ResetPassword: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
+  // Verificar sessão ao montar o componente
+  useEffect(() => {
+    supabase.auth.getSession();
+  }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -33,11 +38,6 @@ const ResetPassword: React.FC = () => {
     }
 
     setLoading(false);
-
-    useEffect(() => {
-  supabase.auth.getSession();
-}, []);
-    
   };
 
   return (

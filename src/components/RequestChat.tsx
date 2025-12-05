@@ -28,7 +28,7 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
   useEffect(() => {
     const fetchMessages = async () => {
       const { data, error } = await supabase
-        .from<Message>('request_messages')
+        .from('request_messages')
         .select('*')
         .eq('request_id', requestId)
         .order('created_at', { ascending: true });
@@ -38,7 +38,7 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
         showError('Erro ao carregar mensagens.');
         return;
       }
-      setMessages(data || []);
+      setMessages((data as Message[]) || []);
     };
 
     fetchMessages();

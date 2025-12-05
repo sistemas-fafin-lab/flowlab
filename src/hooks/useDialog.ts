@@ -19,6 +19,7 @@ interface InputDialogState {
   cancelText?: string;
   required?: boolean;
   onConfirm?: (value: string) => void;
+  onCancel?: () => void;
 }
 
 export const useDialog = () => {

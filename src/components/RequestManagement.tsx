@@ -123,7 +123,7 @@ useEffect(() => {
   const checkRequestPeriod = async () => {
     if (userProfile?.role !== 'requester') return;
 
-    const department = userProfile?.department === 'Área técnica' ? 'Área técnica' : 'general';
+    const department = (userProfile?.department as string) === 'Área técnica' ? 'Área técnica' : 'general';
 
     const { data, error } = await supabase
       .from('request_periods')
@@ -285,7 +285,8 @@ useEffect(() => {
         requestDate: new Date().toISOString().split('T')[0],
         department: userProfile?.department || '',
         supplierId: newRequest.supplierId,
-        supplierName: newRequest.supplierId ? suppliers.find(s => s.id === newRequest.supplierId)?.name : undefined
+        supplierName: newRequest.supplierId ? suppliers.find(s => s.id === newRequest.supplierId)?.name : undefined,
+        status: 'pending'
       });
 
       setNewRequest({

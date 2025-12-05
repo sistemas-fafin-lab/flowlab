@@ -66,13 +66,12 @@ const SupplierManagement: React.FC = () => {
 
   const handleEdit = (supplier: Supplier) => {
     setFormData({
-      id: supplier.id,
       name: supplier.name,
       cnpj: supplier.cnpj,
       email: supplier.email,
       phone: supplier.phone,
       address: supplier.address || '',
-      contactPerson: supplier.contactPerson || supplier.contact_person || '',
+      contactPerson: supplier.contactPerson || '',
       products: supplier.products || [],
       status: supplier.status
     });

@@ -70,56 +70,53 @@ const ExpirationMonitor: React.FC = () => {
   ];
 
   const handleWriteOff = async (productId: string, productName: string) => {
-    showInputDialog(
+    const reason = await showInputDialog(
       'Motivo da Baixa',
       `Digite o motivo da baixa para "${productName}":`,
-      async (reason) => {
-        if (!reason) return;
-
-        showInputDialog(
-          'Autorização',
-          'Digite seu nome para autorizar a baixa:',
-          async (authorizedBy) => {
-            if (!authorizedBy) return;
-
-            try {
-              setLoading(productId);
-              await writeOffProduct(productId, reason, authorizedBy);
-              showSuccess('Produto dado baixa com sucesso!');
-            } catch (error) {
-              console.error('Erro ao dar baixa no produto:', error);
-              showError('Erro ao dar baixa no produto. Tente novamente.');
-            } finally {
-              setLoading(null);
-            }
-          },
-          { placeholder: 'Seu nome completo', required: true }
-        );
-      },
       { placeholder: 'Ex: Produto vencido, danificado, etc.', required: true }
     );
+    
+    if (!reason) return;
+
+    const authorizedBy = await showInputDialog(
+      'Autorização',
+      'Digite seu nome para autorizar a baixa:',
+      { placeholder: 'Seu nome completo', required: true }
+    );
+    
+    if (!authorizedBy) return;
+
+    try {
+      setLoading(productId);
+      await writeOffProduct(productId, reason, authorizedBy);
+      showSuccess('Produto dado baixa com sucesso!');
+    } catch (error) {
+      console.error('Erro ao dar baixa no produto:', error);
+      showError('Erro ao dar baixa no produto. Tente novamente.');
+    } finally {
+      setLoading(null);
+    }
   };
 
   const handleRequestReplenishment = async (productId: string, productName: string) => {
-    showInputDialog(
+    const requestedBy = await showInputDialog(
       'Solicitar Reposição',
       `Digite seu nome para solicitar reposição de "${productName}":`,
-      async (requestedBy) => {
-        if (!requestedBy) return;
-
-        try {
-          setLoading(productId);
-          await requestReplenishment(productId, requestedBy);
-          showSuccess('Solicitação de reposição criada com sucesso!');
-        } catch (error) {
-          console.error('Erro ao solicitar reposição:', error);
-          showError('Erro ao solicitar reposição. Tente novamente.');
-        } finally {
-          setLoading(null);
-        }
-      },
       { placeholder: 'Seu nome completo', required: true }
     );
+    
+    if (!requestedBy) return;
+
+    try {
+      setLoading(productId);
+      await requestReplenishment(productId, requestedBy);
+      showSuccess('Solicitação de reposição criada com sucesso!');
+    } catch (error) {
+      console.error('Erro ao solicitar reposição:', error);
+      showError('Erro ao solicitar reposição. Tente novamente.');
+    } finally {
+      setLoading(null);
+    }
   };
 
   const formatCurrency = (value: number) => {

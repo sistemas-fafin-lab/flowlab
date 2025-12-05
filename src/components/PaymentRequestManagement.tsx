@@ -518,7 +518,7 @@ const PaymentRequestManagement: React.FC = () => {
                 <input
                   type="date"
                   name="dataPagamento"
-                  value={formData.dataPagamento}
+                  value={typeof formData.dataPagamento === 'string' ? formData.dataPagamento : formData.dataPagamento instanceof Date ? formData.dataPagamento.toISOString().split('T')[0] : ''}
                   onChange={handleDateChange}
                   required
                   className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

@@ -2,7 +2,6 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { hasPermission } from './utils/permissions';
-import { NotificationProvider } from './hooks/useNotification';
 import Auth from './components/Auth';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -17,7 +16,6 @@ import SupplierManagement from './components/SupplierManagement';
 import QuotationManagement from './components/QuotationManagement';
 import RequestPeriodConfig from './components/RequestPeriodConfig';
 import ResetPassword from './components/ResetPassword';
-import InputDialog from './components/InputDialog';
 import Home from './components/Home';
 import PaymentRequestManagement from './components/PaymentRequestManagement';
 

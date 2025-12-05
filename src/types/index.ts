@@ -37,10 +37,10 @@ export interface StockMovement {
 
 export interface RequestItem {
   id: string;
-  productId: string;
+  productId: string | null;
   productName: string;
   quantity: number;
-  category: 'general' | 'technical';
+  category: 'general' | 'technical' | string;
 }
 
 export interface Request {
