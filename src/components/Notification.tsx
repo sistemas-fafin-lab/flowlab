@@ -50,33 +50,33 @@ const Notification: React.FC<NotificationProps> = ({
   const getStyles = () => {
     switch (type) {
       case 'success':
-        return 'bg-green-50 border-green-200 text-green-800';
+        return 'bg-green-50 border-green-300 text-green-800 shadow-green-100';
       case 'error':
-        return 'bg-red-50 border-red-200 text-red-800';
+        return 'bg-red-50 border-red-300 text-red-800 shadow-red-100';
       case 'warning':
-        return 'bg-yellow-50 border-yellow-200 text-yellow-800';
+        return 'bg-yellow-50 border-yellow-300 text-yellow-800 shadow-yellow-100';
       case 'info':
-        return 'bg-blue-50 border-blue-200 text-blue-800';
+        return 'bg-blue-50 border-blue-300 text-blue-800 shadow-blue-100';
     }
   };
 
   return (
-    <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right duration-300">
-      <div className={`max-w-md w-full border rounded-lg shadow-lg p-4 ${getStyles()}`}>
+    <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
+      <div className={`max-w-md w-full border rounded-xl shadow-lg p-4 backdrop-blur-sm ${getStyles()}`}>
         <div className="flex items-start">
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 animate-bounce-in">
             {getIcon()}
           </div>
           <div className="ml-3 flex-1">
-            <h3 className="text-sm font-medium">{title}</h3>
+            <h3 className="text-sm font-semibold">{title}</h3>
             {message && (
-              <p className="mt-1 text-sm opacity-90">{message}</p>
+              <p className="mt-1 text-sm opacity-80">{message}</p>
             )}
           </div>
           <div className="ml-4 flex-shrink-0">
             <button
               onClick={onClose}
-              className="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none"
+              className="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none transition-colors hover:rotate-90 transform duration-200"
             >
               <X className="w-4 h-4" />
             </button>

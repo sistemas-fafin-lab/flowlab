@@ -121,14 +121,14 @@ const SupplierManagement: React.FC = () => {
       />
 
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Gerenciamento de Fornecedores</h2>
-          <p className="text-gray-600">Cadastre e gerencie fornecedores do sistema</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Gerenciamento de Fornecedores</h2>
+          <p className="text-gray-500">Cadastre e gerencie fornecedores do sistema</p>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+          className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
         >
           <Plus className="w-4 h-4 mr-2" />
           Novo Fornecedor
@@ -137,12 +137,12 @@ const SupplierManagement: React.FC = () => {
 
       {/* Add/Edit Form */}
       {showAddForm && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 animate-scale-in">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">
               {editingSupplier ? 'Editar Fornecedor' : 'Novo Fornecedor'}
             </h3>
-            <button onClick={handleCancel} className="text-gray-400 hover:text-gray-600">
+            <button onClick={handleCancel} className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-xl transition-all duration-200">
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -155,7 +155,7 @@ const SupplierManagement: React.FC = () => {
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
               />
             </div>
 
@@ -166,7 +166,7 @@ const SupplierManagement: React.FC = () => {
                 value={formData.cnpj}
                 onChange={(e) => setFormData(prev => ({ ...prev, cnpj: e.target.value }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
               />
             </div>
 
@@ -177,7 +177,7 @@ const SupplierManagement: React.FC = () => {
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
               />
             </div>
 
@@ -188,7 +188,7 @@ const SupplierManagement: React.FC = () => {
                 value={formData.phone}
                 onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
               />
             </div>
 
@@ -198,7 +198,7 @@ const SupplierManagement: React.FC = () => {
                 type="text"
                 value={formData.contactPerson}
                 onChange={(e) => setFormData(prev => ({ ...prev, contactPerson: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
               />
             </div>
 
@@ -207,7 +207,7 @@ const SupplierManagement: React.FC = () => {
               <select
                 value={formData.status}
                 onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'active' | 'inactive' }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
               >
                 <option value="active">Ativo</option>
                 <option value="inactive">Inativo</option>
@@ -220,7 +220,7 @@ const SupplierManagement: React.FC = () => {
                 type="text"
                 value={formData.address}
                 onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
               />
             </div>
 
@@ -235,7 +235,7 @@ const SupplierManagement: React.FC = () => {
                     products: e.target.value.split(',').map(p => p.trim()).filter(Boolean)
                   }))
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
               />
             </div>
 
@@ -243,14 +243,14 @@ const SupplierManagement: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200"
+                className="px-4 py-2.5 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50 transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
               >
                 {isSubmitting ? 'Salvando...' : editingSupplier ? 'Atualizar' : 'Salvar'}
               </button>
@@ -261,22 +261,29 @@ const SupplierManagement: React.FC = () => {
 
       {/* Lista de Fornecedores */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {suppliers.map(supplier => (
-          <div key={supplier.id} className="bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-            <div className="p-6">
+        {suppliers.map((supplier, index) => (
+          <div 
+            key={supplier.id} 
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-blue-100 transition-all duration-300 hover:-translate-y-1 animate-fade-in-up group"
+            style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
+          >
+            <div className="p-4 sm:p-6">
               <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center">
-                  <Building2 className="w-8 h-8 text-blue-600 mr-3" />
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800">{supplier.name}</h3>
-                    <p className="text-sm text-gray-500">{formatCNPJ(supplier.cnpj)}</p>
+                <div className="flex items-center min-w-0 flex-1">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-3 shadow-md shadow-blue-500/25 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                    <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors truncate">{supplier.name}</h3>
+                    <p className="text-xs sm:text-sm text-gray-500">{formatCNPJ(supplier.cnpj)}</p>
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  <button onClick={() => handleEdit(supplier)} className="text-gray-400 hover:text-blue-600">
+                {/* Botões sempre visíveis em mobile */}
+                <div className="flex space-x-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0 ml-2">
+                  <button onClick={() => handleEdit(supplier)} className="p-2 text-blue-500 md:text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Editar">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDelete(supplier.id, supplier.name)} className="text-gray-400 hover:text-red-600">
+                  <button onClick={() => handleDelete(supplier.id, supplier.name)} className="p-2 text-red-500 md:text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Excluir">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -286,36 +293,36 @@ const SupplierManagement: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Status:</span>
                   <span
-                    className={`px-2 py-1 text-xs font-medium rounded-full ${
+                    className={`px-3 py-1 text-xs font-medium rounded-full ${
                       supplier.status === 'active'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
+                        ? 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 text-green-700 border border-green-200'
+                        : 'bg-gradient-to-r from-red-500/10 to-rose-500/10 text-red-700 border border-red-200'
                     }`}
                   >
                     {supplier.status === 'active' ? 'Ativo' : 'Inativo'}
                   </span>
                 </div>
 
-                <div className="flex items-center">
-                  <Mail className="w-4 h-4 text-gray-400 mr-2" />
+                <div className="flex items-center group/item">
+                  <Mail className="w-4 h-4 text-gray-400 mr-2 group-hover/item:text-blue-500 transition-colors" />
                   <span className="text-sm text-gray-700">{supplier.email}</span>
                 </div>
 
-                <div className="flex items-center">
-                  <Phone className="w-4 h-4 text-gray-400 mr-2" />
+                <div className="flex items-center group/item">
+                  <Phone className="w-4 h-4 text-gray-400 mr-2 group-hover/item:text-blue-500 transition-colors" />
                   <span className="text-sm text-gray-700">{formatPhone(supplier.phone)}</span>
                 </div>
 
                 {supplier.contactPerson && (
-                  <div className="flex items-center">
-                    <User className="w-4 h-4 text-gray-400 mr-2" />
+                  <div className="flex items-center group/item">
+                    <User className="w-4 h-4 text-gray-400 mr-2 group-hover/item:text-blue-500 transition-colors" />
                     <span className="text-sm text-gray-700">{supplier.contactPerson}</span>
                   </div>
                 )}
 
                 {supplier.address && (
-                  <div className="flex items-start">
-                    <MapPin className="w-4 h-4 text-gray-400 mr-2 mt-0.5" />
+                  <div className="flex items-start group/item">
+                    <MapPin className="w-4 h-4 text-gray-400 mr-2 mt-0.5 group-hover/item:text-blue-500 transition-colors" />
                     <span className="text-sm text-gray-700">{supplier.address}</span>
                   </div>
                 )}
@@ -344,9 +351,11 @@ const SupplierManagement: React.FC = () => {
       </div>
 
       {suppliers.length === 0 && (
-        <div className="bg-white rounded-lg shadow-sm p-12 text-center border border-gray-100">
-          <Building2 className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum fornecedor cadastrado</h3>
+        <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-gray-100 animate-fade-in-up">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Building2 className="w-8 h-8 text-blue-500" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhum fornecedor cadastrado</h3>
           <p className="text-gray-500">Cadastre o primeiro fornecedor para começar a gerenciar cotações.</p>
         </div>
       )}

@@ -553,31 +553,33 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
       <div className="space-y-6">
         {/* Filtros e Ações */}
-      <div className="bg-white rounded-2xl shadow-md p-6 border border-gray-100">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6 border border-gray-100 animate-fade-in-up">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {/* Campo de busca */}
-          <div className="relative col-span-1">
+          <div className="relative col-span-1 sm:col-span-2 lg:col-span-1">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
               type="text"
               placeholder="Buscar produtos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
             />
           </div>
 
           {/* Botão de exportação */}
           <button
             onClick={exportToExcel}
-            className="w-full bg-green-600 hover:bg-green-700 text-white py-2 px-4 rounded-lg text-sm transition-colors"
+            className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white py-2.5 px-4 rounded-xl text-sm transition-all duration-200 shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 font-medium"
           >
-            Exportar Relatório (Excel)
+            <span className="hidden sm:inline">Exportar Relatório (Excel)</span>
+            <span className="sm:hidden">Exportar Excel</span>
           </button>
 
           {/* Input de importação */}
-          <label className="relative w-full flex items-center justify-center border border-dashed border-gray-300 rounded-lg px-4 py-2 text-sm text-gray-600 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors">
-            Importar Arquivo
+          <label className="relative w-full flex items-center justify-center border-2 border-dashed border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-600 bg-gray-50/50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all duration-200 font-medium">
+            <span className="hidden sm:inline">Importar Arquivo</span>
+            <span className="sm:hidden">Importar</span>
             <input
               type="file"
               accept=".csv, .xlsx"
@@ -590,9 +592,9 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value as any)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
           >
-            <option value="all">Todas as Categorias</option>
+            <option value="all">Todas Categorias</option>
             {categories.map(category => (
               <option key={category} value={category}>
                 {category === 'general'
@@ -608,9 +610,9 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
           >
-            <option value="all">Todos os Status</option>
+            <option value="all">Todos Status</option>
             <option value="active">Ativo</option>
             <option value="low-stock">Estoque Baixo</option>
             <option value="expired">Vencido</option>
@@ -620,29 +622,36 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         {/* Resultado da filtragem */}
         <div className="mt-4 flex items-center text-sm text-gray-500">
           <Filter className="w-4 h-4 mr-2" />
-          {filteredProducts.length} produto(s) encontrado(s)
+          <span className="font-medium">{filteredProducts.length}</span>&nbsp;produto(s) encontrado(s)
         </div>
       </div>
 
       {/* Products Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredProducts.map((product) => (
-          <div key={product.id} className="bg-white rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition-shadow">
-            <div className="p-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+        {filteredProducts.map((product, index) => (
+          <div 
+            key={product.id} 
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-blue-200 transition-all duration-300 md:hover:-translate-y-1 animate-fade-in-up group"
+            style={{ animationDelay: `${Math.min(index * 0.05, 0.3)}s` }}
+          >
+            <div className="p-4 sm:p-6">
               {/* Cabeçalho */}
               <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center">
-                  <Package className="w-8 h-8 text-blue-600 mr-3" />
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800">{product.name}</h3>
-                    <p className="text-sm text-gray-500">{product.code}</p>
+                <div className="flex items-center min-w-0 flex-1">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-3 shadow-md shadow-blue-500/25 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
+                    <Package className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors truncate">{product.name}</h3>
+                    <p className="text-xs sm:text-sm text-gray-500">{product.code}</p>
                   </div>
                 </div>
-                <div className="flex space-x-2">
-                  <button onClick={() => handleEditClick(product)} className="text-gray-400 hover:text-blue-600" title="Editar produto">
+                {/* Botões sempre visíveis em mobile, hover em desktop */}
+                <div className="flex space-x-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0 ml-2">
+                  <button onClick={() => handleEditClick(product)} className="p-2 text-blue-500 md:text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Editar produto">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDeleteProduct(product.id)} className="text-red-600 hover:text-red-800">
+                  <button onClick={() => handleDeleteProduct(product.id)} className="p-2 text-red-500 md:text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Excluir produto">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
@@ -689,18 +698,18 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
               {/* Alerta de Estoque Baixo */}
               {product.status === 'low-stock' && (
-                <div className="flex items-center justify-center p-2 bg-orange-50 rounded-lg mt-4">
-                  <AlertTriangle className="w-4 h-4 text-orange-500 mr-2" />
-                  <span className="text-sm text-orange-700">Estoque abaixo do mínimo ({product.minStock})</span>
+                <div className="flex items-center justify-center p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl mt-4 border border-orange-100">
+                  <AlertTriangle className="w-4 h-4 text-orange-500 mr-2 animate-pulse" />
+                  <span className="text-sm text-orange-700 font-medium">Estoque abaixo do mínimo ({product.minStock})</span>
                 </div>
               )}
 
               {/* Ações */}
-              <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="mt-4 pt-4 border-t border-gray-100">
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setSelectedProduct(product)}
-                    className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center text-sm"
+                    className="px-3 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 flex items-center justify-center text-sm font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 transition-all duration-200"
                     title="Adicionar estoque"
                   >
                     <Plus className="w-4 h-4 mr-1" /> Adicionar
@@ -708,7 +717,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   <button
                     onClick={() => handleRemoveStock(product)}
                     disabled={product.quantity === 0}
-                    className="px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm"
+                    className="px-3 py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30 transition-all duration-200"
                     title="Retirar estoque"
                   >
                     <Minus className="w-4 h-4 mr-1" /> Retirar
@@ -721,7 +730,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       </div>
 
       {filteredProducts.length === 0 && (
-        <div className="bg-white rounded-lg shadow-sm p-12 text-center border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-gray-100 animate-fade-in">
           <Package className="w-12 h-12 mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum produto encontrado</h3>
           <p className="text-gray-500">Tente ajustar os filtros de busca ou adicione novos produtos ao sistema.</p>

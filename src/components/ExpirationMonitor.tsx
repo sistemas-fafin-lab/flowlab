@@ -160,21 +160,25 @@ const ExpirationMonitor: React.FC = () => {
       />
 
       {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-gray-800">Controle de Validade</h2>
-        <p className="text-gray-600">Monitoramento de produtos próximos ao vencimento</p>
+      <div className="animate-fade-in-up">
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Controle de Validade</h2>
+        <p className="text-gray-500">Monitoramento de produtos próximos ao vencimento</p>
       </div>
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {stats.map((stat, index) => (
-          <div key={index} className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+          <div 
+            key={index} 
+            className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 hover:shadow-lg hover:border-blue-100 transition-all duration-300 animate-fade-in-up group"
+            style={{ animationDelay: `${index * 0.1}s` }}
+          >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-                <p className={`text-2xl font-bold ${stat.textColor} mt-1`}>{stat.value}</p>
+                <p className="text-sm font-medium text-gray-500">{stat.label}</p>
+                <p className={`text-3xl font-bold ${stat.textColor} mt-1`}>{stat.value}</p>
               </div>
-              <div className={`p-3 rounded-lg ${stat.color}`}>
+              <div className={`p-3 rounded-xl ${stat.color} shadow-lg group-hover:scale-110 transition-transform duration-300`}>
                 <Calendar className="w-6 h-6 text-white" />
               </div>
             </div>
@@ -183,14 +187,14 @@ const ExpirationMonitor: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Prazo</label>
             <select
               value={daysFilter}
               onChange={(e) => setDaysFilter(parseInt(e.target.value))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
             >
               <option value={7}>Próximos 7 dias</option>
               <option value={15}>Próximos 15 dias</option>
@@ -205,7 +209,7 @@ const ExpirationMonitor: React.FC = () => {
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value as any)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
             >
               <option value="all">Todas as Categorias</option>
               <option value="general">Uso Geral</option>
@@ -214,9 +218,9 @@ const ExpirationMonitor: React.FC = () => {
           </div>
 
           <div className="flex items-end">
-            <div className="flex items-center text-sm text-gray-600">
+            <div className="flex items-center text-sm text-gray-500">
               <Filter className="w-4 h-4 mr-2" />
-              {filteredProducts.length} produto(s) encontrado(s)
+              <span className="font-medium text-gray-700">{filteredProducts.length}</span>&nbsp;produto(s) encontrado(s)
             </div>
           </div>
         </div>
@@ -229,10 +233,15 @@ const ExpirationMonitor: React.FC = () => {
           const isLoading = loading === product.id;
           
           return (
-            <div key={product.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+            <div 
+              key={product.id} 
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:border-blue-100 transition-all duration-300 animate-fade-in-up"
+            >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center">
-                  <Package className="w-6 h-6 text-blue-600 mr-3" />
+                  <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-3 shadow-md shadow-blue-500/25">
+                    <Package className="w-6 h-6 text-white" />
+                  </div>
                   <div>
                     <h3 className="text-lg font-semibold text-gray-800">{product.name}</h3>
                     <p className="text-sm text-gray-500">{product.code}</p>
@@ -300,12 +309,12 @@ const ExpirationMonitor: React.FC = () => {
 
               {/* Action Buttons for Critical/Expired Products */}
               {(expirationInfo.status === 'expired' || expirationInfo.status === 'critical') && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="flex space-x-3">
                     <button
                       onClick={() => handleWriteOff(product.id, product.name)}
                       disabled={isLoading}
-                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                      className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30"
                     >
                       {isLoading ? (
                         <>
@@ -322,7 +331,7 @@ const ExpirationMonitor: React.FC = () => {
                     <button
                       onClick={() => handleRequestReplenishment(product.id, product.name)}
                       disabled={isLoading}
-                      className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                      className="px-4 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl hover:from-orange-600 hover:to-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center font-medium shadow-md shadow-orange-500/25 hover:shadow-lg hover:shadow-orange-500/30"
                     >
                       {isLoading ? (
                         <>
@@ -345,7 +354,7 @@ const ExpirationMonitor: React.FC = () => {
       </div>
 
       {filteredProducts.length === 0 && (
-        <div className="bg-white rounded-lg shadow-sm p-12 text-center border border-gray-100">
+        <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-gray-100 animate-fade-in">
           <Calendar className="w-12 h-12 mx-auto text-gray-400 mb-4" />
           <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum produto encontrado</h3>
           <p className="text-gray-500">

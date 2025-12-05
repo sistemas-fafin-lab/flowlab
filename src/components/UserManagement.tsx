@@ -124,8 +124,10 @@ const UserManagement: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
-        <span className="ml-2 text-gray-600">Carregando usuários...</span>
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
+          <span className="mt-3 text-gray-500 font-medium">Carregando usuários...</span>
+        </div>
       </div>
     );
   }
@@ -141,23 +143,23 @@ const UserManagement: React.FC = () => {
       />
 
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Gerenciamento de Usuários</h2>
-          <p className="text-gray-600">Gerencie perfis e permissões dos usuários do sistema</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Gerenciamento de Usuários</h2>
+          <p className="text-gray-500">Gerencie perfis e permissões dos usuários do sistema</p>
         </div>
       </div>
 
       {/* Add/Edit Form */}
       {showAddForm && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 animate-scale-in">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">
               {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
             </h3>
             <button
               onClick={handleCancel}
-              className="text-gray-400 hover:text-gray-600"
+              className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-xl transition-all duration-200"
             >
               <X className="w-5 h-5" />
             </button>
@@ -173,7 +175,7 @@ const UserManagement: React.FC = () => {
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
                 placeholder="Nome do usuário"
               />
             </div>
@@ -188,7 +190,7 @@ const UserManagement: React.FC = () => {
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 required
                 disabled={!!editingUser} // Não permitir editar email de usuários existentes
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
                 placeholder="email@empresa.com"
               />
             </div>
@@ -201,7 +203,7 @@ const UserManagement: React.FC = () => {
                 value={formData.department}
                 onChange={(e) => handleDepartmentChange(e.target.value as Department)}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
               >
                 {DEPARTMENTS.map(dept => (
                   <option key={dept} value={dept}>{getDepartmentLabel(dept)}</option>
@@ -217,7 +219,7 @@ const UserManagement: React.FC = () => {
                 value={formData.role}
                 onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as UserRole }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
               >
                 <option value="requester">Solicitante</option>
                 <option value="operator">Operador</option>
@@ -229,7 +231,7 @@ const UserManagement: React.FC = () => {
             </div>
 
             <div className="md:col-span-2">
-              <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
                 <h4 className="text-sm font-medium text-blue-800 mb-2">Permissões do Perfil Selecionado:</h4>
                 <div className="text-xs text-blue-700">
                   {formData.role === 'admin' && (
@@ -249,14 +251,14 @@ const UserManagement: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-4 py-2.5 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center"
+                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
               >
                 {isSubmitting ? (
                   <>
@@ -276,35 +278,35 @@ const UserManagement: React.FC = () => {
       )}
 
       {/* Users List */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gradient-to-r from-gray-50 to-slate-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Usuário
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Departamento
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Perfil
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Criado em
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white divide-y divide-gray-100">
               {users.map((user) => (
-                <tr key={user.id} className="hover:bg-gray-50">
+                <tr key={user.id} className="hover:bg-blue-50/50 transition-colors duration-150">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                        <Shield className="w-4 h-4 text-blue-600" />
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-3 shadow-md shadow-blue-500/25">
+                        <Shield className="w-5 h-5 text-white" />
                       </div>
                       <div>
                         <div className="text-sm font-medium text-gray-900">{user.name}</div>
@@ -313,13 +315,13 @@ const UserManagement: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-900">{getDepartmentLabel(user.department)}</span>
+                    <span className="text-sm text-gray-700 font-medium">{getDepartmentLabel(user.department)}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                      user.role === 'admin' ? 'bg-red-100 text-red-800' :
-                      user.role === 'operator' ? 'bg-blue-100 text-blue-800' :
-                      'bg-green-100 text-green-800'
+                    <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                      user.role === 'admin' ? 'bg-gradient-to-r from-red-100 to-rose-100 text-red-800' :
+                      user.role === 'operator' ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800' :
+                      'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800'
                     }`}>
                       {getRoleLabel(user.role)}
                     </span>
@@ -330,7 +332,7 @@ const UserManagement: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
                       onClick={() => handleEdit(user)}
-                      className="text-blue-600 hover:text-blue-900 flex items-center"
+                      className="text-blue-600 hover:text-blue-800 flex items-center px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-all duration-200"
                     >
                       <Edit className="w-4 h-4 mr-1" />
                       Editar

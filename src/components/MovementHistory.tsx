@@ -78,14 +78,14 @@ const MovementHistory: React.FC = () => {
       />
 
       {/* Header and Add Button */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Histórico de Movimentações</h2>
-          <p className="text-gray-600">Controle todas as saídas de produtos do estoque</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Histórico de Movimentações</h2>
+          <p className="text-gray-500">Controle todas as saídas de produtos do estoque</p>
         </div>
         <button
           onClick={() => setShowAddMovement(!showAddMovement)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+          className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
         >
           <ArrowUpDown className="w-4 h-4 mr-2" />
           Nova Movimentação
@@ -94,7 +94,7 @@ const MovementHistory: React.FC = () => {
 
       {/* Add Movement Form */}
       {showAddMovement && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 animate-scale-in">
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Registrar Nova Saída</h3>
           <form onSubmit={handleSubmitMovement} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
@@ -103,7 +103,7 @@ const MovementHistory: React.FC = () => {
                 value={newMovement.productId}
                 onChange={(e) => setNewMovement(prev => ({ ...prev, productId: e.target.value }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
               >
                 <option value="">Selecione um produto</option>
                 {products.filter(p => p.quantity > 0).map(product => (
@@ -184,14 +184,14 @@ const MovementHistory: React.FC = () => {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Motivo</label>
             <select
               value={filterReason}
               onChange={(e) => setFilterReason(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
             >
               <option value="all">Todos os Motivos</option>
 
@@ -208,24 +208,24 @@ const MovementHistory: React.FC = () => {
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
             />
           </div>
 
           <div className="flex items-end">
-            <div className="flex items-center text-sm text-gray-600">
+            <div className="flex items-center text-sm text-gray-500">
               <Filter className="w-4 h-4 mr-2" />
-              {filteredMovements.length} movimentação(ões) encontrada(s)
+              <span className="font-medium text-gray-700">{filteredMovements.length}</span>&nbsp;movimentação(ões) encontrada(s)
             </div>
           </div>
         </div>
       </div>
 
       {/* Movements Table */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
+            <thead className="bg-gradient-to-r from-gray-50 to-slate-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Produto

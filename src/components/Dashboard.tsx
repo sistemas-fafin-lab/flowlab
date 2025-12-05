@@ -16,25 +16,45 @@ import { useInventory } from '../hooks/useInventory';
 import PurchaseComparison from './PurchaseComparison';
 import DetailModal from './DetailModal';
 
+// Skeleton Component para loading
+const SkeletonCard: React.FC = () => (
+  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-pulse">
+    <div className="flex items-center justify-between">
+      <div className="space-y-3 flex-1">
+        <div className="h-4 bg-gray-200 rounded w-24 skeleton"></div>
+        <div className="h-8 bg-gray-200 rounded w-16 skeleton"></div>
+      </div>
+      <div className="w-12 h-12 bg-gray-200 rounded-xl skeleton"></div>
+    </div>
+  </div>
+);
+
 const Dashboard: React.FC = () => {
   const { getDashboardData, getFinancialMetrics, products, movements, loading, error } = useInventory();
   const [selectedDetail, setSelectedDetail] = useState<string | null>(null);
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
-        <span className="ml-2 text-gray-600">Carregando dados...</span>
+      <div className="space-y-6 animate-fade-in">
+        <div className="flex items-center space-x-3 mb-8">
+          <div className="w-48 h-8 bg-gray-200 rounded skeleton"></div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => <SkeletonCard key={i} />)}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {[...Array(3)].map((_, i) => <SkeletonCard key={i} />)}
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+      <div className="bg-red-50 border border-red-200 rounded-xl p-6 animate-fade-in">
         <div className="flex items-center">
-          <AlertTriangle className="w-5 h-5 text-red-500 mr-2" />
-          <span className="text-red-700">Erro ao carregar dados: {error}</span>
+          <AlertTriangle className="w-6 h-6 text-red-500 mr-3" />
+          <span className="text-red-700 font-medium">Erro ao carregar dados: {error}</span>
         </div>
       </div>
     );
@@ -592,23 +612,24 @@ const Dashboard: React.FC = () => {
 
   return (
     <>
-      <div className="space-y-6">
+      <div className="space-y-6 animate-fade-in">
         {/* Stats Grid Básicos */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat) => {
+        {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <div 
               key={stat.name} 
-              className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 cursor-pointer hover:shadow-md transition-shadow"
+              className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
+              style={{ animationDelay: `${index * 0.05}s` }}
               onClick={() => setSelectedDetail(stat.detailKey)}
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">{stat.name}</p>
-                  <p className={`text-2xl font-bold ${stat.textColor} mt-1`}>{stat.value}</p>
+                  <p className="text-sm font-medium text-gray-500">{stat.name}</p>
+                  <p className={`text-3xl font-bold ${stat.textColor} mt-2`}>{stat.value}</p>
                 </div>
-                <div className={`p-3 rounded-lg ${stat.color}`}>
+                <div className={`p-4 rounded-2xl ${stat.color} shadow-lg`}>
                   <Icon className="w-6 h-6 text-white" />
                 </div>
               </div>
@@ -619,19 +640,20 @@ const Dashboard: React.FC = () => {
 
       {/* Stats Financeiros */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {financialStats.map((stat) => {
+        {financialStats.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <div 
               key={stat.name} 
-              className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 cursor-pointer hover:shadow-md transition-shadow"
+              className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
+              style={{ animationDelay: `${(index + 4) * 0.05}s` }}
               onClick={() => setSelectedDetail(stat.detailKey)}
             >
               <div className="flex items-center justify-between mb-4">
-                <div className={`p-3 rounded-lg ${stat.color}`}>
+                <div className={`p-3 rounded-xl ${stat.color} shadow-lg`}>
                   <Icon className="w-6 h-6 text-white" />
                 </div>
-                <div className="flex items-center space-x-1">
+                <div className="flex items-center space-x-1 px-3 py-1 rounded-full bg-gray-50">
                   {getTrendIcon(stat.change)}
                   <span className={`text-sm font-medium ${getTrendColor(stat.change)}`}>
                     {formatPercentage(stat.change)}
@@ -639,9 +661,9 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
               <div>
-                <p className="text-sm font-medium text-gray-600">{stat.name}</p>
+                <p className="text-sm font-medium text-gray-500">{stat.name}</p>
                 <p className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</p>
-                <p className={`text-sm mt-1 ${getTrendColor(stat.change)}`}>
+                <p className={`text-sm mt-2 ${getTrendColor(stat.change)}`}>
                   {stat.change >= 0 ? '+' : ''}{stat.changeValue} vs mês anterior
                 </p>
               </div>
@@ -653,7 +675,7 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Categories Chart */}
         <div
-          className="bg-white rounded-lg shadow-sm p-6 border border-gray-100 cursor-pointer hover:shadow-md transition-shadow"
+          className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 cursor-pointer hover:shadow-lg transition-all duration-300 hover-lift"
           onClick={() => setSelectedDetail('categories')}
         >
           <h3 className="text-lg font-semibold text-gray-800 mb-4">Produtos por Categoria</h3>

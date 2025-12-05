@@ -6,7 +6,7 @@ import {
 } from '../types';
 
 /**
- * Normaliza uma data para 00:00:00.000
+ * Normaliza uma data para 00:00:00.000 no fuso horário local
  * Se a data não for válida, retorna a data atual normalizada
  */
 export function normalizeDate(date: Date | string | null | undefined): Date {
@@ -15,7 +15,13 @@ export function normalizeDate(date: Date | string | null | undefined): Date {
   if (!date) {
     normalizedDate = new Date();
   } else if (typeof date === 'string') {
-    normalizedDate = new Date(date);
+    // Se for string no formato YYYY-MM-DD, parse como data local
+    // Adiciona T00:00:00 para garantir que seja interpretada no fuso local
+    if (/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      normalizedDate = new Date(date + 'T00:00:00');
+    } else {
+      normalizedDate = new Date(date);
+    }
   } else {
     normalizedDate = new Date(date);
   }

@@ -10,10 +10,9 @@ import { useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
-import RequestChat from './RequestChat';
+import RequestChat, { ChatButton } from './RequestChat';
 import SignatureModal from './SignatureModal';
 import SignatureViewModal from './SignatureViewModal';
-import { MessageSquare } from 'lucide-react';
 import { PenTool } from 'lucide-react';
 
 
@@ -483,15 +482,15 @@ const handleCompleteRequest = async (request: Request) => {
       />
 
       {/* Header and Add Button */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold text-gray-800">Gerenciamento de Solicitações</h2>
-          <p className="text-gray-600">Controle de requisições para retirada de materiais</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Gerenciamento de Solicitações</h2>
+          <p className="text-gray-500">Controle de requisições para retirada de materiais</p>
         </div>
         <div className="flex space-x-3">
           <button
             onClick={generateReport}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+            className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30"
           >
             <Download className="w-4 h-4 mr-2" />
             Relatório
@@ -500,7 +499,7 @@ const handleCompleteRequest = async (request: Request) => {
             onClick={() => {
               handleNewRequestClick();
             }}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center transition-colors"
+            className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 flex items-center transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
           >
             <Plus className="w-4 h-4 mr-2" />
             Nova Solicitação
@@ -510,7 +509,7 @@ const handleCompleteRequest = async (request: Request) => {
 
       {/* Add Request Form */}
       {showAddRequest && (
-        <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 animate-scale-in">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800">
               Nova {typeLabels[newRequest.type]}
@@ -761,13 +760,13 @@ const handleCompleteRequest = async (request: Request) => {
               <button
                 type="button"
                 onClick={() => setShowAddRequest(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-4 py-2.5 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
               >
                 Enviar Solicitação
               </button>
@@ -778,46 +777,46 @@ const handleCompleteRequest = async (request: Request) => {
 
       {/* Type Selection Modal */}
       {showTypeSelectionModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="px-6 py-4 border-b border-gray-200">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in">
+            <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="text-xl font-semibold text-gray-800">Tipo de Solicitação</h2>
-              <p className="text-sm text-gray-600 mt-1">Selecione o tipo de solicitação que deseja criar</p>
+              <p className="text-sm text-gray-500 mt-1">Selecione o tipo de solicitação que deseja criar</p>
             </div>
 
             <div className="p-6 space-y-4">
               <button
                 onClick={() => handleTypeSelection('SC')}
-                className="w-full p-4 border-2 border-purple-200 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-colors text-left"
+                className="w-full p-4 border-2 border-purple-200 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 text-left group hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="flex items-center">
-                  <div className="w-3 h-3 bg-purple-500 rounded-full mr-3"></div>
+                  <div className="w-4 h-4 bg-gradient-to-br from-purple-500 to-violet-500 rounded-full mr-3 group-hover:scale-110 transition-transform"></div>
                   <div>
                     <h3 className="font-semibold text-gray-800">Solicitação de Compra (SC)</h3>
-                    <p className="text-sm text-gray-600">Para produtos que precisam ser comprados</p>
-                    <p className="text-xs text-green-600 mt-1">✓ Sempre disponível</p>
+                    <p className="text-sm text-gray-500">Para produtos que precisam ser comprados</p>
+                    <p className="text-xs text-green-600 mt-1 font-medium">✓ Sempre disponível</p>
                   </div>
                 </div>
               </button>
 
               <button
                 onClick={() => handleTypeSelection('SM')}
-                className="w-full p-4 border-2 border-blue-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-colors text-left"
+                className="w-full p-4 border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 text-left group hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="flex items-center">
-                  <div className="w-3 h-3 bg-blue-500 rounded-full mr-3"></div>
+                  <div className="w-4 h-4 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full mr-3 group-hover:scale-110 transition-transform"></div>
                   <div>
                     <h3 className="font-semibold text-gray-800">Solicitação de Material (SM)</h3>
-                    <p className="text-sm text-gray-600">Para retirada de produtos do estoque</p>
+                    <p className="text-sm text-gray-500">Para retirada de produtos do estoque</p>
                     {!isPeriodOpen && userProfile?.role === 'requester' && (
-                      <p className="text-xs text-red-600 mt-1">⚠ Período fechado</p>
+                      <p className="text-xs text-red-600 mt-1 font-medium">⚠ Período fechado</p>
                     )}
                   </div>
                 </div>
               </button>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end">
+            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
               <button
                 onClick={() => setShowTypeSelectionModal(false)}
                 className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
@@ -883,11 +882,17 @@ const handleCompleteRequest = async (request: Request) => {
 
       {/* Requests List */}
       <div className="space-y-4">
-        {filteredRequests.map((request) => (
-          <div key={request.id} className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+        {filteredRequests.map((request, index) => (
+          <div 
+            key={request.id} 
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:border-blue-100 transition-all duration-300 animate-fade-in-up"
+            style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
+          >
             <div className="flex items-start justify-between mb-4">
               <div className="flex items-center">
-                <FileText className="w-6 h-6 text-blue-600 mr-3" />
+                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-3 shadow-md shadow-blue-500/25">
+                  <FileText className="w-6 h-6 text-white" />
+                </div>
                 <div>
                   <h3 className="text-lg font-semibold text-gray-800">{request.id}</h3>
                   <p className="text-sm text-gray-500">Solicitado em {request.requestDate}</p>
@@ -911,9 +916,10 @@ const handleCompleteRequest = async (request: Request) => {
               <h4 className="text-sm font-medium text-gray-700 mb-2">Produtos Solicitados:</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                 {request.items.map((item, index) => (
-                  <div key={index} className="flex items-center p-2 bg-gray-50 rounded">
-                    <Package className="w-4 h-4 text-gray-400 mr-2" />
-                    <span className="text-sm text-gray-700">{item.productName} - {item.quantity} unidades</span>
+                  <div key={index} className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                    <Package className="w-4 h-4 text-blue-500 mr-2" />
+                    <span className="text-sm text-gray-700 font-medium">{item.productName}</span>
+                    <span className="text-sm text-gray-500 ml-1">- {item.quantity} un.</span>
                   </div>
                 ))}
               </div>
@@ -956,14 +962,12 @@ const handleCompleteRequest = async (request: Request) => {
 
             <div className="mb-4 space-y-3">
               <p className="text-sm text-gray-600">Justificativa:</p>
-              <div className="text-gray-800 bg-gray-200 p-3 rounded-lg">{renderFormattedText(request.reason)}</div>
-               <button
-                  onClick={() => setChatRequestId(request.id)}
-                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center"
-                >
-                  <MessageSquare className="w-4 h-4 mr-2" />
-                  Chat
-                </button>
+              <div className="text-gray-800 bg-gray-100 p-4 rounded-xl">{renderFormattedText(request.reason)}</div>
+              <ChatButton
+                requestId={request.id}
+                userId={user?.id || ''}
+                onClick={() => setChatRequestId(request.id)}
+              />
             </div>
 
             {/* Action Buttons */}

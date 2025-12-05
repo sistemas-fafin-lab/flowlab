@@ -40,29 +40,31 @@ const InputDialog: React.FC<InputDialogProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60] animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in">
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center">
-            <MessageSquare className="w-6 h-6 text-blue-600 mr-3" />
+            <div className="p-2 rounded-full bg-blue-50 mr-3">
+              <MessageSquare className="w-5 h-5 text-blue-600" />
+            </div>
             <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
           </div>
           <button
             onClick={handleCancel}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1.5 rounded-full transition-all duration-200 hover:rotate-90"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-6 py-4">
-          <p className="text-gray-600 mb-4">{message}</p>
+        <div className="px-6 py-5">
+          <p className="text-gray-600 mb-4 leading-relaxed">{message}</p>
           <input
             type="text"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             placeholder={placeholder}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-gray-50 focus:bg-white"
             onKeyPress={(e) => {
               if (e.key === 'Enter') {
                 handleConfirm();
@@ -72,17 +74,17 @@ const InputDialog: React.FC<InputDialogProps> = ({
           />
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+        <div className="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
           <button
             onClick={handleCancel}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className="px-5 py-2.5 text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 font-medium"
           >
             {cancelText}
           </button>
           <button
             onClick={handleConfirm}
             disabled={required && !inputValue.trim()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-xl disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 font-medium shadow-lg shadow-blue-500/25 hover-lift"
           >
             {confirmText}
           </button>

@@ -27,46 +27,57 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   const getButtonStyles = () => {
     switch (type) {
       case 'danger':
-        return 'bg-red-600 hover:bg-red-700 text-white';
+        return 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg shadow-red-500/25';
       case 'warning':
-        return 'bg-yellow-600 hover:bg-yellow-700 text-white';
+        return 'bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white shadow-lg shadow-yellow-500/25';
       case 'info':
-        return 'bg-blue-600 hover:bg-blue-700 text-white';
+        return 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg shadow-blue-500/25';
       default:
-        return 'bg-gray-600 hover:bg-gray-700 text-white';
+        return 'bg-gradient-to-r from-gray-600 to-gray-700 hover:from-gray-700 hover:to-gray-800 text-white';
+    }
+  };
+
+  const getIconColor = () => {
+    switch (type) {
+      case 'danger': return 'text-red-500';
+      case 'warning': return 'text-yellow-500';
+      case 'info': return 'text-blue-500';
+      default: return 'text-yellow-500';
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in">
+        <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
           <div className="flex items-center">
-            <AlertTriangle className="w-6 h-6 text-yellow-600 mr-3" />
+            <div className={`p-2 rounded-full bg-gray-50 mr-3 ${getIconColor()}`}>
+              <AlertTriangle className="w-5 h-5" />
+            </div>
             <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
           </div>
           <button
             onClick={onCancel}
-            className="text-gray-400 hover:text-gray-600"
+            className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 p-1.5 rounded-full transition-all duration-200 hover:rotate-90"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="px-6 py-4">
-          <p className="text-gray-600">{message}</p>
+        <div className="px-6 py-5">
+          <p className="text-gray-600 leading-relaxed">{message}</p>
         </div>
 
-        <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+        <div className="px-6 py-4 bg-gray-50 rounded-b-2xl flex justify-end space-x-3">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+            className="px-5 py-2.5 text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 hover:border-gray-300 transition-all duration-200 font-medium"
           >
             {cancelText}
           </button>
           <button
             onClick={onConfirm}
-            className={`px-4 py-2 rounded-lg transition-colors ${getButtonStyles()}`}
+            className={`px-5 py-2.5 rounded-xl transition-all duration-200 font-medium hover-lift ${getButtonStyles()}`}
           >
             {confirmText}
           </button>
