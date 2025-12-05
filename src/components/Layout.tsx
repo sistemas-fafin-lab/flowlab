@@ -17,7 +17,8 @@ import {
   Users,
   Shield,
   Building2,
-  Calculator
+  Calculator,
+  DollarSign
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission, getRoleLabel } from '../utils/permissions';
@@ -71,6 +72,12 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       name: 'Solicitações', 
       href: '/requests', 
       icon: FileText,
+      permission: 'canViewRequests'
+    },
+    { 
+      name: 'Pagamentos', 
+      href: '/payment-requests', 
+      icon: DollarSign,
       permission: 'canViewRequests'
     },
     { 

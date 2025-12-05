@@ -269,3 +269,93 @@ export interface DepartmentReport {
   pendingRequests: number;
   totalValue: number;
 }
+
+// Payment Request types
+export type PaymentRequestType = 
+  | 'NOTA_FISCAL'
+  | 'BOLETO'
+  | 'REEMBOLSO'
+  | 'ADIANTAMENTO'
+  | 'OUTROS';
+
+export type PaymentMethod = 
+  | 'PIX'
+  | 'TED'
+  | 'BOLETO'
+  | 'CARTAO_CREDITO'
+  | 'CARTAO_DEBITO'
+  | 'DINHEIRO';
+
+export type PaymentRequestStatus = 
+  | 'pending'
+  | 'approved'
+  | 'rejected'
+  | 'paid'
+  | 'cancelled';
+
+export interface PaymentRequest {
+  id: string;
+  codigo: string;
+  codigoCompacto: string;
+  tipoSolicitacao: PaymentRequestType;
+  documentoNumero: string;
+  fornecedor: string;
+  cpfCnpj: string;
+  valorTotal: number;
+  formaPagamento: PaymentMethod;
+  dadosPagamento: string;
+  descricaoDetalhada: string;
+  solicitadoPor: string;
+  autorizadoPor?: string;
+  dataPagamento: string;
+  emailUsuario: string;
+  department?: string;
+  status: PaymentRequestStatus;
+  pdfUrl?: string;
+  createdAt: string;
+  updatedAt: string;
+  approvedBy?: string;
+  approvalDate?: string;
+  rejectionReason?: string;
+}
+
+export interface PaymentRequestFormValues {
+  tipoSolicitacao: PaymentRequestType;
+  documentoNumero: string;
+  fornecedor: string;
+  cpfCnpj: string;
+  valorTotal: number;
+  formaPagamento: PaymentMethod;
+  dadosPagamento: string;
+  descricaoDetalhada: string;
+  solicitadoPor: string;
+  autorizadoPor: string;
+  dataPagamento: Date | string;
+  emailUsuario: string;
+}
+
+export interface PaymentDateValidation {
+  valid: boolean;
+  date?: Date;
+  suggestedDate?: Date;
+  message?: string;
+}
+
+export interface PaymentRequestPayload {
+  codigo: string;
+  codigoCompacto: string;
+  tipoSolicitacao: PaymentRequestType;
+  documentoNumero: string;
+  fornecedor: string;
+  cpfCnpj: string;
+  valorTotal: number;
+  formaPagamento: PaymentMethod;
+  dadosPagamento: string;
+  descricaoDetalhada: string;
+  solicitadoPor: string;
+  autorizadoPor: string;
+  dataPagamento: string;
+  emailUsuario: string;
+  department: string;
+  status: PaymentRequestStatus;
+}

@@ -19,6 +19,7 @@ import RequestPeriodConfig from './components/RequestPeriodConfig';
 import ResetPassword from './components/ResetPassword';
 import InputDialog from './components/InputDialog';
 import Home from './components/Home';
+import PaymentRequestManagement from './components/PaymentRequestManagement';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ 
@@ -158,6 +159,14 @@ function App() {
                     element={
                       <ProtectedRoute permission="canConfigureRequestPeriods" userRole={userRole}>
                         <RequestPeriodConfig />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path="/payment-requests"
+                    element={
+                      <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+                        <PaymentRequestManagement />
                       </ProtectedRoute>
                     }
                   />
