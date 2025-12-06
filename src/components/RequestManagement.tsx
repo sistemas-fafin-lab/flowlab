@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List } from 'lucide-react';
+import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
@@ -509,141 +509,227 @@ const handleCompleteRequest = async (request: Request) => {
 
       {/* Add Request Form */}
       {showAddRequest && (
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 animate-scale-in">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">
-              Nova {typeLabels[newRequest.type]}
-            </h3>
-            <span className={`px-3 py-1 text-sm font-medium rounded-full ${typeColors[newRequest.type]}`}>
-              {newRequest.type}
-            </span>
+        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-scale-in">
+          {/* Header do formulário */}
+          <div className={`px-6 py-4 ${newRequest.type === 'SC' ? 'bg-gradient-to-r from-purple-500 to-violet-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mr-3">
+                  <FileText className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">
+                    Nova {typeLabels[newRequest.type]}
+                  </h3>
+                  <p className="text-sm text-white/70">Preencha os dados abaixo</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="px-3 py-1.5 text-sm font-medium rounded-full bg-white/20 text-white backdrop-blur-sm">
+                  {newRequest.type}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAddRequest(false)}
+                  className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-xl transition-all duration-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           </div>
           
+          <div className="p-6">
+          
 {/* Busca e Adição de Produtos */}
-<div className="mb-6 p-4 bg-gray-50 rounded-lg">
-  <h4 className="text-md font-medium text-gray-700 mb-3">Adicionar Produtos</h4>
+<div className="mb-6">
+  <div className="flex items-center mb-4">
+    <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-3 shadow-md shadow-blue-500/25">
+      <Package className="w-4 h-4 text-white" />
+    </div>
+    <div>
+      <h4 className="text-base font-semibold text-gray-800">Adicionar Produtos</h4>
+      <p className="text-xs text-gray-500">Busque produtos cadastrados ou adicione novos</p>
+    </div>
+  </div>
   
-  <div className="grid grid-cols-1 md:flex md:flex-wrap md:items-center md:gap-4">
-        
-    {/* Campo de busca */}
-    <div className="relative w-full md:flex-1">
-      <label className="block text-sm font-medium text-gray-600 mb-1">Buscar</label>
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+  <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-4 border border-gray-100">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      {/* Campo de busca */}
+      <div className="lg:col-span-5">
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Buscar Produto</label>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+          <input
+            type="text"
+            placeholder="Digite o nome ou código do produto..."
+            value={productSearch}
+            onChange={(e) => setProductSearch(e.target.value)}
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Filtro de categoria */}
+      <div className="lg:col-span-3">
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Categoria</label>
+        <select
+          value={categoryFilter}
+          onChange={(e) => setCategoryFilter(e.target.value as any)}
+          className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 text-sm cursor-pointer"
+        >
+          <option value="all">Todas as Categorias</option>
+          {categories.map(category => (
+            <option key={category} value={category}>
+              {category === 'general'
+                ? 'Uso Geral'
+                : category === 'technical'
+                ? 'Insumos Técnicos'
+                : category
+                    .replace(/-/g, ' ')
+                    .replace(/\b\w/g, c => c.toUpperCase())}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Quantidade */}
+      <div className="lg:col-span-2">
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Quantidade</label>
         <input
-          type="text"
-          placeholder="Buscar produtos..."
-          value={productSearch}
-          onChange={(e) => setProductSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent mt-2"
+          type="number"
+          placeholder="Qtd."
+          value={selectedQuantity}
+          onChange={(e) => setSelectedQuantity(parseInt(e.target.value) || 1)}
+          min="1"
+          className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 text-sm text-center"
         />
       </div>
-    </div>
 
-    {/* Filtro de categoria */}
-    <div className="w-full md:w-52">
-      <label className="block text-sm font-medium text-gray-600 mb-1">Categoria</label>
-      <select
-        value={categoryFilter}
-        onChange={(e) => setCategoryFilter(e.target.value as any)}
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      >
-        <option value="all">Todas as Categorias</option>
-        {categories.map(category => (
-          <option key={category} value={category}>
-            {category === 'general'
-              ? 'Uso Geral'
-              : category === 'technical'
-              ? 'Insumos Técnicos'
-              : category
-                  .replace(/-/g, ' ')
-                  .replace(/\b\w/g, c => c.toUpperCase())}
-          </option>
-        ))}
-      </select>
+      {/* Botão de adicionar */}
+      <div className="lg:col-span-2 flex items-end">
+        <button
+          type="button"
+          onClick={() => {
+            if (matchedProduct) {
+              setSelectedProduct(matchedProduct.id);
+              addProductToRequest();
+            } else {
+              handleAddUnregisteredProduct();
+            }
+          }}
+          disabled={!productSearch.trim()}
+          className={`w-full px-4 py-2.5 text-white rounded-xl flex items-center justify-center transition-all duration-200 font-medium text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+            matchedProduct 
+              ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30' 
+              : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/25 hover:shadow-lg hover:shadow-amber-500/30'
+          }`}
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          <span className="hidden sm:inline">{matchedProduct ? 'Adicionar' : 'Novo'}</span>
+          <span className="sm:hidden">+</span>
+        </button>
+      </div>
     </div>
-
-    {/* Quantidade */}
-    <div className="w-full md:w-auto">
-      <label className="block text-sm font-medium text-gray-600 mb-1">Quantidade</label>
-      <input
-        type="number"
-        placeholder="Quantidade"
-        value={selectedQuantity}
-        onChange={(e) => setSelectedQuantity(parseInt(e.target.value) || 1)}
-        min="1"
-        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-      />
-    </div>
-
-    {/* Botão de adicionar */}
-    <div className="w-full md:w-auto">
-      <button
-        type="button"
-        onClick={() => {
-          if (matchedProduct) {
-            setSelectedProduct(matchedProduct.id);
-            addProductToRequest();
-          } else {
-            handleAddUnregisteredProduct();
-          }
-        }}
-        className={`w-full md:w-auto px-4 py-2 text-white rounded-lg flex items-center justify-center transition-colors ${
-          matchedProduct ? 'bg-green-600 hover:bg-green-700' : 'bg-yellow-600 hover:bg-yellow-700'
-        }`}
-      >
-        <Plus className="w-4 h-4 mr-2" />
-        {matchedProduct ? 'Adicionar' : 'Adicionar Produto Não Cadastrado'}
-      </button>
-    </div>
-     </div>
+    
+    {/* Indicador de produto não cadastrado */}
+    {productSearch && !matchedProduct && (
+      <div className="mt-3 flex items-center p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+        <AlertTriangle className="w-4 h-4 text-amber-500 mr-2 flex-shrink-0" />
+        <p className="text-xs text-amber-700">
+          <span className="font-medium">Produto não encontrado.</span> Ao adicionar, será criado como "produto não cadastrado".
+        </p>
+      </div>
+    )}
             {/* Lista de produtos filtrados */}
-            {productSearch && (
-              <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg">
-                {filteredProducts.map(product => (
+            {productSearch && filteredProducts.length > 0 && (
+              <div className="mt-3 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg">
+                <div className="p-2 bg-gray-50 border-b border-gray-100 sticky top-0">
+                  <p className="text-xs text-gray-500 font-medium">{filteredProducts.length} produto(s) encontrado(s)</p>
+                </div>
+                {filteredProducts.map((product) => (
                   <div
                     key={product.id}
                     onClick={() => {
                       setSelectedProduct(product.id);
                       setProductSearch(product.name);
                     }}
-                    className={`p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-b-0 ${
-                      selectedProduct === product.id ? 'bg-blue-50' : ''
+                    className={`p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-50 last:border-b-0 transition-colors duration-150 ${
+                      selectedProduct === product.id ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''
                     }`}
                   >
                     <div className="flex justify-between items-center">
-                      <div>
-                        <p className="font-medium text-gray-800">{product.name}</p>
-                        <p className="text-sm text-gray-500">{product.code} - {product.category}</p>
+                      <div className="flex items-center">
+                        <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center mr-3">
+                          <Package className="w-4 h-4 text-gray-500" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800 text-sm">{product.name}</p>
+                          <p className="text-xs text-gray-500">{product.code} • {product.category}</p>
+                        </div>
                       </div>
-                      <span className="text-sm text-gray-600">Estoque: {product.quantity} {product.unit}</span>
+                      <div className="text-right">
+                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                          product.quantity > 10 ? 'bg-green-100 text-green-700' : 
+                          product.quantity > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                        }`}>
+                          {product.quantity} {product.unit}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ))}
-                {filteredProducts.length === 0 && (
-                  <div className="p-3 text-center text-gray-500">Nenhum produto encontrado</div>
-                )}
               </div>
             )}
           </div>
+        </div>
 
           {/* Produtos Adicionados */}
           {newRequest.items.length > 0 && (
             <div className="mb-6">
-              <h4 className="text-md font-medium text-gray-700 mb-3">Produtos na Solicitação</h4>
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center">
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-3 shadow-md shadow-green-500/25">
+                    <Check className="w-4 h-4 text-white" />
+                  </div>
+                  <div>
+                    <h4 className="text-base font-semibold text-gray-800">Produtos Selecionados</h4>
+                    <p className="text-xs text-gray-500">{newRequest.items.length} item(ns) adicionado(s)</p>
+                  </div>
+                </div>
+                <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                  {newRequest.items.reduce((acc, item) => acc + item.quantity, 0)} un. total
+                </span>
+              </div>
               <div className="space-y-2">
-                {newRequest.items.map(item => (
-                  <div key={item.id} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
+                {newRequest.items.map((item, index) => (
+                  <div 
+                    key={item.id} 
+                    className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 hover:border-blue-200 transition-all duration-200 group"
+                  >
                     <div className="flex items-center">
-                      <Package className="w-4 h-4 text-blue-600 mr-2" />
+                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mr-3 shadow-sm border border-blue-100">
+                        <span className="text-xs font-bold text-blue-600">{index + 1}</span>
+                      </div>
                       <div>
-                        <p className="font-medium text-gray-800">{item.productName}</p>
-                        <p className="text-sm text-gray-600">Quantidade: {item.quantity}</p>
+                        <p className="font-medium text-gray-800 text-sm">{item.productName}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <span className={`text-xs px-1.5 py-0.5 rounded ${
+                            item.category === 'não cadastrado' 
+                              ? 'bg-amber-100 text-amber-700' 
+                              : 'bg-gray-100 text-gray-600'
+                          }`}>
+                            {item.category === 'não cadastrado' ? '⚠ Não cadastrado' : item.category}
+                          </span>
+                          <span className="text-xs text-gray-500">•</span>
+                          <span className="text-xs font-medium text-blue-600">{item.quantity} un.</span>
+                        </div>
                       </div>
                     </div>
                     <button
                       onClick={() => removeProductFromRequest(item.id)}
-                      className="text-red-600 hover:text-red-800"
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-60 group-hover:opacity-100"
+                      title="Remover produto"
                     >
                       <Trash2 className="w-4 h-4" />
                     </button>
@@ -710,32 +796,42 @@ const handleCompleteRequest = async (request: Request) => {
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Justificativa/Descrição *</label>
-              <div className="border border-gray-300 rounded-lg overflow-hidden">
-                <div className="flex items-center gap-2 p-2 bg-gray-50 border-b border-gray-300">
+              <div className="flex items-center mb-3">
+                <div className="w-8 h-8 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-3 shadow-md shadow-violet-500/25">
+                  <FileText className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <h4 className="text-base font-semibold text-gray-800">Justificativa</h4>
+                  <p className="text-xs text-gray-500">Descreva o motivo da solicitação</p>
+                </div>
+              </div>
+              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:border-gray-300 transition-colors duration-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
+                <div className="flex items-center gap-1 px-3 py-2 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200">
+                  <span className="text-xs text-gray-500 mr-2 font-medium">Formatação:</span>
                   <button
                     type="button"
                     onClick={() => applyFormatting('**', '**')}
-                    className="p-2 hover:bg-gray-200 rounded transition-colors"
-                    title="Negrito"
+                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200 group"
+                    title="Negrito (Ctrl+B)"
                   >
-                    <Bold className="w-4 h-4 text-gray-600" />
+                    <Bold className="w-4 h-4 text-gray-500 group-hover:text-gray-700" />
                   </button>
                   <button
                     type="button"
                     onClick={() => applyFormatting('*', '*')}
-                    className="p-2 hover:bg-gray-200 rounded transition-colors"
-                    title="Itálico"
+                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200 group"
+                    title="Itálico (Ctrl+I)"
                   >
-                    <Italic className="w-4 h-4 text-gray-600" />
+                    <Italic className="w-4 h-4 text-gray-500 group-hover:text-gray-700" />
                   </button>
+                  <div className="w-px h-4 bg-gray-300 mx-1"></div>
                   <button
                     type="button"
                     onClick={insertBulletPoint}
-                    className="p-2 hover:bg-gray-200 rounded transition-colors"
+                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200 group"
                     title="Lista com marcadores"
                   >
-                    <List className="w-4 h-4 text-gray-600" />
+                    <List className="w-4 h-4 text-gray-500 group-hover:text-gray-700" />
                   </button>
                 </div>
                 <textarea
@@ -743,35 +839,56 @@ const handleCompleteRequest = async (request: Request) => {
                   value={newRequest.reason}
                   onChange={(e) => setNewRequest(prev => ({ ...prev, reason: e.target.value }))}
                   required
-                  rows={5}
-                  className="w-full px-3 py-2 border-0 focus:ring-0 focus:outline-none resize-none"
-                  placeholder="Descreva o motivo da solicitação e o detalhamento dos itens..."
+                  rows={4}
+                  className="w-full px-4 py-3 border-0 focus:ring-0 focus:outline-none resize-none text-sm text-gray-700 placeholder-gray-400"
+                  placeholder="Ex: Necessário para o projeto X, conforme demanda do setor Y...&#10;&#10;• Item 1: descrição&#10;• Item 2: descrição"
                 />
+                <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
+                  <span className="text-xs text-gray-400">
+                    {newRequest.reason.length} caracteres
+                  </span>
+                  {newRequest.reason && (
+                    <span className="text-xs text-green-600 font-medium flex items-center">
+                      <Check className="w-3 h-3 mr-1" />
+                      Preenchido
+                    </span>
+                  )}
+                </div>
               </div>
               {newRequest.reason && (
-                <div className="mt-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-xs text-gray-600 mb-1 font-medium">Pré-visualização:</p>
-                  <div className="text-sm text-gray-800">{renderFormattedText(newRequest.reason)}</div>
+                <div className="mt-3 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center mb-2">
+                    <span className="text-xs text-blue-600 font-semibold uppercase tracking-wider">Pré-visualização</span>
+                  </div>
+                  <div className="text-sm text-gray-700 leading-relaxed">{renderFormattedText(newRequest.reason)}</div>
                 </div>
               )}
             </div>
 
-            <div className="md:col-span-2 flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setShowAddRequest(false)}
-                className="px-4 py-2.5 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
-              >
-                Enviar Solicitação
-              </button>
+            <div className="md:col-span-2 flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-100">
+              <p className="text-xs text-gray-500">
+                <span className="text-red-500">*</span> Campos obrigatórios
+              </p>
+              <div className="flex space-x-3 w-full sm:w-auto">
+                <button
+                  type="button"
+                  onClick={() => setShowAddRequest(false)}
+                  className="flex-1 sm:flex-none px-5 py-2.5 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={newRequest.items.length === 0 || !newRequest.reason.trim()}
+                  className="flex-1 sm:flex-none px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-md flex items-center justify-center"
+                >
+                  <FileText className="w-4 h-4 mr-2" />
+                  Enviar Solicitação
+                </button>
+              </div>
             </div>
           </form>
+          </div>
         </div>
       )}
 

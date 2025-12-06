@@ -288,7 +288,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
   isMobile
 }) => {
   return (
-    <div className={`flex flex-col h-full bg-white/95 backdrop-blur-xl ${isMobile ? 'fixed inset-y-0 left-0 w-64 shadow-2xl' : 'border-r border-gray-200/80'}`}>
+    <div className={`flex flex-col ${isMobile ? 'h-screen fixed inset-y-0 left-0 w-64 shadow-2xl' : 'h-full border-r border-gray-200/80'} bg-white/95 backdrop-blur-xl`}>
       {/* Header */}
       <div className="flex items-center justify-center h-20 px-4 border-b border-gray-200/80 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 relative">
     <Link to="/" className="flex items-center group">        

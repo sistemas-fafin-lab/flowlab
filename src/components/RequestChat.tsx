@@ -176,49 +176,49 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full flex flex-col max-h-[90vh] h-[600px] animate-scale-in overflow-hidden">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 animate-fade-in">
+      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-lg w-full flex flex-col max-h-[95vh] sm:max-h-[90vh] h-auto sm:h-[600px] animate-scale-in overflow-hidden">
         {/* Cabeçalho */}
-        <div className="flex justify-between items-center px-5 py-4 border-b border-gray-100 bg-gradient-to-r from-blue-500 to-indigo-500">
-          <div className="flex items-center">
-            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mr-3">
-              <MessageSquare className="w-5 h-5 text-white" />
+        <div className="flex justify-between items-center px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 bg-gradient-to-r from-blue-500 to-indigo-500 flex-shrink-0">
+          <div className="flex items-center min-w-0">
+            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-lg sm:rounded-xl flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0">
+              <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <div>
-              <h3 className="text-lg font-semibold text-white">Chat da Solicitação</h3>
+            <div className="min-w-0">
+              <h3 className="text-base sm:text-lg font-semibold text-white truncate">Chat da Solicitação</h3>
               <p className="text-xs text-blue-100">#{requestId.slice(0, 8)}...</p>
             </div>
           </div>
           <button 
             onClick={onClose} 
-            className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-xl transition-all duration-200"
+            className="p-1.5 sm:p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-lg sm:rounded-xl transition-all duration-200 flex-shrink-0 ml-2"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Lista de mensagens */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-gray-50 to-white">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gradient-to-b from-gray-50 to-white">
           {messages.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-2xl flex items-center justify-center mb-4">
-                <MessageSquare className="w-8 h-8 text-blue-500" />
+            <div className="flex flex-col items-center justify-center h-full text-center px-4">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-2xl flex items-center justify-center mb-3 sm:mb-4">
+                <MessageSquare className="w-7 h-7 sm:w-8 sm:h-8 text-blue-500" />
               </div>
-              <h4 className="text-gray-700 font-medium mb-1">Nenhuma mensagem ainda</h4>
-              <p className="text-sm text-gray-500">Inicie a conversa enviando uma mensagem</p>
+              <h4 className="text-gray-700 font-medium mb-1 text-sm sm:text-base">Nenhuma mensagem ainda</h4>
+              <p className="text-xs sm:text-sm text-gray-500">Inicie a conversa enviando uma mensagem</p>
             </div>
           ) : (
             Object.entries(groupedMessages).map(([date, dateMessages]) => (
               <div key={date}>
                 {/* Separador de data */}
-                <div className="flex items-center justify-center my-4">
-                  <div className="bg-gray-200 text-gray-600 text-xs font-medium px-3 py-1 rounded-full">
+                <div className="flex items-center justify-center my-3 sm:my-4">
+                  <div className="bg-gray-200 text-gray-600 text-xs font-medium px-2.5 sm:px-3 py-1 rounded-full">
                     {date}
                   </div>
                 </div>
                 
                 {/* Mensagens do dia */}
-                <div className="space-y-3">
+                <div className="space-y-2 sm:space-y-3">
                   {dateMessages.map((msg, index) => {
                     const isOwn = msg.author_id === currentUser.id;
                     const showAuthor = !isOwn && (index === 0 || dateMessages[index - 1]?.author_id !== msg.author_id);
@@ -235,7 +235,7 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
                           </span>
                         )}
                         <div
-                          className={`relative max-w-[80%] px-4 py-2.5 rounded-2xl text-sm shadow-sm ${
+                          className={`relative max-w-[85%] sm:max-w-[80%] px-3 sm:px-4 py-2 sm:py-2.5 rounded-2xl text-xs sm:text-sm shadow-sm ${
                             isOwn
                               ? 'bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-br-md'
                               : 'bg-white text-gray-800 border border-gray-100 rounded-bl-md'
@@ -246,9 +246,9 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
                             <span className="text-[10px]">{formatTime(msg.created_at)}</span>
                             {isOwn && (
                               isMessageRead(msg) ? (
-                                <CheckCheck className="w-3.5 h-3.5 text-blue-200" />
+                                <CheckCheck className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-200" />
                               ) : (
-                                <Check className="w-3.5 h-3.5 text-blue-200/60" />
+                                <Check className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-blue-200/60" />
                               )
                             )}
                           </div>
@@ -264,8 +264,8 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
         </div>
 
         {/* Campo de digitação */}
-        <div className="border-t border-gray-100 p-4 bg-white">
-          <div className="flex items-center gap-3">
+        <div className="border-t border-gray-100 p-3 sm:p-4 bg-white flex-shrink-0">
+          <div className="flex items-center gap-2 sm:gap-3">
             <input
               ref={inputRef}
               type="text"
@@ -273,7 +273,7 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-              className="flex-1 px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
             />
             <button
               onClick={handleSendMessage}
