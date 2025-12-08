@@ -58,6 +58,8 @@ export const usePaymentRequest = () => {
         department: request.department,
         status: request.status,
         pdfUrl: request.pdf_url,
+        attachmentUrl: request.attachment_url,
+        attachmentName: request.attachment_name,
         createdAt: request.created_at,
         updatedAt: request.updated_at,
         approvedBy: request.approved_by,
@@ -97,6 +99,42 @@ export const usePaymentRequest = () => {
     return count || 0;
   };
 
+  // Upload attachment to Supabase Storage
+  const uploadAttachment = async (file: File, codigo: string): Promise<{ url: string; name: string } | null> => {
+    try {
+      // Gerar nome único para o arquivo
+      const fileExt = file.name.split('.').pop()?.toLowerCase();
+      const fileName = `${codigo.replace(/[/\s]/g, '-')}-${Date.now()}.${fileExt}`;
+      const filePath = `attachments/${fileName}`;
+
+      // Upload para o storage
+      const { data, error: uploadError } = await supabase.storage
+        .from('payment-attachments')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false
+        });
+
+      if (uploadError) {
+        console.error('Erro no upload:', uploadError);
+        return null;
+      }
+
+      // Obter URL pública
+      const { data: urlData } = supabase.storage
+        .from('payment-attachments')
+        .getPublicUrl(filePath);
+
+      return {
+        url: urlData.publicUrl,
+        name: file.name
+      };
+    } catch (err) {
+      console.error('Erro ao fazer upload do anexo:', err);
+      return null;
+    }
+  };
+
   // Create new payment request
   const createPedido = async (
     formValues: PaymentRequestFormValues,
@@ -125,6 +163,12 @@ export const usePaymentRequest = () => {
       // 5. Preparar payload
       const payload = preparePayload(formValues, codigoCompleto, codigoCompacto, department);
 
+      // 5.1 Upload do anexo se existir
+      let attachmentData: { url: string; name: string } | null = null;
+      if (formValues.attachment) {
+        attachmentData = await uploadAttachment(formValues.attachment, codigoCompleto);
+      }
+
       // 6. Inserir no banco de dados
       const { data, error: insertError } = await supabase
         .from('payment_requests')
@@ -144,7 +188,9 @@ export const usePaymentRequest = () => {
           data_pagamento: payload.dataPagamento,
           email_usuario: payload.emailUsuario,
           department: payload.department,
-          status: payload.status
+          status: payload.status,
+          attachment_url: attachmentData?.url || null,
+          attachment_name: attachmentData?.name || null
         })
         .select()
         .single();

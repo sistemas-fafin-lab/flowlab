@@ -309,6 +309,8 @@ export interface PaymentRequest {
   department?: string;
   status: PaymentRequestStatus;
   pdfUrl?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
   createdAt: string;
   updatedAt: string;
   approvedBy?: string;
@@ -329,6 +331,7 @@ export interface PaymentRequestFormValues {
   autorizadoPor: string;
   dataPagamento: Date | string;
   emailUsuario: string;
+  attachment?: File | null;
 }
 
 export interface PaymentDateValidation {

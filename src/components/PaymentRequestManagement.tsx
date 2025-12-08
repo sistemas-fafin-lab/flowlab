@@ -14,7 +14,11 @@ import {
   Clock,
   Trash2,
   Printer,
-  Sparkles
+  Sparkles,
+  Paperclip,
+  Image,
+  FileUp,
+  Eye
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { useAuth } from '../hooks/useAuth';
@@ -82,8 +86,13 @@ const PaymentRequestManagement: React.FC = () => {
     solicitadoPor: userProfile?.name || '',
     autorizadoPor: '',
     dataPagamento: '',
-    emailUsuario: user?.email || ''
+    emailUsuario: user?.email || '',
+    attachment: null
   });
+
+  // Attachment state
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Update form when user profile loads
   useEffect(() => {
@@ -95,6 +104,48 @@ const PaymentRequestManagement: React.FC = () => {
       }));
     }
   }, [userProfile, user]);
+
+  // Handle file attachment
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo de arquivo
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      showError('Tipo de arquivo inválido', 'Apenas PDF, PNG e JPEG são permitidos.');
+      return;
+    }
+
+    // Validar tamanho (máx 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      showError('Arquivo muito grande', 'O tamanho máximo permitido é 10MB.');
+      return;
+    }
+
+    setFormData(prev => ({ ...prev, attachment: file }));
+
+    // Criar preview para imagens
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAttachmentPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setAttachmentPreview(null);
+    }
+  };
+
+  // Remove attachment
+  const removeAttachment = () => {
+    setFormData(prev => ({ ...prev, attachment: null }));
+    setAttachmentPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
 
   // Set suggested date on mount
   useEffect(() => {
@@ -225,8 +276,13 @@ const PaymentRequestManagement: React.FC = () => {
       solicitadoPor: userProfile?.name || '',
       autorizadoPor: '',
       dataPagamento: '',
-      emailUsuario: user?.email || ''
+      emailUsuario: user?.email || '',
+      attachment: null
     });
+    setAttachmentPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   // Handle approve request
@@ -809,6 +865,75 @@ const PaymentRequestManagement: React.FC = () => {
               </div>
             </div>
 
+            {/* Row 8: Anexo */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Anexo (Contrato, Boleto ou Documento)
+              </label>
+              <div className="space-y-3">
+                {/* Input oculto */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                
+                {/* Botão de upload ou preview */}
+                {!formData.attachment ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-3 px-4 py-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200 group"
+                  >
+                    <div className="w-10 h-10 bg-gray-100 group-hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors">
+                      <FileUp className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700">
+                        Clique para anexar arquivo
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        PDF, PNG ou JPEG (máx. 5MB)
+                      </p>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+                    {/* Preview para imagens */}
+                    {attachmentPreview && formData.attachment?.type.startsWith('image/') ? (
+                      <img 
+                        src={attachmentPreview} 
+                        alt="Preview" 
+                        className="w-12 h-12 object-cover rounded-lg border border-green-300"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-green-600" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-green-800 truncate">
+                        {formData.attachment.name}
+                      </p>
+                      <p className="text-xs text-green-600">
+                        {(formData.attachment.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={removeAttachment}
+                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-lg transition-all"
+                      title="Remover anexo"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Submit Buttons */}
             <div className="flex justify-end space-x-3 pt-6 border-t border-gray-100">
               <button
@@ -1009,6 +1134,52 @@ const PaymentRequestManagement: React.FC = () => {
                 <div className="mb-4">
                   <p className="text-sm text-gray-600 mb-1">Dados para Pagamento:</p>
                   <p className="text-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl text-sm font-mono border border-blue-100">{request.dadosPagamento}</p>
+                </div>
+              )}
+
+              {/* Attachment */}
+              {request.attachmentUrl && (
+                <div className="mb-4">
+                  <p className="text-sm text-gray-600 mb-1">Anexo:</p>
+                  <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 p-3 rounded-xl border border-purple-100">
+                    {request.attachmentName?.match(/\.(png|jpg|jpeg)$/i) ? (
+                      <>
+                        <div className="relative group/preview">
+                          <img 
+                            src={request.attachmentUrl} 
+                            alt={request.attachmentName} 
+                            className="w-16 h-16 object-cover rounded-lg border border-purple-200 cursor-pointer hover:opacity-90 transition-opacity"
+                            onClick={() => window.open(request.attachmentUrl, '_blank')}
+                          />
+                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                            <Eye className="w-5 h-5 text-white" />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
+                          <p className="text-xs text-purple-600">Clique na imagem para visualizar</p>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                          <FileText className="w-6 h-6 text-purple-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
+                          <a 
+                            href={request.attachmentUrl} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className="text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
+                          >
+                            <Paperclip className="w-3 h-3" />
+                            Abrir documento
+                          </a>
+                        </div>
+                      </>
+                    )}
+                  </div>
                 </div>
               )}
 
