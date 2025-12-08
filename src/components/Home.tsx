@@ -15,6 +15,7 @@ import {
   Building2,
   DollarSign,
   Calendar,
+  Wallet,
 } from 'lucide-react';
 
 const Home: React.FC = () => {
@@ -27,6 +28,7 @@ const Home: React.FC = () => {
     { path: '/add-product', label: 'Adicionar Produto', permission: 'canAddProducts', icon: PlusSquare },
     { path: '/movements', label: 'Movimentações', permission: 'canViewMovements', icon: History },
     { path: '/requests', label: 'Solicitações', permission: 'canViewRequests', icon: FileText },
+    { path: '/payment-requests', label: 'Solicitações de Pagamento', permission: 'canViewRequests', icon: Wallet },
     { path: '/expiration', label: 'Validade', permission: 'canViewExpiration', icon: AlertCircle },
     { path: '/changelog', label: 'Alterações', permission: 'canViewChangelog', icon: RefreshCw },
     { path: '/users', label: 'Usuários', permission: 'canManageUsers', icon: Users },
