@@ -741,12 +741,12 @@ const handleCompleteRequest = async (request: Request) => {
 
           <form onSubmit={handleSubmitRequest} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Prioridade *</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Prioridade *</label>
               <select
                 value={newRequest.priority}
                 onChange={(e) => setNewRequest(prev => ({ ...prev, priority: e.target.value as any }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
               >
                 <option value="standard">Padrão</option>
                 <option value="priority">Prioritário</option>
@@ -755,36 +755,36 @@ const handleCompleteRequest = async (request: Request) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Departamento *</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Departamento *</label>
               <input
                 type="text"
                 value={userProfile?.department || ''}
                 readOnly
                 disabled
-                className="w-full px-3 py-2 border border-gray-200 bg-gray-100 rounded-lg text-gray-700"
+                className="w-full px-4 py-2.5 border border-gray-200 bg-gray-100/80 rounded-xl text-gray-600 cursor-not-allowed"
               />  
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Solicitante *</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Solicitante *</label>
               <input
                 type="text"
                 value={userProfile?.name || ''}
                 readOnly
                 disabled
-                className="w-full px-3 py-2 border border-gray-200 bg-gray-100 rounded-lg text-gray-700"
+                className="w-full px-4 py-2.5 border border-gray-200 bg-gray-100/80 rounded-xl text-gray-600 cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Fornecedor Sugerido</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Fornecedor Sugerido</label>
               <select
                 value={newRequest.supplierId || ''}
                 onChange={(e) => setNewRequest(prev => ({ 
                   ...prev, 
                   supplierId: e.target.value === '' ? null : e.target.value 
                 }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
               >
                 <option value="">Selecione um fornecedor (opcional)</option>
                 {suppliers.filter(s => s.status === 'active').map(supplier => (
@@ -946,14 +946,23 @@ const handleCompleteRequest = async (request: Request) => {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+        <div className="flex items-center mb-4">
+          <div className="w-8 h-8 bg-gradient-to-br from-gray-500 to-slate-500 rounded-lg flex items-center justify-center mr-3 shadow-md shadow-gray-500/25">
+            <FilterIcon className="w-4 h-4 text-white" />  
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-gray-800">Filtros</h3>
+            <p className="text-xs text-gray-500">Refine sua busca por solicitações</p>
+          </div>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Status</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
             >
               <option value="all">Todos</option>
               <option value="pending">Pendente</option>
@@ -965,11 +974,11 @@ const handleCompleteRequest = async (request: Request) => {
 
           {['admin', 'operator'].includes(userProfile?.role) && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Departamento</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Departamento</label>
               <select
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
               >
                 <option value="all">Todos</option>
                 {DEPARTMENTS.map(dept => (
@@ -980,19 +989,21 @@ const handleCompleteRequest = async (request: Request) => {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Data</label>
+            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Data</label>
             <input
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
             />
           </div>
 
           <div className="flex items-end">
-            <span className="text-sm text-gray-600">
-              {filteredRequests.length} solicitação(ões) encontrada(s)
-            </span>
+            <div className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl">
+              <span className="text-sm font-medium text-blue-700">
+                {filteredRequests.length} solicitação(ões)
+              </span>
+            </div>
           </div>
         </div>
       </div>
@@ -1002,27 +1013,30 @@ const handleCompleteRequest = async (request: Request) => {
         {filteredRequests.map((request, index) => (
           <div 
             key={request.id} 
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:border-blue-100 transition-all duration-300 animate-fade-in-up"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-xl hover:border-blue-200 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5"
             style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
           >
-            <div className="flex items-start justify-between mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-4 gap-3">
               <div className="flex items-center">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-3 shadow-md shadow-blue-500/25">
+                <div className={`w-12 h-12 ${request.type === 'SC' ? 'bg-gradient-to-br from-purple-500 to-violet-500 shadow-purple-500/25' : 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-blue-500/25'} rounded-xl flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform duration-300`}>
                   <FileText className="w-6 h-6 text-white" />
                 </div>
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-800">{request.id}</h3>
-                  <p className="text-sm text-gray-500">Solicitado em {request.requestDate}</p>
+                  <h3 className="text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">{request.id}</h3>
+                  <div className="flex items-center text-sm text-gray-500">
+                    <Calendar className="w-3.5 h-3.5 mr-1.5" />
+                    Solicitado em {request.requestDate}
+                  </div>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${typeColors[request.type]}`}>
-                  {request.type}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${typeColors[request.type]} border ${request.type === 'SC' ? 'border-purple-200' : 'border-blue-200'}`}>
+                  {typeLabels[request.type]}
                 </span>
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${priorityColors[request.priority]}`}>
+                <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${priorityColors[request.priority]} border ${request.priority === 'urgent' ? 'border-red-200' : request.priority === 'priority' ? 'border-orange-200' : 'border-gray-200'}`}>
                   {priorityLabels[request.priority]}
                 </span>
-                <span className={`px-3 py-1 text-sm font-medium rounded-full ${statusColors[request.status]}`}>
+                <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${statusColors[request.status]} border ${request.status === 'approved' ? 'border-green-200' : request.status === 'rejected' ? 'border-red-200' : request.status === 'completed' ? 'border-blue-200' : 'border-yellow-200'}`}>
                   {statusLabels[request.status]}
                 </span>
               </div>
@@ -1030,56 +1044,86 @@ const handleCompleteRequest = async (request: Request) => {
 
             {/* Produtos da Solicitação */}
             <div className="mb-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Produtos Solicitados:</h4>
+              <div className="flex items-center mb-3">
+                <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-blue-500/25">
+                  <Package className="w-3 h-3 text-white" />
+                </div>
+                <h4 className="text-sm font-medium text-gray-700">Produtos Solicitados</h4>
+                <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                  {request.items.length} item(ns)
+                </span>
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                {request.items.map((item, index) => (
-                  <div key={index} className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
-                    <Package className="w-4 h-4 text-blue-500 mr-2" />
-                    <span className="text-sm text-gray-700 font-medium">{item.productName}</span>
-                    <span className="text-sm text-gray-500 ml-1">- {item.quantity} un.</span>
+                {request.items.map((item, idx) => (
+                  <div key={idx} className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all duration-200">
+                    <div className="w-7 h-7 bg-white rounded-lg flex items-center justify-center mr-2.5 shadow-sm border border-gray-100">
+                      <span className="text-xs font-bold text-blue-600">{idx + 1}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm text-gray-800 font-medium truncate block">{item.productName}</span>
+                    </div>
+                    <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg whitespace-nowrap">
+                      {item.quantity} un.
+                    </span>
                   </div>
                 ))}
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-              <div className="flex items-center">
-                <User className="w-4 h-4 text-gray-400 mr-2" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+              <div className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-blue-500/25">
+                  <User className="w-4 h-4 text-white" />
+                </div>
                 <div>
-                  <p className="text-sm text-gray-600">Solicitante</p>
-                  <p className="font-medium text-gray-800">{request.requestedBy}</p>
+                  <p className="text-xs text-gray-500 font-medium">Solicitante</p>
+                  <p className="text-sm font-semibold text-gray-800">{request.requestedBy}</p>
                 </div>
               </div>
 
-              <div>
-                <p className="text-sm text-gray-600">Departamento</p>
-                <p className="font-medium text-gray-800">{request.department || 'N/A'}</p>
+              <div className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-purple-500/25">
+                  <Building2 className="w-4 h-4 text-white" />
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500 font-medium">Departamento</p>
+                  <p className="text-sm font-semibold text-gray-800">{request.department || 'N/A'}</p>
+                </div>
               </div>
 
               {request.supplierName && (
-                <div className="flex items-center">
-                  <Building2 className="w-4 h-4 text-gray-400 mr-2" />
+                <div className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                  <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-emerald-500/25">
+                    <Building2 className="w-4 h-4 text-white" />
+                  </div>
                   <div>
-                    <p className="text-sm text-gray-600">Fornecedor Sugerido</p>
-                    <p className="font-medium text-gray-800">{request.supplierName}</p>
+                    <p className="text-xs text-gray-500 font-medium">Fornecedor Sugerido</p>
+                    <p className="text-sm font-semibold text-gray-800">{request.supplierName}</p>
                   </div>
                 </div>
               )}
 
               {request.approvedBy && (
-                <div className="flex items-center">
-                  <User className="w-4 h-4 text-gray-400 mr-2" />
+                <div className="flex items-center p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-green-500/25">
+                    <Check className="w-4 h-4 text-white" />
+                  </div>
                   <div>
-                    <p className="text-sm text-gray-600">Aprovado por</p>
-                    <p className="font-medium text-gray-800">{request.approvedBy}</p>
+                    <p className="text-xs text-gray-500 font-medium">Aprovado por</p>
+                    <p className="text-sm font-semibold text-gray-800">{request.approvedBy}</p>
                   </div>
                 </div>
               )}
             </div>
 
             <div className="mb-4 space-y-3">
-              <p className="text-sm text-gray-600">Justificativa:</p>
-              <div className="text-gray-800 bg-gray-100 p-4 rounded-xl">{renderFormattedText(request.reason)}</div>
+              <div className="flex items-center">
+                <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-violet-500/25">
+                  <FileText className="w-3 h-3 text-white" />
+                </div>
+                <p className="text-sm font-medium text-gray-700">Justificativa</p>
+              </div>
+              <div className="text-gray-700 bg-gradient-to-br from-gray-50 to-slate-50 p-4 rounded-xl border border-gray-100 text-sm leading-relaxed">{renderFormattedText(request.reason)}</div>
               <ChatButton
                 requestId={request.id}
                 userId={user?.id || ''}
@@ -1089,17 +1133,17 @@ const handleCompleteRequest = async (request: Request) => {
 
             {/* Action Buttons */}
             {canApprove && request.status === 'pending' && (
-              <div className="flex space-x-3">
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
                 <button
                   onClick={() => handleApproveRequest(request.id)}
-                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center"
+                  className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30"
                 >
                   <Check className="w-4 h-4 mr-2" />
                   Aprovar
                 </button>
                 <button
                   onClick={() => handleRejectRequest(request.id)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center"
+                  className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30"
                 >
                   <X className="w-4 h-4 mr-2" />
                   Rejeitar
@@ -1108,7 +1152,7 @@ const handleCompleteRequest = async (request: Request) => {
                 {userProfile?.role === 'operator' && (
                   <button
                     onClick={() => handleCompleteRequest(request)}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                    className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
                   >
                     <Check className="w-4 h-4 mr-2" />
                     Finalizar
@@ -1117,10 +1161,10 @@ const handleCompleteRequest = async (request: Request) => {
               </div>
             )}
             {canApprove && request.status === 'approved' && (
-              <div className="flex space-x-3">
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
                 <button
                   onClick={() => handleStartQuotation(request)}
-                  className="px-4 py-2 bg-green-700 text-white rounded-lg hover:bg-green-600 transition-colors flex items-center"
+                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30"
                 >
                   <FileText className="w-4 h-4 mr-2" />
                   Iniciar Cotação
@@ -1129,7 +1173,7 @@ const handleCompleteRequest = async (request: Request) => {
               {(['admin', 'operator'].includes(userProfile?.role) || userProfile?.name === request.requestedBy) && (
                 <button
                   onClick={() => handleCompleteRequest(request)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+                  className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
                 >
                   <Check className="w-4 h-4 mr-2" />
                   Finalizar Retirada
@@ -1140,7 +1184,7 @@ const handleCompleteRequest = async (request: Request) => {
 
             {/* Botão de visualização de assinatura para solicitações finalizadas */}
             {request.status === 'completed' && request.receiver_signature && (
-                <div className="mt-4 pt-4 border-t border-gray-200">
+                <div className="mt-4 pt-4 border-t border-gray-100">
                   <button
                     onClick={() =>
                       setViewSignature({
@@ -1148,7 +1192,7 @@ const handleCompleteRequest = async (request: Request) => {
                         signature: request.receiver_signature,
                       })
                     }
-                    className="flex items-center text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-2 rounded-lg transition-colors text-sm font-medium"
+                    className="flex items-center px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 hover:from-blue-100 hover:to-indigo-100 rounded-xl transition-all duration-200 text-sm font-medium border border-blue-200 hover:border-blue-300"
                   >
                     <PenTool className="w-4 h-4 mr-2" />
                     Ver assinatura do recebedor
@@ -1160,15 +1204,26 @@ const handleCompleteRequest = async (request: Request) => {
       </div>
       
     {filteredRequests.length === 0 && (
-      <div className="bg-white rounded-lg shadow-sm p-12 text-center border border-gray-100">
-        <FileText className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma solicitação encontrada</h3>
-        <p className="text-gray-500">
+      <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-gray-100 animate-fade-in-up">
+        <div className="w-16 h-16 mx-auto bg-gradient-to-br from-gray-100 to-slate-100 rounded-2xl flex items-center justify-center mb-4">
+          <FileText className="w-8 h-8 text-gray-400" />
+        </div>
+        <h3 className="text-lg font-semibold text-gray-800 mb-2">Nenhuma solicitação encontrada</h3>
+        <p className="text-gray-500 mb-6 max-w-md mx-auto">
           {userProfile?.role === 'requester' 
             ? 'Crie a primeira solicitação de retirada de materiais.'
             : 'Nenhuma solicitação corresponde aos filtros aplicados.'
           }
         </p>
+        {userProfile?.role === 'requester' && (
+          <button
+            onClick={handleNewRequestClick}
+            className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 inline-flex items-center"
+          >
+            <Plus className="w-4 h-4 mr-2" />
+            Nova Solicitação
+          </button>
+        )}
       </div>
     )}
     

@@ -76,6 +76,7 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
     fetchMessages();
 
     // Real-time listener
+    let isSubscribed = true;
     const channel = supabase
       .channel(`request-chat-${requestId}`)
       .on(
@@ -87,6 +88,8 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
           filter: `request_id=eq.${requestId}`,
         },
         (payload) => {
+          if (!isSubscribed) return;
+          
           if (payload.eventType === 'INSERT') {
             setMessages((prev) => [...prev, payload.new as Message]);
             // Marcar nova mensagem como lida se não for do próprio usuário
@@ -103,7 +106,13 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      isSubscribed = false;
+      // Usar unsubscribe antes de remover o canal para evitar warnings
+      channel.unsubscribe().then(() => {
+        supabase.removeChannel(channel);
+      }).catch(() => {
+        // Ignorar erros se o canal já foi removido
+      });
     };
   }, [requestId, currentUser.id, markAllAsRead, showError]);
 
@@ -318,6 +327,7 @@ export const useUnreadMessages = (requestId: string, userId: string) => {
     fetchUnreadCount();
 
     // Real-time para atualizar contagem
+    let isSubscribed = true;
     const channel = supabase
       .channel(`unread-${requestId}-${userId}`)
       .on(
@@ -328,12 +338,19 @@ export const useUnreadMessages = (requestId: string, userId: string) => {
           table: 'request_messages',
           filter: `request_id=eq.${requestId}`,
         },
-        () => fetchUnreadCount()
+        () => {
+          if (isSubscribed) fetchUnreadCount();
+        }
       )
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      isSubscribed = false;
+      channel.unsubscribe().then(() => {
+        supabase.removeChannel(channel);
+      }).catch(() => {
+        // Ignorar erros se o canal já foi removido
+      });
     };
   }, [requestId, userId]);
 
