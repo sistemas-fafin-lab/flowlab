@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit, Shield, Plus, X, Save } from 'lucide-react';
+import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { supabase } from '../lib/supabase';
@@ -15,12 +15,13 @@ const UserManagement: React.FC = () => {
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const topRef = React.useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: 'requester' as UserRole,
-    department: 'Área técnica' as Department
+    department: 'AREA_TECNICA' as Department
   });
 
   useEffect(() => {
@@ -64,6 +65,11 @@ const UserManagement: React.FC = () => {
     });
     setEditingUser(user);
     setShowAddForm(true);
+    
+    // Scroll suave para o topo onde o formulário é exibido
+    setTimeout(() => {
+      topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -107,7 +113,7 @@ const UserManagement: React.FC = () => {
       name: '',
       email: '',
       role: 'requester',
-      department: 'Área técnica'
+      department: 'AREA_TECNICA'
     });
     setEditingUser(null);
     setShowAddForm(false);
@@ -133,7 +139,7 @@ const UserManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={topRef}>
       <Notification
         type={notification.type}
         title={notification.title}
@@ -301,12 +307,36 @@ const UserManagement: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-100">
-              {users.map((user) => (
+              {users.map((user) => {
+                // Ícone e cor baseados no perfil do usuário
+                const getRoleIcon = (role: UserRole) => {
+                  switch (role) {
+                    case 'admin':
+                      return <ShieldCheck className="w-5 h-5 text-white" />;
+                    case 'operator':
+                      return <UserCog className="w-5 h-5 text-white" />;
+                    default:
+                      return <User className="w-5 h-5 text-white" />;
+                  }
+                };
+                
+                const getRoleGradient = (role: UserRole) => {
+                  switch (role) {
+                    case 'admin':
+                      return 'bg-gradient-to-br from-red-500 to-rose-500 shadow-red-500/25';
+                    case 'operator':
+                      return 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-blue-500/25';
+                    default:
+                      return 'bg-gradient-to-br from-green-500 to-emerald-500 shadow-green-500/25';
+                  }
+                };
+                
+                return (
                 <tr key={user.id} className="hover:bg-blue-50/50 transition-colors duration-150">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-3 shadow-md shadow-blue-500/25">
-                        <Shield className="w-5 h-5 text-white" />
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mr-3 shadow-md ${getRoleGradient(user.role)}`}>
+                        {getRoleIcon(user.role)}
                       </div>
                       <div>
                         <div className="text-sm font-medium text-gray-900">{user.name}</div>
@@ -339,7 +369,8 @@ const UserManagement: React.FC = () => {
                     </button>
                   </td>
                 </tr>
-              ))}
+              );
+              })}
             </tbody>
           </table>
         </div>
