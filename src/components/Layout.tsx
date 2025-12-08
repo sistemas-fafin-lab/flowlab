@@ -257,7 +257,7 @@ const isActive = isItemActive(item.href, item.subItems);
         </div>
 
         {/* Page content */}
-        <main className="py-4 px-4 sm:px-6 lg:px-8 min-h-screen animate-fade-in">
+        <main className={`min-h-screen animate-fade-in ${location.pathname === '/' ? '' : 'py-4 px-4 sm:px-6 lg:px-8'}`}>
           {children}
         </main>
       </div>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useAuth } from '../hooks/useAuth';
@@ -892,10 +893,41 @@ const handleCompleteRequest = async (request: Request) => {
         </div>
       )}
 
-      {/* Type Selection Modal */}
-      {showTypeSelectionModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full animate-scale-in">
+      {/* Type Selection Modal - usando Portal para isolamento completo */}
+      {showTypeSelectionModal && ReactDOM.createPortal(
+        <div 
+          className="fixed inset-0 z-[9999] overflow-hidden"
+          style={{ 
+            position: 'fixed', 
+            top: 0, 
+            left: 0, 
+            right: 0, 
+            bottom: 0,
+            width: '100vw',
+            height: '100vh',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          {/* Backdrop */}
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+            onClick={() => setShowTypeSelectionModal(false)}
+          />
+          {/* Modal */}
+          <div 
+            className="relative bg-white rounded-2xl shadow-2xl animate-scale-in"
+            style={{ 
+              position: 'relative',
+              width: 'calc(100% - 32px)',
+              maxWidth: '28rem',
+              maxHeight: 'calc(100vh - 32px)',
+              margin: '16px',
+              overflow: 'auto'
+            }}
+          >
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="text-xl font-semibold text-gray-800">Tipo de Solicitação</h2>
               <p className="text-sm text-gray-500 mt-1">Selecione o tipo de solicitação que deseja criar</p>
@@ -942,7 +974,8 @@ const handleCompleteRequest = async (request: Request) => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Filters */}
