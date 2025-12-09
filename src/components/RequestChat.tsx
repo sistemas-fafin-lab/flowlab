@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import ReactDOM from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { X, Send, Check, CheckCheck, MessageSquare } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
@@ -184,9 +185,42 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
     return message.read_by && message.read_by.some(id => id !== message.author_id);
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-2 sm:p-4 animate-fade-in">
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-2xl max-w-lg w-full flex flex-col max-h-[95vh] sm:max-h-[90vh] h-auto sm:h-[600px] animate-scale-in overflow-hidden">
+  const modalContent = (
+    <div 
+      className="fixed inset-0 z-[9999] overflow-hidden animate-fade-in"
+      style={{ 
+        position: 'fixed', 
+        top: 0, 
+        left: 0, 
+        right: 0, 
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px'
+      }}
+    >
+      {/* Backdrop */}
+      <div 
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+        onClick={onClose}
+      />
+      
+      {/* Modal Container */}
+      <div 
+        className="relative bg-white rounded-2xl shadow-2xl flex flex-col animate-scale-in overflow-hidden"
+        style={{ 
+          position: 'relative',
+          width: '100%',
+          maxWidth: '32rem',
+          maxHeight: 'calc(100vh - 32px)',
+          height: 'auto',
+          minHeight: '300px'
+        }}
+      >
         {/* Cabeçalho */}
         <div className="flex justify-between items-center px-4 sm:px-5 py-3 sm:py-4 border-b border-gray-100 bg-gradient-to-r from-blue-500 to-indigo-500 flex-shrink-0">
           <div className="flex items-center min-w-0">
@@ -207,7 +241,7 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
         </div>
 
         {/* Lista de mensagens */}
-        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gradient-to-b from-gray-50 to-white">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3 sm:space-y-4 bg-gradient-to-b from-gray-50 to-white" style={{ minHeight: '200px', maxHeight: 'calc(100vh - 200px)' }}>
           {messages.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-center px-4">
               <div className="w-14 h-14 sm:w-16 sm:h-16 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-2xl flex items-center justify-center mb-3 sm:mb-4">
@@ -287,7 +321,7 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
             <button
               onClick={handleSendMessage}
               disabled={!newMessage.trim() || isSending}
-              className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 active:scale-95"
+              className="p-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 active:scale-95 flex-shrink-0"
             >
               {isSending ? (
                 <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
@@ -300,6 +334,8 @@ const RequestChat: React.FC<RequestChatProps> = ({ requestId, currentUser, onClo
       </div>
     </div>
   );
+
+  return ReactDOM.createPortal(modalContent, document.body);
 };
 
 export default RequestChat;

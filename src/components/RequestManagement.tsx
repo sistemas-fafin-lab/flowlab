@@ -462,7 +462,7 @@ const handleCompleteRequest = async (request: Request) => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 overflow-x-hidden">
       <Notification
         type={notification.type}
         title={notification.title}
@@ -488,10 +488,10 @@ const handleCompleteRequest = async (request: Request) => {
           <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Gerenciamento de Solicitações</h2>
           <p className="text-gray-500">Controle de requisições para retirada de materiais</p>
         </div>
-        <div className="flex space-x-3">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
           <button
             onClick={generateReport}
-            className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30"
+            className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 text-sm sm:text-base"
           >
             <Download className="w-4 h-4 mr-2" />
             Relatório
@@ -500,7 +500,7 @@ const handleCompleteRequest = async (request: Request) => {
             onClick={() => {
               handleNewRequestClick();
             }}
-            className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 flex items-center transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
+            className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 flex items-center justify-center transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-sm sm:text-base"
           >
             <Plus className="w-4 h-4 mr-2" />
             Nova Solicitação
@@ -512,35 +512,35 @@ const handleCompleteRequest = async (request: Request) => {
       {showAddRequest && (
         <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-scale-in">
           {/* Header do formulário */}
-          <div className={`px-6 py-4 ${newRequest.type === 'SC' ? 'bg-gradient-to-r from-purple-500 to-violet-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`}>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mr-3">
-                  <FileText className="w-5 h-5 text-white" />
+          <div className={`px-4 sm:px-6 py-4 ${newRequest.type === 'SC' ? 'bg-gradient-to-r from-purple-500 to-violet-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`}>
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center min-w-0 flex-1">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/20 rounded-xl flex items-center justify-center mr-2 sm:mr-3 flex-shrink-0">
+                  <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-white">
+                <div className="min-w-0">
+                  <h3 className="text-sm sm:text-lg font-semibold text-white truncate">
                     Nova {typeLabels[newRequest.type]}
                   </h3>
-                  <p className="text-sm text-white/70">Preencha os dados abaixo</p>
+                  <p className="text-xs sm:text-sm text-white/70 hidden sm:block">Preencha os dados abaixo</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1.5 text-sm font-medium rounded-full bg-white/20 text-white backdrop-blur-sm">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                <span className="px-2 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-full bg-white/20 text-white backdrop-blur-sm">
                   {newRequest.type}
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowAddRequest(false)}
-                  className="p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-xl transition-all duration-200"
+                  className="p-1.5 sm:p-2 text-white/80 hover:text-white hover:bg-white/20 rounded-xl transition-all duration-200"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
               </div>
             </div>
           </div>
           
-          <div className="p-6">
+          <div className="p-4 sm:p-6">
           
 {/* Busca e Adição de Produtos */}
 <div className="mb-6">
@@ -554,16 +554,16 @@ const handleCompleteRequest = async (request: Request) => {
     </div>
   </div>
   
-  <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-4 border border-gray-100">
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+  <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border border-gray-100">
+    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4">
       {/* Campo de busca */}
-      <div className="lg:col-span-5">
+      <div className="col-span-2 lg:col-span-5">
         <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Buscar Produto</label>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
             type="text"
-            placeholder="Digite o nome ou código do produto..."
+            placeholder="Nome ou código..."
             value={productSearch}
             onChange={(e) => setProductSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 text-sm"
@@ -572,14 +572,14 @@ const handleCompleteRequest = async (request: Request) => {
       </div>
 
       {/* Filtro de categoria */}
-      <div className="lg:col-span-3">
+      <div className="col-span-2 sm:col-span-1 lg:col-span-3">
         <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Categoria</label>
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value as any)}
           className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 text-sm cursor-pointer"
         >
-          <option value="all">Todas as Categorias</option>
+          <option value="all">Todas</option>
           {categories.map(category => (
             <option key={category} value={category}>
               {category === 'general'
@@ -595,8 +595,8 @@ const handleCompleteRequest = async (request: Request) => {
       </div>
 
       {/* Quantidade */}
-      <div className="lg:col-span-2">
-        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Quantidade</label>
+      <div className="col-span-1 lg:col-span-2">
+        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Qtd.</label>
         <input
           type="number"
           placeholder="Qtd."
@@ -608,7 +608,7 @@ const handleCompleteRequest = async (request: Request) => {
       </div>
 
       {/* Botão de adicionar */}
-      <div className="lg:col-span-2 flex items-end">
+      <div className="col-span-1 lg:col-span-2 flex items-end">
         <button
           type="button"
           onClick={() => {
@@ -620,15 +620,14 @@ const handleCompleteRequest = async (request: Request) => {
             }
           }}
           disabled={!productSearch.trim()}
-          className={`w-full px-4 py-2.5 text-white rounded-xl flex items-center justify-center transition-all duration-200 font-medium text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
+          className={`w-full px-3 sm:px-4 py-2.5 text-white rounded-xl flex items-center justify-center transition-all duration-200 font-medium text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
             matchedProduct 
               ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30' 
               : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/25 hover:shadow-lg hover:shadow-amber-500/30'
           }`}
         >
-          <Plus className="w-4 h-4 mr-1.5" />
+          <Plus className="w-4 h-4 sm:mr-1.5" />
           <span className="hidden sm:inline">{matchedProduct ? 'Adicionar' : 'Novo'}</span>
-          <span className="sm:hidden">+</span>
         </button>
       </div>
     </div>
@@ -979,23 +978,23 @@ const handleCompleteRequest = async (request: Request) => {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         <div className="flex items-center mb-4">
           <div className="w-8 h-8 bg-gradient-to-br from-gray-500 to-slate-500 rounded-lg flex items-center justify-center mr-3 shadow-md shadow-gray-500/25">
             <FilterIcon className="w-4 h-4 text-white" />  
           </div>
           <div>
             <h3 className="text-base font-semibold text-gray-800">Filtros</h3>
-            <p className="text-xs text-gray-500">Refine sua busca por solicitações</p>
+            <p className="text-xs text-gray-500 hidden sm:block">Refine sua busca por solicitações</p>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Status</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+              className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer text-sm"
             >
               <option value="all">Todos</option>
               <option value="pending">Pendente</option>
@@ -1007,11 +1006,11 @@ const handleCompleteRequest = async (request: Request) => {
 
           {['admin', 'operator'].includes(userProfile?.role) && (
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Departamento</label>
+              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Depto.</label>
               <select
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer text-sm"
               >
                 <option value="all">Todos</option>
                 {DEPARTMENTS.map(dept => (
@@ -1027,13 +1026,13 @@ const handleCompleteRequest = async (request: Request) => {
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+              className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 text-sm"
             />
           </div>
 
-          <div className="flex items-end">
-            <div className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl">
-              <span className="text-sm font-medium text-blue-700">
+          <div className="col-span-2 sm:col-span-1 flex items-end">
+            <div className="w-full px-3 sm:px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl text-center sm:text-left">
+              <span className="text-xs sm:text-sm font-medium text-blue-700">
                 {filteredRequests.length} solicitação(ões)
               </span>
             </div>
@@ -1046,56 +1045,71 @@ const handleCompleteRequest = async (request: Request) => {
         {filteredRequests.map((request, index) => (
           <div 
             key={request.id} 
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-xl hover:border-blue-200 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5"
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
             style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
           >
-            <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-4 gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+              {/* Lado esquerdo - ID e Data */}
               <div className="flex items-center">
-                <div className={`w-12 h-12 ${request.type === 'SC' ? 'bg-gradient-to-br from-purple-500 to-violet-500 shadow-purple-500/25' : 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-blue-500/25'} rounded-xl flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform duration-300`}>
-                  <FileText className="w-6 h-6 text-white" />
+                <div className={`w-10 h-10 sm:w-12 sm:h-12 ${request.type === 'SC' ? 'bg-gradient-to-br from-purple-500 to-violet-500 shadow-purple-500/25' : 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-blue-500/25'} rounded-xl flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform duration-300 flex-shrink-0`}>
+                  <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">{request.id}</h3>
-                  <div className="flex items-center text-sm text-gray-500">
-                    <Calendar className="w-3.5 h-3.5 mr-1.5" />
-                    Solicitado em {request.requestDate}
+                <div className="min-w-0">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors truncate">{request.id}</h3>
+                  <div className="flex items-center text-xs sm:text-sm text-gray-500">
+                    <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 flex-shrink-0" />
+                    <span className="truncate">{request.requestDate}</span>
                   </div>
                 </div>
               </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${typeColors[request.type]} border ${request.type === 'SC' ? 'border-purple-200' : 'border-blue-200'}`}>
-                  {typeLabels[request.type]}
-                </span>
-                <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${priorityColors[request.priority]} border ${request.priority === 'urgent' ? 'border-red-200' : request.priority === 'priority' ? 'border-orange-200' : 'border-gray-200'}`}>
-                  {priorityLabels[request.priority]}
-                </span>
-                <span className={`px-3 py-1.5 text-xs font-semibold rounded-full ${statusColors[request.status]} border ${request.status === 'approved' ? 'border-green-200' : request.status === 'rejected' ? 'border-red-200' : request.status === 'completed' ? 'border-blue-200' : 'border-yellow-200'}`}>
-                  {statusLabels[request.status]}
-                </span>
+              
+              {/* Lado direito - Tags com títulos */}
+              <div className="flex flex-wrap sm:flex-nowrap items-start gap-2 sm:gap-3 sm:ml-4">
+                {/* Tipo */}
+                <div className="flex flex-col items-center">
+                  <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Tipo</span>
+                  <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${typeColors[request.type]} border ${request.type === 'SC' ? 'border-purple-200' : 'border-blue-200'}`}>
+                    {request.type}
+                  </span>
+                </div>
+                {/* Prioridade */}
+                <div className="flex flex-col items-center">
+                  <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Prioridade</span>
+                  <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${priorityColors[request.priority]} border ${request.priority === 'urgent' ? 'border-red-200' : request.priority === 'priority' ? 'border-orange-200' : 'border-gray-200'}`}>
+                    {priorityLabels[request.priority]}
+                  </span>
+                </div>
+                {/* Status */}
+                <div className="flex flex-col items-center">
+                  <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Status</span>
+                  <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${statusColors[request.status]} border ${request.status === 'approved' ? 'border-green-200' : request.status === 'rejected' ? 'border-red-200' : request.status === 'completed' ? 'border-blue-200' : 'border-yellow-200'}`}>
+                    {statusLabels[request.status]}
+                  </span>
+                </div>
               </div>
             </div>
 
             {/* Produtos da Solicitação */}
             <div className="mb-4">
-              <div className="flex items-center mb-3">
-                <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-blue-500/25">
+              <div className="flex items-center flex-wrap gap-2 mb-3">
+                <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center shadow-sm shadow-blue-500/25 flex-shrink-0">
                   <Package className="w-3 h-3 text-white" />
                 </div>
-                <h4 className="text-sm font-medium text-gray-700">Produtos Solicitados</h4>
-                <span className="ml-2 px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                <h4 className="text-sm font-medium text-gray-700">Produtos</h4>
+                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
                   {request.items.length} item(ns)
                 </span>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 gap-2">
                 {request.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all duration-200">
-                    <div className="w-7 h-7 bg-white rounded-lg flex items-center justify-center mr-2.5 shadow-sm border border-gray-100">
-                      <span className="text-xs font-bold text-blue-600">{idx + 1}</span>
+                  <div key={idx} className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all duration-200">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 bg-white rounded-lg flex items-center justify-center mr-2 shadow-sm border border-gray-100 flex-shrink-0">
+                      <span className="text-[10px] sm:text-xs font-bold text-blue-600">{idx + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-sm text-gray-800 font-medium truncate block">{item.productName}</span>
+                      <span className="text-xs sm:text-sm text-gray-800 font-medium truncate block">{item.productName}</span>
                     </div>
-                    <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg whitespace-nowrap">
+                    <span className="ml-2 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-lg whitespace-nowrap flex-shrink-0">
                       {item.quantity} un.
                     </span>
                   </div>
@@ -1103,47 +1117,47 @@ const handleCompleteRequest = async (request: Request) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-              <div className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
-                <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-blue-500/25">
-                  <User className="w-4 h-4 text-white" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-4">
+              <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-blue-500/25 flex-shrink-0">
+                  <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Solicitante</p>
-                  <p className="text-sm font-semibold text-gray-800">{request.requestedBy}</p>
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Solicitante</p>
+                  <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.requestedBy}</p>
                 </div>
               </div>
 
-              <div className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
-                <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-purple-500/25">
-                  <Building2 className="w-4 h-4 text-white" />
+              <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-purple-500/25 flex-shrink-0">
+                  <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500 font-medium">Departamento</p>
-                  <p className="text-sm font-semibold text-gray-800">{request.department || 'N/A'}</p>
+                <div className="min-w-0">
+                  <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Departamento</p>
+                  <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.department || 'N/A'}</p>
                 </div>
               </div>
 
               {request.supplierName && (
-                <div className="flex items-center p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
-                  <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-emerald-500/25">
-                    <Building2 className="w-4 h-4 text-white" />
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-emerald-500/25 flex-shrink-0">
+                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Fornecedor Sugerido</p>
-                    <p className="text-sm font-semibold text-gray-800">{request.supplierName}</p>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Fornecedor</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.supplierName}</p>
                   </div>
                 </div>
               )}
 
               {request.approvedBy && (
-                <div className="flex items-center p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
-                  <div className="w-8 h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-green-500/25">
-                    <Check className="w-4 h-4 text-white" />
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-green-500/25 flex-shrink-0">
+                    <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
-                  <div>
-                    <p className="text-xs text-gray-500 font-medium">Aprovado por</p>
-                    <p className="text-sm font-semibold text-gray-800">{request.approvedBy}</p>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Aprovado por</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.approvedBy}</p>
                   </div>
                 </div>
               )}
@@ -1151,12 +1165,12 @@ const handleCompleteRequest = async (request: Request) => {
 
             <div className="mb-4 space-y-3">
               <div className="flex items-center">
-                <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-violet-500/25">
+                <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-violet-500/25 flex-shrink-0">
                   <FileText className="w-3 h-3 text-white" />
                 </div>
-                <p className="text-sm font-medium text-gray-700">Justificativa</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-700">Justificativa</p>
               </div>
-              <div className="text-gray-700 bg-gradient-to-br from-gray-50 to-slate-50 p-4 rounded-xl border border-gray-100 text-sm leading-relaxed">{renderFormattedText(request.reason)}</div>
+              <div className="text-gray-700 bg-gradient-to-br from-gray-50 to-slate-50 p-3 sm:p-4 rounded-xl border border-gray-100 text-xs sm:text-sm leading-relaxed break-words">{renderFormattedText(request.reason)}</div>
               <ChatButton
                 requestId={request.id}
                 userId={user?.id || ''}
@@ -1169,26 +1183,26 @@ const handleCompleteRequest = async (request: Request) => {
               <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
                 <button
                   onClick={() => handleApproveRequest(request.id)}
-                  className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30"
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 text-xs sm:text-sm"
                 >
-                  <Check className="w-4 h-4 mr-2" />
-                  Aprovar
+                  <Check className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Aprovar</span>
                 </button>
                 <button
                   onClick={() => handleRejectRequest(request.id)}
-                  className="px-4 py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30"
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30 text-xs sm:text-sm"
                 >
-                  <X className="w-4 h-4 mr-2" />
-                  Rejeitar
+                  <X className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Rejeitar</span>
                 </button>
                 
                 {userProfile?.role === 'operator' && (
                   <button
                     onClick={() => handleCompleteRequest(request)}
-                    className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-xs sm:text-sm"
                   >
-                    <Check className="w-4 h-4 mr-2" />
-                    Finalizar
+                    <Check className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Finalizar</span>
                   </button>
                 )}
               </div>
@@ -1197,19 +1211,19 @@ const handleCompleteRequest = async (request: Request) => {
               <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
                 <button
                   onClick={() => handleStartQuotation(request)}
-                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30"
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30 text-xs sm:text-sm"
                 >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Iniciar Cotação
+                  <FileText className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Iniciar Cotação</span>
                 </button>
             
               {(['admin', 'operator'].includes(userProfile?.role) || userProfile?.name === request.requestedBy) && (
                 <button
                   onClick={() => handleCompleteRequest(request)}
-                  className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-xs sm:text-sm"
                 >
-                  <Check className="w-4 h-4 mr-2" />
-                  Finalizar Retirada
+                  <Check className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Finalizar</span>
                 </button>
                 )}
               </div>
@@ -1225,10 +1239,11 @@ const handleCompleteRequest = async (request: Request) => {
                         signature: request.receiver_signature,
                       })
                     }
-                    className="flex items-center px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 hover:from-blue-100 hover:to-indigo-100 rounded-xl transition-all duration-200 text-sm font-medium border border-blue-200 hover:border-blue-300"
+                    className="flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 hover:from-blue-100 hover:to-indigo-100 rounded-xl transition-all duration-200 text-xs sm:text-sm font-medium border border-blue-200 hover:border-blue-300"
                   >
                     <PenTool className="w-4 h-4 mr-2" />
-                    Ver assinatura do recebedor
+                    <span className="hidden sm:inline">Ver assinatura do recebedor</span>
+                    <span className="sm:hidden">Ver assinatura</span>
                   </button>
                 </div>
             )}
