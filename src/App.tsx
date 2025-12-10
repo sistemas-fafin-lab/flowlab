@@ -36,7 +36,8 @@ const ProtectedRoute: React.FC<{
   return <>{children}</>;
 };
 
-function App() {
+// Componente interno que gerencia as rotas autenticadas
+const AuthenticatedApp: React.FC = () => {
   const { user, userProfile, loading } = useAuth();
 
   if (loading) {
@@ -54,125 +55,121 @@ function App() {
   const userRole = userProfile?.role || 'requester';
 
   return (
+    <Layout>
+      <Routes>
+        {/* Página inicial */}
+        <Route path="/" element={<Home />} />
+
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute permission="canViewDashboard" userRole={userRole}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/products"
+          element={
+            <ProtectedRoute permission="canViewProducts" userRole={userRole}>
+              <ProductList />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add-product"
+          element={
+            <ProtectedRoute permission="canAddProducts" userRole={userRole}>
+              <AddProduct />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/movements"
+          element={
+            <ProtectedRoute permission="canViewMovements" userRole={userRole}>
+              <MovementHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/requests"
+          element={
+            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+              <RequestManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/expiration"
+          element={
+            <ProtectedRoute permission="canViewExpiration" userRole={userRole}>
+              <ExpirationMonitor />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/changelog"
+          element={
+            <ProtectedRoute permission="canViewChangelog" userRole={userRole}>
+              <ProductChangeLog />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/users"
+          element={
+            <ProtectedRoute permission="canManageUsers" userRole={userRole}>
+              <UserManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/suppliers"
+          element={
+            <ProtectedRoute permission="canManageSuppliers" userRole={userRole}>
+              <SupplierManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/quotations"
+          element={
+            <ProtectedRoute permission="canManageQuotations" userRole={userRole}>
+              <QuotationManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/request-periods"
+          element={
+            <ProtectedRoute permission="canConfigureRequestPeriods" userRole={userRole}>
+              <RequestPeriodConfig />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/payment-requests"
+          element={
+            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+              <PaymentRequestManagement />
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </Layout>
+  );
+};
+
+function App() {
+  return (
     <Router>
       <Routes>
-        {/* Rota pública para redefinição de senha */}
+        {/* Rota pública para redefinição de senha - deve ficar FORA da verificação de autenticação */}
         <Route path="/reset-password" element={<ResetPassword />} />
-
-        {/* Rota pública de login */}
-        {!user && <Route path="*" element={<Auth />} />}
-
-        {/* Rotas protegidas dentro do layout */}
-        {user && (
-          <Route
-            path="*"
-            element={
-              <Layout>
-                <Routes>
-                  {/* Página inicial */}
-                  <Route path="/" element={<Home />} />
-
-                  <Route
-                    path="/dashboard"
-                    element={
-                      <ProtectedRoute permission="canViewDashboard" userRole={userRole}>
-                        <Dashboard />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/products"
-                    element={
-                      <ProtectedRoute permission="canViewProducts" userRole={userRole}>
-                        <ProductList />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/add-product"
-                    element={
-                      <ProtectedRoute permission="canAddProducts" userRole={userRole}>
-                        <AddProduct />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/movements"
-                    element={
-                      <ProtectedRoute permission="canViewMovements" userRole={userRole}>
-                        <MovementHistory />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/requests"
-                    element={
-                      <ProtectedRoute permission="canViewRequests" userRole={userRole}>
-                        <RequestManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/expiration"
-                    element={
-                      <ProtectedRoute permission="canViewExpiration" userRole={userRole}>
-                        <ExpirationMonitor />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/changelog"
-                    element={
-                      <ProtectedRoute permission="canViewChangelog" userRole={userRole}>
-                        <ProductChangeLog />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/users"
-                    element={
-                      <ProtectedRoute permission="canManageUsers" userRole={userRole}>
-                        <UserManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/suppliers"
-                    element={
-                      <ProtectedRoute permission="canManageSuppliers" userRole={userRole}>
-                        <SupplierManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/quotations"
-                    element={
-                      <ProtectedRoute permission="canManageQuotations" userRole={userRole}>
-                        <QuotationManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/request-periods"
-                    element={
-                      <ProtectedRoute permission="canConfigureRequestPeriods" userRole={userRole}>
-                        <RequestPeriodConfig />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path="/payment-requests"
-                    element={
-                      <ProtectedRoute permission="canViewRequests" userRole={userRole}>
-                        <PaymentRequestManagement />
-                      </ProtectedRoute>
-                    }
-                  />
-                </Routes>
-              </Layout>
-            }
-          />
-        )}
+        
+        {/* Todas as outras rotas passam pelo componente de autenticação */}
+        <Route path="/*" element={<AuthenticatedApp />} />
       </Routes>
     </Router>
   );
