@@ -119,11 +119,15 @@ const RequestManagement: React.FC = () => {
     fetchCategories();
   }, []);
 
+// Departamentos que utilizam o período especial (Área Técnica)
+const SPECIAL_PERIOD_DEPARTMENTS = ['Área técnica', 'Biologia Molecular', 'Qualidade', 'Transporte'];
+
 useEffect(() => {
   const checkRequestPeriod = async () => {
     if (userProfile?.role !== 'requester') return;
 
-    const department = (userProfile?.department as string) === 'Área técnica' ? 'Área técnica' : 'general';
+    const userDepartment = userProfile?.department as string;
+    const department = SPECIAL_PERIOD_DEPARTMENTS.includes(userDepartment) ? 'Área técnica' : 'general';
 
     const { data, error } = await supabase
       .from('request_periods')

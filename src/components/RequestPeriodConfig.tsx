@@ -156,7 +156,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
           
           <div className="p-6">
             <p className="text-sm text-gray-600 mb-4">
-              Aplicado a todos os usuários, exceto usuários da Área Técnica
+              Aplicado a todos os usuários, exceto usuários dos departamentos: Área Técnica, Biologia Molecular, Qualidade e Transporte
             </p>
             
             {generalStartDay && generalEndDay && (
@@ -228,7 +228,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-white">Período - Área Técnica</h3>
+                <h3 className="text-lg font-semibold text-white">Período - Insumos Técnicos</h3>
                 <p className="text-sm text-white/70">Exclusivo para insumos técnicos</p>
               </div>
             </div>
@@ -236,7 +236,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
           
           <div className="p-6">
             <p className="text-sm text-gray-600 mb-4">
-              Aplicado exclusivamente aos usuários do departamento "Área Técnica"
+              Aplicado exclusivamente aos usuários dos departamentos: Área Técnica, Biologia Molecular, Qualidade e Transporte
             </p>
             
             {techStartDay && techEndDay && (
@@ -294,7 +294,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
                 ) : (
                   <Save className="w-4 h-4 mr-2" />
                 )}
-                Salvar Período Área Técnica
+                Salvar Período Insumos Técnicos
               </button>
             </form>
           </div>
@@ -312,7 +312,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
           <div>
             <h4 className="text-sm font-semibold text-amber-800 mb-1">Importante</h4>
             <p className="text-sm text-amber-700">
-              Os usuários da Área Técnica seguirão exclusivamente o período configurado na seção "Período - Área Técnica". 
+              Os usuários dos departamentos Área Técnica, Biologia Molecular, Qualidade e Transporte seguirão exclusivamente o período configurado na seção "Período - Insumos Técnicos". 
               Todos os outros usuários seguirão o "Período Geral".
             </p>
           </div>
