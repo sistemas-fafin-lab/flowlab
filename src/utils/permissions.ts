@@ -73,6 +73,7 @@ export const DEPARTMENT_ROLES: Record<Department, UserRole> = {
   'Diretoria': 'admin',
   'Copa/Limpeza': 'requester',
   'Qualidade': 'requester',
+  'Biologia Molecular': 'requester',
 };
 
 export const DEPARTMENTS: Department[] = [
@@ -89,6 +90,7 @@ export const DEPARTMENTS: Department[] = [
   'Diretoria',
   'Copa/Limpeza',
   'Qualidade',
+  'Biologia Molecular',
 ];
 
 export const getRolePermissions = (role: UserRole): RolePermissions => {
