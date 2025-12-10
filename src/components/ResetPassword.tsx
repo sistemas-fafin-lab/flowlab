@@ -11,9 +11,27 @@ const ResetPassword: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Verificar sessão ao montar o componente
+  // Configurar sessão automaticamente ao entrar na página
   useEffect(() => {
-    supabase.auth.getSession();
+    async function loadSession() {
+      try {
+        const hashParams = new URLSearchParams(window.location.hash.replace('#', '?'));
+        const access_token = hashParams.get("access_token");
+        const refresh_token = hashParams.get("refresh_token");
+
+        if (access_token && refresh_token) {
+          const { error } = await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          });
+          if (error) console.error("Erro ao restaurar sessão:", error);
+        }
+      } catch (err) {
+        console.error("Erro ao processar tokens:", err);
+      }
+    }
+
+    loadSession();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -32,9 +50,7 @@ const ResetPassword: React.FC = () => {
       setError('Erro ao redefinir a senha. O link pode ter expirado.');
     } else {
       setSuccess(true);
-      setTimeout(() => {
-        navigate('/');
-      }, 2500);
+      setTimeout(() => navigate('/'), 2500);
     }
 
     setLoading(false);
