@@ -1049,98 +1049,170 @@ const PaymentRequestManagement: React.FC = () => {
           filteredRequests.map((request, index) => (
             <div 
               key={request.id} 
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:border-blue-100 transition-all duration-300 animate-fade-in-up group"
+              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
               style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
             >
               {/* Header */}
-              <div className="flex items-start justify-between mb-4">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
+                {/* Lado esquerdo - Código e Data */}
                 <div className="flex items-center">
-                  <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-4 shadow-md shadow-green-500/25 group-hover:scale-110 transition-transform duration-300">
-                    <DollarSign className="w-6 h-6 text-white" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-green-500 to-emerald-500 shadow-green-500/25 rounded-xl flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform duration-300 flex-shrink-0">
+                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors">{request.codigo}</h3>
-                    <p className="text-sm text-gray-500">Criado em {formatDateDisplay(request.createdAt)}</p>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className={`px-3 py-1.5 text-sm font-medium rounded-xl ${PAYMENT_STATUS_COLORS[request.status]}`}>
-                    {PAYMENT_STATUS_LABELS[request.status]}
-                  </span>
-                </div>
-              </div>
-
-              {/* Details Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-                <div className="flex items-center group/item">
-                  <Building2 className="w-4 h-4 text-gray-400 mr-2 group-hover/item:text-blue-500 transition-colors" />
-                  <div>
-                    <p className="text-sm text-gray-500">Fornecedor</p>
-                    <p className="font-medium text-gray-800">{request.fornecedor}</p>
+                  <div className="min-w-0">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors truncate">{request.codigo}</h3>
+                    <div className="flex items-center text-xs sm:text-sm text-gray-500">
+                      <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 flex-shrink-0" />
+                      <span className="truncate">{formatDateDisplay(request.createdAt)}</span>
+                    </div>
                   </div>
                 </div>
-
-                <div className="flex items-center group/item">
-                  <CreditCard className="w-4 h-4 text-gray-400 mr-2 group-hover/item:text-green-500 transition-colors" />
-                  <div>
-                    <p className="text-sm text-gray-500">Valor</p>
-                    <p className="font-semibold text-green-600">{formatCurrency(request.valorTotal)}</p>
+                
+                {/* Lado direito - Tags com títulos */}
+                <div className="flex flex-wrap sm:flex-nowrap items-start gap-2 sm:gap-3 sm:ml-4">
+                  {/* Tipo */}
+                  <div className="flex flex-col items-center">
+                    <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Tipo</span>
+                    <span className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap bg-purple-100 text-purple-800 border border-purple-200">
+                      {PAYMENT_TYPE_LABELS[request.tipoSolicitacao]}
+                    </span>
                   </div>
-                </div>
-
-                <div className="flex items-center group/item">
-                  <Calendar className="w-4 h-4 text-gray-400 mr-2 group-hover/item:text-blue-500 transition-colors" />
-                  <div>
-                    <p className="text-sm text-gray-500">Data Pagamento</p>
-                    <p className="font-medium text-gray-800">{formatDateDisplay(request.dataPagamento)}</p>
+                  {/* Forma Pagamento */}
+                  <div className="flex flex-col items-center">
+                    <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Pagamento</span>
+                    <span className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap bg-blue-100 text-blue-800 border border-blue-200">
+                      {PAYMENT_METHOD_LABELS[request.formaPagamento]}
+                    </span>
                   </div>
-                </div>
-
-                <div className="flex items-center group/item">
-                  <User className="w-4 h-4 text-gray-400 mr-2 group-hover/item:text-blue-500 transition-colors" />
-                  <div>
-                    <p className="text-sm text-gray-500">Solicitante</p>
-                    <p className="font-medium text-gray-800">{request.solicitadoPor}</p>
+                  {/* Status */}
+                  <div className="flex flex-col items-center">
+                    <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Status</span>
+                    <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${PAYMENT_STATUS_COLORS[request.status]}`}>
+                      {PAYMENT_STATUS_LABELS[request.status]}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Additional Info */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 p-4 bg-gradient-to-r from-gray-50 to-gray-100/50 rounded-xl">
-                <div>
-                  <p className="text-xs text-gray-500">Tipo</p>
-                  <p className="text-sm font-medium">{PAYMENT_TYPE_LABELS[request.tipoSolicitacao]}</p>
+              {/* Valor em destaque */}
+              <div className="mb-4">
+                <div className="flex items-center p-3 sm:p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-3 sm:mr-4 shadow-md shadow-green-500/25 flex-shrink-0">
+                    <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider">Valor Total</p>
+                    <p className="text-lg sm:text-2xl font-bold text-green-600">{formatCurrency(request.valorTotal)}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500">Forma de Pagamento</p>
-                  <p className="text-sm font-medium">{PAYMENT_METHOD_LABELS[request.formaPagamento]}</p>
+              </div>
+
+              {/* Info Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-4">
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-blue-500/25 flex-shrink-0">
+                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Fornecedor</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.fornecedor}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500">Departamento</p>
-                  <p className="text-sm font-medium">{request.department || 'N/A'}</p>
+
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-orange-500/25 flex-shrink-0">
+                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Data Pagamento</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{formatDateDisplay(request.dataPagamento)}</p>
+                  </div>
                 </div>
+
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-violet-500/25 flex-shrink-0">
+                    <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Solicitante</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.solicitadoPor}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-teal-500 to-cyan-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-teal-500/25 flex-shrink-0">
+                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Departamento</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.department || 'N/A'}</p>
+                  </div>
+                </div>
+
+                {request.cpfCnpj && (
+                  <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-gray-500 to-slate-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-gray-500/25 flex-shrink-0">
+                      <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] sm:text-xs text-gray-500 font-medium">CPF/CNPJ</p>
+                      <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.cpfCnpj}</p>
+                    </div>
+                  </div>
+                )}
+
+                {request.autorizadoPor && (
+                  <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-green-500/25 flex-shrink-0">
+                      <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Autorizado por</p>
+                      <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.autorizadoPor}</p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Description */}
               {request.descricaoDetalhada && (
-                <div className="mb-4">
-                  <p className="text-sm text-gray-600 mb-1">Descrição:</p>
-                  <p className="text-gray-800 bg-gray-100 p-4 rounded-xl text-sm">{request.descricaoDetalhada}</p>
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center">
+                    <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-violet-500/25 flex-shrink-0">
+                      <FileText className="w-3 h-3 text-white" />
+                    </div>
+                    <p className="text-xs sm:text-sm font-medium text-gray-700">Descrição</p>
+                  </div>
+                  <div className="text-gray-700 bg-gradient-to-br from-gray-50 to-slate-50 p-3 sm:p-4 rounded-xl border border-gray-100 text-xs sm:text-sm leading-relaxed break-words">
+                    {request.descricaoDetalhada}
+                  </div>
                 </div>
               )}
 
               {/* Payment Data */}
               {request.dadosPagamento && (
-                <div className="mb-4">
-                  <p className="text-sm text-gray-600 mb-1">Dados para Pagamento:</p>
-                  <p className="text-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl text-sm font-mono border border-blue-100">{request.dadosPagamento}</p>
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center">
+                    <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-blue-500/25 flex-shrink-0">
+                      <CreditCard className="w-3 h-3 text-white" />
+                    </div>
+                    <p className="text-xs sm:text-sm font-medium text-gray-700">Dados para Pagamento</p>
+                  </div>
+                  <div className="text-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-xl border border-blue-100 text-xs sm:text-sm font-mono break-words">
+                    {request.dadosPagamento}
+                  </div>
                 </div>
               )}
 
               {/* Attachment */}
               {request.attachmentUrl && (
-                <div className="mb-4">
-                  <p className="text-sm text-gray-600 mb-1">Anexo:</p>
+                <div className="mb-4 space-y-2">
+                  <div className="flex items-center">
+                    <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-purple-500/25 flex-shrink-0">
+                      <Paperclip className="w-3 h-3 text-white" />
+                    </div>
+                    <p className="text-xs sm:text-sm font-medium text-gray-700">Anexo</p>
+                  </div>
                   <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 p-3 rounded-xl border border-purple-100">
                     {request.attachmentName?.match(/\.(png|jpg|jpeg)$/i) ? (
                       <>
@@ -1148,7 +1220,7 @@ const PaymentRequestManagement: React.FC = () => {
                           <img 
                             src={request.attachmentUrl} 
                             alt={request.attachmentName} 
-                            className="w-16 h-16 object-cover rounded-lg border border-purple-200 cursor-pointer hover:opacity-90 transition-opacity"
+                            className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-purple-200 cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => window.open(request.attachmentUrl, '_blank')}
                           />
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
@@ -1156,22 +1228,22 @@ const PaymentRequestManagement: React.FC = () => {
                           </div>
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
-                          <p className="text-xs text-purple-600">Clique na imagem para visualizar</p>
+                          <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
+                          <p className="text-[10px] sm:text-xs text-purple-600">Clique na imagem para visualizar</p>
                         </div>
                       </>
                     ) : (
                       <>
-                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
-                          <FileText className="w-6 h-6 text-purple-600" />
+                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
+                          <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
                           <a 
                             href={request.attachmentUrl} 
                             target="_blank" 
                             rel="noopener noreferrer"
-                            className="text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
+                            className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
                           >
                             <Paperclip className="w-3 h-3" />
                             Abrir documento
@@ -1184,67 +1256,65 @@ const PaymentRequestManagement: React.FC = () => {
               )}
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-4 border-t border-gray-100">
-                <div className="flex flex-wrap gap-2">
-                  {canApprove && request.status === 'pending' && (
-                    <>
-                      <button
-                        onClick={() => handleApprove(request)}
-                        className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center text-sm font-medium shadow-md shadow-green-500/25 hover:shadow-lg"
-                      >
-                        <Check className="w-4 h-4 mr-2" />
-                        Aprovar
-                      </button>
-                      <button
-                        onClick={() => handleReject(request)}
-                        className="px-4 py-2 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 transition-all duration-200 flex items-center text-sm font-medium shadow-md shadow-red-500/25 hover:shadow-lg"
-                      >
-                        <X className="w-4 h-4 mr-2" />
-                        Rejeitar
-                      </button>
-                    </>
-                  )}
-                  
-                  {canApprove && request.status === 'approved' && (
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
+                {canApprove && request.status === 'pending' && (
+                  <>
                     <button
-                      onClick={() => handleMarkAsPaid(request)}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center text-sm font-medium shadow-md shadow-blue-500/25 hover:shadow-lg"
+                      onClick={() => handleApprove(request)}
+                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 text-xs sm:text-sm"
                     >
-                      <DollarSign className="w-4 h-4 mr-2" />
-                      Marcar como Pago
+                      <Check className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Aprovar</span>
                     </button>
-                  )}
-
-                  {canApprove && (request.status === 'pending' || request.status === 'rejected') && (
                     <button
-                      onClick={() => handleDelete(request)}
-                      className="px-4 py-2 bg-gray-100 text-red-600 rounded-xl hover:bg-red-50 transition-all duration-200 flex items-center text-sm font-medium"
+                      onClick={() => handleReject(request)}
+                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30 text-xs sm:text-sm"
                     >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      Excluir
+                      <X className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Rejeitar</span>
                     </button>
-                  )}
+                  </>
+                )}
+                
+                {canApprove && request.status === 'approved' && (
+                  <button
+                    onClick={() => handleMarkAsPaid(request)}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-xs sm:text-sm"
+                  >
+                    <DollarSign className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Marcar como Pago</span>
+                  </button>
+                )}
 
-                  {request.pdfUrl && (
-                    <a
-                      href={request.pdfUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 flex items-center text-sm font-medium"
-                    >
-                      <FileText className="w-4 h-4 mr-2" />
-                      Ver PDF
-                    </a>
-                  )}
-                </div>
+                {canApprove && (request.status === 'pending' || request.status === 'rejected') && (
+                  <button
+                    onClick={() => handleDelete(request)}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 text-red-600 rounded-xl hover:bg-red-50 transition-all duration-200 flex items-center justify-center font-medium text-xs sm:text-sm"
+                  >
+                    <Trash2 className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Excluir</span>
+                  </button>
+                )}
 
-                {/* Print PDF Button - Always visible on the right */}
+                {request.pdfUrl && (
+                  <a
+                    href={request.pdfUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 flex items-center justify-center font-medium text-xs sm:text-sm"
+                  >
+                    <FileText className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Ver PDF</span>
+                  </a>
+                )}
+
+                {/* Print PDF Button */}
                 <button
                   onClick={() => generatePDF(request)}
-                  className="px-4 py-2 bg-gradient-to-r from-blue-900 to-indigo-800 text-white rounded-xl hover:from-blue-800 hover:to-indigo-700 transition-all duration-200 flex items-center text-sm font-medium shadow-md shadow-blue-900/25 hover:shadow-lg"
+                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-900 to-indigo-800 text-white rounded-xl hover:from-blue-800 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-900/25 hover:shadow-lg text-xs sm:text-sm sm:ml-auto"
                 >
-                  <Printer className="w-4 h-4 mr-2" />
-                  Imprimir Comprovante
+                  <Printer className="w-4 h-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Imprimir</span>
                 </button>
               </div>
             </div>
