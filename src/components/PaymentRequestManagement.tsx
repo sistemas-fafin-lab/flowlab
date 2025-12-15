@@ -93,6 +93,11 @@ const PaymentRequestManagement: React.FC = () => {
   // Attachment state
   const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  // Image viewer state
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [currentImageName, setCurrentImageName] = useState<string>('');
 
   // Update form when user profile loads
   useEffect(() => {
@@ -145,6 +150,20 @@ const PaymentRequestManagement: React.FC = () => {
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
+  };
+
+  // Open image viewer
+  const openImageViewer = (imageUrl: string, imageName: string) => {
+    setCurrentImageUrl(imageUrl);
+    setCurrentImageName(imageName);
+    setImageViewerOpen(true);
+  };
+
+  // Close image viewer
+  const closeImageViewer = () => {
+    setImageViewerOpen(false);
+    setCurrentImageUrl(null);
+    setCurrentImageName('');
   };
 
   // Set suggested date on mount
@@ -611,6 +630,73 @@ const PaymentRequestManagement: React.FC = () => {
         onCancel={hideConfirmDialog}
         type={confirmDialog.type}
       />
+
+      {/* Image Viewer Modal */}
+      {imageViewerOpen && currentImageUrl && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in p-2 sm:p-4"
+          onClick={closeImageViewer}
+        >
+          <div className="relative w-full h-full max-w-7xl flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-2 sm:mb-4 px-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Image className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-white font-semibold text-sm sm:text-lg truncate">{currentImageName}</h3>
+                  <p className="text-white/60 text-xs sm:text-sm hidden sm:block">Clique fora da imagem para fechar</p>
+                </div>
+              </div>
+              <button
+                onClick={closeImageViewer}
+                className="w-8 h-8 sm:w-10 sm:h-10 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center transition-all group flex-shrink-0 ml-2"
+              >
+                <X className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:scale-110 transition-transform" />
+              </button>
+            </div>
+
+            {/* Image Container */}
+            <div 
+              className="flex-1 flex items-center justify-center overflow-hidden min-h-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={currentImageUrl}
+                alt={currentImageName}
+                className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-center gap-2 sm:gap-3 mt-2 sm:mt-4 flex-shrink-0">
+              <a
+                href={currentImageUrl}
+                download={currentImageName}
+                className="px-3 py-2 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center gap-2 transition-all text-xs sm:text-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Download</span>
+                <span className="sm:hidden">Baixar</span>
+              </a>
+              <a
+                href={currentImageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center gap-2 transition-all text-xs sm:text-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Abrir em nova aba</span>
+                <span className="sm:hidden">Nova aba</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex justify-between items-center animate-fade-in-up">
@@ -1216,12 +1302,14 @@ const PaymentRequestManagement: React.FC = () => {
                   <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 p-3 rounded-xl border border-purple-100">
                     {request.attachmentName?.match(/\.(png|jpg|jpeg)$/i) ? (
                       <>
-                        <div className="relative group/preview">
+                        <div 
+                          className="relative group/preview cursor-pointer"
+                          onClick={() => openImageViewer(request.attachmentUrl!, request.attachmentName!)}
+                        >
                           <img 
                             src={request.attachmentUrl} 
                             alt={request.attachmentName} 
-                            className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-purple-200 cursor-pointer hover:opacity-90 transition-opacity"
-                            onClick={() => window.open(request.attachmentUrl, '_blank')}
+                            className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-purple-200 hover:opacity-90 transition-opacity"
                           />
                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
                             <Eye className="w-5 h-5 text-white" />
@@ -1229,7 +1317,13 @@ const PaymentRequestManagement: React.FC = () => {
                         </div>
                         <div className="flex-1 min-w-0">
                           <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
-                          <p className="text-[10px] sm:text-xs text-purple-600">Clique na imagem para visualizar</p>
+                          <button 
+                            onClick={() => openImageViewer(request.attachmentUrl!, request.attachmentName!)}
+                            className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
+                          >
+                            <Eye className="w-3 h-3" />
+                            Clique na imagem para visualizar
+                          </button>
                         </div>
                       </>
                     ) : (
