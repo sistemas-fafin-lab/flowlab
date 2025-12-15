@@ -60,6 +60,8 @@ export interface Request {
   supplierName?: string;
   receiver_signature?: string;
   received_by?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
 }
 
 export interface ProductChangeLog {

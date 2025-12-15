@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle } from 'lucide-react';
+import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
@@ -63,6 +63,16 @@ const RequestManagement: React.FC = () => {
   const [selectedQuantity, setSelectedQuantity] = useState(1);
   const [cursorPosition, setCursorPosition] = useState(0);
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+  // Attachment state
+  const [attachment, setAttachment] = useState<File | null>(null);
+  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  // Image viewer state
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
+  const [currentImageName, setCurrentImageName] = useState<string>('');
 
   const statusLabels = {
     'pending': 'Pendente',
@@ -271,6 +281,62 @@ useEffect(() => {
     }));
   };
 
+  // Handle file attachment
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validar tipo de arquivo
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+    if (!allowedTypes.includes(file.type)) {
+      showError('Tipo de arquivo inválido', 'Apenas PDF, PNG e JPEG são permitidos.');
+      return;
+    }
+
+    // Validar tamanho (máx 10MB)
+    const maxSize = 10 * 1024 * 1024;
+    if (file.size > maxSize) {
+      showError('Arquivo muito grande', 'O tamanho máximo permitido é 10MB.');
+      return;
+    }
+
+    setAttachment(file);
+
+    // Criar preview para imagens
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setAttachmentPreview(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    } else {
+      setAttachmentPreview(null);
+    }
+  };
+
+  // Remove attachment
+  const removeAttachment = () => {
+    setAttachment(null);
+    setAttachmentPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  // Open image viewer
+  const openImageViewer = (imageUrl: string, imageName: string) => {
+    setCurrentImageUrl(imageUrl);
+    setCurrentImageName(imageName);
+    setImageViewerOpen(true);
+  };
+
+  // Close image viewer
+  const closeImageViewer = () => {
+    setImageViewerOpen(false);
+    setCurrentImageUrl(null);
+    setCurrentImageName('');
+  };
+
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -291,7 +357,7 @@ useEffect(() => {
         supplierId: newRequest.supplierId,
         supplierName: newRequest.supplierId ? suppliers.find(s => s.id === newRequest.supplierId)?.name : undefined,
         status: 'pending'
-      });
+      }, attachment);
 
       setNewRequest({
         type: 'SM',
@@ -302,6 +368,11 @@ useEffect(() => {
         department: userProfile?.department || '',
         supplierId: null
       });
+      setAttachment(null);
+      setAttachmentPreview(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
       setShowAddRequest(false);
       showSuccess('Solicitação criada com sucesso!');
     } catch (error) {
@@ -485,6 +556,73 @@ const handleCompleteRequest = async (request: Request) => {
         onCancel={hideConfirmDialog}
         type={confirmDialog.type}
       />
+
+      {/* Image Viewer Modal */}
+      {imageViewerOpen && currentImageUrl && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in p-2 sm:p-4"
+          onClick={closeImageViewer}
+        >
+          <div className="relative w-full h-full max-w-7xl flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-2 sm:mb-4 px-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <Image className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-white font-semibold text-sm sm:text-lg truncate">{currentImageName}</h3>
+                  <p className="text-white/60 text-xs sm:text-sm hidden sm:block">Clique fora da imagem para fechar</p>
+                </div>
+              </div>
+              <button
+                onClick={closeImageViewer}
+                className="w-8 h-8 sm:w-10 sm:h-10 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center transition-all group flex-shrink-0 ml-2"
+              >
+                <X className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:scale-110 transition-transform" />
+              </button>
+            </div>
+
+            {/* Image Container */}
+            <div 
+              className="flex-1 flex items-center justify-center overflow-hidden min-h-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <img
+                src={currentImageUrl}
+                alt={currentImageName}
+                className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </div>
+
+            {/* Footer Actions */}
+            <div className="flex items-center justify-center gap-2 sm:gap-3 mt-2 sm:mt-4 flex-shrink-0">
+              <a
+                href={currentImageUrl}
+                download={currentImageName}
+                className="px-3 py-2 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center gap-2 transition-all text-xs sm:text-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Download</span>
+                <span className="sm:hidden">Baixar</span>
+              </a>
+              <a
+                href={currentImageUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-2 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center gap-2 transition-all text-xs sm:text-sm"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
+                <span className="hidden sm:inline">Abrir em nova aba</span>
+                <span className="sm:hidden">Nova aba</span>
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Header and Add Button */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 animate-fade-in-up">
@@ -869,6 +1007,75 @@ const handleCompleteRequest = async (request: Request) => {
               )}
             </div>
 
+            {/* Anexo */}
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Anexo (Opcional)
+              </label>
+              <div className="space-y-3">
+                {/* Input oculto */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.png,.jpg,.jpeg"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                
+                {/* Botão de upload ou preview */}
+                {!attachment ? (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full flex items-center justify-center gap-3 px-4 py-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200 group"
+                  >
+                    <div className="w-10 h-10 bg-gray-100 group-hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors">
+                      <FileUp className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700">
+                        Clique para anexar arquivo
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        PDF, PNG ou JPEG (máx. 10MB)
+                      </p>
+                    </div>
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
+                    {/* Preview para imagens */}
+                    {attachmentPreview && attachment?.type.startsWith('image/') ? (
+                      <img 
+                        src={attachmentPreview} 
+                        alt="Preview" 
+                        className="w-12 h-12 object-cover rounded-lg border border-green-300"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                        <FileText className="w-6 h-6 text-green-600" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-green-800 truncate">
+                        {attachment.name}
+                      </p>
+                      <p className="text-xs text-green-600">
+                        {(attachment.size / 1024).toFixed(1)} KB
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={removeAttachment}
+                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-lg transition-all"
+                      title="Remover anexo"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
             <div className="md:col-span-2 flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-100">
               <p className="text-xs text-gray-500">
                 <span className="text-red-500">*</span> Campos obrigatórios
@@ -1181,6 +1388,65 @@ const handleCompleteRequest = async (request: Request) => {
                 onClick={() => setChatRequestId(request.id)}
               />
             </div>
+
+            {/* Attachment */}
+            {request.attachmentUrl && (
+              <div className="mb-4 space-y-2">
+                <div className="flex items-center">
+                  <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-purple-500/25 flex-shrink-0">
+                    <Paperclip className="w-3 h-3 text-white" />
+                  </div>
+                  <p className="text-xs sm:text-sm font-medium text-gray-700">Anexo</p>
+                </div>
+                <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 p-3 rounded-xl border border-purple-100">
+                  {request.attachmentName?.match(/\.(png|jpg|jpeg)$/i) ? (
+                    <>
+                      <div 
+                        className="relative group/preview cursor-pointer"
+                        onClick={() => openImageViewer(request.attachmentUrl!, request.attachmentName!)}
+                      >
+                        <img 
+                          src={request.attachmentUrl} 
+                          alt={request.attachmentName} 
+                          className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-purple-200 hover:opacity-90 transition-opacity"
+                        />
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                          <Eye className="w-5 h-5 text-white" />
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
+                        <button 
+                          onClick={() => openImageViewer(request.attachmentUrl!, request.attachmentName!)}
+                          className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
+                        >
+                          <Eye className="w-3 h-3" />
+                          Clique na imagem para visualizar
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
+                        <a 
+                          href={request.attachmentUrl} 
+                          target="_blank" 
+                          rel="noopener noreferrer"
+                          className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
+                        >
+                          <Paperclip className="w-3 h-3" />
+                          Abrir documento
+                        </a>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Action Buttons */}
             {canApprove && request.status === 'pending' && (
