@@ -14,7 +14,8 @@ import ConfirmDialog from './ConfirmDialog';
 import RequestChat, { ChatButton } from './RequestChat';
 import SignatureModal from './SignatureModal';
 import SignatureViewModal from './SignatureViewModal';
-import { PenTool } from 'lucide-react';
+import StockWithdrawalModal from './StockWithdrawalModal';
+import { PenTool, Loader2 } from 'lucide-react';
 
 
 const RequestManagement: React.FC = () => {
@@ -53,6 +54,13 @@ const RequestManagement: React.FC = () => {
   const [chatRequestId, setChatRequestId] = useState<string | null>(null);
 
   const [showSignatureModal, setShowSignatureModal] = useState<null | Request>(null);
+  
+  // Estado para controlar o modal de baixa de estoque seguro
+  const [showWithdrawalModal, setShowWithdrawalModal] = useState<null | Request>(null);
+  
+  // Estados para prevenir duplicidade de processamento
+  const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
+  const [processedRequestIds, setProcessedRequestIds] = useState<Set<string>>(new Set());
 
   const [viewSignature, setViewSignature] = useState<{name: string; signature: string} | null>(null);
 
@@ -415,8 +423,65 @@ useEffect(() => {
   };
 
 const handleCompleteRequest = async (request: Request) => {
-  // Abre modal de confirmação com coleta de assinatura
-  setShowSignatureModal(request);
+  // Verificação 1: Verificar se a solicitação já foi processada nesta sessão
+  if (processedRequestIds.has(request.id)) {
+    showWarning('Esta solicitação já foi processada nesta sessão.');
+    return;
+  }
+  
+  // Verificação 2: Verificar se já existe um processamento em andamento
+  if (processingRequestId === request.id) {
+    showWarning('Esta solicitação já está sendo processada.');
+    return;
+  }
+  
+  // Verificação 3: Verificar status atual no banco de dados
+  try {
+    const { data: currentRequest, error } = await supabase
+      .from('requests')
+      .select('status, received_by, receiver_signature')
+      .eq('id', request.id)
+      .single();
+    
+    if (error) {
+      console.error('Erro ao verificar status da solicitação:', error);
+      showError('Erro ao verificar status da solicitação.');
+      return;
+    }
+    
+    // Se já está completo, não permitir nova baixa
+    if (currentRequest.status === 'completed') {
+      showWarning('Esta solicitação já foi concluída anteriormente.');
+      setProcessedRequestIds(prev => new Set([...prev, request.id]));
+      return;
+    }
+    
+    // Se já tem assinatura, provavelmente já foi processada
+    if (currentRequest.receiver_signature) {
+      showWarning('Esta solicitação já possui registro de retirada.');
+      return;
+    }
+    
+    // Verificação 4: Verificar se existem movimentações para esta solicitação
+    const { data: existingMovements, error: movError } = await supabase
+      .from('stock_movements')
+      .select('id')
+      .eq('request_id', request.id);
+    
+    if (!movError && existingMovements && existingMovements.length > 0) {
+      showWarning(`Esta solicitação já possui ${existingMovements.length} movimentação(ões) registrada(s).`);
+      setProcessedRequestIds(prev => new Set([...prev, request.id]));
+      return;
+    }
+    
+  } catch (err) {
+    console.error('Erro na verificação prévia:', err);
+    showError('Erro ao verificar solicitação. Tente novamente.');
+    return;
+  }
+  
+  // Se passou todas as verificações, abrir o modal de confirmação seguro
+  setShowWithdrawalModal(request);
 };
 
   const handleStartQuotation = async (request: Request) => {
@@ -1596,6 +1661,114 @@ const handleCompleteRequest = async (request: Request) => {
           } catch (error) {
             console.error(error);
             showError('Erro ao finalizar solicitação. Tente novamente.');
+          }
+        }}
+      />
+    )}
+    
+    {/* Modal de Retirada de Estoque Seguro */}
+    {showWithdrawalModal && (
+      <StockWithdrawalModal
+        requestId={showWithdrawalModal.id}
+        requestReason={showWithdrawalModal.reason}
+        approvedBy={showWithdrawalModal.approvedBy}
+        items={showWithdrawalModal.items}
+        products={products}
+        onClose={() => {
+          setShowWithdrawalModal(null);
+          setProcessingRequestId(null);
+        }}
+        onConfirm={async (signature, receiverName, itemsToDeduct, onItemProcessed) => {
+          // Marcar como em processamento
+          setProcessingRequestId(showWithdrawalModal.id);
+          
+          try {
+            // Verificação final: checar status novamente antes de processar
+            const { data: currentRequest, error: checkError } = await supabase
+              .from('requests')
+              .select('status')
+              .eq('id', showWithdrawalModal.id)
+              .single();
+            
+            if (checkError || currentRequest?.status === 'completed') {
+              throw new Error('Esta solicitação já foi processada por outro usuário.');
+            }
+            
+            // Primeiro: Salvar assinatura e nome (marcando que está em processo)
+            const { error: signatureError } = await supabase
+              .from('requests')
+              .update({
+                receiver_signature: signature,
+                received_by: receiverName,
+              })
+              .eq('id', showWithdrawalModal.id)
+              .eq('status', 'approved'); // Só atualiza se ainda estiver aprovado
+            
+            if (signatureError) {
+              throw new Error('Erro ao salvar assinatura. Possível processamento concorrente.');
+            }
+            
+            // Processar cada item individualmente com tratamento de erro
+            const processedItems: string[] = [];
+            const failedItems: { item: string; error: string }[] = [];
+            
+            for (const item of itemsToDeduct) {
+              try {
+                // Verificar estoque atual antes de deduzir
+                const product = products.find(p => p.id === item.productId);
+                if (!product) {
+                  onItemProcessed(item.id, false, 'Produto não encontrado');
+                  failedItems.push({ item: item.productName, error: 'Produto não encontrado' });
+                  continue;
+                }
+                
+                // Criar movimentação
+                await addMovement({
+                  productId: item.productId!,
+                  productName: item.productName,
+                  type: 'out',
+                  reason: 'sale',
+                  quantity: item.quantity,
+                  date: new Date().toISOString().split('T')[0],
+                  requestId: showWithdrawalModal.id,
+                  authorizedBy: showWithdrawalModal.approvedBy,
+                  notes: `Solicitação: ${showWithdrawalModal.reason}`,
+                  unitPrice: product.unitPrice,
+                  totalValue: item.quantity * product.unitPrice,
+                });
+                
+                processedItems.push(item.productName);
+                onItemProcessed(item.id, true);
+                
+                // Pequeno delay entre itens para evitar race conditions
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+              } catch (itemError) {
+                console.error(`Erro ao processar item ${item.productName}:`, itemError);
+                onItemProcessed(item.id, false, 'Erro ao processar');
+                failedItems.push({ item: item.productName, error: 'Falha na movimentação' });
+              }
+            }
+            
+            // Atualizar status da solicitação para concluído
+            await updateRequestStatus(showWithdrawalModal.id, 'completed');
+            
+            // Marcar como processado nesta sessão
+            setProcessedRequestIds(prev => new Set([...prev, showWithdrawalModal.id]));
+            
+            // Mostrar resultado
+            if (failedItems.length === 0) {
+              showSuccess(`Retirada finalizada com sucesso! ${processedItems.length} item(s) baixado(s).`);
+            } else {
+              showWarning(`Retirada parcial: ${processedItems.length} item(s) baixado(s), ${failedItems.length} com erro.`);
+            }
+            
+          } catch (error: any) {
+            console.error('Erro ao processar retirada:', error);
+            showError(error.message || 'Erro ao finalizar solicitação. Tente novamente.');
+            throw error; // Re-throw para o modal tratar
+          } finally {
+            setProcessingRequestId(null);
           }
         }}
       />
