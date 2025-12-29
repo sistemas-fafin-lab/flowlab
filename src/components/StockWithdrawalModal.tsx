@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import SignatureCanvas from 'react-signature-canvas';
 import { X, Check, Package, AlertTriangle, Loader2, CheckCircle2, XCircle, Info } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
@@ -73,6 +74,12 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
   const itemsWithIssues = withdrawalItems.filter(item => !item.willDeduct && item.productId !== null);
   const unregisteredItems = withdrawalItems.filter(item => item.productId === null);
   
+  // Verifica se todos os itens são não cadastrados (permite confirmar sem dedução de estoque)
+  const allItemsUnregistered = unregisteredItems.length === withdrawalItems.length && withdrawalItems.length > 0;
+  
+  // Verifica se pode confirmar a retirada (tem itens para deduzir OU todos são não cadastrados)
+  const canConfirmWithdrawal = itemsToDeduct.length > 0 || allItemsUnregistered;
+  
   // Callback para atualizar status de processamento de cada item
   const handleItemProcessed = (itemId: string, success: boolean, error?: string) => {
     setWithdrawalItems(prev => prev.map(item => 
@@ -107,9 +114,9 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
       return;
     }
     
-    // Verificar se há itens para baixar
-    if (itemsToDeduct.length === 0) {
-      showError('Não há itens disponíveis para baixa no estoque.');
+    // Verificar se pode prosseguir com a retirada
+    if (!canConfirmWithdrawal) {
+      showError('Não há itens disponíveis para processar a retirada.');
       return;
     }
 
@@ -165,9 +172,9 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
     return <Package className="w-4 h-4 text-gray-400" />;
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+  return createPortal(
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="px-6 py-4 bg-gradient-to-r from-blue-500 to-indigo-500 text-white">
           <div className="flex items-center justify-between">
@@ -370,7 +377,7 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
             </button>
             <button
               onClick={handleConfirm}
-              disabled={isProcessing || itemsToDeduct.length === 0}
+              disabled={isProcessing || !canConfirmWithdrawal}
               className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 flex items-center font-medium transition-all shadow-md shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
             >
               {isProcessing ? (
@@ -381,14 +388,18 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
               ) : (
                 <>
                   <Check className="w-4 h-4 mr-2" />
-                  Confirmar Retirada ({itemsToDeduct.length} {itemsToDeduct.length === 1 ? 'item' : 'itens'})
+                  {allItemsUnregistered 
+                    ? 'Confirmar Retirada (sem itens em estoque)'
+                    : `Confirmar Retirada (${itemsToDeduct.length} ${itemsToDeduct.length === 1 ? 'item' : 'itens'})`
+                  }
                 </>
               )}
             </button>
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
