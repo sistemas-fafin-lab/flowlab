@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import SignatureCanvas from 'react-signature-canvas';
 import { X, Check } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
@@ -14,6 +14,79 @@ const SignatureModal: React.FC<SignatureModalProps> = ({ requestId, items, onCon
   const { showError } = useNotification();
   const sigCanvasRef = useRef<SignatureCanvas>(null);
   const [receiverName, setReceiverName] = useState('');
+  const [savedSignature, setSavedSignature] = useState<string | null>(null);
+  const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 160 });
+  const resizeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Salvar assinatura no state
+  const saveSignatureData = () => {
+    if (sigCanvasRef.current && !sigCanvasRef.current.isEmpty()) {
+      const data = sigCanvasRef.current.toDataURL();
+      setSavedSignature(data);
+    }
+  };
+
+  // Restaurar assinatura do state
+  const restoreSignatureData = () => {
+    if (savedSignature && sigCanvasRef.current) {
+      // Aguardar o canvas estar totalmente renderizado com as novas dimensões
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          if (sigCanvasRef.current) {
+            sigCanvasRef.current.fromDataURL(savedSignature);
+          }
+        });
+      });
+    }
+  };
+
+  // Calcular tamanho do canvas baseado no container
+  useEffect(() => {
+    if (!canvasContainerRef.current) return;
+
+    const updateCanvasSize = () => {
+      if (canvasContainerRef.current) {
+        const containerWidth = canvasContainerRef.current.offsetWidth - 16; // Subtrair padding
+        setCanvasSize({ width: containerWidth, height: 160 });
+      }
+    };
+
+    // Atualizar tamanho inicial
+    updateCanvasSize();
+
+    // Observar mudanças no tamanho do container
+    const resizeObserver = new ResizeObserver(() => {
+      // Salvar antes de redimensionar
+      saveSignatureData();
+
+      // Limpar timeout anterior
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+      }
+
+      // Aguardar redimensionamento finalizar
+      resizeTimeoutRef.current = setTimeout(() => {
+        updateCanvasSize();
+        // Restaurar após atualizar o tamanho
+        setTimeout(restoreSignatureData, 100);
+      }, 100);
+    });
+
+    resizeObserver.observe(canvasContainerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+      if (resizeTimeoutRef.current) {
+        clearTimeout(resizeTimeoutRef.current);
+      }
+    };
+  }, [savedSignature]);
+
+  const handleClear = () => {
+    sigCanvasRef.current?.clear();
+    setSavedSignature(null);
+  };
 
   const handleConfirm = () => {
     if (!receiverName.trim()) {
@@ -50,14 +123,23 @@ const SignatureModal: React.FC<SignatureModalProps> = ({ requestId, items, onCon
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         />
 
-        <div className="border border-gray-300 rounded-lg">
-          <SignatureCanvas
-            ref={sigCanvasRef}
-            penColor="black"
-            canvasProps={{ className: 'w-full h-40 rounded-lg' }}
-          />
+        <div ref={canvasContainerRef} className="border border-gray-300 rounded-lg p-2">
+          {canvasSize.width > 0 && (
+            <SignatureCanvas
+              ref={sigCanvasRef}
+              penColor="black"
+              canvasProps={{ 
+                width: canvasSize.width,
+                height: canvasSize.height,
+                className: 'rounded-lg',
+                style: { touchAction: 'none', width: '100%', height: '160px' }
+              }}
+              onEnd={saveSignatureData}
+            />
+          )}
           <button
-            onClick={() => sigCanvasRef.current?.clear()}
+            type="button"
+            onClick={handleClear}
             className="mt-2 text-sm text-gray-600 hover:text-gray-800"
           >
             Limpar

@@ -784,7 +784,9 @@ export const useInventory = () => {
         reason: `Solicitação automática de reposição - Produto próximo ao vencimento. Estoque atual: ${product.quantity} ${product.unit}`,
         priority: 'priority',
         requestedBy,
-        requestDate: new Date().toISOString().split('T')[0]
+        requestDate: new Date().toISOString().split('T')[0],
+        type: 'SC',
+        status: 'pending'
       });
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to request replenishment');
