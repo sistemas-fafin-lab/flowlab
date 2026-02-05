@@ -314,6 +314,7 @@ export const useInventory = () => {
     const totalProducts = products.length;
     const lowStockProducts = products.filter(p => p.status === 'low-stock').length;
     const expiringProducts = products.filter(p => {
+      if (p.quantity <= 0) return false; // Não exibir produtos sem estoque
       const expirationDate = new Date(p.expirationDate);
       const thirtyDaysFromNow = new Date();
       thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);

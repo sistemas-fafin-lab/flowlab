@@ -40,6 +40,7 @@ const RequestManagement: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [newRequest, setNewRequest] = useState({
     type: 'SM' as 'SC' | 'SM',
@@ -205,13 +206,26 @@ useEffect(() => {
     const matchesDepartment = departmentFilter === 'all' || request.department === departmentFilter;
     const matchesDate = !dateFilter || request.requestDate === dateFilter;
     
+    // Pesquisa inteligente - busca em múltiplos campos
+    const matchesSearch = !searchQuery || (
+      request.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      request.requestedBy.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      request.reason.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (request.department && request.department.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (request.approvedBy && request.approvedBy.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      (request.supplierName && request.supplierName.toLowerCase().includes(searchQuery.toLowerCase())) ||
+      request.items.some(item => 
+        item.productName.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    );
+    
     // Se for admin ou operator, pode ver todas as solicitações
     // Se for requester, só pode ver as do seu departamento
     const matchesUserAccess = userProfile?.role === 'admin' || 
                              userProfile?.role === 'operator' || 
                              request.department === userProfile?.department;
     
-    return matchesStatus && matchesType && matchesDepartment && matchesDate && matchesUserAccess;
+    return matchesStatus && matchesType && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
   });
 
   // Adiciona produto existente
@@ -1260,10 +1274,33 @@ const handleCompleteRequest = async (request: Request) => {
             <FilterIcon className="w-4 h-4 text-white" />  
           </div>
           <div>
-            <h3 className="text-base font-semibold text-gray-800">Filtros</h3>
+            <h3 className="text-base font-semibold text-gray-800">Filtros e Pesquisa</h3>
             <p className="text-xs text-gray-500 hidden sm:block">Refine sua busca por solicitações</p>
           </div>
         </div>
+        
+        {/* Campo de Pesquisa Inteligente */}
+        <div className="mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Pesquisar por ID, solicitante, produto, departamento, motivo..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 text-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </div>
+        
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <div>
             <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Status</label>
@@ -1309,7 +1346,7 @@ const handleCompleteRequest = async (request: Request) => {
           <div className="col-span-2 sm:col-span-1 flex items-end">
             <div className="w-full px-3 sm:px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl text-center sm:text-left">
               <span className="text-xs sm:text-sm font-medium text-blue-700">
-                {filteredRequests.length} solicitação(ões)
+                {filteredRequests.length} {filteredRequests.length === 1 ? 'solicitação' : 'solicitações'}
               </span>
             </div>
           </div>
