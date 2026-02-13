@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image } from 'lucide-react';
+import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image, Clock, CheckCircle2, XCircle, Play } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
@@ -37,6 +37,7 @@ const RequestManagement: React.FC = () => {
   const [showTypeSelectionModal, setShowTypeSelectionModal] = useState(false);
   const [selectedRequestType, setSelectedRequestType] = useState<'SC' | 'SM'>('SM');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('');
@@ -201,7 +202,10 @@ useEffect(() => {
 
   // Filtrar solicitações baseado no perfil do usuário
   const filteredRequests = requests.filter(request => {
-    const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
+    // Status filter: usa cards clicáveis OU dropdown
+    const matchesStatus = selectedStatusFilters.size > 0 
+      ? selectedStatusFilters.has(request.status)
+      : (statusFilter === 'all' || request.status === statusFilter);
     const matchesType = typeFilter === 'all' || request.type === typeFilter;
     const matchesDepartment = departmentFilter === 'all' || request.department === departmentFilter;
     const matchesDate = !dateFilter || request.requestDate === dateFilter;
@@ -227,6 +231,28 @@ useEffect(() => {
     
     return matchesStatus && matchesType && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
   });
+
+  // Toggle status filter via cards (multi-select)
+  const toggleStatusCardFilter = (status: string) => {
+    setSelectedStatusFilters(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(status)) {
+        newSet.delete(status);
+      } else {
+        newSet.add(status);
+      }
+      // Limpa o filtro dropdown quando usar cards
+      if (newSet.size > 0) {
+        setStatusFilter('all');
+      }
+      return newSet;
+    });
+  };
+
+  // Limpar filtros de cards
+  const clearStatusCardFilters = () => {
+    setSelectedStatusFilters(new Set());
+  };
 
   // Adiciona produto existente
   const addProductToRequest = () => {
@@ -721,9 +747,9 @@ const handleCompleteRequest = async (request: Request) => {
             onClick={() => {
               handleNewRequestClick();
             }}
-            className="px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 flex items-center justify-center transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-sm sm:text-base"
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 flex items-center justify-center transition-all duration-200 font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 text-base"
           >
-            <Plus className="w-4 h-4 mr-2" />
+            <Plus className="w-5 h-5 mr-2" />
             Nova Solicitação
           </button>
         </div>
@@ -1352,6 +1378,128 @@ const handleCompleteRequest = async (request: Request) => {
           </div>
         </div>
       </div>
+
+      {/* Stats Cards - Apenas para admin e operator (informação de gestão) */}
+      {userProfile?.role !== 'requester' && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          {/* Pendentes */}
+          <button
+            onClick={() => toggleStatusCardFilter('pending')}
+            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+              selectedStatusFilters.has('pending') 
+                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50' 
+                : 'border-gray-100 hover:border-yellow-200'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100'
+              }`}>
+                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600'}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {requests.filter(r => r.status === 'pending').length}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">Pendentes</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Aprovadas */}
+          <button
+            onClick={() => toggleStatusCardFilter('approved')}
+            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+              selectedStatusFilters.has('approved') 
+                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50' 
+                : 'border-gray-100 hover:border-green-200'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                selectedStatusFilters.has('approved') ? 'bg-green-500' : 'bg-green-100'
+              }`}>
+                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('approved') ? 'text-white' : 'text-green-600'}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {requests.filter(r => r.status === 'approved').length}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">Aprovadas</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Rejeitadas */}
+          <button
+            onClick={() => toggleStatusCardFilter('rejected')}
+            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+              selectedStatusFilters.has('rejected') 
+                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50' 
+                : 'border-gray-100 hover:border-red-200'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                selectedStatusFilters.has('rejected') ? 'bg-red-500' : 'bg-red-100'
+              }`}>
+                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('rejected') ? 'text-white' : 'text-red-600'}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {requests.filter(r => r.status === 'rejected').length}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">Rejeitadas</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Concluídas */}
+          <button
+            onClick={() => toggleStatusCardFilter('completed')}
+            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+              selectedStatusFilters.has('completed') 
+                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50' 
+                : 'border-gray-100 hover:border-blue-200'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                selectedStatusFilters.has('completed') ? 'bg-blue-500' : 'bg-blue-100'
+              }`}>
+                <Play className={`w-5 h-5 ${selectedStatusFilters.has('completed') ? 'text-white' : 'text-blue-600'}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {requests.filter(r => r.status === 'completed').length}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">Concluídas</p>
+              </div>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Indicador de filtros ativos por cards */}
+      {selectedStatusFilters.size > 0 && userProfile?.role !== 'requester' && (
+        <div className="flex items-center gap-2 animate-fade-in">
+          <span className="text-sm text-gray-500">Filtros ativos:</span>
+          {Array.from(selectedStatusFilters).map(status => (
+            <span 
+              key={status}
+              className={`px-2.5 py-1 text-xs font-medium rounded-full ${statusColors[status as keyof typeof statusColors]}`}
+            >
+              {statusLabels[status as keyof typeof statusLabels]}
+            </span>
+          ))}
+          <button
+            onClick={clearStatusCardFilters}
+            className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            Limpar filtros
+          </button>
+        </div>
+      )}
 
       {/* Requests List */}
       <div className="space-y-4">

@@ -75,12 +75,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       permission: 'canViewRequests'
     },
     { 
-      name: 'Pagamentos', 
-      href: '/payment-requests', 
-      icon: DollarSign,
-      permission: 'canViewRequests'
-    },
-    { 
       name: 'Fornecedores', 
       href: '/suppliers', 
       icon: Building2,

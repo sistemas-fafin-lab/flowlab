@@ -73,24 +73,24 @@ const DetailModal: React.FC<DetailModalProps> = ({
         }`}
       >
         {/* Cabeçalho com Gradiente */}
-        <div className={`relative overflow-hidden rounded-t-2xl`}>
+        <div className="relative overflow-hidden rounded-t-2xl flex-shrink-0">
           {/* Background Gradient */}
           <div className={`absolute inset-0 bg-gradient-to-r ${colors.gradient} opacity-10`}></div>
           
-          <div className="relative flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <div className="flex items-center gap-3">
+          <div className="relative flex items-center justify-between px-6 py-5 border-b-2 border-gray-100">
+            <div className="flex items-center gap-4">
               {icon && (
-                <div className={`p-2 rounded-xl ${colors.iconBg} shadow-lg`}>
+                <div className={`p-2.5 rounded-xl ${colors.iconBg} shadow-lg flex-shrink-0`}>
                   {icon}
                 </div>
               )}
-              <div>
-                <h2 className="text-lg font-semibold text-gray-800">{title}</h2>
-                <p className="text-xs text-gray-500">Clique fora para fechar</p>
+              <div className="space-y-1">
+                <h2 className="text-lg font-semibold text-gray-800 leading-tight">{title}</h2>
+                <p className="text-xs text-gray-500 leading-tight">Clique fora para fechar</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
                 className="p-2 hover:bg-gray-100 rounded-xl transition-all duration-200 text-gray-500 hover:text-gray-700"
@@ -113,12 +113,12 @@ const DetailModal: React.FC<DetailModalProps> = ({
         </div>
 
         {/* Conteúdo Rolável */}
-        <div className="flex-1 p-6 overflow-y-auto scrollbar-thin">
+        <div className="flex-1 px-6 pt-6 pb-6 overflow-y-auto scrollbar-thin">
           {children}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl">
+        <div className="px-6 py-4 border-t-2 border-gray-100 bg-gray-50/50 rounded-b-2xl flex-shrink-0">
           <div className="flex items-center justify-between">
             <p className="text-xs text-gray-400">
               Pressione ESC para fechar

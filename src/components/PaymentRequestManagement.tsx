@@ -18,7 +18,10 @@ import {
   Paperclip,
   Image,
   FileUp,
-  Eye
+  Eye,
+  CheckCircle2,
+  XCircle,
+  Banknote
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import { useAuth } from '../hooks/useAuth';
@@ -66,6 +69,7 @@ const PaymentRequestManagement: React.FC = () => {
   
   // Filters
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<string>>(new Set());
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -174,7 +178,10 @@ const PaymentRequestManagement: React.FC = () => {
 
   // Filter requests based on user role and filters
   const filteredRequests = paymentRequests.filter(request => {
-    const matchesStatus = statusFilter === 'all' || request.status === statusFilter;
+    // Status filter: usa cards clicáveis OU dropdown
+    const matchesStatus = selectedStatusFilters.size > 0 
+      ? selectedStatusFilters.has(request.status)
+      : (statusFilter === 'all' || request.status === statusFilter);
     const matchesDepartment = departmentFilter === 'all' || request.department === departmentFilter;
     const matchesDate = !dateFilter || request.dataPagamento === dateFilter;
     const matchesSearch = !searchTerm || 
@@ -189,6 +196,28 @@ const PaymentRequestManagement: React.FC = () => {
     
     return matchesStatus && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
   });
+
+  // Toggle status filter via cards (multi-select)
+  const toggleStatusCardFilter = (status: string) => {
+    setSelectedStatusFilters(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(status)) {
+        newSet.delete(status);
+      } else {
+        newSet.add(status);
+      }
+      // Limpa o filtro dropdown quando usar cards
+      if (newSet.size > 0) {
+        setStatusFilter('all');
+      }
+      return newSet;
+    });
+  };
+
+  // Limpar filtros de cards
+  const clearStatusCardFilters = () => {
+    setSelectedStatusFilters(new Set());
+  };
 
   // Check if user can approve/reject requests
   const canApprove = userProfile?.role === 'admin' || userProfile?.role === 'operator';
@@ -706,9 +735,9 @@ const PaymentRequestManagement: React.FC = () => {
         </div>
         <button
           onClick={() => setShowAddForm(true)}
-          className="px-5 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 font-medium"
+          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 font-semibold text-base"
         >
-          <Plus className="w-4 h-4 mr-2" />
+          <Plus className="w-5 h-5 mr-2" />
           Nova Solicitação
         </button>
       </div>
@@ -1120,6 +1149,152 @@ const PaymentRequestManagement: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Stats Cards - Apenas para admin e operator (informação de gestão) */}
+      {userProfile?.role !== 'requester' && (
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          {/* Pendentes */}
+          <button
+            onClick={() => toggleStatusCardFilter('pending')}
+            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+              selectedStatusFilters.has('pending') 
+                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50' 
+                : 'border-gray-100 hover:border-yellow-200'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100'
+              }`}>
+                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600'}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {paymentRequests.filter(r => r.status === 'pending').length}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">Pendentes</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Aprovados */}
+          <button
+            onClick={() => toggleStatusCardFilter('approved')}
+            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+              selectedStatusFilters.has('approved') 
+                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50' 
+                : 'border-gray-100 hover:border-green-200'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                selectedStatusFilters.has('approved') ? 'bg-green-500' : 'bg-green-100'
+              }`}>
+                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('approved') ? 'text-white' : 'text-green-600'}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {paymentRequests.filter(r => r.status === 'approved').length}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">Aprovados</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Pagos */}
+          <button
+            onClick={() => toggleStatusCardFilter('paid')}
+            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+              selectedStatusFilters.has('paid') 
+                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50' 
+                : 'border-gray-100 hover:border-blue-200'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                selectedStatusFilters.has('paid') ? 'bg-blue-500' : 'bg-blue-100'
+              }`}>
+                <Banknote className={`w-5 h-5 ${selectedStatusFilters.has('paid') ? 'text-white' : 'text-blue-600'}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {paymentRequests.filter(r => r.status === 'paid').length}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">Pagos</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Rejeitados */}
+          <button
+            onClick={() => toggleStatusCardFilter('rejected')}
+            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+              selectedStatusFilters.has('rejected') 
+                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50' 
+                : 'border-gray-100 hover:border-red-200'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                selectedStatusFilters.has('rejected') ? 'bg-red-500' : 'bg-red-100'
+              }`}>
+                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('rejected') ? 'text-white' : 'text-red-600'}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {paymentRequests.filter(r => r.status === 'rejected').length}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">Rejeitados</p>
+              </div>
+            </div>
+          </button>
+
+          {/* Cancelados */}
+          <button
+            onClick={() => toggleStatusCardFilter('cancelled')}
+            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+              selectedStatusFilters.has('cancelled') 
+                ? 'border-gray-400 ring-2 ring-gray-400/30 bg-gray-100' 
+                : 'border-gray-100 hover:border-gray-300'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
+                selectedStatusFilters.has('cancelled') ? 'bg-gray-500' : 'bg-gray-200'
+              }`}>
+                <X className={`w-5 h-5 ${selectedStatusFilters.has('cancelled') ? 'text-white' : 'text-gray-600'}`} />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-gray-800">
+                  {paymentRequests.filter(r => r.status === 'cancelled').length}
+                </p>
+                <p className="text-xs text-gray-500 font-medium">Cancelados</p>
+              </div>
+            </div>
+          </button>
+        </div>
+      )}
+
+      {/* Indicador de filtros ativos por cards */}
+      {selectedStatusFilters.size > 0 && userProfile?.role !== 'requester' && (
+        <div className="flex items-center gap-2 animate-fade-in">
+          <span className="text-sm text-gray-500">Filtros ativos:</span>
+          {Array.from(selectedStatusFilters).map(status => (
+            <span 
+              key={status}
+              className={`px-2.5 py-1 text-xs font-medium rounded-full ${PAYMENT_STATUS_COLORS[status]}`}
+            >
+              {PAYMENT_STATUS_LABELS[status]}
+            </span>
+          ))}
+          <button
+            onClick={clearStatusCardFilters}
+            className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            Limpar filtros
+          </button>
+        </div>
+      )}
 
       {/* Requests List */}
       <div className="space-y-4">

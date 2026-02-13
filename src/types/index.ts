@@ -25,10 +25,11 @@ export interface StockMovement {
   productId: string;
   productName: string;
   type: 'out';
-  reason: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'other';
+  reason: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'manutencao' | 'other';
   quantity: number;
   date: string;
   requestId?: string;
+  maintenanceRequestId?: string;
   authorizedBy?: string;
   notes?: string;
   unitPrice: number; // Preço unitário na movimentação
@@ -363,3 +364,84 @@ export interface PaymentRequestPayload {
   department: string;
   status: PaymentRequestStatus;
 }
+
+// ============================================
+// MAINTENANCE REQUEST TYPES (Módulo Independente)
+// ============================================
+
+export type MaintenancePriority = 'urgent' | 'priority' | 'common';
+
+export type MaintenanceStatus = 
+  | 'pending'      // Aguardando análise
+  | 'in_progress'  // Em andamento
+  | 'completed'    // Concluído
+  | 'cancelled';   // Cancelado
+
+export interface MaintenanceRequest {
+  id: string;
+  codigo: string;
+  requesterId: string;
+  requesterName: string;
+  requesterEmail: string;
+  department: string;
+  localOcorrencia: string;
+  descricao: string;
+  impactoOperacional: string;
+  dataIdentificacao: string;
+  prioridade: MaintenancePriority;
+  status: MaintenanceStatus;
+  images: string[];
+  assignedTo?: string;
+  assignedAt?: string;
+  completedAt?: string;
+  completionNotes?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MaintenanceRequestFormValues {
+  localOcorrencia: string;
+  descricao: string;
+  impactoOperacional: string;
+  dataIdentificacao: Date | string;
+  prioridade: MaintenancePriority;
+  images?: File[];
+}
+
+export interface MaintenanceInventoryItem {
+  id: string;
+  maintenanceRequestId: string;
+  productId: string;
+  productName: string;
+  movementId?: string;
+  quantity: number;
+  createdAt: string;
+}
+
+export const MAINTENANCE_PRIORITY_LABELS: Record<MaintenancePriority, string> = {
+  urgent: 'Urgente',
+  priority: 'Prioritário',
+  common: 'Normal'
+};
+
+export const MAINTENANCE_PRIORITY_COLORS: Record<MaintenancePriority, string> = {
+  urgent: 'bg-red-100 text-red-800 border-red-200',
+  priority: 'bg-orange-100 text-orange-800 border-orange-200',
+  common: 'bg-gray-100 text-gray-800 border-gray-200'
+};
+
+export const MAINTENANCE_STATUS_LABELS: Record<MaintenanceStatus, string> = {
+  pending: 'Pendente',
+  in_progress: 'Em Andamento',
+  completed: 'Concluído',
+  cancelled: 'Cancelado'
+};
+
+export const MAINTENANCE_STATUS_COLORS: Record<MaintenanceStatus, string> = {
+  pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+  in_progress: 'bg-blue-100 text-blue-800 border-blue-200',
+  completed: 'bg-green-100 text-green-800 border-green-200',
+  cancelled: 'bg-gray-100 text-gray-500 border-gray-200'
+};

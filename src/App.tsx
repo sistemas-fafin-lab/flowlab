@@ -18,6 +18,8 @@ import RequestPeriodConfig from './components/RequestPeriodConfig';
 import ResetPassword from './components/ResetPassword';
 import Home from './components/Home';
 import PaymentRequestManagement from './components/PaymentRequestManagement';
+import RequestHub from './components/RequestHub';
+import { MaintenanceRequestManagement } from './components/MaintenanceRequest';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ 
@@ -96,7 +98,31 @@ const AuthenticatedApp: React.FC = () => {
           path="/requests"
           element={
             <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+              <RequestHub />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/requests/purchases"
+          element={
+            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
               <RequestManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/requests/payments"
+          element={
+            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+              <PaymentRequestManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/requests/maintenance"
+          element={
+            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+              <MaintenanceRequestManagement />
             </ProtectedRoute>
           }
         />
@@ -148,6 +174,7 @@ const AuthenticatedApp: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        {/* Legacy route - redirects to new hub */}
         <Route
           path="/payment-requests"
           element={
