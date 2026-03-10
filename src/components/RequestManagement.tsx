@@ -75,8 +75,8 @@ const RequestManagement: React.FC = () => {
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
 
   // Attachment state
-  const [attachment, setAttachment] = useState<File | null>(null);
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentPreviews, setAttachmentPreviews] = useState<(string | null)[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   // Image viewer state
@@ -97,15 +97,15 @@ const RequestManagement: React.FC = () => {
   };
 
   const typeColors = {
-    'SC': 'bg-purple-100 text-purple-800',
-    'SM': 'bg-blue-100 text-blue-800'
+    'SC': 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700',
+    'SM': 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700'
   };
 
   const statusColors = {
-    'pending': 'bg-yellow-100 text-yellow-800',
-    'approved': 'bg-green-100 text-green-800',
-    'rejected': 'bg-red-100 text-red-800',
-    'completed': 'bg-blue-100 text-blue-800'
+    'pending': 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700',
+    'approved': 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700',
+    'rejected': 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700',
+    'completed': 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700'
   };
 
   const priorityLabels = {
@@ -115,9 +115,9 @@ const RequestManagement: React.FC = () => {
   };
 
   const priorityColors = {
-    'standard': 'bg-gray-100 text-gray-800',
-    'priority': 'bg-orange-100 text-orange-800',
-    'urgent': 'bg-red-100 text-red-800'
+  'standard': 'bg-gray-100 dark:bg-gray-700/50 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-600',
+  'priority': 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 border border-orange-200 dark:border-orange-700',
+  'urgent': 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700'
   };
 
   const [categories, setCategories] = useState<string[]>([]);
@@ -329,46 +329,50 @@ useEffect(() => {
     }));
   };
 
-  // Handle file attachment
+  // Handle file attachments (multiple)
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-    // Validar tipo de arquivo
     const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      showError('Tipo de arquivo inválido', 'Apenas PDF, PNG e JPEG são permitidos.');
-      return;
-    }
-
-    // Validar tamanho (máx 10MB)
     const maxSize = 10 * 1024 * 1024;
-    if (file.size > maxSize) {
-      showError('Arquivo muito grande', 'O tamanho máximo permitido é 10MB.');
-      return;
+    const validFiles: File[] = [];
+
+    for (const file of files) {
+      if (!allowedTypes.includes(file.type)) {
+        showError('Tipo de arquivo inválido', `"${file.name}": apenas PDF, PNG e JPEG são permitidos.`);
+        continue;
+      }
+      if (file.size > maxSize) {
+        showError('Arquivo muito grande', `"${file.name}" excede 10MB.`);
+        continue;
+      }
+      validFiles.push(file);
     }
 
-    setAttachment(file);
+    if (!validFiles.length) return;
 
-    // Criar preview para imagens
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAttachmentPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setAttachmentPreview(null);
-    }
+    setAttachments(prev => [...prev, ...validFiles]);
+
+    validFiles.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAttachmentPreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setAttachmentPreviews(prev => [...prev, null]);
+      }
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Remove attachment
-  const removeAttachment = () => {
-    setAttachment(null);
-    setAttachmentPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  // Remove individual attachment
+  const removeAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index));
+    setAttachmentPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   // Open image viewer
@@ -405,7 +409,7 @@ useEffect(() => {
         supplierId: newRequest.supplierId,
         supplierName: newRequest.supplierId ? suppliers.find(s => s.id === newRequest.supplierId)?.name : undefined,
         status: 'pending'
-      }, attachment);
+      }, attachments);
 
       setNewRequest({
         type: 'SM',
@@ -416,8 +420,8 @@ useEffect(() => {
         department: userProfile?.department || '',
         supplierId: null
       });
-      setAttachment(null);
-      setAttachmentPreview(null);
+      setAttachments([]);
+      setAttachmentPreviews([]);
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -734,8 +738,8 @@ const handleCompleteRequest = async (request: Request) => {
       {/* Header and Add Button */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Gerenciamento de Solicitações</h2>
-          <p className="text-gray-500">Controle de requisições para retirada de materiais</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">Gerenciamento de Solicitações</h2>
+          <p className="text-gray-500 dark:text-gray-400">Controle de requisições para retirada de materiais</p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
           <button
@@ -759,7 +763,7 @@ const handleCompleteRequest = async (request: Request) => {
 
       {/* Add Request Form */}
       {showAddRequest && (
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-scale-in">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden animate-scale-in">
           {/* Header do formulário */}
           <div className={`px-4 sm:px-6 py-4 ${newRequest.type === 'SC' ? 'bg-gradient-to-r from-purple-500 to-violet-500' : 'bg-gradient-to-r from-blue-500 to-indigo-500'}`}>
             <div className="flex items-center justify-between gap-2">
@@ -798,16 +802,16 @@ const handleCompleteRequest = async (request: Request) => {
       <Package className="w-4 h-4 text-white" />
     </div>
     <div>
-      <h4 className="text-base font-semibold text-gray-800">Adicionar Produtos</h4>
-      <p className="text-xs text-gray-500">Busque produtos cadastrados ou adicione novos</p>
+      <h4 className="text-base font-semibold text-gray-800 dark:text-gray-100">Adicionar Produtos</h4>
+      <p className="text-xs text-gray-500 dark:text-gray-400">Busque produtos cadastrados ou adicione novos</p>
     </div>
   </div>
   
-  <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border border-gray-100">
+  <div className="bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl p-3 sm:p-4 border border-gray-100 dark:border-gray-600">
     <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-12 gap-3 sm:gap-4">
       {/* Campo de busca */}
       <div className="col-span-2 lg:col-span-5">
-        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Buscar Produto</label>
+        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Buscar Produto</label>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
           <input
@@ -815,18 +819,18 @@ const handleCompleteRequest = async (request: Request) => {
             placeholder="Nome ou código..."
             value={productSearch}
             onChange={(e) => setProductSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 text-sm"
+            className="w-full pl-10 pr-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 text-sm dark:text-gray-100 dark:placeholder-gray-400"
           />
         </div>
       </div>
 
       {/* Filtro de categoria */}
       <div className="col-span-2 sm:col-span-1 lg:col-span-3">
-        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Categoria</label>
+        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Categoria</label>
         <select
           value={categoryFilter}
           onChange={(e) => setCategoryFilter(e.target.value as any)}
-          className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 text-sm cursor-pointer"
+          className="w-full px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 text-sm cursor-pointer dark:text-gray-100"
         >
           <option value="all">Todas</option>
           {categories.map(category => (
@@ -845,14 +849,14 @@ const handleCompleteRequest = async (request: Request) => {
 
       {/* Quantidade */}
       <div className="col-span-1 lg:col-span-2">
-        <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Qtd.</label>
+        <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Qtd.</label>
         <input
           type="number"
           placeholder="Qtd."
           value={selectedQuantity}
           onChange={(e) => setSelectedQuantity(parseInt(e.target.value) || 1)}
           min="1"
-          className="w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 text-sm text-center"
+          className="w-full px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 text-sm text-center dark:text-gray-100"
         />
       </div>
 
@@ -883,18 +887,18 @@ const handleCompleteRequest = async (request: Request) => {
     
     {/* Indicador de produto não cadastrado */}
     {productSearch && !matchedProduct && (
-      <div className="mt-3 flex items-center p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
-        <AlertTriangle className="w-4 h-4 text-amber-500 mr-2 flex-shrink-0" />
-        <p className="text-xs text-amber-700">
+      <div className="mt-3 flex items-center p-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg">
+        <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400 mr-2 flex-shrink-0" />
+        <p className="text-xs text-amber-700 dark:text-amber-300">
           <span className="font-medium">Produto não encontrado.</span> Ao adicionar, será criado como "produto não cadastrado".
         </p>
       </div>
     )}
             {/* Lista de produtos filtrados */}
             {productSearch && filteredProducts.length > 0 && (
-              <div className="mt-3 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-xl shadow-lg">
-                <div className="p-2 bg-gray-50 border-b border-gray-100 sticky top-0">
-                  <p className="text-xs text-gray-500 font-medium">{filteredProducts.length} produto(s) encontrado(s)</p>
+              <div className="mt-3 max-h-48 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl shadow-lg">
+                <div className="p-2 bg-gray-50 dark:bg-gray-700/50 border-b border-gray-100 dark:border-gray-600 sticky top-0">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{filteredProducts.length} produto(s) encontrado(s)</p>
                 </div>
                 {filteredProducts.map((product) => (
                   <div
@@ -903,24 +907,24 @@ const handleCompleteRequest = async (request: Request) => {
                       setSelectedProduct(product.id);
                       setProductSearch(product.name);
                     }}
-                    className={`p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-50 last:border-b-0 transition-colors duration-150 ${
-                      selectedProduct === product.id ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''
+                    className={`p-3 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 border-b border-gray-50 dark:border-gray-700 last:border-b-0 transition-colors duration-150 ${
+                      selectedProduct === product.id ? 'bg-blue-50 dark:bg-blue-900/30 border-l-2 border-l-blue-500' : ''
                     }`}
                   >
                     <div className="flex justify-between items-center">
                       <div className="flex items-center">
-                        <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 rounded-lg flex items-center justify-center mr-3">
-                          <Package className="w-4 h-4 text-gray-500" />
+                        <div className="w-8 h-8 bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 rounded-lg flex items-center justify-center mr-3">
+                          <Package className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-800 text-sm">{product.name}</p>
-                          <p className="text-xs text-gray-500">{product.code} • {product.category}</p>
+                          <p className="font-medium text-gray-800 dark:text-gray-100 text-sm">{product.name}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{product.code} • {product.category}</p>
                         </div>
                       </div>
                       <div className="text-right">
                         <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                          product.quantity > 10 ? 'bg-green-100 text-green-700' : 
-                          product.quantity > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                          product.quantity > 10 ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' : 
+                          product.quantity > 0 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
                         }`}>
                           {product.quantity} {product.unit}
                         </span>
@@ -942,8 +946,8 @@ const handleCompleteRequest = async (request: Request) => {
                     <Check className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-base font-semibold text-gray-800">Produtos Selecionados</h4>
-                    <p className="text-xs text-gray-500">{newRequest.items.length} item(ns) adicionado(s)</p>
+                    <h4 className="text-base font-semibold text-gray-800 dark:text-gray-100">Produtos Selecionados</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{newRequest.items.length} item(ns) adicionado(s)</p>
                   </div>
                 </div>
                 <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
@@ -954,30 +958,30 @@ const handleCompleteRequest = async (request: Request) => {
                 {newRequest.items.map((item, index) => (
                   <div 
                     key={item.id} 
-                    className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl border border-blue-100 hover:border-blue-200 transition-all duration-200 group"
+                    className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 rounded-xl border border-blue-100 dark:border-blue-800 hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-200 group"
                   >
                     <div className="flex items-center">
-                      <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center mr-3 shadow-sm border border-blue-100">
-                        <span className="text-xs font-bold text-blue-600">{index + 1}</span>
+                      <div className="w-8 h-8 bg-white dark:bg-gray-700 rounded-lg flex items-center justify-center mr-3 shadow-sm border border-blue-100 dark:border-blue-800">
+                        <span className="text-xs font-bold text-blue-600 dark:text-blue-400">{index + 1}</span>
                       </div>
                       <div>
-                        <p className="font-medium text-gray-800 text-sm">{item.productName}</p>
+                        <p className="font-medium text-gray-800 dark:text-gray-100 text-sm">{item.productName}</p>
                         <div className="flex items-center gap-2 mt-0.5">
                           <span className={`text-xs px-1.5 py-0.5 rounded ${
                             item.category === 'não cadastrado' 
-                              ? 'bg-amber-100 text-amber-700' 
-                              : 'bg-gray-100 text-gray-600'
+                              ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' 
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                           }`}>
                             {item.category === 'não cadastrado' ? '⚠ Não cadastrado' : item.category}
                           </span>
-                          <span className="text-xs text-gray-500">•</span>
-                          <span className="text-xs font-medium text-blue-600">{item.quantity} un.</span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">•</span>
+                          <span className="text-xs font-medium text-blue-600 dark:text-blue-400">{item.quantity} un.</span>
                         </div>
                       </div>
                     </div>
                     <button
                       onClick={() => removeProductFromRequest(item.id)}
-                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all duration-200 opacity-60 group-hover:opacity-100"
+                      className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all duration-200 opacity-60 group-hover:opacity-100"
                       title="Remover produto"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -990,12 +994,12 @@ const handleCompleteRequest = async (request: Request) => {
 
           <form onSubmit={handleSubmitRequest} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Prioridade *</label>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Prioridade *</label>
               <select
                 value={newRequest.priority}
                 onChange={(e) => setNewRequest(prev => ({ ...prev, priority: e.target.value as any }))}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
               >
                 <option value="standard">Padrão</option>
                 <option value="priority">Prioritário</option>
@@ -1004,36 +1008,36 @@ const handleCompleteRequest = async (request: Request) => {
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Departamento *</label>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Departamento *</label>
               <input
                 type="text"
                 value={userProfile?.department || ''}
                 readOnly
                 disabled
-                className="w-full px-4 py-2.5 border border-gray-200 bg-gray-100/80 rounded-xl text-gray-600 cursor-not-allowed"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 bg-gray-100/80 dark:bg-gray-600 rounded-xl text-gray-600 dark:text-gray-300 cursor-not-allowed"
               />  
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Solicitante *</label>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Solicitante *</label>
               <input
                 type="text"
                 value={userProfile?.name || ''}
                 readOnly
                 disabled
-                className="w-full px-4 py-2.5 border border-gray-200 bg-gray-100/80 rounded-xl text-gray-600 cursor-not-allowed"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 bg-gray-100/80 dark:bg-gray-600 rounded-xl text-gray-600 dark:text-gray-300 cursor-not-allowed"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Fornecedor Sugerido</label>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Fornecedor Sugerido</label>
               <select
                 value={newRequest.supplierId || ''}
                 onChange={(e) => setNewRequest(prev => ({ 
                   ...prev, 
                   supplierId: e.target.value === '' ? null : e.target.value 
                 }))}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
               >
                 <option value="">Selecione um fornecedor (opcional)</option>
                 {suppliers.filter(s => s.status === 'active').map(supplier => (
@@ -1050,37 +1054,37 @@ const handleCompleteRequest = async (request: Request) => {
                   <FileText className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h4 className="text-base font-semibold text-gray-800">Justificativa</h4>
-                  <p className="text-xs text-gray-500">Descreva o motivo da solicitação</p>
+                  <h4 className="text-base font-semibold text-gray-800 dark:text-gray-100">Justificativa</h4>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Descreva o motivo da solicitação</p>
                 </div>
               </div>
-              <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm hover:border-gray-300 transition-colors duration-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
-                <div className="flex items-center gap-1 px-3 py-2 bg-gradient-to-r from-gray-50 to-slate-50 border-b border-gray-200">
-                  <span className="text-xs text-gray-500 mr-2 font-medium">Formatação:</span>
+              <div className="border border-gray-200 dark:border-gray-600 rounded-xl overflow-hidden shadow-sm hover:border-gray-300 dark:hover:border-gray-500 transition-colors duration-200 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100 dark:focus-within:ring-blue-900">
+                <div className="flex items-center gap-1 px-3 py-2 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 border-b border-gray-200 dark:border-gray-600">
+                  <span className="text-xs text-gray-500 dark:text-gray-400 mr-2 font-medium">Formatação:</span>
                   <button
                     type="button"
                     onClick={() => applyFormatting('**', '**')}
-                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200 group"
+                    className="p-1.5 hover:bg-white dark:hover:bg-gray-600 hover:shadow-sm rounded-lg transition-all duration-200 group"
                     title="Negrito (Ctrl+B)"
                   >
-                    <Bold className="w-4 h-4 text-gray-500 group-hover:text-gray-700" />
+                    <Bold className="w-4 h-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-200" />
                   </button>
                   <button
                     type="button"
                     onClick={() => applyFormatting('*', '*')}
-                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200 group"
+                    className="p-1.5 hover:bg-white dark:hover:bg-gray-600 hover:shadow-sm rounded-lg transition-all duration-200 group"
                     title="Itálico (Ctrl+I)"
                   >
-                    <Italic className="w-4 h-4 text-gray-500 group-hover:text-gray-700" />
+                    <Italic className="w-4 h-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-200" />
                   </button>
-                  <div className="w-px h-4 bg-gray-300 mx-1"></div>
+                  <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1"></div>
                   <button
                     type="button"
                     onClick={insertBulletPoint}
-                    className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg transition-all duration-200 group"
+                    className="p-1.5 hover:bg-white dark:hover:bg-gray-600 hover:shadow-sm rounded-lg transition-all duration-200 group"
                     title="Lista com marcadores"
                   >
-                    <List className="w-4 h-4 text-gray-500 group-hover:text-gray-700" />
+                    <List className="w-4 h-4 text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-200" />
                   </button>
                 </div>
                 <textarea
@@ -1089,15 +1093,15 @@ const handleCompleteRequest = async (request: Request) => {
                   onChange={(e) => setNewRequest(prev => ({ ...prev, reason: e.target.value }))}
                   required
                   rows={4}
-                  className="w-full px-4 py-3 border-0 focus:ring-0 focus:outline-none resize-none text-sm text-gray-700 placeholder-gray-400"
+                  className="w-full px-4 py-3 border-0 focus:ring-0 focus:outline-none resize-none text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 bg-white dark:bg-gray-800"
                   placeholder="Ex: Necessário para o projeto X, conforme demanda do setor Y...&#10;&#10;• Item 1: descrição&#10;• Item 2: descrição"
                 />
-                <div className="px-3 py-2 bg-gray-50 border-t border-gray-100 flex justify-between items-center">
-                  <span className="text-xs text-gray-400">
+                <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 border-t border-gray-100 dark:border-gray-600 flex justify-between items-center">
+                  <span className="text-xs text-gray-400 dark:text-gray-500">
                     {newRequest.reason.length} caracteres
                   </span>
                   {newRequest.reason && (
-                    <span className="text-xs text-green-600 font-medium flex items-center">
+                    <span className="text-xs text-green-600 dark:text-green-400 font-medium flex items-center">
                       <Check className="w-3 h-3 mr-1" />
                       Preenchido
                     </span>
@@ -1105,93 +1109,88 @@ const handleCompleteRequest = async (request: Request) => {
                 </div>
               </div>
               {newRequest.reason && (
-                <div className="mt-3 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                <div className="mt-3 p-4 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-xl">
                   <div className="flex items-center mb-2">
-                    <span className="text-xs text-blue-600 font-semibold uppercase tracking-wider">Pré-visualização</span>
+                    <span className="text-xs text-blue-600 dark:text-blue-400 font-semibold uppercase tracking-wider">Pré-visualização</span>
                   </div>
-                  <div className="text-sm text-gray-700 leading-relaxed">{renderFormattedText(newRequest.reason)}</div>
+                  <div className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{renderFormattedText(newRequest.reason)}</div>
                 </div>
               )}
             </div>
 
-            {/* Anexo */}
+            {/* Anexos (múltiplos) */}
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Anexo (Opcional)
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Anexos (Opcional)
               </label>
               <div className="space-y-3">
-                {/* Input oculto */}
+                {/* Input oculto - múltiplos arquivos */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf,.png,.jpg,.jpeg"
                   onChange={handleFileChange}
+                  multiple
                   className="hidden"
                 />
-                
-                {/* Botão de upload ou preview */}
-                {!attachment ? (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-3 px-4 py-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200 group"
-                  >
-                    <div className="w-10 h-10 bg-gray-100 group-hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors">
-                      <FileUp className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700">
-                        Clique para anexar arquivo
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        PDF, PNG ou JPEG (máx. 10MB)
-                      </p>
-                    </div>
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
-                    {/* Preview para imagens */}
-                    {attachmentPreview && attachment?.type.startsWith('image/') ? (
-                      <img 
-                        src={attachmentPreview} 
-                        alt="Preview" 
-                        className="w-12 h-12 object-cover rounded-lg border border-green-300"
+
+                {/* Lista de arquivos já selecionados */}
+                {attachments.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-xl">
+                    {attachmentPreviews[idx] ? (
+                      <img
+                        src={attachmentPreviews[idx]!}
+                        alt="Preview"
+                        className="w-12 h-12 object-cover rounded-lg border border-green-300 dark:border-green-600 flex-shrink-0"
                       />
                     ) : (
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-green-600" />
+                      <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-6 h-6 text-green-600 dark:text-green-400" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-green-800 truncate">
-                        {attachment.name}
-                      </p>
-                      <p className="text-xs text-green-600">
-                        {(attachment.size / 1024).toFixed(1)} KB
-                      </p>
+                      <p className="text-sm font-medium text-green-800 dark:text-green-200 truncate">{file.name}</p>
+                      <p className="text-xs text-green-600 dark:text-green-400">{(file.size / 1024).toFixed(1)} KB</p>
                     </div>
                     <button
                       type="button"
-                      onClick={removeAttachment}
-                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-lg transition-all"
+                      onClick={() => removeAttachment(idx)}
+                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all flex-shrink-0"
                       title="Remover anexo"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   </div>
-                )}
+                ))}
+
+                {/* Botão de adicionar mais arquivos */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-3 px-4 py-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all duration-200 group"
+                >
+                  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 rounded-lg flex items-center justify-center transition-colors">
+                    <FileUp className="w-5 h-5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-400">
+                      {attachments.length === 0 ? 'Clique para anexar arquivo(s)' : 'Adicionar mais arquivos'}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">PDF, PNG ou JPEG (máx. 10MB cada)</p>
+                  </div>
+                </button>
               </div>
             </div>
 
-            <div className="md:col-span-2 flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-100">
-              <p className="text-xs text-gray-500">
+            <div className="md:col-span-2 flex flex-col sm:flex-row justify-between items-center gap-4 pt-4 border-t border-gray-100 dark:border-gray-700">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
                 <span className="text-red-500">*</span> Campos obrigatórios
               </p>
               <div className="flex space-x-3 w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setShowAddRequest(false)}
-                  className="flex-1 sm:flex-none px-5 py-2.5 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
+                  className="flex-1 sm:flex-none px-5 py-2.5 text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium"
                 >
                   Cancelar
                 </button>
@@ -1235,7 +1234,7 @@ const handleCompleteRequest = async (request: Request) => {
           />
           {/* Modal */}
           <div 
-            className="relative bg-white rounded-2xl shadow-2xl animate-scale-in"
+            className="relative bg-white dark:bg-gray-800 rounded-2xl shadow-2xl animate-scale-in"
             style={{ 
               position: 'relative',
               width: 'calc(100% - 32px)',
@@ -1245,47 +1244,47 @@ const handleCompleteRequest = async (request: Request) => {
               overflow: 'auto'
             }}
           >
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-xl font-semibold text-gray-800">Tipo de Solicitação</h2>
-              <p className="text-sm text-gray-500 mt-1">Selecione o tipo de solicitação que deseja criar</p>
+            <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Tipo de Solicitação</h2>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Selecione o tipo de solicitação que deseja criar</p>
             </div>
 
             <div className="p-6 space-y-4">
               <button
                 onClick={() => handleTypeSelection('SC')}
-                className="w-full p-4 border-2 border-purple-200 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all duration-200 text-left group hover:-translate-y-0.5 hover:shadow-md"
+                className="w-full p-4 border-2 border-purple-200 dark:border-purple-800 rounded-xl hover:border-purple-400 dark:hover:border-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition-all duration-200 text-left group hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-gradient-to-br from-purple-500 to-violet-500 rounded-full mr-3 group-hover:scale-110 transition-transform"></div>
                   <div>
-                    <h3 className="font-semibold text-gray-800">Solicitação de Compra (SC)</h3>
-                    <p className="text-sm text-gray-500">Para produtos que precisam ser comprados</p>
-                    <p className="text-xs text-green-600 mt-1 font-medium">✓ Sempre disponível</p>
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-100">Solicitação de Compra (SC)</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Para produtos que precisam ser comprados</p>
+                    <p className="text-xs text-green-600 dark:text-green-400 mt-1 font-medium">✓ Sempre disponível</p>
                   </div>
                 </div>
               </button>
 
               <button
                 onClick={() => handleTypeSelection('SM')}
-                className="w-full p-4 border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all duration-200 text-left group hover:-translate-y-0.5 hover:shadow-md"
+                className="w-full p-4 border-2 border-blue-200 dark:border-blue-800 rounded-xl hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all duration-200 text-left group hover:-translate-y-0.5 hover:shadow-md"
               >
                 <div className="flex items-center">
                   <div className="w-4 h-4 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-full mr-3 group-hover:scale-110 transition-transform"></div>
                   <div>
-                    <h3 className="font-semibold text-gray-800">Solicitação de Material (SM)</h3>
-                    <p className="text-sm text-gray-500">Para retirada de produtos do estoque</p>
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-100">Solicitação de Material (SM)</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Para retirada de produtos do estoque</p>
                     {!isPeriodOpen && userProfile?.role === 'requester' && (
-                      <p className="text-xs text-red-600 mt-1 font-medium">⚠ Período fechado</p>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">⚠ Período fechado</p>
                     )}
                   </div>
                 </div>
               </button>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-100 flex justify-end">
+            <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex justify-end">
               <button
                 onClick={() => setShowTypeSelectionModal(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
                 Cancelar
               </button>
@@ -1296,14 +1295,14 @@ const handleCompleteRequest = async (request: Request) => {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         <div className="flex items-center mb-4">
           <div className="w-8 h-8 bg-gradient-to-br from-gray-500 to-slate-500 rounded-lg flex items-center justify-center mr-3 shadow-md shadow-gray-500/25">
             <FilterIcon className="w-4 h-4 text-white" />  
           </div>
           <div>
-            <h3 className="text-base font-semibold text-gray-800">Filtros e Pesquisa</h3>
-            <p className="text-xs text-gray-500 hidden sm:block">Refine sua busca por solicitações</p>
+            <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">Filtros e Pesquisa</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">Refine sua busca por solicitações</p>
           </div>
         </div>
         
@@ -1316,12 +1315,12 @@ const handleCompleteRequest = async (request: Request) => {
               placeholder="Pesquisar por ID, solicitante, produto, departamento, motivo..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 text-sm"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 text-sm dark:text-gray-100 dark:placeholder-gray-400"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1331,11 +1330,11 @@ const handleCompleteRequest = async (request: Request) => {
         
         <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Status</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Status</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer text-sm"
+              className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer text-sm dark:text-gray-100"
             >
               <option value="all">Todos</option>
               <option value="pending">Pendente</option>
@@ -1347,11 +1346,11 @@ const handleCompleteRequest = async (request: Request) => {
 
           {['admin', 'operator'].includes(userProfile?.role) && (
             <div>
-              <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Depto.</label>
+              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Depto.</label>
               <select
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer text-sm"
+                className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer text-sm dark:text-gray-100"
               >
                 <option value="all">Todos</option>
                 {DEPARTMENTS.map(dept => (
@@ -1362,18 +1361,18 @@ const handleCompleteRequest = async (request: Request) => {
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">Data</label>
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Data</label>
             <input
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 text-sm"
+              className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 text-sm dark:text-gray-100"
             />
           </div>
 
           <div className="col-span-2 sm:col-span-1 flex items-end">
-            <div className="w-full px-3 sm:px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl text-center sm:text-left">
-              <span className="text-xs sm:text-sm font-medium text-blue-700">
+            <div className="w-full px-3 sm:px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-100 dark:border-blue-800 rounded-xl text-center sm:text-left">
+              <span className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-300">
                 {filteredRequests.length} {filteredRequests.length === 1 ? 'solicitação' : 'solicitações'}
               </span>
             </div>
@@ -1387,23 +1386,23 @@ const handleCompleteRequest = async (request: Request) => {
           {/* Pendentes */}
           <button
             onClick={() => toggleStatusCardFilter('pending')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('pending') 
-                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50' 
-                : 'border-gray-100 hover:border-yellow-200'
+                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50 dark:bg-yellow-900/30' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-yellow-200 dark:hover:border-yellow-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100'
+                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100 dark:bg-yellow-900/50'
               }`}>
-                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600'}`} />
+                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600 dark:text-yellow-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {requests.filter(r => r.status === 'pending').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Pendentes</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Pendentes</p>
               </div>
             </div>
           </button>
@@ -1411,23 +1410,23 @@ const handleCompleteRequest = async (request: Request) => {
           {/* Aprovadas */}
           <button
             onClick={() => toggleStatusCardFilter('approved')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('approved') 
-                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50' 
-                : 'border-gray-100 hover:border-green-200'
+                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50 dark:bg-green-900/30' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('approved') ? 'bg-green-500' : 'bg-green-100'
+                selectedStatusFilters.has('approved') ? 'bg-green-500' : 'bg-green-100 dark:bg-green-900/50'
               }`}>
-                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('approved') ? 'text-white' : 'text-green-600'}`} />
+                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('approved') ? 'text-white' : 'text-green-600 dark:text-green-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {requests.filter(r => r.status === 'approved').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Aprovadas</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Aprovadas</p>
               </div>
             </div>
           </button>
@@ -1435,23 +1434,23 @@ const handleCompleteRequest = async (request: Request) => {
           {/* Rejeitadas */}
           <button
             onClick={() => toggleStatusCardFilter('rejected')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('rejected') 
-                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50' 
-                : 'border-gray-100 hover:border-red-200'
+                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50 dark:bg-red-900/30' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-red-200 dark:hover:border-red-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('rejected') ? 'bg-red-500' : 'bg-red-100'
+                selectedStatusFilters.has('rejected') ? 'bg-red-500' : 'bg-red-100 dark:bg-red-900/50'
               }`}>
-                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('rejected') ? 'text-white' : 'text-red-600'}`} />
+                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('rejected') ? 'text-white' : 'text-red-600 dark:text-red-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {requests.filter(r => r.status === 'rejected').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Rejeitadas</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Rejeitadas</p>
               </div>
             </div>
           </button>
@@ -1459,23 +1458,23 @@ const handleCompleteRequest = async (request: Request) => {
           {/* Concluídas */}
           <button
             onClick={() => toggleStatusCardFilter('completed')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('completed') 
-                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50' 
-                : 'border-gray-100 hover:border-blue-200'
+                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50 dark:bg-blue-900/30' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('completed') ? 'bg-blue-500' : 'bg-blue-100'
+                selectedStatusFilters.has('completed') ? 'bg-blue-500' : 'bg-blue-100 dark:bg-blue-900/50'
               }`}>
-                <Play className={`w-5 h-5 ${selectedStatusFilters.has('completed') ? 'text-white' : 'text-blue-600'}`} />
+                <Play className={`w-5 h-5 ${selectedStatusFilters.has('completed') ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {requests.filter(r => r.status === 'completed').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Concluídas</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Concluídas</p>
               </div>
             </div>
           </button>
@@ -1485,7 +1484,7 @@ const handleCompleteRequest = async (request: Request) => {
       {/* Indicador de filtros ativos por cards */}
       {selectedStatusFilters.size > 0 && userProfile?.role !== 'requester' && (
         <div className="flex items-center gap-2 animate-fade-in">
-          <span className="text-sm text-gray-500">Filtros ativos:</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">Filtros ativos:</span>
           {Array.from(selectedStatusFilters).map(status => (
             <span 
               key={status}
@@ -1508,7 +1507,7 @@ const handleCompleteRequest = async (request: Request) => {
         {filteredRequests.map((request, index) => (
           <div 
             key={request.id} 
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
             style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
           >
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
@@ -1518,8 +1517,8 @@ const handleCompleteRequest = async (request: Request) => {
                   <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors truncate">{request.id}</h3>
-                  <div className="flex items-center text-xs sm:text-sm text-gray-500">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{request.id}</h3>
+                  <div className="flex items-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                     <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 flex-shrink-0" />
                     <span className="truncate">{request.requestDate}</span>
                   </div>
@@ -1530,22 +1529,22 @@ const handleCompleteRequest = async (request: Request) => {
               <div className="flex flex-wrap sm:flex-nowrap items-start gap-2 sm:gap-3 sm:ml-4">
                 {/* Tipo */}
                 <div className="flex flex-col items-center">
-                  <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Tipo</span>
-                  <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${typeColors[request.type]} border ${request.type === 'SC' ? 'border-purple-200' : 'border-blue-200'}`}>
+                  <span className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-1">Tipo</span>
+                  <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${typeColors[request.type]}`}>
                     {request.type}
                   </span>
                 </div>
                 {/* Prioridade */}
                 <div className="flex flex-col items-center">
-                  <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Prioridade</span>
-                  <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${priorityColors[request.priority]} border ${request.priority === 'urgent' ? 'border-red-200' : request.priority === 'priority' ? 'border-orange-200' : 'border-gray-200'}`}>
+                  <span className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-1">Prioridade</span>
+                  <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${priorityColors[request.priority]}`}>
                     {priorityLabels[request.priority]}
                   </span>
                 </div>
                 {/* Status */}
                 <div className="flex flex-col items-center">
-                  <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Status</span>
-                  <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${statusColors[request.status]} border ${request.status === 'approved' ? 'border-green-200' : request.status === 'rejected' ? 'border-red-200' : request.status === 'completed' ? 'border-blue-200' : 'border-yellow-200'}`}>
+                  <span className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-1">Status</span>
+                  <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${statusColors[request.status]}`}>
                     {statusLabels[request.status]}
                   </span>
                 </div>
@@ -1558,21 +1557,21 @@ const handleCompleteRequest = async (request: Request) => {
                 <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center shadow-sm shadow-blue-500/25 flex-shrink-0">
                   <Package className="w-3 h-3 text-white" />
                 </div>
-                <h4 className="text-sm font-medium text-gray-700">Produtos</h4>
-                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200">Produtos</h4>
+                <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-full">
                   {request.items.length} item(ns)
                 </span>
               </div>
               <div className="grid grid-cols-1 gap-2">
                 {request.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100 hover:border-blue-200 hover:bg-blue-50/50 transition-all duration-200">
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 bg-white rounded-lg flex items-center justify-center mr-2 shadow-sm border border-gray-100 flex-shrink-0">
-                      <span className="text-[10px] sm:text-xs font-bold text-blue-600">{idx + 1}</span>
+                  <div key={idx} className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600 hover:border-blue-200 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all duration-200">
+                    <div className="w-6 h-6 sm:w-7 sm:h-7 bg-white dark:bg-gray-700 rounded-lg flex items-center justify-center mr-2 shadow-sm border border-gray-100 dark:border-gray-600 flex-shrink-0">
+                      <span className="text-[10px] sm:text-xs font-bold text-blue-600 dark:text-blue-400">{idx + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <span className="text-xs sm:text-sm text-gray-800 font-medium truncate block">{item.productName}</span>
+                      <span className="text-xs sm:text-sm text-gray-800 dark:text-gray-200 font-medium truncate block">{item.productName}</span>
                     </div>
-                    <span className="ml-2 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-100 text-blue-700 text-[10px] sm:text-xs font-semibold rounded-lg whitespace-nowrap flex-shrink-0">
+                    <span className="ml-2 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] sm:text-xs font-semibold rounded-lg whitespace-nowrap flex-shrink-0">
                       {item.quantity} un.
                     </span>
                   </div>
@@ -1581,46 +1580,46 @@ const handleCompleteRequest = async (request: Request) => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-4">
-              <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+              <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
                 <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-blue-500/25 flex-shrink-0">
                   <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Solicitante</p>
-                  <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.requestedBy}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Solicitante</p>
+                  <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{request.requestedBy}</p>
                 </div>
               </div>
 
-              <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+              <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
                 <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-purple-500/25 flex-shrink-0">
                   <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Departamento</p>
-                  <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.department || 'N/A'}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Departamento</p>
+                  <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{request.department || 'N/A'}</p>
                 </div>
               </div>
 
               {request.supplierName && (
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-emerald-500/25 flex-shrink-0">
                     <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Fornecedor</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.supplierName}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Fornecedor</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{request.supplierName}</p>
                   </div>
                 </div>
               )}
 
               {request.approvedBy && (
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-xl border border-green-100 dark:border-green-800">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-green-500/25 flex-shrink-0">
                     <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Aprovado por</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.approvedBy}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Aprovado por</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{request.approvedBy}</p>
                   </div>
                 </div>
               )}
@@ -1631,9 +1630,9 @@ const handleCompleteRequest = async (request: Request) => {
                 <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-violet-500/25 flex-shrink-0">
                   <FileText className="w-3 h-3 text-white" />
                 </div>
-                <p className="text-xs sm:text-sm font-medium text-gray-700">Justificativa</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200">Justificativa</p>
               </div>
-              <div className="text-gray-700 bg-gradient-to-br from-gray-50 to-slate-50 p-3 sm:p-4 rounded-xl border border-gray-100 text-xs sm:text-sm leading-relaxed break-words">{renderFormattedText(request.reason)}</div>
+              <div className="text-gray-700 dark:text-gray-200 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-600 text-xs sm:text-sm leading-relaxed break-words">{renderFormattedText(request.reason)}</div>
               <ChatButton
                 requestId={request.id}
                 userId={user?.id || ''}
@@ -1641,68 +1640,72 @@ const handleCompleteRequest = async (request: Request) => {
               />
             </div>
 
-            {/* Attachment */}
-            {request.attachmentUrl && (
+            {/* Attachments (múltiplos) */}
+            {(request.attachments && request.attachments.length > 0) && (
               <div className="mb-4 space-y-2">
                 <div className="flex items-center">
                   <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-purple-500/25 flex-shrink-0">
                     <Paperclip className="w-3 h-3 text-white" />
                   </div>
-                  <p className="text-xs sm:text-sm font-medium text-gray-700">Anexo</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200">Anexos ({request.attachments.length})</p>
                 </div>
-                <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 p-3 rounded-xl border border-purple-100">
-                  {request.attachmentName?.match(/\.(png|jpg|jpeg)$/i) ? (
-                    <>
-                      <div 
-                        className="relative group/preview cursor-pointer"
-                        onClick={() => openImageViewer(request.attachmentUrl!, request.attachmentName!)}
-                      >
-                        <img 
-                          src={request.attachmentUrl} 
-                          alt={request.attachmentName} 
-                          className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-purple-200 hover:opacity-90 transition-opacity"
-                        />
-                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                          <Eye className="w-5 h-5 text-white" />
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
-                        <button 
-                          onClick={() => openImageViewer(request.attachmentUrl!, request.attachmentName!)}
-                          className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
-                        >
-                          <Eye className="w-3 h-3" />
-                          Clique na imagem para visualizar
-                        </button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
-                        <a 
-                          href={request.attachmentUrl} 
-                          target="_blank" 
-                          rel="noopener noreferrer"
-                          className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
-                        >
-                          <Paperclip className="w-3 h-3" />
-                          Abrir documento
-                        </a>
-                      </div>
-                    </>
-                  )}
+                <div className="space-y-2">
+                  {request.attachments.map((att, idx) => (
+                    <div key={idx} className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 p-3 rounded-xl border border-purple-100 dark:border-purple-800">
+                      {att.name.match(/\.(png|jpg|jpeg)$/i) ? (
+                        <>
+                          <div
+                            className="relative group/preview cursor-pointer flex-shrink-0"
+                            onClick={() => openImageViewer(att.url, att.name)}
+                          >
+                            <img
+                              src={att.url}
+                              alt={att.name}
+                              className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-purple-200 hover:opacity-90 transition-opacity"
+                            />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                              <Eye className="w-5 h-5 text-white" />
+                            </div>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{att.name}</p>
+                            <button
+                              onClick={() => openImageViewer(att.url, att.name)}
+                              className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
+                            >
+                              <Eye className="w-3 h-3" />
+                              Clique para visualizar
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                            <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{att.name}</p>
+                            <a
+                              href={att.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
+                            >
+                              <Paperclip className="w-3 h-3" />
+                              Abrir documento
+                            </a>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
 
             {/* Action Buttons */}
             {canApprove && request.status === 'pending' && (
-              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
                 <button
                   onClick={() => handleApproveRequest(request.id)}
                   className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 text-xs sm:text-sm"
@@ -1730,7 +1733,7 @@ const handleCompleteRequest = async (request: Request) => {
               </div>
             )}
             {canApprove && request.status === 'approved' && (
-              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
                 <button
                   onClick={() => handleStartQuotation(request)}
                   className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30 text-xs sm:text-sm"
@@ -1753,7 +1756,7 @@ const handleCompleteRequest = async (request: Request) => {
 
             {/* Botão de visualização de assinatura para solicitações finalizadas */}
             {request.status === 'completed' && request.receiver_signature && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                   <button
                     onClick={() =>
                       setViewSignature({
@@ -1761,7 +1764,7 @@ const handleCompleteRequest = async (request: Request) => {
                         signature: request.receiver_signature,
                       })
                     }
-                    className="flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 hover:from-blue-100 hover:to-indigo-100 rounded-xl transition-all duration-200 text-xs sm:text-sm font-medium border border-blue-200 hover:border-blue-300"
+                    className="flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-300 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/50 dark:hover:to-indigo-900/50 rounded-xl transition-all duration-200 text-xs sm:text-sm font-medium border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600"
                   >
                     <PenTool className="w-4 h-4 mr-2" />
                     <span className="hidden sm:inline">Ver assinatura do recebedor</span>
@@ -1774,12 +1777,12 @@ const handleCompleteRequest = async (request: Request) => {
       </div>
       
     {filteredRequests.length === 0 && (
-      <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-gray-100 animate-fade-in-up">
-        <div className="w-16 h-16 mx-auto bg-gradient-to-br from-gray-100 to-slate-100 rounded-2xl flex items-center justify-center mb-4">
-          <FileText className="w-8 h-8 text-gray-400" />
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-12 text-center border border-gray-100 dark:border-gray-700 animate-fade-in-up">
+        <div className="w-16 h-16 mx-auto bg-gradient-to-br from-gray-100 to-slate-100 dark:from-gray-700 dark:to-slate-700 rounded-2xl flex items-center justify-center mb-4">
+          <FileText className="w-8 h-8 text-gray-400 dark:text-gray-500" />
         </div>
-        <h3 className="text-lg font-semibold text-gray-800 mb-2">Nenhuma solicitação encontrada</h3>
-        <p className="text-gray-500 mb-6 max-w-md mx-auto">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">Nenhuma solicitação encontrada</h3>
+        <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
           {userProfile?.role === 'requester' 
             ? 'Crie a primeira solicitação de retirada de materiais.'
             : 'Nenhuma solicitação corresponde aos filtros aplicados.'

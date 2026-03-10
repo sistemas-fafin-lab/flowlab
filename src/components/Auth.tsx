@@ -53,21 +53,21 @@ const Auth: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800 flex items-center justify-center p-4 relative overflow-hidden transition-colors duration-300">
       {/* Animated gradient mesh background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         {/* Animated orbs */}
-        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-gradient-to-r from-blue-200/50 to-cyan-200/50 rounded-full blur-3xl animate-blob"></div>
-        <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-gradient-to-r from-indigo-200/50 to-blue-200/50 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-slate-200/30 to-blue-200/30 rounded-full blur-3xl animate-pulse-soft"></div>
+        <div className="absolute top-1/4 -left-20 w-96 h-96 bg-gradient-to-r from-blue-200/50 to-cyan-200/50 dark:from-blue-900/30 dark:to-cyan-900/30 rounded-full blur-3xl animate-blob"></div>
+        <div className="absolute bottom-1/4 -right-20 w-96 h-96 bg-gradient-to-r from-indigo-200/50 to-blue-200/50 dark:from-indigo-900/30 dark:to-blue-900/30 rounded-full blur-3xl animate-blob animation-delay-2000"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-r from-slate-200/30 to-blue-200/30 dark:from-slate-800/30 dark:to-blue-900/30 rounded-full blur-3xl animate-pulse-soft"></div>
         
         {/* Grid pattern overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(30,58,138,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(30,58,138,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"></div>
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(30,58,138,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(30,58,138,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(59,130,246,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.05)_1px,transparent_1px)] bg-[size:64px_64px]"></div>
       </div>
 
-      <div className="max-w-md w-full bg-white/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-slate-900/10 p-8 animate-scale-in relative z-10 border border-slate-200/50">
+      <div className="max-w-md w-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-slate-900/10 dark:shadow-black/30 p-8 animate-scale-in relative z-10 border border-slate-200/50 dark:border-gray-700/50">
         {/* Subtle glow effect behind card */}
-        <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-slate-500/10 rounded-3xl blur-xl -z-10"></div>
+        <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-slate-500/10 dark:from-blue-500/20 dark:via-indigo-500/20 dark:to-slate-500/20 rounded-3xl blur-xl -z-10"></div>
         
         <div className="text-center mb-8">
           {/* Modern logo container with rotating border */}
@@ -76,35 +76,35 @@ const Auth: React.FC = () => {
             <div className="absolute w-28 h-28 rounded-full border-2 border-transparent animate-spin-slow" style={{ background: 'linear-gradient(white, white) padding-box, linear-gradient(to right, #1e3a8a, #3b82f6, #1e40af) border-box', animationDuration: '8s' }}></div>
             
             {/* Logo background with glassmorphism */}
-            <div className="relative w-24 h-24 rounded-full bg-white backdrop-blur-md border border-slate-200 flex items-center justify-center shadow-lg shadow-blue-900/10">
+            <div className="relative w-24 h-24 rounded-full bg-white dark:bg-gray-700 backdrop-blur-md border border-slate-200 dark:border-gray-600 flex items-center justify-center shadow-lg shadow-blue-900/10 dark:shadow-black/20">
               <img
                 src="/LOGO.png"
                 alt="Logo"
-                className="w-16 h-16 object-contain hover:scale-110 transition-all duration-500 ease-out"
+                className="w-16 h-16 object-contain hover:scale-110 transition-all duration-500 ease-out dark:brightness-110"
               />
             </div>
           </div>
           
           <h1 className="text-3xl font-bold mb-1">
-            <span className="bg-gradient-to-r from-blue-900 via-blue-700 to-indigo-800 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-blue-900 via-blue-700 to-indigo-800 dark:from-blue-400 dark:via-blue-300 dark:to-indigo-400 bg-clip-text text-transparent">
               Flow LAB
             </span>
           </h1>
-          <p className="text-slate-500 text-sm transition-all duration-300">
+          <p className="text-slate-500 dark:text-gray-400 text-sm transition-all duration-300">
             {isSignUp ? 'Criar nova conta' : 'Faça login para continuar'}
           </p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm animate-shake flex items-center gap-2">
-            <span className="flex-shrink-0 w-5 h-5 bg-red-100 rounded-full flex items-center justify-center text-red-500 font-bold text-xs">!</span>
+          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300 text-sm animate-shake flex items-center gap-2">
+            <span className="flex-shrink-0 w-5 h-5 bg-red-100 dark:bg-red-800 rounded-full flex items-center justify-center text-red-500 dark:text-red-300 font-bold text-xs">!</span>
             {error}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
           <div className="animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-            <label htmlFor="email" className="block text-sm font-medium text-slate-700 mb-1.5">
+            <label htmlFor="email" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
               Email
             </label>
             <input
@@ -113,14 +113,14 @@ const Auth: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 backdrop-blur-sm text-slate-800 placeholder:text-slate-400"
+              className="w-full px-4 py-3 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500"
               placeholder="seu@email.com"
             />
           </div>
 
           {isSignUp && (
             <div className="animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
-              <label htmlFor="name" className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label htmlFor="name" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
                 Nome Completo
               </label>
               <input
@@ -129,14 +129,14 @@ const Auth: React.FC = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 backdrop-blur-sm text-slate-800 placeholder:text-slate-400"
+                className="w-full px-4 py-3 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500"
                 placeholder="Seu nome completo"
               />
             </div>
           )}
 
           <div className="animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-            <label htmlFor="password" className="block text-sm font-medium text-slate-700 mb-1.5">
+            <label htmlFor="password" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
               Senha
             </label>
             <div className="relative group">
@@ -146,14 +146,14 @@ const Auth: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 pr-11 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 backdrop-blur-sm text-slate-800 placeholder:text-slate-400"
+                className="w-full px-4 py-3 pr-11 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500"
                 placeholder="••••••••"
                 minLength={6}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-lg hover:bg-slate-100"
+                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-gray-400 hover:text-slate-600 dark:hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-600"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
@@ -162,7 +162,7 @@ const Auth: React.FC = () => {
 
           {isSignUp && (
             <div className="animate-fade-in-up" style={{ animationDelay: '0.25s' }}>
-              <label htmlFor="department" className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label htmlFor="department" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
                 Departamento
               </label>
               <select
@@ -170,9 +170,9 @@ const Auth: React.FC = () => {
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 backdrop-blur-sm text-slate-800 cursor-pointer"
+                className="w-full px-4 py-3 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 cursor-pointer"
               >
-                <option value="" className="text-slate-400">Selecione um departamento</option>
+                <option value="" className="text-slate-400 dark:text-gray-500">Selecione um departamento</option>
                 {DEPARTMENTS.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
@@ -219,7 +219,7 @@ const Auth: React.FC = () => {
               setName('');
               setError(null);
             }}
-            className="text-blue-700 hover:text-blue-900 text-sm font-medium transition-colors hover:underline underline-offset-4"
+            className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 text-sm font-medium transition-colors hover:underline underline-offset-4"
           >
             {isSignUp 
               ? 'Já tem uma conta? Faça login' 
@@ -234,7 +234,7 @@ const Auth: React.FC = () => {
                   setName('');
                   setError(null);
                 }}
-                className="text-slate-500 hover:text-blue-700 text-sm transition-colors"
+                className="text-slate-500 dark:text-gray-400 hover:text-blue-700 dark:hover:text-blue-400 text-sm transition-colors"
               >
                 Esqueci minha senha
               </button>
@@ -255,7 +255,7 @@ const Auth: React.FC = () => {
             }}
             className="space-y-4 mt-4 animate-fade-in-up"
           >
-            <p className="text-sm text-slate-600">Digite seu email para redefinir a senha.</p>
+            <p className="text-sm text-slate-600 dark:text-gray-400">Digite seu email para redefinir a senha.</p>
             <input
               id="emailres"
               type="email"
@@ -263,7 +263,7 @@ const Auth: React.FC = () => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="seu@email.com"
               required
-              className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 backdrop-blur-sm text-slate-800 placeholder:text-slate-400"
+              className="w-full px-4 py-3 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500"
             />
             <button
               type="submit"
@@ -276,7 +276,7 @@ const Auth: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsForgotPassword(false)}
-              className="text-slate-500 hover:text-slate-700 text-sm transition-colors"
+              className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 text-sm transition-colors"
             >
               Voltar ao login
             </button>
@@ -285,8 +285,8 @@ const Auth: React.FC = () => {
         </div>
 
         {isSignUp && (
-          <div className="mt-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl text-slate-700 text-xs animate-fade-in-up">
-            <strong className="text-blue-800">Nota:</strong> Após criar sua conta, você poderá acessar o nosso sistema de Compras e Estoque.
+          <div className="mt-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-xl text-slate-700 dark:text-gray-300 text-xs animate-fade-in-up">
+            <strong className="text-blue-800 dark:text-blue-400">Nota:</strong> Após criar sua conta, você poderá acessar o nosso sistema de Compras e Estoque.
           </div>
         )}        
       </div>

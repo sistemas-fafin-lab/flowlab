@@ -161,8 +161,8 @@ const ExpirationMonitor: React.FC = () => {
 
       {/* Header */}
       <div className="animate-fade-in-up">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Controle de Validade</h2>
-        <p className="text-gray-500">Monitoramento de produtos próximos ao vencimento</p>
+        <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">Controle de Validade</h2>
+        <p className="text-gray-500 dark:text-gray-400">Monitoramento de produtos próximos ao vencimento</p>
       </div>
 
       {/* Stats */}
@@ -170,12 +170,12 @@ const ExpirationMonitor: React.FC = () => {
         {stats.map((stat, index) => (
           <div 
             key={index} 
-            className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 hover:shadow-lg hover:border-blue-100 transition-all duration-300 animate-fade-in-up group"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-100 dark:border-gray-700 hover:shadow-lg hover:border-blue-100 dark:hover:border-blue-900 transition-all duration-300 animate-fade-in-up group"
             style={{ animationDelay: `${index * 0.1}s` }}
           >
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-500">{stat.label}</p>
+                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{stat.label}</p>
                 <p className={`text-3xl font-bold ${stat.textColor} mt-1`}>{stat.value}</p>
               </div>
               <div className={`p-3 rounded-xl ${stat.color} shadow-lg group-hover:scale-110 transition-transform duration-300`}>
@@ -187,14 +187,14 @@ const ExpirationMonitor: React.FC = () => {
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Prazo</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filtrar por Prazo</label>
             <select
               value={daysFilter}
               onChange={(e) => setDaysFilter(parseInt(e.target.value))}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
             >
               <option value={7}>Próximos 7 dias</option>
               <option value={15}>Próximos 15 dias</option>
@@ -205,11 +205,11 @@ const ExpirationMonitor: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Categoria</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Categoria</label>
             <select
               value={categoryFilter}
               onChange={(e) => setCategoryFilter(e.target.value as any)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
             >
               <option value="all">Todas as Categorias</option>
               <option value="general">Uso Geral</option>
@@ -218,9 +218,9 @@ const ExpirationMonitor: React.FC = () => {
           </div>
 
           <div className="flex items-end">
-            <div className="flex items-center text-sm text-gray-500">
+            <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
               <Filter className="w-4 h-4 mr-2" />
-              <span className="font-medium text-gray-700">{filteredProducts.length}</span>&nbsp;produto(s) encontrado(s)
+              <span className="font-medium text-gray-700 dark:text-gray-300">{filteredProducts.length}</span>&nbsp;produto(s) encontrado(s)
             </div>
           </div>
         </div>
@@ -235,7 +235,7 @@ const ExpirationMonitor: React.FC = () => {
           return (
             <div 
               key={product.id} 
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-lg hover:border-blue-100 transition-all duration-300 animate-fade-in-up"
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 hover:shadow-lg hover:border-blue-100 dark:hover:border-blue-900 transition-all duration-300 animate-fade-in-up"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center">
@@ -243,24 +243,24 @@ const ExpirationMonitor: React.FC = () => {
                     <Package className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-gray-800">{product.name}</h3>
-                    <p className="text-sm text-gray-500">{product.code}</p>
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{product.name}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{product.code}</p>
                   </div>
                 </div>
                 
                 <div className="flex items-center space-x-2">
                   {expirationInfo.status === 'expired' && (
-                    <span className="px-3 py-1 text-sm font-medium bg-red-100 text-red-800 rounded-full">
+                    <span className="px-3 py-1 text-sm font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 rounded-full">
                       Vencido há {expirationInfo.days} dia(s)
                     </span>
                   )}
                   {expirationInfo.status === 'critical' && (
-                    <span className="px-3 py-1 text-sm font-medium bg-red-100 text-red-800 rounded-full">
+                    <span className="px-3 py-1 text-sm font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 rounded-full">
                       Vence em {expirationInfo.days} dia(s)
                     </span>
                   )}
                   {expirationInfo.status === 'warning' && (
-                    <span className="px-3 py-1 text-sm font-medium bg-orange-100 text-orange-800 rounded-full">
+                    <span className="px-3 py-1 text-sm font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 rounded-full">
                       Vence em {expirationInfo.days} dia(s)
                     </span>
                   )}
@@ -273,34 +273,34 @@ const ExpirationMonitor: React.FC = () => {
 
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                 <div>
-                  <p className="text-sm text-gray-600">Categoria</p>
-                  <p className="font-medium text-gray-800 capitalize">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Categoria</p>
+                  <p className="font-medium text-gray-800 dark:text-gray-200 capitalize">
                     {product.category}
                   </p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600">Quantidade</p>
-                  <p className="font-medium text-gray-800">{product.quantity} {product.unit}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Quantidade</p>
+                  <p className="font-medium text-gray-800 dark:text-gray-200">{product.quantity} {product.unit}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600">Preço Unitário</p>
-                  <p className="font-medium text-gray-800">{formatCurrency(product.unitPrice)}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Preço Unitário</p>
+                  <p className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(product.unitPrice)}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600">Valor Total</p>
-                  <p className="font-medium text-gray-800">{formatCurrency(product.totalValue)}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Valor Total</p>
+                  <p className="font-medium text-gray-800 dark:text-gray-200">{formatCurrency(product.totalValue)}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600">Localização</p>
-                  <p className="font-medium text-gray-800">{product.location}</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Localização</p>
+                  <p className="font-medium text-gray-800 dark:text-gray-200">{product.location}</p>
                 </div>
 
                 <div>
-                  <p className="text-sm text-gray-600">Data de Validade</p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">Data de Validade</p>
                   <p className={`font-medium ${expirationInfo.color}`}>
                     {product.expirationDate}
                   </p>
@@ -309,7 +309,7 @@ const ExpirationMonitor: React.FC = () => {
 
               {/* Action Buttons for Critical/Expired Products */}
               {(expirationInfo.status === 'expired' || expirationInfo.status === 'critical') && (
-                <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                   <div className="flex space-x-3">
                     <button
                       onClick={() => handleWriteOff(product.id, product.name)}
@@ -354,10 +354,10 @@ const ExpirationMonitor: React.FC = () => {
       </div>
 
       {filteredProducts.length === 0 && (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-gray-100 animate-fade-in">
-          <Calendar className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum produto encontrado</h3>
-          <p className="text-gray-500">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-12 text-center border border-gray-100 dark:border-gray-700 animate-fade-in">
+          <Calendar className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhum produto encontrado</h3>
+          <p className="text-gray-500 dark:text-gray-400">
             Não há produtos com estoque próximos ao vencimento no período selecionado.
           </p>
         </div>

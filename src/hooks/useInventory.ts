@@ -177,7 +177,12 @@ export const useInventory = () => {
       receiver_signature: request.receiver_signature,
       received_by: request.received_by,
       attachmentUrl: request.attachment_url,
-      attachmentName: request.attachment_name
+      attachmentName: request.attachment_name,
+      attachments: Array.isArray(request.attachments) && request.attachments.length > 0
+        ? request.attachments
+        : request.attachment_url
+          ? [{ url: request.attachment_url, name: request.attachment_name || '' }]
+          : [],
     }));
 
     setRequests(formattedRequests);
@@ -479,41 +484,35 @@ export const useInventory = () => {
     }
   };
 
-  const addRequest = async (request: Omit<Request, 'id'>, attachment?: File | null) => {
+  const addRequest = async (request: Omit<Request, 'id'>, attachments?: File[] | null) => {
     try {
-      let attachmentUrl: string | undefined;
-      let attachmentName: string | undefined;
+      let attachmentsData: { url: string; name: string }[] = [];
 
-      // Upload do anexo se fornecido
-      if (attachment) {
-        const fileExt = attachment.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-        const filePath = `${fileName}`;
+      // Upload de múltiplos anexos se fornecidos
+      if (attachments && attachments.length > 0) {
+        for (const attachment of attachments) {
+          const fileExt = attachment.name.split('.').pop();
+          const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+          const filePath = `${fileName}`;
 
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('request-attachments')
-          .upload(filePath, attachment, {
-            cacheControl: '3600',
-            upsert: false
-          });
+          const { error: uploadError } = await supabase.storage
+            .from('request-attachments')
+            .upload(filePath, attachment, { cacheControl: '3600', upsert: false });
 
-        if (uploadError) {
-          console.error('Erro ao fazer upload do anexo:', uploadError);
-          
-          // Verifica se o bucket não existe
-          if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('bucket')) {
-            throw new Error('O bucket de storage não está configurado. Por favor, contate o administrador do sistema.');
+          if (uploadError) {
+            console.error('Erro ao fazer upload do anexo:', uploadError);
+            if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('bucket')) {
+              throw new Error('O bucket de storage não está configurado. Por favor, contate o administrador do sistema.');
+            }
+            continue;
           }
-          
-          throw new Error(`Falha ao fazer upload do anexo: ${uploadError.message}`);
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('request-attachments')
+            .getPublicUrl(filePath);
+
+          attachmentsData.push({ url: publicUrl, name: attachment.name });
         }
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('request-attachments')
-          .getPublicUrl(filePath);
-
-        attachmentUrl = publicUrl;
-        attachmentName = attachment.name;
       }
 
       const { data, error } = await supabase
@@ -528,8 +527,7 @@ export const useInventory = () => {
           department: request.department,
           supplier_id: request.supplierId,
           supplier_name: request.supplierName,
-          attachment_url: attachmentUrl,
-          attachment_name: attachmentName
+          attachments: attachmentsData
         })
         .select()
         .single();

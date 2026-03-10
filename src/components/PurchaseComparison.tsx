@@ -66,21 +66,21 @@ const PurchaseComparison: React.FC = () => {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-100">
+    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-100 dark:border-gray-700">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">
+        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
           Comparativo de Compras (Mês Atual vs Anterior)
         </h3>
         <button
           onClick={exportToPDF}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
         >
           Exportar PDF
         </button>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm text-left">
-          <thead className="bg-gray-100 text-gray-600">
+          <thead className="bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
             <tr>
               <th className="px-4 py-2">Produto</th>
               <th className="px-4 py-2">Mês Anterior</th>
@@ -90,18 +90,18 @@ const PurchaseComparison: React.FC = () => {
           </thead>
           <tbody>
             {Object.values(dataByProduct).map((item, idx) => (
-              <tr key={idx} className="border-b">
-                <td className="px-4 py-2 text-gray-800">{item.name}</td>
-                <td className="px-4 py-2">{formatCurrency(item.previous)}</td>
-                <td className="px-4 py-2">{formatCurrency(item.current)}</td>
-                <td className={`px-4 py-2 font-medium ${item.current - item.previous >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <tr key={idx} className="border-b border-gray-100 dark:border-gray-700">
+                <td className="px-4 py-2 text-gray-800 dark:text-gray-100">{item.name}</td>
+                <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatCurrency(item.previous)}</td>
+                <td className="px-4 py-2 text-gray-600 dark:text-gray-300">{formatCurrency(item.current)}</td>
+                <td className={`px-4 py-2 font-medium ${item.current - item.previous >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                   {formatCurrency(item.current - item.previous)}
                 </td>
               </tr>
             ))}
             {Object.keys(dataByProduct).length === 0 && (
               <tr>
-                <td colSpan={4} className="text-center py-4 text-gray-500">Sem dados de compras nos dois meses.</td>
+                <td colSpan={4} className="text-center py-4 text-gray-500 dark:text-gray-400">Sem dados de compras nos dois meses.</td>
               </tr>
             )}
           </tbody>

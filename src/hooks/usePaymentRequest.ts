@@ -60,6 +60,11 @@ export const usePaymentRequest = () => {
         pdfUrl: request.pdf_url,
         attachmentUrl: request.attachment_url,
         attachmentName: request.attachment_name,
+        attachments: Array.isArray(request.attachments) && request.attachments.length > 0
+          ? request.attachments
+          : request.attachment_url
+            ? [{ url: request.attachment_url, name: request.attachment_name || '' }]
+            : [],
         createdAt: request.created_at,
         updatedAt: request.updated_at,
         approvedBy: request.approved_by,
@@ -99,40 +104,36 @@ export const usePaymentRequest = () => {
     return count || 0;
   };
 
-  // Upload attachment to Supabase Storage
-  const uploadAttachment = async (file: File, codigo: string): Promise<{ url: string; name: string } | null> => {
-    try {
-      // Gerar nome único para o arquivo
-      const fileExt = file.name.split('.').pop()?.toLowerCase();
-      const fileName = `${codigo.replace(/[/\s]/g, '-')}-${Date.now()}.${fileExt}`;
-      const filePath = `attachments/${fileName}`;
+  // Upload múltiplos anexos para o Supabase Storage
+  const uploadAttachments = async (files: File[], codigo: string): Promise<{ url: string; name: string }[]> => {
+    const results: { url: string; name: string }[] = [];
 
-      // Upload para o storage
-      const { data, error: uploadError } = await supabase.storage
-        .from('payment-attachments')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false
-        });
+    for (const file of files) {
+      try {
+        const fileExt = file.name.split('.').pop()?.toLowerCase();
+        const fileName = `${codigo.replace(/[/\s]/g, '-')}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}.${fileExt}`;
+        const filePath = `attachments/${fileName}`;
 
-      if (uploadError) {
-        console.error('Erro no upload:', uploadError);
-        return null;
+        const { error: uploadError } = await supabase.storage
+          .from('payment-attachments')
+          .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+        if (uploadError) {
+          console.error('Erro no upload:', uploadError);
+          continue;
+        }
+
+        const { data: urlData } = supabase.storage
+          .from('payment-attachments')
+          .getPublicUrl(filePath);
+
+        results.push({ url: urlData.publicUrl, name: file.name });
+      } catch (err) {
+        console.error('Erro ao fazer upload do anexo:', err);
       }
-
-      // Obter URL pública
-      const { data: urlData } = supabase.storage
-        .from('payment-attachments')
-        .getPublicUrl(filePath);
-
-      return {
-        url: urlData.publicUrl,
-        name: file.name
-      };
-    } catch (err) {
-      console.error('Erro ao fazer upload do anexo:', err);
-      return null;
     }
+
+    return results;
   };
 
   // Create new payment request
@@ -163,10 +164,10 @@ export const usePaymentRequest = () => {
       // 5. Preparar payload
       const payload = preparePayload(formValues, codigoCompleto, codigoCompacto, department);
 
-      // 5.1 Upload do anexo se existir
-      let attachmentData: { url: string; name: string } | null = null;
-      if (formValues.attachment) {
-        attachmentData = await uploadAttachment(formValues.attachment, codigoCompleto);
+      // 5.1 Upload dos anexos se existirem
+      let attachmentsData: { url: string; name: string }[] = [];
+      if (formValues.attachments && formValues.attachments.length > 0) {
+        attachmentsData = await uploadAttachments(formValues.attachments, codigoCompleto);
       }
 
       // 6. Inserir no banco de dados
@@ -189,8 +190,7 @@ export const usePaymentRequest = () => {
           email_usuario: payload.emailUsuario,
           department: payload.department,
           status: payload.status,
-          attachment_url: attachmentData?.url || null,
-          attachment_name: attachmentData?.name || null
+          attachments: attachmentsData
         })
         .select()
         .single();

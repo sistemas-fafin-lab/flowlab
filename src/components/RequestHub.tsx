@@ -75,14 +75,14 @@ const RequestHub: React.FC = () => {
       {/* Header */}
       <div className="animate-fade-in-up text-center">
         <div className="flex items-center justify-center gap-4 mb-2">
-          <div className="w-14 h-14 bg-gradient-to-br from-gray-700 to-gray-900 rounded-2xl flex items-center justify-center shadow-lg shadow-gray-900/20">
+          <div className="w-14 h-14 bg-gradient-to-br from-gray-700 to-gray-900 dark:from-gray-600 dark:to-gray-800 rounded-2xl flex items-center justify-center shadow-lg shadow-gray-900/20">
             <FileText className="w-7 h-7 text-white" />
           </div>
         </div>
-        <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent mt-4">
+        <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent mt-4">
           Central de Solicitações
         </h2>
-        <p className="text-gray-500 mt-2">Selecione o tipo de solicitação que deseja acessar</p>
+        <p className="text-gray-500 dark:text-gray-400 mt-2">Selecione o tipo de solicitação que deseja acessar</p>
       </div>
 
       {/* Module Cards */}
@@ -94,7 +94,7 @@ const RequestHub: React.FC = () => {
             <div
               key={module.id}
               onClick={() => navigate(module.path)}
-              className="group bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden cursor-pointer hover:shadow-xl hover:border-gray-200 transition-all duration-300 animate-fade-in-up"
+              className="group bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden cursor-pointer hover:shadow-xl hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-300 animate-fade-in-up"
               style={{ animationDelay: `${index * 0.1}s` }}
             >
               {/* Gradient Header */}
@@ -107,10 +107,10 @@ const RequestHub: React.FC = () => {
                 </div>
 
                 {/* Content */}
-                <h3 className="text-lg font-bold text-gray-800 mb-2 group-hover:text-gray-900 transition-colors">
+                <h3 className="text-lg font-bold text-gray-800 dark:text-gray-100 mb-2 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
                   {module.title}
                 </h3>
-                <p className="text-sm text-gray-500 mb-4 line-clamp-2">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 line-clamp-2">
                   {module.description}
                 </p>
 
@@ -126,14 +126,14 @@ const RequestHub: React.FC = () => {
       </div>
 
       {/* Info Card */}
-      <div className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-2xl p-6 border border-gray-200 animate-fade-in-up max-w-5xl mx-auto w-full" style={{ animationDelay: '0.3s' }}>
+      <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 animate-fade-in-up max-w-5xl mx-auto w-full" style={{ animationDelay: '0.3s' }}>
         <div className="flex items-start gap-4">
-          <div className="w-10 h-10 bg-gray-200 rounded-xl flex items-center justify-center flex-shrink-0">
-            <Settings className="w-5 h-5 text-gray-600" />
+          <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-xl flex items-center justify-center flex-shrink-0">
+            <Settings className="w-5 h-5 text-gray-600 dark:text-gray-300" />
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-gray-800 mb-1">Sobre os módulos</h4>
-            <p className="text-sm text-gray-600">
+            <h4 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-1">Sobre os módulos</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Cada módulo possui seu próprio fluxo de aprovação e histórico independente. 
               Selecione o módulo correspondente ao tipo de solicitação que deseja criar ou gerenciar.
             </p>

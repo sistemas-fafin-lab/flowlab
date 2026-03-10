@@ -63,6 +63,7 @@ export interface Request {
   received_by?: string;
   attachmentUrl?: string;
   attachmentName?: string;
+  attachments?: { url: string; name: string }[];
 }
 
 export interface ProductChangeLog {
@@ -316,6 +317,7 @@ export interface PaymentRequest {
   pdfUrl?: string;
   attachmentUrl?: string;
   attachmentName?: string;
+  attachments?: { url: string; name: string }[];
   createdAt: string;
   updatedAt: string;
   approvedBy?: string;
@@ -336,7 +338,7 @@ export interface PaymentRequestFormValues {
   autorizadoPor: string;
   dataPagamento: Date | string;
   emailUsuario: string;
-  attachment?: File | null;
+  attachments?: File[];
 }
 
 export interface PaymentDateValidation {
@@ -440,8 +442,8 @@ export const MAINTENANCE_STATUS_LABELS: Record<MaintenanceStatus, string> = {
 };
 
 export const MAINTENANCE_STATUS_COLORS: Record<MaintenanceStatus, string> = {
-  pending: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  in_progress: 'bg-blue-100 text-blue-800 border-blue-200',
-  completed: 'bg-green-100 text-green-800 border-green-200',
-  cancelled: 'bg-gray-100 text-gray-500 border-gray-200'
+  pending: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700',
+  in_progress: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700',
+  completed: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700',
+  cancelled: 'bg-gray-100 dark:bg-gray-700/50 text-gray-500 dark:text-gray-300 border border-gray-200 dark:border-gray-600'
 };

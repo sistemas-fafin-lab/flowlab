@@ -45,13 +45,13 @@ const CHART_COLORS = [
 
 // Skeleton Component para loading
 const SkeletonCard: React.FC = () => (
-  <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-pulse">
+  <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 animate-pulse">
     <div className="flex items-center justify-between">
       <div className="space-y-3 flex-1">
-        <div className="h-4 bg-gray-200 rounded w-24 skeleton"></div>
-        <div className="h-8 bg-gray-200 rounded w-16 skeleton"></div>
+        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-24 skeleton"></div>
+        <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded w-16 skeleton"></div>
       </div>
-      <div className="w-12 h-12 bg-gray-200 rounded-xl skeleton"></div>
+      <div className="w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl skeleton"></div>
     </div>
   </div>
 );
@@ -202,10 +202,10 @@ const Dashboard: React.FC = () => {
 
   if (error) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-xl p-6 animate-fade-in">
+      <div className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-6 animate-fade-in">
         <div className="flex items-center">
           <AlertTriangle className="w-6 h-6 text-red-500 mr-3" />
-          <span className="text-red-700 font-medium">Erro ao carregar dados: {error}</span>
+          <span className="text-red-700 dark:text-red-300 font-medium">Erro ao carregar dados: {error}</span>
         </div>
       </div>
     );
@@ -227,15 +227,15 @@ const Dashboard: React.FC = () => {
   };
 
   const getTrendIcon = (value: number) => {
-    if (value > 0) return <ArrowUpRight className="w-4 h-4 text-green-600" />;
-    if (value < 0) return <ArrowDownRight className="w-4 h-4 text-red-600" />;
-    return <Minus className="w-4 h-4 text-gray-600" />;
+    if (value > 0) return <ArrowUpRight className="w-4 h-4 text-green-600 dark:text-green-400" />;
+    if (value < 0) return <ArrowDownRight className="w-4 h-4 text-red-600 dark:text-red-400" />;
+    return <Minus className="w-4 h-4 text-gray-600 dark:text-gray-400" />;
   };
 
   const getTrendColor = (value: number) => {
-    if (value > 0) return 'text-green-600';
-    if (value < 0) return 'text-red-600';
-    return 'text-gray-600';
+    if (value > 0) return 'text-green-600 dark:text-green-400';
+    if (value < 0) return 'text-red-600 dark:text-red-400';
+    return 'text-gray-600 dark:text-gray-400';
   };
 
   const stats = [
@@ -341,39 +341,39 @@ const Dashboard: React.FC = () => {
         const lowStockProducts = products.filter(p => p.status === 'low-stock');
         return (
           <div className="space-y-4">
-            <p className="text-sm sm:text-base text-gray-600">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
               {lowStockProducts.length} produto(s) com estoque abaixo do mínimo
             </p>
             <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-              <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs sm:text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Produto</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Atual</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Mín</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Valor</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Local</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produto</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Atual</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Mín</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden sm:table-cell">Valor</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden md:table-cell">Local</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {lowStockProducts.map((product) => (
                     <tr key={product.id}>
                       <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">{product.name}</div>
-                          <div className="text-[10px] sm:text-xs text-gray-500">{product.code}</div>
+                          <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
+                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.code}</div>
                         </div>
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-orange-600 font-medium">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-orange-600 dark:text-orange-400 font-medium">
                         {product.quantity} {product.unit}
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {product.minStock} {product.unit}
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden sm:table-cell">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100 hidden sm:table-cell">
                         {formatCurrency(product.totalValue || 0)}
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden md:table-cell">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 dark:text-gray-400 hidden md:table-cell">
                         {product.location}
                       </td>
                     </tr>
@@ -397,21 +397,21 @@ const Dashboard: React.FC = () => {
         
         return (
           <div className="space-y-4">
-            <p className="text-sm sm:text-base text-gray-600">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
               {expiringProducts.length} produto(s) próximos ao vencimento (próximos 30 dias)
             </p>
             <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-              <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs sm:text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Produto</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Validade</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Dias</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Qtd</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Valor</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produto</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Validade</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Dias</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden sm:table-cell">Qtd</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden md:table-cell">Valor</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {expiringProducts.map((product) => {
                     const daysUntilExpiration = Math.ceil(
                       (new Date(product.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
@@ -420,26 +420,26 @@ const Dashboard: React.FC = () => {
                       <tr key={product.id}>
                         <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                           <div>
-                            <div className="text-xs sm:text-sm font-medium text-gray-900">{product.name}</div>
-                            <div className="text-[10px] sm:text-xs text-gray-500">{product.code}</div>
+                            <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
+                            <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.code}</div>
                           </div>
                         </td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                           {product.expirationDate}
                         </td>
                         <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                           <span className={`text-xs sm:text-sm font-medium ${
-                            daysUntilExpiration < 0 ? 'text-red-600' : 
-                            daysUntilExpiration <= 7 ? 'text-red-600' : 'text-orange-600'
+                            daysUntilExpiration < 0 ? 'text-red-600 dark:text-red-400' : 
+                            daysUntilExpiration <= 7 ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'
                           }`}>
                             {daysUntilExpiration < 0 ? `${Math.abs(daysUntilExpiration)}d` : 
                              `${daysUntilExpiration}d`}
                           </span>
                         </td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden sm:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100 hidden sm:table-cell">
                           {product.quantity} {product.unit}
                         </td>
-                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden md:table-cell">
+                        <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100 hidden md:table-cell">
                           {formatCurrency(product.totalValue || 0)}
                         </td>
                       </tr>
@@ -461,35 +461,35 @@ const Dashboard: React.FC = () => {
         
         return (
           <div className="space-y-4">
-            <p className="text-sm sm:text-base text-gray-600">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
               {monthlyMovements.length} movimentação(ões) no mês atual
             </p>
             <div className="overflow-x-auto -mx-3 sm:mx-0 px-3 sm:px-0">
-              <table className="min-w-full divide-y divide-gray-200 text-xs sm:text-sm">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700 text-xs sm:text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Data</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Produto</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Qtd</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Motivo</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Valor</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Por</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Data</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produto</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qtd</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden sm:table-cell">Motivo</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden md:table-cell">Valor</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase hidden lg:table-cell">Por</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {monthlyMovements.map((movement) => (
                     <tr key={movement.id}>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {movement.date}
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {movement.productName}
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-red-600 font-medium">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-red-600 dark:text-red-400 font-medium">
                         -{movement.quantity}
                       </td>
                       <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap hidden sm:table-cell">
-                        <span className="px-2 py-1 text-[10px] sm:text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                        <span className="px-2 py-1 text-[10px] sm:text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 rounded-full">
                           {movement.reason === 'sale' && 'Saída'}
                           {movement.reason === 'internal-consumption' && 'Consumo'}
                           {movement.reason === 'internal-transfer' && 'Transfer.'}
@@ -497,10 +497,10 @@ const Dashboard: React.FC = () => {
                           {movement.reason === 'other' && 'Outros'}
                         </span>
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 hidden md:table-cell">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100 hidden md:table-cell">
                         {formatCurrency(movement.totalValue || 0)}
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 hidden lg:table-cell">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 dark:text-gray-400 hidden lg:table-cell">
                         {movement.authorizedBy || '-'}
                       </td>
                     </tr>
@@ -516,46 +516,46 @@ const Dashboard: React.FC = () => {
         
         return (
           <div className="space-y-3 sm:space-y-4">
-            <p className="text-sm sm:text-base text-gray-600">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
               Todos os produtos ordenados por valor total (decrescente)
             </p>
             <div className="overflow-x-auto -mx-2 sm:mx-0">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Pos.</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Produto</th>
-                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Qtd</th>
-                    <th className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Preço Unit.</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Total</th>
-                    <th className="hidden lg:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Pos.</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produto</th>
+                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qtd</th>
+                    <th className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Preço Unit.</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Total</th>
+                    <th className="hidden lg:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Categoria</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {sortedProducts.map((product, index) => (
                     <tr key={product.id}>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">
                         #{index + 1}
                       </td>
                       <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">{product.name}</div>
-                          <div className="text-xs text-gray-500">{product.code}</div>
-                          <div className="sm:hidden text-xs text-gray-500">{product.quantity} {product.unit}</div>
+                          <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{product.code}</div>
+                          <div className="sm:hidden text-xs text-gray-500 dark:text-gray-400">{product.quantity} {product.unit}</div>
                         </div>
                       </td>
-                      <td className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      <td className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {product.quantity} {product.unit}
                       </td>
-                      <td className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      <td className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {formatCurrency(product.unitPrice || 0)}
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-green-600">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm font-medium text-green-600 dark:text-green-400">
                         {formatCurrency(product.totalValue || 0)}
                       </td>
                       <td className="hidden lg:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          product.category === 'general' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                          product.category === 'general' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200'
                         }`}>
                           {product.category === 'general' ? 'Uso Geral' : 'Insumo Técnico'}
                         </span>
@@ -572,48 +572,48 @@ const Dashboard: React.FC = () => {
         return (
           <div className="space-y-4 sm:space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-              <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
-                <h4 className="text-base sm:text-lg font-semibold text-blue-800 mb-2 sm:mb-3">Mês Atual</h4>
+              <div className="bg-blue-50 dark:bg-blue-900/30 p-3 sm:p-4 rounded-lg">
+                <h4 className="text-base sm:text-lg font-semibold text-blue-800 dark:text-blue-200 mb-2 sm:mb-3">Mês Atual</h4>
                 <div className="space-y-1 sm:space-y-2">
                   <div className="flex justify-between text-sm sm:text-base">
-                    <span className="text-blue-700">Valor do Estoque:</span>
-                    <span className="font-medium text-blue-900">{formatCurrency(financialMetrics.currentMonth.inventoryValue)}</span>
+                    <span className="text-blue-700 dark:text-blue-300">Valor do Estoque:</span>
+                    <span className="font-medium text-blue-900 dark:text-blue-100">{formatCurrency(financialMetrics.currentMonth.inventoryValue)}</span>
                   </div>
                   <div className="flex justify-between text-sm sm:text-base">
-                    <span className="text-blue-700">Movimentações:</span>
-                    <span className="font-medium text-blue-900">{formatCurrency(financialMetrics.currentMonth.movementsValue)}</span>
+                    <span className="text-blue-700 dark:text-blue-300">Movimentações:</span>
+                    <span className="font-medium text-blue-900 dark:text-blue-100">{formatCurrency(financialMetrics.currentMonth.movementsValue)}</span>
                   </div>
                   <div className="flex justify-between text-sm sm:text-base">
-                    <span className="text-blue-700">Nº Movimentações:</span>
-                    <span className="font-medium text-blue-900">{financialMetrics.currentMonth.movementsCount}</span>
+                    <span className="text-blue-700 dark:text-blue-300">Nº Movimentações:</span>
+                    <span className="font-medium text-blue-900 dark:text-blue-100">{financialMetrics.currentMonth.movementsCount}</span>
                   </div>
                 </div>
               </div>
               
-              <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                <h4 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 sm:mb-3">Mês Anterior</h4>
+              <div className="bg-gray-50 dark:bg-gray-700/50 p-3 sm:p-4 rounded-lg">
+                <h4 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2 sm:mb-3">Mês Anterior</h4>
                 <div className="space-y-1 sm:space-y-2">
                   <div className="flex justify-between text-sm sm:text-base">
-                    <span className="text-gray-700">Valor do Estoque:</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(financialMetrics.previousMonth.inventoryValue)}</span>
+                    <span className="text-gray-700 dark:text-gray-300">Valor do Estoque:</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(financialMetrics.previousMonth.inventoryValue)}</span>
                   </div>
                   <div className="flex justify-between text-sm sm:text-base">
-                    <span className="text-gray-700">Movimentações:</span>
-                    <span className="font-medium text-gray-900">{formatCurrency(financialMetrics.previousMonth.movementsValue)}</span>
+                    <span className="text-gray-700 dark:text-gray-300">Movimentações:</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{formatCurrency(financialMetrics.previousMonth.movementsValue)}</span>
                   </div>
                   <div className="flex justify-between text-sm sm:text-base">
-                    <span className="text-gray-700">Nº Movimentações:</span>
-                    <span className="font-medium text-gray-900">{financialMetrics.previousMonth.movementsCount}</span>
+                    <span className="text-gray-700 dark:text-gray-300">Nº Movimentações:</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{financialMetrics.previousMonth.movementsCount}</span>
                   </div>
                 </div>
               </div>
             </div>
             
-            <div className="bg-green-50 p-4 rounded-lg">
-              <h4 className="text-lg font-semibold text-green-800 mb-3">Variações</h4>
+            <div className="bg-green-50 dark:bg-green-900/30 p-4 rounded-lg">
+              <h4 className="text-lg font-semibold text-green-800 dark:text-green-200 mb-3">Variações</h4>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="text-center">
-                  <div className="text-xs sm:text-sm text-green-700">Valor do Estoque</div>
+                  <div className="text-xs sm:text-sm text-green-700 dark:text-green-300">Valor do Estoque</div>
                   <div className={`text-base sm:text-lg font-bold ${getTrendColor(financialMetrics.trends.inventoryValueChangePercent)}`}>
                     {formatCurrency(financialMetrics.trends.inventoryValueChange)}
                   </div>
@@ -622,7 +622,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-xs sm:text-sm text-green-700">Movimentações</div>
+                  <div className="text-xs sm:text-sm text-green-700 dark:text-green-300">Movimentações</div>
                   <div className={`text-base sm:text-lg font-bold ${getTrendColor(financialMetrics.trends.movementsValueChangePercent)}`}>
                     {formatCurrency(financialMetrics.trends.movementsValueChange)}
                   </div>
@@ -631,7 +631,7 @@ const Dashboard: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-center">
-                  <div className="text-xs sm:text-sm text-green-700">Nº Movimentações</div>
+                  <div className="text-xs sm:text-sm text-green-700 dark:text-green-300">Nº Movimentações</div>
                   <div className={`text-base sm:text-lg font-bold ${getTrendColor(financialMetrics.trends.movementsCountChangePercent)}`}>
                     {financialMetrics.trends.movementsCountChange >= 0 ? '+' : ''}{financialMetrics.trends.movementsCountChange}
                   </div>
@@ -647,14 +647,14 @@ const Dashboard: React.FC = () => {
       case 'categories':
         // Gerar dados de categoria dinamicamente a partir de todas as categorias
         const categoryColors = [
-          { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700', accent: 'bg-blue-500' },
-          { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700', accent: 'bg-green-500' },
-          { bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700', accent: 'bg-purple-500' },
-          { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700', accent: 'bg-orange-500' },
-          { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', accent: 'bg-red-500' },
-          { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', accent: 'bg-indigo-500' },
-          { bg: 'bg-pink-50', border: 'border-pink-200', text: 'text-pink-700', accent: 'bg-pink-500' },
-          { bg: 'bg-teal-50', border: 'border-teal-200', text: 'text-teal-700', accent: 'bg-teal-500' }
+          { bg: 'bg-blue-50 dark:bg-blue-900/20', border: 'border-blue-200 dark:border-blue-800', text: 'text-blue-700 dark:text-blue-300', accent: 'bg-blue-500' },
+          { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800', text: 'text-green-700 dark:text-green-300', accent: 'bg-green-500' },
+          { bg: 'bg-purple-50 dark:bg-purple-900/20', border: 'border-purple-200 dark:border-purple-800', text: 'text-purple-700 dark:text-purple-300', accent: 'bg-purple-500' },
+          { bg: 'bg-orange-50 dark:bg-orange-900/20', border: 'border-orange-200 dark:border-orange-800', text: 'text-orange-700 dark:text-orange-300', accent: 'bg-orange-500' },
+          { bg: 'bg-red-50 dark:bg-red-900/20', border: 'border-red-200 dark:border-red-800', text: 'text-red-700 dark:text-red-300', accent: 'bg-red-500' },
+          { bg: 'bg-indigo-50 dark:bg-indigo-900/20', border: 'border-indigo-200 dark:border-indigo-800', text: 'text-indigo-700 dark:text-indigo-300', accent: 'bg-indigo-500' },
+          { bg: 'bg-pink-50 dark:bg-pink-900/20', border: 'border-pink-200 dark:border-pink-800', text: 'text-pink-700 dark:text-pink-300', accent: 'bg-pink-500' },
+          { bg: 'bg-teal-50 dark:bg-teal-900/20', border: 'border-teal-200 dark:border-teal-800', text: 'text-teal-700 dark:text-teal-300', accent: 'bg-teal-500' }
         ];
 
         const allCategoryData = Object.entries(dashboardData.allCategories)
@@ -670,23 +670,23 @@ const Dashboard: React.FC = () => {
         return (
           <div className="space-y-4 sm:space-y-6">
             {/* Resumo Geral */}
-            <div className="bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl p-3 sm:p-4 border border-gray-200">
+            <div className="bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 <div className="text-center">
-                  <p className="text-xl sm:text-2xl font-bold text-gray-800">{allCategoryData.length}</p>
-                  <p className="text-xs text-gray-500">Categorias</p>
+                  <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">{allCategoryData.length}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Categorias</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-xl sm:text-2xl font-bold text-blue-600">{products.length}</p>
-                  <p className="text-xs text-gray-500">Total Produtos</p>
+                  <p className="text-xl sm:text-2xl font-bold text-blue-600 dark:text-blue-400">{products.length}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Total Produtos</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg sm:text-2xl font-bold text-green-600">{formatCurrency(dashboardData.totalInventoryValue)}</p>
-                  <p className="text-xs text-gray-500">Valor Total</p>
+                  <p className="text-lg sm:text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(dashboardData.totalInventoryValue)}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Valor Total</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg sm:text-2xl font-bold text-purple-600">{formatCurrency(dashboardData.averageProductValue)}</p>
-                  <p className="text-xs text-gray-500">Valor Médio</p>
+                  <p className="text-lg sm:text-2xl font-bold text-purple-600 dark:text-purple-400">{formatCurrency(dashboardData.averageProductValue)}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Valor Médio</p>
                 </div>
               </div>
             </div>
@@ -710,12 +710,12 @@ const Dashboard: React.FC = () => {
                   
                   <div className="space-y-2 mb-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Valor Total:</span>
-                      <span className="text-sm font-semibold text-gray-800">{formatCurrency(category.value)}</span>
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Valor Total:</span>
+                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{formatCurrency(category.value)}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="text-xs text-gray-600">Valor Médio:</span>
-                      <span className="text-sm font-medium text-gray-700">
+                      <span className="text-xs text-gray-600 dark:text-gray-400">Valor Médio:</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-200">
                         {formatCurrency(category.count > 0 ? category.value / category.count : 0)}
                       </span>
                     </div>
@@ -723,13 +723,13 @@ const Dashboard: React.FC = () => {
                   
                   {/* Lista de Produtos da Categoria */}
                   {category.products.length > 0 && (
-                    <div className="border-t border-gray-200 pt-3 mt-3">
-                      <h5 className="text-xs font-medium text-gray-500 mb-2">Produtos:</h5>
+                    <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
+                      <h5 className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Produtos:</h5>
                       <div className="max-h-32 overflow-y-auto pr-1 space-y-1.5 scrollbar-thin">
                         {category.products.map((product) => (
-                          <div key={product.id} className="flex justify-between items-center text-xs bg-white/50 rounded-lg px-2 py-1.5">
-                            <span className="text-gray-700 truncate flex-1 mr-2">{product.name}</span>
-                            <span className="text-gray-800 font-medium whitespace-nowrap">{formatCurrency(product.totalValue || 0)}</span>
+                          <div key={product.id} className="flex justify-between items-center text-xs bg-white/50 dark:bg-gray-700/50 rounded-lg px-2 py-1.5">
+                            <span className="text-gray-700 dark:text-gray-300 truncate flex-1 mr-2">{product.name}</span>
+                            <span className="text-gray-800 dark:text-gray-100 font-medium whitespace-nowrap">{formatCurrency(product.totalValue || 0)}</span>
                           </div>
                         ))}
                       </div>
@@ -744,55 +744,55 @@ const Dashboard: React.FC = () => {
       case 'allProducts':
         return (
           <div className="space-y-3 sm:space-y-4">
-            <p className="text-sm sm:text-base text-gray-600">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
               {products.length} produto(s) cadastrado(s) no sistema
             </p>
             <div className="overflow-x-auto -mx-2 sm:mx-0">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
                   <tr>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Produto</th>
-                    <th className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Categoria</th>
-                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Qtd</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Valor</th>
-                    <th className="hidden lg:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 uppercase">Validade</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Produto</th>
+                    <th className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Categoria</th>
+                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Qtd</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Valor</th>
+                    <th className="hidden lg:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Validade</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {products.map((product) => (
                     <tr key={product.id}>
                       <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                         <div>
-                          <div className="text-xs sm:text-sm font-medium text-gray-900">{product.name}</div>
-                          <div className="text-xs text-gray-500">{product.code}</div>
-                          <div className="sm:hidden text-xs text-gray-500">{product.quantity} {product.unit}</div>
+                          <div className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">{product.name}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{product.code}</div>
+                          <div className="sm:hidden text-xs text-gray-500 dark:text-gray-400">{product.quantity} {product.unit}</div>
                         </div>
                       </td>
                       <td className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          product.category === 'general' ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                          product.category === 'general' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200'
                         }`}>
                           {product.category === 'general' ? 'Uso Geral' : 'Insumo Técnico'}
                         </span>
                       </td>
-                      <td className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      <td className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {product.quantity} {product.unit}
                       </td>
                       <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                         <span className={`px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium rounded-full ${
-                          product.status === 'active' ? 'bg-green-100 text-green-800' :
-                          product.status === 'low-stock' ? 'bg-orange-100 text-orange-800' :
-                          'bg-red-100 text-red-800'
+                          product.status === 'active' ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200' :
+                          product.status === 'low-stock' ? 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200' :
+                          'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200'
                         }`}>
                           {product.status === 'active' ? 'Ativo' :
                            product.status === 'low-stock' ? 'Baixo' : 'Vencido'}
                         </span>
                       </td>
-                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {formatCurrency(product.totalValue || 0)}
                       </td>
-                      <td className="hidden lg:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900">
+                      <td className="hidden lg:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-900 dark:text-gray-100">
                         {product.expirationDate}
                       </td>
                     </tr>
@@ -806,65 +806,65 @@ const Dashboard: React.FC = () => {
       case 'departmentRanking':
         return (
           <div className="space-y-3 sm:space-y-4">
-            <p className="text-sm sm:text-base text-gray-600">
+            <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400">
               Análise de solicitações por centro de custo - Total de {requests.length} solicitação(ões)
             </p>
             <div className="overflow-x-auto -mx-2 sm:mx-0">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-slate-50">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-slate-50 dark:bg-slate-700/50">
                   <tr>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">#</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Depto</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Total</th>
-                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Pend.</th>
-                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Aprov.</th>
-                    <th className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Rejeit.</th>
-                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 uppercase tracking-wider">Taxa</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">#</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Depto</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Total</th>
+                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Pend.</th>
+                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Aprov.</th>
+                    <th className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Rejeit.</th>
+                    <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Taxa</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                   {chartData.departmentRankingData.map((dept, index) => {
                     const approvalRate = dept.total > 0 ? ((dept.approved / dept.total) * 100).toFixed(1) : '0.0';
                     return (
-                      <tr key={dept.name} className="hover:bg-slate-50 transition-colors">
+                      <tr key={dept.name} className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                         <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          <span className="text-xs sm:text-sm font-semibold text-slate-700">{index + 1}</span>
+                          <span className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-300">{index + 1}</span>
                         </td>
                         <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="hidden sm:block p-2 rounded-lg bg-slate-100 mr-3">
-                              <Building2 className="w-4 h-4 text-slate-600" />
+                            <div className="hidden sm:block p-2 rounded-lg bg-slate-100 dark:bg-slate-700 mr-3">
+                              <Building2 className="w-4 h-4 text-slate-600 dark:text-slate-300" />
                             </div>
-                            <span className="text-xs sm:text-sm font-medium text-gray-900">{dept.name}</span>
+                            <span className="text-xs sm:text-sm font-medium text-gray-900 dark:text-gray-100">{dept.name}</span>
                           </div>
                         </td>
                         <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          <span className="text-xs sm:text-sm font-bold text-gray-900">{dept.total}</span>
+                          <span className="text-xs sm:text-sm font-bold text-gray-900 dark:text-gray-100">{dept.total}</span>
                         </td>
                         <td className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-amber-100 text-amber-800">
+                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200">
                             {dept.pending}
                           </span>
                         </td>
                         <td className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-emerald-100 text-emerald-800">
+                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200">
                             {dept.approved}
                           </span>
                         </td>
                         <td className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
-                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-rose-100 text-rose-800">
+                          <span className="px-1.5 sm:px-2 py-0.5 sm:py-1 text-xs font-medium rounded-full bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200">
                             {dept.rejected}
                           </span>
                         </td>
                         <td className="px-3 sm:px-6 py-2 sm:py-4 whitespace-nowrap">
                           <div className="flex items-center">
-                            <div className="hidden sm:block w-16 bg-gray-200 rounded-full h-2 mr-2">
+                            <div className="hidden sm:block w-16 bg-gray-200 dark:bg-gray-600 rounded-full h-2 mr-2">
                               <div
                                 className="bg-emerald-500 h-2 rounded-full transition-all"
                                 style={{ width: `${approvalRate}%` }}
                               ></div>
                             </div>
-                            <span className="text-xs sm:text-sm font-medium text-gray-700">{approvalRate}%</span>
+                            <span className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">{approvalRate}%</span>
                           </div>
                         </td>
                       </tr>
@@ -877,7 +877,7 @@ const Dashboard: React.FC = () => {
         );
 
       default:
-        return <div className="text-gray-500">Conteúdo não encontrado</div>;
+        return <div className="text-gray-500 dark:text-gray-400">Conteúdo não encontrado</div>;
     }
   };
 
@@ -891,13 +891,13 @@ const Dashboard: React.FC = () => {
           return (
             <div 
               key={stat.name} 
-              className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-3 sm:p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
+              className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-3 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
               style={{ animationDelay: `${index * 0.05}s` }}
               onClick={() => setSelectedDetail(stat.detailKey)}
             >
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs sm:text-sm font-medium text-gray-500 truncate">{stat.name}</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{stat.name}</p>
                   <p className={`text-xl sm:text-3xl font-bold ${stat.textColor} mt-1 sm:mt-2`}>{stat.value}</p>
                 </div>
                 <div className={`p-2 sm:p-4 rounded-xl sm:rounded-2xl ${stat.color} shadow-lg flex-shrink-0 ml-2`}>
@@ -915,14 +915,14 @@ const Dashboard: React.FC = () => {
           <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg flex-shrink-0">
             <LineChart className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
           </div>
-          <h2 className="text-sm sm:text-lg font-semibold text-gray-800 truncate">Gráficos e Indicadores</h2>
+          <h2 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Gráficos e Indicadores</h2>
         </div>
         <button
           onClick={() => setShowCharts(!showCharts)}
           className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl font-medium text-xs sm:text-sm transition-all duration-300 flex-shrink-0 ${
             showCharts 
-              ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' 
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/70' 
+              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
           }`}
         >
           {showCharts ? (
@@ -946,9 +946,9 @@ const Dashboard: React.FC = () => {
       <>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         {/* Gráfico de Pizza - Status dos Produtos */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-lg transition-all duration-300">
+        <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-500 shadow-lg mr-2 sm:mr-3">
                 <PieChartIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
@@ -983,7 +983,7 @@ const Dashboard: React.FC = () => {
                   <Legend 
                     verticalAlign="bottom" 
                     height={36}
-                    formatter={(value) => <span className="text-sm text-gray-600">{value}</span>}
+                    formatter={(value) => <span className="text-sm text-gray-600 dark:text-gray-300">{value}</span>}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -999,9 +999,9 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Gráfico de Pizza - Distribuição por Categoria */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-lg transition-all duration-300">
+        <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300">
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-purple-500 shadow-lg mr-2 sm:mr-3">
                 <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
@@ -1050,7 +1050,7 @@ const Dashboard: React.FC = () => {
               {chartData.categoryPieData.slice(0, 4).map((cat, i) => (
                 <div key={i} className="flex items-center gap-1.5 text-xs">
                   <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }}></div>
-                  <span className="text-gray-600 capitalize">{cat.name}</span>
+                  <span className="text-gray-600 dark:text-gray-300 capitalize">{cat.name}</span>
                 </div>
               ))}
             </div>
@@ -1058,10 +1058,10 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* Gráfico de Área - Movimentações */}
-        <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-lg transition-all duration-300 sm:col-span-2 lg:col-span-1">
+        <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300 sm:col-span-2 lg:col-span-1">
           <div className="mb-3 sm:mb-4">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mr-2 sm:mr-3">
                   <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
@@ -1074,7 +1074,7 @@ const Dashboard: React.FC = () => {
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium rounded-lg transition-all ${
                   movementsPeriod === 7
                     ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 7d
@@ -1084,7 +1084,7 @@ const Dashboard: React.FC = () => {
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium rounded-lg transition-all ${
                   movementsPeriod === 15
                     ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 15d
@@ -1094,7 +1094,7 @@ const Dashboard: React.FC = () => {
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium rounded-lg transition-all ${
                   movementsPeriod === 30
                     ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 30d
@@ -1104,7 +1104,7 @@ const Dashboard: React.FC = () => {
                 className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium rounded-lg transition-all ${
                   movementsPeriod === 'custom'
                     ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
                 Custom
@@ -1115,14 +1115,14 @@ const Dashboard: React.FC = () => {
                     type="date"
                     value={customStartDate}
                     onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="flex-1 sm:flex-none px-2 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 sm:flex-none px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <span className="text-xs text-gray-500">até</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">até</span>
                   <input
                     type="date"
                     value={customEndDate}
                     onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="flex-1 sm:flex-none px-2 py-1 text-xs border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 sm:flex-none px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               )}
@@ -1179,15 +1179,15 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Gráfico de Barras - Valor por Categoria */}
-      <div className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 hover:shadow-lg transition-all duration-300">
+      <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300">
         <div className="flex items-center justify-between mb-3 sm:mb-4">
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-indigo-500 shadow-lg mr-2 sm:mr-3">
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <span className="hidden xs:inline">Valor em Estoque por </span>Categoria
           </h3>
-          <span className="text-xs font-medium px-2 py-1 rounded-full bg-indigo-50 text-indigo-600">
+          <span className="text-xs font-medium px-2 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">
             Top 6
           </span>
         </div>
@@ -1244,17 +1244,17 @@ const Dashboard: React.FC = () => {
 
       {/* Solicitações por Departamento - Controle de Custos */}
       <div 
-        className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-slate-300 transition-all duration-300 hover-lift"
+        className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 hover-lift"
         onClick={() => setSelectedDetail('departmentRanking')}
       >
         <div className="flex items-center justify-between mb-3 sm:mb-4">
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-700 shadow-lg mr-2 sm:mr-3">
               <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <span className="hidden xs:inline">Solicitações por </span>Departamento
           </h3>
-          <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-slate-100 text-slate-600">
+          <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
             {chartData.departmentRankingData.length} <span className="hidden sm:inline">centro(s)</span>
           </span>
         </div>
@@ -1266,24 +1266,24 @@ const Dashboard: React.FC = () => {
               const approvalRate = dept.total > 0 ? ((dept.approved / dept.total) * 100).toFixed(0) : '0';
 
               return (
-                <div key={dept.name} className="flex items-center justify-between p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 hover:bg-slate-100 transition-all">
+                <div key={dept.name} className="flex items-center justify-between p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
                   <div className="flex items-center flex-1 min-w-0">
-                    <span className="w-5 sm:w-6 text-xs sm:text-sm font-semibold text-slate-500 mr-2 sm:mr-3">{index + 1}.</span>
-                    <div className="p-1 sm:p-1.5 rounded-md sm:rounded-lg bg-white shadow-sm mr-2 sm:mr-3 hidden xs:block">
-                      <Building2 className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600" />
+                    <span className="w-5 sm:w-6 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 mr-2 sm:mr-3">{index + 1}.</span>
+                    <div className="p-1 sm:p-1.5 rounded-md sm:rounded-lg bg-white dark:bg-gray-800 shadow-sm mr-2 sm:mr-3 hidden xs:block">
+                      <Building2 className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-300" />
                     </div>
-                    <span className="text-xs sm:text-sm font-medium text-slate-700 truncate">{dept.name}</span>
+                    <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{dept.name}</span>
                   </div>
                   <div className="flex items-center ml-2 sm:ml-3 gap-2 sm:gap-3">
-                    <div className="w-12 sm:w-20 bg-slate-200 rounded-full h-1 sm:h-1.5 hidden xs:block">
+                    <div className="w-12 sm:w-20 bg-slate-200 dark:bg-slate-600 rounded-full h-1 sm:h-1.5 hidden xs:block">
                       <div
-                        className="bg-slate-600 h-1 sm:h-1.5 rounded-full transition-all duration-500"
+                        className="bg-slate-600 dark:bg-slate-400 h-1 sm:h-1.5 rounded-full transition-all duration-500"
                         style={{ width: `${percentage}%` }}
                       ></div>
                     </div>
                     <div className="flex items-center gap-1 sm:gap-2 min-w-[60px] sm:min-w-[90px] justify-end">
-                      <span className="text-xs sm:text-sm font-bold text-slate-700">{dept.total}</span>
-                      <span className="text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">{approvalRate}%</span>
+                      <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200">{dept.total}</span>
+                      <span className="text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300">{approvalRate}%</span>
                     </div>
                   </div>
                 </div>
@@ -1297,12 +1297,12 @@ const Dashboard: React.FC = () => {
           )}
         </div>
         {chartData.departmentRankingData.length > 0 && (
-          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-slate-100 flex items-center justify-between text-xs sm:text-sm">
+          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs sm:text-sm">
             <div className="flex items-center gap-2 sm:gap-4">
-              <span className="text-slate-500">Total:</span>
-              <span className="font-bold text-slate-800">{requests.length}</span>
+              <span className="text-slate-500 dark:text-slate-400">Total:</span>
+              <span className="font-bold text-slate-800 dark:text-slate-100">{requests.length}</span>
             </div>
-            <span className="text-slate-500 text-xs hidden sm:inline">Clique para análise detalhada →</span>
+            <span className="text-slate-500 dark:text-slate-400 text-xs hidden sm:inline">Clique para análise detalhada →</span>
           </div>
         )}
       </div>
@@ -1316,7 +1316,7 @@ const Dashboard: React.FC = () => {
           return (
             <div 
               key={stat.name} 
-              className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-3 sm:p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
+              className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-3 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
               style={{ animationDelay: `${(index + 4) * 0.05}s` }}
               onClick={() => setSelectedDetail(stat.detailKey)}
             >
@@ -1324,7 +1324,7 @@ const Dashboard: React.FC = () => {
                 <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl ${stat.color} shadow-lg`}>
                   <Icon className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <div className="flex items-center space-x-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-gray-50">
+                <div className="flex items-center space-x-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-gray-50 dark:bg-gray-700">
                   {getTrendIcon(stat.change)}
                   <span className={`text-xs sm:text-sm font-medium ${getTrendColor(stat.change)}`}>
                     {formatPercentage(stat.change)}
@@ -1332,8 +1332,8 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500">{stat.name}</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-800 mt-0.5 sm:mt-1">{stat.value}</p>
+                <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">{stat.name}</p>
+                <p className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100 mt-0.5 sm:mt-1">{stat.value}</p>
                 <p className={`text-xs sm:text-sm mt-1 sm:mt-2 ${getTrendColor(stat.change)}`}>
                   {stat.change >= 0 ? '+' : ''}{stat.changeValue} <span className="hidden xs:inline">vs mês anterior</span>
                 </p>
@@ -1346,17 +1346,17 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Categories Chart */}
         <div
-          className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-purple-200 transition-all duration-300 hover-lift"
+          className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-300 hover-lift"
           onClick={() => setSelectedDetail('categories')}
         >
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-purple-500 shadow-lg mr-2 sm:mr-3">
                 <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               Produtos por Categoria
             </h3>
-            <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-purple-50 text-purple-600">
+            <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300">
               {Object.keys(dashboardData.allCategories).length} <span className="hidden xs:inline">categorias</span>
             </span>
           </div>
@@ -1365,14 +1365,14 @@ const Dashboard: React.FC = () => {
               .sort(([, a], [, b]) => b - a)
               .map(([category, count], index) => {
                 const colorStyles = [
-                  { bg: 'bg-blue-100', bar: 'bg-blue-500', text: 'text-blue-700', dot: 'bg-blue-500' },
-                  { bg: 'bg-green-100', bar: 'bg-green-500', text: 'text-green-700', dot: 'bg-green-500' },
-                  { bg: 'bg-purple-100', bar: 'bg-purple-500', text: 'text-purple-700', dot: 'bg-purple-500' },
-                  { bg: 'bg-orange-100', bar: 'bg-orange-500', text: 'text-orange-700', dot: 'bg-orange-500' },
-                  { bg: 'bg-red-100', bar: 'bg-red-500', text: 'text-red-700', dot: 'bg-red-500' },
-                  { bg: 'bg-indigo-100', bar: 'bg-indigo-500', text: 'text-indigo-700', dot: 'bg-indigo-500' },
-                  { bg: 'bg-pink-100', bar: 'bg-pink-500', text: 'text-pink-700', dot: 'bg-pink-500' },
-                  { bg: 'bg-teal-100', bar: 'bg-teal-500', text: 'text-teal-700', dot: 'bg-teal-500' }
+                  { bg: 'bg-blue-100 dark:bg-blue-900/30', bar: 'bg-blue-500', text: 'text-blue-700 dark:text-blue-300', dot: 'bg-blue-500' },
+                  { bg: 'bg-green-100 dark:bg-green-900/30', bar: 'bg-green-500', text: 'text-green-700 dark:text-green-300', dot: 'bg-green-500' },
+                  { bg: 'bg-purple-100 dark:bg-purple-900/30', bar: 'bg-purple-500', text: 'text-purple-700 dark:text-purple-300', dot: 'bg-purple-500' },
+                  { bg: 'bg-orange-100 dark:bg-orange-900/30', bar: 'bg-orange-500', text: 'text-orange-700 dark:text-orange-300', dot: 'bg-orange-500' },
+                  { bg: 'bg-red-100 dark:bg-red-900/30', bar: 'bg-red-500', text: 'text-red-700 dark:text-red-300', dot: 'bg-red-500' },
+                  { bg: 'bg-indigo-100 dark:bg-indigo-900/30', bar: 'bg-indigo-500', text: 'text-indigo-700 dark:text-indigo-300', dot: 'bg-indigo-500' },
+                  { bg: 'bg-pink-100 dark:bg-pink-900/30', bar: 'bg-pink-500', text: 'text-pink-700 dark:text-pink-300', dot: 'bg-pink-500' },
+                  { bg: 'bg-teal-100 dark:bg-teal-900/30', bar: 'bg-teal-500', text: 'text-teal-700 dark:text-teal-300', dot: 'bg-teal-500' }
                 ];
                 const style = colorStyles[index % colorStyles.length];
                 const percentage = dashboardData.totalProducts > 0 ? (count / dashboardData.totalProducts) * 100 : 0;
@@ -1384,7 +1384,7 @@ const Dashboard: React.FC = () => {
                       <span className={`text-sm font-medium ${style.text} capitalize truncate`}>{category}</span>
                     </div>
                     <div className="flex items-center ml-2 sm:ml-3">
-                      <div className="w-14 sm:w-20 bg-white/60 rounded-full h-1 sm:h-1.5 mr-2 sm:mr-3">
+                      <div className="w-14 sm:w-20 bg-white/60 dark:bg-gray-600/40 rounded-full h-1 sm:h-1.5 mr-2 sm:mr-3">
                         <div
                           className={`${style.bar} h-1 sm:h-1.5 rounded-full transition-all duration-500`}
                           style={{ width: `${percentage}%` }}
@@ -1392,7 +1392,7 @@ const Dashboard: React.FC = () => {
                       </div>
                       <div className="text-right min-w-[50px] sm:min-w-[70px]">
                         <span className={`text-xs sm:text-sm font-bold ${style.text}`}>{count}</span>
-                        <p className="text-[10px] sm:text-xs text-gray-600">{formatCurrency(dashboardData.allCategoryValues[category] || 0)}</p>
+                        <p className="text-[10px] sm:text-xs text-gray-600 dark:text-gray-400">{formatCurrency(dashboardData.allCategoryValues[category] || 0)}</p>
                       </div>
                     </div>
                   </div>
@@ -1403,27 +1403,27 @@ const Dashboard: React.FC = () => {
 
         {/* Recent Movements */}
         <div 
-          className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-blue-200 transition-all duration-300 hover-lift"
+          className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover-lift"
           onClick={() => setSelectedDetail('recentMovements')}
         >
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mr-2 sm:mr-3">
                 <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               Movimentações Recentes
             </h3>
-            <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-blue-50 text-blue-600">
+            <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300">
               {recentMovements.length} <span className="hidden xs:inline">itens</span>
             </span>
           </div>
           <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
             {recentMovements.length > 0 ? (
               recentMovements.map((movement) => (
-                <div key={movement.id} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 rounded-lg sm:rounded-xl hover:bg-gray-100 transition-colors">
+                <div key={movement.id} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg sm:rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                   <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-800 truncate">{movement.productName}</p>
-                    <p className="text-[10px] sm:text-xs text-gray-500">
+                    <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{movement.productName}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
                       {movement.reason === 'sale' && 'Saída'}
                       {movement.reason === 'internal-consumption' && 'Consumo Int.'}
                       {movement.reason === 'internal-transfer' && 'Transferência'}
@@ -1432,8 +1432,8 @@ const Dashboard: React.FC = () => {
                     </p>
                   </div>
                   <div className="text-right ml-3 sm:ml-4">
-                    <p className="text-xs sm:text-sm font-bold text-red-600">-{movement.quantity}</p>
-                    <p className="text-[10px] sm:text-xs font-medium text-gray-600">{formatCurrency(movement.totalValue || 0)}</p>
+                    <p className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-400">-{movement.quantity}</p>
+                    <p className="text-[10px] sm:text-xs font-medium text-gray-600 dark:text-gray-300">{formatCurrency(movement.totalValue || 0)}</p>
                     <p className="text-[10px] sm:text-xs text-gray-400">{movement.date}</p>
                   </div>
                 </div>
@@ -1451,35 +1451,35 @@ const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Top Value Products */}
         <div 
-          className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-green-200 transition-all duration-300 hover-lift"
+          className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-800 transition-all duration-300 hover-lift"
           onClick={() => setSelectedDetail('topValue')}
         >
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-green-500 shadow-lg mr-2 sm:mr-3">
                 <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
               Produtos de Maior Valor
             </h3>
-            <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-green-50 text-green-600">
+            <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-green-50 dark:bg-green-900/50 text-green-600 dark:text-green-300">
               Top 5
             </span>
           </div>
           <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
             {dashboardData.topValueProducts.slice(0, 5).map((product, index) => (
-              <div key={product.id} className="flex items-center justify-between p-2 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg sm:rounded-xl hover:from-green-100 hover:to-emerald-100 transition-colors">
+              <div key={product.id} className="flex items-center justify-between p-2 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-lg sm:rounded-xl hover:from-green-100 hover:to-emerald-100 dark:hover:from-green-900/50 dark:hover:to-emerald-900/50 transition-colors">
                 <div className="flex items-center flex-1 min-w-0">
                   <span className="flex items-center justify-center w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-green-500 text-white text-[10px] sm:text-xs font-bold mr-2 sm:mr-3 flex-shrink-0">
                     {index + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-800 truncate">{product.name}</p>
-                    <p className="text-[10px] sm:text-xs text-gray-500">{product.code}</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{product.name}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.code}</p>
                   </div>
                 </div>
                 <div className="text-right ml-3 sm:ml-4">
-                  <p className="text-xs sm:text-sm font-bold text-green-600">{formatCurrency(product.totalValue || 0)}</p>
-                  <p className="text-[10px] sm:text-xs text-gray-500">{product.quantity} {product.unit}</p>
+                  <p className="text-xs sm:text-sm font-bold text-green-600 dark:text-green-400">{formatCurrency(product.totalValue || 0)}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.quantity} {product.unit}</p>
                 </div>
               </div>
             ))}
@@ -1489,33 +1489,33 @@ const Dashboard: React.FC = () => {
         {/* Low Stock Alert */}
         {lowStockProducts.length > 0 && (
           <div 
-            className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-orange-200 transition-all duration-300 hover-lift"
+            className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-orange-200 dark:hover:border-orange-800 transition-all duration-300 hover-lift"
             onClick={() => setSelectedDetail('lowStock')}
           >
             <div className="flex items-center justify-between mb-3 sm:mb-4">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-orange-500 shadow-lg mr-2 sm:mr-3">
                   <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
                 <span className="hidden xs:inline">Produtos com </span>Estoque Baixo
               </h3>
-              <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-orange-50 text-orange-600">
+              <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-orange-50 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300">
                 {lowStockProducts.length} <span className="hidden xs:inline">{lowStockProducts.length === 1 ? 'item' : 'itens'}</span>
               </span>
             </div>
             <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
               {lowStockProducts.slice(0, 10).map((product) => (
-                <div key={product.id} className="flex items-center justify-between p-2 sm:p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-lg sm:rounded-xl hover:from-orange-100 hover:to-amber-100 transition-colors">
+                <div key={product.id} className="flex items-center justify-between p-2 sm:p-3 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/30 dark:to-amber-900/30 rounded-lg sm:rounded-xl hover:from-orange-100 hover:to-amber-100 dark:hover:from-orange-900/50 dark:hover:to-amber-900/50 transition-colors">
                   <div className="flex items-center flex-1 min-w-0">
                     <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-orange-500 mr-2 sm:mr-3 animate-pulse flex-shrink-0"></div>
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-gray-800 truncate">{product.name}</p>
-                      <p className="text-[10px] sm:text-xs text-gray-500">{product.code}</p>
+                      <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{product.name}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.code}</p>
                     </div>
                   </div>
                   <div className="text-right ml-3 sm:ml-4">
-                    <p className="text-xs sm:text-sm font-bold text-orange-600">{product.quantity} {product.unit}</p>
-                    <p className="text-[10px] sm:text-xs text-gray-500">Mín: {product.minStock}</p>
+                    <p className="text-xs sm:text-sm font-bold text-orange-600 dark:text-orange-400">{product.quantity} {product.unit}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">Mín: {product.minStock}</p>
                     <p className="text-[10px] sm:text-xs text-gray-400">{formatCurrency(product.totalValue || 0)}</p>
                   </div>
                 </div>
@@ -1527,17 +1527,17 @@ const Dashboard: React.FC = () => {
         {/* Expiring Products */}
         {expiringProducts.length > 0 && (
           <div 
-            className="bg-white rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 cursor-pointer hover:shadow-lg hover:border-red-200 transition-all duration-300 hover-lift"
+            className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-red-200 dark:hover:border-red-800 transition-all duration-300 hover-lift"
             onClick={() => setSelectedDetail('expiring')}
           >
             <div className="flex items-center justify-between mb-3 sm:mb-4">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+              <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-red-500 shadow-lg mr-2 sm:mr-3">
                   <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
                 <span className="hidden xs:inline">Produtos </span>Próximos ao Vencimento
               </h3>
-              <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-red-50 text-red-600">
+              <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-red-50 dark:bg-red-900/50 text-red-600 dark:text-red-300">
                 {expiringProducts.length} <span className="hidden xs:inline">{expiringProducts.length === 1 ? 'item' : 'itens'}</span>
               </span>
             </div>
@@ -1551,22 +1551,22 @@ const Dashboard: React.FC = () => {
                 
                 return (
                   <div key={product.id} className={`flex items-center justify-between p-2 sm:p-3 rounded-lg sm:rounded-xl transition-colors ${
-                    isExpired ? 'bg-gradient-to-r from-red-100 to-red-50' : 
-                    isCritical ? 'bg-gradient-to-r from-red-50 to-orange-50' : 
-                    'bg-gradient-to-r from-orange-50 to-yellow-50'
+                    isExpired ? 'bg-gradient-to-r from-red-100 to-red-50 dark:from-red-900/40 dark:to-red-900/20' : 
+                    isCritical ? 'bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-900/30 dark:to-orange-900/20' : 
+                    'bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-orange-900/30 dark:to-yellow-900/20'
                   } hover:shadow-sm`}>
                     <div className="flex items-center flex-1 min-w-0">
                       <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mr-2 sm:mr-3 flex-shrink-0 ${isExpired || isCritical ? 'bg-red-500 animate-pulse' : 'bg-orange-500'}`}></div>
                       <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-800 truncate">{product.name}</p>
-                        <p className="text-[10px] sm:text-xs text-gray-500">{product.code}</p>
+                        <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{product.name}</p>
+                        <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.code}</p>
                       </div>
                     </div>
                     <div className="text-right ml-3 sm:ml-4">
-                      <p className={`text-xs sm:text-sm font-bold ${isExpired ? 'text-red-700' : isCritical ? 'text-red-600' : 'text-orange-600'}`}>
+                      <p className={`text-xs sm:text-sm font-bold ${isExpired ? 'text-red-700 dark:text-red-400' : isCritical ? 'text-red-600 dark:text-red-400' : 'text-orange-600 dark:text-orange-400'}`}>
                         {isExpired ? `Vencido ${Math.abs(daysUntilExpiration)}d` : `${daysUntilExpiration}d`}
                       </p>
-                      <p className="text-[10px] sm:text-xs text-gray-500">{product.quantity} {product.unit}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.quantity} {product.unit}</p>
                       <p className="text-[10px] sm:text-xs text-gray-400">{formatCurrency(product.totalValue || 0)}</p>
                     </div>
                   </div>
@@ -1579,11 +1579,11 @@ const Dashboard: React.FC = () => {
 
       {/* Resumo Financeiro */}
       <div 
-        className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-blue-100 cursor-pointer hover:shadow-lg transition-all duration-300 hover-lift"
+        className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/30 dark:via-indigo-900/30 dark:to-purple-900/30 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-blue-100 dark:border-blue-900/50 cursor-pointer hover:shadow-lg transition-all duration-300 hover-lift"
         onClick={() => setSelectedDetail('financialStats')}
       >
         <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 flex items-center">
+          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg mr-2 sm:mr-3">
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
@@ -1591,39 +1591,39 @@ const Dashboard: React.FC = () => {
           </h3>
         </div>
         <div className="grid grid-cols-1 xs:grid-cols-3 gap-3 sm:gap-4">
-          <div className="bg-white/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-blue-100 text-center hover:bg-white/80 transition-colors">
+          <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-blue-100 dark:border-blue-900/50 text-center hover:bg-white/80 dark:hover:bg-gray-800/80 transition-colors">
             <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mb-2 sm:mb-3">
               <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Valor em Estoque</p>
-            <p className="text-base sm:text-xl font-bold text-blue-600 mt-0.5 sm:mt-1">{formatCurrency(financialMetrics.currentMonth.inventoryValue)}</p>
-            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-gray-50 w-fit mx-auto">
+            <p className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Valor em Estoque</p>
+            <p className="text-base sm:text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5 sm:mt-1">{formatCurrency(financialMetrics.currentMonth.inventoryValue)}</p>
+            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-gray-50 dark:bg-gray-700/50 w-fit mx-auto">
               {getTrendIcon(financialMetrics.trends.inventoryValueChangePercent)}
               <span className={`text-[10px] sm:text-xs font-medium ml-1 ${getTrendColor(financialMetrics.trends.inventoryValueChangePercent)}`}>
                 {formatPercentage(financialMetrics.trends.inventoryValueChangePercent)}
               </span>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-purple-100 text-center hover:bg-white/80 transition-colors">
+          <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-purple-100 dark:border-purple-900/50 text-center hover:bg-white/80 dark:hover:bg-gray-800/80 transition-colors">
             <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-purple-500 shadow-lg mb-2 sm:mb-3">
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Movimentações</p>
-            <p className="text-base sm:text-xl font-bold text-purple-600 mt-0.5 sm:mt-1">{formatCurrency(financialMetrics.currentMonth.movementsValue)}</p>
-            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-gray-50 w-fit mx-auto">
+            <p className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Movimentações</p>
+            <p className="text-base sm:text-xl font-bold text-purple-600 dark:text-purple-400 mt-0.5 sm:mt-1">{formatCurrency(financialMetrics.currentMonth.movementsValue)}</p>
+            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-gray-50 dark:bg-gray-700/50 w-fit mx-auto">
               {getTrendIcon(financialMetrics.trends.movementsValueChangePercent)}
               <span className={`text-[10px] sm:text-xs font-medium ml-1 ${getTrendColor(financialMetrics.trends.movementsValueChangePercent)}`}>
                 {formatPercentage(financialMetrics.trends.movementsValueChangePercent)}
               </span>
             </div>
           </div>
-          <div className="bg-white/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-green-100 text-center hover:bg-white/80 transition-colors">
+          <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-green-100 dark:border-green-900/50 text-center hover:bg-white/80 dark:hover:bg-gray-800/80 transition-colors">
             <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-green-500 shadow-lg mb-2 sm:mb-3">
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <p className="text-[10px] sm:text-xs font-medium text-gray-500 uppercase tracking-wide">Nº Movimentações</p>
-            <p className="text-base sm:text-xl font-bold text-green-600 mt-0.5 sm:mt-1">{financialMetrics.currentMonth.movementsCount}</p>
-            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-gray-50 w-fit mx-auto">
+            <p className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Nº Movimentações</p>
+            <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400 mt-0.5 sm:mt-1">{financialMetrics.currentMonth.movementsCount}</p>
+            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-gray-50 dark:bg-gray-700/50 w-fit mx-auto">
               {getTrendIcon(financialMetrics.trends.movementsCountChangePercent)}
               <span className={`text-[10px] sm:text-xs font-medium ml-1 ${getTrendColor(financialMetrics.trends.movementsCountChangePercent)}`}>
                 {formatPercentage(financialMetrics.trends.movementsCountChangePercent)}

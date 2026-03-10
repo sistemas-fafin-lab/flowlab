@@ -82,8 +82,8 @@ const MovementHistory: React.FC = () => {
       {/* Header and Add Button */}
       <div className="flex justify-between items-center animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Histórico de Movimentações</h2>
-          <p className="text-gray-500">Controle todas as saídas de produtos do estoque</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">Histórico de Movimentações</h2>
+          <p className="text-gray-500 dark:text-gray-400">Controle todas as saídas de produtos do estoque</p>
         </div>
         <button
           onClick={() => setShowAddMovement(!showAddMovement)}
@@ -96,16 +96,16 @@ const MovementHistory: React.FC = () => {
 
       {/* Add Movement Form */}
       {showAddMovement && (
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 animate-scale-in">
-          <h3 className="text-lg font-semibold text-gray-800 mb-4">Registrar Nova Saída</h3>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6 animate-scale-in">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Registrar Nova Saída</h3>
           <form onSubmit={handleSubmitMovement} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Produto *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Produto *</label>
               <select
                 value={newMovement.productId}
                 onChange={(e) => setNewMovement(prev => ({ ...prev, productId: e.target.value }))}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
               >
                 <option value="">Selecione um produto</option>
                 {products.filter(p => p.quantity > 0).map(product => (
@@ -117,24 +117,24 @@ const MovementHistory: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Quantidade *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quantidade *</label>
               <input
                 type="number"
                 value={newMovement.quantity}
                 onChange={(e) => setNewMovement(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
                 required
                 min="1"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Motivo *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Motivo *</label>
               <select
                 value={newMovement.reason}
                 onChange={(e) => setNewMovement(prev => ({ ...prev, reason: e.target.value as any }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
               >
                 <option value="internal-consumption">Consumo Interno</option>
                 <option value="internal-transfer">Transferência Interna</option>
@@ -144,24 +144,24 @@ const MovementHistory: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Autorizado por *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Autorizado por *</label>
               <input
                 type="text"
                 value={newMovement.authorizedBy}
                 onChange={(e) => setNewMovement(prev => ({ ...prev, authorizedBy: e.target.value }))}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                 placeholder="Nome do responsável"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Observações</label>
               <input
                 type="text"
                 value={newMovement.notes}
                 onChange={(e) => setNewMovement(prev => ({ ...prev, notes: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                 placeholder="Informações adicionais (opcional)"
               />
             </div>
@@ -170,7 +170,7 @@ const MovementHistory: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setShowAddMovement(false)}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
                 Cancelar
               </button>
@@ -186,14 +186,14 @@ const MovementHistory: React.FC = () => {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Motivo</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filtrar por Motivo</label>
             <select
               value={filterReason}
               onChange={(e) => setFilterReason(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
             >
               <option value="all">Todos os Motivos</option>
 
@@ -205,89 +205,89 @@ const MovementHistory: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Data</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Filtrar por Data</label>
             <input
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
             />
           </div>
 
           <div className="flex items-end">
-            <div className="flex items-center text-sm text-gray-500">
+            <div className="flex items-center text-sm text-gray-500 dark:text-gray-400">
               <Filter className="w-4 h-4 mr-2" />
-              <span className="font-medium text-gray-700">{filteredMovements.length}</span>&nbsp;movimentação(ões) encontrada(s)
+              <span className="font-medium text-gray-700 dark:text-gray-300">{filteredMovements.length}</span>&nbsp;movimentação(ões) encontrada(s)
             </div>
           </div>
         </div>
       </div>
 
       {/* Movements Table */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gradient-to-r from-gray-50 to-slate-50">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700 dark:to-slate-700">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Produto
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Quantidade
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Motivo
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Data
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Autorizado por
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Observações
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
               {filteredMovements.map((movement) => (
-                <tr key={movement.id} className="hover:bg-gray-50">
+                <tr key={movement.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <Package className="w-5 h-5 text-gray-400 mr-3" />
+                      <Package className="w-5 h-5 text-gray-400 dark:text-gray-500 mr-3" />
                       <div>
-                        <div className="text-sm font-medium text-gray-900">
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">
                           {movement.productName}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-red-600">
+                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
                       -{movement.quantity}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                    <span className="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 rounded-full">
                       {reasonLabels[movement.reason]}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <Calendar className="w-4 h-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-900">{movement.date}</span>
+                      <Calendar className="w-4 h-4 text-gray-400 dark:text-gray-500 mr-2" />
+                      <span className="text-sm text-gray-900 dark:text-gray-100">{movement.date}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <User className="w-4 h-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-900">{movement.authorizedBy}</span>
+                      <User className="w-4 h-4 text-gray-400 dark:text-gray-500 mr-2" />
+                      <span className="text-sm text-gray-900 dark:text-gray-100">{movement.authorizedBy}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <FileText className="w-4 h-4 text-gray-400 mr-2" />
-                      <span className="text-sm text-gray-500">{movement.notes || '-'}</span>
+                      <FileText className="w-4 h-4 text-gray-400 dark:text-gray-500 mr-2" />
+                      <span className="text-sm text-gray-500 dark:text-gray-400">{movement.notes || '-'}</span>
                     </div>
                   </td>
                 </tr>
@@ -298,9 +298,9 @@ const MovementHistory: React.FC = () => {
 
         {filteredMovements.length === 0 && (
           <div className="p-12 text-center">
-            <ArrowUpDown className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma movimentação encontrada</h3>
-            <p className="text-gray-500">Registre a primeira saída de produtos do estoque.</p>
+            <ArrowUpDown className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhuma movimentação encontrada</h3>
+            <p className="text-gray-500 dark:text-gray-400">Registre a primeira saída de produtos do estoque.</p>
           </div>
         )}
       </div>

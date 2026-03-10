@@ -132,14 +132,14 @@ const handleTechSubmit = async (e: React.FormEvent) => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 sm:gap-0 animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Configurar Períodos de Solicitações</h2>
-          <p className="text-gray-500">Defina os períodos permitidos para solicitações de materiais</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">Configurar Períodos de Solicitações</h2>
+          <p className="text-gray-500 dark:text-gray-400">Defina os períodos permitidos para solicitações de materiais</p>
         </div>
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Período Geral */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in-up hover:shadow-lg hover:border-blue-100 transition-all duration-300" style={{ animationDelay: '0.1s' }}>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fade-in-up hover:shadow-lg hover:border-blue-100 dark:hover:border-blue-800 transition-all duration-300" style={{ animationDelay: '0.1s' }}>
           <div className="px-6 py-4 bg-gradient-to-r from-blue-500 to-indigo-500">
             <div className="flex items-center">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mr-3">
@@ -155,19 +155,19 @@ const handleTechSubmit = async (e: React.FormEvent) => {
           </div>
           
           <div className="p-6">
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Aplicado a todos os usuários, exceto usuários dos departamentos: Área Técnica, Biologia Molecular, Qualidade e Transporte
             </p>
             
             {generalStartDay && generalEndDay && (
-              <div className="text-sm text-blue-700 mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-200 flex items-center">
+              <div className="text-sm text-blue-700 dark:text-blue-300 mb-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-4 rounded-xl border border-blue-200 dark:border-blue-700 flex items-center">
                 <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-blue-500/25">
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
                 <div>
-                  <span className="text-xs text-blue-600 font-medium uppercase tracking-wider">Período atual</span>
+                  <span className="text-xs text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wider">Período atual</span>
                   <p className="font-semibold">Dia {generalStartDay} ao dia {generalEndDay}</p>
                 </div>
               </div>
@@ -175,7 +175,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
             
             <div className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-2">
                   Dia de Início
                 </label>
                 <input
@@ -184,12 +184,12 @@ const handleTechSubmit = async (e: React.FormEvent) => {
                   onChange={(e) => setGeneralStartDay(Number(e.target.value))}
                   min={1}
                   max={31}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100"
                 />
               </div>
               
               <div>
-                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-2">
                   Dia Final
                 </label>
                 <input
@@ -198,7 +198,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
                   onChange={(e) => setGeneralEndDay(Number(e.target.value))}
                   min={1}
                   max={31}
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100"
                 />
               </div>
               
@@ -219,7 +219,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
         </div>
 
         {/* Período Área Técnica */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in-up hover:shadow-lg hover:border-emerald-100 transition-all duration-300" style={{ animationDelay: '0.15s' }}>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fade-in-up hover:shadow-lg hover:border-emerald-100 dark:hover:border-emerald-800 transition-all duration-300" style={{ animationDelay: '0.15s' }}>
           <div className="px-6 py-4 bg-gradient-to-r from-emerald-500 to-teal-500">
             <div className="flex items-center">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mr-3">
@@ -235,19 +235,19 @@ const handleTechSubmit = async (e: React.FormEvent) => {
           </div>
           
           <div className="p-6">
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Aplicado exclusivamente aos usuários dos departamentos: Área Técnica, Biologia Molecular, Qualidade e Transporte
             </p>
             
             {techStartDay && techEndDay && (
-              <div className="text-sm text-emerald-700 mb-4 bg-gradient-to-r from-emerald-50 to-teal-50 p-4 rounded-xl border border-emerald-200 flex items-center">
+              <div className="text-sm text-emerald-700 dark:text-emerald-300 mb-4 bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 p-4 rounded-xl border border-emerald-200 dark:border-emerald-700 flex items-center">
                 <div className="w-8 h-8 bg-emerald-500 rounded-lg flex items-center justify-center mr-3 shadow-sm shadow-emerald-500/25">
                   <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
                 <div>
-                  <span className="text-xs text-emerald-600 font-medium uppercase tracking-wider">Período atual</span>
+                  <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium uppercase tracking-wider">Período atual</span>
                   <p className="font-semibold">Dia {techStartDay} ao dia {techEndDay}</p>
                 </div>
               </div>
@@ -255,7 +255,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
             
             <form onSubmit={handleTechSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-2">
                   Dia de Início
                 </label>
                 <input
@@ -265,12 +265,12 @@ const handleTechSubmit = async (e: React.FormEvent) => {
                   min={1}
                   max={31}
                   required
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100"
                 />
               </div>
               
               <div>
-                <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                <label className="block text-xs font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wider mb-2">
                   Dia Final
                 </label>
                 <input
@@ -280,7 +280,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
                   min={1}
                   max={31}
                   required
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100"
                 />
               </div>
               
@@ -302,7 +302,7 @@ const handleTechSubmit = async (e: React.FormEvent) => {
       </div>
       
       {/* Aviso Importante */}
-      <div className="bg-white rounded-2xl shadow-sm border border-amber-200 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-amber-200 dark:border-amber-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
         <div className="flex items-start p-5">
           <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center mr-4 shadow-md shadow-amber-500/25 flex-shrink-0">
             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -310,8 +310,8 @@ const handleTechSubmit = async (e: React.FormEvent) => {
             </svg>
           </div>
           <div>
-            <h4 className="text-sm font-semibold text-amber-800 mb-1">Importante</h4>
-            <p className="text-sm text-amber-700">
+            <h4 className="text-sm font-semibold text-amber-800 dark:text-amber-200 mb-1">Importante</h4>
+            <p className="text-sm text-amber-700 dark:text-amber-300">
               Os usuários dos departamentos Área Técnica, Biologia Molecular, Qualidade e Transporte seguirão exclusivamente o período configurado na seção "Período - Insumos Técnicos". 
               Todos os outros usuários seguirão o "Período Geral".
             </p>

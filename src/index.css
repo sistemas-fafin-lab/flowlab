@@ -323,7 +323,7 @@
    MELHORIAS GLOBAIS DE UX
    ======================================== */
 
-/* Scrollbar customizada */
+/* Scrollbar customizada - Light Mode */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -344,10 +344,27 @@
   background: #94a3b8;
 }
 
+/* Scrollbar customizada - Dark Mode */
+.dark ::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
 /* Selection styling */
 ::selection {
   background: rgba(59, 130, 246, 0.2);
   color: inherit;
+}
+
+.dark ::selection {
+  background: rgba(59, 130, 246, 0.4);
 }
 
 /* Smooth scroll */
@@ -456,4 +473,61 @@ html, body {
 .fixed {
   -webkit-transform: translateZ(0);
   transform: translateZ(0);
+}
+
+/* ========================================
+   ACESSIBILIDADE
+   ======================================== */
+
+/* Focus visible ring moderno */
+:focus-visible {
+  outline: 2px solid rgb(59, 130, 246);
+  outline-offset: 2px;
+}
+
+.dark :focus-visible {
+  outline-color: rgb(96, 165, 250);
+}
+
+/* Skip link para navegação por teclado */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 0;
+  padding: 8px 16px;
+  background: #3b82f6;
+  color: white;
+  text-decoration: none;
+  z-index: 100;
+  border-radius: 0 0 8px 0;
+  transition: top 0.2s;
+}
+
+.skip-link:focus {
+  top: 0;
+}
+
+/* Reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ========================================
+   DARK MODE TRANSITIONS
+   ======================================== */
+
+/* Transição suave para mudança de tema */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
+  transition-delay: 0s !important;
 }

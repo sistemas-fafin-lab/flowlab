@@ -91,11 +91,11 @@ const PaymentRequestManagement: React.FC = () => {
     autorizadoPor: '',
     dataPagamento: '',
     emailUsuario: user?.email || '',
-    attachment: null
+    attachments: []
   });
 
   // Attachment state
-  const [attachmentPreview, setAttachmentPreview] = useState<string | null>(null);
+  const [attachmentPreviews, setAttachmentPreviews] = useState<(string | null)[]>([]);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   // Image viewer state
@@ -114,46 +114,54 @@ const PaymentRequestManagement: React.FC = () => {
     }
   }, [userProfile, user]);
 
-  // Handle file attachment
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Handle file attachments (multiple)
+  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
 
-    // Validar tipo de arquivo
     const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-    if (!allowedTypes.includes(file.type)) {
-      showError('Tipo de arquivo inválido', 'Apenas PDF, PNG e JPEG são permitidos.');
-      return;
-    }
-
-    // Validar tamanho (máx 10MB)
     const maxSize = 10 * 1024 * 1024;
-    if (file.size > maxSize) {
-      showError('Arquivo muito grande', 'O tamanho máximo permitido é 10MB.');
-      return;
+    const validFiles: File[] = [];
+
+    for (const file of files) {
+      if (!allowedTypes.includes(file.type)) {
+        showError('Tipo de arquivo inválido', `"${file.name}": apenas PDF, PNG e JPEG são permitidos.`);
+        continue;
+      }
+      if (file.size > maxSize) {
+        showError('Arquivo muito grande', `"${file.name}" excede 10MB.`);
+        continue;
+      }
+      validFiles.push(file);
     }
 
-    setFormData(prev => ({ ...prev, attachment: file }));
+    if (!validFiles.length) return;
 
-    // Criar preview para imagens
-    if (file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAttachmentPreview(reader.result as string);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      setAttachmentPreview(null);
-    }
+    setFormData(prev => ({ ...prev, attachments: [...(prev.attachments || []), ...validFiles] }));
+
+    // Criar previews
+    validFiles.forEach(file => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setAttachmentPreviews(prev => [...prev, reader.result as string]);
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setAttachmentPreviews(prev => [...prev, null]);
+      }
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Remove attachment
-  const removeAttachment = () => {
-    setFormData(prev => ({ ...prev, attachment: null }));
-    setAttachmentPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+  // Remove individual attachment
+  const removeAttachment = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      attachments: (prev.attachments || []).filter((_, i) => i !== index)
+    }));
+    setAttachmentPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
   // Open image viewer
@@ -325,9 +333,9 @@ const PaymentRequestManagement: React.FC = () => {
       autorizadoPor: '',
       dataPagamento: '',
       emailUsuario: user?.email || '',
-      attachment: null
+      attachments: []
     });
-    setAttachmentPreview(null);
+    setAttachmentPreviews([]);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -634,7 +642,7 @@ const PaymentRequestManagement: React.FC = () => {
     return (
       <div className="flex flex-col items-center justify-center h-64">
         <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent shadow-md"></div>
-        <span className="mt-4 text-gray-600 font-medium">Carregando solicitações...</span>
+        <span className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Carregando solicitações...</span>
       </div>
     );
   }
@@ -730,8 +738,8 @@ const PaymentRequestManagement: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Solicitações de Pagamento</h2>
-          <p className="text-gray-500 mt-1">Gerencie pedidos de pagamento a fornecedores</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">Solicitações de Pagamento</h2>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Gerencie pedidos de pagamento a fornecedores</p>
         </div>
         <button
           onClick={() => setShowAddForm(true)}
@@ -743,18 +751,18 @@ const PaymentRequestManagement: React.FC = () => {
       </div>
 
       {/* Info Banner - Payment Days */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-5 flex items-start animate-fade-in-up shadow-sm" style={{ animationDelay: '0.1s' }}>
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-5 flex items-start animate-fade-in-up shadow-sm" style={{ animationDelay: '0.1s' }}>
         <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25 flex-shrink-0">
           <AlertCircle className="w-5 h-5 text-white" />
         </div>
         <div className="ml-4">
-          <h4 className="font-semibold text-blue-800">Dias de Pagamento</h4>
-          <p className="text-sm text-blue-700 mt-1">
+          <h4 className="font-semibold text-blue-800 dark:text-blue-200">Dias de Pagamento</h4>
+          <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
             Os pagamentos são realizados apenas às <strong>terças</strong> e <strong>quintas-feiras</strong>, 
             com pelo menos <strong>48 horas</strong> de antecedência.
           </p>
           {suggestedDate && (
-            <p className="text-sm text-blue-700 mt-2 bg-white/60 px-3 py-1.5 rounded-lg inline-block">
+            <p className="text-sm text-blue-700 dark:text-blue-300 mt-2 bg-white/60 dark:bg-blue-900/50 px-3 py-1.5 rounded-lg inline-block">
               Próxima data disponível: <strong>{formatDateDisplay(suggestedDate)}</strong> ({getDayOfWeekName(suggestedDate)})
             </p>
           )}
@@ -763,20 +771,20 @@ const PaymentRequestManagement: React.FC = () => {
 
       {/* Add Form */}
       {showAddForm && (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-scale-in">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 animate-scale-in">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25 mr-3">
                 <FileText className="w-5 h-5 text-white" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-800">Nova Solicitação de Pagamento</h3>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Nova Solicitação de Pagamento</h3>
             </div>
             <button
               onClick={() => {
                 setShowAddForm(false);
                 resetForm();
               }}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-all"
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
             >
               <X className="w-5 h-5" />
             </button>
@@ -786,7 +794,7 @@ const PaymentRequestManagement: React.FC = () => {
             {/* Row 1: Tipo e Documento */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Tipo de Solicitação *
                 </label>
                 <select
@@ -794,7 +802,7 @@ const PaymentRequestManagement: React.FC = () => {
                   value={formData.tipoSolicitacao}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
                 >
                   {Object.entries(PAYMENT_TYPE_LABELS).map(([key, label]) => (
                     <option key={key} value={key}>{label}</option>
@@ -803,7 +811,7 @@ const PaymentRequestManagement: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Número do Documento
                 </label>
                 <input
@@ -812,7 +820,7 @@ const PaymentRequestManagement: React.FC = () => {
                   value={formData.documentoNumero}
                   onChange={handleInputChange}
                   placeholder="NF, Boleto, etc."
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 />
               </div>
             </div>
@@ -820,7 +828,7 @@ const PaymentRequestManagement: React.FC = () => {
             {/* Row 2: Fornecedor e CPF/CNPJ */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Fornecedor/Beneficiário *
                 </label>
                 <input
@@ -830,12 +838,12 @@ const PaymentRequestManagement: React.FC = () => {
                   onChange={handleInputChange}
                   required
                   placeholder="Nome do fornecedor ou beneficiário"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   CPF/CNPJ
                 </label>
                 <input
@@ -844,7 +852,7 @@ const PaymentRequestManagement: React.FC = () => {
                   value={formData.cpfCnpj}
                   onChange={handleInputChange}
                   placeholder="000.000.000-00 ou 00.000.000/0000-00"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 />
               </div>
             </div>
@@ -852,11 +860,11 @@ const PaymentRequestManagement: React.FC = () => {
             {/* Row 3: Valor e Forma de Pagamento */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Valor Total *
                 </label>
                 <div className="relative">
-                  <span className="absolute left-4 top-2.5 text-gray-500 font-medium">R$</span>
+                  <span className="absolute left-4 top-2.5 text-gray-500 dark:text-gray-400 font-medium">R$</span>
                   <input
                     type="number"
                     name="valorTotal"
@@ -866,13 +874,13 @@ const PaymentRequestManagement: React.FC = () => {
                     min="0.01"
                     step="0.01"
                     placeholder="0,00"
-                    className="w-full pl-12 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                    className="w-full pl-12 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Forma de Pagamento *
                 </label>
                 <select
@@ -880,7 +888,7 @@ const PaymentRequestManagement: React.FC = () => {
                   value={formData.formaPagamento}
                   onChange={handleInputChange}
                   required
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
                 >
                   {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => (
                     <option key={key} value={key}>{label}</option>
@@ -891,7 +899,7 @@ const PaymentRequestManagement: React.FC = () => {
 
             {/* Row 4: Dados de Pagamento */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Dados para Pagamento *
               </label>
               <textarea
@@ -901,13 +909,13 @@ const PaymentRequestManagement: React.FC = () => {
                 required
                 rows={3}
                 placeholder="Chave PIX, dados bancários, código de barras do boleto, etc."
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 resize-none"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 resize-none dark:text-gray-100 dark:placeholder-gray-400"
               />
             </div>
 
             {/* Row 5: Descrição */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Descrição Detalhada *
               </label>
               <textarea
@@ -917,13 +925,13 @@ const PaymentRequestManagement: React.FC = () => {
                 required
                 rows={3}
                 placeholder="Descreva o motivo do pagamento, serviços prestados, materiais adquiridos, etc."
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 resize-none"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 resize-none dark:text-gray-100 dark:placeholder-gray-400"
               />
             </div>
 
             {/* Row 6: Data de Pagamento */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Data de Pagamento Desejada *
               </label>
               <div className="flex gap-2">
@@ -933,7 +941,7 @@ const PaymentRequestManagement: React.FC = () => {
                   value={typeof formData.dataPagamento === 'string' ? formData.dataPagamento : formData.dataPagamento instanceof Date ? formData.dataPagamento.toISOString().split('T')[0] : ''}
                   onChange={handleDateChange}
                   required
-                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                  className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
                 />
                 <button
                   type="button"
@@ -944,7 +952,7 @@ const PaymentRequestManagement: React.FC = () => {
                   Usar Data Sugerida
                 </button>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
                 Lembre-se: apenas terças e quintas-feiras, com 48h de antecedência.
               </p>
             </div>
@@ -952,7 +960,7 @@ const PaymentRequestManagement: React.FC = () => {
             {/* Row 7: Solicitante e Autorizador */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Solicitado por
                 </label>
                 <input
@@ -960,12 +968,12 @@ const PaymentRequestManagement: React.FC = () => {
                   name="solicitadoPor"
                   value={formData.solicitadoPor}
                   readOnly
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gray-100 text-gray-600"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Autorizado por *
                 </label>
                 <input
@@ -975,89 +983,84 @@ const PaymentRequestManagement: React.FC = () => {
                   onChange={handleInputChange}
                   required
                   placeholder="Nome de quem autorizou"
-                  className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 />
               </div>
             </div>
 
-            {/* Row 8: Anexo */}
+            {/* Row 8: Anexos (múltiplos) */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Anexo (Contrato, Boleto ou Documento)
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                Anexos (Contrato, Boleto, Documentos)
               </label>
               <div className="space-y-3">
-                {/* Input oculto */}
+                {/* Input oculto - múltiplos arquivos */}
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept=".pdf,.png,.jpg,.jpeg"
-                  onChange={handleFileChange}
+                  onChange={handleFilesChange}
+                  multiple
                   className="hidden"
                 />
-                
-                {/* Botão de upload ou preview */}
-                {!formData.attachment ? (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="w-full flex items-center justify-center gap-3 px-4 py-4 border-2 border-dashed border-gray-300 rounded-xl hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200 group"
-                  >
-                    <div className="w-10 h-10 bg-gray-100 group-hover:bg-blue-100 rounded-lg flex items-center justify-center transition-colors">
-                      <FileUp className="w-5 h-5 text-gray-400 group-hover:text-blue-500" />
-                    </div>
-                    <div className="text-left">
-                      <p className="text-sm font-medium text-gray-700 group-hover:text-blue-700">
-                        Clique para anexar arquivo
-                      </p>
-                      <p className="text-xs text-gray-500">
-                        PDF, PNG ou JPEG (máx. 5MB)
-                      </p>
-                    </div>
-                  </button>
-                ) : (
-                  <div className="flex items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-xl">
-                    {/* Preview para imagens */}
-                    {attachmentPreview && formData.attachment?.type.startsWith('image/') ? (
-                      <img 
-                        src={attachmentPreview} 
-                        alt="Preview" 
-                        className="w-12 h-12 object-cover rounded-lg border border-green-300"
+
+                {/* Lista de arquivos já selecionados */}
+                {(formData.attachments || []).map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-xl">
+                    {attachmentPreviews[idx] ? (
+                      <img
+                        src={attachmentPreviews[idx]!}
+                        alt="Preview"
+                        className="w-12 h-12 object-cover rounded-lg border border-green-300 dark:border-green-600 flex-shrink-0"
                       />
                     ) : (
-                      <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-                        <FileText className="w-6 h-6 text-green-600" />
+                      <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <FileText className="w-6 h-6 text-green-600 dark:text-green-400" />
                       </div>
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-green-800 truncate">
-                        {formData.attachment.name}
-                      </p>
-                      <p className="text-xs text-green-600">
-                        {(formData.attachment.size / 1024).toFixed(1)} KB
-                      </p>
+                      <p className="text-sm font-medium text-green-800 dark:text-green-200 truncate">{file.name}</p>
+                      <p className="text-xs text-green-600 dark:text-green-400">{(file.size / 1024).toFixed(1)} KB</p>
                     </div>
                     <button
                       type="button"
-                      onClick={removeAttachment}
-                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 rounded-lg transition-all"
+                      onClick={() => removeAttachment(idx)}
+                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all flex-shrink-0"
                       title="Remover anexo"
                     >
                       <X className="w-5 h-5" />
                     </button>
                   </div>
-                )}
+                ))}
+
+                {/* Botão de adicionar mais arquivos */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full flex items-center justify-center gap-3 px-4 py-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all duration-200 group"
+                >
+                  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 rounded-lg flex items-center justify-center transition-colors">
+                    <FileUp className="w-5 h-5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
+                  </div>
+                  <div className="text-left">
+                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-400">
+                      {(formData.attachments || []).length === 0 ? 'Clique para anexar arquivo(s)' : 'Adicionar mais arquivos'}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">PDF, PNG ou JPEG (máx. 10MB cada)</p>
+                  </div>
+                </button>
               </div>
             </div>
 
             {/* Submit Buttons */}
-            <div className="flex justify-end space-x-3 pt-6 border-t border-gray-100">
+            <div className="flex justify-end space-x-3 pt-6 border-t border-gray-100 dark:border-gray-700">
               <button
                 type="button"
                 onClick={() => {
                   setShowAddForm(false);
                   resetForm();
                 }}
-                className="px-5 py-2.5 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
+                className="px-5 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium"
               >
                 Cancelar
               </button>
@@ -1084,10 +1087,10 @@ const PaymentRequestManagement: React.FC = () => {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Buscar</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
             <div className="relative">
               <Search className="absolute left-4 top-3 h-4 w-4 text-gray-400" />
               <input
@@ -1095,17 +1098,17 @@ const PaymentRequestManagement: React.FC = () => {
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder="Fornecedor, código..."
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
             >
               <option value="all">Todos</option>
               <option value="pending">Pendente</option>
@@ -1118,11 +1121,11 @@ const PaymentRequestManagement: React.FC = () => {
 
           {canApprove && (
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Departamento</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Departamento</label>
               <select
                 value={departmentFilter}
                 onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
               >
                 <option value="all">Todos</option>
                 {DEPARTMENTS.map(dept => (
@@ -1133,17 +1136,17 @@ const PaymentRequestManagement: React.FC = () => {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">Data Pagamento</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data Pagamento</label>
             <input
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
             />
           </div>
 
           <div className="flex items-end">
-            <span className="text-sm text-gray-600 bg-gray-100 px-3 py-2 rounded-lg">
+            <span className="text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded-lg">
               {filteredRequests.length} solicitação(ões)
             </span>
           </div>
@@ -1156,23 +1159,23 @@ const PaymentRequestManagement: React.FC = () => {
           {/* Pendentes */}
           <button
             onClick={() => toggleStatusCardFilter('pending')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('pending') 
-                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50' 
-                : 'border-gray-100 hover:border-yellow-200'
+                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50 dark:bg-yellow-900/20' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-yellow-200 dark:hover:border-yellow-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100'
+                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100 dark:bg-yellow-900/50'
               }`}>
-                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600'}`} />
+                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600 dark:text-yellow-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {paymentRequests.filter(r => r.status === 'pending').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Pendentes</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Pendentes</p>
               </div>
             </div>
           </button>
@@ -1180,23 +1183,23 @@ const PaymentRequestManagement: React.FC = () => {
           {/* Aprovados */}
           <button
             onClick={() => toggleStatusCardFilter('approved')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('approved') 
-                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50' 
-                : 'border-gray-100 hover:border-green-200'
+                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50 dark:bg-green-900/20' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('approved') ? 'bg-green-500' : 'bg-green-100'
+                selectedStatusFilters.has('approved') ? 'bg-green-500' : 'bg-green-100 dark:bg-green-900/50'
               }`}>
-                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('approved') ? 'text-white' : 'text-green-600'}`} />
+                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('approved') ? 'text-white' : 'text-green-600 dark:text-green-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {paymentRequests.filter(r => r.status === 'approved').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Aprovados</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Aprovados</p>
               </div>
             </div>
           </button>
@@ -1204,23 +1207,23 @@ const PaymentRequestManagement: React.FC = () => {
           {/* Pagos */}
           <button
             onClick={() => toggleStatusCardFilter('paid')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('paid') 
-                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50' 
-                : 'border-gray-100 hover:border-blue-200'
+                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50 dark:bg-blue-900/20' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('paid') ? 'bg-blue-500' : 'bg-blue-100'
+                selectedStatusFilters.has('paid') ? 'bg-blue-500' : 'bg-blue-100 dark:bg-blue-900/50'
               }`}>
-                <Banknote className={`w-5 h-5 ${selectedStatusFilters.has('paid') ? 'text-white' : 'text-blue-600'}`} />
+                <Banknote className={`w-5 h-5 ${selectedStatusFilters.has('paid') ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {paymentRequests.filter(r => r.status === 'paid').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Pagos</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Pagos</p>
               </div>
             </div>
           </button>
@@ -1228,23 +1231,23 @@ const PaymentRequestManagement: React.FC = () => {
           {/* Rejeitados */}
           <button
             onClick={() => toggleStatusCardFilter('rejected')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('rejected') 
-                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50' 
-                : 'border-gray-100 hover:border-red-200'
+                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50 dark:bg-red-900/20' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-red-200 dark:hover:border-red-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('rejected') ? 'bg-red-500' : 'bg-red-100'
+                selectedStatusFilters.has('rejected') ? 'bg-red-500' : 'bg-red-100 dark:bg-red-900/50'
               }`}>
-                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('rejected') ? 'text-white' : 'text-red-600'}`} />
+                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('rejected') ? 'text-white' : 'text-red-600 dark:text-red-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {paymentRequests.filter(r => r.status === 'rejected').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Rejeitados</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Rejeitados</p>
               </div>
             </div>
           </button>
@@ -1252,23 +1255,23 @@ const PaymentRequestManagement: React.FC = () => {
           {/* Cancelados */}
           <button
             onClick={() => toggleStatusCardFilter('cancelled')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('cancelled') 
-                ? 'border-gray-400 ring-2 ring-gray-400/30 bg-gray-100' 
-                : 'border-gray-100 hover:border-gray-300'
+                ? 'border-gray-400 ring-2 ring-gray-400/30 bg-gray-100 dark:bg-gray-700' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('cancelled') ? 'bg-gray-500' : 'bg-gray-200'
+                selectedStatusFilters.has('cancelled') ? 'bg-gray-500' : 'bg-gray-200 dark:bg-gray-600'
               }`}>
-                <X className={`w-5 h-5 ${selectedStatusFilters.has('cancelled') ? 'text-white' : 'text-gray-600'}`} />
+                <X className={`w-5 h-5 ${selectedStatusFilters.has('cancelled') ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {paymentRequests.filter(r => r.status === 'cancelled').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Cancelados</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Cancelados</p>
               </div>
             </div>
           </button>
@@ -1278,7 +1281,7 @@ const PaymentRequestManagement: React.FC = () => {
       {/* Indicador de filtros ativos por cards */}
       {selectedStatusFilters.size > 0 && userProfile?.role !== 'requester' && (
         <div className="flex items-center gap-2 animate-fade-in">
-          <span className="text-sm text-gray-500">Filtros ativos:</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">Filtros ativos:</span>
           {Array.from(selectedStatusFilters).map(status => (
             <span 
               key={status}
@@ -1299,18 +1302,18 @@ const PaymentRequestManagement: React.FC = () => {
       {/* Requests List */}
       <div className="space-y-4">
         {filteredRequests.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center animate-fade-in-up">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 rounded-2xl flex items-center justify-center mx-auto mb-4">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-12 text-center animate-fade-in-up">
+            <div className="w-16 h-16 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
               <FileText className="w-8 h-8 text-blue-500" />
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">Nenhuma solicitação encontrada</h3>
-            <p className="text-gray-500">Crie uma nova solicitação de pagamento para começar.</p>
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Nenhuma solicitação encontrada</h3>
+            <p className="text-gray-500 dark:text-gray-400">Crie uma nova solicitação de pagamento para começar.</p>
           </div>
         ) : (
           filteredRequests.map((request, index) => (
             <div 
               key={request.id} 
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
               style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
             >
               {/* Header */}
@@ -1321,8 +1324,8 @@ const PaymentRequestManagement: React.FC = () => {
                     <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors truncate">{request.codigo}</h3>
-                    <div className="flex items-center text-xs sm:text-sm text-gray-500">
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{request.codigo}</h3>
+                    <div className="flex items-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                       <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 flex-shrink-0" />
                       <span className="truncate">{formatDateDisplay(request.createdAt)}</span>
                     </div>
@@ -1333,21 +1336,21 @@ const PaymentRequestManagement: React.FC = () => {
                 <div className="flex flex-wrap sm:flex-nowrap items-start gap-2 sm:gap-3 sm:ml-4">
                   {/* Tipo */}
                   <div className="flex flex-col items-center">
-                    <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Tipo</span>
-                    <span className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap bg-purple-100 text-purple-800 border border-purple-200">
+                    <span className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-1">Tipo</span>
+                    <span className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700">
                       {PAYMENT_TYPE_LABELS[request.tipoSolicitacao]}
                     </span>
                   </div>
                   {/* Forma Pagamento */}
                   <div className="flex flex-col items-center">
-                    <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Pagamento</span>
-                    <span className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap bg-blue-100 text-blue-800 border border-blue-200">
+                    <span className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-1">Pagamento</span>
+                    <span className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
                       {PAYMENT_METHOD_LABELS[request.formaPagamento]}
                     </span>
                   </div>
                   {/* Status */}
                   <div className="flex flex-col items-center">
-                    <span className="text-[9px] sm:text-[10px] text-gray-400 font-medium uppercase tracking-wider mb-1">Status</span>
+                    <span className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-1">Status</span>
                     <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${PAYMENT_STATUS_COLORS[request.status]}`}>
                       {PAYMENT_STATUS_LABELS[request.status]}
                     </span>
@@ -1357,79 +1360,79 @@ const PaymentRequestManagement: React.FC = () => {
 
               {/* Valor em destaque */}
               <div className="mb-4">
-                <div className="flex items-center p-3 sm:p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                <div className="flex items-center p-3 sm:p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-xl border border-green-100 dark:border-green-800">
                   <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-3 sm:mr-4 shadow-md shadow-green-500/25 flex-shrink-0">
                     <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div>
-                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium uppercase tracking-wider">Valor Total</p>
-                    <p className="text-lg sm:text-2xl font-bold text-green-600">{formatCurrency(request.valorTotal)}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Valor Total</p>
+                    <p className="text-lg sm:text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(request.valorTotal)}</p>
                   </div>
                 </div>
               </div>
 
               {/* Info Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-4">
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-blue-500/25 flex-shrink-0">
                     <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Fornecedor</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.fornecedor}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Fornecedor</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.fornecedor}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-orange-500/25 flex-shrink-0">
                     <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Data Pagamento</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{formatDateDisplay(request.dataPagamento)}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Data Pagamento</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{formatDateDisplay(request.dataPagamento)}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-violet-500/25 flex-shrink-0">
                     <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Solicitante</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.solicitadoPor}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Solicitante</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.solicitadoPor}</p>
                   </div>
                 </div>
 
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
                   <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-teal-500 to-cyan-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-teal-500/25 flex-shrink-0">
                     <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Departamento</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.department || 'N/A'}</p>
+                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Departamento</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.department || 'N/A'}</p>
                   </div>
                 </div>
 
                 {request.cpfCnpj && (
-                  <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 rounded-xl border border-gray-100">
+                  <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
                     <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-gray-500 to-slate-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-gray-500/25 flex-shrink-0">
                       <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-gray-500 font-medium">CPF/CNPJ</p>
-                      <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.cpfCnpj}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">CPF/CNPJ</p>
+                      <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.cpfCnpj}</p>
                     </div>
                   </div>
                 )}
 
                 {request.autorizadoPor && (
-                  <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border border-green-100">
+                  <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-xl border border-green-100 dark:border-green-800">
                     <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-green-500/25 flex-shrink-0">
                       <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-gray-500 font-medium">Autorizado por</p>
-                      <p className="text-xs sm:text-sm font-semibold text-gray-800 truncate">{request.autorizadoPor}</p>
+                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Autorizado por</p>
+                      <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.autorizadoPor}</p>
                     </div>
                   </div>
                 )}
@@ -1442,9 +1445,9 @@ const PaymentRequestManagement: React.FC = () => {
                     <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-violet-500/25 flex-shrink-0">
                       <FileText className="w-3 h-3 text-white" />
                     </div>
-                    <p className="text-xs sm:text-sm font-medium text-gray-700">Descrição</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Descrição</p>
                   </div>
-                  <div className="text-gray-700 bg-gradient-to-br from-gray-50 to-slate-50 p-3 sm:p-4 rounded-xl border border-gray-100 text-xs sm:text-sm leading-relaxed break-words">
+                  <div className="text-gray-700 dark:text-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-600 text-xs sm:text-sm leading-relaxed break-words">
                     {request.descricaoDetalhada}
                   </div>
                 </div>
@@ -1457,75 +1460,79 @@ const PaymentRequestManagement: React.FC = () => {
                     <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-blue-500/25 flex-shrink-0">
                       <CreditCard className="w-3 h-3 text-white" />
                     </div>
-                    <p className="text-xs sm:text-sm font-medium text-gray-700">Dados para Pagamento</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Dados para Pagamento</p>
                   </div>
-                  <div className="text-gray-800 bg-gradient-to-r from-blue-50 to-indigo-50 p-3 sm:p-4 rounded-xl border border-blue-100 text-xs sm:text-sm font-mono break-words">
+                  <div className="text-gray-800 dark:text-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-3 sm:p-4 rounded-xl border border-blue-100 dark:border-blue-800 text-xs sm:text-sm font-mono break-words">
                     {request.dadosPagamento}
                   </div>
                 </div>
               )}
 
-              {/* Attachment */}
-              {request.attachmentUrl && (
+              {/* Attachments (múltiplos) */}
+              {(request.attachments && request.attachments.length > 0) && (
                 <div className="mb-4 space-y-2">
                   <div className="flex items-center">
                     <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-purple-500/25 flex-shrink-0">
                       <Paperclip className="w-3 h-3 text-white" />
                     </div>
-                    <p className="text-xs sm:text-sm font-medium text-gray-700">Anexo</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Anexos ({request.attachments.length})</p>
                   </div>
-                  <div className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 p-3 rounded-xl border border-purple-100">
-                    {request.attachmentName?.match(/\.(png|jpg|jpeg)$/i) ? (
-                      <>
-                        <div 
-                          className="relative group/preview cursor-pointer"
-                          onClick={() => openImageViewer(request.attachmentUrl!, request.attachmentName!)}
-                        >
-                          <img 
-                            src={request.attachmentUrl} 
-                            alt={request.attachmentName} 
-                            className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-purple-200 hover:opacity-90 transition-opacity"
-                          />
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                            <Eye className="w-5 h-5 text-white" />
-                          </div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
-                          <button 
-                            onClick={() => openImageViewer(request.attachmentUrl!, request.attachmentName!)}
-                            className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
-                          >
-                            <Eye className="w-3 h-3" />
-                            Clique na imagem para visualizar
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs sm:text-sm font-medium text-purple-800 truncate">{request.attachmentName}</p>
-                          <a 
-                            href={request.attachmentUrl} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-[10px] sm:text-xs text-purple-600 hover:text-purple-800 hover:underline inline-flex items-center gap-1"
-                          >
-                            <Paperclip className="w-3 h-3" />
-                            Abrir documento
-                          </a>
-                        </div>
-                      </>
-                    )}
+                  <div className="space-y-2">
+                    {request.attachments.map((att, idx) => (
+                      <div key={idx} className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 p-3 rounded-xl border border-purple-100 dark:border-purple-800">
+                        {att.name.match(/\.(png|jpg|jpeg)$/i) ? (
+                          <>
+                            <div
+                              className="relative group/preview cursor-pointer flex-shrink-0"
+                              onClick={() => openImageViewer(att.url, att.name)}
+                            >
+                              <img
+                                src={att.url}
+                                alt={att.name}
+                                className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-purple-200 dark:border-purple-700 hover:opacity-90 transition-opacity"
+                              />
+                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                                <Eye className="w-5 h-5 text-white" />
+                              </div>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs sm:text-sm font-medium text-purple-800 dark:text-purple-200 truncate">{att.name}</p>
+                              <button
+                                onClick={() => openImageViewer(att.url, att.name)}
+                                className="text-[10px] sm:text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:underline inline-flex items-center gap-1"
+                              >
+                                <Eye className="w-3 h-3" />
+                                Clique para visualizar
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs sm:text-sm font-medium text-purple-800 dark:text-purple-200 truncate">{att.name}</p>
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[10px] sm:text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:underline inline-flex items-center gap-1"
+                              >
+                                <Paperclip className="w-3 h-3" />
+                                Abrir documento
+                              </a>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
+              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
                 {canApprove && request.status === 'pending' && (
                   <>
                     <button
@@ -1558,7 +1565,7 @@ const PaymentRequestManagement: React.FC = () => {
                 {canApprove && (request.status === 'pending' || request.status === 'rejected') && (
                   <button
                     onClick={() => handleDelete(request)}
-                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 text-red-600 rounded-xl hover:bg-red-50 transition-all duration-200 flex items-center justify-center font-medium text-xs sm:text-sm"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 dark:bg-gray-700 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-200 flex items-center justify-center font-medium text-xs sm:text-sm"
                   >
                     <Trash2 className="w-4 h-4 sm:mr-2" />
                     <span className="hidden sm:inline">Excluir</span>
@@ -1570,7 +1577,7 @@ const PaymentRequestManagement: React.FC = () => {
                     href={request.pdfUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-all duration-200 flex items-center justify-center font-medium text-xs sm:text-sm"
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 flex items-center justify-center font-medium text-xs sm:text-sm"
                   >
                     <FileText className="w-4 h-4 sm:mr-2" />
                     <span className="hidden sm:inline">Ver PDF</span>

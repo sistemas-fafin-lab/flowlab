@@ -77,11 +77,11 @@ const ProductList: React.FC = () => {
   const getStatusBadge = (status: Product['status']) => {
     switch (status) {
       case 'active':
-        return <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">Ativo</span>;
+        return <span className="px-2 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 rounded-full">Ativo</span>;
       case 'low-stock':
-        return <span className="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded-full">Estoque Baixo</span>;
+        return <span className="px-2 py-1 text-xs font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 rounded-full">Estoque Baixo</span>;
       case 'expired':
-        return <span className="px-2 py-1 text-xs font-medium bg-red-100 text-red-800 rounded-full">Vencido</span>;
+        return <span className="px-2 py-1 text-xs font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 rounded-full">Vencido</span>;
       default:
         return null;
     }
@@ -94,9 +94,9 @@ const ProductList: React.FC = () => {
                            word.charAt(0).toUpperCase() + word.slice(1)
                          ).join(' ');
     
-    const colorClass = category === 'general' ? 'bg-blue-100 text-blue-800' :
-                      category === 'technical' ? 'bg-purple-100 text-purple-800' :
-                      'bg-blue-200 text-blue-900';
+    const colorClass = category === 'general' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200' :
+                      category === 'technical' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200' :
+                      'bg-blue-200 dark:bg-blue-900/50 text-blue-900 dark:text-blue-200';
     
     return <span className={`px-2 py-1 text-xs font-medium rounded-full ${colorClass}`}>
       {categoryLabel}
@@ -511,8 +511,8 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     extraClass?: string;
   }) => (
     <div className="flex justify-between items-center">
-      <span className="text-sm text-gray-600 ">{label}:</span>
-      <span className={`text-sm ${bold ? 'font-bold text-blue-600' : 'text-gray-800'} ${extraClass}`}>
+      <span className="text-sm text-gray-600 dark:text-gray-400">{label}:</span>
+      <span className={`text-sm ${bold ? 'font-bold text-blue-600 dark:text-blue-400' : 'text-gray-800 dark:text-gray-200'} ${extraClass}`}>
         {value}
       </span>
     </div>
@@ -553,17 +553,17 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
       <div className="space-y-6">
         {/* Filtros e Ações */}
-      <div className="bg-white rounded-2xl shadow-md p-4 sm:p-6 border border-gray-100 animate-fade-in-up">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-4 sm:p-6 border border-gray-100 dark:border-gray-700 animate-fade-in-up">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           {/* Campo de busca */}
           <div className="relative col-span-1 sm:col-span-2 lg:col-span-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
             <input
               type="text"
               placeholder="Buscar produtos..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
             />
           </div>
 
@@ -577,7 +577,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           </button>
 
           {/* Input de importação */}
-          <label className="relative w-full flex items-center justify-center border-2 border-dashed border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-600 bg-gray-50/50 hover:bg-blue-50 hover:border-blue-300 cursor-pointer transition-all duration-200 font-medium">
+          <label className="relative w-full flex items-center justify-center border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-50/50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 cursor-pointer transition-all duration-200 font-medium">
             <span className="hidden sm:inline">Importar Arquivo</span>
             <span className="sm:hidden">Importar</span>
             <input
@@ -592,7 +592,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value as any)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
           >
             <option value="all">Todas Categorias</option>
             {categories.map(category => (
@@ -610,7 +610,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
           >
             <option value="all">Todos Status</option>
             <option value="active">Ativo</option>
@@ -620,7 +620,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         </div>
 
         {/* Resultado da filtragem */}
-        <div className="mt-4 flex items-center text-sm text-gray-500">
+        <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
           <Filter className="w-4 h-4 mr-2" />
           <span className="font-medium">{filteredProducts.length}</span>&nbsp;produto(s) encontrado(s)
         </div>
@@ -631,7 +631,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         {filteredProducts.map((product, index) => (
           <div 
             key={product.id} 
-            className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:border-blue-200 transition-all duration-300 md:hover:-translate-y-1 animate-fade-in-up group"
+            className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-300 md:hover:-translate-y-1 animate-fade-in-up group"
             style={{ animationDelay: `${Math.min(index * 0.05, 0.3)}s` }}
           >
             <div className="p-4 sm:p-6">
@@ -642,23 +642,23 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     <Package className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 group-hover:text-blue-600 transition-colors truncate">{product.name}</h3>
-                    <p className="text-xs sm:text-sm text-gray-500">{product.code}</p>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{product.name}</h3>
+                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{product.code}</p>
                   </div>
                 </div>
                 {/* Botões sempre visíveis em mobile, hover em desktop */}
                 <div className="flex space-x-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0 ml-2">
-                  <button onClick={() => handleEditClick(product)} className="p-2 text-blue-500 md:text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" title="Editar produto">
+                  <button onClick={() => handleEditClick(product)} className="p-2 text-blue-500 md:text-gray-400 dark:md:text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-all" title="Editar produto">
                     <Edit className="w-4 h-4" />
                   </button>
-                  <button onClick={() => handleDeleteProduct(product.id)} className="p-2 text-red-500 md:text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all" title="Excluir produto">
+                  <button onClick={() => handleDeleteProduct(product.id)} className="p-2 text-red-500 md:text-gray-400 dark:md:text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all" title="Excluir produto">
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
               {/* Informações agrupadas */}
-              <div className="space-y-4 divide-y divide-gray-200">
+              <div className="space-y-4 divide-y divide-gray-200 dark:divide-gray-700">
                 {/* Informações Gerais */}
                 <div className="space-y-2 pb-3">
                   <Info label="Categoria" value={getCategoryBadge(product.category)} />
@@ -685,9 +685,9 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   <Info label="Lote" value={product.batch} />
                   <Info label="Localização" value={product.location} />
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600">Validade:</span>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Validade:</span>
                     <div className="flex items-center">
-                      <span className="text-sm text-gray-800 mr-2">{product.expirationDate}</span>
+                      <span className="text-sm text-gray-800 dark:text-gray-200 mr-2">{product.expirationDate}</span>
                       {new Date(product.expirationDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
                         <Calendar className="w-4 h-4 text-red-500" />
                       )}
@@ -698,14 +698,14 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
               {/* Alerta de Estoque Baixo */}
               {product.status === 'low-stock' && (
-                <div className="flex items-center justify-center p-3 bg-gradient-to-r from-orange-50 to-amber-50 rounded-xl mt-4 border border-orange-100">
+                <div className="flex items-center justify-center p-3 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/30 dark:to-amber-900/30 rounded-xl mt-4 border border-orange-100 dark:border-orange-800">
                   <AlertTriangle className="w-4 h-4 text-orange-500 mr-2 animate-pulse" />
-                  <span className="text-sm text-orange-700 font-medium">Estoque abaixo do mínimo ({product.minStock})</span>
+                  <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">Estoque abaixo do mínimo ({product.minStock})</span>
                 </div>
               )}
 
               {/* Ações */}
-              <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                 <div className="grid grid-cols-2 gap-3">
                   <button
                     onClick={() => setSelectedProduct(product)}
@@ -730,10 +730,10 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       </div>
 
       {filteredProducts.length === 0 && (
-        <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-gray-100 animate-fade-in">
-          <Package className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum produto encontrado</h3>
-          <p className="text-gray-500">Tente ajustar os filtros de busca ou adicione novos produtos ao sistema.</p>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-12 text-center border border-gray-100 dark:border-gray-700 animate-fade-in">
+          <Package className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhum produto encontrado</h3>
+          <p className="text-gray-500 dark:text-gray-400">Tente ajustar os filtros de busca ou adicione novos produtos ao sistema.</p>
         </div>
       )}
       </div>
@@ -741,12 +741,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       {/* Movement Modal */}
       {showMovementModal && selectedProduct && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Registrar Saída</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 z-10">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-gray-100">Registrar Saída</h2>
               <button
                 onClick={handleCloseMovementModal}
-                className="text-gray-400 hover:text-gray-600 p-1"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1"
               >
                 <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
@@ -754,17 +754,17 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
             <form onSubmit={handleMovementSubmit} className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Produto</label>
-                <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-700">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Produto</label>
+                <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200">
                   {selectedProduct.name} - {selectedProduct.code}
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   Estoque disponível: {selectedProduct.quantity} {selectedProduct.unit}
                 </p>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Quantidade *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quantidade *</label>
                 <input
                   type="number"
                   value={movementData.quantity}
@@ -772,17 +772,17 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   required
                   min="1"
                   max={selectedProduct.quantity}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Motivo *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Motivo *</label>
                 <select
                   value={movementData.reason}
                   onChange={(e) => setMovementData(prev => ({ ...prev, reason: e.target.value as any }))}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                 >
                   <option value="internal-consumption">Consumo Interno</option>
                   <option value="sale">Venda</option>
@@ -793,24 +793,24 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Autorizado por *</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Autorizado por *</label>
                 <input
                   type="text"
                   value={movementData.authorizedBy}
                   onChange={(e) => setMovementData(prev => ({ ...prev, authorizedBy: e.target.value }))}
                   required
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   placeholder="Nome do responsável"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Observações</label>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Observações</label>
                 <textarea
                   value={movementData.notes}
                   onChange={(e) => setMovementData(prev => ({ ...prev, notes: e.target.value }))}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   placeholder="Informações adicionais (opcional)"
                 />
               </div>
@@ -819,7 +819,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 <button
                   type="button"
                   onClick={handleCloseMovementModal}
-                  className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                 >
                   Cancelar
                 </button>
@@ -849,12 +849,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       {/* Edit Product Modal */}
       {editingProduct && editFormData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-40">
-          <div className="bg-white rounded-xl sm:rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 flex items-center justify-between sticky top-0 bg-white z-10">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Editar Produto</h2>
+          <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between sticky top-0 bg-white dark:bg-gray-800 z-10">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-800 dark:text-gray-100">Editar Produto</h2>
               <button
                 onClick={handleCloseModal}
-                className="text-gray-400 hover:text-gray-600 p-1"
+                className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-1"
               >
                 <X className="w-5 h-5 sm:w-6 sm:h-6" />
               </button>
@@ -863,7 +863,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             <div className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Nome do Produto *
                   </label>
                   <input
@@ -871,12 +871,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     name="name"
                     value={editFormData.name}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Código *
                   </label>
                   <input
@@ -884,19 +884,19 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     name="code"
                     value={editFormData.code}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Categoria *
                   </label>
                   <select
                     name="category"
                     value={editFormData.category}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   >
                     <option value="all">Todas as Categorias</option>
                     {categories.map(category => (
@@ -912,12 +912,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Fornecedor</label>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Fornecedor</label>
                   <select
                     name="supplierName"
                     value={editFormData.supplierName || ''}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   >
                     <option value="">Selecione um fornecedor</option>
                     {suppliers.map((supplier) => (
@@ -929,7 +929,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Quantidade *
                   </label>
                   <input
@@ -938,12 +938,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     value={editFormData.quantity}
                     onChange={handleFormChange}
                     min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Unidade de Medida *
                   </label>
                   <input
@@ -951,12 +951,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     name="unit"
                     value={editFormData.unit}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Preço Unitário (R$) *
                   </label>
                   <input
@@ -966,21 +966,21 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     onChange={handleFormChange}
                     min="0"
                     step="0.01"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Valor Total
                   </label>
-                  <div className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-700 font-medium">
+                  <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200 font-medium">
                     {formatCurrency(editFormData.totalValue)}
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Lote *
                   </label>
                   <input
@@ -988,12 +988,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     name="batch"
                     value={editFormData.batch}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Nota Fiscal
                   </label>
                   <input
@@ -1001,13 +1001,13 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     name="invoiceNumber"
                     value={editFormData.invoiceNumber || ''}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                     placeholder="Número da nota fiscal"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Localização *
                   </label>
                   <input
@@ -1015,12 +1015,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     name="location"
                     value={editFormData.location}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Data de Entrada *
                   </label>
                   <input
@@ -1028,12 +1028,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     name="entryDate"
                     value={editFormData.entryDate}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Data de Validade *
                   </label>
                   <input
@@ -1041,12 +1041,12 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     name="expirationDate"
                     value={editFormData.expirationDate}
                     onChange={handleFormChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Estoque Mínimo *
                   </label>
                   <input
@@ -1055,7 +1055,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     value={editFormData.minStock}
                     onChange={handleFormChange}
                     min="0"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
                 </div>
 
@@ -1065,17 +1065,17 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     name="isWithholding"
                     checked={editFormData.isWithholding || false}
                     onChange={handleFormChange}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded"
                   />
-                  <label className="text-sm text-gray-700">Produto com retenção?</label>
+                  <label className="text-sm text-gray-700 dark:text-gray-300">Produto com retenção?</label>
                 </div>
               </div>
             </div>
 
-            <div className="px-6 py-4 border-t border-gray-200 flex justify-end space-x-3">
+            <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-3">
               <button
                 onClick={handleCloseModal}
-                className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
                 Cancelar
               </button>

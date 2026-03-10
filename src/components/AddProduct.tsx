@@ -190,34 +190,34 @@ const AddProduct: React.FC = () => {
 
       {/* Info Message for Stock Addition */}
       {prefilledData && (
-        <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 flex items-center animate-scale-in shadow-sm">
+        <div className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-4 flex items-center animate-scale-in shadow-sm">
           <div className="flex-shrink-0">
             <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25">
               <Package className="w-5 h-5 text-white" />
             </div>
           </div>
           <div className="ml-4">
-            <p className="text-sm font-semibold text-blue-800">
+            <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
               Adicionando estoque para: {prefilledData.name}
             </p>
-            <p className="text-xs text-blue-600 mt-1">
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
               Alguns campos foram pré-preenchidos. Ajuste conforme necessário.
             </p>
           </div>
         </div>
       )}
 
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg transition-shadow duration-300">
-        <div className="px-6 py-5 border-b border-gray-100">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-shadow duration-300">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center">
             <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-4 shadow-md shadow-blue-500/25">
               <Package className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+              <h2 className="text-xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
                 {prefilledData ? 'Adicionar Estoque' : 'Cadastrar Novo Produto'}
               </h2>
-              <p className="text-sm text-gray-500 mt-0.5">Preencha os dados do produto</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">Preencha os dados do produto</p>
             </div>
           </div>
         </div>
@@ -225,7 +225,7 @@ const AddProduct: React.FC = () => {
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Nome do Produto *
               </label>
               <input
@@ -235,13 +235,13 @@ const AddProduct: React.FC = () => {
                 value={formData.name}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 placeholder="Ex: Luvas de Látex"
               />
             </div>
 
             <div>
-              <label htmlFor="code" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="code" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Código *
               </label>
               <input
@@ -251,13 +251,13 @@ const AddProduct: React.FC = () => {
                 value={formData.code}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 placeholder="Ex: LAT001"
               />
             </div>
 
             <div>
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Categoria *
               </label>
               <div className="flex space-x-2">
@@ -267,7 +267,7 @@ const AddProduct: React.FC = () => {
                   value={formData.category}
                   onChange={handleChange}
                   required
-                  className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                  className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
                 >
                   {categories.map(category => (
                     <option key={category} value={category}>
@@ -293,7 +293,7 @@ const AddProduct: React.FC = () => {
                     value={newCategoryName}
                     onChange={(e) => setNewCategoryName(e.target.value)}
                     placeholder="Nome da nova categoria"
-                    className="flex-1 px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                    className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                     onKeyPress={(e) => {
                       if (e.key === 'Enter') {
                         e.preventDefault();
@@ -314,7 +314,7 @@ const AddProduct: React.FC = () => {
                       setShowNewCategoryInput(false);
                       setNewCategoryName('');
                     }}
-                    className="px-3 py-2.5 bg-gray-400 text-white rounded-xl hover:bg-gray-500 transition-all duration-200"
+                    className="px-3 py-2.5 bg-gray-400 dark:bg-gray-500 text-white rounded-xl hover:bg-gray-500 dark:hover:bg-gray-400 transition-all duration-200"
                   >
                     <X className="w-4 h-4" />
                   </button>
@@ -323,7 +323,7 @@ const AddProduct: React.FC = () => {
             </div>
 
             <div>
-              <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="quantity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Quantidade *
               </label>
               <input
@@ -334,12 +334,12 @@ const AddProduct: React.FC = () => {
                 onChange={handleChange}
                 required
                 min="0"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
 
             <div>
-              <label htmlFor="unit" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="unit" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Unidade de Medida *
               </label>
               <input
@@ -349,13 +349,13 @@ const AddProduct: React.FC = () => {
                 value={formData.unit}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 placeholder="Ex: caixas, litros, unidades"
               />
             </div>
 
             <div>
-              <label htmlFor="unitPrice" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="unitPrice" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Preço Unitário (R$) *
               </label>
               <input
@@ -367,22 +367,22 @@ const AddProduct: React.FC = () => {
                 required
                 min="0"
                 step="0.01"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 placeholder="0,00"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Valor Total
               </label>
-              <div className="w-full px-4 py-2.5 border border-gray-200 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 text-green-700 font-semibold">
+              <div className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 text-green-700 dark:text-green-400 font-semibold">
                 {formatCurrency(totalValue)}
               </div>
             </div>
 
             <div>
-              <label htmlFor="batch" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="batch" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Lote *
               </label>
               <input
@@ -392,13 +392,13 @@ const AddProduct: React.FC = () => {
                 value={formData.batch}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 placeholder="Ex: LT240315"
               />
             </div>
 
             <div>
-              <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Localização *
               </label>
               <input
@@ -408,13 +408,13 @@ const AddProduct: React.FC = () => {
                 value={formData.location}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 placeholder="Ex: Prateleira A1, Geladeira B2"
               />
             </div>
 
             <div>
-              <label htmlFor="entryDate" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="entryDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Data de Entrada *
               </label>
               <input
@@ -424,19 +424,19 @@ const AddProduct: React.FC = () => {
                 value={formData.entryDate}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Nota Fiscal</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nota Fiscal</label>
               <input
               type="text"
               id="invoiceNumber"
               name="invoiceNumber"
               value={formData.invoiceNumber}
               onChange={handleChange}
-              className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
               placeholder="Número da nota fiscal"
             />
             </div>
@@ -450,14 +450,14 @@ const AddProduct: React.FC = () => {
                   onChange={(e) =>
                     setFormData((prev) => ({ ...prev, isWithholding: e.target.checked }))
                   }
-                  className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 rounded-lg cursor-pointer"
+                  className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 dark:bg-gray-700 rounded-lg cursor-pointer"
                 />
-                <label htmlFor="isWithholding" className="text-sm text-gray-700 cursor-pointer">Produto com retenção?</label>
+                <label htmlFor="isWithholding" className="text-sm text-gray-700 dark:text-gray-300 cursor-pointer">Produto com retenção?</label>
               </div>
 
             
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Fornecedor</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Fornecedor</label>
               <select
                 name="supplierId"
                 value={formData.supplierId}
@@ -469,7 +469,7 @@ const AddProduct: React.FC = () => {
                     supplierName: selected?.name || ''
                   }));
                 }}
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
               >
                 <option value="">Selecione um fornecedor</option>
                 {suppliers.map((supplier) => (
@@ -479,7 +479,7 @@ const AddProduct: React.FC = () => {
             </div>
           
             <div>
-              <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="expirationDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Data de Validade *
               </label>
               <input
@@ -489,12 +489,12 @@ const AddProduct: React.FC = () => {
                 value={formData.expirationDate}
                 onChange={handleChange}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
               />
             </div>
 
             <div>
-              <label htmlFor="minStock" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="minStock" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Estoque Mínimo *
               </label>
               <input
@@ -505,12 +505,12 @@ const AddProduct: React.FC = () => {
                 onChange={handleChange}
                 required
                 min="0"
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100"
               />
             </div>
           </div>
 
-          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-100">
+          <div className="flex justify-end space-x-4 pt-6 border-t border-gray-100 dark:border-gray-700">
             <button
               type="button"
               onClick={() => setFormData({
@@ -531,7 +531,7 @@ const AddProduct: React.FC = () => {
                 supplierId: '',
                 supplierName: ''
               })}
-              className="px-5 py-2.5 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
+              className="px-5 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium"
             >
               Limpar
             </button>

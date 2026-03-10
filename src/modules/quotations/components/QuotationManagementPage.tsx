@@ -85,18 +85,18 @@ export const QuotationManagementPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+      <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-4 sm:py-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
-                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
-                  <FileText className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600" />
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-gray-100 flex items-center gap-2">
+                  <FileText className="w-6 h-6 sm:w-7 sm:h-7 text-blue-600 dark:text-blue-400" />
                   Gestão de Cotações
                 </h1>
-                <p className="text-sm text-gray-500 mt-1 hidden sm:block">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1 hidden sm:block">
                   Crie, gerencie e acompanhe cotações de fornecedores
                 </p>
               </div>
@@ -107,8 +107,8 @@ export const QuotationManagementPage: React.FC = () => {
                   onClick={() => setShowMetrics(!showMetrics)}
                   className={`hidden sm:flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors ${
                     showMetrics
-                      ? 'border-blue-200 bg-blue-50 text-blue-700'
-                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'
+                      ? 'border-blue-200 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                      : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
                   }`}
                 >
                   <BarChart3 className="w-4 h-4" />
@@ -119,7 +119,7 @@ export const QuotationManagementPage: React.FC = () => {
                 <button
                   onClick={() => refresh()}
                   disabled={loading}
-                  className="p-2 rounded-lg border border-gray-200 bg-white text-gray-600 hover:bg-gray-50 disabled:opacity-50"
+                  className="p-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-50"
                   title="Atualizar"
                 >
                   <RefreshCcw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -154,7 +154,7 @@ export const QuotationManagementPage: React.FC = () => {
         {/* Mobile Metrics Toggle */}
         <button
           onClick={() => setShowMetrics(!showMetrics)}
-          className="sm:hidden w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-gray-200 text-gray-600"
+          className="sm:hidden w-full mb-4 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300"
         >
           <BarChart3 className="w-4 h-4" />
           <span className="text-sm font-medium">
@@ -175,7 +175,7 @@ export const QuotationManagementPage: React.FC = () => {
         />
 
         {/* Stats Footer */}
-        <div className="mt-6 text-center text-sm text-gray-500">
+        <div className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
           Exibindo {filteredQuotations.length} de {quotations.length} cotações
         </div>
       </div>

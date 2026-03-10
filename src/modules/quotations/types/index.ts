@@ -27,15 +27,15 @@ export const QuotationStatusLabels: Record<QuotationStatus, string> = {
 };
 
 export const QuotationStatusColors: Record<QuotationStatus, string> = {
-  draft: 'bg-gray-100 text-gray-800',
-  sent_to_suppliers: 'bg-blue-100 text-blue-800',
-  waiting_responses: 'bg-yellow-100 text-yellow-800',
-  under_review: 'bg-indigo-100 text-indigo-800',
-  awaiting_approval: 'bg-orange-100 text-orange-800',
-  approved: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
-  converted_to_purchase: 'bg-emerald-100 text-emerald-800',
-  cancelled: 'bg-gray-100 text-gray-600',
+  draft: 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200',
+  sent_to_suppliers: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200',
+  waiting_responses: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200',
+  under_review: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200',
+  awaiting_approval: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200',
+  approved: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
+  rejected: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
+  converted_to_purchase: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200',
+  cancelled: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
 };
 
 // ============================================
@@ -57,11 +57,11 @@ export const ProposalStatusLabels: Record<ProposalStatus, string> = {
 };
 
 export const ProposalStatusColors: Record<ProposalStatus, string> = {
-  pending: 'bg-gray-100 text-gray-800',
-  submitted: 'bg-blue-100 text-blue-800',
-  selected: 'bg-green-100 text-green-800',
-  rejected: 'bg-red-100 text-red-800',
-  expired: 'bg-orange-100 text-orange-800',
+  pending: 'bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200',
+  submitted: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200',
+  selected: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
+  rejected: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
+  expired: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200',
 };
 
 // ============================================

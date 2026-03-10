@@ -329,7 +329,7 @@ const UserManagement: React.FC = () => {
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
-          <span className="mt-3 text-gray-500 font-medium">Carregando usuários...</span>
+          <span className="mt-3 text-gray-500 dark:text-gray-400 font-medium">Carregando usuários...</span>
         </div>
       </div>
     );
@@ -348,8 +348,8 @@ const UserManagement: React.FC = () => {
       {/* Header */}
       <div className="flex justify-between items-center animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Gerenciamento de Usuários</h2>
-          <p className="text-gray-500">Gerencie perfis e permissões dos usuários do sistema</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">Gerenciamento de Usuários</h2>
+          <p className="text-gray-500 dark:text-gray-400">Gerencie perfis e permissões dos usuários do sistema</p>
         </div>
         {userProfile?.role === 'admin' && (
           <button
@@ -364,14 +364,14 @@ const UserManagement: React.FC = () => {
 
       {/* Approval Level Configuration Panel */}
       {showLevelConfig && (
-        <div className="bg-white rounded-2xl shadow-lg border border-purple-100 p-6 animate-scale-in">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-purple-100 dark:border-purple-900/50 p-6 animate-scale-in">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="text-lg font-semibold text-gray-800 flex items-center">
-                <DollarSign className="w-5 h-5 mr-2 text-purple-600" />
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+                <DollarSign className="w-5 h-5 mr-2 text-purple-600 dark:text-purple-400" />
                 Configuração de Alçadas
               </h3>
-              <p className="text-sm text-gray-500 mt-1">
+              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                 Defina o valor máximo de aprovação para cada nível
               </p>
             </div>
@@ -380,7 +380,7 @@ const UserManagement: React.FC = () => {
                 setEditingLevels(approvalLevels);
                 setShowLevelConfig(false);
               }}
-              className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-xl transition-all duration-200"
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200"
             >
               <X className="w-5 h-5" />
             </button>
@@ -390,9 +390,9 @@ const UserManagement: React.FC = () => {
             {editingLevels
               .filter(level => level.level !== 'none')
               .map((level, index) => (
-              <div key={level.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+              <div key={level.id} className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-gray-700/50 rounded-xl">
                 <div className="flex-1">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     {level.level === 'level_4' ? 'Nível 4 (Ilimitado)' : `Nível ${level.level.split('_')[1]}`}
                   </label>
                   <input
@@ -403,12 +403,12 @@ const UserManagement: React.FC = () => {
                       updated[index + 1] = { ...level, label: e.target.value };
                       setEditingLevels(updated);
                     }}
-                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                    className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 text-sm"
                     placeholder="Nome do nível"
                   />
                 </div>
                 <div className="w-48">
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Valor Máximo (R$)
                   </label>
                   {level.level === 'level_4' ? (
@@ -416,7 +416,7 @@ const UserManagement: React.FC = () => {
                       type="text"
                       value="Ilimitado"
                       disabled
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 text-sm"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-600 text-gray-500 dark:text-gray-400 text-sm"
                     />
                   ) : (
                     <input
@@ -430,7 +430,7 @@ const UserManagement: React.FC = () => {
                       }}
                       min="0"
                       step="100"
-                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                      className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 text-sm"
                     />
                   )}
                 </div>
@@ -445,7 +445,7 @@ const UserManagement: React.FC = () => {
                 setEditingLevels(approvalLevels);
                 setShowLevelConfig(false);
               }}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200"
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200"
             >
               Cancelar
             </button>
@@ -472,14 +472,14 @@ const UserManagement: React.FC = () => {
 
       {/* Add/Edit Form */}
       {showAddForm && (
-        <div className="bg-white rounded-2xl shadow-lg border border-gray-100 p-6 animate-scale-in">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6 animate-scale-in">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
               {editingUser ? 'Editar Usuário' : 'Novo Usuário'}
             </h3>
             <button
               onClick={handleCancel}
-              className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-xl transition-all duration-200"
+              className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200"
             >
               <X className="w-5 h-5" />
             </button>
@@ -487,7 +487,7 @@ const UserManagement: React.FC = () => {
 
           <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Nome Completo *
               </label>
               <input
@@ -495,13 +495,13 @@ const UserManagement: React.FC = () => {
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                 placeholder="Nome do usuário"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Email *
               </label>
               <input
@@ -510,20 +510,20 @@ const UserManagement: React.FC = () => {
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 required
                 disabled={!!editingUser} // Não permitir editar email de usuários existentes
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-gray-600 transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                 placeholder="email@empresa.com"
               />
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Departamento *
               </label>
               <select
                 value={formData.department}
                 onChange={(e) => handleDepartmentChange(e.target.value as Department)}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
               >
                 {DEPARTMENTS.map(dept => (
                   <option key={dept} value={dept}>{getDepartmentLabel(dept)}</option>
@@ -532,20 +532,20 @@ const UserManagement: React.FC = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Perfil de Acesso *
               </label>
               <select
                 value={formData.role}
                 onChange={(e) => handleRoleChange(e.target.value as UserRole)}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
               >
                 <option value="requester">Solicitante</option>
                 <option value="operator">Operador</option>
                 <option value="admin">Administrador</option>
               </select>
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                 Sugestão baseada no departamento: {getRoleLabel(getRoleForDepartment(formData.department))}
               </p>
             </div>
@@ -554,14 +554,14 @@ const UserManagement: React.FC = () => {
             {(formData.role === 'admin' || formData.role === 'operator') && (
               <>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     <DollarSign className="w-4 h-4 inline mr-1" />
                     Alçada de Aprovação
                   </label>
                   <select
                     value={formData.approvalLevel}
                     onChange={(e) => setFormData(prev => ({ ...prev, approvalLevel: e.target.value, customMaxAmount: '' }))}
-                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                    className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
                   >
                     {approvalLevels.map(level => (
                       <option key={level.level} value={level.level}>
@@ -569,28 +569,28 @@ const UserManagement: React.FC = () => {
                       </option>
                     ))}
                   </select>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Valor padrão do nível: R$ {(approvalLevels.find(l => l.level === formData.approvalLevel)?.maxAmount || 0).toLocaleString('pt-BR')}
                   </p>
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Valor Personalizado (opcional)
                   </label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">R$</span>
                     <input
                       type="number"
                       value={formData.customMaxAmount}
                       onChange={(e) => setFormData(prev => ({ ...prev, customMaxAmount: e.target.value }))}
                       min="0"
                       step="100"
-                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                       placeholder="Deixe vazio para usar valor do nível"
                     />
                   </div>
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                     Defina um valor específico para este usuário (sobrescreve o valor do nível)
                   </p>
                 </div>
@@ -601,9 +601,9 @@ const UserManagement: React.FC = () => {
                       type="checkbox"
                       checked={formData.canApprove}
                       onChange={(e) => setFormData(prev => ({ ...prev, canApprove: e.target.checked }))}
-                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="w-5 h-5 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
                     />
-                    <span className="ml-3 text-sm font-medium text-gray-700">
+                    <span className="ml-3 text-sm font-medium text-gray-700 dark:text-gray-300">
                       Pode aprovar cotações
                     </span>
                   </label>
@@ -612,9 +612,9 @@ const UserManagement: React.FC = () => {
             )}
 
             <div className="md:col-span-2">
-              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
-                <h4 className="text-sm font-medium text-blue-800 mb-2">Permissões do Perfil Selecionado:</h4>
-                <div className="text-xs text-blue-700 space-y-1">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
+                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Permissões do Perfil Selecionado:</h4>
+                <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
                   {formData.role === 'admin' && (
                     <>
                       <p>• Acesso completo a todos os módulos do sistema</p>
@@ -628,7 +628,7 @@ const UserManagement: React.FC = () => {
                     <p>• Acesso apenas para criar e visualizar solicitações do seu departamento</p>
                   )}
                   {formData.canApprove && formData.approvalLevel !== 'none' && (
-                    <p className="text-green-700 font-medium">
+                    <p className="text-green-700 dark:text-green-300 font-medium">
                       • Alçada de aprovação: {formData.customMaxAmount 
                         ? `R$ ${parseFloat(String(formData.customMaxAmount)).toLocaleString('pt-BR')} (personalizado)`
                         : getApprovalLevelLabel(formData.approvalLevel)
@@ -643,7 +643,7 @@ const UserManagement: React.FC = () => {
               <button
                 type="button"
                 onClick={handleCancel}
-                className="px-4 py-2.5 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200 font-medium"
+                className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium"
               >
                 Cancelar
               </button>
@@ -670,32 +670,32 @@ const UserManagement: React.FC = () => {
       )}
 
       {/* Users List */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gradient-to-r from-gray-50 to-slate-50">
+          <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <thead className="bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700 dark:to-slate-700">
               <tr>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Usuário
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Departamento
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Perfil
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Alçada
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Criado em
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Ações
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-100">
+            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
               {users.map((user) => {
                 // Ícone e cor baseados no perfil do usuário
                 const getRoleIcon = (role: UserRole) => {
@@ -726,26 +726,26 @@ const UserManagement: React.FC = () => {
                 const effectiveAmount = userLimit?.customMaxAmount || levelConfig?.maxAmount || 0;
                 
                 return (
-                <tr key={user.id} className="hover:bg-blue-50/50 transition-colors duration-150">
+                <tr key={user.id} className="hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors duration-150">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center mr-3 shadow-md ${getRoleGradient(user.role)}`}>
                         {getRoleIcon(user.role)}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                        <div className="text-sm text-gray-500">{user.email}</div>
+                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm text-gray-700 font-medium">{getDepartmentLabel(user.department)}</span>
+                    <span className="text-sm text-gray-700 dark:text-gray-300 font-medium">{getDepartmentLabel(user.department)}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                      user.role === 'admin' ? 'bg-gradient-to-r from-red-100 to-rose-100 text-red-800' :
-                      user.role === 'operator' ? 'bg-gradient-to-r from-blue-100 to-indigo-100 text-blue-800' :
-                      'bg-gradient-to-r from-green-100 to-emerald-100 text-green-800'
+                      user.role === 'admin' ? 'bg-gradient-to-r from-red-100 to-rose-100 dark:from-red-900/50 dark:to-rose-900/50 text-red-800 dark:text-red-200' :
+                      user.role === 'operator' ? 'bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 text-blue-800 dark:text-blue-200' :
+                      'bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 text-green-800 dark:text-green-200'
                     }`}>
                       {getRoleLabel(user.role)}
                     </span>
@@ -754,8 +754,8 @@ const UserManagement: React.FC = () => {
                     {userLimit?.canApprove ? (
                       <div className="flex flex-col">
                         <div className="flex items-center">
-                          <DollarSign className="w-4 h-4 text-green-600 mr-1" />
-                          <span className="text-sm text-gray-700">
+                          <DollarSign className="w-4 h-4 text-green-600 dark:text-green-400 mr-1" />
+                          <span className="text-sm text-gray-700 dark:text-gray-300">
                             {userLimit?.approvalLevel === 'level_4' 
                               ? 'Ilimitado' 
                               : `Até R$ ${effectiveAmount.toLocaleString('pt-BR')}`
@@ -763,20 +763,20 @@ const UserManagement: React.FC = () => {
                           </span>
                         </div>
                         {userLimit?.customMaxAmount && (
-                          <span className="text-xs text-purple-600 ml-5">(personalizado)</span>
+                          <span className="text-xs text-purple-600 dark:text-purple-400 ml-5">(personalizado)</span>
                         )}
                       </div>
                     ) : (
-                      <span className="text-sm text-gray-400">Sem alçada</span>
+                      <span className="text-sm text-gray-400 dark:text-gray-500">Sem alçada</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {new Date(user.createdAt).toLocaleDateString('pt-BR')}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button
                       onClick={() => handleEdit(user)}
-                      className="text-blue-600 hover:text-blue-800 flex items-center px-3 py-1.5 rounded-lg hover:bg-blue-50 transition-all duration-200"
+                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all duration-200"
                     >
                       <Edit className="w-4 h-4 mr-1" />
                       Editar
@@ -791,9 +791,9 @@ const UserManagement: React.FC = () => {
 
         {users.length === 0 && (
           <div className="p-12 text-center">
-            <Users className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhum usuário encontrado</h3>
-            <p className="text-gray-500">Os usuários aparecerão aqui conforme se cadastrarem no sistema.</p>
+            <Users className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhum usuário encontrado</h3>
+            <p className="text-gray-500 dark:text-gray-400">Os usuários aparecerão aqui conforme se cadastrarem no sistema.</p>
           </div>
         )}
       </div>

@@ -149,7 +149,7 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden">
       {/* Header */}
       <div className="px-8 py-6 bg-gradient-to-r from-orange-500 to-amber-500">
         <div className="flex items-center gap-4">
@@ -167,18 +167,18 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
         <div className="space-y-6">
           {/* Setor (readonly) */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
               Setor
             </label>
-            <div className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-600">
+            <div className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-600 dark:text-gray-300">
               {department}
             </div>
-            <p className="mt-2 text-xs text-gray-500">Setor preenchido automaticamente com base no seu perfil</p>
+            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">Setor preenchido automaticamente com base no seu perfil</p>
           </div>
 
           {/* Local da Ocorrência */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
               <MapPin className="w-4 h-4 inline-block mr-1 mb-0.5" />
               Local da Ocorrência *
             </label>
@@ -188,8 +188,8 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
               value={formData.localOcorrencia}
               onChange={handleInputChange}
               placeholder="Ex: Sala de análises, Laboratório 2, Corredor térreo..."
-              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 ${
-                errors.localOcorrencia ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 dark:text-gray-100 dark:placeholder-gray-400 ${
+                errors.localOcorrencia ? 'border-red-300 bg-red-50 dark:bg-red-900/30 dark:border-red-700' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700'
               }`}
             />
             {errors.localOcorrencia && (
@@ -202,7 +202,7 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
 
           {/* Descrição do Problema */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
               <FileText className="w-4 h-4 inline-block mr-1 mb-0.5" />
               Descrição do Problema *
             </label>
@@ -212,8 +212,8 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
               onChange={handleInputChange}
               rows={4}
               placeholder="Descreva detalhadamente o problema encontrado..."
-              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 resize-none ${
-                errors.descricao ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 resize-none dark:text-gray-100 dark:placeholder-gray-400 ${
+                errors.descricao ? 'border-red-300 bg-red-50 dark:bg-red-900/30 dark:border-red-700' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700'
               }`}
             />
             {errors.descricao && (
@@ -226,7 +226,7 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
 
           {/* Impacto Operacional */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
               <AlertTriangle className="w-4 h-4 inline-block mr-1 mb-0.5" />
               Impacto Operacional *
             </label>
@@ -236,8 +236,8 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
               onChange={handleInputChange}
               rows={3}
               placeholder="Descreva como este problema afeta as operações do laboratório..."
-              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 resize-none ${
-                errors.impactoOperacional ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 resize-none dark:text-gray-100 dark:placeholder-gray-400 ${
+                errors.impactoOperacional ? 'border-red-300 bg-red-50 dark:bg-red-900/30 dark:border-red-700' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700'
               }`}
             />
             {errors.impactoOperacional && (
@@ -250,7 +250,7 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
 
           {/* Data/Hora de Identificação */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
               <Calendar className="w-4 h-4 inline-block mr-1 mb-0.5" />
               Data/Hora de Identificação *
             </label>
@@ -259,8 +259,8 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
               name="dataIdentificacao"
               value={formData.dataIdentificacao as string}
               onChange={handleInputChange}
-              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 ${
-                errors.dataIdentificacao ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 dark:text-gray-100 ${
+                errors.dataIdentificacao ? 'border-red-300 bg-red-50 dark:bg-red-900/30 dark:border-red-700' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-700'
               }`}
             />
             {errors.dataIdentificacao && (
@@ -273,7 +273,7 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
 
           {/* Prioridade */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-3">
               Prioridade *
             </label>
             <div className="grid grid-cols-3 gap-4">
@@ -283,19 +283,19 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
                 onClick={() => handlePriorityChange('common')}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 text-center ${
                   formData.prioridade === 'common'
-                    ? 'border-gray-500 bg-gray-50 ring-2 ring-gray-500/20'
-                    : 'border-gray-200 hover:border-gray-300'
+                    ? 'border-gray-500 bg-gray-50 dark:bg-gray-700/50 ring-2 ring-gray-500/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                 }`}
               >
                 <div className={`w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center ${
-                  formData.prioridade === 'common' ? 'bg-gray-500' : 'bg-gray-100'
+                  formData.prioridade === 'common' ? 'bg-gray-500' : 'bg-gray-100 dark:bg-gray-700'
                 }`}>
                   <span className={`text-lg font-bold ${
                     formData.prioridade === 'common' ? 'text-white' : 'text-gray-400'
                   }`}>N</span>
                 </div>
                 <span className={`text-sm font-medium ${
-                  formData.prioridade === 'common' ? 'text-gray-700' : 'text-gray-500'
+                  formData.prioridade === 'common' ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'
                 }`}>Normal</span>
               </button>
 
@@ -305,19 +305,19 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
                 onClick={() => handlePriorityChange('priority')}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 text-center ${
                   formData.prioridade === 'priority'
-                    ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20'
-                    : 'border-gray-200 hover:border-orange-200'
+                    ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30 ring-2 ring-orange-500/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-orange-200 dark:hover:border-orange-700'
                 }`}
               >
                 <div className={`w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center ${
-                  formData.prioridade === 'priority' ? 'bg-orange-500' : 'bg-orange-100'
+                  formData.prioridade === 'priority' ? 'bg-orange-500' : 'bg-orange-100 dark:bg-orange-900/50'
                 }`}>
                   <span className={`text-lg font-bold ${
                     formData.prioridade === 'priority' ? 'text-white' : 'text-orange-400'
                   }`}>P</span>
                 </div>
                 <span className={`text-sm font-medium ${
-                  formData.prioridade === 'priority' ? 'text-orange-700' : 'text-gray-500'
+                  formData.prioridade === 'priority' ? 'text-orange-700 dark:text-orange-300' : 'text-gray-500 dark:text-gray-400'
                 }`}>Prioritário</span>
               </button>
 
@@ -327,33 +327,33 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
                 onClick={() => handlePriorityChange('urgent')}
                 className={`p-4 rounded-xl border-2 transition-all duration-200 text-center ${
                   formData.prioridade === 'urgent'
-                    ? 'border-red-500 bg-red-50 ring-2 ring-red-500/20'
-                    : 'border-gray-200 hover:border-red-200'
+                    ? 'border-red-500 bg-red-50 dark:bg-red-900/30 ring-2 ring-red-500/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-red-200 dark:hover:border-red-700'
                 }`}
               >
                 <div className={`w-10 h-10 mx-auto mb-2 rounded-lg flex items-center justify-center ${
-                  formData.prioridade === 'urgent' ? 'bg-red-500' : 'bg-red-100'
+                  formData.prioridade === 'urgent' ? 'bg-red-500' : 'bg-red-100 dark:bg-red-900/50'
                 }`}>
                   <AlertTriangle className={`w-5 h-5 ${
                     formData.prioridade === 'urgent' ? 'text-white' : 'text-red-400'
                   }`} />
                 </div>
                 <span className={`text-sm font-medium ${
-                  formData.prioridade === 'urgent' ? 'text-red-700' : 'text-gray-500'
+                  formData.prioridade === 'urgent' ? 'text-red-700 dark:text-red-300' : 'text-gray-500 dark:text-gray-400'
                 }`}>Urgente</span>
               </button>
             </div>
 
             {/* Alerta para prioridade urgente */}
             {formData.prioridade === 'urgent' && (
-              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+              <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700 rounded-xl">
                 <div className="flex items-start gap-3">
                   <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
                     <AlertTriangle className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-red-800">Atenção!</p>
-                    <p className="text-sm text-red-700 mt-1">
+                    <p className="text-sm font-semibold text-red-800 dark:text-red-200">Atenção!</p>
+                    <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                       Somente selecione <strong>URGENTE</strong> quando houver risco iminente à integridade do laboratório, das instalações ou dos colaboradores.
                     </p>
                   </div>
@@ -364,7 +364,7 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
 
           {/* Upload de Imagens */}
           <div>
-            <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">
+            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-3">
               <Image className="w-4 h-4 inline-block mr-1 mb-0.5" />
               Imagens (Opcional)
             </label>
@@ -373,13 +373,13 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
               {/* Upload area */}
               <div
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50/50 transition-all duration-200"
+                className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center cursor-pointer hover:border-orange-400 dark:hover:border-orange-500 hover:bg-orange-50/50 dark:hover:bg-orange-900/20 transition-all duration-200"
               >
                 <Upload className="w-10 h-10 text-gray-400 mx-auto mb-3" />
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 dark:text-gray-300">
                   Clique para selecionar ou arraste imagens aqui
                 </p>
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
                   PNG, JPG ou JPEG (máx. 5MB por arquivo)
                 </p>
               </div>
@@ -401,7 +401,7 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
                       <img
                         src={preview}
                         alt={`Preview ${index + 1}`}
-                        className="w-full h-24 object-cover rounded-lg border border-gray-200"
+                        className="w-full h-24 object-cover rounded-lg border border-gray-200 dark:border-gray-600"
                       />
                       <button
                         type="button"
@@ -419,12 +419,12 @@ const MaintenanceRequestForm: React.FC<MaintenanceRequestFormProps> = ({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-4 mt-8 pt-6 border-t border-gray-100">
+        <div className="flex items-center justify-end gap-4 mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
           <button
             type="button"
             onClick={onCancel}
             disabled={isSubmitting}
-            className="px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors duration-200 font-medium disabled:opacity-50"
+            className="px-6 py-3 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 font-medium disabled:opacity-50"
           >
             Cancelar
           </button>

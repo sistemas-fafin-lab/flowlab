@@ -255,9 +255,9 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
  * Cores para status
  */
 export const PAYMENT_STATUS_COLORS: Record<string, string> = {
-  'pending': 'bg-yellow-100 text-yellow-800',
-  'approved': 'bg-green-100 text-green-800',
-  'rejected': 'bg-red-100 text-red-800',
-  'paid': 'bg-blue-100 text-blue-800',
-  'cancelled': 'bg-gray-100 text-gray-800'
+  'pending': 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700',
+  'approved': 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700',
+  'rejected': 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700',
+  'paid': 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700',
+  'cancelled': 'bg-gray-100 dark:bg-gray-700/50 text-gray-800 dark:text-gray-200 border border-gray-200 dark:border-gray-600'
 };

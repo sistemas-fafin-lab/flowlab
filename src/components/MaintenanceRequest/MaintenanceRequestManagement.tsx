@@ -373,10 +373,10 @@ const MaintenanceRequestManagement: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
             Solicitações de Manutenção
           </h2>
-          <p className="text-gray-500 mt-1">Gerencie as solicitações de manutenção do laboratório</p>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Gerencie as solicitações de manutenção do laboratório</p>
         </div>
         <button
           onClick={() => setShowForm(true)}
@@ -391,7 +391,7 @@ const MaintenanceRequestManagement: React.FC = () => {
       {/* FORMULÁRIO INLINE (renderizado na página) */}
       {/* ========================================== */}
       {showForm && (
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden animate-scale-in">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl border border-gray-100 dark:border-gray-700 overflow-hidden animate-scale-in">
           {/* Header do formulário */}
           <div className="px-4 sm:px-8 py-5 bg-gradient-to-r from-orange-500 to-amber-500">
             <div className="flex items-center justify-between gap-4">
@@ -429,28 +429,28 @@ const MaintenanceRequestManagement: React.FC = () => {
                     <MapPin className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-base font-semibold text-gray-800">Informações da Ocorrência</h4>
-                    <p className="text-xs text-gray-500">Dados sobre o local e problema identificado</p>
+                    <h4 className="text-base font-semibold text-gray-800 dark:text-gray-100">Informações da Ocorrência</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Dados sobre o local e problema identificado</p>
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-4 sm:p-5 border border-gray-100">
+                <div className="bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl p-4 sm:p-5 border border-gray-100 dark:border-gray-600">
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                     {/* Setor (readonly) */}
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
                         <Building2 className="w-3.5 h-3.5 inline-block mr-1.5 mb-0.5" />
                         Setor
                       </label>
-                      <div className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-gray-600 text-sm">
+                      <div className="w-full px-4 py-3 bg-gray-100 dark:bg-gray-600 border border-gray-200 dark:border-gray-500 rounded-xl text-gray-600 dark:text-gray-300 text-sm">
                         {userProfile?.department || 'Não definido'}
                       </div>
-                      <p className="mt-1.5 text-xs text-gray-400">Preenchido automaticamente</p>
+                      <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">Preenchido automaticamente</p>
                     </div>
 
                     {/* Local da Ocorrência */}
                     <div>
-                      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
                         <MapPin className="w-3.5 h-3.5 inline-block mr-1.5 mb-0.5" />
                         Local da Ocorrência *
                       </label>
@@ -460,8 +460,8 @@ const MaintenanceRequestManagement: React.FC = () => {
                         value={formData.localOcorrencia}
                         onChange={handleInputChange}
                         placeholder="Ex: Sala de análises, Laboratório 2..."
-                        className={`w-full px-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm ${
-                          formErrors.localOcorrencia ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                        className={`w-full px-4 py-3 bg-white dark:bg-gray-700 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm dark:text-gray-100 dark:placeholder-gray-400 ${
+                          formErrors.localOcorrencia ? 'border-red-300 bg-red-50 dark:bg-red-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                         }`}
                       />
                       {formErrors.localOcorrencia && (
@@ -474,7 +474,7 @@ const MaintenanceRequestManagement: React.FC = () => {
 
                     {/* Data/Hora de Identificação */}
                     <div className="lg:col-span-2">
-                      <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                      <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
                         <Calendar className="w-3.5 h-3.5 inline-block mr-1.5 mb-0.5" />
                         Data/Hora de Identificação *
                       </label>
@@ -483,8 +483,8 @@ const MaintenanceRequestManagement: React.FC = () => {
                         name="dataIdentificacao"
                         value={formData.dataIdentificacao as string}
                         onChange={handleInputChange}
-                        className={`w-full px-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm ${
-                          formErrors.dataIdentificacao ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                        className={`w-full px-4 py-3 bg-white dark:bg-gray-700 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm dark:text-gray-100 ${
+                          formErrors.dataIdentificacao ? 'border-red-300 bg-red-50 dark:bg-red-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                         }`}
                       />
                       {formErrors.dataIdentificacao && (
@@ -505,15 +505,15 @@ const MaintenanceRequestManagement: React.FC = () => {
                     <FileText className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-base font-semibold text-gray-800">Descrição do Problema</h4>
-                    <p className="text-xs text-gray-500">Detalhe o problema e seu impacto</p>
+                    <h4 className="text-base font-semibold text-gray-800 dark:text-gray-100">Descrição do Problema</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Detalhe o problema e seu impacto</p>
                   </div>
                 </div>
 
-                <div className="bg-gradient-to-br from-gray-50 to-slate-50 rounded-xl p-4 sm:p-5 border border-gray-100 space-y-5">
+                <div className="bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl p-4 sm:p-5 border border-gray-100 dark:border-gray-600 space-y-5">
                   {/* Descrição */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
                       Descrição do Problema *
                     </label>
                     <textarea
@@ -522,8 +522,8 @@ const MaintenanceRequestManagement: React.FC = () => {
                       onChange={handleInputChange}
                       rows={4}
                       placeholder="Descreva detalhadamente o problema encontrado..."
-                      className={`w-full px-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 resize-none text-sm ${
-                        formErrors.descricao ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                      className={`w-full px-4 py-3 bg-white dark:bg-gray-700 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 resize-none text-sm dark:text-gray-100 dark:placeholder-gray-400 ${
+                        formErrors.descricao ? 'border-red-300 bg-red-50 dark:bg-red-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                       }`}
                     />
                     {formErrors.descricao && (
@@ -536,7 +536,7 @@ const MaintenanceRequestManagement: React.FC = () => {
 
                   {/* Impacto Operacional */}
                   <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase tracking-wider mb-2">
+                    <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">
                       <AlertTriangle className="w-3.5 h-3.5 inline-block mr-1.5 mb-0.5" />
                       Impacto Operacional *
                     </label>
@@ -546,8 +546,8 @@ const MaintenanceRequestManagement: React.FC = () => {
                       onChange={handleInputChange}
                       rows={3}
                       placeholder="Descreva como este problema afeta as operações..."
-                      className={`w-full px-4 py-3 bg-white border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 resize-none text-sm ${
-                        formErrors.impactoOperacional ? 'border-red-300 bg-red-50' : 'border-gray-200 hover:border-gray-300'
+                      className={`w-full px-4 py-3 bg-white dark:bg-gray-700 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 resize-none text-sm dark:text-gray-100 dark:placeholder-gray-400 ${
+                        formErrors.impactoOperacional ? 'border-red-300 bg-red-50 dark:bg-red-900/30' : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
                       }`}
                     />
                     {formErrors.impactoOperacional && (
@@ -567,8 +567,8 @@ const MaintenanceRequestManagement: React.FC = () => {
                     <Timer className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-base font-semibold text-gray-800">Prioridade e Prazo</h4>
-                    <p className="text-xs text-gray-500">Defina a urgência da solicitação</p>
+                    <h4 className="text-base font-semibold text-gray-800 dark:text-gray-100">Prioridade e Prazo</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Defina a urgência da solicitação</p>
                   </div>
                 </div>
 
@@ -579,26 +579,26 @@ const MaintenanceRequestManagement: React.FC = () => {
                     onClick={() => handlePriorityChange('common')}
                     className={`p-5 rounded-xl border-2 transition-all duration-200 text-left group hover:shadow-md ${
                       formData.prioridade === 'common'
-                        ? 'border-gray-500 bg-gray-50 ring-2 ring-gray-500/20 shadow-md'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
+                        ? 'border-gray-500 bg-gray-50 dark:bg-gray-700 ring-2 ring-gray-500/20 shadow-md'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500 bg-white dark:bg-gray-800'
                     }`}
                   >
                     <div className="flex items-center gap-3 mb-3">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                        formData.prioridade === 'common' ? 'bg-gray-500' : 'bg-gray-100 group-hover:bg-gray-200'
+                        formData.prioridade === 'common' ? 'bg-gray-500' : 'bg-gray-100 dark:bg-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-600'
                       }`}>
                         <Clock className={`w-5 h-5 ${
-                          formData.prioridade === 'common' ? 'text-white' : 'text-gray-500'
+                          formData.prioridade === 'common' ? 'text-white' : 'text-gray-500 dark:text-gray-400'
                         }`} />
                       </div>
                       <div>
                         <span className={`text-sm font-semibold ${
-                          formData.prioridade === 'common' ? 'text-gray-800' : 'text-gray-600'
+                          formData.prioridade === 'common' ? 'text-gray-800 dark:text-gray-100' : 'text-gray-600 dark:text-gray-300'
                         }`}>Normal</span>
                       </div>
                     </div>
                     <div className={`flex items-center gap-2 text-xs ${
-                      formData.prioridade === 'common' ? 'text-gray-600' : 'text-gray-400'
+                      formData.prioridade === 'common' ? 'text-gray-600 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'
                     }`}>
                       <Timer className="w-3.5 h-3.5" />
                       <span>{PRIORITY_DEADLINES.common}</span>
@@ -611,26 +611,26 @@ const MaintenanceRequestManagement: React.FC = () => {
                     onClick={() => handlePriorityChange('priority')}
                     className={`p-5 rounded-xl border-2 transition-all duration-200 text-left group hover:shadow-md ${
                       formData.prioridade === 'priority'
-                        ? 'border-orange-500 bg-orange-50 ring-2 ring-orange-500/20 shadow-md'
-                        : 'border-gray-200 hover:border-orange-200 bg-white'
+                        ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/30 ring-2 ring-orange-500/20 shadow-md'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-orange-200 dark:hover:border-orange-500/50 bg-white dark:bg-gray-800'
                     }`}
                   >
                     <div className="flex items-center gap-3 mb-3">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                        formData.prioridade === 'priority' ? 'bg-orange-500' : 'bg-orange-100 group-hover:bg-orange-200'
+                        formData.prioridade === 'priority' ? 'bg-orange-500' : 'bg-orange-100 dark:bg-orange-900/50 group-hover:bg-orange-200 dark:group-hover:bg-orange-900/70'
                       }`}>
                         <AlertCircle className={`w-5 h-5 ${
-                          formData.prioridade === 'priority' ? 'text-white' : 'text-orange-500'
+                          formData.prioridade === 'priority' ? 'text-white' : 'text-orange-500 dark:text-orange-400'
                         }`} />
                       </div>
                       <div>
                         <span className={`text-sm font-semibold ${
-                          formData.prioridade === 'priority' ? 'text-orange-800' : 'text-gray-600'
+                          formData.prioridade === 'priority' ? 'text-orange-800 dark:text-orange-200' : 'text-gray-600 dark:text-gray-300'
                         }`}>Prioritário</span>
                       </div>
                     </div>
                     <div className={`flex items-center gap-2 text-xs font-medium ${
-                      formData.prioridade === 'priority' ? 'text-orange-600' : 'text-gray-400'
+                      formData.prioridade === 'priority' ? 'text-orange-600 dark:text-orange-300' : 'text-gray-400 dark:text-gray-500'
                     }`}>
                       <Timer className="w-3.5 h-3.5" />
                       <span>{PRIORITY_DEADLINES.priority}</span>
@@ -643,26 +643,26 @@ const MaintenanceRequestManagement: React.FC = () => {
                     onClick={() => handlePriorityChange('urgent')}
                     className={`p-5 rounded-xl border-2 transition-all duration-200 text-left group hover:shadow-md ${
                       formData.prioridade === 'urgent'
-                        ? 'border-red-500 bg-red-50 ring-2 ring-red-500/20 shadow-md'
-                        : 'border-gray-200 hover:border-red-200 bg-white'
+                        ? 'border-red-500 bg-red-50 dark:bg-red-900/30 ring-2 ring-red-500/20 shadow-md'
+                        : 'border-gray-200 dark:border-gray-600 hover:border-red-200 dark:hover:border-red-500/50 bg-white dark:bg-gray-800'
                     }`}
                   >
                     <div className="flex items-center gap-3 mb-3">
                       <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-                        formData.prioridade === 'urgent' ? 'bg-red-500' : 'bg-red-100 group-hover:bg-red-200'
+                        formData.prioridade === 'urgent' ? 'bg-red-500' : 'bg-red-100 dark:bg-red-900/50 group-hover:bg-red-200 dark:group-hover:bg-red-900/70'
                       }`}>
                         <AlertTriangle className={`w-5 h-5 ${
-                          formData.prioridade === 'urgent' ? 'text-white' : 'text-red-500'
+                          formData.prioridade === 'urgent' ? 'text-white' : 'text-red-500 dark:text-red-400'
                         }`} />
                       </div>
                       <div>
                         <span className={`text-sm font-semibold ${
-                          formData.prioridade === 'urgent' ? 'text-red-800' : 'text-gray-600'
+                          formData.prioridade === 'urgent' ? 'text-red-800 dark:text-red-200' : 'text-gray-600 dark:text-gray-300'
                         }`}>Urgente</span>
                       </div>
                     </div>
                     <div className={`flex items-center gap-2 text-xs font-medium ${
-                      formData.prioridade === 'urgent' ? 'text-red-600' : 'text-gray-400'
+                      formData.prioridade === 'urgent' ? 'text-red-600 dark:text-red-300' : 'text-gray-400 dark:text-gray-500'
                     }`}>
                       <Timer className="w-3.5 h-3.5" />
                       <span>{PRIORITY_DEADLINES.urgent}</span>
@@ -672,14 +672,14 @@ const MaintenanceRequestManagement: React.FC = () => {
 
                 {/* Alerta para prioridade urgente */}
                 {formData.prioridade === 'urgent' && (
-                  <div className="p-4 bg-red-50 border border-red-200 rounded-xl animate-fade-in">
+                  <div className="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl animate-fade-in">
                     <div className="flex items-start gap-3">
                       <div className="w-9 h-9 bg-red-500 rounded-lg flex items-center justify-center flex-shrink-0 shadow-md shadow-red-500/25">
                         <AlertTriangle className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <p className="text-sm font-semibold text-red-800">Atenção!</p>
-                        <p className="text-sm text-red-700 mt-1">
+                        <p className="text-sm font-semibold text-red-800 dark:text-red-200">Atenção!</p>
+                        <p className="text-sm text-red-700 dark:text-red-300 mt-1">
                           Somente selecione <strong>URGENTE</strong> quando houver risco iminente à integridade do laboratório, das instalações ou dos colaboradores.
                         </p>
                       </div>
@@ -695,31 +695,31 @@ const MaintenanceRequestManagement: React.FC = () => {
                     <Shield className="w-4 h-4 text-white" />
                   </div>
                   <div>
-                    <h4 className="text-base font-semibold text-gray-800">Autorização do Gestor Imediato *</h4>
-                    <p className="text-xs text-gray-500">Obrigatório para prosseguir com a solicitação</p>
+                    <h4 className="text-base font-semibold text-gray-800 dark:text-gray-100">Autorização do Gestor Imediato *</h4>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Obrigatório para prosseguir com a solicitação</p>
                   </div>
                 </div>
 
                 <div className={`bg-gradient-to-br rounded-xl p-4 sm:p-5 border-2 transition-colors ${
                   formErrors.images 
-                    ? 'from-red-50 to-rose-50 border-red-300' 
+                    ? 'from-red-50 to-rose-50 dark:from-red-900/30 dark:to-rose-900/30 border-red-300 dark:border-red-700' 
                     : imagePreviews.length > 0 
-                      ? 'from-emerald-50 to-teal-50 border-emerald-200' 
-                      : 'from-gray-50 to-slate-50 border-gray-200 border-dashed'
+                      ? 'from-emerald-50 to-teal-50 dark:from-emerald-900/30 dark:to-teal-900/30 border-emerald-200 dark:border-emerald-700' 
+                      : 'from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 border-gray-200 dark:border-gray-600 border-dashed'
                 }`}>
                   
                   {/* Aviso de obrigatoriedade */}
                   <div className={`mb-4 p-3 rounded-lg flex items-start gap-3 ${
-                    formErrors.images ? 'bg-red-100' : 'bg-amber-50 border border-amber-200'
+                    formErrors.images ? 'bg-red-100 dark:bg-red-900/50' : 'bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700'
                   }`}>
                     <AlertCircle className={`w-5 h-5 flex-shrink-0 mt-0.5 ${
-                      formErrors.images ? 'text-red-500' : 'text-amber-500'
+                      formErrors.images ? 'text-red-500' : 'text-amber-500 dark:text-amber-400'
                     }`} />
                     <div>
-                      <p className={`text-sm font-medium ${formErrors.images ? 'text-red-800' : 'text-amber-800'}`}>
+                      <p className={`text-sm font-medium ${formErrors.images ? 'text-red-800 dark:text-red-200' : 'text-amber-800 dark:text-amber-200'}`}>
                         Documento obrigatório
                       </p>
-                      <p className={`text-xs mt-0.5 ${formErrors.images ? 'text-red-600' : 'text-amber-600'}`}>
+                      <p className={`text-xs mt-0.5 ${formErrors.images ? 'text-red-600 dark:text-red-300' : 'text-amber-600 dark:text-amber-300'}`}>
                         Anexe uma imagem da autorização assinada pelo seu gestor imediato para validar esta solicitação de manutenção.
                       </p>
                     </div>
@@ -730,17 +730,17 @@ const MaintenanceRequestManagement: React.FC = () => {
                     onClick={() => fileInputRef.current?.click()}
                     className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all duration-200 ${
                       formErrors.images 
-                        ? 'border-red-300 bg-red-50/50 hover:border-red-400 hover:bg-red-100/50'
-                        : 'border-gray-300 hover:border-orange-400 hover:bg-orange-50/50'
+                        ? 'border-red-300 dark:border-red-700 bg-red-50/50 dark:bg-red-900/20 hover:border-red-400 hover:bg-red-100/50 dark:hover:bg-red-900/40'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-orange-400 hover:bg-orange-50/50 dark:hover:bg-orange-900/20'
                     }`}
                   >
                     <Upload className={`w-10 h-10 mx-auto mb-3 ${
-                      formErrors.images ? 'text-red-400' : 'text-gray-400'
+                      formErrors.images ? 'text-red-400' : 'text-gray-400 dark:text-gray-500'
                     }`} />
-                    <p className={`text-sm font-medium ${formErrors.images ? 'text-red-600' : 'text-gray-600'}`}>
+                    <p className={`text-sm font-medium ${formErrors.images ? 'text-red-600 dark:text-red-400' : 'text-gray-600 dark:text-gray-300'}`}>
                       Clique para selecionar ou arraste a imagem aqui
                     </p>
-                    <p className="text-xs text-gray-400 mt-2">
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">
                       PNG, JPG ou JPEG (máx. 5MB por arquivo)
                     </p>
                   </div>
@@ -796,7 +796,7 @@ const MaintenanceRequestManagement: React.FC = () => {
             </div>
 
             {/* Actions */}
-            <div className="flex flex-col sm:flex-row items-center justify-end gap-3 mt-8 pt-6 border-t border-gray-100">
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-3 mt-8 pt-6 border-t border-gray-100 dark:border-gray-700">
               <button
                 type="button"
                 onClick={() => {
@@ -804,7 +804,7 @@ const MaintenanceRequestManagement: React.FC = () => {
                   setShowForm(false);
                 }}
                 disabled={isSubmitting}
-                className="w-full sm:w-auto px-6 py-3 text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors duration-200 font-medium disabled:opacity-50"
+                className="w-full sm:w-auto px-6 py-3 text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors duration-200 font-medium disabled:opacity-50"
               >
                 Cancelar
               </button>
@@ -831,7 +831,7 @@ const MaintenanceRequestManagement: React.FC = () => {
       )}
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 sm:p-6 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {/* Search */}
           <div className="relative">
@@ -841,7 +841,7 @@ const MaintenanceRequestManagement: React.FC = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por código, local..."
-              className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm"
+              className="w-full pl-12 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm bg-white dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
             />
           </div>
 
@@ -851,7 +851,7 @@ const MaintenanceRequestManagement: React.FC = () => {
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full pl-12 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 appearance-none text-sm cursor-pointer"
+              className="w-full pl-12 pr-10 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 appearance-none text-sm cursor-pointer bg-white dark:bg-gray-700 dark:text-gray-100"
             >
               <option value="all">Todos os Status</option>
               <option value="pending">Pendente</option>
@@ -868,7 +868,7 @@ const MaintenanceRequestManagement: React.FC = () => {
             <select
               value={priorityFilter}
               onChange={(e) => setPriorityFilter(e.target.value)}
-              className="w-full pl-12 pr-10 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 appearance-none text-sm cursor-pointer"
+              className="w-full pl-12 pr-10 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 appearance-none text-sm cursor-pointer bg-white dark:bg-gray-700 dark:text-gray-100"
             >
               <option value="all">Todas as Prioridades</option>
               <option value="urgent">Urgente</option>
@@ -885,7 +885,7 @@ const MaintenanceRequestManagement: React.FC = () => {
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm"
+              className="w-full pl-12 pr-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all duration-200 text-sm bg-white dark:bg-gray-700 dark:text-gray-100"
             />
           </div>
         </div>
@@ -897,23 +897,23 @@ const MaintenanceRequestManagement: React.FC = () => {
           {/* Pendentes */}
           <button
             onClick={() => toggleStatusCardFilter('pending')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('pending') 
-                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50' 
-                : 'border-gray-100 hover:border-yellow-200'
+                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50 dark:bg-yellow-900/30' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-yellow-200 dark:hover:border-yellow-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100'
+                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100 dark:bg-yellow-900/50'
               }`}>
-                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600'}`} />
+                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600 dark:text-yellow-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {maintenanceRequests.filter(r => r.status === 'pending').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Pendentes</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Pendentes</p>
               </div>
             </div>
           </button>
@@ -921,23 +921,23 @@ const MaintenanceRequestManagement: React.FC = () => {
           {/* Em Andamento */}
           <button
             onClick={() => toggleStatusCardFilter('in_progress')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('in_progress') 
-                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50' 
-                : 'border-gray-100 hover:border-blue-200'
+                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50 dark:bg-blue-900/30' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('in_progress') ? 'bg-blue-500' : 'bg-blue-100'
+                selectedStatusFilters.has('in_progress') ? 'bg-blue-500' : 'bg-blue-100 dark:bg-blue-900/50'
               }`}>
-                <Play className={`w-5 h-5 ${selectedStatusFilters.has('in_progress') ? 'text-white' : 'text-blue-600'}`} />
+                <Play className={`w-5 h-5 ${selectedStatusFilters.has('in_progress') ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {maintenanceRequests.filter(r => r.status === 'in_progress').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Em Andamento</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Em Andamento</p>
               </div>
             </div>
           </button>
@@ -945,23 +945,23 @@ const MaintenanceRequestManagement: React.FC = () => {
           {/* Concluídas */}
           <button
             onClick={() => toggleStatusCardFilter('completed')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('completed') 
-                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50' 
-                : 'border-gray-100 hover:border-green-200'
+                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50 dark:bg-green-900/30' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('completed') ? 'bg-green-500' : 'bg-green-100'
+                selectedStatusFilters.has('completed') ? 'bg-green-500' : 'bg-green-100 dark:bg-green-900/50'
               }`}>
-                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('completed') ? 'text-white' : 'text-green-600'}`} />
+                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('completed') ? 'text-white' : 'text-green-600 dark:text-green-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {maintenanceRequests.filter(r => r.status === 'completed').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Concluídas</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Concluídas</p>
               </div>
             </div>
           </button>
@@ -969,23 +969,23 @@ const MaintenanceRequestManagement: React.FC = () => {
           {/* Canceladas */}
           <button
             onClick={() => toggleStatusCardFilter('cancelled')}
-            className={`bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
+            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
               selectedStatusFilters.has('cancelled') 
-                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50' 
-                : 'border-gray-100 hover:border-red-200'
+                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50 dark:bg-red-900/30' 
+                : 'border-gray-100 dark:border-gray-700 hover:border-red-200 dark:hover:border-red-700'
             }`}
           >
             <div className="flex items-center gap-3">
               <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('cancelled') ? 'bg-red-500' : 'bg-red-100'
+                selectedStatusFilters.has('cancelled') ? 'bg-red-500' : 'bg-red-100 dark:bg-red-900/50'
               }`}>
-                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('cancelled') ? 'text-white' : 'text-red-600'}`} />
+                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('cancelled') ? 'text-white' : 'text-red-600 dark:text-red-400'}`} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
                   {maintenanceRequests.filter(r => r.status === 'cancelled').length}
                 </p>
-                <p className="text-xs text-gray-500 font-medium">Canceladas</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Canceladas</p>
               </div>
             </div>
           </button>
@@ -995,7 +995,7 @@ const MaintenanceRequestManagement: React.FC = () => {
       {/* Indicador de filtros ativos por cards */}
       {selectedStatusFilters.size > 0 && userProfile?.role !== 'requester' && (
         <div className="flex items-center gap-2 animate-fade-in">
-          <span className="text-sm text-gray-500">Filtros ativos:</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">Filtros ativos:</span>
           {Array.from(selectedStatusFilters).map(status => (
             <span 
               key={status}
@@ -1015,14 +1015,14 @@ const MaintenanceRequestManagement: React.FC = () => {
 
       {/* Requests List */}
       {filteredRequests.length === 0 ? (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
-          <div className="w-20 h-20 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-            <Wrench className="w-10 h-10 text-gray-300" />
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-12 text-center animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
+          <div className="w-20 h-20 bg-gray-100 dark:bg-gray-700 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <Wrench className="w-10 h-10 text-gray-300 dark:text-gray-500" />
           </div>
-          <h3 className="text-lg font-semibold text-gray-600 mb-2">
+          <h3 className="text-lg font-semibold text-gray-600 dark:text-gray-300 mb-2">
             Nenhuma solicitação encontrada
           </h3>
-          <p className="text-gray-400 text-sm">
+          <p className="text-gray-400 dark:text-gray-500 text-sm">
             {searchTerm || statusFilter !== 'all' || priorityFilter !== 'all'
               ? 'Tente ajustar os filtros de busca'
               : 'Clique em "Nova Solicitação" para criar'}
@@ -1033,7 +1033,7 @@ const MaintenanceRequestManagement: React.FC = () => {
           {filteredRequests.map((request, index) => (
             <div
               key={request.id}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden hover:shadow-lg hover:border-orange-100 transition-all duration-300 animate-fade-in-up"
+              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-lg hover:border-orange-100 dark:hover:border-orange-900/50 transition-all duration-300 animate-fade-in-up"
               style={{ animationDelay: `${0.15 + index * 0.03}s` }}
             >
               <div className="p-5 sm:p-6">
@@ -1061,18 +1061,18 @@ const MaintenanceRequestManagement: React.FC = () => {
                     </div>
 
                     {/* Location */}
-                    <div className="flex items-center gap-2 text-gray-700 mb-2">
+                    <div className="flex items-center gap-2 text-gray-700 dark:text-gray-200 mb-2">
                       <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
                       <span className="font-medium text-sm sm:text-base">{request.localOcorrencia}</span>
                     </div>
 
                     {/* Description preview */}
-                    <p className="text-sm text-gray-500 line-clamp-2 mb-3">
+                    <p className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mb-3">
                       {request.descricao}
                     </p>
 
                     {/* Meta info */}
-                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gray-400">
+                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gray-400 dark:text-gray-500">
                       <span className="flex items-center gap-1.5">
                         <User className="w-3.5 h-3.5" />
                         {request.requesterName}
@@ -1086,7 +1086,7 @@ const MaintenanceRequestManagement: React.FC = () => {
                         {formatDate(request.createdAt)}
                       </span>
                       {request.images.length > 0 && (
-                        <span className="flex items-center gap-1.5 text-emerald-500">
+                        <span className="flex items-center gap-1.5 text-emerald-500 dark:text-emerald-400">
                           <Shield className="w-3.5 h-3.5" />
                           Autorização anexada
                         </span>
@@ -1101,7 +1101,7 @@ const MaintenanceRequestManagement: React.FC = () => {
                         setSelectedRequest(request);
                         setShowDetailModal(true);
                       }}
-                      className="p-2.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"
+                      className="p-2.5 text-gray-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/30 rounded-xl transition-colors"
                       title="Ver detalhes"
                     >
                       <Eye className="w-5 h-5" />
@@ -1110,7 +1110,7 @@ const MaintenanceRequestManagement: React.FC = () => {
                     {canManage && request.status === 'pending' && (
                       <button
                         onClick={() => handleStatusUpdate(request.id, 'in_progress', { assignedTo: userProfile?.name || '' })}
-                        className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors"
+                        className="p-2.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-xl transition-colors"
                         title="Iniciar atendimento"
                       >
                         <Play className="w-5 h-5" />
@@ -1120,7 +1120,7 @@ const MaintenanceRequestManagement: React.FC = () => {
                     {canManage && request.status === 'in_progress' && (
                       <button
                         onClick={() => handleStatusUpdate(request.id, 'completed')}
-                        className="p-2.5 text-gray-400 hover:text-green-600 hover:bg-green-50 rounded-xl transition-colors"
+                        className="p-2.5 text-gray-400 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 rounded-xl transition-colors"
                         title="Marcar como concluído"
                       >
                         <CheckCircle2 className="w-5 h-5" />
@@ -1130,7 +1130,7 @@ const MaintenanceRequestManagement: React.FC = () => {
                     {canManage && (
                       <button
                         onClick={() => handleDelete(request)}
-                        className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+                        className="p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-xl transition-colors"
                         title="Excluir"
                       >
                         <Trash2 className="w-5 h-5" />
@@ -1147,7 +1147,7 @@ const MaintenanceRequestManagement: React.FC = () => {
       {/* Detail Modal */}
       {showDetailModal && selectedRequest && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 animate-fade-in">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto animate-scale-in">
             {/* Header */}
             <div className="px-6 py-5 bg-gradient-to-r from-orange-500 to-amber-500 sticky top-0 z-10">
               <div className="flex items-center justify-between">
@@ -1181,7 +1181,7 @@ const MaintenanceRequestManagement: React.FC = () => {
                   {getPriorityIcon(selectedRequest.prioridade)}
                   {MAINTENANCE_PRIORITY_LABELS[selectedRequest.prioridade]}
                 </span>
-                <span className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 text-gray-600 flex items-center gap-2">
+                <span className="px-4 py-2 rounded-xl text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 flex items-center gap-2">
                   <Timer className="w-4 h-4" />
                   {PRIORITY_DEADLINES[selectedRequest.prioridade]}
                 </span>
@@ -1189,37 +1189,37 @@ const MaintenanceRequestManagement: React.FC = () => {
 
               {/* Info Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="bg-gray-50 rounded-xl p-4">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
                   <p className="text-xs font-semibold text-gray-400 uppercase mb-1.5">Solicitante</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedRequest.requesterName}</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{selectedRequest.requesterName}</p>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
                   <p className="text-xs font-semibold text-gray-400 uppercase mb-1.5">Setor</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedRequest.department}</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{selectedRequest.department}</p>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
                   <p className="text-xs font-semibold text-gray-400 uppercase mb-1.5">Local</p>
-                  <p className="text-sm font-medium text-gray-800">{selectedRequest.localOcorrencia}</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{selectedRequest.localOcorrencia}</p>
                 </div>
-                <div className="bg-gray-50 rounded-xl p-4">
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
                   <p className="text-xs font-semibold text-gray-400 uppercase mb-1.5">Data de Identificação</p>
-                  <p className="text-sm font-medium text-gray-800">{formatDate(selectedRequest.dataIdentificacao)}</p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-200">{formatDate(selectedRequest.dataIdentificacao)}</p>
                 </div>
               </div>
 
               {/* Description */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Descrição do Problema</p>
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedRequest.descricao}</p>
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{selectedRequest.descricao}</p>
                 </div>
               </div>
 
               {/* Impact */}
               <div>
                 <p className="text-xs font-semibold text-gray-400 uppercase mb-2">Impacto Operacional</p>
-                <div className="bg-gray-50 rounded-xl p-4">
-                  <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedRequest.impactoOperacional}</p>
+                <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                  <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{selectedRequest.impactoOperacional}</p>
                 </div>
               </div>
 
@@ -1250,11 +1250,11 @@ const MaintenanceRequestManagement: React.FC = () => {
 
               {/* Assigned info */}
               {selectedRequest.assignedTo && (
-                <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
-                  <p className="text-xs font-semibold text-blue-600 uppercase mb-1.5">Atendido por</p>
-                  <p className="text-sm font-medium text-blue-800">{selectedRequest.assignedTo}</p>
+                <div className="bg-blue-50 dark:bg-blue-900/30 rounded-xl p-4 border border-blue-200 dark:border-blue-800">
+                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase mb-1.5">Atendido por</p>
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-200">{selectedRequest.assignedTo}</p>
                   {selectedRequest.assignedAt && (
-                    <p className="text-xs text-blue-600 mt-1.5">
+                    <p className="text-xs text-blue-600 dark:text-blue-400 mt-1.5">
                       Iniciado em {formatDate(selectedRequest.assignedAt)}
                     </p>
                   )}
@@ -1263,15 +1263,15 @@ const MaintenanceRequestManagement: React.FC = () => {
 
               {/* Completion notes */}
               {selectedRequest.completionNotes && (
-                <div className="bg-green-50 rounded-xl p-4 border border-green-200">
-                  <p className="text-xs font-semibold text-green-600 uppercase mb-1.5">Observações de Conclusão</p>
-                  <p className="text-sm text-green-800">{selectedRequest.completionNotes}</p>
+                <div className="bg-green-50 dark:bg-green-900/30 rounded-xl p-4 border border-green-200 dark:border-green-800">
+                  <p className="text-xs font-semibold text-green-600 dark:text-green-400 uppercase mb-1.5">Observações de Conclusão</p>
+                  <p className="text-sm text-green-800 dark:text-green-200">{selectedRequest.completionNotes}</p>
                 </div>
               )}
 
               {/* Action Buttons */}
               {canManage && (
-                <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-100">
+                <div className="flex flex-wrap items-center justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-700">
                   {selectedRequest.status === 'pending' && (
                     <button
                       onClick={() => handleStatusUpdate(selectedRequest.id, 'in_progress', { assignedTo: userProfile?.name || '' })}
@@ -1293,7 +1293,7 @@ const MaintenanceRequestManagement: React.FC = () => {
                   {(selectedRequest.status === 'pending' || selectedRequest.status === 'in_progress') && (
                     <button
                       onClick={() => handleStatusUpdate(selectedRequest.id, 'cancelled')}
-                      className="px-5 py-2.5 bg-gray-100 text-gray-700 rounded-xl hover:bg-gray-200 transition-colors font-medium flex items-center gap-2 text-sm"
+                      className="px-5 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium flex items-center gap-2 text-sm"
                     >
                       <XCircle className="w-4 h-4" />
                       Cancelar
