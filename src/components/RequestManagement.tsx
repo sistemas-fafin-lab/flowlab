@@ -526,30 +526,32 @@ const handleCompleteRequest = async (request: Request) => {
 
   const handleStartQuotation = async (request: Request) => {
     try {
-      // Criar cotação com todos os fornecedores ativos
+      // Verificar se há fornecedores ativos
       const activeSuppliers = suppliers.filter(s => s.status === 'active');
       
       if (activeSuppliers.length === 0) {
-        showWarning('Nenhum fornecedor ativo encontrado para criar a cotação.');
+        showWarning('Nenhum fornecedor ativo encontrado. Cadastre fornecedores antes de criar cotações.');
         return;
       }
 
-      // Para múltiplos produtos, criar cotação para cada um
-      for (const item of request.items) {
+      // Deduplicar itens por productId para evitar cotações duplicadas
+      const uniqueItems = request.items.filter((item, index, self) =>
+        index === self.findIndex((i) => i.productId === item.productId)
+      );
+
+      console.log(`Criando ${uniqueItems.length} cotação(ões) para requisição ${request.id}`);
+
+      // Criar UMA cotação para cada PRODUTO da requisição
+      for (const item of uniqueItems) {
         await createQuotation({
           requestId: request.id,
           productId: item.productId,
           productName: item.productName,
-          requestedQuantity: item.quantity,
-          suppliers: activeSuppliers.map(s => ({
-            id: s.id,
-            name: s.name,
-            quotePrice: null
-          }))
+          requestedQuantity: item.quantity
         });
       }
 
-      showSuccess('Cotações criadas com sucesso! Verifique a aba de cotações.');
+      showSuccess(`${uniqueItems.length} cotação(ões) criada(s)! Vá para a aba de Cotações para solicitar propostas dos fornecedores.`);
     } catch (error) {
       console.error('Erro ao criar cotação:', error);
       showError('Erro ao criar cotação. Tente novamente.');

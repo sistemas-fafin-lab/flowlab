@@ -13,10 +13,11 @@ import ExpirationMonitor from './components/ExpirationMonitor';
 import ProductChangeLog from './components/ProductChangeLog';
 import UserManagement from './components/UserManagement';
 import SupplierManagement from './components/SupplierManagement';
-import QuotationManagement from './components/QuotationManagement';
+import { QuotationManagementPage } from './modules/quotations';
 import RequestPeriodConfig from './components/RequestPeriodConfig';
 import ResetPassword from './components/ResetPassword';
 import Home from './components/Home';
+import { MessagingProviderSettings } from './modules/messaging';
 import PaymentRequestManagement from './components/PaymentRequestManagement';
 import RequestHub from './components/RequestHub';
 import { MaintenanceRequestManagement } from './components/MaintenanceRequest';
@@ -162,7 +163,7 @@ const AuthenticatedApp: React.FC = () => {
           path="/quotations"
           element={
             <ProtectedRoute permission="canManageQuotations" userRole={userRole}>
-              <QuotationManagement />
+              <QuotationManagementPage />
             </ProtectedRoute>
           }
         />
@@ -171,6 +172,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canConfigureRequestPeriods" userRole={userRole}>
               <RequestPeriodConfig />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/messaging-settings"
+          element={
+            <ProtectedRoute permission="canManageUsers" userRole={userRole}>
+              <MessagingProviderSettings />
             </ProtectedRoute>
           }
         />

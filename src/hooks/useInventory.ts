@@ -187,11 +187,16 @@ export const useInventory = () => {
     const { data, error } = await supabase
       .from('suppliers')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('name', { ascending: true });
 
     if (error) throw error;
 
-    const formattedSuppliers: Supplier[] = data.map(supplier => ({
+    // Deduplicar fornecedores por ID (caso haja duplicatas no banco)
+    const uniqueData = data.filter((supplier, index, self) =>
+      index === self.findIndex((s) => s.id === supplier.id)
+    );
+
+    const formattedSuppliers: Supplier[] = uniqueData.map(supplier => ({
       id: supplier.id,
       name: supplier.name,
       cnpj: supplier.cnpj,
@@ -571,7 +576,7 @@ export const useInventory = () => {
           email: supplier.email,
           phone: supplier.phone,
           address: supplier.address,
-          contactperson: supplier.contactPerson,
+          contact_person: supplier.contactPerson,
           products: supplier.products,
           status: supplier.status
         });
@@ -593,7 +598,7 @@ export const useInventory = () => {
       if (updates.email !== undefined) updateData.email = updates.email;
       if (updates.phone !== undefined) updateData.phone = updates.phone;
       if (updates.address !== undefined) updateData.address = updates.address;
-      if (updates.contactPerson !== undefined) updateData.contactperson = updates.contactPerson;
+      if (updates.contactPerson !== undefined) updateData.contact_person = updates.contactPerson;
       if (updates.products !== undefined) updateData.products = updates.products;
       if (updates.status !== undefined) updateData.status = updates.status;
 
@@ -611,14 +616,29 @@ export const useInventory = () => {
   };
 
   // Quotation functions
+  // Modelo: 1 quotation = 1 ou mais produtos sendo cotados
+  // quotation_items = produtos/itens a serem cotados
+  // quotation_proposals = respostas dos fornecedores (criadas quando respondem)
   const createQuotation = async (quotationData: {
     requestId: string;
     productId: string;
     productName: string;
     requestedQuantity: number;
-    suppliers: { id: string; name: string; quotePrice?: number | null }[];
   }) => {
     try {
+      // Verificar se já existe cotação para este request + produto
+      const { data: existingQuotation } = await supabase
+        .from('quotations')
+        .select('id')
+        .eq('request_id', quotationData.requestId)
+        .eq('product_id', quotationData.productId)
+        .maybeSingle();
+
+      if (existingQuotation) {
+        console.log('Cotação já existe para este produto:', existingQuotation.id);
+        return existingQuotation;
+      }
+
       const { data: quotation, error: quotationError } = await supabase
         .from('quotations')
         .insert({
@@ -626,27 +646,58 @@ export const useInventory = () => {
           product_id: quotationData.productId,
           product_name: quotationData.productName,
           requested_quantity: quotationData.requestedQuantity,
-          created_by: 'Sistema' // You might want to pass the actual user
+          status: 'open',
+          created_by: 'Sistema'
         })
         .select()
         .single();
 
       if (quotationError) throw quotationError;
 
-      // Create quotation items for each supplier
-      const quotationItems = quotationData.suppliers.map(supplier => ({
-        quotation_id: quotation.id,
-        supplier_id: supplier.id,
-        supplier_name: supplier.name,
-        unit_price: supplier.quotePrice,
-        total_price: supplier.quotePrice ? supplier.quotePrice * quotationData.requestedQuantity : null
-      }));
-
-      const { error: itemsError } = await supabase
+      // Criar ONE quotation_item para o produto sendo cotado
+      // Isso é necessário para o workflow avançar (requer hasItems)
+      const { error: itemError } = await supabase
         .from('quotation_items')
-        .insert(quotationItems);
+        .insert({
+          quotation_id: quotation.id,
+          product_id: quotationData.productId,
+          product_name: quotationData.productName,
+          quantity: quotationData.requestedQuantity,
+          unit: 'un',
+          status: 'pending'
+        });
 
-      if (itemsError) throw itemsError;
+      if (itemError) {
+        console.error('Erro ao criar quotation_item:', itemError);
+        // Não falhar a criação da cotação, apenas logar
+      }
+
+      // Convidar TODOS os fornecedores ativos para a cotação
+      // Isso é necessário para o workflow avançar (requer hasSuppliers)
+      const activeSuppliers = suppliers.filter(s => s.status === 'active');
+      if (activeSuppliers.length > 0) {
+        const invitations = activeSuppliers.map(supplier => ({
+          quotation_id: quotation.id,
+          supplier_id: supplier.id,
+          supplier_name: supplier.name,
+          supplier_email: supplier.email,
+          supplier_phone: supplier.phone || null,
+          status: 'invited'
+        }));
+
+        const { error: suppliersError } = await supabase
+          .from('quotation_invited_suppliers')
+          .insert(invitations);
+
+        if (suppliersError) {
+          console.error('Erro ao convidar fornecedores:', suppliersError);
+          // Não falhar a criação da cotação, apenas logar
+        } else {
+          console.log(`${activeSuppliers.length} fornecedores convidados para cotação ${quotation.id}`);
+        }
+      }
+
+      console.log(`Cotação ${quotation.id} criada com 1 item para produto: ${quotationData.productName}`);
 
       await fetchQuotations();
       return quotation;

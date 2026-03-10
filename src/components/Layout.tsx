@@ -18,7 +18,9 @@ import {
   Shield,
   Building2,
   Calculator,
-  DollarSign
+  DollarSign,
+  MessageSquare,
+  Settings
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission, getRoleLabel } from '../utils/permissions';
@@ -93,10 +95,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       permission: 'canManageUsers'
     },
     {
-      name: 'Configurar Períodos',
-      href: '/request-periods',
-      icon: Clock,
-      permission: 'canConfigureRequestPeriods'
+      name: 'Sistema',
+      href: '/system',
+      icon: Settings,
+      permission: 'canManageUsers',
+      subItems: [
+        { name: 'Configurar Períodos', href: '/request-periods', icon: Clock, permission: 'canConfigureRequestPeriods' },
+        { name: 'Provedores de Mensagens', href: '/messaging-settings', icon: MessageSquare, permission: 'canManageUsers' },
+      ]
     }
   ];
 
@@ -323,7 +329,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             <p className="text-sm font-medium text-gray-800 truncate" title={userProfile?.name || user?.email}>
               {userProfile?.name || user?.email}
             </p>
-            <p className="text-xs text-gray-500">{getRoleLabel(userRole)}</p>
+            <p className="text-xs text-gray-500">{getRoleLabel(userRole as any)}</p>
             <p className="text-xs text-blue-600 font-medium">{userProfile?.department}</p>
           </div>
         </div>

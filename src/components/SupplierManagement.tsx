@@ -11,7 +11,7 @@ import InputDialog from './InputDialog';
 const SupplierManagement: React.FC = () => {
   const { suppliers, addSupplier, updateSupplier, deleteSupplier } = useInventory();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
-  const { showConfirmDialog } = useDialog();
+  const { confirmDialog, showConfirmDialog, hideConfirmDialog } = useDialog();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -88,7 +88,7 @@ const SupplierManagement: React.FC = () => {
   const handleDelete = async (id: string, name: string) => {
     showConfirmDialog(
       'Confirmar Exclusão',
-      'Tem certeza que deseja excluir o fornecedor "${name}"? Esta ação não pode ser desfeita.',
+      `Tem certeza que deseja excluir o fornecedor "${name}"? Esta ação não pode ser desfeita.`,
       async () => {
         try {
           await deleteSupplier(id);
@@ -349,6 +349,20 @@ const SupplierManagement: React.FC = () => {
           </div>
         ))}
       </div>
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        cancelText={confirmDialog.cancelText}
+        type={confirmDialog.type}
+        onConfirm={() => {
+          confirmDialog.onConfirm?.();
+          hideConfirmDialog();
+        }}
+        onCancel={hideConfirmDialog}
+      />
 
       {suppliers.length === 0 && (
         <div className="bg-white rounded-2xl shadow-sm p-12 text-center border border-gray-100 animate-fade-in-up">

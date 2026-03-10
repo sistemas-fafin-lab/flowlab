@@ -49,7 +49,9 @@ const MovementHistory: React.FC = () => {
         quantity: newMovement.quantity,
         date: new Date().toISOString().split('T')[0],
         authorizedBy: newMovement.authorizedBy,
-        notes: newMovement.notes
+        notes: newMovement.notes,
+        unitPrice: 0,
+        totalValue: 0
       });
 
       setNewMovement({

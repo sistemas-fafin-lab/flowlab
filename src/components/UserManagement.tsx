@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck } from 'lucide-react';
+import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { supabase } from '../lib/supabase';
@@ -7,25 +7,57 @@ import { UserProfile, UserRole, Department } from '../types';
 import { DEPARTMENTS, getRoleForDepartment, getRoleLabel, getDepartmentLabel } from '../utils/permissions';
 import Notification from './Notification';
 
+// Type for approval level configuration from database
+interface ApprovalLevelConfig {
+  id: string;
+  level: string;
+  label: string;
+  maxAmount: number;
+  description: string;
+  color: string;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+interface UserApprovalLimit {
+  userId: string;
+  approvalLevel: string;
+  customMaxAmount: number | null;
+  effectiveMaxAmount: number;
+  canApprove: boolean;
+}
+
 const UserManagement: React.FC = () => {
   const { userProfile } = useAuth();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const [users, setUsers] = useState<UserProfile[]>([]);
+  const [userApprovalLimits, setUserApprovalLimits] = useState<Record<string, UserApprovalLimit>>({});
+  const [approvalLevels, setApprovalLevels] = useState<ApprovalLevelConfig[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showLevelConfig, setShowLevelConfig] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingLevels, setIsSavingLevels] = useState(false);
   const topRef = React.useRef<HTMLDivElement>(null);
 
   const [formData, setFormData] = useState({
     name: '',
     email: '',
     role: 'requester' as UserRole,
-    department: 'AREA_TECNICA' as Department
+    department: 'AREA_TECNICA' as Department,
+    approvalLevel: 'none',
+    customMaxAmount: '' as string | number,
+    canApprove: false,
   });
+
+  // State for editing approval level configs
+  const [editingLevels, setEditingLevels] = useState<ApprovalLevelConfig[]>([]);
 
   useEffect(() => {
     fetchUsers();
+    fetchApprovalLimits();
+    fetchApprovalLevelConfig();
   }, []);
 
   const fetchUsers = async () => {
@@ -56,12 +88,118 @@ const UserManagement: React.FC = () => {
     }
   };
 
+  const fetchApprovalLimits = async () => {
+    try {
+      // Try to use the view first, fallback to direct table
+      let data, error;
+      
+      const viewResult = await supabase
+        .from('user_approval_limits_with_details')
+        .select('*');
+      
+      if (viewResult.error) {
+        // Fallback to direct table query
+        const tableResult = await supabase
+          .from('user_approval_limits')
+          .select('user_id, approval_level, custom_max_amount, can_approve');
+        
+        data = tableResult.data;
+        error = tableResult.error;
+      } else {
+        data = viewResult.data;
+        error = viewResult.error;
+      }
+
+      if (error) {
+        console.log('Approval limits not available yet:', error.message);
+        return;
+      }
+
+      const limitsMap: Record<string, UserApprovalLimit> = {};
+      (data || []).forEach((limit: any) => {
+        limitsMap[limit.user_id] = {
+          userId: limit.user_id,
+          approvalLevel: limit.approval_level,
+          customMaxAmount: limit.custom_max_amount,
+          effectiveMaxAmount: limit.effective_max_amount || limit.custom_max_amount || 0,
+          canApprove: limit.can_approve,
+        };
+      });
+
+      setUserApprovalLimits(limitsMap);
+    } catch (error) {
+      console.error('Erro ao carregar alçadas:', error);
+    }
+  };
+
+  const fetchApprovalLevelConfig = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('approval_level_config')
+        .select('*')
+        .order('display_order', { ascending: true });
+
+      if (error) {
+        console.log('Approval level config not available yet:', error.message);
+        return;
+      }
+
+      const levels: ApprovalLevelConfig[] = (data || []).map((level: any) => ({
+        id: level.id,
+        level: level.level,
+        label: level.label,
+        maxAmount: parseFloat(level.max_amount),
+        description: level.description,
+        color: level.color,
+        displayOrder: level.display_order,
+        isActive: level.is_active,
+      }));
+
+      setApprovalLevels(levels);
+      setEditingLevels(levels);
+    } catch (error) {
+      console.error('Erro ao carregar configuração de alçadas:', error);
+    }
+  };
+
+  const handleSaveLevelConfig = async () => {
+    setIsSavingLevels(true);
+    try {
+      for (const level of editingLevels) {
+        const { error } = await supabase
+          .from('approval_level_config')
+          .update({
+            label: level.label,
+            max_amount: level.maxAmount,
+            description: level.description,
+          })
+          .eq('id', level.id);
+
+        if (error) throw error;
+      }
+
+      await fetchApprovalLevelConfig();
+      await fetchApprovalLimits();
+      showSuccess('Configuração de alçadas atualizada com sucesso!');
+      setShowLevelConfig(false);
+    } catch (error) {
+      console.error('Erro ao salvar configuração:', error);
+      showError('Erro ao salvar configuração de alçadas');
+    } finally {
+      setIsSavingLevels(false);
+    }
+  };
+
   const handleEdit = (user: UserProfile) => {
+    const userLimit = userApprovalLimits[user.id];
     setFormData({
       name: user.name,
       email: user.email,
       role: user.role,
-      department: user.department
+      department: user.department,
+      approvalLevel: userLimit?.approvalLevel || 'none',
+      customMaxAmount: userLimit?.customMaxAmount || '',
+      canApprove: userLimit?.canApprove || false,
     });
     setEditingUser(user);
     setShowAddForm(true);
@@ -90,6 +228,30 @@ const UserManagement: React.FC = () => {
           .eq('id', editingUser.id);
 
         if (error) throw error;
+
+        // Update approval limits (upsert)
+        // custom_max_amount is optional - if not set, uses the level's default
+        const customAmount = formData.customMaxAmount 
+          ? parseFloat(String(formData.customMaxAmount)) 
+          : null;
+          
+        const { error: approvalError } = await supabase
+          .from('user_approval_limits')
+          .upsert({
+            user_id: editingUser.id,
+            approval_level: formData.approvalLevel,
+            custom_max_amount: customAmount,
+            can_approve: formData.canApprove,
+            updated_at: new Date().toISOString()
+          }, {
+            onConflict: 'user_id'
+          });
+
+        if (approvalError) {
+          console.error('Erro ao salvar alçada:', approvalError);
+          // Don't fail the whole operation, just log
+        }
+
         showSuccess('Usuário atualizado com sucesso!');
       } else {
         // For new users, we would need to handle auth.users creation
@@ -99,6 +261,7 @@ const UserManagement: React.FC = () => {
       }
 
       await fetchUsers();
+      await fetchApprovalLimits();
       handleCancel();
     } catch (error) {
       console.error('Erro ao salvar usuário:', error);
@@ -113,7 +276,10 @@ const UserManagement: React.FC = () => {
       name: '',
       email: '',
       role: 'requester',
-      department: 'AREA_TECNICA'
+      department: 'AREA_TECNICA',
+      approvalLevel: 'none',
+      customMaxAmount: '',
+      canApprove: false,
     });
     setEditingUser(null);
     setShowAddForm(false);
@@ -125,6 +291,37 @@ const UserManagement: React.FC = () => {
       ...prev,
       department
     }));
+  };
+
+  // Auto-suggest approval level based on role
+  const handleRoleChange = (role: UserRole) => {
+    let suggestedLevel = 'none';
+    let canApprove = false;
+    
+    if (role === 'admin') {
+      suggestedLevel = 'level_4';
+      canApprove = true;
+    } else if (role === 'operator') {
+      suggestedLevel = 'level_1';
+      canApprove = true;
+    }
+    
+    setFormData(prev => ({
+      ...prev,
+      role,
+      approvalLevel: suggestedLevel,
+      customMaxAmount: '',
+      canApprove,
+    }));
+  };
+
+  // Get approval level label with current configured value
+  const getApprovalLevelLabel = (levelValue: string): string => {
+    const level = approvalLevels.find(l => l.level === levelValue);
+    if (!level) return levelValue;
+    if (level.level === 'none') return level.label;
+    if (level.level === 'level_4') return `${level.label} (Ilimitado)`;
+    return `${level.label} (até R$ ${level.maxAmount.toLocaleString('pt-BR')})`;
   };
 
   if (loading) {
@@ -154,7 +351,124 @@ const UserManagement: React.FC = () => {
           <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">Gerenciamento de Usuários</h2>
           <p className="text-gray-500">Gerencie perfis e permissões dos usuários do sistema</p>
         </div>
+        {userProfile?.role === 'admin' && (
+          <button
+            onClick={() => setShowLevelConfig(!showLevelConfig)}
+            className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 shadow-md"
+          >
+            <Settings className="w-4 h-4 mr-2" />
+            Configurar Alçadas
+          </button>
+        )}
       </div>
+
+      {/* Approval Level Configuration Panel */}
+      {showLevelConfig && (
+        <div className="bg-white rounded-2xl shadow-lg border border-purple-100 p-6 animate-scale-in">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 flex items-center">
+                <DollarSign className="w-5 h-5 mr-2 text-purple-600" />
+                Configuração de Alçadas
+              </h3>
+              <p className="text-sm text-gray-500 mt-1">
+                Defina o valor máximo de aprovação para cada nível
+              </p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingLevels(approvalLevels);
+                setShowLevelConfig(false);
+              }}
+              className="text-gray-400 hover:text-gray-600 p-2 hover:bg-gray-100 rounded-xl transition-all duration-200"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            {editingLevels
+              .filter(level => level.level !== 'none')
+              .map((level, index) => (
+              <div key={level.id} className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
+                <div className="flex-1">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    {level.level === 'level_4' ? 'Nível 4 (Ilimitado)' : `Nível ${level.level.split('_')[1]}`}
+                  </label>
+                  <input
+                    type="text"
+                    value={level.label}
+                    onChange={(e) => {
+                      const updated = [...editingLevels];
+                      updated[index + 1] = { ...level, label: e.target.value };
+                      setEditingLevels(updated);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                    placeholder="Nome do nível"
+                  />
+                </div>
+                <div className="w-48">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Valor Máximo (R$)
+                  </label>
+                  {level.level === 'level_4' ? (
+                    <input
+                      type="text"
+                      value="Ilimitado"
+                      disabled
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-100 text-gray-500 text-sm"
+                    />
+                  ) : (
+                    <input
+                      type="number"
+                      value={level.maxAmount}
+                      onChange={(e) => {
+                        const updated = [...editingLevels];
+                        const levelIndex = editingLevels.findIndex(l => l.id === level.id);
+                        updated[levelIndex] = { ...level, maxAmount: parseFloat(e.target.value) || 0 };
+                        setEditingLevels(updated);
+                      }}
+                      min="0"
+                      step="100"
+                      className="w-full px-3 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex justify-end mt-6 gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setEditingLevels(approvalLevels);
+                setShowLevelConfig(false);
+              }}
+              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-all duration-200"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSaveLevelConfig}
+              disabled={isSavingLevels}
+              className="px-6 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl hover:from-purple-600 hover:to-indigo-600 disabled:opacity-50 transition-all duration-200 flex items-center shadow-md"
+            >
+              {isSavingLevels ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                  Salvando...
+                </>
+              ) : (
+                <>
+                  <Check className="w-4 h-4 mr-2" />
+                  Salvar Configuração
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Add/Edit Form */}
       {showAddForm && (
@@ -223,7 +537,7 @@ const UserManagement: React.FC = () => {
               </label>
               <select
                 value={formData.role}
-                onChange={(e) => setFormData(prev => ({ ...prev, role: e.target.value as UserRole }))}
+                onChange={(e) => handleRoleChange(e.target.value as UserRole)}
                 required
                 className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
               >
@@ -236,18 +550,90 @@ const UserManagement: React.FC = () => {
               </p>
             </div>
 
+            {/* Approval Limits Section - Only show for admin/operator roles */}
+            {(formData.role === 'admin' || formData.role === 'operator') && (
+              <>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <DollarSign className="w-4 h-4 inline mr-1" />
+                    Alçada de Aprovação
+                  </label>
+                  <select
+                    value={formData.approvalLevel}
+                    onChange={(e) => setFormData(prev => ({ ...prev, approvalLevel: e.target.value, customMaxAmount: '' }))}
+                    className="w-full px-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50 cursor-pointer"
+                  >
+                    {approvalLevels.map(level => (
+                      <option key={level.level} value={level.level}>
+                        {getApprovalLevelLabel(level.level)}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Valor padrão do nível: R$ {(approvalLevels.find(l => l.level === formData.approvalLevel)?.maxAmount || 0).toLocaleString('pt-BR')}
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Valor Personalizado (opcional)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                    <input
+                      type="number"
+                      value={formData.customMaxAmount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, customMaxAmount: e.target.value }))}
+                      min="0"
+                      step="100"
+                      className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 bg-gray-50/50"
+                      placeholder="Deixe vazio para usar valor do nível"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Defina um valor específico para este usuário (sobrescreve o valor do nível)
+                  </p>
+                </div>
+
+                <div className="flex items-center">
+                  <label className="flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.canApprove}
+                      onChange={(e) => setFormData(prev => ({ ...prev, canApprove: e.target.checked }))}
+                      className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="ml-3 text-sm font-medium text-gray-700">
+                      Pode aprovar cotações
+                    </span>
+                  </label>
+                </div>
+              </>
+            )}
+
             <div className="md:col-span-2">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
                 <h4 className="text-sm font-medium text-blue-800 mb-2">Permissões do Perfil Selecionado:</h4>
-                <div className="text-xs text-blue-700">
+                <div className="text-xs text-blue-700 space-y-1">
                   {formData.role === 'admin' && (
-                    <p>• Acesso completo a todos os módulos do sistema</p>
+                    <>
+                      <p>• Acesso completo a todos os módulos do sistema</p>
+                      <p>• Pode configurar alçadas de outros usuários</p>
+                    </>
                   )}
                   {formData.role === 'operator' && (
                     <p>• Acesso a produtos, movimentações, solicitações, fornecedores e cotações (exceto dashboard)</p>
                   )}
                   {formData.role === 'requester' && (
                     <p>• Acesso apenas para criar e visualizar solicitações do seu departamento</p>
+                  )}
+                  {formData.canApprove && formData.approvalLevel !== 'none' && (
+                    <p className="text-green-700 font-medium">
+                      • Alçada de aprovação: {formData.customMaxAmount 
+                        ? `R$ ${parseFloat(String(formData.customMaxAmount)).toLocaleString('pt-BR')} (personalizado)`
+                        : getApprovalLevelLabel(formData.approvalLevel)
+                      }
+                    </p>
                   )}
                 </div>
               </div>
@@ -299,6 +685,9 @@ const UserManagement: React.FC = () => {
                   Perfil
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Alçada
+                </th>
+                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                   Criado em
                 </th>
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -330,6 +719,11 @@ const UserManagement: React.FC = () => {
                       return 'bg-gradient-to-br from-green-500 to-emerald-500 shadow-green-500/25';
                   }
                 };
+
+                // Get approval limit info
+                const userLimit = userApprovalLimits[user.id];
+                const levelConfig = approvalLevels.find(l => l.level === userLimit?.approvalLevel);
+                const effectiveAmount = userLimit?.customMaxAmount || levelConfig?.maxAmount || 0;
                 
                 return (
                 <tr key={user.id} className="hover:bg-blue-50/50 transition-colors duration-150">
@@ -355,6 +749,26 @@ const UserManagement: React.FC = () => {
                     }`}>
                       {getRoleLabel(user.role)}
                     </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {userLimit?.canApprove ? (
+                      <div className="flex flex-col">
+                        <div className="flex items-center">
+                          <DollarSign className="w-4 h-4 text-green-600 mr-1" />
+                          <span className="text-sm text-gray-700">
+                            {userLimit?.approvalLevel === 'level_4' 
+                              ? 'Ilimitado' 
+                              : `Até R$ ${effectiveAmount.toLocaleString('pt-BR')}`
+                            }
+                          </span>
+                        </div>
+                        {userLimit?.customMaxAmount && (
+                          <span className="text-xs text-purple-600 ml-5">(personalizado)</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-400">Sem alçada</span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {new Date(user.createdAt).toLocaleDateString('pt-BR')}

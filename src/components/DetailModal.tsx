@@ -62,14 +62,14 @@ const DetailModal: React.FC<DetailModalProps> = ({
 
   return (
     <div 
-      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-4"
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in p-2 sm:p-4"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div 
-        className={`bg-white rounded-2xl shadow-2xl flex flex-col animate-scale-in transition-all duration-300 ${
+        className={`bg-white rounded-2xl shadow-2xl flex flex-col animate-scale-in transition-all duration-300 w-full ${
           isExpanded 
-            ? 'w-[95vw] h-[95vh]' 
-            : 'w-auto max-w-[90vw] max-h-[85vh] min-w-[400px]'
+            ? 'sm:w-[95vw] h-[95vh]' 
+            : 'max-w-[95vw] sm:max-w-[90vw] max-h-[90vh] sm:max-h-[85vh] sm:min-w-[400px]'
         }`}
       >
         {/* Cabeçalho com Gradiente */}
@@ -77,23 +77,23 @@ const DetailModal: React.FC<DetailModalProps> = ({
           {/* Background Gradient */}
           <div className={`absolute inset-0 bg-gradient-to-r ${colors.gradient} opacity-10`}></div>
           
-          <div className="relative flex items-center justify-between px-6 py-5 border-b-2 border-gray-100">
-            <div className="flex items-center gap-4">
+          <div className="relative flex items-center justify-between px-4 py-3 sm:px-6 sm:py-5 border-b-2 border-gray-100">
+            <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
               {icon && (
-                <div className={`p-2.5 rounded-xl ${colors.iconBg} shadow-lg flex-shrink-0`}>
+                <div className={`p-2 sm:p-2.5 rounded-xl ${colors.iconBg} shadow-lg flex-shrink-0`}>
                   {icon}
                 </div>
               )}
-              <div className="space-y-1">
-                <h2 className="text-lg font-semibold text-gray-800 leading-tight">{title}</h2>
-                <p className="text-xs text-gray-500 leading-tight">Clique fora para fechar</p>
+              <div className="space-y-0.5 sm:space-y-1 min-w-0">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-800 leading-tight truncate">{title}</h2>
+                <p className="text-xs text-gray-500 leading-tight hidden sm:block">Clique fora para fechar</p>
               </div>
             </div>
             
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0 ml-2">
               <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="p-2 hover:bg-gray-100 rounded-xl transition-all duration-200 text-gray-500 hover:text-gray-700"
+                className="p-1.5 sm:p-2 hover:bg-gray-100 rounded-xl transition-all duration-200 text-gray-500 hover:text-gray-700 hidden sm:block"
                 title={isExpanded ? "Minimizar" : "Expandir"}
               >
                 {isExpanded ? (
@@ -104,7 +104,7 @@ const DetailModal: React.FC<DetailModalProps> = ({
               </button>
               <button
                 onClick={onClose}
-                className="p-2 hover:bg-red-50 rounded-xl transition-all duration-200 text-gray-500 hover:text-red-600 hover:rotate-90"
+                className="p-1.5 sm:p-2 hover:bg-red-50 rounded-xl transition-all duration-200 text-gray-500 hover:text-red-600 sm:hover:rotate-90"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -113,19 +113,19 @@ const DetailModal: React.FC<DetailModalProps> = ({
         </div>
 
         {/* Conteúdo Rolável */}
-        <div className="flex-1 px-6 pt-6 pb-6 overflow-y-auto scrollbar-thin">
+        <div className="flex-1 px-3 pt-4 pb-4 sm:px-6 sm:pt-6 sm:pb-6 overflow-y-auto scrollbar-thin">
           {children}
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t-2 border-gray-100 bg-gray-50/50 rounded-b-2xl flex-shrink-0">
+        <div className="px-3 py-3 sm:px-6 sm:py-4 border-t-2 border-gray-100 bg-gray-50/50 rounded-b-2xl flex-shrink-0">
           <div className="flex items-center justify-between">
-            <p className="text-xs text-gray-400">
+            <p className="text-xs text-gray-400 hidden sm:block">
               Pressione ESC para fechar
             </p>
             <button
               onClick={onClose}
-              className={`px-4 py-2 text-sm font-medium text-white rounded-xl bg-gradient-to-r ${colors.gradient} hover:shadow-lg transition-all duration-200 hover:scale-105`}
+              className={`px-4 py-2 text-sm font-medium text-white rounded-xl bg-gradient-to-r ${colors.gradient} hover:shadow-lg transition-all duration-200 hover:scale-105 w-full sm:w-auto`}
             >
               Fechar
             </button>
