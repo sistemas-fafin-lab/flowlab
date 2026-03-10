@@ -1241,71 +1241,6 @@ const Dashboard: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* Solicitações por Departamento - Controle de Custos */}
-      <div 
-        className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 hover-lift"
-        onClick={() => setSelectedDetail('departmentRanking')}
-      >
-        <div className="flex items-center justify-between mb-3 sm:mb-4">
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
-            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-700 shadow-lg mr-2 sm:mr-3">
-              <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
-            <span className="hidden xs:inline">Solicitações por </span>Departamento
-          </h3>
-          <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
-            {chartData.departmentRankingData.length} <span className="hidden sm:inline">centro(s)</span>
-          </span>
-        </div>
-        <div className="space-y-2 max-h-60 sm:max-h-72 overflow-y-auto pr-1">
-          {chartData.departmentRankingData.length > 0 ? (
-            chartData.departmentRankingData.slice(0, 8).map((dept, index) => {
-              const maxTotal = chartData.departmentRankingData[0]?.total || 1;
-              const percentage = (dept.total / maxTotal) * 100;
-              const approvalRate = dept.total > 0 ? ((dept.approved / dept.total) * 100).toFixed(0) : '0';
-
-              return (
-                <div key={dept.name} className="flex items-center justify-between p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
-                  <div className="flex items-center flex-1 min-w-0">
-                    <span className="w-5 sm:w-6 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 mr-2 sm:mr-3">{index + 1}.</span>
-                    <div className="p-1 sm:p-1.5 rounded-md sm:rounded-lg bg-white dark:bg-gray-800 shadow-sm mr-2 sm:mr-3 hidden xs:block">
-                      <Building2 className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-300" />
-                    </div>
-                    <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{dept.name}</span>
-                  </div>
-                  <div className="flex items-center ml-2 sm:ml-3 gap-2 sm:gap-3">
-                    <div className="w-12 sm:w-20 bg-slate-200 dark:bg-slate-600 rounded-full h-1 sm:h-1.5 hidden xs:block">
-                      <div
-                        className="bg-slate-600 dark:bg-slate-400 h-1 sm:h-1.5 rounded-full transition-all duration-500"
-                        style={{ width: `${percentage}%` }}
-                      ></div>
-                    </div>
-                    <div className="flex items-center gap-1 sm:gap-2 min-w-[60px] sm:min-w-[90px] justify-end">
-                      <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200">{dept.total}</span>
-                      <span className="text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300">{approvalRate}%</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            <div className="text-center py-6 sm:py-8 text-gray-400">
-              <ClipboardList className="w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-2 opacity-50" />
-              <p className="text-xs sm:text-sm">Nenhuma solicitação registrada</p>
-            </div>
-          )}
-        </div>
-        {chartData.departmentRankingData.length > 0 && (
-          <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs sm:text-sm">
-            <div className="flex items-center gap-2 sm:gap-4">
-              <span className="text-slate-500 dark:text-slate-400">Total:</span>
-              <span className="font-bold text-slate-800 dark:text-slate-100">{requests.length}</span>
-            </div>
-            <span className="text-slate-500 dark:text-slate-400 text-xs hidden sm:inline">Clique para análise detalhada →</span>
-          </div>
-        )}
-      </div>
       </>
       )}
 
@@ -1401,50 +1336,115 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* Recent Movements */}
+        {/* Solicitações por Departamento */}
         <div 
-          className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover-lift"
-          onClick={() => setSelectedDetail('recentMovements')}
+          className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 hover-lift"
+          onClick={() => setSelectedDetail('departmentRanking')}
         >
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
-              <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mr-2 sm:mr-3">
-                <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+              <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-700 shadow-lg mr-2 sm:mr-3">
+                <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
-              Movimentações Recentes
+              <span className="hidden xs:inline">Solicitações por </span>Departamento
             </h3>
-            <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300">
-              {recentMovements.length} <span className="hidden xs:inline">itens</span>
+            <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">
+              {chartData.departmentRankingData.length} <span className="hidden sm:inline">centro(s)</span>
             </span>
           </div>
           <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
-            {recentMovements.length > 0 ? (
-              recentMovements.map((movement) => (
-                <div key={movement.id} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg sm:rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{movement.productName}</p>
-                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
-                      {movement.reason === 'sale' && 'Saída'}
-                      {movement.reason === 'internal-consumption' && 'Consumo Int.'}
-                      {movement.reason === 'internal-transfer' && 'Transferência'}
-                      {movement.reason === 'return' && 'Devolução'}
-                      {movement.reason === 'other' && 'Outros'}
-                    </p>
+            {chartData.departmentRankingData.length > 0 ? (
+              chartData.departmentRankingData.slice(0, 8).map((dept, index) => {
+                const maxTotal = chartData.departmentRankingData[0]?.total || 1;
+                const percentage = (dept.total / maxTotal) * 100;
+                const approvalRate = dept.total > 0 ? ((dept.approved / dept.total) * 100).toFixed(0) : '0';
+
+                return (
+                  <div key={dept.name} className="flex items-center justify-between p-2 sm:p-3 rounded-lg sm:rounded-xl bg-slate-50 dark:bg-slate-700/50 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
+                    <div className="flex items-center flex-1 min-w-0">
+                      <span className="w-5 sm:w-6 text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 mr-2 sm:mr-3">{index + 1}.</span>
+                      <div className="p-1 sm:p-1.5 rounded-md sm:rounded-lg bg-white dark:bg-gray-800 shadow-sm mr-2 sm:mr-3 hidden xs:block">
+                        <Building2 className="w-3 h-3 sm:w-4 sm:h-4 text-slate-600 dark:text-slate-300" />
+                      </div>
+                      <span className="text-xs sm:text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{dept.name}</span>
+                    </div>
+                    <div className="flex items-center ml-2 sm:ml-3 gap-2 sm:gap-3">
+                      <div className="w-12 sm:w-20 bg-slate-200 dark:bg-slate-600 rounded-full h-1 sm:h-1.5 hidden xs:block">
+                        <div
+                          className="bg-slate-600 dark:bg-slate-400 h-1 sm:h-1.5 rounded-full transition-all duration-500"
+                          style={{ width: `${percentage}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center gap-1 sm:gap-2 min-w-[60px] sm:min-w-[90px] justify-end">
+                        <span className="text-xs sm:text-sm font-bold text-slate-700 dark:text-slate-200">{dept.total}</span>
+                        <span className="text-[10px] sm:text-xs px-1 sm:px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-600 text-slate-600 dark:text-slate-300">{approvalRate}%</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="text-right ml-3 sm:ml-4">
-                    <p className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-400">-{movement.quantity}</p>
-                    <p className="text-[10px] sm:text-xs font-medium text-gray-600 dark:text-gray-300">{formatCurrency(movement.totalValue || 0)}</p>
-                    <p className="text-[10px] sm:text-xs text-gray-400">{movement.date}</p>
-                  </div>
-                </div>
-              ))
+                );
+              })
             ) : (
-              <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-gray-400">
-                <TrendingUp className="w-10 h-10 mb-2 opacity-50" />
-                <p className="text-sm">Nenhuma movimentação recente</p>
+              <div className="text-center py-6 sm:py-8 text-gray-400">
+                <ClipboardList className="w-8 h-8 sm:w-10 sm:h-10 mx-auto mb-2 opacity-50" />
+                <p className="text-xs sm:text-sm">Nenhuma solicitação registrada</p>
               </div>
             )}
           </div>
+          {chartData.departmentRankingData.length > 0 && (
+            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs sm:text-sm">
+              <div className="flex items-center gap-2 sm:gap-4">
+                <span className="text-slate-500 dark:text-slate-400">Total:</span>
+                <span className="font-bold text-slate-800 dark:text-slate-100">{requests.length}</span>
+              </div>
+              <span className="text-slate-500 dark:text-slate-400 text-xs hidden sm:inline">Clique para análise detalhada →</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Recent Movements */}
+      <div 
+        className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover-lift"
+        onClick={() => setSelectedDetail('recentMovements')}
+      >
+        <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mr-2 sm:mr-3">
+              <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            </div>
+            Movimentações Recentes
+          </h3>
+          <span className="text-xs font-medium px-2 sm:px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300">
+            {recentMovements.length} <span className="hidden xs:inline">itens</span>
+          </span>
+        </div>
+        <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
+          {recentMovements.length > 0 ? (
+            recentMovements.map((movement) => (
+              <div key={movement.id} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg sm:rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{movement.productName}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                    {movement.reason === 'sale' && 'Saída'}
+                    {movement.reason === 'internal-consumption' && 'Consumo Int.'}
+                    {movement.reason === 'internal-transfer' && 'Transferência'}
+                    {movement.reason === 'return' && 'Devolução'}
+                    {movement.reason === 'other' && 'Outros'}
+                  </p>
+                </div>
+                <div className="text-right ml-3 sm:ml-4">
+                  <p className="text-xs sm:text-sm font-bold text-red-600 dark:text-red-400">-{movement.quantity}</p>
+                  <p className="text-[10px] sm:text-xs font-medium text-gray-600 dark:text-gray-300">{formatCurrency(movement.totalValue || 0)}</p>
+                  <p className="text-[10px] sm:text-xs text-gray-400">{movement.date}</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-6 sm:py-8 text-gray-400">
+              <TrendingUp className="w-10 h-10 mb-2 opacity-50" />
+              <p className="text-sm">Nenhuma movimentação recente</p>
+            </div>
+          )}
         </div>
       </div>
 
