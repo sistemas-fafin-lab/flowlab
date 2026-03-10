@@ -803,7 +803,11 @@ const handleCompleteRequest = async (request: Request) => {
     </div>
     <div>
       <h4 className="text-base font-semibold text-gray-800 dark:text-gray-100">Adicionar Produtos</h4>
-      <p className="text-xs text-gray-500 dark:text-gray-400">Busque produtos cadastrados ou adicione novos</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        {newRequest.type === 'SM' 
+          ? 'Selecione produtos disponíveis no estoque' 
+          : 'Busque produtos cadastrados ou adicione novos'}
+      </p>
     </div>
   </div>
   
@@ -868,29 +872,41 @@ const handleCompleteRequest = async (request: Request) => {
             if (matchedProduct) {
               setSelectedProduct(matchedProduct.id);
               addProductToRequest();
-            } else {
+            } else if (newRequest.type === 'SC') {
               handleAddUnregisteredProduct();
             }
           }}
-          disabled={!productSearch.trim()}
+          disabled={!productSearch.trim() || (newRequest.type === 'SM' && !matchedProduct)}
           className={`w-full px-3 sm:px-4 py-2.5 text-white rounded-xl flex items-center justify-center transition-all duration-200 font-medium text-sm shadow-md disabled:opacity-50 disabled:cursor-not-allowed ${
             matchedProduct 
               ? 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30' 
-              : 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/25 hover:shadow-lg hover:shadow-amber-500/30'
+              : newRequest.type === 'SC'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 shadow-amber-500/25 hover:shadow-lg hover:shadow-amber-500/30'
+                : 'bg-gray-300 dark:bg-gray-600'
           }`}
         >
           <Plus className="w-4 h-4 sm:mr-1.5" />
-          <span className="hidden sm:inline">{matchedProduct ? 'Adicionar' : 'Novo'}</span>
+          <span className="hidden sm:inline">{matchedProduct ? 'Adicionar' : (newRequest.type === 'SC' ? 'Novo' : 'Buscar')}</span>
         </button>
       </div>
     </div>
     
-    {/* Indicador de produto não cadastrado */}
-    {productSearch && !matchedProduct && (
+    {/* Indicador de produto não cadastrado - apenas para SC */}
+    {productSearch && !matchedProduct && newRequest.type === 'SC' && (
       <div className="mt-3 flex items-center p-2.5 bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-700 rounded-lg">
         <AlertTriangle className="w-4 h-4 text-amber-500 dark:text-amber-400 mr-2 flex-shrink-0" />
         <p className="text-xs text-amber-700 dark:text-amber-300">
           <span className="font-medium">Produto não encontrado.</span> Ao adicionar, será criado como "produto não cadastrado".
+        </p>
+      </div>
+    )}
+    
+    {/* Indicador de produto obrigatório em estoque - apenas para SM */}
+    {productSearch && !matchedProduct && newRequest.type === 'SM' && (
+      <div className="mt-3 flex items-center p-2.5 bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700 rounded-lg">
+        <Package className="w-4 h-4 text-blue-500 dark:text-blue-400 mr-2 flex-shrink-0" />
+        <p className="text-xs text-blue-700 dark:text-blue-300">
+          <span className="font-medium">Produto não encontrado no estoque.</span> Solicitações de Material só permitem itens cadastrados.
         </p>
       </div>
     )}
