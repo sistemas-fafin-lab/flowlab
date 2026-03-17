@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LogIn, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { LogIn, UserPlus, Eye, EyeOff, Sun, Moon } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { DEPARTMENTS } from "../utils/permissions";
 
@@ -14,6 +14,13 @@ const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+
+  const toggleTheme = () => {
+    const newMode = !isDarkMode;
+    setIsDarkMode(newMode);
+    document.documentElement.classList.toggle('dark', newMode);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,7 +72,15 @@ const Auth: React.FC = () => {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(30,58,138,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(30,58,138,0.03)_1px,transparent_1px)] dark:bg-[linear-gradient(rgba(59,130,246,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(59,130,246,0.05)_1px,transparent_1px)] bg-[size:64px_64px]"></div>
       </div>
 
-      <div className="max-w-md w-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-slate-900/10 dark:shadow-black/30 p-8 animate-scale-in relative z-10 border border-slate-200/50 dark:border-gray-700/50">
+      <div className="max-w-md w-full bg-white/80 dark:bg-gray-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-slate-900/10 dark:shadow-black/30 p-8 animate-scale-in relative z-10 border border-slate-200/50 dark:border-gray-500/50">
+        {/* Theme Toggle Button */}
+        <button
+          onClick={toggleTheme}
+          className="absolute top-4 right-4 p-2 rounded-xl bg-slate-100/80 dark:bg-gray-700/80 hover:bg-slate-200 dark:hover:bg-gray-600 transition-all duration-200 text-slate-600 dark:text-gray-300"
+          aria-label="Alternar tema"
+        >
+          {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+        </button>
         {/* Subtle glow effect behind card */}
         <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/10 via-indigo-500/10 to-slate-500/10 dark:from-blue-500/20 dark:via-indigo-500/20 dark:to-slate-500/20 rounded-3xl blur-xl -z-10"></div>
         
@@ -78,7 +93,7 @@ const Auth: React.FC = () => {
             {/* Logo background with glassmorphism */}
             <div className="relative w-24 h-24 rounded-full bg-white dark:bg-gray-700 backdrop-blur-md border border-slate-200 dark:border-gray-600 flex items-center justify-center shadow-lg shadow-blue-900/10 dark:shadow-black/20">
               <img
-                src="/LOGO.png"
+                src={isDarkMode ? "/LOGO BRANCA.png" : "/LOGO.png"}
                 alt="Logo"
                 className="w-16 h-16 object-contain hover:scale-110 transition-all duration-500 ease-out dark:brightness-110"
               />
@@ -86,11 +101,11 @@ const Auth: React.FC = () => {
           </div>
           
           <h1 className="text-3xl font-bold mb-1">
-            <span className="bg-gradient-to-r from-blue-900 via-blue-700 to-indigo-800 dark:from-blue-400 dark:via-blue-300 dark:to-indigo-400 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-blue-900 via-blue-700 to-indigo-800 dark:from-white dark:via-gray-100 dark:to-white bg-clip-text text-transparent">
               Flow LAB
             </span>
           </h1>
-          <p className="text-slate-500 dark:text-gray-400 text-sm transition-all duration-300">
+          <p className="text-slate-500 dark:text-gray-300 text-sm transition-all duration-300">
             {isSignUp ? 'Criar nova conta' : 'Faça login para continuar'}
           </p>
         </div>
@@ -113,7 +128,7 @@ const Auth: React.FC = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500"
+              className="w-full px-4 py-3 border border-slate-200 dark:border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-400 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400"
               placeholder="seu@email.com"
             />
           </div>
@@ -129,7 +144,7 @@ const Auth: React.FC = () => {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500"
+                className="w-full px-4 py-3 border border-slate-200 dark:border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-400 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400"
                 placeholder="Seu nome completo"
               />
             </div>
@@ -146,7 +161,7 @@ const Auth: React.FC = () => {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 pr-11 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500"
+                className="w-full px-4 py-3 pr-11 border border-slate-200 dark:border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-400 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400"
                 placeholder="••••••••"
                 minLength={6}
               />
@@ -170,9 +185,9 @@ const Auth: React.FC = () => {
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 required
-                className="w-full px-4 py-3 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 cursor-pointer"
+                className="w-full px-4 py-3 border border-slate-200 dark:border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-400 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 cursor-pointer"
               >
-                <option value="" className="text-slate-400 dark:text-gray-500">Selecione um departamento</option>
+                <option value="" className="text-slate-400 dark:text-gray-400">Selecione um departamento</option>
                 {DEPARTMENTS.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
@@ -234,7 +249,7 @@ const Auth: React.FC = () => {
                   setName('');
                   setError(null);
                 }}
-                className="text-slate-500 dark:text-gray-400 hover:text-blue-700 dark:hover:text-blue-400 text-sm transition-colors"
+                className="text-slate-500 dark:text-gray-300 hover:text-blue-700 dark:hover:text-blue-400 text-sm transition-colors"
               >
                 Esqueci minha senha
               </button>
@@ -255,7 +270,7 @@ const Auth: React.FC = () => {
             }}
             className="space-y-4 mt-4 animate-fade-in-up"
           >
-            <p className="text-sm text-slate-600 dark:text-gray-400">Digite seu email para redefinir a senha.</p>
+            <p className="text-sm text-slate-600 dark:text-gray-300">Digite seu email para redefinir a senha.</p>
             <input
               id="emailres"
               type="email"
@@ -263,7 +278,7 @@ const Auth: React.FC = () => {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="seu@email.com"
               required
-              className="w-full px-4 py-3 border border-slate-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-500 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-500"
+              className="w-full px-4 py-3 border border-slate-200 dark:border-gray-500 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 dark:hover:border-gray-400 bg-white/70 dark:bg-gray-700/70 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400"
             />
             <button
               type="submit"
@@ -276,7 +291,7 @@ const Auth: React.FC = () => {
             <button
               type="button"
               onClick={() => setIsForgotPassword(false)}
-              className="text-slate-500 dark:text-gray-400 hover:text-slate-700 dark:hover:text-gray-200 text-sm transition-colors"
+              className="text-slate-500 dark:text-gray-300 hover:text-slate-700 dark:hover:text-gray-200 text-sm transition-colors"
             >
               Voltar ao login
             </button>
