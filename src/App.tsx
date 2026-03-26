@@ -21,6 +21,7 @@ import { MessagingProviderSettings } from './modules/messaging';
 import PaymentRequestManagement from './components/PaymentRequestManagement';
 import RequestHub from './components/RequestHub';
 import { MaintenanceRequestManagement } from './components/MaintenanceRequest';
+import { FaturasDashboard, RecebimentosList, GlosasRecursos } from './modules/faturamento';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ 
@@ -180,6 +181,31 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canManageUsers" userRole={userRole}>
               <MessagingProviderSettings />
+            </ProtectedRoute>
+          }
+        />
+        {/* Faturamento Routes */}
+        <Route
+          path="/faturamento/faturas"
+          element={
+            <ProtectedRoute permission="canViewBilling" userRole={userRole}>
+              <FaturasDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/faturamento/recebimentos"
+          element={
+            <ProtectedRoute permission="canViewBilling" userRole={userRole}>
+              <RecebimentosList />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/faturamento/glosas"
+          element={
+            <ProtectedRoute permission="canViewBilling" userRole={userRole}>
+              <GlosasRecursos />
             </ProtectedRoute>
           }
         />

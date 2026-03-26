@@ -196,6 +196,7 @@ export interface RolePermissions {
   canManageSuppliers: boolean;
   canManageQuotations: boolean;
   canConfigureRequestPeriods: boolean;
+  canViewBilling: boolean;
 }
 
 // Supplier types

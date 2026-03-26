@@ -1,0 +1,12 @@
+﻿erDiagram
+    OPERADORA ||--o{ NOTA : "1:N"
+    OPERADORA ||--o{ LOTE : "1:N"
+    LOTE ||--o{ REQUISICAO : "1:N"
+    NOTA }|--|{ LOTE : "N:N"
+    NOTA ||--o{ FATURAMENTO : "1:N"
+    FATURAMENTO }|--|{ RECEBIMENTO : "N:N"
+    BANCO ||--o{ RECEBIMENTO : "1:N"
+    RECEBIMENTO ||--o{ GLOSAS : "1:N"
+    RECEBIMENTO }|--|{ NOTA : "N:N"
+    RECEBIMENTO }|--|{ LOTE : "N:N"
+    RECEBIMENTO }|--|{ REQUISICAO : "N:N"

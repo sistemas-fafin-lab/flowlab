@@ -19,6 +19,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSuppliers: true,
     canManageQuotations: true,
     canConfigureRequestPeriods: true,
+    canViewBilling: true,
   },
   operator: {
     canViewDashboard: false,
@@ -38,6 +39,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSuppliers: true,
     canManageQuotations: true,
     canConfigureRequestPeriods: true,
+    canViewBilling: true,
   },
   requester: {
     canViewDashboard: false,
@@ -57,6 +59,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
     canManageSuppliers: false,
     canManageQuotations: false,
     canConfigureRequestPeriods: false,
+    canViewBilling: false,
   },
 };
 
