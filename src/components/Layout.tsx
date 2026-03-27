@@ -20,7 +20,9 @@ import {
   Calculator,
   DollarSign,
   MessageSquare,
-  Settings
+  Settings,
+  AlertCircle,
+  Receipt
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission, getRoleLabel } from '../utils/permissions';
@@ -90,6 +92,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       href: '/quotations', 
       icon: Calculator,
       permission: 'canManageQuotations'
+    },
+    {
+      name: 'Faturamento',
+      href: '/faturamento/faturas',
+      icon: Receipt,
+      permission: 'canViewBilling',
+      subItems: [
+        { name: 'Faturas / Notas', href: '/faturamento/faturas', icon: FileText, permission: 'canViewBilling' },
+        { name: 'Contas a Receber', href: '/faturamento/recebimentos', icon: DollarSign, permission: 'canViewBilling' },
+        { name: 'Glosas e Recursos', href: '/faturamento/glosas', icon: AlertCircle, permission: 'canViewBilling' },
+      ]
     },
     { 
       name: 'Usuários', 
