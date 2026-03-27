@@ -9,19 +9,65 @@ const axios = require('axios');
 const config = require('./config');
 
 class AplisClient {
-  constructor(baseUrl, apiKey) {
+  constructor(baseUrl, username, password) {
     this.baseUrl = baseUrl;
-    this.apiKey = apiKey;
-    
+
     this.client = axios.create({
       baseURL: baseUrl,
       timeout: config.sync.timeout,
+      auth: { username, password },
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       }
     });
+  }
+
+  /**
+   * Executa um comando na API do apLIS
+   * Formato padrão: POST { ver, cmd, dat }
+   */
+  async _command(cmd, dat = {}) {
+    const response = await this.client.post('', { ver: '1', cmd, dat });
+    const body = response.data;
+
+    if (body?.dat?.sucesso === 0) {
+      const err = new Error(body.dat.msgErro || 'Erro na API apLIS');
+      err.aplisCode = body.dat.codErro;
+      err.aplisResponse = body.dat;
+      throw err;
+    }
+
+    return body?.dat ?? body;
+  }
+
+  /**
+   * Listagem paginada de requisições (usuários internos)
+   * Comando: requisicaoListar
+   */
+  async requisicaoListar(params = {}) {
+    try {
+      console.log('[APLIS] Chamando requisicaoListar...');
+      return await this._command('requisicaoListar', params);
+    } catch (error) {
+      console.error('[APLIS] Erro em requisicaoListar:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Resultado completo de uma requisição
+   * Comando: requisicaoResultado
+   */
+  async requisicaoResultado(codRequisicao, numGuia) {
+    try {
+      const dat = { codRequisicao };
+      if (numGuia) dat.numGuia = numGuia;
+      return await this._command('requisicaoResultado', dat);
+    } catch (error) {
+      console.error(`[APLIS] Erro em requisicaoResultado (${codRequisicao}):`, error.message);
+      throw error;
+    }
   }
 
   /**

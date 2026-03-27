@@ -25,6 +25,7 @@ const cron = require('node-cron');
 const { createClient } = require('@supabase/supabase-js');
 const config = require('./config');
 const AplisClient = require('./aplis-client');
+const createApp = require('./api/server');
 
 // ============================================================================
 // INICIALIZAÇÃO
@@ -34,7 +35,7 @@ const supabase = createClient(config.supabase.url, config.supabase.serviceRoleKe
   auth: { persistSession: false }
 });
 
-const aplisClient = new AplisClient(config.aplis.url, config.aplis.apiKey);
+const aplisClient = new AplisClient(config.aplis.url, config.aplis.username, config.aplis.password);
 
 // ============================================================================
 // FUNÇÕES DE SINCRONIZAÇÃO
@@ -472,11 +473,25 @@ cron.schedule('0 */2 * * *', () => {
 // INICIALIZAÇÃO
 // ============================================================================
 
+// ============================================================================
+// REST API
+// ============================================================================
+
+const app = createApp(aplisClient);
+const server = app.listen(config.api.port, () => {
+  console.log(`[API] REST API escutando na porta ${config.api.port}`);
+});
+
+// ============================================================================
+// INICIALIZAÇÃO
+// ============================================================================
+
 console.log('========================================');
 console.log('   BILLING SYNC WORKER - FlowLab');
 console.log('========================================');
 console.log(`Supabase URL: ${config.supabase.url}`);
 console.log(`APLIS API URL: ${config.aplis.url}`);
+console.log(`REST API porta: ${config.api.port}`);
 console.log('');
 console.log('Agendamentos ativos:');
 console.log('  - Sync COMPLETO: 05:00 (diário)');
@@ -493,10 +508,10 @@ if (process.argv.includes('--run-now')) {
 // Manter processo rodando
 process.on('SIGINT', () => {
   console.log('\n[WORKER] Encerrando worker...');
-  process.exit(0);
+  server.close(() => process.exit(0));
 });
 
 process.on('SIGTERM', () => {
   console.log('\n[WORKER] Encerrando worker...');
-  process.exit(0);
+  server.close(() => process.exit(0));
 });
