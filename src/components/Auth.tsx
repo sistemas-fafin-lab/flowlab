@@ -20,6 +20,12 @@ const formVariants = {
   exit: { x: -20, opacity: 0 },
 };
 
+const slideVariants = {
+  enter: (dir: string) => ({ opacity: 0, x: dir === 'right' ? 40 : -40, scale: 0.95 }),
+  center: { opacity: 1, x: 0, scale: 1 },
+  exit: (dir: string) => ({ opacity: 0, x: dir === 'right' ? -40 : 40, scale: 0.95 }),
+};
+
 const springTransition = {
   type: 'spring' as const,
   stiffness: 300,
@@ -125,7 +131,12 @@ const Auth: React.FC = () => {
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.03)_1px,transparent_1px)] bg-[size:64px_64px]"></div>
 
         {/* ── Main branding card (expanded) ── */}
-        <div className="relative z-10 flex flex-col items-center gap-6 w-full max-w-lg px-12 py-14 bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-3xl border border-white/20 dark:border-white/10 shadow-2xl animate-fade-in">
+        <motion.div
+          initial={{ opacity: 0, y: 30, scale: 0.96 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          className="relative z-10 flex flex-col items-center gap-6 w-full max-w-lg px-12 py-14 bg-white/10 dark:bg-white/5 backdrop-blur-xl rounded-3xl border border-white/20 dark:border-white/10 shadow-2xl"
+        >
           {/* Glow behind main card */}
           <div className="absolute -inset-2 bg-gradient-to-r from-blue-500/20 via-indigo-500/15 to-cyan-500/20 rounded-3xl blur-2xl -z-10 animate-pulse-soft"></div>
 
@@ -162,7 +173,7 @@ const Auth: React.FC = () => {
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse-soft"></div>
             <span className="text-blue-100/90 text-xs font-medium">{MODULES.length} módulos integrados</span>
           </div>
-        </div>
+        </motion.div>
 
         {/* ── Module carousel ── */}
         <div
@@ -172,34 +183,36 @@ const Auth: React.FC = () => {
         >
           {/* Carousel viewport */}
           <div className="relative overflow-hidden rounded-2xl" style={{ minHeight: '140px' }}>
-            {MODULES.map((mod, index) => {
-              const Icon = mod.icon;
-              const isActive = index === activeSlide;
-              return (
-                <div
-                  key={mod.title}
-                  className={`absolute inset-0 flex items-stretch transition-all duration-500 ease-out ${
-                    isActive
-                      ? 'opacity-100 translate-x-0 scale-100'
-                      : slideDirection === 'right'
-                        ? 'opacity-0 translate-x-8 scale-95 pointer-events-none'
-                        : 'opacity-0 -translate-x-8 scale-95 pointer-events-none'
-                  }`}
-                >
-                  <div className="w-full p-6 bg-white/[0.08] dark:bg-white/[0.04] backdrop-blur-lg rounded-2xl border border-white/15 dark:border-white/10 shadow-lg card-interactive cursor-default group">
-                    <div className="flex items-start gap-5">
-                      <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400/30 to-indigo-400/30 border border-white/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                        <Icon className="w-6 h-6 text-blue-200" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="text-white font-semibold text-base mb-1.5 group-hover:text-blue-200 transition-colors duration-300">{mod.title}</h3>
-                        <p className="text-blue-200/70 text-sm leading-relaxed">{mod.description}</p>
+            <AnimatePresence mode="wait" custom={slideDirection}>
+              <motion.div
+                key={activeSlide}
+                custom={slideDirection}
+                variants={slideVariants}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                className="flex items-stretch"
+              >
+                {(() => {
+                  const mod = MODULES[activeSlide];
+                  const Icon = mod.icon;
+                  return (
+                    <div className="w-full p-6 bg-white/[0.08] dark:bg-white/[0.04] backdrop-blur-lg rounded-2xl border border-white/15 dark:border-white/10 shadow-lg card-interactive cursor-default group">
+                      <div className="flex items-start gap-5">
+                        <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br from-blue-400/30 to-indigo-400/30 border border-white/20 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                          <Icon className="w-6 h-6 text-blue-200" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-white font-semibold text-base mb-1.5 group-hover:text-blue-200 transition-colors duration-300">{mod.title}</h3>
+                          <p className="text-blue-200/70 text-sm leading-relaxed">{mod.description}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                </div>
-              );
-            })}
+                  );
+                })()}
+              </motion.div>
+            </AnimatePresence>
           </div>
 
           {/* Controls */}

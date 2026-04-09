@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback, useRef } from 'react';
+﻿import React, { useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package,
@@ -61,84 +61,66 @@ import 'react-resizable/css/styles.css';
 
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
-const CHART_KEYS = ['inventory-status-chart', 'categories-pie-chart', 'movements-area-chart', 'category-value-bar'];
-
 type Layouts = ResponsiveLayouts;
 
 const GRID_BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480 };
 const GRID_COLS        = { lg: 12, md: 10, sm: 6, xs: 2 };
 const GRID_ROW_HEIGHT  = 50;
-const LAYOUT_STORAGE_KEY = 'flowLab_dashboard_layout';
+const LAYOUT_STORAGE_KEY = 'flowLab_dashboard_layout_v3';
 
 // ─── Layout padrão (fallback para primeiro acesso) ───────────────
 const DEFAULT_LAYOUTS: Layouts = {
   lg: [
-    { i: 'stats-summary',         x: 0,  y: 0,  w: 12, h: 3,  minW: 6,  minH: 2 },
-    { i: 'charts-toggle',         x: 0,  y: 3,  w: 12, h: 1,  minW: 4,  minH: 1, static: true },
-    { i: 'inventory-status-chart', x: 0,  y: 4,  w: 4,  h: 6,  minW: 3,  minH: 4 },
-    { i: 'categories-pie-chart',  x: 4,  y: 4,  w: 4,  h: 6,  minW: 3,  minH: 4 },
-    { i: 'movements-area-chart',  x: 8,  y: 4,  w: 4,  h: 7,  minW: 3,  minH: 5 },
-    { i: 'category-value-bar',    x: 0,  y: 10, w: 12, h: 6,  minW: 6,  minH: 4 },
-    { i: 'financial-stats',       x: 0,  y: 16, w: 12, h: 4,  minW: 6,  minH: 3 },
-    { i: 'categories-list',       x: 0,  y: 20, w: 6,  h: 6,  minW: 4,  minH: 4 },
-    { i: 'department-ranking',    x: 6,  y: 20, w: 6,  h: 6,  minW: 4,  minH: 4 },
-    { i: 'recent-movements',      x: 0,  y: 26, w: 12, h: 6,  minW: 6,  minH: 4 },
-    { i: 'top-value',             x: 0,  y: 32, w: 6,  h: 6,  minW: 4,  minH: 4 },
-    { i: 'low-stock',             x: 6,  y: 32, w: 6,  h: 6,  minW: 4,  minH: 4 },
-    { i: 'expiring',              x: 0,  y: 38, w: 6,  h: 6,  minW: 4,  minH: 4 },
-    { i: 'financial-summary',     x: 0,  y: 44, w: 12, h: 5,  minW: 6,  minH: 3 },
-    { i: 'request-metrics',       x: 0,  y: 49, w: 12, h: 9,  minW: 6,  minH: 6 },
+    { i: 'stats-summary',      x: 0, y: 0,  w: 12, h: 3,  minW: 6,  minH: 2 },
+    { i: 'charts-section',     x: 0, y: 3,  w: 12, h: 10, minW: 8,  minH: 8 },
+    { i: 'financial-stats',    x: 0, y: 13, w: 12, h: 3,  minW: 6,  minH: 3 },
+    { i: 'categories-list',    x: 0, y: 16, w: 6,  h: 7,  minW: 4,  minH: 4 },
+    { i: 'department-ranking', x: 6, y: 16, w: 6,  h: 7,  minW: 4,  minH: 4 },
+    { i: 'recent-movements',   x: 0, y: 23, w: 12, h: 7,  minW: 6,  minH: 4 },
+    { i: 'top-value',          x: 0, y: 30, w: 6,  h: 6,  minW: 4,  minH: 4 },
+    { i: 'low-stock',          x: 6, y: 30, w: 6,  h: 6,  minW: 4,  minH: 4 },
+    { i: 'expiring',           x: 0, y: 36, w: 6,  h: 6,  minW: 4,  minH: 4 },
+    { i: 'financial-summary',  x: 0, y: 42, w: 12, h: 5,  minW: 6,  minH: 3 },
+    { i: 'request-metrics',    x: 0, y: 47, w: 12, h: 8,  minW: 6,  minH: 6 },
   ],
   md: [
-    { i: 'stats-summary',         x: 0, y: 0,  w: 10, h: 3 },
-    { i: 'charts-toggle',         x: 0, y: 3,  w: 10, h: 1, static: true },
-    { i: 'inventory-status-chart', x: 0, y: 4,  w: 5,  h: 6 },
-    { i: 'categories-pie-chart',  x: 5, y: 4,  w: 5,  h: 6 },
-    { i: 'movements-area-chart',  x: 0, y: 10, w: 10, h: 7 },
-    { i: 'category-value-bar',    x: 0, y: 17, w: 10, h: 6 },
-    { i: 'financial-stats',       x: 0, y: 23, w: 10, h: 4 },
-    { i: 'categories-list',       x: 0, y: 27, w: 5,  h: 6 },
-    { i: 'department-ranking',    x: 5, y: 27, w: 5,  h: 6 },
-    { i: 'recent-movements',      x: 0, y: 33, w: 10, h: 6 },
-    { i: 'top-value',             x: 0, y: 39, w: 5,  h: 6 },
-    { i: 'low-stock',             x: 5, y: 39, w: 5,  h: 6 },
-    { i: 'expiring',              x: 0, y: 45, w: 5,  h: 6 },
-    { i: 'financial-summary',     x: 0, y: 51, w: 10, h: 5 },
-    { i: 'request-metrics',       x: 0, y: 56, w: 10, h: 9 },
+    { i: 'stats-summary',      x: 0, y: 0,  w: 10, h: 3  },
+    { i: 'charts-section',     x: 0, y: 3,  w: 10, h: 13 },
+    { i: 'financial-stats',    x: 0, y: 16, w: 10, h: 3  },
+    { i: 'categories-list',    x: 0, y: 19, w: 5,  h: 7  },
+    { i: 'department-ranking', x: 5, y: 19, w: 5,  h: 7  },
+    { i: 'recent-movements',   x: 0, y: 26, w: 10, h: 7  },
+    { i: 'top-value',          x: 0, y: 33, w: 5,  h: 6  },
+    { i: 'low-stock',          x: 5, y: 33, w: 5,  h: 6  },
+    { i: 'expiring',           x: 0, y: 39, w: 5,  h: 6  },
+    { i: 'financial-summary',  x: 0, y: 45, w: 10, h: 5  },
+    { i: 'request-metrics',    x: 0, y: 50, w: 10, h: 8  },
   ],
   sm: [
-    { i: 'stats-summary',         x: 0, y: 0,  w: 6, h: 5 },
-    { i: 'charts-toggle',         x: 0, y: 5,  w: 6, h: 1, static: true },
-    { i: 'inventory-status-chart', x: 0, y: 6,  w: 6, h: 6 },
-    { i: 'categories-pie-chart',  x: 0, y: 12, w: 6, h: 6 },
-    { i: 'movements-area-chart',  x: 0, y: 18, w: 6, h: 7 },
-    { i: 'category-value-bar',    x: 0, y: 25, w: 6, h: 6 },
-    { i: 'financial-stats',       x: 0, y: 31, w: 6, h: 5 },
-    { i: 'categories-list',       x: 0, y: 36, w: 6, h: 6 },
-    { i: 'department-ranking',    x: 0, y: 42, w: 6, h: 6 },
-    { i: 'recent-movements',      x: 0, y: 48, w: 6, h: 6 },
-    { i: 'top-value',             x: 0, y: 54, w: 6, h: 6 },
-    { i: 'low-stock',             x: 0, y: 60, w: 6, h: 6 },
-    { i: 'expiring',              x: 0, y: 66, w: 6, h: 6 },
-    { i: 'financial-summary',     x: 0, y: 72, w: 6, h: 5 },
-    { i: 'request-metrics',       x: 0, y: 77, w: 6, h: 10 },
+    { i: 'stats-summary',      x: 0, y: 0,  w: 6, h: 5  },
+    { i: 'charts-section',     x: 0, y: 5,  w: 6, h: 22 },
+    { i: 'financial-stats',    x: 0, y: 27, w: 6, h: 5  },
+    { i: 'categories-list',    x: 0, y: 32, w: 6, h: 7  },
+    { i: 'department-ranking', x: 0, y: 39, w: 6, h: 7  },
+    { i: 'recent-movements',   x: 0, y: 46, w: 6, h: 7  },
+    { i: 'top-value',          x: 0, y: 53, w: 6, h: 6  },
+    { i: 'low-stock',          x: 0, y: 59, w: 6, h: 6  },
+    { i: 'expiring',           x: 0, y: 65, w: 6, h: 6  },
+    { i: 'financial-summary',  x: 0, y: 71, w: 6, h: 5  },
+    { i: 'request-metrics',    x: 0, y: 76, w: 6, h: 10 },
   ],
   xs: [
-    { i: 'stats-summary',         x: 0, y: 0,   w: 2, h: 9 },
-    { i: 'charts-toggle',         x: 0, y: 9,   w: 2, h: 1, static: true },
-    { i: 'inventory-status-chart', x: 0, y: 10,  w: 2, h: 6 },
-    { i: 'categories-pie-chart',  x: 0, y: 16,  w: 2, h: 6 },
-    { i: 'movements-area-chart',  x: 0, y: 22,  w: 2, h: 7 },
-    { i: 'category-value-bar',    x: 0, y: 29,  w: 2, h: 7 },
-    { i: 'financial-stats',       x: 0, y: 36,  w: 2, h: 7 },
-    { i: 'categories-list',       x: 0, y: 43,  w: 2, h: 6 },
-    { i: 'department-ranking',    x: 0, y: 49,  w: 2, h: 6 },
-    { i: 'recent-movements',      x: 0, y: 55,  w: 2, h: 6 },
-    { i: 'top-value',             x: 0, y: 61,  w: 2, h: 6 },
-    { i: 'low-stock',             x: 0, y: 67,  w: 2, h: 6 },
-    { i: 'expiring',              x: 0, y: 73,  w: 2, h: 6 },
-    { i: 'financial-summary',     x: 0, y: 79,  w: 2, h: 6 },
-    { i: 'request-metrics',       x: 0, y: 85,  w: 2, h: 12 },
+    { i: 'stats-summary',      x: 0, y: 0,  w: 2, h: 9  },
+    { i: 'charts-section',     x: 0, y: 9,  w: 2, h: 30 },
+    { i: 'financial-stats',    x: 0, y: 39, w: 2, h: 7  },
+    { i: 'categories-list',    x: 0, y: 46, w: 2, h: 7  },
+    { i: 'department-ranking', x: 0, y: 53, w: 2, h: 7  },
+    { i: 'recent-movements',   x: 0, y: 60, w: 2, h: 7  },
+    { i: 'top-value',          x: 0, y: 67, w: 2, h: 6  },
+    { i: 'low-stock',          x: 0, y: 73, w: 2, h: 6  },
+    { i: 'expiring',           x: 0, y: 79, w: 2, h: 6  },
+    { i: 'financial-summary',  x: 0, y: 85, w: 2, h: 6  },
+    { i: 'request-metrics',    x: 0, y: 91, w: 2, h: 12 },
   ],
 };
 
@@ -175,7 +157,6 @@ const Dashboard: React.FC = () => {
   const { isDark } = useTheme();
   const [selectedDetail, setSelectedDetail] = useState<string | null>(null);
   const [showCharts, setShowCharts] = useState<boolean>(true);
-  const savedChartLayouts = useRef<Record<string, LayoutItem[]>>({});
   const [movementsPeriod, setMovementsPeriod] = useState<7 | 15 | 30 | 'custom'>(7);
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
@@ -204,35 +185,6 @@ const Dashboard: React.FC = () => {
     setLayouts(DEFAULT_LAYOUTS);
     localStorage.removeItem(LAYOUT_STORAGE_KEY);
   }, []);
-
-  const toggleCharts = useCallback(() => {
-    setShowCharts(prev => {
-      if (prev) {
-        // Hiding charts: save their layout items for each breakpoint
-        const saved: Record<string, LayoutItem[]> = {};
-        for (const bp of Object.keys(layouts)) {
-          saved[bp] = (layouts as Record<string, LayoutItem[]>)[bp].filter((item: LayoutItem) => CHART_KEYS.includes(item.i));
-        }
-        savedChartLayouts.current = saved;
-      } else {
-        // Showing charts: restore saved positions into current layouts
-        setLayouts(current => {
-          const restored: Record<string, LayoutItem[]> = {};
-          for (const bp of Object.keys(current)) {
-            const currentItems = (current as Record<string, LayoutItem[]>)[bp];
-            const savedItems = savedChartLayouts.current[bp] || 
-              (DEFAULT_LAYOUTS as Record<string, LayoutItem[]>)[bp].filter((item: LayoutItem) => CHART_KEYS.includes(item.i));
-            // Merge: keep non-chart items, add back chart items at saved positions
-            const withoutCharts = currentItems.filter((item: LayoutItem) => !CHART_KEYS.includes(item.i));
-            restored[bp] = [...withoutCharts, ...savedItems];
-          }
-          localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(restored));
-          return restored as Layouts;
-        });
-      }
-      return !prev;
-    });
-  }, [layouts]);
 
   // Configuração visual dos gráficos (tema-aware)
   const chartFont = 'Inter, system-ui, -apple-system, sans-serif';
@@ -1199,8 +1151,8 @@ const Dashboard: React.FC = () => {
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">#</th>
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Depto</th>
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Total</th>
-                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Pend.</th>
-                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Aprov.</th>
+                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">pendentes</th>
+                    <th className="hidden sm:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">aprovados</th>
                     <th className="hidden md:table-cell px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Rejeit.</th>
                     <th className="px-3 sm:px-6 py-2 sm:py-3 text-left text-xs font-medium text-slate-600 dark:text-slate-300 uppercase tracking-wider">Taxa</th>
                   </tr>
@@ -1337,434 +1289,306 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* ════ Widget: Charts Toggle ════════════════════════════ */}
-        <div key="charts-toggle">
-          <div className="h-full flex items-center">
-      <div className="flex items-center justify-between gap-2 w-full">
-        <div className="flex items-center gap-2 min-w-0">
-          <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg flex-shrink-0">
-            <LineChart className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-          </div>
-          <h2 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Gráficos e Indicadores</h2>
-        </div>
-        <button
-          onClick={toggleCharts}
-          className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl font-medium text-xs sm:text-sm transition-all duration-300 flex-shrink-0 ${
-            showCharts 
-              ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/70' 
-              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-          }`}
-        >
-          {showCharts ? (
-            <>
-              <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Ocultar</span>
-              <span className="hidden sm:inline"> Gráficos</span>
-            </>
-          ) : (
-            <>
-              <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span className="hidden xs:inline">Mostrar</span>
-              <span className="hidden sm:inline"> Gráficos</span>
-            </>
-          )}
-        </button>
-      </div>
-          </div>
-        </div>
-
-        {/* ════ Widget: Inventory Status Chart (Pie) ═════════════ */}
-        <div key="inventory-status-chart" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
+        {/* ════ Widget: Charts Section ════════════════════════════ */}
+        <div key="charts-section" className="group">
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm p-4 sm:p-6">
             <DragHandle />
-            <AnimatePresence mode="wait">
-            {showCharts && (
-              <motion.div
-                key="inventory-status-content"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                className="flex flex-col flex-1 min-h-0"
-              >
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
-              <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-500 shadow-lg mr-2 sm:mr-3">
-                <PieChartIcon className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-              </div>
-              Status do Estoque
-            </h3>
-          </div>
-          <div className="flex-1 min-h-0">
-            {chartData.statusData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <defs>
-                    <linearGradient id="pieStatusGrad-0" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
-                    </linearGradient>
-                    <linearGradient id="pieStatusGrad-1" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#D97706" stopOpacity={0.8}/>
-                    </linearGradient>
-                    <linearGradient id="pieStatusGrad-2" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#F87171" stopOpacity={1}/>
-                      <stop offset="100%" stopColor="#DC2626" stopOpacity={0.8}/>
-                    </linearGradient>
-                  </defs>
-                  <Pie
-                    data={chartData.statusData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={40}
-                    outerRadius={70}
-                    paddingAngle={4}
-                    dataKey="value"
-                    stroke="none"
-                    cornerRadius={6}
-                  >
-                    {chartData.statusData.map((_entry, index) => (
-                      <Cell key={`cell-${index}`} fill={`url(#pieStatusGrad-${index})`} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={chartTooltipStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    itemStyle={chartTooltipItemStyle}
-                  />
-                  <Legend 
-                    verticalAlign="bottom" 
-                    height={36}
-                    formatter={(value) => <span className="text-sm text-gray-600 dark:text-gray-300">{value}</span>}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
-                <div className="text-center">
-                  <PieChartIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Sem dados de status</p>
+            {/* Header */}
+            <div className="flex items-center justify-between gap-2 mb-4 flex-shrink-0">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg flex-shrink-0">
+                  <LineChart className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
+                <h2 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Gráficos e Indicadores</h2>
               </div>
-            )}
-          </div>
-              </motion.div>
-            )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* ════ Widget: Categories Pie Chart ═════════════════════ */}
-        <div key="categories-pie-chart" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
-            <DragHandle />
-            <AnimatePresence mode="wait">
-            {showCharts && (
-              <motion.div
-                key="categories-pie-content"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                className="flex flex-col flex-1 min-h-0"
-              >
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
-              <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-purple-500 shadow-lg mr-2 sm:mr-3">
-                <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-              </div>
-              Categorias
-            </h3>
-          </div>
-          <div className="flex-1 min-h-0">
-            {chartData.categoryPieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <defs>
-                    {CHART_COLORS.map((color, i) => {
-                      const ends = ['#1D4ED8','#0E7490','#4338CA','#0369A1','#4F46E5','#0F766E','#7C3AED','#0891B2'];
-                      return (
-                        <linearGradient key={i} id={`pieCatGrad-${i}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={color} stopOpacity={1}/>
-                          <stop offset="100%" stopColor={ends[i % ends.length]} stopOpacity={0.8}/>
-                        </linearGradient>
-                      );
-                    })}
-                  </defs>
-                  <Pie
-                    data={chartData.categoryPieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={28}
-                    outerRadius={65}
-                    paddingAngle={3}
-                    dataKey="value"
-                    stroke="none"
-                    cornerRadius={5}
-                  >
-                    {chartData.categoryPieData.map((_entry, index) => (
-                      <Cell key={`cell-${index}`} fill={`url(#pieCatGrad-${index % CHART_COLORS.length})`} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={chartTooltipStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    itemStyle={chartTooltipItemStyle}
-                    formatter={(value: number) => [`${value} produtos`, 'Quantidade']}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
-                <div className="text-center">
-                  <Package className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Sem categorias cadastradas</p>
-                </div>
-              </div>
-            )}
-          </div>
-          {chartData.categoryPieData.length > 0 && (
-            <div className="flex flex-wrap gap-2 mt-2 justify-center">
-              {chartData.categoryPieData.slice(0, 4).map((cat, i) => (
-                <div key={i} className="flex items-center gap-1.5 text-xs">
-                  <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }}></div>
-                  <span className="text-gray-600 dark:text-gray-300 capitalize">{cat.name}</span>
-                </div>
-              ))}
-            </div>
-          )}
-              </motion.div>
-            )}
-            </AnimatePresence>
-          </div>
-        </div>
-
-        {/* ════ Widget: Movements Area Chart ════════════════════ */}
-        <div key="movements-area-chart" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
-            <DragHandle />
-            <AnimatePresence mode="wait">
-            {showCharts && (
-              <motion.div
-                key="movements-area-content"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
-                transition={{ duration: 0.3, ease: 'easeInOut' }}
-                className="flex flex-col flex-1 min-h-0"
-              >
-          <div className="mb-3 sm:mb-4">
-            <div className="flex items-center justify-between mb-2 sm:mb-3">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
-                <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mr-2 sm:mr-3">
-                  <Activity className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                </div>
-                Movimentações
-              </h3>
-            </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
               <button
-                onClick={() => setMovementsPeriod(7)}
-                className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium rounded-lg transition-all ${
-                  movementsPeriod === 7
-                    ? 'bg-blue-500 text-white shadow-sm'
+                onClick={() => setShowCharts(prev => !prev)}
+                className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl font-medium text-xs sm:text-sm transition-all duration-300 flex-shrink-0 ${
+                  showCharts
+                    ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/70'
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
-                7d
+                {showCharts ? (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline">Ocultar</span>
+                    <span className="hidden sm:inline"> Gráficos</span>
+                  </>
+                ) : (
+                  <>
+                    <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span className="hidden xs:inline">Mostrar</span>
+                    <span className="hidden sm:inline"> Gráficos</span>
+                  </>
+                )}
               </button>
-              <button
-                onClick={() => setMovementsPeriod(15)}
-                className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium rounded-lg transition-all ${
-                  movementsPeriod === 15
-                    ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                15d
-              </button>
-              <button
-                onClick={() => setMovementsPeriod(30)}
-                className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium rounded-lg transition-all ${
-                  movementsPeriod === 30
-                    ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                30d
-              </button>
-              <button
-                onClick={() => setMovementsPeriod('custom')}
-                className={`px-2 sm:px-3 py-1 sm:py-1.5 text-xs font-medium rounded-lg transition-all ${
-                  movementsPeriod === 'custom'
-                    ? 'bg-blue-500 text-white shadow-sm'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-              >
-                Custom
-              </button>
-              {movementsPeriod === 'custom' && (
-                <div className="flex items-center gap-1 sm:gap-2 w-full sm:w-auto mt-2 sm:mt-0 sm:ml-2">
-                  <input
-                    type="date"
-                    value={customStartDate}
-                    onChange={(e) => setCustomStartDate(e.target.value)}
-                    className="flex-1 sm:flex-none px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <span className="text-xs text-gray-500 dark:text-gray-400">até</span>
-                  <input
-                    type="date"
-                    value={customEndDate}
-                    onChange={(e) => setCustomEndDate(e.target.value)}
-                    className="flex-1 sm:flex-none px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              )}
             </div>
-          </div>
-          <div className="flex-1 min-h-0">
-            {chartData.movementsAreaData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={chartData.movementsAreaData}>
-                  <defs>
-                    <linearGradient id="colorSaidas" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4}/>
-                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : chartGridColor} opacity={isDark ? 0.4 : 0.8} vertical={false} />
-                  <XAxis 
-                    dataKey="date" 
-                    tick={chartAxisTick}
-                    axisLine={{ stroke: chartAxisLineColor }}
-                    tickLine={{ stroke: chartAxisLineColor }}
-                  />
-                  <YAxis 
-                    tick={chartAxisTick}
-                    axisLine={{ stroke: chartAxisLineColor }}
-                    tickLine={{ stroke: chartAxisLineColor }}
-                  />
-                  <Tooltip 
-                    contentStyle={chartTooltipStyle}
-                    labelStyle={chartTooltipLabelStyle}
-                    itemStyle={chartTooltipItemStyle}
-                  />
-                  <Area 
-                    type="monotone" 
-                    dataKey="saidas" 
-                    stroke="#3B82F6" 
-                    strokeWidth={3}
-                    fillOpacity={1} 
-                    fill="url(#colorSaidas)"
-                    name="Saídas"
-                    dot={false}
-                    activeDot={{ r: 5, fill: '#3B82F6', stroke: isDark ? '#1e293b' : '#fff', strokeWidth: 2 }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-400">
-                <div className="text-center">
-                  <Activity className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">Sem movimentações recentes</p>
-                </div>
-              </div>
-            )}
-          </div>
-              </motion.div>
-            )}
-            </AnimatePresence>
-          </div>
-        </div>
 
-        {/* ════ Widget: Category Value Bar Chart ════════════════ */}
-        <div key="category-value-bar" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
-            <DragHandle />
+            {/* Charts content */}
             <AnimatePresence mode="wait">
             {showCharts && (
               <motion.div
-                key="category-value-content"
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.95 }}
+                key="charts-section-content"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
                 transition={{ duration: 0.3, ease: 'easeInOut' }}
-                className="flex flex-col flex-1 min-h-0"
+                className="flex-1 min-h-0 flex flex-col gap-4 overflow-y-auto"
               >
-        <div className="flex items-center justify-between mb-3 sm:mb-4">
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
-            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-indigo-500 shadow-lg mr-2 sm:mr-3">
-              <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
-            <span className="hidden xs:inline">Valor em Estoque por </span>Categoria
-          </h3>
-          <span className="text-xs font-medium px-2 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">
-            Top 6
-          </span>
-        </div>
-        <div className="flex-1 min-h-0">
-          {chartData.categoryValueData.length > 0 ? (
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={chartData.categoryValueData} layout="vertical">
-                <defs>
-                  {CHART_COLORS.map((color, i) => (
-                    <linearGradient key={i} id={`barGrad-${i}`} x1="0" y1="0" x2="1" y2="0">
-                      <stop offset="0%" stopColor={color} stopOpacity={0.65} />
-                      <stop offset="100%" stopColor={color} stopOpacity={1} />
-                    </linearGradient>
-                  ))}
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : chartGridColor} opacity={isDark ? 0.4 : 0.8} horizontal={true} vertical={false} />
-                <XAxis 
-                  type="number" 
-                  tick={chartAxisTick}
-                  tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                  axisLine={{ stroke: chartAxisLineColor }}
-                  tickLine={{ stroke: chartAxisLineColor }}
-                />
-                <YAxis 
-                  type="category" 
-                  dataKey="name" 
-                  tick={chartAxisTick}
-                  width={100}
-                  axisLine={{ stroke: chartAxisLineColor }}
-                  tickLine={{ stroke: chartAxisLineColor }}
-                />
-                <Tooltip 
-                  contentStyle={chartTooltipStyle}
-                  labelStyle={chartTooltipLabelStyle}
-                  itemStyle={chartTooltipItemStyle}
-                  formatter={(value: number) => [formatCurrency(value), 'Valor']}
-                  labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
-                  cursor={{ fill: isDark ? 'rgba(51,65,85,0.3)' : 'rgba(226,232,240,0.5)' }}
-                />
-                <Bar 
-                  dataKey="valor" 
-                  radius={[0, 8, 8, 0]}
-                  name="Valor em Estoque"
-                >
-                  {chartData.categoryValueData.map((_, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={`url(#barGrad-${index % CHART_COLORS.length})`}
-                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
-                      strokeWidth={1}
-                      strokeOpacity={0.3}
-                    />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          ) : (
-            <div className="h-full flex items-center justify-center text-gray-400">
-              <div className="text-center">
-                <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-50" />
-                <p className="text-sm">Sem dados disponíveis</p>
-              </div>
-            </div>
-          )}
-        </div>
+                {/* Row 1: Status · Categorias · Movimentações */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+
+                  {/* Chart 1: Status do Estoque */}
+                  <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-2">
+                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center flex-shrink-0">
+                      <div className="p-1.5 rounded-lg bg-emerald-500 shadow-lg mr-2">
+                        <PieChartIcon className="w-4 h-4 text-white" />
+                      </div>
+                      Status do Estoque
+                    </h3>
+                    <div className="h-44">
+                      {chartData.statusData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <defs>
+                              <linearGradient id="pieStatusGrad-0" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
+                                <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+                              </linearGradient>
+                              <linearGradient id="pieStatusGrad-1" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
+                                <stop offset="100%" stopColor="#D97706" stopOpacity={0.8}/>
+                              </linearGradient>
+                              <linearGradient id="pieStatusGrad-2" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#F87171" stopOpacity={1}/>
+                                <stop offset="100%" stopColor="#DC2626" stopOpacity={0.8}/>
+                              </linearGradient>
+                            </defs>
+                            <Pie
+                              data={chartData.statusData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={40}
+                              outerRadius={70}
+                              paddingAngle={4}
+                              dataKey="value"
+                              stroke="none"
+                              cornerRadius={6}
+                            >
+                              {chartData.statusData.map((_entry, index) => (
+                                <Cell key={`cell-${index}`} fill={`url(#pieStatusGrad-${index})`} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={chartTooltipStyle}
+                              labelStyle={chartTooltipLabelStyle}
+                              itemStyle={chartTooltipItemStyle}
+                            />
+                            <Legend
+                              verticalAlign="bottom"
+                              height={36}
+                              formatter={(value) => <span className="text-sm text-gray-600 dark:text-gray-300">{value}</span>}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-gray-400">
+                          <div className="text-center">
+                            <PieChartIcon className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Sem dados de status</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Chart 2: Categorias */}
+                  <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-2">
+                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center flex-shrink-0">
+                      <div className="p-1.5 rounded-lg bg-purple-500 shadow-lg mr-2">
+                        <Package className="w-4 h-4 text-white" />
+                      </div>
+                      Categorias
+                    </h3>
+                    <div className="h-44">
+                      {chartData.categoryPieData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <defs>
+                              {CHART_COLORS.map((color, i) => {
+                                const ends = ['#1D4ED8','#0E7490','#4338CA','#0369A1','#4F46E5','#0F766E','#7C3AED','#0891B2'];
+                                return (
+                                  <linearGradient key={i} id={`pieCatGrad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="0%" stopColor={color} stopOpacity={1}/>
+                                    <stop offset="100%" stopColor={ends[i % ends.length]} stopOpacity={0.8}/>
+                                  </linearGradient>
+                                );
+                              })}
+                            </defs>
+                            <Pie
+                              data={chartData.categoryPieData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={28}
+                              outerRadius={65}
+                              paddingAngle={3}
+                              dataKey="value"
+                              stroke="none"
+                              cornerRadius={5}
+                            >
+                              {chartData.categoryPieData.map((_entry, index) => (
+                                <Cell key={`cell-${index}`} fill={`url(#pieCatGrad-${index % CHART_COLORS.length})`} />
+                              ))}
+                            </Pie>
+                            <Tooltip
+                              contentStyle={chartTooltipStyle}
+                              labelStyle={chartTooltipLabelStyle}
+                              itemStyle={chartTooltipItemStyle}
+                              formatter={(value: number) => [`${value} produtos`, 'Quantidade']}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-gray-400">
+                          <div className="text-center">
+                            <Package className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Sem categorias cadastradas</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {chartData.categoryPieData.length > 0 && (
+                      <div className="flex flex-wrap gap-2 justify-center">
+                        {chartData.categoryPieData.slice(0, 4).map((cat, i) => (
+                          <div key={i} className="flex items-center gap-1.5 text-xs">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cat.color }}></div>
+                            <span className="text-gray-600 dark:text-gray-300 capitalize">{cat.name}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Chart 3: Movimentações */}
+                  <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-2">
+                    <div className="flex flex-col gap-1.5 flex-shrink-0">
+                      <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+                        <div className="p-1.5 rounded-lg bg-blue-500 shadow-lg mr-2">
+                          <Activity className="w-4 h-4 text-white" />
+                        </div>
+                        Movimentações
+                      </h3>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <button onClick={() => setMovementsPeriod(7)} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 7 ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>7d</button>
+                        <button onClick={() => setMovementsPeriod(15)} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 15 ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>15d</button>
+                        <button onClick={() => setMovementsPeriod(30)} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 30 ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>30d</button>
+                        <button onClick={() => setMovementsPeriod('custom')} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 'custom' ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>Custom</button>
+                        {movementsPeriod === 'custom' && (
+                          <div className="flex items-center gap-1 w-full mt-1">
+                            <input
+                              type="date"
+                              value={customStartDate}
+                              onChange={(e) => setCustomStartDate(e.target.value)}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                            <span className="text-xs text-gray-500 dark:text-gray-400">até</span>
+                            <input
+                              type="date"
+                              value={customEndDate}
+                              onChange={(e) => setCustomEndDate(e.target.value)}
+                              className="flex-1 px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="h-44">
+                      {chartData.movementsAreaData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <AreaChart data={chartData.movementsAreaData}>
+                            <defs>
+                              <linearGradient id="colorSaidas" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4}/>
+                                <stop offset="100%" stopColor="#3B82F6" stopOpacity={0}/>
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : chartGridColor} opacity={isDark ? 0.4 : 0.8} vertical={false} />
+                            <XAxis dataKey="date" tick={chartAxisTick} axisLine={{ stroke: chartAxisLineColor }} tickLine={{ stroke: chartAxisLineColor }} />
+                            <YAxis tick={chartAxisTick} axisLine={{ stroke: chartAxisLineColor }} tickLine={{ stroke: chartAxisLineColor }} />
+                            <Tooltip contentStyle={chartTooltipStyle} labelStyle={chartTooltipLabelStyle} itemStyle={chartTooltipItemStyle} />
+                            <Area type="monotone" dataKey="saidas" stroke="#3B82F6" strokeWidth={3} fillOpacity={1} fill="url(#colorSaidas)" name="Saídas" dot={false} activeDot={{ r: 5, fill: '#3B82F6', stroke: isDark ? '#1e293b' : '#fff', strokeWidth: 2 }} />
+                          </AreaChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-gray-400">
+                          <div className="text-center">
+                            <Activity className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                            <p className="text-sm">Sem movimentações recentes</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Row 2: Valor em Estoque por Categoria (Bar) */}
+                <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-2">
+                  <div className="flex items-center justify-between flex-shrink-0">
+                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+                      <div className="p-1.5 rounded-lg bg-indigo-500 shadow-lg mr-2">
+                        <BarChart3 className="w-4 h-4 text-white" />
+                      </div>
+                      <span className="hidden xs:inline">Valor em Estoque por </span>Categoria
+                    </h3>
+                    <span className="text-xs font-medium px-2 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">Top 6</span>
+                  </div>
+                  <div className="h-52">
+                    {chartData.categoryValueData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData.categoryValueData} layout="vertical">
+                          <defs>
+                            {CHART_COLORS.map((color, i) => (
+                              <linearGradient key={i} id={`barGrad-${i}`} x1="0" y1="0" x2="1" y2="0">
+                                <stop offset="0%" stopColor={color} stopOpacity={0.65} />
+                                <stop offset="100%" stopColor={color} stopOpacity={1} />
+                              </linearGradient>
+                            ))}
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : chartGridColor} opacity={isDark ? 0.4 : 0.8} horizontal={true} vertical={false} />
+                          <XAxis type="number" tick={chartAxisTick} tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`} axisLine={{ stroke: chartAxisLineColor }} tickLine={{ stroke: chartAxisLineColor }} />
+                          <YAxis type="category" dataKey="name" tick={chartAxisTick} width={100} axisLine={{ stroke: chartAxisLineColor }} tickLine={{ stroke: chartAxisLineColor }} />
+                          <Tooltip
+                            contentStyle={chartTooltipStyle}
+                            labelStyle={chartTooltipLabelStyle}
+                            itemStyle={chartTooltipItemStyle}
+                            formatter={(value: number) => [formatCurrency(value), 'Valor']}
+                            labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                            cursor={{ fill: isDark ? 'rgba(51,65,85,0.3)' : 'rgba(226,232,240,0.5)' }}
+                          />
+                          <Bar dataKey="valor" radius={[0, 8, 8, 0]} name="Valor em Estoque">
+                            {chartData.categoryValueData.map((_, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={`url(#barGrad-${index % CHART_COLORS.length})`}
+                                stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                                strokeWidth={1}
+                                strokeOpacity={0.3}
+                              />
+                            ))}
+                          </Bar>
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400">
+                        <div className="text-center">
+                          <BarChart3 className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                          <p className="text-sm">Sem dados disponíveis</p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </motion.div>
             )}
             </AnimatePresence>
@@ -1812,11 +1636,11 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Categories List ═════════════════════════ */}
         <div key="categories-list" className="group">
-          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-300"
             onClick={() => setSelectedDetail('categories')}
           >
             <DragHandle />
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-purple-500 shadow-lg mr-2 sm:mr-3">
                 <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -1827,7 +1651,7 @@ const Dashboard: React.FC = () => {
               {Object.keys(dashboardData.allCategories).length} <span className="hidden xs:inline">categorias</span>
             </span>
           </div>
-          <div className="space-y-2 sm:space-y-3 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
+          <div className="flex-1 min-h-0 space-y-2 sm:space-y-3 overflow-y-auto pr-1">
             {Object.entries(dashboardData.allCategories)
               .sort(([, a], [, b]) => b - a)
               .map(([category, count], index) => {
@@ -1871,11 +1695,11 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Department Ranking ═══════════════════════ */}
         <div key="department-ranking" className="group">
-          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300"
             onClick={() => setSelectedDetail('departmentRanking')}
           >
             <DragHandle />
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-700 shadow-lg mr-2 sm:mr-3">
                 <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -1886,7 +1710,7 @@ const Dashboard: React.FC = () => {
               {chartData.departmentRankingData.length} <span className="hidden sm:inline">centro(s)</span>
             </span>
           </div>
-          <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
+          <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
             {chartData.departmentRankingData.length > 0 ? (
               chartData.departmentRankingData.slice(0, 8).map((dept, index) => {
                 const maxTotal = chartData.departmentRankingData[0]?.total || 1;
@@ -1938,11 +1762,11 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Recent Movements ════════════════════════ */}
         <div key="recent-movements" className="group">
-          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300"
             onClick={() => setSelectedDetail('recentMovements')}
           >
             <DragHandle />
-        <div className="flex items-center justify-between mb-3 sm:mb-4">
+        <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
           <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mr-2 sm:mr-3">
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -1953,7 +1777,7 @@ const Dashboard: React.FC = () => {
             {recentMovements.length} <span className="hidden xs:inline">itens</span>
           </span>
         </div>
-        <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
+        <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
           {recentMovements.length > 0 ? (
             recentMovements.map((movement) => (
               <div key={movement.id} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg sm:rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
@@ -1986,11 +1810,11 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Top Value Products ══════════════════════ */}
         <div key="top-value" className="group">
-          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-800 transition-all duration-300"
             onClick={() => setSelectedDetail('topValue')}
           >
             <DragHandle />
-          <div className="flex items-center justify-between mb-3 sm:mb-4">
+          <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-green-500 shadow-lg mr-2 sm:mr-3">
                 <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -2001,7 +1825,7 @@ const Dashboard: React.FC = () => {
               Top 5
             </span>
           </div>
-          <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
+          <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
             {dashboardData.topValueProducts.slice(0, 5).map((product, index) => (
               <div key={product.id} className="flex items-center justify-between p-2 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-lg sm:rounded-xl hover:from-green-100 hover:to-emerald-100 dark:hover:from-green-900/50 dark:hover:to-emerald-900/50 transition-colors">
                 <div className="flex items-center flex-1 min-w-0">
@@ -2026,11 +1850,11 @@ const Dashboard: React.FC = () => {
         {/* ════ Widget: Low Stock Alert ═════════════════════════ */}
         {lowStockProducts.length > 0 && (
         <div key="low-stock" className="group">
-          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-orange-200 dark:hover:border-orange-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-orange-200 dark:hover:border-orange-800 transition-all duration-300"
             onClick={() => setSelectedDetail('lowStock')}
           >
             <DragHandle />
-            <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
               <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-orange-500 shadow-lg mr-2 sm:mr-3">
                   <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -2041,7 +1865,7 @@ const Dashboard: React.FC = () => {
                 {lowStockProducts.length} <span className="hidden xs:inline">{lowStockProducts.length === 1 ? 'item' : 'itens'}</span>
               </span>
             </div>
-            <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
+            <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
               {lowStockProducts.slice(0, 10).map((product) => (
                 <div key={product.id} className="flex items-center justify-between p-2 sm:p-3 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/30 dark:to-amber-900/30 rounded-lg sm:rounded-xl hover:from-orange-100 hover:to-amber-100 dark:hover:from-orange-900/50 dark:hover:to-amber-900/50 transition-colors">
                   <div className="flex items-center flex-1 min-w-0">
@@ -2066,11 +1890,11 @@ const Dashboard: React.FC = () => {
         {/* ════ Widget: Expiring Products ═══════════════════════ */}
         {expiringProducts.length > 0 && (
         <div key="expiring" className="group">
-          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-red-200 dark:hover:border-red-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-red-200 dark:hover:border-red-800 transition-all duration-300"
             onClick={() => setSelectedDetail('expiring')}
           >
             <DragHandle />
-            <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
               <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-red-500 shadow-lg mr-2 sm:mr-3">
                   <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -2081,7 +1905,7 @@ const Dashboard: React.FC = () => {
                 {expiringProducts.length} <span className="hidden xs:inline">{expiringProducts.length === 1 ? 'item' : 'itens'}</span>
               </span>
             </div>
-            <div className="space-y-2 max-h-52 sm:max-h-64 overflow-y-auto pr-1">
+            <div className="flex-1 min-h-0 space-y-2 overflow-y-auto pr-1">
               {expiringProducts.map((product) => {
                 const daysUntilExpiration = Math.ceil(
                   (new Date(product.expirationDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
@@ -2271,13 +2095,13 @@ const Dashboard: React.FC = () => {
                 {/* Status Breakdown */}
                 <div className="flex items-center gap-3 text-xs mb-3">
                   <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> {pending} pend.
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> {pending} pendentes
                   </span>
                   <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {approved} aprov.
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {approved} aprovados
                   </span>
                   <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
-                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> {rejected} rej.
+                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> {rejected} rejeitados
                   </span>
                 </div>
 
@@ -2336,13 +2160,13 @@ const Dashboard: React.FC = () => {
                 {/* Status Breakdown */}
                 <div className="flex items-center gap-3 text-xs mb-3">
                   <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> {pending} pend.
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> {pending} pendentes
                   </span>
                   <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {approved} aprov.
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {approved} aprovados
                   </span>
                   <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
-                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> {rejected} rej.
+                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> {rejected} rejeitados
                   </span>
                 </div>
 
@@ -2401,13 +2225,13 @@ const Dashboard: React.FC = () => {
                 {/* Status Breakdown */}
                 <div className="flex items-center gap-3 text-xs mb-3">
                   <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
-                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> {pending} pend.
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> {pending} pendentes
                   </span>
                   <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {approved} aprov.
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {approved} aprovados
                   </span>
                   <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
-                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> {rejected} rej.
+                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> {rejected} rejeitados
                   </span>
                 </div>
 
