@@ -332,8 +332,8 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
       
       {/* Subtitle */}
       <div className="px-4 py-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-gray-800 border-b border-gray-100 dark:border-gray-700">
-        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 text-center">Sistema de Gestão</h2>
-        <p className="text-xs text-gray-500 dark:text-gray-400 text-center">Compras e Estoque</p>
+        <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200 text-center">Sistema de Integração Operacional</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 text-center">Laboratório Lab</p>
       </div>
       
       {/* Navigation */}

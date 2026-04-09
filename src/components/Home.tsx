@@ -366,30 +366,34 @@ const AddProductWidget: React.FC<WidgetProps> = () => (
 const PendingApprovalsWidget: React.FC<WidgetProps> = ({ stats }) => (
   <Link
     to="/requests"
-    className="group relative overflow-hidden w-full h-full rounded-3xl bg-amber-500 dark:bg-gradient-to-br dark:from-amber-500 dark:to-orange-500 p-6 shadow-xl shadow-amber-500/40 border-2 border-amber-600 dark:border-amber-400/30 min-h-[160px] flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-amber-600/50 hover:bg-amber-600"
+    className="group relative w-full h-full rounded-3xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 border border-gray-100 dark:border-gray-700 shadow-xl min-h-[160px] flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:border-amber-300 dark:hover:border-amber-600"
   >
-    {/* Glow */}
-    <div className="absolute -right-6 -bottom-6 w-28 h-28 bg-white/20 rounded-full blur-xl pointer-events-none" />
-
-    <div className="relative z-10 h-full flex flex-col gap-3">
+    <div className="h-full flex flex-col gap-3">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="w-12 h-12 rounded-xl bg-amber-700 flex items-center justify-center shadow-md">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/25">
           <ClipboardList className="w-6 h-6 text-white" />
         </div>
         {stats.pendingRequests > 0 && (
-          <span className="px-3 py-1 text-xs font-bold bg-amber-800 text-white rounded-full animate-pulse">
-            {stats.pendingRequests} pendente{stats.pendingRequests > 1 ? 's' : ''}
+          <span className="px-2.5 py-1 text-xs font-bold bg-amber-500 text-white rounded-full">
+            {stats.pendingRequests}
           </span>
         )}
       </div>
 
       {/* Content */}
       <div className="mt-auto flex flex-col gap-1">
-        <h3 className="text-lg font-bold text-white drop-shadow-sm">Aprovações</h3>
-        <p className="text-sm font-medium text-amber-900 dark:text-amber-100">Revisar solicitações</p>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 group-hover:text-amber-600 dark:group-hover:text-amber-400 transition-colors">
+          Aprovações
+        </h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {stats.pendingRequests > 0 ? `${stats.pendingRequests} pendente${stats.pendingRequests > 1 ? 's' : ''}` : 'Revisar solicitações'}
+        </p>
       </div>
     </div>
+
+    {/* Arrow indicator */}
+    <ChevronRight className="absolute bottom-6 right-6 w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-amber-500 group-hover:translate-x-1 transition-all" />
   </Link>
 );
 

@@ -159,9 +159,9 @@ const Auth: React.FC = () => {
           </div>
 
           <div className="text-center space-y-3">
-            <h2 className="text-4xl font-bold text-white tracking-tight">Flow LAB</h2>
+            <h2 className="text-4xl font-bold text-white tracking-tight">FlowLab</h2>
             <p className="text-blue-200/80 text-base max-w-sm leading-relaxed">
-              Plataforma integrada de gestão para compras, estoque, faturamento e operações.
+              Sistema de integração operacional do Laboratório Lab.
             </p>
           </div>
 
@@ -321,7 +321,7 @@ const Auth: React.FC = () => {
                     </span>
                   </h1>
                   <p className="text-slate-500 dark:text-gray-300 text-sm">
-                    Faça login para continuar no Flow LAB
+                    Faça login para continuar no FlowLab
                   </p>
                 </div>
 
