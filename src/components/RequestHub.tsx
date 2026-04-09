@@ -28,6 +28,7 @@ const RequestHub: React.FC = () => {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
   const userRole = userProfile?.role || 'requester';
+  const userPermissions = userProfile?.permissions || [];
 
   const modules: ModuleCard[] = [
     {
@@ -67,7 +68,7 @@ const RequestHub: React.FC = () => {
 
   // Filter modules based on permissions
   const accessibleModules = modules.filter(
-    module => !module.permission || hasPermission(userRole as any, module.permission as any)
+    module => !module.permission || hasPermission(userPermissions, module.permission)
   );
 
   return (

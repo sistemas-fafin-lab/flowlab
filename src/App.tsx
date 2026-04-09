@@ -27,9 +27,9 @@ import { FaturasDashboard, RecebimentosList, GlosasRecursos } from './modules/fa
 const ProtectedRoute: React.FC<{ 
   children: React.ReactNode; 
   permission?: string;
-  userRole: string;
-}> = ({ children, permission, userRole }) => {
-  if (permission && !hasPermission(userRole as any, permission as any)) {
+  permissions: string[];
+}> = ({ children, permission, permissions }) => {
+  if (permission && !hasPermission(permissions, permission)) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
         <h3 className="text-lg font-medium text-red-800 mb-2">Acesso Negado</h3>
@@ -56,7 +56,7 @@ const AuthenticatedApp: React.FC = () => {
     return <Auth />;
   }
 
-  const userRole = userProfile?.role || 'requester';
+  const userPermissions = userProfile?.permissions || [];
 
   return (
     <Layout>
@@ -67,7 +67,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/dashboard"
           element={
-            <ProtectedRoute permission="canViewDashboard" userRole={userRole}>
+            <ProtectedRoute permission="canViewDashboard" permissions={userPermissions}>
               <Dashboard />
             </ProtectedRoute>
           }
@@ -75,7 +75,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/products"
           element={
-            <ProtectedRoute permission="canViewProducts" userRole={userRole}>
+            <ProtectedRoute permission="canViewProducts" permissions={userPermissions}>
               <ProductList />
             </ProtectedRoute>
           }
@@ -83,7 +83,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/add-product"
           element={
-            <ProtectedRoute permission="canAddProducts" userRole={userRole}>
+            <ProtectedRoute permission="canAddProducts" permissions={userPermissions}>
               <AddProduct />
             </ProtectedRoute>
           }
@@ -91,7 +91,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/movements"
           element={
-            <ProtectedRoute permission="canViewMovements" userRole={userRole}>
+            <ProtectedRoute permission="canViewMovements" permissions={userPermissions}>
               <MovementHistory />
             </ProtectedRoute>
           }
@@ -99,7 +99,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/requests"
           element={
-            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+            <ProtectedRoute permission="canViewRequests" permissions={userPermissions}>
               <RequestHub />
             </ProtectedRoute>
           }
@@ -107,7 +107,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/requests/purchases"
           element={
-            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+            <ProtectedRoute permission="canViewRequests" permissions={userPermissions}>
               <RequestManagement />
             </ProtectedRoute>
           }
@@ -115,7 +115,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/requests/payments"
           element={
-            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+            <ProtectedRoute permission="canViewRequests" permissions={userPermissions}>
               <PaymentRequestManagement />
             </ProtectedRoute>
           }
@@ -123,7 +123,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/requests/maintenance"
           element={
-            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+            <ProtectedRoute permission="canViewRequests" permissions={userPermissions}>
               <MaintenanceRequestManagement />
             </ProtectedRoute>
           }
@@ -131,7 +131,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/expiration"
           element={
-            <ProtectedRoute permission="canViewExpiration" userRole={userRole}>
+            <ProtectedRoute permission="canViewExpiration" permissions={userPermissions}>
               <ExpirationMonitor />
             </ProtectedRoute>
           }
@@ -139,7 +139,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/changelog"
           element={
-            <ProtectedRoute permission="canViewChangelog" userRole={userRole}>
+            <ProtectedRoute permission="canViewChangelog" permissions={userPermissions}>
               <ProductChangeLog />
             </ProtectedRoute>
           }
@@ -147,7 +147,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/users"
           element={
-            <ProtectedRoute permission="canManageUsers" userRole={userRole}>
+            <ProtectedRoute permission="canManageUsers" permissions={userPermissions}>
               <UserManagement />
             </ProtectedRoute>
           }
@@ -155,7 +155,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/suppliers"
           element={
-            <ProtectedRoute permission="canManageSuppliers" userRole={userRole}>
+            <ProtectedRoute permission="canManageSuppliers" permissions={userPermissions}>
               <SupplierManagement />
             </ProtectedRoute>
           }
@@ -163,7 +163,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/quotations"
           element={
-            <ProtectedRoute permission="canManageQuotations" userRole={userRole}>
+            <ProtectedRoute permission="canManageQuotations" permissions={userPermissions}>
               <QuotationManagementPage />
             </ProtectedRoute>
           }
@@ -171,7 +171,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/request-periods"
           element={
-            <ProtectedRoute permission="canConfigureRequestPeriods" userRole={userRole}>
+            <ProtectedRoute permission="canConfigureRequestPeriods" permissions={userPermissions}>
               <RequestPeriodConfig />
             </ProtectedRoute>
           }
@@ -179,7 +179,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/messaging-settings"
           element={
-            <ProtectedRoute permission="canManageUsers" userRole={userRole}>
+            <ProtectedRoute permission="canManageUsers" permissions={userPermissions}>
               <MessagingProviderSettings />
             </ProtectedRoute>
           }
@@ -188,7 +188,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/faturamento/faturas"
           element={
-            <ProtectedRoute permission="canViewBilling" userRole={userRole}>
+            <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
               <FaturasDashboard />
             </ProtectedRoute>
           }
@@ -196,7 +196,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/faturamento/recebimentos"
           element={
-            <ProtectedRoute permission="canViewBilling" userRole={userRole}>
+            <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
               <RecebimentosList />
             </ProtectedRoute>
           }
@@ -204,7 +204,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/faturamento/glosas"
           element={
-            <ProtectedRoute permission="canViewBilling" userRole={userRole}>
+            <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
               <GlosasRecursos />
             </ProtectedRoute>
           }
@@ -213,7 +213,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/payment-requests"
           element={
-            <ProtectedRoute permission="canViewRequests" userRole={userRole}>
+            <ProtectedRoute permission="canViewRequests" permissions={userPermissions}>
               <PaymentRequestManagement />
             </ProtectedRoute>
           }

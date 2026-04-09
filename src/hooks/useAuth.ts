@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { UserProfile, UserRole, Department } from '../types';
+import { getPermissionsForLegacyRole } from '../utils/permissions';
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -42,7 +43,7 @@ export const useAuth = () => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('*, custom_roles(id, name, permissions)')
         .eq('id', userId)
         .single();
 
@@ -53,6 +54,10 @@ export const useAuth = () => {
       }
 
       if (data) {
+        const customRole = data.custom_roles as any;
+        const permissions: string[] = customRole?.permissions
+          || getPermissionsForLegacyRole(data.role);
+
         setUserProfile({
           id: data.id,
           email: data.email,
@@ -61,6 +66,9 @@ export const useAuth = () => {
           department: data.department,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
+          customRoleId: data.custom_role_id,
+          permissions,
+          roleName: customRole?.name,
         });
       } else {
         setUserProfile(null);
@@ -142,11 +150,14 @@ export const useAuth = () => {
     return { error };
   };
 
-  const updateUserRole = async (userId: string, newRole: UserRole) => {
+  const updateUserRole = async (userId: string, newRole: UserRole, customRoleId?: string) => {
     try {
+      const updateData: any = { role: newRole, updated_at: new Date().toISOString() };
+      if (customRoleId) updateData.custom_role_id = customRoleId;
+
       const { error } = await supabase
         .from('user_profiles')
-        .update({ role: newRole, updated_at: new Date().toISOString() })
+        .update(updateData)
         .eq('id', userId);
 
       if (error) throw error;

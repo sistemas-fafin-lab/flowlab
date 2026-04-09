@@ -49,6 +49,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [expandedItems, setExpandedItems] = useState<string[]>(['Produtos']);
 
   const userRole = userProfile?.role || 'requester';
+  const userPermissions = userProfile?.permissions || [];
 
   const navigation: NavigationItem[] = [
     { 
@@ -148,7 +149,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const canAccessItem = (item: NavigationItem) => {
     if (!item.permission) return true;
-    return hasPermission(userRole, item.permission as any);
+    return hasPermission(userPermissions, item.permission);
   };
 
   const renderNavigationItem = (item: NavigationItem, isMobile = false) => {
@@ -350,7 +351,7 @@ const SidebarContent: React.FC<SidebarContentProps> = ({
             <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate" title={userProfile?.name || user?.email}>
               {userProfile?.name || user?.email}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{getRoleLabel(userRole as any)}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{userProfile?.roleName || getRoleLabel(userRole as any)}</p>
             <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">{userProfile?.department}</p>
           </div>
         </div>

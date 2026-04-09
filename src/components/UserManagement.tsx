@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check } from 'lucide-react';
+import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { supabase } from '../lib/supabase';
-import { UserProfile, UserRole, Department } from '../types';
-import { DEPARTMENTS, getRoleForDepartment, getRoleLabel, getDepartmentLabel } from '../utils/permissions';
+import { UserProfile, UserRole, Department, CustomRole } from '../types';
+import { DEPARTMENTS, getRoleForDepartment, getRoleLabel, getDepartmentLabel, ALL_PERMISSION_KEYS, hasPermission } from '../utils/permissions';
 import Notification from './Notification';
 
 // Type for approval level configuration from database
@@ -27,6 +27,21 @@ interface UserApprovalLimit {
   canApprove: boolean;
 }
 
+const GROUP_COLORS: Record<string, {
+  dot: string;
+  activePill: string;
+  activeText: string;
+  groupHeader: string;
+  groupBg: string;
+}> = {
+  'Dashboard':      { dot: 'bg-purple-500',  activePill: 'bg-purple-100 dark:bg-purple-900/40 border-purple-300 dark:border-purple-700',  activeText: 'text-purple-700 dark:text-purple-300',  groupHeader: 'text-purple-600 dark:text-purple-400',  groupBg: 'border-l-2 border-purple-300 dark:border-purple-700 pl-3' },
+  'Produtos':       { dot: 'bg-blue-500',    activePill: 'bg-blue-100 dark:bg-blue-900/40 border-blue-300 dark:border-blue-700',      activeText: 'text-blue-700 dark:text-blue-300',      groupHeader: 'text-blue-600 dark:text-blue-400',      groupBg: 'border-l-2 border-blue-300 dark:border-blue-700 pl-3' },
+  'Movimentações':  { dot: 'bg-cyan-500',    activePill: 'bg-cyan-100 dark:bg-cyan-900/40 border-cyan-300 dark:border-cyan-700',      activeText: 'text-cyan-700 dark:text-cyan-300',      groupHeader: 'text-cyan-600 dark:text-cyan-400',      groupBg: 'border-l-2 border-cyan-300 dark:border-cyan-700 pl-3' },
+  'Solicitações':   { dot: 'bg-emerald-500', activePill: 'bg-emerald-100 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-700', activeText: 'text-emerald-700 dark:text-emerald-300', groupHeader: 'text-emerald-600 dark:text-emerald-400', groupBg: 'border-l-2 border-emerald-300 dark:border-emerald-700 pl-3' },
+  'Monitoramento':  { dot: 'bg-orange-500',  activePill: 'bg-orange-100 dark:bg-orange-900/40 border-orange-300 dark:border-orange-700',  activeText: 'text-orange-700 dark:text-orange-300',  groupHeader: 'text-orange-600 dark:text-orange-400',  groupBg: 'border-l-2 border-orange-300 dark:border-orange-700 pl-3' },
+  'Administração':  { dot: 'bg-rose-500',    activePill: 'bg-rose-100 dark:bg-rose-900/40 border-rose-300 dark:border-rose-700',      activeText: 'text-rose-700 dark:text-rose-300',      groupHeader: 'text-rose-600 dark:text-rose-400',      groupBg: 'border-l-2 border-rose-300 dark:border-rose-700 pl-3' },
+};
+
 const UserManagement: React.FC = () => {
   const { userProfile } = useAuth();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
@@ -41,10 +56,25 @@ const UserManagement: React.FC = () => {
   const [isSavingLevels, setIsSavingLevels] = useState(false);
   const topRef = React.useRef<HTMLDivElement>(null);
 
+  // ─── Tab management ─────────────────────────────────────────────────────────
+  const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
+
+  // ─── Custom roles state ─────────────────────────────────────────────────────
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  const [loadingRoles, setLoadingRoles] = useState(true);
+  const [showRoleForm, setShowRoleForm] = useState(false);
+  const [editingRole, setEditingRole] = useState<CustomRole | null>(null);
+  const [isSavingRole, setIsSavingRole] = useState(false);
+  const [roleFormData, setRoleFormData] = useState({
+    name: '',
+    description: '',
+    permissions: [] as string[],
+  });
+
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    role: 'requester' as UserRole,
+    customRoleId: '' as string,
     department: 'AREA_TECNICA' as Department,
     approvalLevel: 'none',
     customMaxAmount: '' as string | number,
@@ -58,26 +88,62 @@ const UserManagement: React.FC = () => {
     fetchUsers();
     fetchApprovalLimits();
     fetchApprovalLevelConfig();
+    fetchCustomRoles();
   }, []);
+
+  const fetchCustomRoles = async () => {
+    setLoadingRoles(true);
+    try {
+      const { data, error } = await supabase
+        .from('custom_roles')
+        .select('*')
+        .order('is_system', { ascending: false })
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
+      const roles: CustomRole[] = (data || []).map((r: any) => ({
+        id: r.id,
+        name: r.name,
+        description: r.description,
+        permissions: r.permissions || [],
+        isSystem: r.is_system,
+        createdAt: r.created_at,
+        updatedAt: r.updated_at,
+      }));
+
+      setCustomRoles(roles);
+    } catch (error) {
+      console.error('Erro ao carregar cargos:', error);
+    } finally {
+      setLoadingRoles(false);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('*')
+        .select('*, custom_roles(id, name, permissions)')
         .order('created_at', { ascending: false });
 
       if (error) throw error;
 
-      const formattedUsers: UserProfile[] = data.map(user => ({
-        id: user.id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        department: user.department,
-        createdAt: user.created_at,
-        updatedAt: user.updated_at
-      }));
+      const formattedUsers: UserProfile[] = data.map((user: any) => {
+        const customRole = user.custom_roles;
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,
+          department: user.department,
+          createdAt: user.created_at,
+          updatedAt: user.updated_at,
+          customRoleId: user.custom_role_id,
+          permissions: customRole?.permissions || [],
+          roleName: customRole?.name,
+        };
+      });
 
       setUsers(formattedUsers);
     } catch (error) {
@@ -195,7 +261,7 @@ const UserManagement: React.FC = () => {
     setFormData({
       name: user.name,
       email: user.email,
-      role: user.role,
+      customRoleId: user.customRoleId || '',
       department: user.department,
       approvalLevel: userLimit?.approvalLevel || 'none',
       customMaxAmount: userLimit?.customMaxAmount || '',
@@ -221,7 +287,7 @@ const UserManagement: React.FC = () => {
           .from('user_profiles')
           .update({
             name: formData.name,
-            role: formData.role,
+            custom_role_id: formData.customRoleId || null,
             department: formData.department,
             updated_at: new Date().toISOString()
           })
@@ -275,7 +341,7 @@ const UserManagement: React.FC = () => {
     setFormData({
       name: '',
       email: '',
-      role: 'requester',
+      customRoleId: '',
       department: 'AREA_TECNICA',
       approvalLevel: 'none',
       customMaxAmount: '',
@@ -286,33 +352,113 @@ const UserManagement: React.FC = () => {
   };
 
   const handleDepartmentChange = (department: Department) => {
-    const suggestedRole = getRoleForDepartment(department);
     setFormData(prev => ({
       ...prev,
       department
     }));
   };
 
-  // Auto-suggest approval level based on role
-  const handleRoleChange = (role: UserRole) => {
-    let suggestedLevel = 'none';
-    let canApprove = false;
-    
-    if (role === 'admin') {
-      suggestedLevel = 'level_4';
-      canApprove = true;
-    } else if (role === 'operator') {
-      suggestedLevel = 'level_1';
-      canApprove = true;
-    }
-    
-    setFormData(prev => ({
+  // ─── Roles CRUD helpers ─────────────────────────────────────────────────────
+  const handleEditRole = (role: CustomRole) => {
+    setRoleFormData({
+      name: role.name,
+      description: role.description || '',
+      permissions: [...role.permissions],
+    });
+    setEditingRole(role);
+    setShowRoleForm(true);
+  };
+
+  const handleCancelRole = () => {
+    setRoleFormData({ name: '', description: '', permissions: [] });
+    setEditingRole(null);
+    setShowRoleForm(false);
+  };
+
+  const togglePermission = (key: string) => {
+    setRoleFormData(prev => ({
       ...prev,
-      role,
-      approvalLevel: suggestedLevel,
-      customMaxAmount: '',
-      canApprove,
+      permissions: prev.permissions.includes(key)
+        ? prev.permissions.filter(p => p !== key)
+        : [...prev.permissions, key],
     }));
+  };
+
+  const toggleAllPermissions = () => {
+    const allKeys = ALL_PERMISSION_KEYS.map(p => p.key);
+    setRoleFormData(prev => ({
+      ...prev,
+      permissions: prev.permissions.length === allKeys.length ? [] : allKeys,
+    }));
+  };
+
+  const handleSaveRole = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!roleFormData.name.trim()) return;
+    setIsSavingRole(true);
+
+    try {
+      if (editingRole) {
+        const { error } = await supabase
+          .from('custom_roles')
+          .update({
+            name: roleFormData.name.trim(),
+            description: roleFormData.description.trim() || null,
+            permissions: roleFormData.permissions,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', editingRole.id);
+
+        if (error) throw error;
+        showSuccess('Cargo atualizado com sucesso!');
+      } else {
+        const { error } = await supabase
+          .from('custom_roles')
+          .insert({
+            name: roleFormData.name.trim(),
+            description: roleFormData.description.trim() || null,
+            permissions: roleFormData.permissions,
+            is_system: false,
+          });
+
+        if (error) throw error;
+        showSuccess('Cargo criado com sucesso!');
+      }
+
+      await fetchCustomRoles();
+      handleCancelRole();
+    } catch (error: any) {
+      console.error('Erro ao salvar cargo:', error);
+      showError(error?.message?.includes('unique') ? 'Já existe um cargo com este nome.' : 'Erro ao salvar cargo.');
+    } finally {
+      setIsSavingRole(false);
+    }
+  };
+
+  const handleDeleteRole = async (role: CustomRole) => {
+    if (role.isSystem) return;
+    if (!window.confirm(`Deseja realmente excluir o cargo "${role.name}"? Usuários vinculados ficarão sem cargo.`)) return;
+
+    try {
+      const { error } = await supabase
+        .from('custom_roles')
+        .delete()
+        .eq('id', role.id);
+
+      if (error) throw error;
+      showSuccess('Cargo excluído com sucesso!');
+      await fetchCustomRoles();
+      await fetchUsers();
+    } catch (error) {
+      console.error('Erro ao excluir cargo:', error);
+      showError('Erro ao excluir cargo.');
+    }
+  };
+
+  // Get selected role's permission info for the user edit form
+  const getSelectedRolePermissions = (): string[] => {
+    const role = customRoles.find(r => r.id === formData.customRoleId);
+    return role?.permissions || [];
   };
 
   // Get approval level label with current configured value
@@ -349,9 +495,9 @@ const UserManagement: React.FC = () => {
       <div className="flex justify-between items-center animate-fade-in-up">
         <div>
           <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">Gerenciamento de Usuários</h2>
-          <p className="text-gray-500 dark:text-gray-400">Gerencie perfis e permissões dos usuários do sistema</p>
+          <p className="text-gray-500 dark:text-gray-400">Gerencie perfis, cargos e permissões do sistema</p>
         </div>
-        {userProfile?.role === 'admin' && (
+        {hasPermission(userProfile?.permissions || [], 'canManageUsers') && activeTab === 'users' && (
           <button
             onClick={() => setShowLevelConfig(!showLevelConfig)}
             className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 shadow-md"
@@ -362,8 +508,34 @@ const UserManagement: React.FC = () => {
         )}
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 p-1 bg-gray-100 dark:bg-gray-800 rounded-xl w-fit animate-fade-in-up">
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+            activeTab === 'users'
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          Usuários
+        </button>
+        <button
+          onClick={() => setActiveTab('roles')}
+          className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+            activeTab === 'roles'
+              ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          Cargos e Permissões
+        </button>
+      </div>
+
       {/* Approval Level Configuration Panel */}
-      {showLevelConfig && (
+      {activeTab === 'users' && showLevelConfig && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-purple-100 dark:border-purple-900/50 p-6 animate-scale-in">
           <div className="flex items-center justify-between mb-4">
             <div>
@@ -471,7 +643,7 @@ const UserManagement: React.FC = () => {
       )}
 
       {/* Add/Edit Form */}
-      {showAddForm && (
+      {activeTab === 'users' && showAddForm && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6 animate-scale-in">
           <div className="flex items-center justify-between mb-4">
             <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
@@ -531,27 +703,66 @@ const UserManagement: React.FC = () => {
               </select>
             </div>
 
-            <div>
+<div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Perfil de Acesso *
+                Cargo *
               </label>
-              <select
-                value={formData.role}
-                onChange={(e) => handleRoleChange(e.target.value as UserRole)}
-                required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
-              >
-                <option value="requester">Solicitante</option>
-                <option value="operator">Operador</option>
-                <option value="admin">Administrador</option>
-              </select>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Sugestão baseada no departamento: {getRoleLabel(getRoleForDepartment(formData.department))}
-              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+                {customRoles.map(role => {
+                  const isSelected = formData.customRoleId === role.id;
+                  const coveragePct = Math.round((role.permissions.length / ALL_PERMISSION_KEYS.length) * 100);
+                  const activeGroups = [...new Set(ALL_PERMISSION_KEYS.filter(p => role.permissions.includes(p.key)).map(p => p.group))];
+                  return (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => setFormData(prev => ({ ...prev, customRoleId: role.id }))}
+                      className={`relative group text-left rounded-xl border-2 p-3 transition-all duration-150 ${
+                        isSelected
+                          ? 'border-blue-500 dark:border-blue-400 bg-blue-50 dark:bg-blue-900/20 shadow-md shadow-blue-500/10'
+                          : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700/30 hover:border-blue-300 dark:hover:border-blue-600 hover:shadow-sm'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2 mb-2">
+                        <span className={`text-sm font-semibold leading-tight ${
+                          isSelected ? 'text-blue-700 dark:text-blue-300' : 'text-gray-800 dark:text-gray-200'
+                        }`}>{role.name}</span>
+                        {isSelected && (
+                          <span className="flex-shrink-0 w-4 h-4 rounded-full bg-blue-500 dark:bg-blue-400 flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          </span>
+                        )}
+                        {role.isSystem && !isSelected && (
+                          <Lock className="flex-shrink-0 w-3 h-3 text-gray-400 dark:text-gray-500" />
+                        )}
+                      </div>
+                      <div className="flex gap-1 flex-wrap mb-2">
+                        {activeGroups.map(g => (
+                          <span key={g} className={`w-2 h-2 rounded-full ${GROUP_COLORS[g]?.dot || 'bg-gray-400'}`} title={g} />
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                          <div
+                            className={`h-1 rounded-full transition-all duration-300 ${
+                              isSelected ? 'bg-gradient-to-r from-blue-400 to-indigo-400' : 'bg-gradient-to-r from-gray-300 to-gray-400 dark:from-gray-500 dark:to-gray-600'
+                            }`}
+                            style={{ width: `${coveragePct}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-gray-400 dark:text-gray-500 tabular-nums whitespace-nowrap">{coveragePct}%</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {customRoles.length === 0 && (
+                <p className="text-sm text-gray-400 dark:text-gray-500 mt-1">Nenhum cargo cadastrado. Crie cargos na aba "Cargos e Permissões".</p>
+              )}
             </div>
 
-            {/* Approval Limits Section - Only show for admin/operator roles */}
-            {(formData.role === 'admin' || formData.role === 'operator') && (
+            {/* Approval Limits Section */}
+            {hasPermission(getSelectedRolePermissions(), 'canApproveRequests') && (
               <>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
@@ -613,22 +824,27 @@ const UserManagement: React.FC = () => {
 
             <div className="md:col-span-2">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-4 rounded-xl border border-blue-100 dark:border-blue-800">
-                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Permissões do Perfil Selecionado:</h4>
-                <div className="text-xs text-blue-700 dark:text-blue-300 space-y-1">
-                  {formData.role === 'admin' && (
-                    <>
-                      <p>• Acesso completo a todos os módulos do sistema</p>
-                      <p>• Pode configurar alçadas de outros usuários</p>
-                    </>
-                  )}
-                  {formData.role === 'operator' && (
-                    <p>• Acesso a produtos, movimentações, solicitações, fornecedores e cotações (exceto dashboard)</p>
-                  )}
-                  {formData.role === 'requester' && (
-                    <p>• Acesso apenas para criar e visualizar solicitações do seu departamento</p>
+                <h4 className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-2">Permissões do Cargo Selecionado:</h4>
+                <div className="text-xs text-blue-700 dark:text-blue-300">
+                  {formData.customRoleId ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {getSelectedRolePermissions().map(perm => {
+                        const info = ALL_PERMISSION_KEYS.find(p => p.key === perm);
+                        return (
+                          <span key={perm} className="px-2 py-0.5 bg-blue-100 dark:bg-blue-800/50 rounded-md">
+                            {info?.label || perm}
+                          </span>
+                        );
+                      })}
+                      {getSelectedRolePermissions().length === 0 && (
+                        <p className="text-gray-500">Nenhuma permissão atribuída a este cargo.</p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">Selecione um cargo para ver as permissões.</p>
                   )}
                   {formData.canApprove && formData.approvalLevel !== 'none' && (
-                    <p className="text-green-700 dark:text-green-300 font-medium">
+                    <p className="text-green-700 dark:text-green-300 font-medium mt-2">
                       • Alçada de aprovação: {formData.customMaxAmount 
                         ? `R$ ${parseFloat(String(formData.customMaxAmount)).toLocaleString('pt-BR')} (personalizado)`
                         : getApprovalLevelLabel(formData.approvalLevel)
@@ -670,6 +886,7 @@ const UserManagement: React.FC = () => {
       )}
 
       {/* Users List */}
+      {activeTab === 'users' && (
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
@@ -747,7 +964,7 @@ const UserManagement: React.FC = () => {
                       user.role === 'operator' ? 'bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 text-blue-800 dark:text-blue-200' :
                       'bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 text-green-800 dark:text-green-200'
                     }`}>
-                      {getRoleLabel(user.role)}
+                      {user.roleName || getRoleLabel(user.role)}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -797,6 +1014,293 @@ const UserManagement: React.FC = () => {
           </div>
         )}
       </div>
+      )}
+
+      {/* ─── Aba: Cargos e Permissões ─────────────────────────────────────── */}
+      {activeTab === 'roles' && (
+        <div className="space-y-6 animate-fade-in-up">
+          {/* Role Form */}
+          {showRoleForm ? (
+            <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6 animate-scale-in">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                  {editingRole ? 'Editar Cargo' : 'Novo Cargo'}
+                </h3>
+                <button
+                  onClick={handleCancelRole}
+                  className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveRole} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Nome do Cargo *
+                    </label>
+                    <input
+                      type="text"
+                      value={roleFormData.name}
+                      onChange={(e) => setRoleFormData(prev => ({ ...prev, name: e.target.value }))}
+                      required
+                      disabled={editingRole?.isSystem}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 disabled:opacity-50"
+                      placeholder="Ex: Analista Financeiro"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Descrição
+                    </label>
+                    <input
+                      type="text"
+                      value={roleFormData.description}
+                      onChange={(e) => setRoleFormData(prev => ({ ...prev, description: e.target.value }))}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                      placeholder="Descrição das responsabilidades"
+                    />
+                  </div>
+                </div>
+
+                {/* Permissions Grid */}
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">Permissões</span>
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300">
+                        {roleFormData.permissions.length} / {ALL_PERMISSION_KEYS.length}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={toggleAllPermissions}
+                      className="text-xs px-3 py-1.5 rounded-lg font-medium border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-150"
+                    >
+                      {roleFormData.permissions.length === ALL_PERMISSION_KEYS.length ? '✕  Desmarcar todos' : '✓  Marcar todos'}
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    {Object.entries(
+                      ALL_PERMISSION_KEYS.reduce((groups, perm) => {
+                        (groups[perm.group] = groups[perm.group] || []).push(perm);
+                        return groups;
+                      }, {} as Record<string, typeof ALL_PERMISSION_KEYS>)
+                    ).map(([group, perms]) => {
+                      const style = GROUP_COLORS[group] || GROUP_COLORS['Administração'];
+                      const activeCount = perms.filter(p => roleFormData.permissions.includes(p.key)).length;
+                      return (
+                        <div key={group} className="rounded-2xl bg-gray-50/80 dark:bg-gray-700/20 p-4 border border-gray-100 dark:border-gray-700/50">
+                          <div className={`flex items-center justify-between mb-3 ${style.groupBg}`}>
+                            <div className="flex items-center gap-2">
+                              <span className={`w-2 h-2 rounded-full ${style.dot}`} />
+                              <h4 className={`text-xs font-bold uppercase tracking-wider ${style.groupHeader}`}>{group}</h4>
+                            </div>
+                            <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                              activeCount > 0
+                                ? `${style.activePill} ${style.activeText}`
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+                            }`}>
+                              {activeCount}/{perms.length}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {perms.map(perm => {
+                              const isActive = roleFormData.permissions.includes(perm.key);
+                              return (
+                                <button
+                                  key={perm.key}
+                                  type="button"
+                                  onClick={() => togglePermission(perm.key)}
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150 select-none ${
+                                    isActive
+                                      ? `${style.activePill} ${style.activeText} shadow-sm`
+                                      : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-500'
+                                  }`}
+                                >
+                                  {isActive && <Check className="w-3 h-3 flex-shrink-0" />}
+                                  {perm.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={handleCancelRole}
+                    className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSavingRole}
+                    className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50 transition-all duration-200 flex items-center font-medium shadow-md shadow-blue-500/25"
+                  >
+                    {isSavingRole ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                        Salvando...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-4 h-4 mr-2" />
+                        {editingRole ? 'Atualizar Cargo' : 'Criar Cargo'}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <button
+                onClick={() => { setEditingRole(null); setRoleFormData({ name: '', description: '', permissions: [] }); setShowRoleForm(true); }}
+                className="flex items-center px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 shadow-md shadow-blue-500/25 font-medium"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Novo Cargo
+              </button>
+            </div>
+          )}
+
+          {/* Roles List */}
+          {loadingRoles ? (
+            <div className="flex items-center justify-center h-32">
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent"></div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+              {customRoles.map(role => {
+                const coveragePct = Math.round((role.permissions.length / ALL_PERMISSION_KEYS.length) * 100);
+                const groupCounts = Object.entries(
+                  ALL_PERMISSION_KEYS.reduce((acc, perm) => {
+                    if (role.permissions.includes(perm.key)) acc[perm.group] = (acc[perm.group] || 0) + 1;
+                    return acc;
+                  }, {} as Record<string, number>)
+                );
+                const userCount = users.filter(u => u.customRoleId === role.id).length;
+                return (
+                  <div
+                    key={role.id}
+                    className="group bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden hover:shadow-lg hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-200"
+                  >
+                    {/* Accent top stripe */}
+                    <div className={`h-1 ${
+                      role.isSystem
+                        ? 'bg-gradient-to-r from-amber-400 via-orange-400 to-amber-400'
+                        : 'bg-gradient-to-r from-blue-400 via-indigo-400 to-blue-400'
+                    }`} />
+
+                    <div className="p-5">
+                      {/* Header */}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center shadow-md ${
+                            role.isSystem
+                              ? 'bg-gradient-to-br from-amber-500 to-orange-500 shadow-amber-500/25'
+                              : 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-blue-500/25'
+                          }`}>
+                            {role.isSystem ? <Lock className="w-4 h-4 text-white" /> : <Shield className="w-4 h-4 text-white" />}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{role.name}</h4>
+                            {role.isSystem
+                              ? <span className="text-[10px] font-bold text-amber-500 dark:text-amber-400 uppercase tracking-widest">Sistema</span>
+                              : <span className="text-[10px] text-gray-400 dark:text-gray-500">{userCount} usuário{userCount !== 1 ? 's' : ''}</span>
+                            }
+                          </div>
+                        </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+                          <button
+                            onClick={() => handleEditRole(role)}
+                            className="p-1.5 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-all duration-150"
+                            title="Editar"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          {!role.isSystem && (
+                            <button
+                              onClick={() => handleDeleteRole(role)}
+                              className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all duration-150"
+                              title="Excluir"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Description */}
+                      {role.description && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2 leading-relaxed">{role.description}</p>
+                      )}
+
+                      {/* Group coverage dots */}
+                      <div className="flex flex-wrap gap-1.5 mb-4">
+                        {groupCounts.length > 0 ? groupCounts.map(([grp, count]) => {
+                          const style = GROUP_COLORS[grp];
+                          const total = ALL_PERMISSION_KEYS.filter(p => p.group === grp).length;
+                          return (
+                            <span
+                              key={grp}
+                              className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold border ${
+                                style ? `${style.activePill} ${style.activeText}` : 'bg-gray-100 dark:bg-gray-700 text-gray-500'
+                              }`}
+                              title={grp}
+                            >
+                              <span className={`w-1.5 h-1.5 rounded-full ${style?.dot || 'bg-gray-400'}`} />
+                              {grp} {count}/{total}
+                            </span>
+                          );
+                        }) : (
+                          <span className="text-xs text-gray-400">Sem permissões</span>
+                        )}
+                      </div>
+
+                      {/* Progress bar */}
+                      <div>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] text-gray-400 dark:text-gray-500">{role.permissions.length} de {ALL_PERMISSION_KEYS.length} permissões</span>
+                          <span className={`text-[10px] font-bold ${
+                            coveragePct === 100 ? 'text-emerald-500' : coveragePct > 50 ? 'text-blue-500' : 'text-gray-400'
+                          }`}>{coveragePct}%</span>
+                        </div>
+                        <div className="h-1.5 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
+                          <div
+                            className={`h-1.5 rounded-full transition-all duration-500 ${
+                              role.isSystem
+                                ? 'bg-gradient-to-r from-amber-400 to-orange-400'
+                                : 'bg-gradient-to-r from-blue-400 to-indigo-400'
+                            }`}
+                            style={{ width: `${coveragePct}%` }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {customRoles.length === 0 && (
+                <div className="col-span-full p-12 text-center">
+                  <Shield className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhum cargo cadastrado</h3>
+                  <p className="text-gray-500 dark:text-gray-400">Crie cargos personalizados para gerenciar permissões.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 };

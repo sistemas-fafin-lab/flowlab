@@ -1,69 +1,43 @@
-import { UserRole, RolePermissions, Department } from '../types';
+import { UserRole, Department } from '../types';
 
-export const ROLE_PERMISSIONS: Record<UserRole, RolePermissions> = {
-  admin: {
-    canViewDashboard: true,
-    canManageProducts: true,
-    canViewProducts: true,
-    canAddProducts: true,
-    canEditProducts: true,
-    canDeleteProducts: true,
-    canViewMovements: true,
-    canAddMovements: true,
-    canViewRequests: true,
-    canAddRequests: true,
-    canApproveRequests: true,
-    canViewExpiration: true,
-    canViewChangelog: true,
-    canManageUsers: true,
-    canManageSuppliers: true,
-    canManageQuotations: true,
-    canConfigureRequestPeriods: true,
-    canViewBilling: true,
-  },
-  operator: {
-    canViewDashboard: false,
-    canManageProducts: true,
-    canViewProducts: true,
-    canAddProducts: true,
-    canEditProducts: true,
-    canDeleteProducts: true,
-    canViewMovements: true,
-    canAddMovements: true,
-    canViewRequests: true,
-    canAddRequests: true,
-    canApproveRequests: true,
-    canViewExpiration: true,
-    canViewChangelog: true,
-    canManageUsers: false,
-    canManageSuppliers: true,
-    canManageQuotations: true,
-    canConfigureRequestPeriods: true,
-    canViewBilling: true,
-  },
-  requester: {
-    canViewDashboard: false,
-    canManageProducts: false,
-    canViewProducts: false,
-    canAddProducts: false,
-    canEditProducts: false,
-    canDeleteProducts: false,
-    canViewMovements: false,
-    canAddMovements: false,
-    canViewRequests: true,
-    canAddRequests: true,
-    canApproveRequests: false,
-    canViewExpiration: false,
-    canViewChangelog: false,
-    canManageUsers: false,
-    canManageSuppliers: false,
-    canManageQuotations: false,
-    canConfigureRequestPeriods: false,
-    canViewBilling: false,
-  },
+// ─── Catálogo de todas as permissões do sistema ───────────────────────────────
+export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[] = [
+  { key: 'canViewDashboard', label: 'Visualizar Dashboard', group: 'Dashboard' },
+  { key: 'canManageProducts', label: 'Gerenciar Produtos', group: 'Produtos' },
+  { key: 'canViewProducts', label: 'Visualizar Produtos', group: 'Produtos' },
+  { key: 'canAddProducts', label: 'Adicionar Produtos', group: 'Produtos' },
+  { key: 'canEditProducts', label: 'Editar Produtos', group: 'Produtos' },
+  { key: 'canDeleteProducts', label: 'Excluir Produtos', group: 'Produtos' },
+  { key: 'canViewMovements', label: 'Visualizar Movimentações', group: 'Movimentações' },
+  { key: 'canAddMovements', label: 'Adicionar Movimentações', group: 'Movimentações' },
+  { key: 'canViewRequests', label: 'Visualizar Solicitações', group: 'Solicitações' },
+  { key: 'canAddRequests', label: 'Criar Solicitações', group: 'Solicitações' },
+  { key: 'canApproveRequests', label: 'Aprovar Solicitações', group: 'Solicitações' },
+  { key: 'canViewExpiration', label: 'Monitorar Vencimentos', group: 'Monitoramento' },
+  { key: 'canViewChangelog', label: 'Visualizar Changelog', group: 'Monitoramento' },
+  { key: 'canManageUsers', label: 'Gerenciar Usuários', group: 'Administração' },
+  { key: 'canManageSuppliers', label: 'Gerenciar Fornecedores', group: 'Administração' },
+  { key: 'canManageQuotations', label: 'Gerenciar Cotações', group: 'Administração' },
+  { key: 'canConfigureRequestPeriods', label: 'Configurar Períodos', group: 'Administração' },
+  { key: 'canViewBilling', label: 'Visualizar Faturamento', group: 'Administração' },
+  { key: 'canManageRoles', label: 'Gerenciar Cargos', group: 'Administração' },
+];
+
+// ─── Fallback: permissões para roles legadas (usado quando custom_role não existe) ─
+const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
+  admin: ALL_PERMISSION_KEYS.map(p => p.key),
+  operator: ALL_PERMISSION_KEYS.map(p => p.key).filter(
+    k => !['canViewDashboard', 'canManageUsers', 'canManageRoles'].includes(k)
+  ),
+  requester: ['canViewRequests', 'canAddRequests'],
 };
 
-export const DEPARTMENT_ROLES: Record<Department, UserRole> = {
+export const getPermissionsForLegacyRole = (role: UserRole): string[] => {
+  return LEGACY_ROLE_PERMISSIONS[role] || [];
+};
+
+// ─── Departamentos ────────────────────────────────────────────────────────────
+export const DEPARTMENT_ROLES: Record<string, UserRole> = {
   'Transporte': 'requester',
   'Estoque': 'admin',
   'Financeiro': 'admin',
@@ -94,12 +68,22 @@ export const DEPARTMENTS: Department[] = [
   'Copa/Limpeza',
   'Qualidade',
   'Biologia Molecular',
-];
+] as any;
 
-export const getRolePermissions = (role: UserRole): RolePermissions => {
-  return ROLE_PERMISSIONS[role];
+export const getDepartmentLabel = (department: Department): string => {
+  return department as any;
 };
 
+export const getRoleForDepartment = (department: Department): UserRole => {
+  return DEPARTMENT_ROLES[department as any] || 'requester';
+};
+
+// ─── Autorização dinâmica ─────────────────────────────────────────────────────
+export const hasPermission = (permissions: string[], permission: string): boolean => {
+  return permissions.includes(permission);
+};
+
+// ─── Label legado (fallback quando roleName não está disponível) ──────────────
 export const getRoleLabel = (role: UserRole): string => {
   const labels: Record<UserRole, string> = {
     admin: 'Administrador',
@@ -107,16 +91,4 @@ export const getRoleLabel = (role: UserRole): string => {
     requester: 'Solicitante',
   };
   return labels[role];
-};
-
-export const getDepartmentLabel = (department: Department): string => {
-  return department;
-};
-
-export const getRoleForDepartment = (department: Department): UserRole => {
-  return DEPARTMENT_ROLES[department];
-};
-
-export const hasPermission = (userRole: UserRole, permission: keyof RolePermissions): boolean => {
-  return ROLE_PERMISSIONS[userRole][permission];
 };

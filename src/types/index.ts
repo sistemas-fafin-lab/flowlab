@@ -176,6 +176,19 @@ export interface UserProfile {
   department: Department;
   createdAt: string;
   updatedAt: string;
+  customRoleId?: string;
+  permissions: string[];
+  roleName?: string;
+}
+
+export interface CustomRole {
+  id: string;
+  name: string;
+  description: string | null;
+  permissions: string[];
+  isSystem: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface RolePermissions {
@@ -197,6 +210,7 @@ export interface RolePermissions {
   canManageQuotations: boolean;
   canConfigureRequestPeriods: boolean;
   canViewBilling: boolean;
+  canManageRoles: boolean;
 }
 
 // Supplier types

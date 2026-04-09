@@ -58,7 +58,7 @@ const RequestPeriodConfig: React.FC = () => {
     fetchPeriods();
   }, []);
   
-  if (!userProfile || !hasPermission(userProfile.role, 'canConfigureRequestPeriods')) {
+  if (!userProfile || !hasPermission(userProfile.permissions || [], 'canConfigureRequestPeriods')) {
     return <div className="text-red-600 p-4">Acesso restrito.</div>;
   }
 
