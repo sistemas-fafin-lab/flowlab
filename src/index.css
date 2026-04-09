@@ -520,6 +520,17 @@ html, body {
 }
 
 /* ========================================
+   REACT-GRID-LAYOUT SMOOTH TRANSITIONS
+   ======================================== */
+.react-grid-item.cssTransforms {
+  transition: transform 300ms ease, width 300ms ease, height 300ms ease;
+}
+
+.react-grid-item.resizing {
+  transition: none;
+}
+
+/* ========================================
    DARK MODE TRANSITIONS
    ======================================== */
 

@@ -29,6 +29,7 @@ import {
 } from '../types';
 import { QuotationDrawer } from './QuotationDrawer';
 import { CreateQuotationModal } from './CreateQuotationModal';
+import { useInventory } from '../../../hooks/useInventory';
 
 // Helper functions
 const formatCurrency = (value: number) => {
@@ -94,6 +95,9 @@ export const QuotationManagementPage: React.FC = () => {
     rejectQuotation,
     cancelQuotation,
     convertToPurchase,
+    advanceToReview,
+    addItem,
+    removeItem,
     setFilters,
     setSort,
     filters,
@@ -105,6 +109,7 @@ export const QuotationManagementPage: React.FC = () => {
   const [showDrawer, setShowDrawer] = useState(false);
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<QuotationStatus>>(new Set());
 
+  const { products, requests } = useInventory();
   const permissions = getPermissions();
 
   useEffect(() => {
@@ -644,6 +649,28 @@ export const QuotationManagementPage: React.FC = () => {
                 </div>
               )}
 
+              {/* Manual flow indicator - quotation in draft with proposals */}
+              {quotation.status === 'draft' && quotation.proposals.length > 0 && (
+                <div className="pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center justify-between text-xs mb-2">
+                    <span className="text-gray-500 dark:text-gray-400">Propostas manuais</span>
+                    <span className={`font-medium ${quotation.proposals.length >= 3 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                      {quotation.proposals.length}/3 mín.
+                    </span>
+                  </div>
+                  <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        quotation.proposals.length >= 3
+                          ? 'bg-gradient-to-r from-green-500 to-emerald-500'
+                          : 'bg-gradient-to-r from-amber-500 to-orange-500'
+                      }`}
+                      style={{ width: `${Math.min((quotation.proposals.length / 3) * 100, 100)}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Approval pending indicator */}
               {quotation.status === 'awaiting_approval' && (
                 <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
@@ -710,6 +737,21 @@ export const QuotationManagementPage: React.FC = () => {
             await submitProposal({ ...data, quotationId });
             await handleRefreshAfterAction();
           }}
+          onAdvanceToReview={async () => {
+            await advanceToReview(selectedQuotation.id);
+            await handleRefreshAfterAction();
+          }}
+          onAddItem={async (quotationId, item) => {
+            const newItem = await addItem(quotationId, item);
+            await handleRefreshAfterAction();
+            return newItem;
+          }}
+          onRemoveItem={async (quotationId, itemId) => {
+            await removeItem(quotationId, itemId);
+            await handleRefreshAfterAction();
+          }}
+          allSuppliers={suppliers}
+          products={products.map(p => ({ id: p.id, name: p.name, code: p.code, unit: p.unit, category: p.category, unitPrice: p.unitPrice }))}
         />
       )}
     </div>

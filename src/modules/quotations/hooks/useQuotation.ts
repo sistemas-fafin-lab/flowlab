@@ -855,8 +855,38 @@ export const useQuotation = () => {
     const quotation = quotations.find(q => q.id === input.quotationId);
     if (!quotation) throw new Error('Cotação não encontrada');
 
-    const supplier = quotation.invitedSuppliers.find(s => s.supplierId === input.supplierId);
-    if (!supplier) throw new Error('Fornecedor não está convidado para esta cotação');
+    // Allow proposals in manual flow (draft) and API flow
+    let supplier = quotation.invitedSuppliers.find(s => s.supplierId === input.supplierId);
+    
+    // If supplier is not yet invited, auto-add them (manual flow)
+    if (!supplier) {
+      const supplierData = suppliers.find(s => s.id === input.supplierId);
+      if (!supplierData) throw new Error('Fornecedor não encontrado');
+      
+      const newInvite: InvitedSupplier = {
+        id: crypto.randomUUID(),
+        quotationId: input.quotationId,
+        supplierId: input.supplierId,
+        supplierName: supplierData.name,
+        supplierEmail: supplierData.email,
+        supplierPhone: supplierData.phone,
+        invitedAt: new Date().toISOString(),
+        status: 'responded',
+      };
+      
+      // Add supplier to quotation
+      setQuotations(prev => prev.map(q => {
+        if (q.id === input.quotationId) {
+          return {
+            ...q,
+            invitedSuppliers: [...q.invitedSuppliers, newInvite],
+          };
+        }
+        return q;
+      }));
+      
+      supplier = newInvite;
+    }
 
     const proposalItems: ProposalItem[] = input.items.map(item => {
       const quotationItem = quotation.items.find(qi => qi.id === item.quotationItemId);
@@ -934,6 +964,35 @@ export const useQuotation = () => {
     });
 
     return proposal;
+  }, [quotations, suppliers, addAuditLog]);
+
+  // Advance directly to under_review (manual flow - skip API sending)
+  const advanceToReview = useCallback(async (quotationId: string): Promise<void> => {
+    const quotation = quotations.find(q => q.id === quotationId);
+    if (!quotation) throw new Error('Cotação não encontrada');
+
+    if (quotation.proposals.length < 3) {
+      throw new Error('São necessárias no mínimo 3 propostas para avançar para análise');
+    }
+
+    setQuotations(prev => prev.map(q => {
+      if (q.id === quotationId) {
+        return {
+          ...q,
+          status: 'under_review',
+          updatedAt: new Date().toISOString(),
+        };
+      }
+      return q;
+    }));
+
+    await addAuditLog(quotationId, 'updated', {
+      note: 'Cotação avançada manualmente para análise',
+      proposalCount: quotation.proposals.length,
+    }, {
+      previousStatus: quotation.status,
+      newStatus: 'under_review',
+    });
   }, [quotations, addAuditLog]);
 
   const selectWinner = useCallback(async (quotationId: string, proposalId: string): Promise<void> => {
@@ -1195,6 +1254,7 @@ export const useQuotation = () => {
     sendToSuppliers,
     submitProposal,
     selectWinner,
+    advanceToReview,
     submitForApproval,
     approveQuotation,
     rejectQuotation,

@@ -7,9 +7,10 @@ import { Supplier } from '../types';
 import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
 import InputDialog from './InputDialog';
+import { SupplierManagementSkeleton } from './PageLoadingSkeleton';
 
 const SupplierManagement: React.FC = () => {
-  const { suppliers, addSupplier, updateSupplier, deleteSupplier } = useInventory();
+  const { suppliers, addSupplier, updateSupplier, deleteSupplier, loading } = useInventory();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog } = useDialog();
   const [showAddForm, setShowAddForm] = useState(false);
@@ -109,6 +110,11 @@ const SupplierManagement: React.FC = () => {
   const formatPhone = (phone: string) => {
     return phone.replace(/^(\d{2})(\d{4,5})(\d{4})$/, '($1) $2-$3');
   };
+
+  // Loading state
+  if (loading) {
+    return <SupplierManagementSkeleton />;
+  }
 
   return (
     <div className="space-y-6">

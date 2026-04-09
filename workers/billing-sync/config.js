@@ -3,6 +3,8 @@
  * Carrega variáveis de ambiente e define valores padrão
  */
 
+// Carrega .env local primeiro, depois o .env global como fallback
+require("dotenv").config();
 require("dotenv").config({ path: "../../.env" });
 
 module.exports = {

@@ -16,11 +16,12 @@ import {
 import { useInventory } from '../hooks/useInventory';
 import { useNotification } from '../hooks/useNotification';
 import Notification from './Notification';
+import { MovementHistorySkeleton } from './PageLoadingSkeleton';
 
 const ITEMS_PER_PAGE = 25;
 
 const MovementHistory: React.FC = () => {
-  const { movements, products, addMovement } = useInventory();
+  const { movements, products, addMovement, loading } = useInventory();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const [showAddMovement, setShowAddMovement] = useState(false);
   const [filterReason, setFilterReason] = useState<string>('all');
@@ -184,6 +185,11 @@ const MovementHistory: React.FC = () => {
       showError('Erro ao registrar movimentação. Tente novamente.');
     }
   };
+
+  // Loading state
+  if (loading) {
+    return <MovementHistorySkeleton />;
+  }
 
   return (
     <div className="space-y-6">

@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Package,
   AlertTriangle,
@@ -16,10 +17,20 @@ import {
   EyeOff,
   LineChart,
   Building2,
-  ClipboardList
+  ClipboardList,
+  ShoppingCart,
+  Wrench,
+  CreditCard,
+  Clock,
+  GripVertical,
+  Lock,
+  Unlock,
+  RotateCcw
 } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
-import PurchaseComparison from './PurchaseComparison';
+import { useMaintenanceRequest } from '../hooks/useMaintenanceRequest';
+import { usePaymentRequest } from '../hooks/usePaymentRequest';
+import { useTheme } from '../hooks/useTheme';
 import DetailModal from './DetailModal';
 import {
   PieChart,
@@ -34,13 +45,114 @@ import {
   ResponsiveContainer,
   Legend,
   AreaChart,
-  Area
+  Area,
+  LineChart as RechartsLineChart,
+  Line
 } from 'recharts';
+import {
+  WidthProvider,
+  Responsive,
+  type Layout,
+  type LayoutItem,
+  type ResponsiveLayouts
+} from 'react-grid-layout/legacy';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
 
-// Cores para gráficos
+const ResponsiveGridLayout = WidthProvider(Responsive);
+
+const CHART_KEYS = ['inventory-status-chart', 'categories-pie-chart', 'movements-area-chart', 'category-value-bar'];
+
+type Layouts = ResponsiveLayouts;
+
+const GRID_BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480 };
+const GRID_COLS        = { lg: 12, md: 10, sm: 6, xs: 2 };
+const GRID_ROW_HEIGHT  = 50;
+const LAYOUT_STORAGE_KEY = 'flowLab_dashboard_layout';
+
+// ─── Layout padrão (fallback para primeiro acesso) ───────────────
+const DEFAULT_LAYOUTS: Layouts = {
+  lg: [
+    { i: 'stats-summary',         x: 0,  y: 0,  w: 12, h: 3,  minW: 6,  minH: 2 },
+    { i: 'charts-toggle',         x: 0,  y: 3,  w: 12, h: 1,  minW: 4,  minH: 1, static: true },
+    { i: 'inventory-status-chart', x: 0,  y: 4,  w: 4,  h: 6,  minW: 3,  minH: 4 },
+    { i: 'categories-pie-chart',  x: 4,  y: 4,  w: 4,  h: 6,  minW: 3,  minH: 4 },
+    { i: 'movements-area-chart',  x: 8,  y: 4,  w: 4,  h: 7,  minW: 3,  minH: 5 },
+    { i: 'category-value-bar',    x: 0,  y: 10, w: 12, h: 6,  minW: 6,  minH: 4 },
+    { i: 'financial-stats',       x: 0,  y: 16, w: 12, h: 4,  minW: 6,  minH: 3 },
+    { i: 'categories-list',       x: 0,  y: 20, w: 6,  h: 6,  minW: 4,  minH: 4 },
+    { i: 'department-ranking',    x: 6,  y: 20, w: 6,  h: 6,  minW: 4,  minH: 4 },
+    { i: 'recent-movements',      x: 0,  y: 26, w: 12, h: 6,  minW: 6,  minH: 4 },
+    { i: 'top-value',             x: 0,  y: 32, w: 6,  h: 6,  minW: 4,  minH: 4 },
+    { i: 'low-stock',             x: 6,  y: 32, w: 6,  h: 6,  minW: 4,  minH: 4 },
+    { i: 'expiring',              x: 0,  y: 38, w: 6,  h: 6,  minW: 4,  minH: 4 },
+    { i: 'financial-summary',     x: 0,  y: 44, w: 12, h: 5,  minW: 6,  minH: 3 },
+    { i: 'request-metrics',       x: 0,  y: 49, w: 12, h: 9,  minW: 6,  minH: 6 },
+  ],
+  md: [
+    { i: 'stats-summary',         x: 0, y: 0,  w: 10, h: 3 },
+    { i: 'charts-toggle',         x: 0, y: 3,  w: 10, h: 1, static: true },
+    { i: 'inventory-status-chart', x: 0, y: 4,  w: 5,  h: 6 },
+    { i: 'categories-pie-chart',  x: 5, y: 4,  w: 5,  h: 6 },
+    { i: 'movements-area-chart',  x: 0, y: 10, w: 10, h: 7 },
+    { i: 'category-value-bar',    x: 0, y: 17, w: 10, h: 6 },
+    { i: 'financial-stats',       x: 0, y: 23, w: 10, h: 4 },
+    { i: 'categories-list',       x: 0, y: 27, w: 5,  h: 6 },
+    { i: 'department-ranking',    x: 5, y: 27, w: 5,  h: 6 },
+    { i: 'recent-movements',      x: 0, y: 33, w: 10, h: 6 },
+    { i: 'top-value',             x: 0, y: 39, w: 5,  h: 6 },
+    { i: 'low-stock',             x: 5, y: 39, w: 5,  h: 6 },
+    { i: 'expiring',              x: 0, y: 45, w: 5,  h: 6 },
+    { i: 'financial-summary',     x: 0, y: 51, w: 10, h: 5 },
+    { i: 'request-metrics',       x: 0, y: 56, w: 10, h: 9 },
+  ],
+  sm: [
+    { i: 'stats-summary',         x: 0, y: 0,  w: 6, h: 5 },
+    { i: 'charts-toggle',         x: 0, y: 5,  w: 6, h: 1, static: true },
+    { i: 'inventory-status-chart', x: 0, y: 6,  w: 6, h: 6 },
+    { i: 'categories-pie-chart',  x: 0, y: 12, w: 6, h: 6 },
+    { i: 'movements-area-chart',  x: 0, y: 18, w: 6, h: 7 },
+    { i: 'category-value-bar',    x: 0, y: 25, w: 6, h: 6 },
+    { i: 'financial-stats',       x: 0, y: 31, w: 6, h: 5 },
+    { i: 'categories-list',       x: 0, y: 36, w: 6, h: 6 },
+    { i: 'department-ranking',    x: 0, y: 42, w: 6, h: 6 },
+    { i: 'recent-movements',      x: 0, y: 48, w: 6, h: 6 },
+    { i: 'top-value',             x: 0, y: 54, w: 6, h: 6 },
+    { i: 'low-stock',             x: 0, y: 60, w: 6, h: 6 },
+    { i: 'expiring',              x: 0, y: 66, w: 6, h: 6 },
+    { i: 'financial-summary',     x: 0, y: 72, w: 6, h: 5 },
+    { i: 'request-metrics',       x: 0, y: 77, w: 6, h: 10 },
+  ],
+  xs: [
+    { i: 'stats-summary',         x: 0, y: 0,   w: 2, h: 9 },
+    { i: 'charts-toggle',         x: 0, y: 9,   w: 2, h: 1, static: true },
+    { i: 'inventory-status-chart', x: 0, y: 10,  w: 2, h: 6 },
+    { i: 'categories-pie-chart',  x: 0, y: 16,  w: 2, h: 6 },
+    { i: 'movements-area-chart',  x: 0, y: 22,  w: 2, h: 7 },
+    { i: 'category-value-bar',    x: 0, y: 29,  w: 2, h: 7 },
+    { i: 'financial-stats',       x: 0, y: 36,  w: 2, h: 7 },
+    { i: 'categories-list',       x: 0, y: 43,  w: 2, h: 6 },
+    { i: 'department-ranking',    x: 0, y: 49,  w: 2, h: 6 },
+    { i: 'recent-movements',      x: 0, y: 55,  w: 2, h: 6 },
+    { i: 'top-value',             x: 0, y: 61,  w: 2, h: 6 },
+    { i: 'low-stock',             x: 0, y: 67,  w: 2, h: 6 },
+    { i: 'expiring',              x: 0, y: 73,  w: 2, h: 6 },
+    { i: 'financial-summary',     x: 0, y: 79,  w: 2, h: 6 },
+    { i: 'request-metrics',       x: 0, y: 85,  w: 2, h: 12 },
+  ],
+};
+
+// ─── Drag Handle (6-dots) ────────────────────────────────────────
+const DragHandle: React.FC = () => (
+  <div className="drag-handle cursor-grab active:cursor-grabbing absolute top-2 right-2 z-10 p-1 rounded-md text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors opacity-0 group-hover:opacity-100">
+    <GripVertical className="w-4 h-4" />
+  </div>
+);
+
+// Paleta moderna — azul primário + ciano neon + tons complementares
 const CHART_COLORS = [
-  '#3B82F6', '#10B981', '#8B5CF6', '#F59E0B', 
-  '#EF4444', '#6366F1', '#EC4899', '#14B8A6'
+  '#3B82F6', '#22D3EE', '#6366F1', '#38BDF8',
+  '#818CF8', '#2DD4BF', '#A78BFA', '#67E8F9'
 ];
 
 // Skeleton Component para loading
@@ -58,11 +170,86 @@ const SkeletonCard: React.FC = () => (
 
 const Dashboard: React.FC = () => {
   const { getDashboardData, getFinancialMetrics, products, movements, requests, loading, error } = useInventory();
+  const { maintenanceRequests } = useMaintenanceRequest();
+  const { paymentRequests } = usePaymentRequest();
+  const { isDark } = useTheme();
   const [selectedDetail, setSelectedDetail] = useState<string | null>(null);
   const [showCharts, setShowCharts] = useState<boolean>(true);
+  const savedChartLayouts = useRef<Record<string, LayoutItem[]>>({});
   const [movementsPeriod, setMovementsPeriod] = useState<7 | 15 | 30 | 'custom'>(7);
   const [customStartDate, setCustomStartDate] = useState<string>('');
   const [customEndDate, setCustomEndDate] = useState<string>('');
+  const [requestsPeriod, setRequestsPeriod] = useState<7 | 15 | 30 | 'custom'>(30);
+  const [requestsCustomStart, setRequestsCustomStart] = useState<string>('');
+  const [requestsCustomEnd, setRequestsCustomEnd] = useState<string>('');
+
+  // ─── Grid Layout state + persistência localStorage ─────────────
+  const [isGridLocked, setIsGridLocked] = useState(true);
+  const [layouts, setLayouts] = useState<Layouts>(() => {
+    try {
+      const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
+      if (saved) return JSON.parse(saved) as Layouts;
+    } catch { /* fallback */ }
+    return DEFAULT_LAYOUTS;
+  });
+
+  const handleLayoutChange = useCallback((_currentLayout: Layout, allLayouts: Layouts) => {
+    if (!isGridLocked) {
+      setLayouts(allLayouts);
+      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(allLayouts));
+    }
+  }, [isGridLocked]);
+
+  const resetLayout = useCallback(() => {
+    setLayouts(DEFAULT_LAYOUTS);
+    localStorage.removeItem(LAYOUT_STORAGE_KEY);
+  }, []);
+
+  const toggleCharts = useCallback(() => {
+    setShowCharts(prev => {
+      if (prev) {
+        // Hiding charts: save their layout items for each breakpoint
+        const saved: Record<string, LayoutItem[]> = {};
+        for (const bp of Object.keys(layouts)) {
+          saved[bp] = (layouts as Record<string, LayoutItem[]>)[bp].filter((item: LayoutItem) => CHART_KEYS.includes(item.i));
+        }
+        savedChartLayouts.current = saved;
+      } else {
+        // Showing charts: restore saved positions into current layouts
+        setLayouts(current => {
+          const restored: Record<string, LayoutItem[]> = {};
+          for (const bp of Object.keys(current)) {
+            const currentItems = (current as Record<string, LayoutItem[]>)[bp];
+            const savedItems = savedChartLayouts.current[bp] || 
+              (DEFAULT_LAYOUTS as Record<string, LayoutItem[]>)[bp].filter((item: LayoutItem) => CHART_KEYS.includes(item.i));
+            // Merge: keep non-chart items, add back chart items at saved positions
+            const withoutCharts = currentItems.filter((item: LayoutItem) => !CHART_KEYS.includes(item.i));
+            restored[bp] = [...withoutCharts, ...savedItems];
+          }
+          localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(restored));
+          return restored as Layouts;
+        });
+      }
+      return !prev;
+    });
+  }, [layouts]);
+
+  // Configuração visual dos gráficos (tema-aware)
+  const chartFont = 'Inter, system-ui, -apple-system, sans-serif';
+  const chartTooltipStyle: React.CSSProperties = {
+    backgroundColor: isDark ? '#0f172a' : '#ffffff',
+    borderRadius: '12px',
+    border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+    boxShadow: isDark ? '0 8px 32px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.08)',
+    color: isDark ? '#f1f5f9' : '#1e293b',
+    fontFamily: chartFont,
+    padding: '10px 14px',
+  };
+  const chartTooltipLabelStyle: React.CSSProperties = { color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600, fontFamily: chartFont };
+  const chartTooltipItemStyle: React.CSSProperties = { color: isDark ? '#e2e8f0' : '#334155', fontFamily: chartFont };
+  const chartAxisTick = { fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b', fontFamily: chartFont };
+  const chartGridColor = isDark ? 'rgba(51,65,85,0.4)' : 'rgba(226,232,240,0.8)';
+  const chartAxisLineColor = isDark ? '#334155' : '#e2e8f0';
 
   // Mover dashboardData e financialMetrics para antes dos hooks
   const dashboardData = !loading && !error ? getDashboardData() : null;
@@ -146,13 +333,13 @@ const Dashboard: React.FC = () => {
 
     // Dados para indicadores de status
     const statusData = [
-      { name: 'Ativos', value: (products || []).filter(p => p.status === 'active').length, color: '#10B981' },
-      { name: 'Estoque Baixo', value: (products || []).filter(p => p.status === 'low-stock').length, color: '#F59E0B' },
+      { name: 'Ativos', value: (products || []).filter(p => p.status === 'active').length, color: '#34D399' },
+      { name: 'Estoque Baixo', value: (products || []).filter(p => p.status === 'low-stock').length, color: '#FBBF24' },
       { name: 'Vencidos', value: (products || []).filter(p => {
         if (!p?.expirationDate) return false;
         const expDate = new Date(p.expirationDate);
         return expDate < new Date();
-      }).length, color: '#EF4444' }
+      }).length, color: '#F87171' }
     ].filter(item => item.value > 0);
 
     // Dados para ranking de solicitações por departamento
@@ -183,6 +370,202 @@ const Dashboard: React.FC = () => {
       departmentRankingData
     };
   }, [dashboardData, products, movements, requests, movementsPeriod, customStartDate, customEndDate]);
+
+  // ═══════════════════════════════════════════════════════════════════
+  // MÉTRICAS DE SOLICITAÇÕES — useMemo otimizado para volume, SLA, status e sparklines
+  // ═══════════════════════════════════════════════════════════════════
+  const requestMetrics = useMemo(() => {
+    const now = new Date();
+    
+    // Calcular datas de início/fim do período atual
+    let periodStart = new Date();
+    let periodEnd = new Date();
+    
+    if (requestsPeriod === 'custom' && requestsCustomStart && requestsCustomEnd) {
+      periodStart = new Date(requestsCustomStart);
+      periodEnd = new Date(requestsCustomEnd);
+    } else if (typeof requestsPeriod === 'number') {
+      periodStart.setDate(now.getDate() - requestsPeriod);
+      periodEnd = now;
+    }
+    
+    // Calcular período anterior para tendência
+    const periodDays = typeof requestsPeriod === 'number' ? requestsPeriod : 
+      Math.ceil((periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24));
+    const prevPeriodStart = new Date(periodStart);
+    prevPeriodStart.setDate(prevPeriodStart.getDate() - periodDays);
+    const prevPeriodEnd = new Date(periodStart);
+    prevPeriodEnd.setDate(prevPeriodEnd.getDate() - 1);
+
+    // Helper: checa se uma data está no período
+    const isInPeriod = (dateStr: string | undefined | null, start: Date, end: Date): boolean => {
+      if (!dateStr) return false;
+      const d = new Date(dateStr);
+      return d >= start && d <= end;
+    };
+
+    // Helper: converte milissegundos em dias
+    const msToDays = (ms: number) => ms / (1000 * 60 * 60 * 24);
+
+    // Helper: gerar dados para sparkline (agrupa por dia)
+    const generateSparkline = (items: Array<{ date: string }>, days: number) => {
+      const data: Array<{ day: number; count: number }> = [];
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date();
+        d.setDate(d.getDate() - i);
+        const dayStr = d.toISOString().split('T')[0];
+        const count = items.filter(item => item.date.startsWith(dayStr)).length;
+        data.push({ day: days - i, count });
+      }
+      return data;
+    };
+
+    // ─────────────────────────────────────────────────────────────────
+    // 1. COMPRAS / MATERIAIS
+    // ─────────────────────────────────────────────────────────────────
+    const comprasCurrent = (requests || []).filter(r => isInPeriod(r.requestDate, periodStart, periodEnd));
+    const comprasPrev = (requests || []).filter(r => isInPeriod(r.requestDate, prevPeriodStart, prevPeriodEnd));
+    const comprasVolume = comprasCurrent.length;
+    const comprasPrevVolume = comprasPrev.length;
+    const comprasTrend = comprasPrevVolume > 0 ? ((comprasVolume - comprasPrevVolume) / comprasPrevVolume) * 100 : 0;
+    
+    // Status breakdown
+    const comprasPending = comprasCurrent.filter(r => r.status === 'pending').length;
+    const comprasApproved = comprasCurrent.filter(r => r.status === 'approved' || r.status === 'completed').length;
+    const comprasRejected = comprasCurrent.filter(r => r.status === 'rejected').length;
+
+    // SLA
+    const comprasResponseTimes: number[] = [];
+    comprasCurrent.forEach(req => {
+      if (req.status === 'completed') {
+        const movement = (movements || []).find(m => m.requestId === req.id);
+        if (movement) {
+          const start = new Date(req.requestDate).getTime();
+          const end = new Date(movement.date).getTime();
+          if (end >= start) comprasResponseTimes.push(msToDays(end - start));
+        }
+      }
+    });
+    const comprasAvgDays = comprasResponseTimes.length > 0
+      ? comprasResponseTimes.reduce((a, b) => a + b, 0) / comprasResponseTimes.length
+      : null;
+
+    // Sparkline
+    const comprasSparkline = generateSparkline(
+      comprasCurrent.map(r => ({ date: r.requestDate })),
+      typeof requestsPeriod === 'number' ? requestsPeriod : periodDays
+    );
+
+    // ─────────────────────────────────────────────────────────────────
+    // 2. MANUTENÇÃO
+    // ─────────────────────────────────────────────────────────────────
+    const manutencaoCurrent = (maintenanceRequests || []).filter(r => isInPeriod(r.createdAt, periodStart, periodEnd));
+    const manutencaoPrev = (maintenanceRequests || []).filter(r => isInPeriod(r.createdAt, prevPeriodStart, prevPeriodEnd));
+    const manutencaoVolume = manutencaoCurrent.length;
+    const manutencaoPrevVolume = manutencaoPrev.length;
+    const manutencaoTrend = manutencaoPrevVolume > 0 ? ((manutencaoVolume - manutencaoPrevVolume) / manutencaoPrevVolume) * 100 : 0;
+    
+    // Status breakdown
+    const manutencaoPending = manutencaoCurrent.filter(r => r.status === 'pending' || r.status === 'in_progress').length;
+    const manutencaoApproved = manutencaoCurrent.filter(r => r.status === 'completed').length;
+    const manutencaoRejected = manutencaoCurrent.filter(r => r.status === 'cancelled').length;
+
+    // SLA
+    const manutencaoResponseTimes: number[] = [];
+    manutencaoCurrent.forEach(req => {
+      const finalStatuses = ['completed', 'concluido', 'finalizado'];
+      if (finalStatuses.includes(req.status?.toLowerCase() || '') && req.updatedAt && req.createdAt) {
+        const start = new Date(req.createdAt).getTime();
+        const end = new Date(req.updatedAt).getTime();
+        if (end >= start) manutencaoResponseTimes.push(msToDays(end - start));
+      }
+    });
+    const manutencaoAvgDays = manutencaoResponseTimes.length > 0
+      ? manutencaoResponseTimes.reduce((a, b) => a + b, 0) / manutencaoResponseTimes.length
+      : null;
+
+    // Sparkline
+    const manutencaoSparkline = generateSparkline(
+      manutencaoCurrent.map(r => ({ date: r.createdAt || '' })),
+      typeof requestsPeriod === 'number' ? requestsPeriod : periodDays
+    );
+
+    // ─────────────────────────────────────────────────────────────────
+    // 3. PAGAMENTOS
+    // ─────────────────────────────────────────────────────────────────
+    const pagamentosCurrent = (paymentRequests || []).filter(r => isInPeriod(r.createdAt, periodStart, periodEnd));
+    const pagamentosPrev = (paymentRequests || []).filter(r => isInPeriod(r.createdAt, prevPeriodStart, prevPeriodEnd));
+    const pagamentosVolume = pagamentosCurrent.length;
+    const pagamentosPrevVolume = pagamentosPrev.length;
+    const pagamentosTrend = pagamentosPrevVolume > 0 ? ((pagamentosVolume - pagamentosPrevVolume) / pagamentosPrevVolume) * 100 : 0;
+    
+    // Status breakdown
+    const pagamentosPending = pagamentosCurrent.filter(r => r.status === 'pending').length;
+    const pagamentosApproved = pagamentosCurrent.filter(r => r.status === 'paid' || r.status === 'approved').length;
+    const pagamentosRejected = pagamentosCurrent.filter(r => r.status === 'cancelled').length;
+
+    // SLA
+    const pagamentosResponseTimes: number[] = [];
+    pagamentosCurrent.forEach(req => {
+      const finalStatuses = ['paid', 'approved', 'completed', 'pago', 'aprovado'];
+      if (finalStatuses.includes(req.status?.toLowerCase() || '') && req.updatedAt && req.createdAt) {
+        const start = new Date(req.createdAt).getTime();
+        const end = new Date(req.updatedAt).getTime();
+        if (end >= start) pagamentosResponseTimes.push(msToDays(end - start));
+      }
+    });
+    const pagamentosAvgDays = pagamentosResponseTimes.length > 0
+      ? pagamentosResponseTimes.reduce((a, b) => a + b, 0) / pagamentosResponseTimes.length
+      : null;
+
+    // Sparkline
+    const pagamentosSparkline = generateSparkline(
+      pagamentosCurrent.map(r => ({ date: r.createdAt || '' })),
+      typeof requestsPeriod === 'number' ? requestsPeriod : periodDays
+    );
+
+    // ─────────────────────────────────────────────────────────────────
+    // MÉDIA GERAL
+    // ─────────────────────────────────────────────────────────────────
+    const allTimes = [...comprasResponseTimes, ...manutencaoResponseTimes, ...pagamentosResponseTimes];
+    const avgGeral = allTimes.length > 0
+      ? allTimes.reduce((a, b) => a + b, 0) / allTimes.length
+      : null;
+
+    return {
+      compras: { 
+        volume: comprasVolume, 
+        avgDays: comprasAvgDays,
+        trend: comprasTrend,
+        pending: comprasPending,
+        approved: comprasApproved,
+        rejected: comprasRejected,
+        sparkline: comprasSparkline,
+        slaMeta: 3 // Meta em dias
+      },
+      manutencao: { 
+        volume: manutencaoVolume, 
+        avgDays: manutencaoAvgDays,
+        trend: manutencaoTrend,
+        pending: manutencaoPending,
+        approved: manutencaoApproved,
+        rejected: manutencaoRejected,
+        sparkline: manutencaoSparkline,
+        slaMeta: 2
+      },
+      pagamentos: { 
+        volume: pagamentosVolume, 
+        avgDays: pagamentosAvgDays,
+        trend: pagamentosTrend,
+        pending: pagamentosPending,
+        approved: pagamentosApproved,
+        rejected: pagamentosRejected,
+        sparkline: pagamentosSparkline,
+        slaMeta: 1
+      },
+      avgGeral,
+    };
+  }, [requests, movements, maintenanceRequests, paymentRequests, requestsPeriod, requestsCustomStart, requestsCustomEnd]);
 
   if (loading) {
     return (
@@ -883,8 +1266,51 @@ const Dashboard: React.FC = () => {
 
   return (
     <>
-      <div className="space-y-6 animate-fade-in">
-        {/* Stats Grid Básicos */}
+      {/* ─── Toolbar do Grid ─────────────────────────────────────── */}
+      <div className="flex items-center justify-end gap-2 mb-3">
+        <button
+          onClick={() => setIsGridLocked(prev => !prev)}
+          className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            isGridLocked
+              ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              : 'bg-blue-500 text-white shadow-md hover:bg-blue-600'
+          }`}
+          title={isGridLocked ? 'Desbloquear layout para arrastar/redimensionar' : 'Bloquear layout'}
+        >
+          {isGridLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+          {isGridLocked ? 'Editar Layout' : 'Bloqueado'}
+        </button>
+        {!isGridLocked && (
+          <button
+            onClick={resetLayout}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all"
+            title="Restaurar layout padrão"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Resetar
+          </button>
+        )}
+      </div>
+
+      {/* ─── Grid Responsivo com Drag & Drop ─────────────────────── */}
+      <div className="animate-fade-in">
+      <ResponsiveGridLayout
+        className="layout"
+        layouts={layouts}
+        breakpoints={GRID_BREAKPOINTS}
+        cols={GRID_COLS}
+        rowHeight={GRID_ROW_HEIGHT}
+        onLayoutChange={handleLayoutChange}
+        isDraggable={!isGridLocked}
+        isResizable={!isGridLocked}
+        draggableHandle=".drag-handle"
+        margin={[16, 16]}
+        containerPadding={[0, 0]}
+      >
+        {/* ════ Widget: Stats Summary ═════════════════════════════ */}
+        <div key="stats-summary" className="group">
+          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4">
+            <DragHandle />
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
@@ -908,9 +1334,13 @@ const Dashboard: React.FC = () => {
           );
         })}
       </div>
+          </div>
+        </div>
 
-      {/* Botão para Toggle dos Gráficos */}
-      <div className="flex items-center justify-between gap-2">
+        {/* ════ Widget: Charts Toggle ════════════════════════════ */}
+        <div key="charts-toggle">
+          <div className="h-full flex items-center">
+      <div className="flex items-center justify-between gap-2 w-full">
         <div className="flex items-center gap-2 min-w-0">
           <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg flex-shrink-0">
             <LineChart className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -918,7 +1348,7 @@ const Dashboard: React.FC = () => {
           <h2 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Gráficos e Indicadores</h2>
         </div>
         <button
-          onClick={() => setShowCharts(!showCharts)}
+          onClick={toggleCharts}
           className={`flex items-center gap-1 sm:gap-2 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl font-medium text-xs sm:text-sm transition-all duration-300 flex-shrink-0 ${
             showCharts 
               ? 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/70' 
@@ -940,13 +1370,23 @@ const Dashboard: React.FC = () => {
           )}
         </button>
       </div>
+          </div>
+        </div>
 
-      {/* Seção de Gráficos Interativos */}
-      {showCharts && (
-      <>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {/* Gráfico de Pizza - Status dos Produtos */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300">
+        {/* ════ Widget: Inventory Status Chart (Pie) ═════════════ */}
+        <div key="inventory-status-chart" className="group">
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
+            <DragHandle />
+            <AnimatePresence mode="wait">
+            {showCharts && (
+              <motion.div
+                key="inventory-status-content"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="flex flex-col flex-1 min-h-0"
+              >
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-emerald-500 shadow-lg mr-2 sm:mr-3">
@@ -955,30 +1395,43 @@ const Dashboard: React.FC = () => {
               Status do Estoque
             </h3>
           </div>
-          <div className="h-40 sm:h-48">
+          <div className="flex-1 min-h-0">
             {chartData.statusData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
+                  <defs>
+                    <linearGradient id="pieStatusGrad-0" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#34D399" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
+                    </linearGradient>
+                    <linearGradient id="pieStatusGrad-1" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#FBBF24" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#D97706" stopOpacity={0.8}/>
+                    </linearGradient>
+                    <linearGradient id="pieStatusGrad-2" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#F87171" stopOpacity={1}/>
+                      <stop offset="100%" stopColor="#DC2626" stopOpacity={0.8}/>
+                    </linearGradient>
+                  </defs>
                   <Pie
                     data={chartData.statusData}
                     cx="50%"
                     cy="50%"
                     innerRadius={40}
                     outerRadius={70}
-                    paddingAngle={5}
+                    paddingAngle={4}
                     dataKey="value"
+                    stroke="none"
+                    cornerRadius={6}
                   >
-                    {chartData.statusData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    {chartData.statusData.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={`url(#pieStatusGrad-${index})`} />
                     ))}
                   </Pie>
                   <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      borderRadius: '12px', 
-                      border: '1px solid #e5e7eb',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                    }}
+                    contentStyle={chartTooltipStyle}
+                    labelStyle={chartTooltipLabelStyle}
+                    itemStyle={chartTooltipItemStyle}
                   />
                   <Legend 
                     verticalAlign="bottom" 
@@ -996,10 +1449,26 @@ const Dashboard: React.FC = () => {
               </div>
             )}
           </div>
+              </motion.div>
+            )}
+            </AnimatePresence>
+          </div>
         </div>
 
-        {/* Gráfico de Pizza - Distribuição por Categoria */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300">
+        {/* ════ Widget: Categories Pie Chart ═════════════════════ */}
+        <div key="categories-pie-chart" className="group">
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
+            <DragHandle />
+            <AnimatePresence mode="wait">
+            {showCharts && (
+              <motion.div
+                key="categories-pie-content"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="flex flex-col flex-1 min-h-0"
+              >
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-purple-500 shadow-lg mr-2 sm:mr-3">
@@ -1008,30 +1477,40 @@ const Dashboard: React.FC = () => {
               Categorias
             </h3>
           </div>
-          <div className="h-40 sm:h-48">
+          <div className="flex-1 min-h-0">
             {chartData.categoryPieData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
+                  <defs>
+                    {CHART_COLORS.map((color, i) => {
+                      const ends = ['#1D4ED8','#0E7490','#4338CA','#0369A1','#4F46E5','#0F766E','#7C3AED','#0891B2'];
+                      return (
+                        <linearGradient key={i} id={`pieCatGrad-${i}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={color} stopOpacity={1}/>
+                          <stop offset="100%" stopColor={ends[i % ends.length]} stopOpacity={0.8}/>
+                        </linearGradient>
+                      );
+                    })}
+                  </defs>
                   <Pie
                     data={chartData.categoryPieData}
                     cx="50%"
                     cy="50%"
-                    outerRadius={70}
+                    innerRadius={28}
+                    outerRadius={65}
+                    paddingAngle={3}
                     dataKey="value"
-                    label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
-                    labelLine={false}
+                    stroke="none"
+                    cornerRadius={5}
                   >
-                    {chartData.categoryPieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    {chartData.categoryPieData.map((_entry, index) => (
+                      <Cell key={`cell-${index}`} fill={`url(#pieCatGrad-${index % CHART_COLORS.length})`} />
                     ))}
                   </Pie>
                   <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      borderRadius: '12px', 
-                      border: '1px solid #e5e7eb',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                    }}
+                    contentStyle={chartTooltipStyle}
+                    labelStyle={chartTooltipLabelStyle}
+                    itemStyle={chartTooltipItemStyle}
                     formatter={(value: number) => [`${value} produtos`, 'Quantidade']}
                   />
                 </PieChart>
@@ -1055,10 +1534,26 @@ const Dashboard: React.FC = () => {
               ))}
             </div>
           )}
+              </motion.div>
+            )}
+            </AnimatePresence>
+          </div>
         </div>
 
-        {/* Gráfico de Área - Movimentações */}
-        <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300 sm:col-span-2 lg:col-span-1">
+        {/* ════ Widget: Movements Area Chart ════════════════════ */}
+        <div key="movements-area-chart" className="group">
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
+            <DragHandle />
+            <AnimatePresence mode="wait">
+            {showCharts && (
+              <motion.div
+                key="movements-area-content"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="flex flex-col flex-1 min-h-0"
+              >
           <div className="mb-3 sm:mb-4">
             <div className="flex items-center justify-between mb-2 sm:mb-3">
               <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
@@ -1128,41 +1623,43 @@ const Dashboard: React.FC = () => {
               )}
             </div>
           </div>
-          <div className="h-40 sm:h-48">
+          <div className="flex-1 min-h-0">
             {chartData.movementsAreaData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData.movementsAreaData}>
                   <defs>
                     <linearGradient id="colorSaidas" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#EF4444" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="#EF4444" stopOpacity={0}/>
+                      <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.4}/>
+                      <stop offset="100%" stopColor="#3B82F6" stopOpacity={0}/>
                     </linearGradient>
                   </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : chartGridColor} opacity={isDark ? 0.4 : 0.8} vertical={false} />
                   <XAxis 
                     dataKey="date" 
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    axisLine={{ stroke: '#e5e7eb' }}
+                    tick={chartAxisTick}
+                    axisLine={{ stroke: chartAxisLineColor }}
+                    tickLine={{ stroke: chartAxisLineColor }}
                   />
                   <YAxis 
-                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                    axisLine={{ stroke: '#e5e7eb' }}
+                    tick={chartAxisTick}
+                    axisLine={{ stroke: chartAxisLineColor }}
+                    tickLine={{ stroke: chartAxisLineColor }}
                   />
                   <Tooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'white', 
-                      borderRadius: '12px', 
-                      border: '1px solid #e5e7eb',
-                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                    }}
+                    contentStyle={chartTooltipStyle}
+                    labelStyle={chartTooltipLabelStyle}
+                    itemStyle={chartTooltipItemStyle}
                   />
                   <Area 
                     type="monotone" 
                     dataKey="saidas" 
-                    stroke="#EF4444" 
+                    stroke="#3B82F6" 
+                    strokeWidth={3}
                     fillOpacity={1} 
                     fill="url(#colorSaidas)"
                     name="Saídas"
+                    dot={false}
+                    activeDot={{ r: 5, fill: '#3B82F6', stroke: isDark ? '#1e293b' : '#fff', strokeWidth: 2 }}
                   />
                 </AreaChart>
               </ResponsiveContainer>
@@ -1175,11 +1672,26 @@ const Dashboard: React.FC = () => {
               </div>
             )}
           </div>
+              </motion.div>
+            )}
+            </AnimatePresence>
+          </div>
         </div>
-      </div>
 
-      {/* Gráfico de Barras - Valor por Categoria */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 hover:shadow-lg transition-all duration-300">
+        {/* ════ Widget: Category Value Bar Chart ════════════════ */}
+        <div key="category-value-bar" className="group">
+          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
+            <DragHandle />
+            <AnimatePresence mode="wait">
+            {showCharts && (
+              <motion.div
+                key="category-value-content"
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3, ease: 'easeInOut' }}
+                className="flex flex-col flex-1 min-h-0"
+              >
         <div className="flex items-center justify-between mb-3 sm:mb-4">
           <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-indigo-500 shadow-lg mr-2 sm:mr-3">
@@ -1191,42 +1703,55 @@ const Dashboard: React.FC = () => {
             Top 6
           </span>
         </div>
-        <div className="h-52 sm:h-64">
+        <div className="flex-1 min-h-0">
           {chartData.categoryValueData.length > 0 ? (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={chartData.categoryValueData} layout="vertical">
-                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" horizontal={true} vertical={false} />
+                <defs>
+                  {CHART_COLORS.map((color, i) => (
+                    <linearGradient key={i} id={`barGrad-${i}`} x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor={color} stopOpacity={0.65} />
+                      <stop offset="100%" stopColor={color} stopOpacity={1} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={isDark ? '#334155' : chartGridColor} opacity={isDark ? 0.4 : 0.8} horizontal={true} vertical={false} />
                 <XAxis 
                   type="number" 
-                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  tick={chartAxisTick}
                   tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                  axisLine={{ stroke: '#e5e7eb' }}
+                  axisLine={{ stroke: chartAxisLineColor }}
+                  tickLine={{ stroke: chartAxisLineColor }}
                 />
                 <YAxis 
                   type="category" 
                   dataKey="name" 
-                  tick={{ fontSize: 11, fill: '#6b7280' }}
+                  tick={chartAxisTick}
                   width={100}
-                  axisLine={{ stroke: '#e5e7eb' }}
+                  axisLine={{ stroke: chartAxisLineColor }}
+                  tickLine={{ stroke: chartAxisLineColor }}
                 />
                 <Tooltip 
-                  contentStyle={{ 
-                    backgroundColor: 'white', 
-                    borderRadius: '12px', 
-                    border: '1px solid #e5e7eb',
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                  }}
+                  contentStyle={chartTooltipStyle}
+                  labelStyle={chartTooltipLabelStyle}
+                  itemStyle={chartTooltipItemStyle}
                   formatter={(value: number) => [formatCurrency(value), 'Valor']}
                   labelFormatter={(label, payload) => payload?.[0]?.payload?.fullName || label}
+                  cursor={{ fill: isDark ? 'rgba(51,65,85,0.3)' : 'rgba(226,232,240,0.5)' }}
                 />
                 <Bar 
                   dataKey="valor" 
-                  fill="#6366F1" 
                   radius={[0, 8, 8, 0]}
                   name="Valor em Estoque"
                 >
-                  {chartData.categoryValueData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />
+                  {chartData.categoryValueData.map((_, index) => (
+                    <Cell 
+                      key={`cell-${index}`} 
+                      fill={`url(#barGrad-${index % CHART_COLORS.length})`}
+                      stroke={CHART_COLORS[index % CHART_COLORS.length]}
+                      strokeWidth={1}
+                      strokeOpacity={0.3}
+                    />
                   ))}
                 </Bar>
               </BarChart>
@@ -1240,11 +1765,16 @@ const Dashboard: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
-      </>
-      )}
+              </motion.div>
+            )}
+            </AnimatePresence>
+          </div>
+        </div>
 
-      {/* Stats Financeiros */}
+        {/* ════ Widget: Financial Stats ═════════════════════════ */}
+        <div key="financial-stats" className="group">
+          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
+            <DragHandle />
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
         {financialStats.map((stat, index) => {
           const Icon = stat.icon;
@@ -1277,13 +1807,15 @@ const Dashboard: React.FC = () => {
           );
         })}
       </div>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Categories Chart */}
-        <div
-          className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-300 hover-lift"
-          onClick={() => setSelectedDetail('categories')}
-        >
+        {/* ════ Widget: Categories List ═════════════════════════ */}
+        <div key="categories-list" className="group">
+          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-300"
+            onClick={() => setSelectedDetail('categories')}
+          >
+            <DragHandle />
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-purple-500 shadow-lg mr-2 sm:mr-3">
@@ -1334,13 +1866,15 @@ const Dashboard: React.FC = () => {
                 );
               })}
           </div>
+          </div>
         </div>
 
-        {/* Solicitações por Departamento */}
-        <div 
-          className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300 hover-lift"
-          onClick={() => setSelectedDetail('departmentRanking')}
-        >
+        {/* ════ Widget: Department Ranking ═══════════════════════ */}
+        <div key="department-ranking" className="group">
+          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300"
+            onClick={() => setSelectedDetail('departmentRanking')}
+          >
+            <DragHandle />
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-700 shadow-lg mr-2 sm:mr-3">
@@ -1399,14 +1933,15 @@ const Dashboard: React.FC = () => {
               <span className="text-slate-500 dark:text-slate-400 text-xs hidden sm:inline">Clique para análise detalhada →</span>
             </div>
           )}
+          </div>
         </div>
-      </div>
 
-      {/* Recent Movements */}
-      <div 
-        className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover-lift"
-        onClick={() => setSelectedDetail('recentMovements')}
-      >
+        {/* ════ Widget: Recent Movements ════════════════════════ */}
+        <div key="recent-movements" className="group">
+          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300"
+            onClick={() => setSelectedDetail('recentMovements')}
+          >
+            <DragHandle />
         <div className="flex items-center justify-between mb-3 sm:mb-4">
           <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mr-2 sm:mr-3">
@@ -1446,14 +1981,15 @@ const Dashboard: React.FC = () => {
             </div>
           )}
         </div>
-      </div>
+          </div>
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-        {/* Top Value Products */}
-        <div 
-          className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-800 transition-all duration-300 hover-lift"
-          onClick={() => setSelectedDetail('topValue')}
-        >
+        {/* ════ Widget: Top Value Products ══════════════════════ */}
+        <div key="top-value" className="group">
+          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-800 transition-all duration-300"
+            onClick={() => setSelectedDetail('topValue')}
+          >
+            <DragHandle />
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-green-500 shadow-lg mr-2 sm:mr-3">
@@ -1484,14 +2020,16 @@ const Dashboard: React.FC = () => {
               </div>
             ))}
           </div>
+          </div>
         </div>
 
-        {/* Low Stock Alert */}
+        {/* ════ Widget: Low Stock Alert ═════════════════════════ */}
         {lowStockProducts.length > 0 && (
-          <div 
-            className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-orange-200 dark:hover:border-orange-800 transition-all duration-300 hover-lift"
+        <div key="low-stock" className="group">
+          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-orange-200 dark:hover:border-orange-800 transition-all duration-300"
             onClick={() => setSelectedDetail('lowStock')}
           >
+            <DragHandle />
             <div className="flex items-center justify-between mb-3 sm:mb-4">
               <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-orange-500 shadow-lg mr-2 sm:mr-3">
@@ -1522,14 +2060,16 @@ const Dashboard: React.FC = () => {
               ))}
             </div>
           </div>
+        </div>
         )}
 
-        {/* Expiring Products */}
+        {/* ════ Widget: Expiring Products ═══════════════════════ */}
         {expiringProducts.length > 0 && (
-          <div 
-            className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-4 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-red-200 dark:hover:border-red-800 transition-all duration-300 hover-lift"
+        <div key="expiring" className="group">
+          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-red-200 dark:hover:border-red-800 transition-all duration-300"
             onClick={() => setSelectedDetail('expiring')}
           >
+            <DragHandle />
             <div className="flex items-center justify-between mb-3 sm:mb-4">
               <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-red-500 shadow-lg mr-2 sm:mr-3">
@@ -1574,14 +2114,15 @@ const Dashboard: React.FC = () => {
               })}
             </div>
           </div>
+        </div>
         )}
-      </div>
 
-      {/* Resumo Financeiro */}
-      <div 
-        className="bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/30 dark:via-indigo-900/30 dark:to-purple-900/30 rounded-xl sm:rounded-2xl p-4 sm:p-6 border border-blue-100 dark:border-blue-900/50 cursor-pointer hover:shadow-lg transition-all duration-300 hover-lift"
-        onClick={() => setSelectedDetail('financialStats')}
-      >
+        {/* ════ Widget: Financial Summary ═══════════════════════ */}
+        <div key="financial-summary" className="group">
+          <div className="h-full bg-gradient-to-br from-blue-50/70 via-indigo-50/70 to-purple-50/70 dark:from-blue-900/30 dark:via-indigo-900/30 dark:to-purple-900/30 backdrop-blur-xl rounded-2xl border border-blue-200/80 dark:border-blue-900/50 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg transition-all duration-300"
+            onClick={() => setSelectedDetail('financialStats')}
+          >
+            <DragHandle />
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg mr-2 sm:mr-3">
@@ -1631,10 +2172,274 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
-      </div>
+          </div>
+        </div>
 
-      {/* Comparativo de Compras */}
-      <PurchaseComparison />
+        {/* ════ Widget: Request Metrics ═════════════════════════ */}
+        <div key="request-metrics" className="group">
+          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
+            <DragHandle />
+        {/* Header com filtros de período */}
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
+          <div className="flex items-center gap-2">
+            <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg">
+              <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+            </div>
+            <h2 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-200">Métricas de Solicitações</h2>
+          </div>
+          
+          {/* Filtros de período */}
+          <div className="flex items-center gap-2 sm:ml-auto flex-wrap">
+            {([7, 15, 30] as const).map((days) => (
+              <button
+                key={days}
+                onClick={() => setRequestsPeriod(days)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                  requestsPeriod === days
+                    ? 'bg-blue-500 text-white shadow-md'
+                    : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600/50'
+                }`}
+              >
+                {days}d
+              </button>
+            ))}
+            <button
+              onClick={() => setRequestsPeriod('custom')}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
+                requestsPeriod === 'custom'
+                  ? 'bg-blue-500 text-white shadow-md'
+                  : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600/50'
+              }`}
+            >
+              Custom
+            </button>
+          </div>
+        </div>
+
+        {/* Custom date inputs */}
+        {requestsPeriod === 'custom' && (
+          <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500 dark:text-gray-400">De:</label>
+              <input
+                type="date"
+                value={requestsCustomStart}
+                onChange={(e) => setRequestsCustomStart(e.target.value)}
+                className="px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-500 dark:text-gray-400">Até:</label>
+              <input
+                type="date"
+                value={requestsCustomEnd}
+                onChange={(e) => setRequestsCustomEnd(e.target.value)}
+                className="px-2 py-1 text-xs rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+              />
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+          {/* Card: Compras / Materiais */}
+          {(() => {
+            const { volume, avgDays, trend, pending, approved, rejected, sparkline, slaMeta } = requestMetrics.compras;
+            const slaColor = avgDays === null ? 'text-gray-400' : avgDays <= slaMeta ? 'text-emerald-500' : avgDays <= slaMeta * 2 ? 'text-amber-500' : 'text-rose-500';
+            const slaBg = avgDays === null ? 'bg-gray-100 dark:bg-gray-700' : avgDays <= slaMeta ? 'bg-emerald-50 dark:bg-emerald-900/30' : avgDays <= slaMeta * 2 ? 'bg-amber-50 dark:bg-amber-900/30' : 'bg-rose-50 dark:bg-rose-900/30';
+            const slaStatus = avgDays === null ? 'N/A' : avgDays <= slaMeta ? 'Dentro da meta' : avgDays <= slaMeta * 2 ? 'Atenção' : 'Acima da meta';
+            const TrendIcon = trend > 0 ? ArrowUpRight : trend < 0 ? ArrowDownRight : Minus;
+            const trendColor = trend > 0 ? 'text-emerald-500' : trend < 0 ? 'text-rose-500' : 'text-gray-400';
+            return (
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm hover:shadow-lg transition-shadow duration-300">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25">
+                    <ShoppingCart className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">Compras</span>
+                </div>
+
+                {/* Volume + Trend */}
+                <div className="flex items-end gap-2 mb-1">
+                  <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{volume}</p>
+                  <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700/50 mb-1 ${trendColor}`}>
+                    <TrendIcon className="w-3 h-3" />
+                    <span className="text-xs font-medium">{Math.abs(trend).toFixed(0)}%</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">solicitações no período</p>
+
+                {/* Status Breakdown */}
+                <div className="flex items-center gap-3 text-xs mb-3">
+                  <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> {pending} pend.
+                  </span>
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {approved} aprov.
+                  </span>
+                  <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
+                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> {rejected} rej.
+                  </span>
+                </div>
+
+                {/* Mini Sparkline */}
+                <div className="h-10 mb-3">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsLineChart data={sparkline}>
+                      <Line type="monotone" dataKey="count" stroke="#3B82F6" strokeWidth={2} dot={false} />
+                    </RechartsLineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* SLA with meta */}
+                <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${slaBg}`}>
+                  <div className="flex items-center gap-2">
+                    <Clock className={`w-4 h-4 ${slaColor}`} />
+                    <span className={`text-sm font-medium ${slaColor}`}>
+                      {avgDays !== null ? `${avgDays.toFixed(1)}d` : '—'}
+                    </span>
+                  </div>
+                  <span className={`text-xs font-medium ${slaColor}`}>
+                    {slaStatus} (meta: {slaMeta}d)
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Card: Manutenção */}
+          {(() => {
+            const { volume, avgDays, trend, pending, approved, rejected, sparkline, slaMeta } = requestMetrics.manutencao;
+            const slaColor = avgDays === null ? 'text-gray-400' : avgDays <= slaMeta ? 'text-emerald-500' : avgDays <= slaMeta * 2 ? 'text-amber-500' : 'text-rose-500';
+            const slaBg = avgDays === null ? 'bg-gray-100 dark:bg-gray-700' : avgDays <= slaMeta ? 'bg-emerald-50 dark:bg-emerald-900/30' : avgDays <= slaMeta * 2 ? 'bg-amber-50 dark:bg-amber-900/30' : 'bg-rose-50 dark:bg-rose-900/30';
+            const slaStatus = avgDays === null ? 'N/A' : avgDays <= slaMeta ? 'Dentro da meta' : avgDays <= slaMeta * 2 ? 'Atenção' : 'Acima da meta';
+            const TrendIcon = trend > 0 ? ArrowUpRight : trend < 0 ? ArrowDownRight : Minus;
+            const trendColor = trend > 0 ? 'text-emerald-500' : trend < 0 ? 'text-rose-500' : 'text-gray-400';
+            return (
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm hover:shadow-lg transition-shadow duration-300">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/25">
+                    <Wrench className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-xs font-medium px-2 py-1 rounded-full bg-amber-50 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">Manutenção</span>
+                </div>
+
+                {/* Volume + Trend */}
+                <div className="flex items-end gap-2 mb-1">
+                  <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{volume}</p>
+                  <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700/50 mb-1 ${trendColor}`}>
+                    <TrendIcon className="w-3 h-3" />
+                    <span className="text-xs font-medium">{Math.abs(trend).toFixed(0)}%</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">solicitações no período</p>
+
+                {/* Status Breakdown */}
+                <div className="flex items-center gap-3 text-xs mb-3">
+                  <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> {pending} pend.
+                  </span>
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {approved} aprov.
+                  </span>
+                  <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
+                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> {rejected} rej.
+                  </span>
+                </div>
+
+                {/* Mini Sparkline */}
+                <div className="h-10 mb-3">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsLineChart data={sparkline}>
+                      <Line type="monotone" dataKey="count" stroke="#F59E0B" strokeWidth={2} dot={false} />
+                    </RechartsLineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* SLA with meta */}
+                <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${slaBg}`}>
+                  <div className="flex items-center gap-2">
+                    <Clock className={`w-4 h-4 ${slaColor}`} />
+                    <span className={`text-sm font-medium ${slaColor}`}>
+                      {avgDays !== null ? `${avgDays.toFixed(1)}d` : '—'}
+                    </span>
+                  </div>
+                  <span className={`text-xs font-medium ${slaColor}`}>
+                    {slaStatus} (meta: {slaMeta}d)
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Card: Pagamentos */}
+          {(() => {
+            const { volume, avgDays, trend, pending, approved, rejected, sparkline, slaMeta } = requestMetrics.pagamentos;
+            const slaColor = avgDays === null ? 'text-gray-400' : avgDays <= slaMeta ? 'text-emerald-500' : avgDays <= slaMeta * 2 ? 'text-amber-500' : 'text-rose-500';
+            const slaBg = avgDays === null ? 'bg-gray-100 dark:bg-gray-700' : avgDays <= slaMeta ? 'bg-emerald-50 dark:bg-emerald-900/30' : avgDays <= slaMeta * 2 ? 'bg-amber-50 dark:bg-amber-900/30' : 'bg-rose-50 dark:bg-rose-900/30';
+            const slaStatus = avgDays === null ? 'N/A' : avgDays <= slaMeta ? 'Dentro da meta' : avgDays <= slaMeta * 2 ? 'Atenção' : 'Acima da meta';
+            const TrendIcon = trend > 0 ? ArrowUpRight : trend < 0 ? ArrowDownRight : Minus;
+            const trendColor = trend > 0 ? 'text-emerald-500' : trend < 0 ? 'text-rose-500' : 'text-gray-400';
+            return (
+              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm hover:shadow-lg transition-shadow duration-300">
+                <div className="flex items-start justify-between mb-3">
+                  <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25">
+                    <CreditCard className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-xs font-medium px-2 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300">Pagamentos</span>
+                </div>
+
+                {/* Volume + Trend */}
+                <div className="flex items-end gap-2 mb-1">
+                  <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{volume}</p>
+                  <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700/50 mb-1 ${trendColor}`}>
+                    <TrendIcon className="w-3 h-3" />
+                    <span className="text-xs font-medium">{Math.abs(trend).toFixed(0)}%</span>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">solicitações no período</p>
+
+                {/* Status Breakdown */}
+                <div className="flex items-center gap-3 text-xs mb-3">
+                  <span className="flex items-center gap-1 text-amber-600 dark:text-amber-400">
+                    <span className="w-2 h-2 rounded-full bg-amber-500"></span> {pending} pend.
+                  </span>
+                  <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500"></span> {approved} aprov.
+                  </span>
+                  <span className="flex items-center gap-1 text-rose-600 dark:text-rose-400">
+                    <span className="w-2 h-2 rounded-full bg-rose-500"></span> {rejected} rej.
+                  </span>
+                </div>
+
+                {/* Mini Sparkline */}
+                <div className="h-10 mb-3">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RechartsLineChart data={sparkline}>
+                      <Line type="monotone" dataKey="count" stroke="#10B981" strokeWidth={2} dot={false} />
+                    </RechartsLineChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* SLA with meta */}
+                <div className={`flex items-center justify-between px-3 py-2 rounded-lg ${slaBg}`}>
+                  <div className="flex items-center gap-2">
+                    <Clock className={`w-4 h-4 ${slaColor}`} />
+                    <span className={`text-sm font-medium ${slaColor}`}>
+                      {avgDays !== null ? `${avgDays.toFixed(1)}d` : '—'}
+                    </span>
+                  </div>
+                  <span className={`text-xs font-medium ${slaColor}`}>
+                    {slaStatus} (meta: {slaMeta}d)
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+          </div>
+        </div>
+
+      </ResponsiveGridLayout>
       </div>
 
       {/* Detail Modal */}

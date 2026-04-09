@@ -6,9 +6,10 @@ import { useDialog } from '../hooks/useDialog';
 import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
 import InputDialog from './InputDialog';
+import { ExpirationMonitorSkeleton } from './PageLoadingSkeleton';
 
 const ExpirationMonitor: React.FC = () => {
-  const { products, writeOffProduct, requestReplenishment } = useInventory();
+  const { products, writeOffProduct, requestReplenishment, loading: inventoryLoading } = useInventory();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm, inputDialog, showInputDialog, hideInputDialog, handleInputDialogConfirm } = useDialog();
   const [daysFilter, setDaysFilter] = useState(30);
@@ -125,6 +126,11 @@ const ExpirationMonitor: React.FC = () => {
       currency: 'BRL'
     }).format(value);
   };
+
+  // Loading state
+  if (inventoryLoading) {
+    return <ExpirationMonitorSkeleton />;
+  }
 
   return (
     <div className="space-y-6">

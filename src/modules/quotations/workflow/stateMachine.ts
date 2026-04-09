@@ -9,8 +9,8 @@ import { QuotationStatus, QuotationActionType } from '../types';
  * Each status maps to an array of statuses it can transition to.
  */
 export const VALID_TRANSITIONS: Record<QuotationStatus, QuotationStatus[]> = {
-  draft: ['sent_to_suppliers', 'cancelled'],
-  sent_to_suppliers: ['waiting_responses', 'cancelled'],
+  draft: ['sent_to_suppliers', 'under_review', 'cancelled'],
+  sent_to_suppliers: ['waiting_responses', 'under_review', 'cancelled'],
   waiting_responses: ['under_review', 'cancelled'],
   under_review: ['awaiting_approval', 'rejected', 'cancelled'],
   awaiting_approval: ['approved', 'rejected', 'cancelled'],
@@ -75,28 +75,28 @@ export function canEditQuotation(status: QuotationStatus): boolean {
  * Checks if items can be added/removed in current status
  */
 export function canModifyItems(status: QuotationStatus): boolean {
-  return ['draft'].includes(status);
+  return ['draft', 'sent_to_suppliers', 'waiting_responses'].includes(status);
 }
 
 /**
  * Checks if suppliers can be added/removed in current status
  */
 export function canModifySuppliers(status: QuotationStatus): boolean {
-  return ['draft'].includes(status);
+  return ['draft', 'sent_to_suppliers', 'waiting_responses'].includes(status);
 }
 
 /**
  * Checks if proposals can be received in current status
  */
 export function canReceiveProposals(status: QuotationStatus): boolean {
-  return ['sent_to_suppliers', 'waiting_responses'].includes(status);
+  return ['draft', 'sent_to_suppliers', 'waiting_responses'].includes(status);
 }
 
 /**
  * Checks if a winner can be selected in current status
  */
 export function canSelectWinner(status: QuotationStatus): boolean {
-  return ['under_review'].includes(status);
+  return ['under_review', 'waiting_responses'].includes(status);
 }
 
 /**

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Search, Filter, Package, AlertTriangle, Calendar, Edit, Trash2, X, Save, Plus, Minus, ArrowUpDown } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { Product } from '../types';
+import { ProductListSkeleton } from './PageLoadingSkeleton';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { supabase } from '../lib/supabase';
@@ -15,7 +16,7 @@ import AddStockModal from './AddStockModal';
 
 
 const ProductList: React.FC = () => {
-  const { products, updateProduct, addMovement, suppliers, deleteProduct, setProducts, fetchProducts, addProductChangeLog } = useInventory();
+  const { products, updateProduct, addMovement, suppliers, deleteProduct, setProducts, fetchProducts, addProductChangeLog, loading } = useInventory();
   const navigate = useNavigate();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm, inputDialog, showInputDialog, hideInputDialog, handleInputDialogConfirm } = useDialog();
@@ -517,6 +518,11 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       </span>
     </div>
   );
+
+  // Loading state
+  if (loading) {
+    return <ProductListSkeleton />;
+  }
 
   return (
     <>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import ReactDOM from 'react-dom';
 import {
   X,
   Plus,
@@ -11,6 +12,7 @@ import {
   AlertCircle,
   Search,
   AlertTriangle,
+  ClipboardList,
 } from 'lucide-react';
 import { Department, DepartmentLabels } from '../../../types';
 import { CreateQuotationInput, QuotationItem } from '../types';
@@ -56,9 +58,11 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   suppliers,
   linkedRequest,
 }) => {
-  const { products } = useInventory();
+  const { products, requests } = useInventory();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'info' | 'items' | 'suppliers' | 'review'>(linkedRequest ? 'suppliers' : 'info');
+  const [showRequestPicker, setShowRequestPicker] = useState(false);
+  const [requestSearchTerm, setRequestSearchTerm] = useState('');
   
   // Form state
   const [title, setTitle] = useState(linkedRequest ? `Cotação - ${linkedRequest.code}` : '');
@@ -160,6 +164,30 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
     setItems(items.filter((_, i) => i !== index));
   };
 
+  const handleImportFromRequest = (request: typeof requests[number]) => {
+    const newItems: ItemForm[] = request.items.map(ri => ({
+      productName: ri.productName,
+      quantity: ri.quantity,
+      unit: 'un',
+      category: ri.category || 'general',
+    }));
+    setItems(prev => [...prev, ...newItems]);
+    setShowRequestPicker(false);
+    setRequestSearchTerm('');
+  };
+
+  const filteredRequests = requests.filter(r => {
+    if (requestSearchTerm) {
+      const term = requestSearchTerm.toLowerCase();
+      return (
+        r.id.toLowerCase().includes(term) ||
+        r.reason.toLowerCase().includes(term) ||
+        r.items.some(i => i.productName.toLowerCase().includes(term))
+      );
+    }
+    return true;
+  });
+
   const handleToggleSupplier = (supplierId: string) => {
     setSelectedSuppliers(prev =>
       prev.includes(supplierId)
@@ -235,23 +263,23 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
     : ['info', 'items', 'suppliers', 'review'] as const;
   const currentStepIndex = steps.indexOf(step as any);
 
-  return (
+  return ReactDOM.createPortal(
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200">
+        <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">Nova Cotação</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Nova Cotação</h2>
               {linkedRequest && (
-                <p className="text-sm text-gray-500 mt-0.5">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                   Vinculada à requisição {linkedRequest.code}
                 </p>
               )}
             </div>
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg"
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
             >
               <X className="w-5 h-5" />
             </button>
@@ -264,8 +292,8 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                 <div
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-sm ${
                     index <= currentStepIndex
-                      ? 'bg-blue-100 text-blue-700'
-                      : 'bg-gray-100 text-gray-500'
+                      ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400'
                   }`}
                 >
                   <span className="font-medium">{index + 1}.</span>
@@ -277,7 +305,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                   </span>
                 </div>
                 {index < steps.length - 1 && (
-                  <div className={`flex-1 h-0.5 ${index < currentStepIndex ? 'bg-blue-400' : 'bg-gray-200'}`} />
+                  <div className={`flex-1 h-0.5 ${index < currentStepIndex ? 'bg-blue-400' : 'bg-gray-200 dark:bg-gray-600'}`} />
                 )}
               </React.Fragment>
             ))}
@@ -290,40 +318,40 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
           {step === 'info' && (
             <div className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Título da Cotação *
                 </label>
                 <input
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   placeholder="Ex: Cotação de Material de Escritório"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Descrição
                 </label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   placeholder="Descrição detalhada da cotação..."
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Departamento *
                   </label>
                   <select
                     value={department}
                     onChange={(e) => setDepartment(e.target.value as Department)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   >
                     {DEPARTMENTS.map(d => (
                       <option key={d.value} value={d.value}>{d.label}</option>
@@ -331,21 +359,21 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Centro de Custo
                   </label>
                   <input
                     type="text"
                     value={costCenter}
                     onChange={(e) => setCostCenter(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     placeholder="Ex: CC-001"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Prioridade
                 </label>
                 <div className="flex flex-wrap gap-2">
@@ -357,7 +385,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                       className={`px-3 py-1.5 text-sm font-medium rounded-lg border transition-all ${
                         priority === opt.value
                           ? `${opt.color} border-transparent ring-2 ring-offset-1 ring-blue-500`
-                          : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'
+                          : 'bg-white dark:bg-gray-700 border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-600'
                       }`}
                     >
                       {opt.label}
@@ -368,38 +396,38 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Prazo de Resposta
                   </label>
                   <input
                     type="date"
                     value={responseDeadline}
                     onChange={(e) => setResponseDeadline(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Prazo de Entrega
                   </label>
                   <input
                     type="date"
                     value={deliveryDeadline}
                     onChange={(e) => setDeliveryDeadline(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Justificativa
                 </label>
                 <textarea
                   value={justification}
                   onChange={(e) => setJustification(e.target.value)}
                   rows={2}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   placeholder="Justificativa para a cotação..."
                 />
               </div>
@@ -409,9 +437,90 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
           {/* Items Step */}
           {step === 'items' && (
             <div className="space-y-4">
+              {/* Import from Request */}
+              {!showRequestPicker ? (
+                <button
+                  type="button"
+                  onClick={() => setShowRequestPicker(true)}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-sm font-medium"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Importar Itens de uma Solicitação
+                </button>
+              ) : (
+                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 flex items-center gap-2">
+                      <ClipboardList className="w-4 h-4" />
+                      Importar de Solicitação
+                    </h3>
+                    <button
+                      type="button"
+                      onClick={() => { setShowRequestPicker(false); setRequestSearchTerm(''); }}
+                      className="p-1 text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 rounded"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+                    <input
+                      type="text"
+                      value={requestSearchTerm}
+                      onChange={(e) => setRequestSearchTerm(e.target.value)}
+                      className="w-full pl-9 pr-3 py-2 border border-blue-200 dark:border-blue-700 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                      placeholder="Buscar por solicitação..."
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {filteredRequests.length === 0 ? (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Nenhuma solicitação encontrada</p>
+                    ) : (
+                      filteredRequests.slice(0, 10).map(request => (
+                        <button
+                          key={request.id}
+                          type="button"
+                          onClick={() => handleImportFromRequest(request)}
+                          className="w-full text-left p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                                request.type === 'SC' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+                              }`}>
+                                {request.type}
+                              </span>
+                              <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                                request.status === 'approved' ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' :
+                                request.status === 'pending' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' :
+                                'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                              }`}>
+                                {request.status === 'approved' ? 'Aprovada' : request.status === 'pending' ? 'Pendente' : request.status}
+                              </span>
+                            </div>
+                            <span className="text-xs text-gray-400">{request.items.length} item(ns)</span>
+                          </div>
+                          <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 line-clamp-1">{request.reason}</p>
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {request.items.slice(0, 3).map((ri, idx) => (
+                              <span key={idx} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
+                                {ri.productName} ({ri.quantity})
+                              </span>
+                            ))}
+                            {request.items.length > 3 && (
+                              <span className="text-xs text-gray-400">+{request.items.length - 3} mais</span>
+                            )}
+                          </div>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Add Item Form */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">Adicionar Item</h3>
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Adicionar Item</h3>
                 <div className="grid grid-cols-12 gap-3">
                   {/* Product Search */}
                   <div className="col-span-5">
@@ -421,7 +530,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                         type="text"
                         value={productSearch}
                         onChange={(e) => setProductSearch(e.target.value)}
-                        className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                         placeholder="Buscar produto..."
                       />
                     </div>
@@ -432,7 +541,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                     <select
                       value={categoryFilter}
                       onChange={(e) => setCategoryFilter(e.target.value as any)}
-                      className="w-full px-2 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                     >
                       <option value="all">Todas</option>
                       <option value="general">Geral</option>
@@ -447,7 +556,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                       value={newItem.quantity}
                       onChange={(e) => setNewItem({ ...newItem, quantity: parseInt(e.target.value) || 1 })}
                       min="1"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                       placeholder="Qtd"
                     />
                   </div>
@@ -478,9 +587,9 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
 
                 {/* Product not found warning */}
                 {productSearch && !matchedProduct && (
-                  <div className="mt-3 flex items-center p-2.5 bg-amber-50 border border-amber-200 rounded-lg">
+                  <div className="mt-3 flex items-center p-2.5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg">
                     <AlertTriangle className="w-4 h-4 text-amber-500 mr-2 flex-shrink-0" />
-                    <p className="text-xs text-amber-700">
+                    <p className="text-xs text-amber-700 dark:text-amber-300">
                       <span className="font-medium">Produto não encontrado.</span> Ao adicionar, será criado como "produto não cadastrado".
                     </p>
                   </div>
@@ -488,9 +597,9 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
 
                 {/* Product dropdown */}
                 {productSearch && filteredProducts.length > 0 && (
-                  <div className="mt-3 max-h-48 overflow-y-auto bg-white border border-gray-200 rounded-lg shadow-lg">
-                    <div className="p-2 bg-gray-50 border-b border-gray-100 sticky top-0">
-                      <p className="text-xs text-gray-500 font-medium">{filteredProducts.length} produto(s) encontrado(s)</p>
+                  <div className="mt-3 max-h-48 overflow-y-auto bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg">
+                    <div className="p-2 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-600 sticky top-0">
+                      <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">{filteredProducts.length} produto(s) encontrado(s)</p>
                     </div>
                     {filteredProducts.map((product) => (
                       <div
@@ -499,24 +608,24 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                           setSelectedProduct(product.id);
                           setProductSearch(product.name);
                         }}
-                        className={`p-3 cursor-pointer hover:bg-blue-50 border-b border-gray-50 last:border-b-0 transition-colors ${
-                          selectedProduct === product.id ? 'bg-blue-50 border-l-2 border-l-blue-500' : ''
+                        className={`p-3 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-900/30 border-b border-gray-50 dark:border-gray-700 last:border-b-0 transition-colors ${
+                          selectedProduct === product.id ? 'bg-blue-50 dark:bg-blue-900/30 border-l-2 border-l-blue-500' : ''
                         }`}
                       >
                         <div className="flex justify-between items-center">
                           <div className="flex items-center">
-                            <div className="w-8 h-8 bg-gray-100 rounded-lg flex items-center justify-center mr-3">
-                              <Package className="w-4 h-4 text-gray-500" />
+                            <div className="w-8 h-8 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center mr-3">
+                              <Package className="w-4 h-4 text-gray-500 dark:text-gray-400" />
                             </div>
                             <div>
-                              <p className="font-medium text-gray-800 text-sm">{product.name}</p>
-                              <p className="text-xs text-gray-500">{product.code} • {product.category}</p>
+                              <p className="font-medium text-gray-800 dark:text-gray-200 text-sm">{product.name}</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">{product.code} • {product.category}</p>
                             </div>
                           </div>
                           <div className="text-right">
                             <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                              product.quantity > 10 ? 'bg-green-100 text-green-700' :
-                              product.quantity > 0 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                              product.quantity > 10 ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' :
+                              product.quantity > 0 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
                             }`}>
                               {product.quantity} {product.unit}
                             </span>
@@ -530,8 +639,8 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
 
               {/* Items List */}
               {items.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">
-                  <Package className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                  <Package className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
                   <p>Nenhum item adicionado</p>
                   <p className="text-sm">Adicione pelo menos um item para continuar</p>
                 </div>
@@ -540,28 +649,28 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                   {items.map((item, index) => (
                     <div
                       key={index}
-                      className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:border-blue-200 transition-all group"
+                      className="flex items-center justify-between p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-200 dark:hover:border-blue-700 transition-all group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center border border-gray-200">
-                          <span className="text-xs font-bold text-blue-600">#{index + 1}</span>
+                        <div className="w-8 h-8 bg-white dark:bg-gray-700 rounded-lg flex items-center justify-center border border-gray-200 dark:border-gray-600">
+                          <span className="text-xs font-bold text-blue-600 dark:text-blue-400">#{index + 1}</span>
                         </div>
                         <div>
-                          <p className="text-sm font-medium text-gray-900">{item.productName}</p>
+                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{item.productName}</p>
                           <div className="flex items-center gap-2 mt-0.5">
                             <span className={`text-xs px-1.5 py-0.5 rounded ${
                               item.category === 'não cadastrado'
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-gray-100 text-gray-600'
+                                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                             }`}>
                               {item.category === 'não cadastrado' ? '⚠ Não cadastrado' : item.category}
                             </span>
-                            <span className="text-xs text-gray-500">•</span>
-                            <span className="text-xs font-medium text-blue-600">{item.quantity} {item.unit}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">•</span>
+                            <span className="text-xs font-medium text-blue-600 dark:text-blue-400">{item.quantity} {item.unit}</span>
                             {item.estimatedUnitPrice && (
                               <>
-                                <span className="text-xs text-gray-500">•</span>
-                                <span className="text-xs text-gray-600">Est. R$ {item.estimatedUnitPrice.toFixed(2)}</span>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">•</span>
+                                <span className="text-xs text-gray-600 dark:text-gray-400">Est. R$ {item.estimatedUnitPrice.toFixed(2)}</span>
                               </>
                             )}
                           </div>
@@ -570,7 +679,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                       <button
                         type="button"
                         onClick={() => handleRemoveItem(index)}
-                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                        className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded"
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -584,12 +693,23 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
           {/* Suppliers Step */}
           {step === 'suppliers' && (
             <div className="space-y-4">
+              {/* Info about optional WhatsApp */}
+              <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+                <AlertCircle className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Fornecedores participantes</p>
+                  <p className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                    Selecione os fornecedores que participarão desta cotação. O envio via WhatsApp é <strong>opcional</strong> — você pode inserir as propostas manualmente depois.
+                  </p>
+                </div>
+              </div>
+
               <div>
                 <input
                   type="text"
                   value={supplierSearch}
                   onChange={(e) => setSupplierSearch(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   placeholder="Buscar fornecedores..."
                 />
               </div>
@@ -601,13 +721,13 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                     return supplier ? (
                       <span
                         key={id}
-                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-sm rounded-full"
+                        className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 text-sm rounded-full"
                       >
                         {supplier.name}
                         <button
                           type="button"
                           onClick={() => handleToggleSupplier(id)}
-                          className="p-0.5 hover:bg-blue-200 rounded-full"
+                          className="p-0.5 hover:bg-blue-200 dark:hover:bg-blue-800 rounded-full"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -619,8 +739,8 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
 
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {filteredSuppliers.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
-                    <Building2 className="w-10 h-10 mx-auto text-gray-300 mb-3" />
+                  <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <Building2 className="w-10 h-10 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
                     <p>Nenhum fornecedor encontrado</p>
                   </div>
                 ) : (
@@ -633,25 +753,25 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                         onClick={() => handleToggleSupplier(supplier.id)}
                         className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all ${
                           isSelected
-                            ? 'bg-blue-50 border-blue-300 ring-1 ring-blue-500'
-                            : 'bg-white border-gray-200 hover:bg-gray-50'
+                            ? 'bg-blue-50 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 ring-1 ring-blue-500'
+                            : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
                         }`}
                       >
                         <div className="flex items-center gap-3">
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            isSelected ? 'bg-blue-100' : 'bg-gray-100'
+                            isSelected ? 'bg-blue-100 dark:bg-blue-800' : 'bg-gray-100 dark:bg-gray-700'
                           }`}>
-                            <Building2 className={`w-4 h-4 ${isSelected ? 'text-blue-600' : 'text-gray-500'}`} />
+                            <Building2 className={`w-4 h-4 ${isSelected ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-400'}`} />
                           </div>
                           <div className="text-left">
-                            <p className={`text-sm font-medium ${isSelected ? 'text-blue-900' : 'text-gray-900'}`}>
+                            <p className={`text-sm font-medium ${isSelected ? 'text-blue-900 dark:text-blue-200' : 'text-gray-900 dark:text-gray-100'}`}>
                               {supplier.name}
                             </p>
-                            <p className="text-xs text-gray-500">{supplier.email}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">{supplier.email}</p>
                           </div>
                         </div>
                         <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
-                          isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300'
+                          isSelected ? 'bg-blue-600 border-blue-600' : 'border-gray-300 dark:border-gray-500'
                         }`}>
                           {isSelected && <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 12 12">
                             <path d="M10.28 2.28L4 8.56 1.72 6.28l-.72.72 3 3 7-7-.72-.72z"/>
@@ -669,22 +789,22 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
           {step === 'review' && (
             <div className="space-y-4">
               {/* Summary */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
                   <FileText className="w-4 h-4" />
                   Resumo da Cotação
                 </h3>
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Título:</span>
-                    <span className="font-medium text-gray-900">{title}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Título:</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{title}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Departamento:</span>
-                    <span className="font-medium text-gray-900">{DepartmentLabels[department]}</span>
+                    <span className="text-gray-500 dark:text-gray-400">Departamento:</span>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">{DepartmentLabels[department]}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-gray-500">Prioridade:</span>
+                    <span className="text-gray-500 dark:text-gray-400">Prioridade:</span>
                     <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
                       PRIORITY_OPTIONS.find(p => p.value === priority)?.color
                     }`}>
@@ -695,24 +815,24 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
               </div>
 
               {/* Items Summary */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
                   <Package className="w-4 h-4" />
                   {items.length} Item(ns)
                 </h3>
                 <div className="space-y-1">
                   {items.map((item, index) => (
                     <div key={index} className="flex justify-between text-sm">
-                      <span className="text-gray-600">{item.productName}</span>
-                      <span className="text-gray-900">{item.quantity} {item.unit}</span>
+                      <span className="text-gray-600 dark:text-gray-400">{item.productName}</span>
+                      <span className="text-gray-900 dark:text-gray-100">{item.quantity} {item.unit}</span>
                     </div>
                   ))}
                 </div>
               </div>
 
               {/* Suppliers Summary */}
-              <div className="bg-gray-50 rounded-xl p-4">
-                <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-xl p-4">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
                   <Building2 className="w-4 h-4" />
                   {selectedSuppliers.length} Fornecedor(es)
                 </h3>
@@ -720,7 +840,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                   {selectedSuppliers.map(id => {
                     const supplier = suppliers.find(s => s.id === id);
                     return supplier ? (
-                      <span key={id} className="px-2 py-1 bg-white border border-gray-200 text-sm rounded-lg">
+                      <span key={id} className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-sm text-gray-900 dark:text-gray-100 rounded-lg">
                         {supplier.name}
                       </span>
                     ) : null;
@@ -729,21 +849,32 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
               </div>
 
               {estimatedTotal > 0 && (
-                <div className="bg-blue-50 rounded-xl p-4">
+                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl p-4">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm font-medium text-blue-700">Valor Estimado Total:</span>
-                    <span className="text-lg font-bold text-blue-900">
+                    <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Valor Estimado Total:</span>
+                    <span className="text-lg font-bold text-blue-900 dark:text-blue-200">
                       R$ {estimatedTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
                   </div>
                 </div>
               )}
+
+              {/* Manual flow hint */}
+              <div className="flex items-start gap-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl">
+                <AlertCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-medium text-green-800 dark:text-green-300">Próximos passos</p>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                    Após criar a cotação, você poderá inserir propostas manualmente ou, se preferir, enviar automaticamente para os fornecedores via WhatsApp.
+                  </p>
+                </div>
+              </div>
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex-shrink-0 px-6 py-4 bg-gray-50 border-t border-gray-200">
+        <div className="flex-shrink-0 px-6 py-4 bg-gray-50 dark:bg-gray-900/50 border-t border-gray-200 dark:border-gray-700">
           <div className="flex justify-between">
             <button
               type="button"
@@ -755,7 +886,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                   onClose();
                 }
               }}
-              className="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-xl hover:bg-gray-50"
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               {currentStepIndex === 0 ? 'Cancelar' : 'Voltar'}
             </button>
@@ -790,7 +921,8 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

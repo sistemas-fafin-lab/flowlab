@@ -16,6 +16,7 @@ import SignatureModal from './SignatureModal';
 import SignatureViewModal from './SignatureViewModal';
 import StockWithdrawalModal from './StockWithdrawalModal';
 import { PenTool, Loader2 } from 'lucide-react';
+import { RequestManagementSkeleton } from './PageLoadingSkeleton';
 
 
 const RequestManagement: React.FC = () => {
@@ -24,6 +25,7 @@ const RequestManagement: React.FC = () => {
     requests, 
     products, 
     suppliers, 
+    loading,
     addRequest, 
     updateRequestStatus, 
     addMovement, 
@@ -646,6 +648,11 @@ const handleCompleteRequest = async (request: Request) => {
 
     return <div dangerouslySetInnerHTML={{ __html: formatted }} />;
   };
+
+  // Loading state
+  if (loading) {
+    return <RequestManagementSkeleton />;
+  }
 
   return (
     <div className="space-y-6 overflow-x-hidden">

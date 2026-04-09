@@ -49,6 +49,7 @@ import {
 } from '../utils/paymentUtils';
 import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
+import { PaymentRequestSkeleton } from './PageLoadingSkeleton';
 
 const PaymentRequestManagement: React.FC = () => {
   const { user, userProfile } = useAuth();
@@ -639,12 +640,7 @@ const PaymentRequestManagement: React.FC = () => {
   };
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-500 border-t-transparent shadow-md"></div>
-        <span className="mt-4 text-gray-600 dark:text-gray-400 font-medium">Carregando solicitações...</span>
-      </div>
-    );
+    return <PaymentRequestSkeleton />;
   }
 
   return (
