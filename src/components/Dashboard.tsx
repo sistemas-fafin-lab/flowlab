@@ -71,56 +71,56 @@ const LAYOUT_STORAGE_KEY = 'flowLab_dashboard_layout_v3';
 // ─── Layout padrão (fallback para primeiro acesso) ───────────────
 const DEFAULT_LAYOUTS: Layouts = {
   lg: [
-    { i: 'stats-summary',      x: 0, y: 0,  w: 12, h: 3,  minW: 6,  minH: 2 },
-    { i: 'charts-section',     x: 0, y: 3,  w: 12, h: 10, minW: 8,  minH: 8 },
-    { i: 'financial-stats',    x: 0, y: 13, w: 12, h: 3,  minW: 6,  minH: 3 },
-    { i: 'categories-list',    x: 0, y: 16, w: 6,  h: 7,  minW: 4,  minH: 4 },
-    { i: 'department-ranking', x: 6, y: 16, w: 6,  h: 7,  minW: 4,  minH: 4 },
-    { i: 'recent-movements',   x: 0, y: 23, w: 12, h: 7,  minW: 6,  minH: 4 },
-    { i: 'top-value',          x: 0, y: 30, w: 6,  h: 6,  minW: 4,  minH: 4 },
-    { i: 'low-stock',          x: 6, y: 30, w: 6,  h: 6,  minW: 4,  minH: 4 },
-    { i: 'expiring',           x: 0, y: 36, w: 6,  h: 6,  minW: 4,  minH: 4 },
-    { i: 'financial-summary',  x: 0, y: 42, w: 12, h: 5,  minW: 6,  minH: 3 },
-    { i: 'request-metrics',    x: 0, y: 47, w: 12, h: 8,  minW: 6,  minH: 6 },
+    { i: 'stats-summary',      x: 0, y: 0,  w: 12, h: 4,  minW: 6,  minH: 3 },
+    { i: 'charts-section',     x: 0, y: 4,  w: 12, h: 14, minW: 8,  minH: 10 },
+    { i: 'financial-stats',    x: 0, y: 18, w: 12, h: 4,  minW: 6,  minH: 3 },
+    { i: 'categories-list',    x: 0, y: 22, w: 6,  h: 8,  minW: 4,  minH: 5 },
+    { i: 'department-ranking', x: 6, y: 22, w: 6,  h: 8,  minW: 4,  minH: 5 },
+    { i: 'recent-movements',   x: 0, y: 30, w: 12, h: 8,  minW: 6,  minH: 5 },
+    { i: 'top-value',          x: 0, y: 38, w: 6,  h: 7,  minW: 4,  minH: 5 },
+    { i: 'low-stock',          x: 6, y: 38, w: 6,  h: 7,  minW: 4,  minH: 5 },
+    { i: 'expiring',           x: 0, y: 45, w: 6,  h: 7,  minW: 4,  minH: 5 },
+    { i: 'financial-summary',  x: 0, y: 52, w: 12, h: 5,  minW: 6,  minH: 3 },
+    { i: 'request-metrics',    x: 0, y: 57, w: 12, h: 10, minW: 6,  minH: 8 },
   ],
   md: [
-    { i: 'stats-summary',      x: 0, y: 0,  w: 10, h: 3  },
-    { i: 'charts-section',     x: 0, y: 3,  w: 10, h: 13 },
-    { i: 'financial-stats',    x: 0, y: 16, w: 10, h: 3  },
-    { i: 'categories-list',    x: 0, y: 19, w: 5,  h: 7  },
-    { i: 'department-ranking', x: 5, y: 19, w: 5,  h: 7  },
-    { i: 'recent-movements',   x: 0, y: 26, w: 10, h: 7  },
-    { i: 'top-value',          x: 0, y: 33, w: 5,  h: 6  },
-    { i: 'low-stock',          x: 5, y: 33, w: 5,  h: 6  },
-    { i: 'expiring',           x: 0, y: 39, w: 5,  h: 6  },
-    { i: 'financial-summary',  x: 0, y: 45, w: 10, h: 5  },
-    { i: 'request-metrics',    x: 0, y: 50, w: 10, h: 8  },
+    { i: 'stats-summary',      x: 0, y: 0,  w: 10, h: 6  },
+    { i: 'charts-section',     x: 0, y: 6,  w: 10, h: 22 },
+    { i: 'financial-stats',    x: 0, y: 28, w: 10, h: 6  },
+    { i: 'categories-list',    x: 0, y: 34, w: 10, h: 8  },
+    { i: 'department-ranking', x: 0, y: 42, w: 10, h: 8  },
+    { i: 'recent-movements',   x: 0, y: 50, w: 10, h: 8  },
+    { i: 'top-value',          x: 0, y: 58, w: 10, h: 7  },
+    { i: 'low-stock',          x: 0, y: 65, w: 10, h: 7  },
+    { i: 'expiring',           x: 0, y: 72, w: 10, h: 7  },
+    { i: 'financial-summary',  x: 0, y: 79, w: 10, h: 5  },
+    { i: 'request-metrics',    x: 0, y: 84, w: 10, h: 10 },
   ],
   sm: [
-    { i: 'stats-summary',      x: 0, y: 0,  w: 6, h: 5  },
-    { i: 'charts-section',     x: 0, y: 5,  w: 6, h: 22 },
-    { i: 'financial-stats',    x: 0, y: 27, w: 6, h: 5  },
-    { i: 'categories-list',    x: 0, y: 32, w: 6, h: 7  },
-    { i: 'department-ranking', x: 0, y: 39, w: 6, h: 7  },
-    { i: 'recent-movements',   x: 0, y: 46, w: 6, h: 7  },
-    { i: 'top-value',          x: 0, y: 53, w: 6, h: 6  },
-    { i: 'low-stock',          x: 0, y: 59, w: 6, h: 6  },
-    { i: 'expiring',           x: 0, y: 65, w: 6, h: 6  },
-    { i: 'financial-summary',  x: 0, y: 71, w: 6, h: 5  },
-    { i: 'request-metrics',    x: 0, y: 76, w: 6, h: 10 },
+    { i: 'stats-summary',      x: 0, y: 0,  w: 6, h: 8  },
+    { i: 'charts-section',     x: 0, y: 8,  w: 6, h: 26 },
+    { i: 'financial-stats',    x: 0, y: 34, w: 6, h: 6  },
+    { i: 'categories-list',    x: 0, y: 40, w: 6, h: 8  },
+    { i: 'department-ranking', x: 0, y: 48, w: 6, h: 8  },
+    { i: 'recent-movements',   x: 0, y: 56, w: 6, h: 8  },
+    { i: 'top-value',          x: 0, y: 64, w: 6, h: 7  },
+    { i: 'low-stock',          x: 0, y: 71, w: 6, h: 7  },
+    { i: 'expiring',           x: 0, y: 78, w: 6, h: 7  },
+    { i: 'financial-summary',  x: 0, y: 85, w: 6, h: 5  },
+    { i: 'request-metrics',    x: 0, y: 90, w: 6, h: 12 },
   ],
   xs: [
-    { i: 'stats-summary',      x: 0, y: 0,  w: 2, h: 9  },
-    { i: 'charts-section',     x: 0, y: 9,  w: 2, h: 30 },
-    { i: 'financial-stats',    x: 0, y: 39, w: 2, h: 7  },
-    { i: 'categories-list',    x: 0, y: 46, w: 2, h: 7  },
-    { i: 'department-ranking', x: 0, y: 53, w: 2, h: 7  },
-    { i: 'recent-movements',   x: 0, y: 60, w: 2, h: 7  },
-    { i: 'top-value',          x: 0, y: 67, w: 2, h: 6  },
-    { i: 'low-stock',          x: 0, y: 73, w: 2, h: 6  },
-    { i: 'expiring',           x: 0, y: 79, w: 2, h: 6  },
-    { i: 'financial-summary',  x: 0, y: 85, w: 2, h: 6  },
-    { i: 'request-metrics',    x: 0, y: 91, w: 2, h: 12 },
+    { i: 'stats-summary',      x: 0, y: 0,  w: 2, h: 16 },
+    { i: 'charts-section',     x: 0, y: 16, w: 2, h: 36 },
+    { i: 'financial-stats',    x: 0, y: 52, w: 2, h: 10 },
+    { i: 'categories-list',    x: 0, y: 62, w: 2, h: 8  },
+    { i: 'department-ranking', x: 0, y: 70, w: 2, h: 8  },
+    { i: 'recent-movements',   x: 0, y: 78, w: 2, h: 8  },
+    { i: 'top-value',          x: 0, y: 86, w: 2, h: 7  },
+    { i: 'low-stock',          x: 0, y: 93, w: 2, h: 7  },
+    { i: 'expiring',           x: 0, y: 100, w: 2, h: 7  },
+    { i: 'financial-summary',  x: 0, y: 107, w: 2, h: 6  },
+    { i: 'request-metrics',    x: 0, y: 113, w: 2, h: 14 },
   ],
 };
 
@@ -1263,7 +1263,7 @@ const Dashboard: React.FC = () => {
         <div key="stats-summary" className="group">
           <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4">
             <DragHandle />
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {stats.map((stat, index) => {
           const Icon = stat.icon;
           return (
@@ -1337,7 +1337,7 @@ const Dashboard: React.FC = () => {
                 className="flex-1 min-h-0 flex flex-col gap-4 overflow-y-auto"
               >
                 {/* Row 1: Status · Categorias · Movimentações */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
                   {/* Chart 1: Status do Estoque */}
                   <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-2">
@@ -1347,7 +1347,7 @@ const Dashboard: React.FC = () => {
                       </div>
                       Status do Estoque
                     </h3>
-                    <div className="h-44">
+                    <div className="h-44 min-h-[176px]">
                       {chartData.statusData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
@@ -1411,7 +1411,7 @@ const Dashboard: React.FC = () => {
                       </div>
                       Categorias
                     </h3>
-                    <div className="h-44">
+                    <div className="h-44 min-h-[176px]">
                       {chartData.categoryPieData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <PieChart>
@@ -1503,7 +1503,7 @@ const Dashboard: React.FC = () => {
                         )}
                       </div>
                     </div>
-                    <div className="h-44">
+                    <div className="h-44 min-h-[176px]">
                       {chartData.movementsAreaData.length > 0 ? (
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={chartData.movementsAreaData}>
@@ -1543,7 +1543,7 @@ const Dashboard: React.FC = () => {
                     </h3>
                     <span className="text-xs font-medium px-2 py-1 rounded-full bg-indigo-50 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300">Top 6</span>
                   </div>
-                  <div className="h-52">
+                  <div className="h-52 min-h-[208px]">
                     {chartData.categoryValueData.length > 0 ? (
                       <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={chartData.categoryValueData} layout="vertical">
@@ -1599,7 +1599,7 @@ const Dashboard: React.FC = () => {
         <div key="financial-stats" className="group">
           <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
             <DragHandle />
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 sm:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
         {financialStats.map((stat, index) => {
           const Icon = stat.icon;
           return (
@@ -2064,7 +2064,7 @@ const Dashboard: React.FC = () => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6">
           {/* Card: Compras / Materiais */}
           {(() => {
             const { volume, avgDays, trend, pending, approved, rejected, sparkline, slaMeta } = requestMetrics.compras;
