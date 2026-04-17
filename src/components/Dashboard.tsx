@@ -926,7 +926,7 @@ const Dashboard: React.FC = () => {
               </div>
               
               <div className="bg-gray-50 dark:bg-gray-700/50 p-3 sm:p-4 rounded-lg">
-                <h4 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2 sm:mb-3">Mês Anterior</h4>
+                <h4 className="text-base sm:text-lg font-semibold text-slate-800 dark:text-slate-100 mb-2 sm:mb-3">Mês Anterior</h4>
                 <div className="space-y-1 sm:space-y-2">
                   <div className="flex justify-between text-sm sm:text-base">
                     <span className="text-gray-700 dark:text-gray-300">Valor do Estoque:</span>
@@ -1008,7 +1008,7 @@ const Dashboard: React.FC = () => {
             <div className="bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-slate-800 rounded-xl p-3 sm:p-4 border border-gray-200 dark:border-gray-700">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
                 <div className="text-center">
-                  <p className="text-xl sm:text-2xl font-bold text-gray-800 dark:text-gray-100">{allCategoryData.length}</p>
+                  <p className="text-xl sm:text-2xl font-bold text-slate-800 dark:text-slate-100">{allCategoryData.length}</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">Categorias</p>
                 </div>
                 <div className="text-center">
@@ -1046,7 +1046,7 @@ const Dashboard: React.FC = () => {
                   <div className="space-y-2 mb-3">
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-gray-600 dark:text-gray-400">Valor Total:</span>
-                      <span className="text-sm font-semibold text-gray-800 dark:text-gray-100">{formatCurrency(category.value)}</span>
+                      <span className="text-sm font-semibold text-slate-800 dark:text-slate-100">{formatCurrency(category.value)}</span>
                     </div>
                     <div className="flex justify-between items-center">
                       <span className="text-xs text-gray-600 dark:text-gray-400">Valor Médio:</span>
@@ -1064,7 +1064,7 @@ const Dashboard: React.FC = () => {
                         {category.products.map((product) => (
                           <div key={product.id} className="flex justify-between items-center text-xs bg-white/50 dark:bg-gray-700/50 rounded-lg px-2 py-1.5">
                             <span className="text-gray-700 dark:text-gray-300 truncate flex-1 mr-2">{product.name}</span>
-                            <span className="text-gray-800 dark:text-gray-100 font-medium whitespace-nowrap">{formatCurrency(product.totalValue || 0)}</span>
+                            <span className="text-slate-800 dark:text-slate-100 font-medium whitespace-nowrap">{formatCurrency(product.totalValue || 0)}</span>
                           </div>
                         ))}
                       </div>
@@ -1261,7 +1261,7 @@ const Dashboard: React.FC = () => {
       >
         {/* ════ Widget: Stats Summary ═════════════════════════════ */}
         <div key="stats-summary" className="group">
-          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4">
+          <div className="h-full bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden p-4">
             <DragHandle />
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4">
         {stats.map((stat, index) => {
@@ -1269,14 +1269,15 @@ const Dashboard: React.FC = () => {
           return (
             <div 
               key={stat.name} 
-              className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-3 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
+              className="relative overflow-hidden bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-sm p-3 sm:p-6 border border-white/50 dark:border-slate-700/50 cursor-pointer hover:shadow-xl hover:border-blue-200/60 dark:hover:border-blue-700/60 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
               style={{ animationDelay: `${index * 0.05}s` }}
               onClick={() => setSelectedDetail(stat.detailKey)}
             >
+              <div className="absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl opacity-15 pointer-events-none" style={{ background: 'currentColor', color: 'inherit' }} />
               <div className="flex items-center justify-between">
                 <div className="min-w-0 flex-1">
-                  <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 truncate">{stat.name}</p>
-                  <p className={`text-xl sm:text-3xl font-bold ${stat.textColor} mt-1 sm:mt-2`}>{stat.value}</p>
+                  <p className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">{stat.name}</p>
+                  <p className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${stat.textColor} mt-1 sm:mt-2`}>{stat.value}</p>
                 </div>
                 <div className={`p-2 sm:p-4 rounded-xl sm:rounded-2xl ${stat.color} shadow-lg flex-shrink-0 ml-2`}>
                   <Icon className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
@@ -1291,7 +1292,7 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Charts Section ════════════════════════════ */}
         <div key="charts-section" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm p-4 sm:p-6">
+          <div className="h-full flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm p-4 sm:p-6">
             <DragHandle />
             {/* Header */}
             <div className="flex items-center justify-between gap-2 mb-4 flex-shrink-0">
@@ -1299,7 +1300,7 @@ const Dashboard: React.FC = () => {
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg flex-shrink-0">
                   <LineChart className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <h2 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-200 truncate">Gráficos e Indicadores</h2>
+                <h2 className="text-sm sm:text-lg font-semibold text-slate-800 dark:text-slate-200 truncate">Gráficos e Indicadores</h2>
               </div>
               <button
                 onClick={() => setShowCharts(prev => !prev)}
@@ -1340,8 +1341,8 @@ const Dashboard: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
 
                   {/* Chart 1: Status do Estoque */}
-                  <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-2">
-                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center flex-shrink-0">
+                  <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-white/50 dark:border-slate-700/50 p-4 flex flex-col gap-2">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center flex-shrink-0">
                       <div className="p-1.5 rounded-lg bg-emerald-500 shadow-lg mr-2">
                         <PieChartIcon className="w-4 h-4 text-white" />
                       </div>
@@ -1404,8 +1405,8 @@ const Dashboard: React.FC = () => {
                   </div>
 
                   {/* Chart 2: Categorias */}
-                  <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-2">
-                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center flex-shrink-0">
+                  <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-white/50 dark:border-slate-700/50 p-4 flex flex-col gap-2">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center flex-shrink-0">
                       <div className="p-1.5 rounded-lg bg-purple-500 shadow-lg mr-2">
                         <Package className="w-4 h-4 text-white" />
                       </div>
@@ -1471,19 +1472,19 @@ const Dashboard: React.FC = () => {
                   </div>
 
                   {/* Chart 3: Movimentações */}
-                  <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-2">
+                  <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-white/50 dark:border-slate-700/50 p-4 flex flex-col gap-2">
                     <div className="flex flex-col gap-1.5 flex-shrink-0">
-                      <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+                      <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center">
                         <div className="p-1.5 rounded-lg bg-blue-500 shadow-lg mr-2">
                           <Activity className="w-4 h-4 text-white" />
                         </div>
                         Movimentações
                       </h3>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <button onClick={() => setMovementsPeriod(7)} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 7 ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>7d</button>
-                        <button onClick={() => setMovementsPeriod(15)} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 15 ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>15d</button>
-                        <button onClick={() => setMovementsPeriod(30)} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 30 ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>30d</button>
-                        <button onClick={() => setMovementsPeriod('custom')} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 'custom' ? 'bg-blue-500 text-white shadow-sm' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>Custom</button>
+                      <div className="flex items-center gap-1 bg-slate-200/50 dark:bg-slate-800/50 backdrop-blur-md rounded-xl p-1 shadow-inner border border-white/20 dark:border-slate-700/30">
+                        <button onClick={() => setMovementsPeriod(7)} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 7 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}>7d</button>
+                        <button onClick={() => setMovementsPeriod(15)} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 15 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}>15d</button>
+                        <button onClick={() => setMovementsPeriod(30)} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 30 ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}>30d</button>
+                        <button onClick={() => setMovementsPeriod('custom')} className={`px-2 py-1 text-xs font-medium rounded-lg transition-all ${movementsPeriod === 'custom' ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'}`}>Custom</button>
                         {movementsPeriod === 'custom' && (
                           <div className="flex items-center gap-1 w-full mt-1">
                             <input
@@ -1533,9 +1534,9 @@ const Dashboard: React.FC = () => {
                 </div>
 
                 {/* Row 2: Valor em Estoque por Categoria (Bar) */}
-                <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur rounded-2xl border border-gray-200 dark:border-gray-700 p-4 flex flex-col gap-2">
+                <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-3xl border border-white/50 dark:border-slate-700/50 p-4 flex flex-col gap-2">
                   <div className="flex items-center justify-between flex-shrink-0">
-                    <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+                    <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 flex items-center">
                       <div className="p-1.5 rounded-lg bg-indigo-500 shadow-lg mr-2">
                         <BarChart3 className="w-4 h-4 text-white" />
                       </div>
@@ -1597,7 +1598,7 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Financial Stats ═════════════════════════ */}
         <div key="financial-stats" className="group">
-          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
+          <div className="h-full bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden p-4 sm:p-6">
             <DragHandle />
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 sm:gap-4">
         {financialStats.map((stat, index) => {
@@ -1605,7 +1606,7 @@ const Dashboard: React.FC = () => {
           return (
             <div 
               key={stat.name} 
-              className="bg-white dark:bg-gray-800 rounded-xl sm:rounded-2xl shadow-sm p-3 sm:p-6 border border-gray-100 dark:border-gray-700 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
+              className="relative overflow-hidden bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl sm:rounded-3xl shadow-sm p-3 sm:p-6 border border-white/50 dark:border-slate-700/50 cursor-pointer hover:shadow-xl hover:border-blue-200/60 dark:hover:border-blue-700/60 transition-all duration-300 hover-lift card-interactive animate-fade-in-up"
               style={{ animationDelay: `${(index + 4) * 0.05}s` }}
               onClick={() => setSelectedDetail(stat.detailKey)}
             >
@@ -1613,7 +1614,7 @@ const Dashboard: React.FC = () => {
                 <div className={`p-2 sm:p-3 rounded-lg sm:rounded-xl ${stat.color} shadow-lg`}>
                   <Icon className="w-4 h-4 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <div className="flex items-center space-x-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-gray-50 dark:bg-gray-700">
+                <div className="flex items-center space-x-1 px-2 sm:px-3 py-0.5 sm:py-1 rounded-full bg-slate-100/80 dark:bg-slate-700/80">
                   {getTrendIcon(stat.change)}
                   <span className={`text-xs sm:text-sm font-medium ${getTrendColor(stat.change)}`}>
                     {formatPercentage(stat.change)}
@@ -1621,8 +1622,8 @@ const Dashboard: React.FC = () => {
                 </div>
               </div>
               <div>
-                <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">{stat.name}</p>
-                <p className="text-lg sm:text-2xl font-bold text-gray-800 dark:text-gray-100 mt-0.5 sm:mt-1">{stat.value}</p>
+                <p className="text-xs sm:text-sm font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">{stat.name}</p>
+                <p className="text-2xl sm:text-3xl font-extrabold tracking-tight text-slate-900 dark:text-white mt-0.5 sm:mt-1">{stat.value}</p>
                 <p className={`text-xs sm:text-sm mt-1 sm:mt-2 ${getTrendColor(stat.change)}`}>
                   {stat.change >= 0 ? '+' : ''}{stat.changeValue} <span className="hidden xs:inline">vs mês anterior</span>
                 </p>
@@ -1636,12 +1637,12 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Categories List ═════════════════════════ */}
         <div key="categories-list" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-purple-200 dark:hover:border-purple-800 transition-all duration-300"
             onClick={() => setSelectedDetail('categories')}
           >
             <DragHandle />
           <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-purple-500 shadow-lg mr-2 sm:mr-3">
                 <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
@@ -1695,12 +1696,12 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Department Ranking ═══════════════════════ */}
         <div key="department-ranking" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-600 transition-all duration-300"
             onClick={() => setSelectedDetail('departmentRanking')}
           >
             <DragHandle />
           <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-slate-700 shadow-lg mr-2 sm:mr-3">
                 <ClipboardList className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
@@ -1762,12 +1763,12 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Recent Movements ════════════════════════ */}
         <div key="recent-movements" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300"
             onClick={() => setSelectedDetail('recentMovements')}
           >
             <DragHandle />
         <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+          <h3 className="text-sm sm:text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center">
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mr-2 sm:mr-3">
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
@@ -1782,7 +1783,7 @@ const Dashboard: React.FC = () => {
             recentMovements.map((movement) => (
               <div key={movement.id} className="flex items-center justify-between p-2 sm:p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg sm:rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
                 <div className="flex-1 min-w-0">
-                  <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{movement.productName}</p>
+                  <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{movement.productName}</p>
                   <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
                     {movement.reason === 'sale' && 'Saída'}
                     {movement.reason === 'internal-consumption' && 'Consumo Int.'}
@@ -1810,12 +1811,12 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Top Value Products ══════════════════════ */}
         <div key="top-value" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-green-200 dark:hover:border-green-800 transition-all duration-300"
             onClick={() => setSelectedDetail('topValue')}
           >
             <DragHandle />
           <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
-            <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+            <h3 className="text-sm sm:text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center">
               <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-green-500 shadow-lg mr-2 sm:mr-3">
                 <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
               </div>
@@ -1833,7 +1834,7 @@ const Dashboard: React.FC = () => {
                     {index + 1}
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{product.name}</p>
+                    <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{product.name}</p>
                     <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.code}</p>
                   </div>
                 </div>
@@ -1850,12 +1851,12 @@ const Dashboard: React.FC = () => {
         {/* ════ Widget: Low Stock Alert ═════════════════════════ */}
         {lowStockProducts.length > 0 && (
         <div key="low-stock" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-orange-200 dark:hover:border-orange-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-orange-200 dark:hover:border-orange-800 transition-all duration-300"
             onClick={() => setSelectedDetail('lowStock')}
           >
             <DragHandle />
             <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+              <h3 className="text-sm sm:text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center">
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-orange-500 shadow-lg mr-2 sm:mr-3">
                   <AlertTriangle className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
@@ -1871,7 +1872,7 @@ const Dashboard: React.FC = () => {
                   <div className="flex items-center flex-1 min-w-0">
                     <div className="w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full bg-orange-500 mr-2 sm:mr-3 animate-pulse flex-shrink-0"></div>
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{product.name}</p>
+                      <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{product.name}</p>
                       <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.code}</p>
                     </div>
                   </div>
@@ -1890,12 +1891,12 @@ const Dashboard: React.FC = () => {
         {/* ════ Widget: Expiring Products ═══════════════════════ */}
         {expiringProducts.length > 0 && (
         <div key="expiring" className="group">
-          <div className="h-full flex flex-col bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-red-200 dark:hover:border-red-800 transition-all duration-300"
+          <div className="h-full flex flex-col bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden p-4 sm:p-6 cursor-pointer hover:shadow-lg hover:border-red-200 dark:hover:border-red-800 transition-all duration-300"
             onClick={() => setSelectedDetail('expiring')}
           >
             <DragHandle />
             <div className="flex items-center justify-between mb-3 sm:mb-4 flex-shrink-0">
-              <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+              <h3 className="text-sm sm:text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center">
                 <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-red-500 shadow-lg mr-2 sm:mr-3">
                   <Calendar className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
@@ -1922,7 +1923,7 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-center flex-1 min-w-0">
                       <div className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full mr-2 sm:mr-3 flex-shrink-0 ${isExpired || isCritical ? 'bg-red-500 animate-pulse' : 'bg-orange-500'}`}></div>
                       <div className="min-w-0">
-                        <p className="text-xs sm:text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{product.name}</p>
+                        <p className="text-xs sm:text-sm font-medium text-slate-800 dark:text-slate-100 truncate">{product.name}</p>
                         <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">{product.code}</p>
                       </div>
                     </div>
@@ -1948,7 +1949,7 @@ const Dashboard: React.FC = () => {
           >
             <DragHandle />
         <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h3 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center">
+          <h3 className="text-sm sm:text-lg font-semibold text-slate-800 dark:text-slate-100 flex items-center">
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg mr-2 sm:mr-3">
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
@@ -1956,39 +1957,39 @@ const Dashboard: React.FC = () => {
           </h3>
         </div>
         <div className="grid grid-cols-1 xs:grid-cols-3 gap-3 sm:gap-4">
-          <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-blue-100 dark:border-blue-900/50 text-center hover:bg-white/80 dark:hover:bg-gray-800/80 transition-colors">
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-blue-100 dark:border-blue-900/50 text-center hover:bg-white/80 dark:hover:bg-slate-900/80 transition-colors">
             <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-blue-500 shadow-lg mb-2 sm:mb-3">
               <DollarSign className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <p className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Valor em Estoque</p>
             <p className="text-base sm:text-xl font-bold text-blue-600 dark:text-blue-400 mt-0.5 sm:mt-1">{formatCurrency(financialMetrics.currentMonth.inventoryValue)}</p>
-            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-gray-50 dark:bg-gray-700/50 w-fit mx-auto">
+            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-slate-100/80 dark:bg-slate-700/80 w-fit mx-auto">
               {getTrendIcon(financialMetrics.trends.inventoryValueChangePercent)}
               <span className={`text-[10px] sm:text-xs font-medium ml-1 ${getTrendColor(financialMetrics.trends.inventoryValueChangePercent)}`}>
                 {formatPercentage(financialMetrics.trends.inventoryValueChangePercent)}
               </span>
             </div>
           </div>
-          <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-purple-100 dark:border-purple-900/50 text-center hover:bg-white/80 dark:hover:bg-gray-800/80 transition-colors">
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-purple-100 dark:border-purple-900/50 text-center hover:bg-white/80 dark:hover:bg-slate-900/80 transition-colors">
             <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-purple-500 shadow-lg mb-2 sm:mb-3">
               <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <p className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Movimentações</p>
             <p className="text-base sm:text-xl font-bold text-purple-600 dark:text-purple-400 mt-0.5 sm:mt-1">{formatCurrency(financialMetrics.currentMonth.movementsValue)}</p>
-            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-gray-50 dark:bg-gray-700/50 w-fit mx-auto">
+            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-slate-100/80 dark:bg-slate-700/80 w-fit mx-auto">
               {getTrendIcon(financialMetrics.trends.movementsValueChangePercent)}
               <span className={`text-[10px] sm:text-xs font-medium ml-1 ${getTrendColor(financialMetrics.trends.movementsValueChangePercent)}`}>
                 {formatPercentage(financialMetrics.trends.movementsValueChangePercent)}
               </span>
             </div>
           </div>
-          <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-green-100 dark:border-green-900/50 text-center hover:bg-white/80 dark:hover:bg-gray-800/80 transition-colors">
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-sm rounded-lg sm:rounded-xl p-3 sm:p-4 border border-green-100 dark:border-green-900/50 text-center hover:bg-white/80 dark:hover:bg-slate-900/80 transition-colors">
             <div className="inline-flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl bg-green-500 shadow-lg mb-2 sm:mb-3">
               <BarChart3 className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
             <p className="text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Nº Movimentações</p>
             <p className="text-base sm:text-xl font-bold text-green-600 dark:text-green-400 mt-0.5 sm:mt-1">{financialMetrics.currentMonth.movementsCount}</p>
-            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-gray-50 dark:bg-gray-700/50 w-fit mx-auto">
+            <div className="flex items-center justify-center mt-1.5 sm:mt-2 px-2 py-0.5 sm:py-1 rounded-full bg-slate-100/80 dark:bg-slate-700/80 w-fit mx-auto">
               {getTrendIcon(financialMetrics.trends.movementsCountChangePercent)}
               <span className={`text-[10px] sm:text-xs font-medium ml-1 ${getTrendColor(financialMetrics.trends.movementsCountChangePercent)}`}>
                 {formatPercentage(financialMetrics.trends.movementsCountChangePercent)}
@@ -2001,7 +2002,7 @@ const Dashboard: React.FC = () => {
 
         {/* ════ Widget: Request Metrics ═════════════════════════ */}
         <div key="request-metrics" className="group">
-          <div className="h-full bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-gray-200/80 dark:border-gray-700/80 shadow-sm overflow-hidden p-4 sm:p-6">
+          <div className="h-full bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 shadow-sm overflow-hidden p-4 sm:p-6">
             <DragHandle />
         {/* Header com filtros de período */}
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 mb-4">
@@ -2009,19 +2010,19 @@ const Dashboard: React.FC = () => {
             <div className="p-1.5 sm:p-2 rounded-lg sm:rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg">
               <Clock className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
             </div>
-            <h2 className="text-sm sm:text-lg font-semibold text-gray-800 dark:text-gray-200">Métricas de Solicitações</h2>
+            <h2 className="text-sm sm:text-lg font-semibold text-slate-800 dark:text-slate-200">Métricas de Solicitações</h2>
           </div>
           
           {/* Filtros de período */}
-          <div className="flex items-center gap-2 sm:ml-auto flex-wrap">
+          <div className="flex items-center gap-1 sm:ml-auto bg-slate-200/50 dark:bg-slate-800/50 backdrop-blur-md rounded-xl p-1 shadow-inner border border-white/20 dark:border-slate-700/30">
             {([7, 15, 30] as const).map((days) => (
               <button
                 key={days}
                 onClick={() => setRequestsPeriod(days)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
                   requestsPeriod === days
-                    ? 'bg-blue-500 text-white shadow-md'
-                    : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600/50'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'
                 }`}
               >
                 {days}d
@@ -2031,8 +2032,8 @@ const Dashboard: React.FC = () => {
               onClick={() => setRequestsPeriod('custom')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all duration-200 ${
                 requestsPeriod === 'custom'
-                  ? 'bg-blue-500 text-white shadow-md'
-                  : 'bg-gray-100 dark:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600/50'
+                  ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-700/50'
               }`}
             >
               Custom
@@ -2042,7 +2043,7 @@ const Dashboard: React.FC = () => {
 
         {/* Custom date inputs */}
         {requestsPeriod === 'custom' && (
-          <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-xl bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700">
+          <div className="flex flex-wrap items-center gap-3 mb-4 p-3 rounded-xl bg-slate-50/80 dark:bg-slate-800/80 border border-slate-200/60 dark:border-slate-700/60">
             <div className="flex items-center gap-2">
               <label className="text-xs text-gray-500 dark:text-gray-400">De:</label>
               <input
@@ -2074,7 +2075,7 @@ const Dashboard: React.FC = () => {
             const TrendIcon = trend > 0 ? ArrowUpRight : trend < 0 ? ArrowDownRight : Minus;
             const trendColor = trend > 0 ? 'text-emerald-500' : trend < 0 ? 'text-rose-500' : 'text-gray-400';
             return (
-              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm hover:shadow-lg transition-shadow duration-300">
+              <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 p-5 shadow-sm hover:shadow-xl transition-shadow duration-300">
                 <div className="flex items-start justify-between mb-3">
                   <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25">
                     <ShoppingCart className="w-5 h-5 text-white" />
@@ -2084,8 +2085,8 @@ const Dashboard: React.FC = () => {
 
                 {/* Volume + Trend */}
                 <div className="flex items-end gap-2 mb-1">
-                  <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{volume}</p>
-                  <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700/50 mb-1 ${trendColor}`}>
+                  <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{volume}</p>
+                  <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-100/80 dark:bg-slate-700/80 mb-1 ${trendColor}`}>
                     <TrendIcon className="w-3 h-3" />
                     <span className="text-xs font-medium">{Math.abs(trend).toFixed(0)}%</span>
                   </div>
@@ -2139,7 +2140,7 @@ const Dashboard: React.FC = () => {
             const TrendIcon = trend > 0 ? ArrowUpRight : trend < 0 ? ArrowDownRight : Minus;
             const trendColor = trend > 0 ? 'text-emerald-500' : trend < 0 ? 'text-rose-500' : 'text-gray-400';
             return (
-              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm hover:shadow-lg transition-shadow duration-300">
+              <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 p-5 shadow-sm hover:shadow-xl transition-shadow duration-300">
                 <div className="flex items-start justify-between mb-3">
                   <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 shadow-lg shadow-amber-500/25">
                     <Wrench className="w-5 h-5 text-white" />
@@ -2149,8 +2150,8 @@ const Dashboard: React.FC = () => {
 
                 {/* Volume + Trend */}
                 <div className="flex items-end gap-2 mb-1">
-                  <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{volume}</p>
-                  <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700/50 mb-1 ${trendColor}`}>
+                  <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{volume}</p>
+                  <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-100/80 dark:bg-slate-700/80 mb-1 ${trendColor}`}>
                     <TrendIcon className="w-3 h-3" />
                     <span className="text-xs font-medium">{Math.abs(trend).toFixed(0)}%</span>
                   </div>
@@ -2204,7 +2205,7 @@ const Dashboard: React.FC = () => {
             const TrendIcon = trend > 0 ? ArrowUpRight : trend < 0 ? ArrowDownRight : Minus;
             const trendColor = trend > 0 ? 'text-emerald-500' : trend < 0 ? 'text-rose-500' : 'text-gray-400';
             return (
-              <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-2xl border border-gray-200 dark:border-gray-700 p-5 shadow-sm hover:shadow-lg transition-shadow duration-300">
+              <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl rounded-3xl border border-white/50 dark:border-slate-700/50 p-5 shadow-sm hover:shadow-xl transition-shadow duration-300">
                 <div className="flex items-start justify-between mb-3">
                   <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/25">
                     <CreditCard className="w-5 h-5 text-white" />
@@ -2214,8 +2215,8 @@ const Dashboard: React.FC = () => {
 
                 {/* Volume + Trend */}
                 <div className="flex items-end gap-2 mb-1">
-                  <p className="text-3xl font-bold text-gray-800 dark:text-gray-100">{volume}</p>
-                  <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700/50 mb-1 ${trendColor}`}>
+                  <p className="text-3xl font-bold text-slate-800 dark:text-slate-100">{volume}</p>
+                  <div className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded-md bg-slate-100/80 dark:bg-slate-700/80 mb-1 ${trendColor}`}>
                     <TrendIcon className="w-3 h-3" />
                     <span className="text-xs font-medium">{Math.abs(trend).toFixed(0)}%</span>
                   </div>

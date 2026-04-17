@@ -28,6 +28,10 @@ import {
   RotateCcw,
   Pencil,
   LucideIcon,
+  Monitor,
+  Headphones,
+  KanbanSquare,
+  Server,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -586,6 +590,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Provedores de Mensagens', href: '/messaging-settings', icon: MessageSquare, permission: 'canManageUsers' },
         ],
       },
+      {
+        name: 'Tecnologia',
+        href: '/it/dashboard',
+        icon: Server,
+        permission: 'canManageIT',
+        category: 'TECNOLOGIA',
+        subItems: [
+          { name: 'Hub de Aplicações', href: '/it/dashboard', icon: Server, permission: 'canManageIT' },
+          { name: 'Kanban / Sprints', href: '/it/kanban', icon: KanbanSquare, permission: 'canManageIT' },
+        ],
+      },
     ],
     []
   );
@@ -1012,7 +1027,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* ─── Main content ─── */}
-      <div className={`min-h-screen transition-all duration-300 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
+      <div className={`min-h-screen transition-[padding] duration-300 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
         {/* Mobile header */}
         <div className="sticky top-0 z-40 flex h-16 items-center px-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl lg:hidden">
           <button

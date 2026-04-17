@@ -22,6 +22,10 @@ import PaymentRequestManagement from './components/PaymentRequestManagement';
 import RequestHub from './components/RequestHub';
 import { MaintenanceRequestManagement } from './components/MaintenanceRequest';
 import { FaturasDashboard, RecebimentosList, GlosasRecursos } from './modules/faturamento';
+import ITHubDashboard from './components/IT/ITHubDashboard';
+import ITRequestManagement from './components/IT/ITRequestManagement';
+import ITKanbanBoard from './components/IT/ITKanbanBoard';
+import TestKanban from './components/IT/TestKanban';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ 
@@ -209,6 +213,31 @@ const AuthenticatedApp: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        {/* IT Module Routes */}
+        <Route
+          path="/it/dashboard"
+          element={
+            <ProtectedRoute permission="canManageIT" permissions={userPermissions}>
+              <ITHubDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/requests/it"
+          element={
+            <ProtectedRoute permission="canViewRequests" permissions={userPermissions}>
+              <ITRequestManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/kanban"
+          element={
+            <ProtectedRoute permission="canManageIT" permissions={userPermissions}>
+              <ITKanbanBoard />
+            </ProtectedRoute>
+          }
+        />
         {/* Legacy route - redirects to new hub */}
         <Route
           path="/payment-requests"
@@ -229,6 +258,9 @@ function App() {
       <Routes>
         {/* Rota pública para redefinição de senha - deve ficar FORA da verificação de autenticação */}
         <Route path="/reset-password" element={<ResetPassword />} />
+
+        {/* Rota de teste - sem Layout */}
+        <Route path="/test-kanban" element={<TestKanban />} />
         
         {/* Todas as outras rotas passam pelo componente de autenticação */}
         <Route path="/*" element={<AuthenticatedApp />} />

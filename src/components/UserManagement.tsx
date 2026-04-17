@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock } from 'lucide-react';
+import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock, Search, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { supabase } from '../lib/supabase';
@@ -40,6 +40,7 @@ const GROUP_COLORS: Record<string, {
   'Solicitações':   { dot: 'bg-emerald-500', activePill: 'bg-emerald-100 dark:bg-emerald-900/40 border-emerald-300 dark:border-emerald-700', activeText: 'text-emerald-700 dark:text-emerald-300', groupHeader: 'text-emerald-600 dark:text-emerald-400', groupBg: 'border-l-2 border-emerald-300 dark:border-emerald-700 pl-3' },
   'Monitoramento':  { dot: 'bg-orange-500',  activePill: 'bg-orange-100 dark:bg-orange-900/40 border-orange-300 dark:border-orange-700',  activeText: 'text-orange-700 dark:text-orange-300',  groupHeader: 'text-orange-600 dark:text-orange-400',  groupBg: 'border-l-2 border-orange-300 dark:border-orange-700 pl-3' },
   'Administração':  { dot: 'bg-rose-500',    activePill: 'bg-rose-100 dark:bg-rose-900/40 border-rose-300 dark:border-rose-700',      activeText: 'text-rose-700 dark:text-rose-300',      groupHeader: 'text-rose-600 dark:text-rose-400',      groupBg: 'border-l-2 border-rose-300 dark:border-rose-700 pl-3' },
+  'Tecnologia':     { dot: 'bg-violet-500',  activePill: 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700',  activeText: 'text-violet-700 dark:text-violet-300',  groupHeader: 'text-violet-600 dark:text-violet-400',  groupBg: 'border-l-2 border-violet-300 dark:border-violet-700 pl-3' },
 };
 
 const UserManagement: React.FC = () => {
@@ -58,6 +59,11 @@ const UserManagement: React.FC = () => {
 
   // ─── Tab management ─────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
+
+  // ─── Search & filter ────────────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterDept, setFilterDept] = useState<string>('all');
+  const [filterRole, setFilterRole] = useState<string>('all');
 
   // ─── Custom roles state ─────────────────────────────────────────────────────
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
@@ -460,6 +466,20 @@ const UserManagement: React.FC = () => {
     const role = customRoles.find(r => r.id === formData.customRoleId);
     return role?.permissions || [];
   };
+
+  // ─── Derived: filtered users ────────────────────────────────────────────────
+  const filteredUsers = users.filter(user => {
+    const q = searchQuery.toLowerCase();
+    const matchesSearch =
+      !q ||
+      user.name.toLowerCase().includes(q) ||
+      user.email.toLowerCase().includes(q) ||
+      getDepartmentLabel(user.department).toLowerCase().includes(q) ||
+      (user.roleName || '').toLowerCase().includes(q);
+    const matchesDept = filterDept === 'all' || user.department === filterDept;
+    const matchesRole = filterRole === 'all' || user.role === filterRole;
+    return matchesSearch && matchesDept && matchesRole;
+  });
 
   // Get approval level label with current configured value
   const getApprovalLevelLabel = (levelValue: string): string => {
@@ -885,6 +905,76 @@ const UserManagement: React.FC = () => {
         </div>
       )}
 
+      {/* Search & Filters */}
+      {activeTab === 'users' && (
+        <div className="flex flex-col sm:flex-row gap-3 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
+          {/* Search input */}
+          <div className="relative flex-1">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder="Buscar por nome, e-mail, departamento ou cargo…"
+              className="w-full pl-10 pr-10 py-2.5 text-sm bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all duration-200 shadow-sm"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter chips row */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <SlidersHorizontal className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+
+            {/* Role filter */}
+            {(
+              [['all', 'Todos'], ['admin', 'Admin'], ['operator', 'Operador'], ['requester', 'Solicitante']] as [string, string][]
+            ).map(([val, label]) => (
+              <button
+                key={val}
+                onClick={() => setFilterRole(val)}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-150 whitespace-nowrap ${
+                  filterRole === val
+                    ? val === 'all'
+                      ? 'bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-800 dark:border-gray-100 shadow-sm'
+                      : val === 'admin'
+                      ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700'
+                      : val === 'operator'
+                      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                      : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+
+            {/* Dept filter */}
+            <select
+              value={filterDept}
+              onChange={e => setFilterDept(e.target.value)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-150 cursor-pointer"
+            >
+              <option value="all">Todos os departamentos</option>
+              {DEPARTMENTS.map(dept => (
+                <option key={dept} value={dept}>{getDepartmentLabel(dept)}</option>
+              ))}
+            </select>
+
+            {/* Active count badge */}
+            <span className="ml-1 text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">
+              {filteredUsers.length} de {users.length}
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Users List */}
       {activeTab === 'users' && (
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
@@ -913,7 +1003,7 @@ const UserManagement: React.FC = () => {
               </tr>
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
-              {users.map((user) => {
+              {filteredUsers.map((user) => {
                 // Ícone e cor baseados no perfil do usuário
                 const getRoleIcon = (role: UserRole) => {
                   switch (role) {
@@ -1006,11 +1096,25 @@ const UserManagement: React.FC = () => {
           </table>
         </div>
 
-        {users.length === 0 && (
+        {filteredUsers.length === 0 && (
           <div className="p-12 text-center">
             <Users className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhum usuário encontrado</h3>
-            <p className="text-gray-500 dark:text-gray-400">Os usuários aparecerão aqui conforme se cadastrarem no sistema.</p>
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">
+              {users.length === 0 ? 'Nenhum usuário encontrado' : 'Nenhum resultado para os filtros aplicados'}
+            </h3>
+            <p className="text-gray-500 dark:text-gray-400">
+              {users.length === 0
+                ? 'Os usuários aparecerão aqui conforme se cadastrarem no sistema.'
+                : 'Tente ajustar a busca ou os filtros acima.'}
+            </p>
+            {(searchQuery || filterDept !== 'all' || filterRole !== 'all') && (
+              <button
+                onClick={() => { setSearchQuery(''); setFilterDept('all'); setFilterRole('all'); }}
+                className="mt-4 px-4 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 rounded-xl hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-all duration-200"
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
         )}
       </div>

@@ -7,7 +7,8 @@ import {
   ArrowRight,
   Package,
   CreditCard,
-  Settings
+  Settings,
+  Headphones
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission } from '../utils/permissions';
@@ -21,6 +22,7 @@ interface ModuleCard {
   color: string;
   gradient: string;
   iconBg: string;
+  hoverBorder: string;
   permission?: string;
 }
 
@@ -39,7 +41,8 @@ const RequestHub: React.FC = () => {
       path: '/requests/purchases',
       color: 'text-blue-600',
       gradient: 'from-blue-500 to-indigo-500',
-      iconBg: 'bg-blue-100',
+      iconBg: 'bg-blue-100 dark:bg-blue-900/30',
+      hoverBorder: 'hover:border-blue-400/60 dark:hover:border-blue-500/50',
       permission: 'canViewRequests'
     },
     {
@@ -50,7 +53,8 @@ const RequestHub: React.FC = () => {
       path: '/requests/payments',
       color: 'text-emerald-600',
       gradient: 'from-emerald-500 to-teal-500',
-      iconBg: 'bg-emerald-100',
+      iconBg: 'bg-emerald-100 dark:bg-emerald-900/30',
+      hoverBorder: 'hover:border-emerald-400/60 dark:hover:border-emerald-500/50',
       permission: 'canViewRequests'
     },
     {
@@ -61,7 +65,20 @@ const RequestHub: React.FC = () => {
       path: '/requests/maintenance',
       color: 'text-orange-600',
       gradient: 'from-orange-500 to-amber-500',
-      iconBg: 'bg-orange-100',
+      iconBg: 'bg-orange-100 dark:bg-orange-900/30',
+      hoverBorder: 'hover:border-orange-400/60 dark:hover:border-orange-500/50',
+      permission: 'canViewRequests'
+    },
+    {
+      id: 'it',
+      title: 'Tecnologia (TI)',
+      description: 'Chamados de suporte técnico e solicitações de desenvolvimento',
+      icon: Headphones,
+      path: '/requests/it',
+      color: 'text-violet-600',
+      gradient: 'from-violet-500 to-purple-500',
+      iconBg: 'bg-violet-100 dark:bg-violet-900/30',
+      hoverBorder: 'hover:border-violet-400/60 dark:hover:border-violet-500/50',
       permission: 'canViewRequests'
     }
   ];
@@ -86,8 +103,8 @@ const RequestHub: React.FC = () => {
         <p className="text-gray-500 dark:text-gray-400 mt-2">Selecione o tipo de solicitação que deseja acessar</p>
       </div>
 
-      {/* Module Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto w-full px-4">
+      {/* Module Cards — Bento Grid 2x2 */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto w-full px-4">
         {accessibleModules.map((module, index) => {
           const Icon = module.icon;
           
@@ -95,12 +112,9 @@ const RequestHub: React.FC = () => {
             <div
               key={module.id}
               onClick={() => navigate(module.path)}
-              className="group bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden cursor-pointer hover:shadow-xl hover:border-gray-200 dark:hover:border-gray-600 transition-all duration-300 animate-fade-in-up"
+              className={`group relative bg-white/70 dark:bg-slate-900/70 backdrop-blur-xl rounded-[2rem] border border-slate-200 dark:border-slate-800 overflow-hidden cursor-pointer shadow-sm hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 animate-fade-in-up ${module.hoverBorder}`}
               style={{ animationDelay: `${index * 0.1}s` }}
             >
-              {/* Gradient Header */}
-              <div className={`h-2 bg-gradient-to-r ${module.gradient}`} />
-              
               <div className="p-6">
                 {/* Icon */}
                 <div className={`w-14 h-14 ${module.iconBg} rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform duration-300`}>
@@ -116,9 +130,9 @@ const RequestHub: React.FC = () => {
                 </p>
 
                 {/* Action */}
-                <div className={`flex items-center gap-2 ${module.color} text-sm font-medium group-hover:gap-3 transition-all duration-300`}>
+                <div className={`flex items-center gap-2 ${module.color} text-sm font-medium`}>
                   <span>Acessar módulo</span>
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1.5" />
                 </div>
               </div>
             </div>
@@ -127,8 +141,8 @@ const RequestHub: React.FC = () => {
       </div>
 
       {/* Info Card */}
-      <div className="bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-800 rounded-2xl p-6 border border-gray-200 dark:border-gray-700 animate-fade-in-up max-w-5xl mx-auto w-full" style={{ animationDelay: '0.3s' }}>
-        <div className="flex items-start gap-4">
+      <div className="max-w-4xl mx-auto w-full mt-4 px-4">
+        <div className="bg-slate-50/50 dark:bg-slate-800/30 backdrop-blur-sm rounded-2xl p-6 border border-slate-200/60 dark:border-slate-700/60 flex items-start gap-4 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
           <div className="w-10 h-10 bg-gray-200 dark:bg-gray-700 rounded-xl flex items-center justify-center flex-shrink-0">
             <Settings className="w-5 h-5 text-gray-600 dark:text-gray-300" />
           </div>

@@ -21,13 +21,14 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canConfigureRequestPeriods', label: 'Configurar Períodos', group: 'Administração' },
   { key: 'canViewBilling', label: 'Visualizar Faturamento', group: 'Administração' },
   { key: 'canManageRoles', label: 'Gerenciar Cargos', group: 'Administração' },
+  { key: 'canManageIT', label: 'Gerenciar TI', group: 'Tecnologia' },
 ];
 
 // ─── Fallback: permissões para roles legadas (usado quando custom_role não existe) ─
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ALL_PERMISSION_KEYS.map(p => p.key),
   operator: ALL_PERMISSION_KEYS.map(p => p.key).filter(
-    k => !['canViewDashboard', 'canManageUsers', 'canManageRoles'].includes(k)
+    k => !['canViewDashboard', 'canManageUsers', 'canManageRoles', 'canManageIT'].includes(k)
   ),
   requester: ['canViewRequests', 'canAddRequests'],
 };

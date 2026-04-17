@@ -397,6 +397,15 @@ button:active:not(:disabled) {
   transform: scale(0.98);
 }
 
+/* Neutralizar transforms em contextos de drag-and-drop.
+   button:active { transform } e animate-fade-in-up { transform }
+   criam Containing Blocks que corrompem position:fixed do drag. */
+[data-rfd-droppable-id] button:active,
+[data-rfd-drag-handle-draggable-id] {
+  transform: none !important;
+}
+
+
 /* Links com transição */
 a {
   transition: color 0.2s ease;
