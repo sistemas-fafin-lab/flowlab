@@ -4,8 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vercel dev --listen 5173",
+    "dev": "vite",
     "dev:vite": "vite",
+    "dev:api": "vercel dev",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"

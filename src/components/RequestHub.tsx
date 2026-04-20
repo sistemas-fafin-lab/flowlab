@@ -79,7 +79,7 @@ const RequestHub: React.FC = () => {
       gradient: 'from-violet-500 to-purple-500',
       iconBg: 'bg-violet-100 dark:bg-violet-900/30',
       hoverBorder: 'hover:border-violet-400/60 dark:hover:border-violet-500/50',
-      permission: 'canViewRequests, canManageIT'
+      permission: 'canViewRequests'
     }
   ];
 
