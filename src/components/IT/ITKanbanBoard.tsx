@@ -361,7 +361,7 @@ const KanbanColumnComponent: React.FC<{
                     animate={{ opacity: 1 }}
                     exit={{ opacity: 0 }}
                     onClick={() => onInlineAddOpen(column.id)}
-                    className="mt-2.5 w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-violet-300 dark:hover:border-violet-600 transition-all"
+                    className="mt-2.5 w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-violet-300 dark:hover:border-violet-600 transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                     Nova Tarefa
@@ -718,7 +718,7 @@ const ITKanbanBoard: React.FC = () => {
         <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
           <button
             onClick={() => setFilterType('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               filterType === 'all'
                 ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -731,7 +731,7 @@ const ITKanbanBoard: React.FC = () => {
           </button>
           <button
             onClick={() => setFilterType('suporte')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               filterType === 'suporte'
                 ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -744,7 +744,7 @@ const ITKanbanBoard: React.FC = () => {
           </button>
           <button
             onClick={() => setFilterType('desenvolvimento')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               filterType === 'desenvolvimento'
                 ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -761,7 +761,7 @@ const ITKanbanBoard: React.FC = () => {
         <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
           <button
             onClick={() => setFilterAssignee('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               filterAssignee === 'all'
                 ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
@@ -771,7 +771,7 @@ const ITKanbanBoard: React.FC = () => {
           </button>
           <button
             onClick={() => setFilterAssignee('me')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
               filterAssignee === 'me'
                 ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'

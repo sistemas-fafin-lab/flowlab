@@ -168,7 +168,7 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -179,7 +179,7 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -190,7 +190,7 @@
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
   }
 }
 
@@ -201,7 +201,7 @@
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
 }
 
@@ -212,7 +212,7 @@
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
 }
 
@@ -223,7 +223,7 @@
   }
   to {
     opacity: 1;
-    transform: translateY(0);
+    transform: none;
   }
 }
 
@@ -240,7 +240,7 @@
   }
   100% {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
   }
 }
 
@@ -388,21 +388,23 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
-/* Buttons com feedback visual */
+/* Buttons com feedback visual.
+   NUNCA usar transition:all — transicionar transform cria Containing Blocks
+   temporários que quebram position:fixed do @hello-pangea/dnd. */
 button {
-  transition: all 0.15s ease;
+  transition: background-color 0.15s ease, color 0.15s ease,
+              opacity 0.15s ease, box-shadow 0.15s ease,
+              border-color 0.15s ease;
 }
 
 button:active:not(:disabled) {
   transform: scale(0.98);
 }
 
-/* Neutralizar transforms em contextos de drag-and-drop.
-   button:active { transform } e animate-fade-in-up { transform }
-   criam Containing Blocks que corrompem position:fixed do drag. */
-[data-rfd-droppable-id] button:active,
-[data-rfd-drag-handle-draggable-id] {
-  transform: none !important;
+/* Dentro de contextos DnD, remover scale do button:active para não criar
+   Containing Block no exato momento do mousedown → lift. */
+[data-rfd-droppable-id] button:active {
+  transform: none;
 }
 
 
@@ -478,11 +480,12 @@ html, body {
   -webkit-touch-callout: none;
 }
 
-/* Fix for iOS fixed positioning issues */
-.fixed {
-  -webkit-transform: translateZ(0);
-  transform: translateZ(0);
-}
+/* Fix for iOS fixed positioning issues.
+   NOTE: Cannot apply transform to .fixed globally — @hello-pangea/dnd sets
+   position:fixed on the dragging card clone, and any transform on an ancestor
+   creates a new Containing Block, making the card snap to a wrong position.
+   Use will-change:transform on specific elements that need GPU compositing instead. */
+/* .fixed { transform: translateZ(0); } — REMOVED: breaks DnD position:fixed */
 
 /* ========================================
    ACESSIBILIDADE
