@@ -2,13 +2,14 @@
 // Vercel Serverless Function (Node.js runtime)
 // Recebe requisições do SPA e as repassa para a instância self-hosted do Umami.
 //
-// Variáveis de ambiente necessárias (defina no .env local ou no painel Vercel):
+// Variáveis de ambiente necessárias no painel Vercel (Production + Preview):
 //   UMAMI_BASE_URL   → ex: https://umamilab.ngrok.dev/api
 //   UMAMI_USER       → ex: admin
 //   UMAMI_PASS       → ex: sua-senha
-//   UMAMI_TIMEZONE   → ex: America/Sao_Paulo  (opcional, default já definido)
+//   UMAMI_TIMEZONE   → ex: America/Sao_Paulo
 
-import 'dotenv/config'; // carrega .env automaticamente em ambiente local
+// dotenv NÃO é necessário aqui — Vercel injeta as env vars automaticamente.
+// Em ambiente local, o vite.config.ts resolve /api/umami via middleware próprio.
 import { createUmamiClient, buildTimeRangeParams } from './_lib/umami';
 import type { UmamiTimeRange, UmamiTimeUnit } from './_lib/umami';
 
@@ -92,9 +93,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     return res.status(200).json({ websites, currentId: targetId, stats, events, pageviews });
   } catch (err) {
-    console.error('[api/umami]', err);
-    return res
-      .status(500)
-      .json({ error: err instanceof Error ? err.message : 'Erro ao buscar dados do Umami' });
+    const message = err instanceof Error ? err.message : String(err);
+    const stack   = err instanceof Error ? err.stack : undefined;
+    console.error('[api/umami]', message, stack);
+    return res.status(500).json({ error: message, detail: stack });
   }
 }
