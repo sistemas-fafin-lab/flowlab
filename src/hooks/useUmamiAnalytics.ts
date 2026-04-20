@@ -105,7 +105,9 @@ export function statValue(stat: number | { value: number } | undefined): number 
  * - 7d / 30d → dd/MM
  */
 function formatDateLabel(iso: string, range: UmamiRange): string {
-  const d = new Date(iso);
+  // Umami pode retornar "YYYY-MM-DD HH:MM:SS" (com espaço) ou "YYYY-MM-DDTHH:MM:SS".
+  // Substituímos o espaço por "T" para garantir parse correto em todos os ambientes.
+  const d = new Date(iso.replace(' ', 'T'));
   if (isNaN(d.getTime())) return iso;
 
   const pad = (n: number) => String(n).padStart(2, '0');

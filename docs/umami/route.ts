@@ -15,9 +15,9 @@ export async function GET(request: Request) {
       : (searchParams.get('range') ?? '24h') as UmamiTimeRange;
 
   const client = createUmamiClient({
-    baseUrl: process.env.UMAMI_BASE_URL ?? 'http://127.0.0.1:3000/api',
+    baseUrl: process.env.UMAMI_BASE_URL ?? 'https://umamilab.ngrok.dev/api',
     username: process.env.UMAMI_USER ?? 'admin',
-    password: process.env.UMAMI_PASS ?? 'umami',
+    password: process.env.UMAMI_PASS ?? 'umamiLab00421',
     timezone: process.env.UMAMI_TIMEZONE ?? 'America/Sao_Paulo',
   });
 

@@ -189,9 +189,9 @@ CREATE POLICY "user_approval_limits_delete" ON user_approval_limits
     )
   );
 
--- ============================================
+-- ===========================================================
 -- STEP 6: Create view for user approval with effective amount
--- ============================================
+-- ===========================================================
 
 CREATE OR REPLACE VIEW user_approval_limits_with_details AS
 SELECT 

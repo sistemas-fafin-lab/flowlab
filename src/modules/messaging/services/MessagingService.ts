@@ -120,7 +120,7 @@ export class MessagingService implements MessageSendingService {
           .single();
 
         if (error || !newMessage) {
-          throw new Error('Failed to create message record');
+          throw new Error('Falha ao criar registro de mensagem');
         }
 
         messageId = newMessage.id;
@@ -140,7 +140,7 @@ export class MessagingService implements MessageSendingService {
         return {
           messageId,
           status: 'failed',
-          error: 'No active provider available',
+          error: 'Nenhum provedor ativo disponível',
         };
       }
 
@@ -161,17 +161,17 @@ export class MessagingService implements MessageSendingService {
         error: result.error?.message,
       };
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('Erro ao enviar mensagem:', error);
       return {
         messageId: '',
         status: 'failed',
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
       };
     }
   }
 
   /**
-   * Resend a failed message
+   * Reenviar uma mensagem falhada
    */
   async resendMessage(messageId: string): Promise<SendMessageResult> {
     const { data: messageData } = await supabase
@@ -181,13 +181,13 @@ export class MessagingService implements MessageSendingService {
       .single();
 
     if (!messageData) {
-      throw new Error('Message not found');
+      throw new Error('Mensagem não encontrada');
     }
 
     const message = this.mapDatabaseToMessage(messageData);
 
     if (message.attemptCount >= message.maxAttempts) {
-      throw new Error('Maximum retry attempts reached');
+      throw new Error('Número máximo de tentativas atingido');
     }
 
     return this.sendMessage({
@@ -208,7 +208,7 @@ export class MessagingService implements MessageSendingService {
       .single();
 
     if (error || !data) {
-      throw new Error('Message not found');
+      throw new Error('Mensagem não encontrada');
     }
 
     return this.mapDatabaseToMessage(data);
@@ -229,7 +229,7 @@ export class MessagingService implements MessageSendingService {
       return;
     }
 
-    console.log(`Processing ${pendingMessages.length} pending messages`);
+    console.log(`Processando ${pendingMessages.length} mensagens pendentes`);
 
     for (const messageData of pendingMessages) {
       const message = this.mapDatabaseToMessage(messageData);
@@ -244,7 +244,7 @@ export class MessagingService implements MessageSendingService {
         // Add delay between messages to avoid rate limiting
         await this.delay(2000);
       } catch (error) {
-        console.error(`Failed to process message ${message.id}:`, error);
+        console.error(`Falha ${message.id}:`, error);
       }
     }
   }
@@ -260,7 +260,7 @@ export class MessagingService implements MessageSendingService {
       return;
     }
 
-    console.log(`Processing ${retryMessages.length} messages from retry queue`);
+    console.log(`Processando ${retryMessages.length} mensagens da fila de retry`);
 
     for (const message of retryMessages) {
       try {
@@ -274,7 +274,7 @@ export class MessagingService implements MessageSendingService {
         
         await this.delay(2000);
       } catch (error) {
-        console.error(`Failed to retry message ${message.message_id}:`, error);
+        console.error(`Falha ao tentar reenviar a mensagem ${message.message_id}:`, error);
       }
     }
   }
