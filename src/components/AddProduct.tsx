@@ -130,6 +130,7 @@ const AddProduct: React.FC = () => {
 
       await addProduct({
         ...formData,
+        category: formData.category as 'general' | 'technical',
         status,
         totalValue
       });

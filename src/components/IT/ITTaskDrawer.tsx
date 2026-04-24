@@ -27,6 +27,7 @@ import {
   Minimize2,
   Tag,
   Plus,
+  Lightbulb,
 } from 'lucide-react';
 import type { ITRequest, KanbanColumn } from './ITKanbanBoard';
 import { supabase } from '../../lib/supabase';
@@ -94,8 +95,9 @@ const KANBAN_OPTIONS: { value: KanbanColumn; label: string; icon: React.Componen
 ];
 
 const TYPE_CONFIG: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
-  suporte:         { label: 'Suporte',        icon: Wrench, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30' },
-  desenvolvimento: { label: 'Desenvolvimento', icon: Code,   color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30' },
+  suporte:         { label: 'Suporte',        icon: Wrench,    color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30' },
+  desenvolvimento: { label: 'Desenvolvimento', icon: Code,      color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30' },
+  consultoria:     { label: 'Consultoria',    icon: Lightbulb, color: 'text-teal-600 dark:text-teal-400',  bg: 'bg-teal-100 dark:bg-teal-900/30' },
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════

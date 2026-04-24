@@ -15,6 +15,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noImplicitAny": false,
+    "ignoreDeprecations": "6.0",
     "baseUrl": "src",
     "paths": {
       "types/*": ["types/*"],

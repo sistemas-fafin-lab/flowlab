@@ -58,7 +58,7 @@ export interface AggregatedStats {
 
 // ── API response shape for all=true (matches route.ts) ───────────────────────
 
-interface SiteResult {
+export interface SiteResult {
   id: string;
   stats: UmamiStats;
   events: UmamiEvent[];
@@ -79,6 +79,7 @@ export interface UmamiAnalyticsData {
   websites: UmamiWebsite[];
   aggregatedStats: AggregatedStats;
   chartData: ChartDataPoint[];
+  results: SiteResult[];
 }
 
 export interface UseUmamiAnalyticsReturn {
@@ -191,6 +192,7 @@ const EMPTY_DATA: UmamiAnalyticsData = {
   websites: [],
   aggregatedStats: EMPTY_STATS,
   chartData: [],
+  results: [],
 };
 
 export function useUmamiAnalytics(
@@ -262,6 +264,7 @@ export function useUmamiAnalytics(
           websites: json.websites ?? [],
           aggregatedStats,
           chartData,
+          results,
         });
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') return;

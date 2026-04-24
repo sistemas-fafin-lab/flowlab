@@ -8,7 +8,7 @@ const ITRequests: React.FC = () => {
         <Headphones className="w-8 h-8 text-white" />
       </div>
       <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">Solicitações de TI</h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400">Suporte e Dev</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400">Suporte, Dev e Consultoria</p>
     </div>
   );
 };

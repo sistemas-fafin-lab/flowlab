@@ -26,6 +26,7 @@ import {
   Trash2,
   Edit3,
   Tag,
+  Lightbulb,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
@@ -43,7 +44,7 @@ export interface ITRequest {
   codigo: string;
   title: string;
   description: string | null;
-  request_type: 'suporte' | 'desenvolvimento';
+  request_type: 'suporte' | 'desenvolvimento' | 'consultoria';
   priority: 'low' | 'medium' | 'high' | 'critical';
   status: 'pending' | 'in_progress' | 'resolved' | 'cancelled';
   kanban_status: KanbanColumn;
@@ -63,7 +64,7 @@ export interface ITRequest {
 
 export type KanbanColumn = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
 
-type FilterType = 'all' | 'suporte' | 'desenvolvimento';
+type FilterType = 'all' | 'suporte' | 'desenvolvimento' | 'consultoria';
 type FilterAssignee = 'all' | 'me';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -86,8 +87,9 @@ const PRIORITY_CONFIG: Record<string, { label: string; badge: string; dot: strin
 };
 
 const TYPE_CONFIG: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string }> = {
-  suporte:         { label: 'Suporte',   icon: Wrench, color: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30' },
-  desenvolvimento: { label: 'Dev',       icon: Code,   color: 'text-violet-500 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30' },
+  suporte:         { label: 'Suporte',   icon: Wrench,    color: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30' },
+  desenvolvimento: { label: 'Dev',       icon: Code,      color: 'text-violet-500 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30' },
+  consultoria:     { label: 'Consultoria', icon: Lightbulb, color: 'text-teal-500 dark:text-teal-400',  bg: 'bg-teal-100 dark:bg-teal-900/30' },
 };
 
 // Nenhum helper de estilo necessário — a casca física usa provided.draggableProps.style diretamente.
@@ -753,6 +755,19 @@ const ITKanbanBoard: React.FC = () => {
             <span className="flex items-center gap-1.5">
               <Code className="w-3.5 h-3.5" />
               Dev
+            </span>
+          </button>
+          <button
+            onClick={() => setFilterType('consultoria')}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              filterType === 'consultoria'
+                ? 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <Lightbulb className="w-3.5 h-3.5" />
+              Consultoria
             </span>
           </button>
         </div>

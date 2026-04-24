@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Server,
   Activity,
@@ -21,7 +21,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import { useUmamiAnalytics, type UmamiRange } from '../../hooks/useUmamiAnalytics';
+import { useUmamiAnalytics, type UmamiRange, type SiteResult, buildChartData, statValue } from '../../hooks/useUmamiAnalytics';
 import { useTheme } from '../../hooks/useTheme';
 
 // ── Range labels ─────────────────────────────────────────────────────────────
@@ -47,6 +47,41 @@ function formatAvgTime(totaltime: number, pageviews: number): string {
 const ITHubDashboard: React.FC = () => {
   const { isDark } = useTheme();
   const { data, loading, error, range, setRange, refresh } = useUmamiAnalytics('7d');
+  const [selectedWebsite, setSelectedWebsite] = useState<string | 'all'>('all');
+
+  const activeResults = useMemo<SiteResult[]>(
+    () => selectedWebsite === 'all'
+      ? data.results
+      : data.results.filter(r => r.id === selectedWebsite),
+    [selectedWebsite, data.results],
+  );
+
+  const filteredChartData = useMemo(
+    () => buildChartData(activeResults, range),
+    [activeResults, range],
+  );
+
+  const filteredStats = useMemo(() => ({
+    pageviews: activeResults.reduce((sum, r) => sum + statValue(r.stats.pageviews), 0),
+    visitors: activeResults.reduce((sum, r) => sum + statValue(r.stats.visitors), 0),
+    visits: activeResults.reduce((sum, r) => sum + statValue(r.stats.visits ?? 0), 0),
+    bounces: activeResults.reduce((sum, r) => sum + statValue(r.stats.bounces ?? 0), 0),
+    totaltime: activeResults.reduce((sum, r) => sum + statValue(r.stats.totaltime ?? 0), 0),
+  }), [activeResults]);
+
+  const topPages = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const r of activeResults) {
+      for (const e of r.events ?? []) {
+        const path = e.urlPath || '/';
+        counts.set(path, (counts.get(path) ?? 0) + 1);
+      }
+    }
+    return Array.from(counts.entries())
+      .map(([path, count]) => ({ path, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 8);
+  }, [activeResults]);
 
   // Chart theme tokens (mirrors Dashboard.tsx)
   const chartFont = 'Inter, system-ui, -apple-system, sans-serif';
@@ -72,7 +107,7 @@ const ITHubDashboard: React.FC = () => {
   const chartGridColor = isDark ? 'rgba(51,65,85,0.4)' : 'rgba(226,232,240,0.8)';
   const chartAxisLineColor = isDark ? '#334155' : '#e2e8f0';
 
-  const s = data.aggregatedStats;
+  const s = filteredStats;
   const hasStats = s.pageviews > 0 || s.visitors > 0;
 
   const statCards = [
@@ -216,17 +251,35 @@ const ITHubDashboard: React.FC = () => {
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => setSelectedWebsite('all')}
+                className={`inline-flex items-center gap-2 backdrop-blur-2xl rounded-xl px-3.5 py-2 text-sm font-medium transition-all duration-200 ${
+                  selectedWebsite === 'all'
+                    ? 'bg-emerald-500/20 border border-emerald-500/50 shadow-lg shadow-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-white/60 dark:bg-slate-900/60 border border-white/50 dark:border-slate-700/50 opacity-60 hover:opacity-100 text-slate-700 dark:text-slate-200'
+                }`}
+              >
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+                Todos
+              </button>
               {websiteCards.map((w) => (
-                <div
+                <button
                   key={w.id}
-                  className="inline-flex items-center gap-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/50 dark:border-slate-700/50 rounded-xl px-3.5 py-2 text-sm"
+                  onClick={() => setSelectedWebsite(selectedWebsite === w.id ? 'all' : w.id)}
+                  className={`inline-flex items-center gap-2 backdrop-blur-2xl rounded-xl px-3.5 py-2 text-sm transition-all duration-200 ${
+                    selectedWebsite === w.id
+                      ? 'bg-emerald-500/20 border border-emerald-500/50 shadow-lg shadow-emerald-500/20 text-emerald-700 dark:text-emerald-300'
+                      : 'bg-white/60 dark:bg-slate-900/60 border border-white/50 dark:border-slate-700/50 opacity-60 hover:opacity-100 text-slate-700 dark:text-slate-200'
+                  }`}
                 >
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="font-medium text-slate-700 dark:text-slate-200">{w.name}</span>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                    selectedWebsite === w.id ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'
+                  }`} />
+                  <span className="font-medium">{w.name}</span>
                   {w.domain && (
                     <span className="text-xs text-slate-400 dark:text-slate-500">{w.domain}</span>
                   )}
-                </div>
+                </button>
               ))}
             </div>
           </div>
@@ -275,10 +328,10 @@ const ITHubDashboard: React.FC = () => {
               </div>
               <div>
                 <h4 className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100">
-                  Acessos vs Sessões
+                  Acessos vs Sessões{selectedWebsite !== 'all' ? ` — ${websiteCards?.find(w => w.id === selectedWebsite)?.name ?? ''}` : ''}
                 </h4>
                 <p className="text-xs text-slate-400 dark:text-slate-500">
-                  Tráfego agregado de todas as aplicações
+                  {selectedWebsite === 'all' ? 'Tráfego agregado de todas as aplicações' : 'Filtrando por aplicação selecionada'}
                 </p>
               </div>
             </div>
@@ -299,7 +352,7 @@ const ITHubDashboard: React.FC = () => {
                 <span className="text-xs text-gray-400">Carregando métricas...</span>
               </div>
             </div>
-          ) : data.chartData.length === 0 ? (
+          ) : filteredChartData.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-80 text-slate-400 dark:text-slate-500 gap-3">
               <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700/50 rounded-3xl flex items-center justify-center">
                 <Activity className="w-8 h-8" />
@@ -314,7 +367,7 @@ const ITHubDashboard: React.FC = () => {
             </div>
           ) : (
             <ResponsiveContainer width="100%" height={320}>
-              <AreaChart data={data.chartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+              <AreaChart data={filteredChartData} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
                 <defs>
                   <linearGradient id="itGradPageviews" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="#3B82F6" stopOpacity={0.35} />
@@ -376,6 +429,55 @@ const ITHubDashboard: React.FC = () => {
                 />
               </AreaChart>
             </ResponsiveContainer>
+          )}
+        </div>
+
+        {/* ── Top Páginas ───────────────────────────────────────── */}
+        <div
+          className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/50 dark:border-slate-700/50 rounded-3xl p-6 shadow-sm hover:shadow-2xl transition-shadow duration-300 animate-fade-in-up"
+          style={{ animationDelay: '0.55s' }}
+        >
+          <div className="flex items-center gap-3 mb-5">
+            <div className="p-2 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shadow-lg shadow-violet-500/25">
+              <Globe className="w-4 h-4 text-white" />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold tracking-tight text-slate-800 dark:text-slate-100">
+                Páginas mais acessadas
+              </h4>
+              <p className="text-xs text-slate-400 dark:text-slate-500">
+                {selectedWebsite === 'all'
+                  ? 'Todas as aplicações'
+                  : websiteCards?.find(w => w.id === selectedWebsite)?.name ?? 'Aplicação selecionada'}
+              </p>
+            </div>
+          </div>
+          {topPages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-10 text-slate-400 dark:text-slate-500 gap-2">
+              <Globe className="w-8 h-8 opacity-40" />
+              <span className="text-sm font-medium">Nenhum evento registrado para o período</span>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {topPages.map((page, i) => (
+                <div
+                  key={page.path}
+                  className="flex items-center justify-between gap-4 px-4 py-2.5 rounded-2xl bg-slate-50/60 dark:bg-slate-800/40 hover:bg-slate-100/60 dark:hover:bg-slate-700/40 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-[10px] font-bold text-slate-500 dark:text-slate-400 flex-shrink-0">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate font-mono">
+                      {page.path}
+                    </span>
+                  </div>
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 flex-shrink-0 tabular-nums">
+                    {page.count.toLocaleString('pt-BR')} visitas
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       </div>

@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import ReactDOM from 'react-dom';
 import {
   Headphones,
   Plus,
@@ -14,7 +15,15 @@ import {
   Calendar,
   UserCheck,
   ChevronDown,
+  Lightbulb,
+  UploadCloud,
+  FileText,
+  ImageIcon,
+  Send,
+  MessageSquare,
+  Lock,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
 import { hasPermission } from '../../utils/permissions';
@@ -30,7 +39,7 @@ interface ITRequest {
   codigo: string;
   title: string;
   description: string | null;
-  request_type: 'suporte' | 'desenvolvimento';
+  request_type: 'suporte' | 'desenvolvimento' | 'consultoria';
   priority: 'low' | 'medium' | 'high' | 'critical';
   status: 'pending' | 'in_progress' | 'resolved' | 'cancelled';
   kanban_status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
@@ -38,6 +47,7 @@ interface ITRequest {
   assigned_to: string | null;
   created_at: string;
   updated_at: string;
+  attachments?: { url: string; name: string; size: number }[];
   requester_name?: string;
   requester_email?: string;
   assignee_name?: string;
@@ -62,8 +72,9 @@ const STATUS_CONFIG: Record<string, { label: string; badge: string; icon: React.
 };
 
 const TYPE_CONFIG: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string; ring: string }> = {
-  suporte:        { label: 'Suporte',        icon: Wrench, color: 'text-orange-600 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30', ring: 'ring-orange-500' },
-  desenvolvimento: { label: 'Desenvolvimento', icon: Code,   color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30', ring: 'ring-violet-500' },
+  suporte:        { label: 'Suporte',        icon: Wrench,    color: 'text-orange-600 dark:text-orange-400',    bg: 'bg-orange-100 dark:bg-orange-900/30',    ring: 'ring-orange-500' },
+  desenvolvimento: { label: 'Desenvolvimento', icon: Code,      color: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-100 dark:bg-violet-900/30',   ring: 'ring-violet-500' },
+  consultoria:     { label: 'Consultoria',    icon: Lightbulb, color: 'text-teal-600 dark:text-teal-400',     bg: 'bg-teal-100 dark:bg-teal-900/30',     ring: 'ring-teal-500' },
 };
 
 const STATUS_FILTER_ITEMS: [string, string][] = [
@@ -78,6 +89,7 @@ const TYPE_FILTER_ITEMS: [string, string][] = [
   ['all', 'Todos'],
   ['suporte', 'Suporte'],
   ['desenvolvimento', 'Dev'],
+  ['consultoria', 'Consultoria'],
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -103,13 +115,96 @@ const ITRequestManagement: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterType, setFilterType] = useState<string>('all');
+  const [selectedRequest, setSelectedRequest] = useState<ITRequest | null>(null);
+  const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details');
+
+  // ─── Chat state ──────────────────────────────────────────────────────────────
+  const [comments, setComments] = useState<any[]>([]);
+  const [commentText, setCommentText] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const commentsEndRef = useRef<HTMLDivElement>(null);
+
+  // Reset tab to 'details' whenever a new request is opened
+  useEffect(() => {
+    if (selectedRequest) setActiveTab('details');
+  }, [selectedRequest?.id]);
+
+  // Fetch comments when modal opens on chat tab or when switching to chat
+  useEffect(() => {
+    if (selectedRequest && activeTab === 'chat') {
+      fetchComments(selectedRequest.id);
+    }
+  }, [selectedRequest?.id, activeTab]);
+
+  // Auto-scroll to newest message (only when chat tab is visible)
+  useEffect(() => {
+    if (activeTab === 'chat' && commentsEndRef.current) {
+      commentsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [comments, activeTab]);
 
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    request_type: 'suporte' as 'suporte' | 'desenvolvimento',
+    request_type: 'suporte' as 'suporte' | 'desenvolvimento' | 'consultoria',
     priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
   });
+
+  // ─── Attachment state ────────────────────────────────────────────────────────
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentPreviews, setAttachmentPreviews] = useState<(string | null)[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ─── Dynamic description placeholder ────────────────────────────────────────
+  const descriptionPlaceholder = useMemo(() => {
+    if (formData.request_type === 'suporte')
+      return 'Por favor, detalhe:\n1. O que você estava tentando fazer?\n2. O que aconteceu (mensagens de erro)?\n3. Como podemos reproduzir o problema?';
+    if (formData.request_type === 'desenvolvimento')
+      return 'Descreva a necessidade:\n1. Qual o objetivo desta nova ferramenta/funcionalidade?\n2. Quem será o usuário principal?\n3. Qual o resultado esperado?';
+    return 'Como podemos ajudar? Forneça o máximo de contexto possível sobre a sua dúvida ou problema de negócio.';
+  }, [formData.request_type]);
+
+  // ─── Attachment handlers ─────────────────────────────────────────────────────
+  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
+    const maxSize = 10 * 1024 * 1024;
+    const validFiles: File[] = [];
+
+    for (const file of files) {
+      if (!allowedTypes.includes(file.type)) {
+        showError('Tipo de arquivo inválido. Apenas PDF, PNG e JPEG são permitidos.');
+        continue;
+      }
+      if (file.size > maxSize) {
+        showError(`"${file.name}" excede o limite de 10MB.`);
+        continue;
+      }
+      validFiles.push(file);
+    }
+
+    if (!validFiles.length) return;
+
+    setAttachments((prev) => [...prev, ...validFiles]);
+    validFiles.forEach((file) => {
+      if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onloadend = () => setAttachmentPreviews((prev) => [...prev, reader.result as string]);
+        reader.readAsDataURL(file);
+      } else {
+        setAttachmentPreviews((prev) => [...prev, null]);
+      }
+    });
+
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setAttachmentPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
 
   // ─── Fetch ──────────────────────────────────────────────────────────────────
   const fetchRequests = async () => {
@@ -173,18 +268,47 @@ const ITRequestManagement: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      // 1. Upload attachments to storage first
+      const uploadedAttachments: { url: string; name: string; size: number }[] = [];
+
+      for (const file of attachments) {
+        const timestamp = Date.now();
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const filePath = `${userId}/${timestamp}_${safeName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('it-attachments')
+          .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+        if (uploadError) throw uploadError;
+
+        const { data: urlData } = supabase.storage
+          .from('it-attachments')
+          .getPublicUrl(filePath);
+
+        uploadedAttachments.push({
+          url: urlData.publicUrl,
+          name: file.name,
+          size: file.size,
+        });
+      }
+
+      // 2. Insert the request record with attachments
       const { error } = await supabase.from('it_requests').insert({
         title: formData.title.trim(),
         description: formData.description.trim() || null,
         request_type: formData.request_type,
         priority: formData.priority,
         requested_by: userId,
+        attachments: uploadedAttachments,
       });
 
       if (error) throw error;
 
       showSuccess('Chamado criado com sucesso!');
       setFormData({ title: '', description: '', request_type: 'suporte', priority: 'medium' });
+      setAttachments([]);
+      setAttachmentPreviews([]);
       setShowForm(false);
       await fetchRequests();
     } catch (error) {
@@ -192,6 +316,36 @@ const ITRequestManagement: React.FC = () => {
       showError('Erro ao criar chamado. Tente novamente.');
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  // ─── Fetch comments ────────────────────────────────────────────────────────
+  const fetchComments = async (requestId: string) => {
+    const { data } = await supabase
+      .from('it_task_comments')
+      .select('*, author:user_profiles!user_id(name)')
+      .eq('task_id', requestId)
+      .order('created_at', { ascending: true });
+    setComments((data || []).map((c: any) => ({ ...c, author_name: c.author?.name })));
+  };
+
+  // ─── Submit comment ────────────────────────────────────────────────────────
+  const handleCommentSubmit = async () => {
+    const text = commentText.trim();
+    if (!text || !userId || !selectedRequest) return;
+    setIsSubmittingComment(true);
+    try {
+      const { error } = await supabase.from('it_task_comments').insert({
+        task_id: selectedRequest.id,
+        user_id: userId,
+        content: text,
+      });
+      if (!error) {
+        setCommentText('');
+        await fetchComments(selectedRequest.id);
+      }
+    } finally {
+      setIsSubmittingComment(false);
     }
   };
 
@@ -265,8 +419,8 @@ const ITRequestManagement: React.FC = () => {
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {isITManager
-              ? 'Gerencie todos os chamados de suporte e desenvolvimento'
-              : 'Acompanhe seus chamados de suporte e desenvolvimento'}
+              ? 'Gerencie todos os chamados de suporte, desenvolvimento e consultoria'
+              : 'Acompanhe seus chamados de suporte, desenvolvimento e consultoria'}
           </p>
         </div>
         <button
@@ -300,7 +454,7 @@ const ITRequestManagement: React.FC = () => {
                 value={formData.title}
                 onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-gray-50/50 dark:bg-gray-900/50 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
+                className="w-full bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-violet-500/10 focus:border-violet-500 transition-all duration-200"
                 placeholder="Descreva brevemente o problema ou necessidade"
               />
             </div>
@@ -311,39 +465,73 @@ const ITRequestManagement: React.FC = () => {
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
-                rows={3}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-transparent bg-gray-50/50 dark:bg-gray-900/50 text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all resize-none"
-                placeholder="Detalhes do chamado (opcional)"
+                rows={4}
+                className="w-full bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-violet-500/10 focus:border-violet-500 transition-all duration-200 resize-none min-h-[120px]"
+                placeholder={descriptionPlaceholder}
               />
             </div>
 
-            {/* Type — Tactile cards */}
+            {/* Type — Radio Cards */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipo do Chamado</label>
-              <div className="grid grid-cols-2 gap-4">
-                {(Object.entries(TYPE_CONFIG) as [string, typeof TYPE_CONFIG[keyof typeof TYPE_CONFIG]][]).map(([key, conf]) => {
-                  const Icon = conf.icon;
-                  const isActive = formData.request_type === key;
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setFormData((p) => ({ ...p, request_type: key as any }))}
-                      className={`relative flex flex-col items-center gap-2.5 p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer ${
-                        isActive
-                          ? `${conf.bg} border-transparent ring-2 ${conf.ring} shadow-sm`
-                          : 'bg-gray-50/50 dark:bg-gray-900/50 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                      }`}
-                    >
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isActive ? conf.bg : 'bg-gray-100 dark:bg-gray-800'} transition-colors`}>
-                        <Icon className={`w-5 h-5 ${isActive ? conf.color : 'text-gray-400 dark:text-gray-500'} transition-colors`} />
-                      </div>
-                      <span className={`text-sm font-semibold transition-colors ${isActive ? 'text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'}`}>
-                        {conf.label}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Card: Suporte */}
+                <button
+                  type="button"
+                  onClick={() => setFormData((p) => ({ ...p, request_type: 'suporte' }))}
+                  className={`relative flex flex-col items-start text-left p-4 rounded-2xl border transition-all duration-200 ${
+                    formData.request_type === 'suporte'
+                      ? 'bg-green-50 dark:bg-green-900/20 border-green-500 shadow-md ring-1 ring-green-500/50'
+                      : 'bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-green-400/60 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${formData.request_type === 'suporte' ? 'bg-green-100 dark:bg-green-900/40' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                    <Wrench className={`w-5 h-5 transition-colors ${formData.request_type === 'suporte' ? 'text-green-600 dark:text-green-400' : 'text-gray-400 dark:text-gray-500'}`} />
+                  </div>
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 mt-3 mb-1">Suporte</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Estou tendo um bug no meu sistema, identifiquei algum erro numa ferramenta
+                    <span className="italic text-[10px] block mt-1">(Obs: não atendemos solicitações de infraestrutura)</span>
+                  </p>
+                </button>
+
+                {/* Card: Desenvolvimento */}
+                <button
+                  type="button"
+                  onClick={() => setFormData((p) => ({ ...p, request_type: 'desenvolvimento' }))}
+                  className={`relative flex flex-col items-start text-left p-4 rounded-2xl border transition-all duration-200 ${
+                    formData.request_type === 'desenvolvimento'
+                      ? 'bg-violet-50 dark:bg-violet-900/20 border-violet-500 shadow-md ring-1 ring-violet-500/50'
+                      : 'bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-violet-400/60 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${formData.request_type === 'desenvolvimento' ? 'bg-violet-100 dark:bg-violet-900/40' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                    <Code className={`w-5 h-5 transition-colors ${formData.request_type === 'desenvolvimento' ? 'text-violet-600 dark:text-violet-400' : 'text-gray-400 dark:text-gray-500'}`} />
+                  </div>
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 mt-3 mb-1">Desenvolvimento</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Criação de ferramentas, soluções ou desenvolvimento de novas funcionalidades em ferramentas existentes.
+                  </p>
+                </button>
+
+                {/* Card: Consultoria */}
+                <button
+                  type="button"
+                  onClick={() => setFormData((p) => ({ ...p, request_type: 'consultoria' }))}
+                  className={`relative flex flex-col items-start text-left p-4 rounded-2xl border transition-all duration-200 ${
+                    formData.request_type === 'consultoria'
+                      ? 'bg-yellow-50 dark:bg-yellow-900/20 border-yellow-500 shadow-md ring-1 ring-yellow-500/50'
+                      : 'bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-yellow-400/60 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${formData.request_type === 'consultoria' ? 'bg-yellow-100 dark:bg-yellow-900/40' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                    <Lightbulb className={`w-5 h-5 transition-colors ${formData.request_type === 'consultoria' ? 'text-yellow-600 dark:text-yellow-400' : 'text-gray-400 dark:text-gray-500'}`} />
+                  </div>
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 mt-3 mb-1">Consultoria</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Quero receber ajuda do time de TI para resolver um problema, seja ele relacionado a uma solução técnica ou não.
+                  </p>
+                </button>
               </div>
             </div>
 
@@ -368,6 +556,63 @@ const ITRequestManagement: React.FC = () => {
                   );
                 })}
               </div>
+            </div>
+
+            {/* Attachments */}
+            <div>
+              <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Anexos <span className="text-slate-400 font-normal">(opcional)</span>
+              </p>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.png,.jpg,.jpeg"
+                className="hidden"
+                onChange={handleFilesChange}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="w-full flex flex-col items-center justify-center p-6 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl bg-slate-50/30 dark:bg-slate-800/30 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-violet-400 transition-colors group cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                  <UploadCloud className="w-5 h-5 text-violet-500" />
+                </div>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Clique ou arraste arquivos aqui</p>
+                <p className="text-xs text-slate-400 mt-1">Imagens, PDFs ou documentos (max. 10MB)</p>
+              </button>
+
+              {/* File list */}
+              {attachments.length > 0 && (
+                <ul className="mt-3 space-y-2">
+                  {attachments.map((file, idx) => (
+                    <li
+                      key={idx}
+                      className="flex items-center gap-3 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm"
+                    >
+                      {attachmentPreviews[idx] ? (
+                        <img src={attachmentPreviews[idx]!} alt={file.name} className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="w-8 h-8 rounded-lg bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-4 h-4 text-violet-500" />
+                        </div>
+                      )}
+                      <span className="flex-1 truncate text-slate-700 dark:text-slate-300">{file.name}</span>
+                      <span className="text-xs text-slate-400 whitespace-nowrap">
+                        {(file.size / 1024).toFixed(0)} KB
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(idx)}
+                        className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
 
             {/* Actions */}
@@ -474,7 +719,8 @@ const ITRequestManagement: React.FC = () => {
           return (
             <div
               key={req.id}
-              className="group bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border border-gray-100 dark:border-gray-700 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md hover:border-violet-200 dark:hover:border-violet-800 transition-all duration-200"
+              onClick={() => setSelectedRequest(req)}
+              className="group bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border border-gray-100 dark:border-gray-700 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md hover:border-violet-200 dark:hover:border-violet-800 transition-all duration-200 cursor-pointer"
             >
               {/* Left — Type icon + Info */}
               <div className="flex items-start gap-3.5 flex-1 min-w-0">
@@ -533,13 +779,13 @@ const ITRequestManagement: React.FC = () => {
                   <div className="flex items-center gap-2 sm:ml-1 sm:pl-3 sm:border-l sm:border-gray-200 sm:dark:border-gray-700">
                     {!req.assigned_to && (
                       <button
-                        onClick={() => handleAssignToMe(req.id)}
+                        onClick={(e) => { e.stopPropagation(); handleAssignToMe(req.id); }}
                         className="px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all whitespace-nowrap"
                       >
                         Assumir
                       </button>
                     )}
-                    <div className="relative">
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
                       <select
                         value={req.status}
                         onChange={(e) => handleStatusChange(req.id, e.target.value)}
@@ -584,6 +830,268 @@ const ITRequestManagement: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* ─── Modal de Detalhamento do Chamado (Portal) ────────────────────────────── */}
+      {ReactDOM.createPortal(
+        <AnimatePresence>
+          {selectedRequest && (() => {
+            const modalTypeConf   = TYPE_CONFIG[selectedRequest.request_type];
+            const modalPrioConf   = PRIORITY_CONFIG[selectedRequest.priority];
+            const modalStatusConf = STATUS_CONFIG[selectedRequest.status];
+            const ModalStatusIcon = modalStatusConf.icon;
+            const ModalTypeIcon   = modalTypeConf.icon;
+            return (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedRequest(null)}
+                className="fixed inset-0 z-50 bg-black/20 dark:bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+              >
+                {/* Modal */}
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full max-w-4xl h-[90vh] bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-white/50 dark:border-slate-700/50 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+                >
+                  {/* ── Header ─────────────────────────────────────────────── */}
+                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 flex-shrink-0">
+                    {/* Left: type icon + title stack */}
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-10 h-10 rounded-xl ${modalTypeConf.bg} flex items-center justify-center flex-shrink-0`}>
+                        <ModalTypeIcon className={`w-5 h-5 ${modalTypeConf.color}`} />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-mono font-bold text-violet-600 dark:text-violet-400">{selectedRequest.codigo}</span>
+                          {/* Status badge */}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md ${modalStatusConf.badge}`}>
+                            <ModalStatusIcon className="w-3 h-3" />
+                            {modalStatusConf.label}
+                          </span>
+                          {/* Priority badge */}
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-md ${modalPrioConf.badge}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${modalPrioConf.dot}`} />
+                            {modalPrioConf.label}
+                          </span>
+                        </div>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-white mt-0.5 truncate">{selectedRequest.title}</h3>
+                      </div>
+                    </div>
+                    {/* Right: close */}
+                    <button
+                      onClick={() => setSelectedRequest(null)}
+                      className="p-2 ml-4 flex-shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* ── Tab Switcher ────────────────────────────────────────── */}
+                  <div className="flex gap-8 px-6 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/30 dark:bg-slate-900/30 backdrop-blur-md flex-shrink-0">
+                    {([
+                      { id: 'details', label: 'Detalhes Técnicos', icon: FileText },
+                      { id: 'chat',    label: 'Conversa com TI',   icon: Headphones },
+                    ] as const).map((tab) => (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-all ${
+                          activeTab === tab.id
+                            ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+                            : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                        }`}
+                      >
+                        <tab.icon className="w-4 h-4" />
+                        {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* ── Body ───────────────────────────────────────────────── */}
+                  {(() => {
+                    const isClosed = selectedRequest.status === 'resolved' || selectedRequest.status === 'cancelled';
+                    return (
+                  <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    {activeTab === 'details' ? (
+                      <div className="p-6 space-y-6">
+                        {/* Meta row */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4">
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Tipo</p>
+                            <p className={`text-sm font-semibold ${modalTypeConf.color}`}>{modalTypeConf.label}</p>
+                          </div>
+                          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4">
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Solicitante</p>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                              {selectedRequest.requester_name || 'Você'}
+                            </p>
+                          </div>
+                          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4">
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Responsável</p>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
+                              {selectedRequest.assignee_name || '—'}
+                            </p>
+                          </div>
+                          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4">
+                            <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Aberto em</p>
+                            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                              {new Date(selectedRequest.created_at).toLocaleDateString('pt-BR')}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <div>
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Descrição</h4>
+                          <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-5">
+                            {selectedRequest.description ? (
+                              <p className="text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                                {selectedRequest.description}
+                              </p>
+                            ) : (
+                              <p className="text-sm text-slate-400 dark:text-slate-500 italic">Nenhuma descrição fornecida.</p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Attachments */}
+                        <div>
+                          <h4 className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-3">Anexos</h4>
+                          {selectedRequest.attachments && selectedRequest.attachments.length > 0 ? (
+                            <ul className="space-y-2">
+                              {selectedRequest.attachments.map((att, idx) => (
+                                <li key={idx} className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 rounded-xl">
+                                  <div className="w-8 h-8 rounded-lg bg-violet-50 dark:bg-violet-900/30 flex items-center justify-center flex-shrink-0">
+                                    <FileText className="w-4 h-4 text-violet-500" />
+                                  </div>
+                                  <span className="flex-1 text-sm text-slate-700 dark:text-slate-300 truncate">{att.name}</span>
+                                  <span className="text-xs text-slate-400 whitespace-nowrap">{(att.size / 1024).toFixed(0)} KB</span>
+                                  <a
+                                    href={att.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="p-1.5 text-slate-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg transition-colors"
+                                  >
+                                    <UploadCloud className="w-3.5 h-3.5 rotate-180" />
+                                  </a>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-dashed border-slate-200 dark:border-slate-700">
+                              <FileText className="w-4 h-4 text-slate-300 dark:text-slate-600" />
+                              <p className="text-sm text-slate-400 dark:text-slate-500">Nenhum anexo enviado.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col h-full">
+                        {/* Messages list */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4 pb-6">
+                          {comments.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
+                              <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                                <MessageSquare className="w-7 h-7 text-slate-300 dark:text-slate-600" />
+                              </div>
+                              <p className="text-sm font-medium text-slate-500 dark:text-slate-400">Nenhuma mensagem ainda</p>
+                              <p className="text-xs text-slate-400 dark:text-slate-500">Seja o primeiro a comentar neste chamado</p>
+                            </div>
+                          ) : (
+                            comments.map((c) => {
+                              const isOwn = c.user_id === userId;
+                              const initials = (c.author_name || '?')[0].toUpperCase();
+                              const time = new Date(c.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+                              return (
+                                <div key={c.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+                                  {/* Avatar */}
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-bold text-white shadow-sm ${
+                                    isOwn
+                                      ? 'bg-gradient-to-br from-violet-500 to-purple-600 shadow-violet-500/20'
+                                      : 'bg-gradient-to-br from-slate-500 to-slate-600'
+                                  }`}>
+                                    {initials}
+                                  </div>
+                                  {/* Bubble */}
+                                  <div className={`max-w-[72%] ${isOwn ? 'items-end' : 'items-start'} flex flex-col gap-1`}>
+                                    <div className={`flex items-baseline gap-2 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
+                                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                        {isOwn ? 'Você' : (c.author_name || '—')}
+                                      </span>
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">{time}</span>
+                                    </div>
+                                    <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
+                                      isOwn
+                                        ? 'bg-violet-500 text-white rounded-tr-md'
+                                        : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-tl-md'
+                                    }`}>
+                                      {c.content}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                          <div ref={commentsEndRef} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                    );
+                  })()}
+
+                  {/* ── Chat Footer (visible only on chat tab) ───────────────────── */}
+                  {activeTab === 'chat' && (() => {
+                    const isClosed = selectedRequest.status === 'resolved' || selectedRequest.status === 'cancelled';
+                    return (
+                    <div className="flex-shrink-0 px-4 py-3 border-t border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50">
+                      {isClosed ? (
+                        <div className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-100/50 dark:bg-slate-800/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                          <Lock className="w-4 h-4 text-slate-400" />
+                          <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                            Este chamado foi encerrado. A conversa encontra-se em modo de leitura.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="flex items-end gap-2 bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-2">
+                          <textarea
+                            value={commentText}
+                            onChange={(e) => setCommentText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleCommentSubmit();
+                              }
+                            }}
+                            placeholder="Escreva uma mensagem… (Enter para enviar)"
+                            rows={1}
+                            className="flex-1 bg-transparent resize-none text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none py-1.5 max-h-32"
+                            style={{ fieldSizing: 'content' } as React.CSSProperties}
+                          />
+                          <button
+                            onClick={handleCommentSubmit}
+                            disabled={isSubmittingComment || !commentText.trim()}
+                            className="p-2 mb-0.5 bg-violet-500 hover:bg-violet-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-all flex-shrink-0"
+                          >
+                            {isSubmittingComment
+                              ? <Loader2 className="w-4 h-4 animate-spin" />
+                              : <Send className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                    );
+                  })()}
+                </motion.div>
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

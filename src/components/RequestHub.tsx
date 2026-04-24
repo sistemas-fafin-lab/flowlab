@@ -72,7 +72,7 @@ const RequestHub: React.FC = () => {
     {
       id: 'it',
       title: 'Tecnologia (TI)',
-      description: 'Chamados de suporte técnico e solicitações de desenvolvimento',
+      description: 'Chamados de suporte técnico, solicitações de desenvolvimento e consultoria',
       icon: Headphones,
       path: '/requests/it',
       color: 'text-violet-600',
