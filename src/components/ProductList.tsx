@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Search, Filter, Package, AlertTriangle, Calendar, Edit, Trash2, X, Save, Plus, Minus, ArrowUpDown } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Search, Filter, Package, AlertTriangle, Calendar, Edit, Trash2, X, Save, Plus, Minus, ArrowUpDown, Download, Upload, ChevronDown, CheckCircle } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { Product } from '../types';
 import { ProductListSkeleton } from './PageLoadingSkeleton';
@@ -29,6 +29,20 @@ const ProductList: React.FC = () => {
   const [editFormData, setEditFormData] = useState<Product | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // ── Dropdown de Categoria ──────────────────────────────────────────────────
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const categoryDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!categoryDropdownOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(e.target as Node)) {
+        setCategoryDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [categoryDropdownOpen]);
 
   // Estados para o modal de movimentação
   const [showMovementModal, setShowMovementModal] = useState(false);
@@ -78,28 +92,30 @@ const ProductList: React.FC = () => {
   const getStatusBadge = (status: Product['status']) => {
     switch (status) {
       case 'active':
-        return <span className="px-2 py-1 text-xs font-medium bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 rounded-full">Ativo</span>;
+        return <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-full">Ativo</span>;
       case 'low-stock':
-        return <span className="px-2 py-1 text-xs font-medium bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200 rounded-full">Estoque Baixo</span>;
+        return <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-full">Estoque Baixo</span>;
       case 'expired':
-        return <span className="px-2 py-1 text-xs font-medium bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 rounded-full">Vencido</span>;
+        return <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20 rounded-full">Vencido</span>;
       default:
         return null;
     }
   };
 
   const getCategoryBadge = (category: Product['category']) => {
-    const categoryLabel = category === 'general' ? 'Uso Geral' : 
+    const categoryLabel = category === 'general' ? 'Uso Geral' :
                          category === 'technical' ? 'Insumo Técnico' :
-                         category.split('-').map(word => 
+                         (category as string).split('-').map(word =>
                            word.charAt(0).toUpperCase() + word.slice(1)
                          ).join(' ');
-    
-    const colorClass = category === 'general' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200' :
-                      category === 'technical' ? 'bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200' :
-                      'bg-blue-200 dark:bg-blue-900/50 text-blue-900 dark:text-blue-200';
-    
-    return <span className={`px-2 py-1 text-xs font-medium rounded-full ${colorClass}`}>
+
+    const colorClass = category === 'general'
+      ? 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20'
+      : category === 'technical'
+      ? 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20'
+      : 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border border-slate-500/20';
+
+    return <span className={`inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-full ${colorClass}`}>
       {categoryLabel}
     </span>;
   };
@@ -519,6 +535,16 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     </div>
   );
 
+  // ── Contagem por status (considera busca + categoria activas) ────────────────
+  const getStatusCount = (s: string) =>
+    products.filter(p => {
+      const matchSearch = !searchTerm ||
+        p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.code.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchCat = categoryFilter === 'all' || p.category === categoryFilter;
+      return matchSearch && matchCat && (s === 'all' || p.status === s);
+    }).length;
+
   // Loading state
   if (loading) {
     return <ProductListSkeleton />;
@@ -558,190 +584,295 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
       />
 
       <div className="space-y-6">
-        {/* Filtros e Ações */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-md p-4 sm:p-6 border border-gray-100 dark:border-gray-700 animate-fade-in-up">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          {/* Campo de busca */}
-          <div className="relative col-span-1 sm:col-span-2 lg:col-span-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 dark:text-gray-500 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Buscar produtos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-500"
-            />
-          </div>
+        {/* ── Barra de Filtros (Glassmorphism) ─────────────────────────────── */}
+        <div className="relative z-20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-sm p-4 sm:p-5 animate-fade-in-up space-y-3">
 
-          {/* Botão de exportação */}
-          <button
-            onClick={exportToExcel}
-            className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white py-2.5 px-4 rounded-xl text-sm transition-all duration-200 shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 font-medium"
-          >
-            <span className="hidden sm:inline">Exportar Relatório (Excel)</span>
-            <span className="sm:hidden">Exportar Excel</span>
-          </button>
+          {/* Linha 1: busca + dropdown categoria + ações */}
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500 w-4 h-4 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="Buscar por nome ou código…"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2.5 bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+              />
+            </div>
 
-          {/* Input de importação */}
-          <label className="relative w-full flex items-center justify-center border-2 border-dashed border-gray-200 dark:border-gray-600 rounded-xl px-4 py-2.5 text-sm text-gray-600 dark:text-gray-300 bg-gray-50/50 dark:bg-gray-700/50 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:border-blue-300 dark:hover:border-blue-600 cursor-pointer transition-all duration-200 font-medium">
-            <span className="hidden sm:inline">Importar Arquivo</span>
-            <span className="sm:hidden">Importar</span>
-            <input
-              type="file"
-              accept=".csv, .xlsx"
-              onChange={handleFileUpload}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
-          </label>
+            <div className="flex items-center gap-2">
+              {/* Dropdown personalizado de Categoria */}
+              <div className="relative" ref={categoryDropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setCategoryDropdownOpen(v => !v)}
+                  className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-medium transition-all border whitespace-nowrap ${
+                    categoryFilter !== 'all'
+                      ? 'bg-blue-500/10 border-blue-400 dark:border-blue-500 text-blue-700 dark:text-blue-300'
+                      : categoryDropdownOpen
+                        ? 'bg-slate-100 dark:bg-slate-800 border-blue-300 dark:border-blue-600 text-slate-700 dark:text-slate-200 ring-4 ring-blue-500/10'
+                        : 'bg-slate-50/50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600'
+                  }`}
+                >
+                  <Filter className="w-3.5 h-3.5" />
+                  <span>
+                    {categoryFilter === 'all' ? 'Categoria' :
+                     categoryFilter === 'general' ? 'Uso Geral' :
+                     categoryFilter === 'technical' ? 'Insumos Técnicos' :
+                     (categoryFilter as string).replace(/-/g, ' ').replace(/(^|\s)\w/g, l => l.toUpperCase())}
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${categoryDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
 
-          {/* Filtro de categoria */}
-          <select
-            value={categoryFilter}
-            onChange={(e) => setCategoryFilter(e.target.value as any)}
-            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
-          >
-            <option value="all">Todas Categorias</option>
-            {categories.map(category => (
-              <option key={category} value={category}>
-                {category === 'general'
-                  ? 'Uso Geral'
-                  : category === 'technical'
-                    ? 'Insumos Técnicos'
-                    : category.replace(/-/g, ' ').replace(/(^|\s)\w/g, l => l.toUpperCase())}
-              </option>
-            ))}
-          </select>
-
-          {/* Filtro de status */}
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-            className="w-full px-3 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent focus:outline-none text-sm transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
-          >
-            <option value="all">Todos Status</option>
-            <option value="active">Ativo</option>
-            <option value="low-stock">Estoque Baixo</option>
-            <option value="expired">Vencido</option>
-          </select>
-        </div>
-
-        {/* Resultado da filtragem */}
-        <div className="mt-4 flex items-center text-sm text-gray-500 dark:text-gray-400">
-          <Filter className="w-4 h-4 mr-2" />
-          <span className="font-medium">{filteredProducts.length}</span>&nbsp;produto(s) encontrado(s)
-        </div>
-      </div>
-
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {filteredProducts.map((product, index) => (
-          <div 
-            key={product.id} 
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-lg hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-300 md:hover:-translate-y-1 animate-fade-in-up group"
-            style={{ animationDelay: `${Math.min(index * 0.05, 0.3)}s` }}
-          >
-            <div className="p-4 sm:p-6">
-              {/* Cabeçalho */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-center min-w-0 flex-1">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center mr-3 shadow-md shadow-blue-500/25 group-hover:scale-110 transition-transform duration-300 flex-shrink-0">
-                    <Package className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
+                {categoryDropdownOpen && (
+                  <div className="absolute z-40 top-[calc(100%+6px)] left-0 min-w-[200px] bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/70 dark:border-slate-700/70 rounded-2xl shadow-xl shadow-black/10 dark:shadow-black/30 py-1 overflow-hidden">
+                    {[
+                      { value: 'all', label: 'Todas as Categorias' },
+                      ...categories.map(c => ({
+                        value: c,
+                        label: c === 'general' ? 'Uso Geral' :
+                               c === 'technical' ? 'Insumos Técnicos' :
+                               c.replace(/-/g, ' ').replace(/(^|\s)\w/g, l => l.toUpperCase())
+                      }))
+                    ].map(opt => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => { setCategoryFilter(opt.value as any); setCategoryDropdownOpen(false); }}
+                        className={`w-full flex items-center justify-between px-3.5 py-2 text-sm text-left transition-colors ${
+                          categoryFilter === opt.value
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium'
+                            : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                        }`}
+                      >
+                        {opt.label}
+                        {categoryFilter === opt.value && <CheckCircle className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />}
+                      </button>
+                    ))}
                   </div>
-                  <div className="min-w-0">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{product.name}</h3>
-                    <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{product.code}</p>
-                  </div>
-                </div>
-                {/* Botões sempre visíveis em mobile, hover em desktop */}
-                <div className="flex space-x-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0 ml-2">
-                  <button onClick={() => handleEditClick(product)} className="p-2 text-blue-500 md:text-gray-400 dark:md:text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-all" title="Editar produto">
-                    <Edit className="w-4 h-4" />
-                  </button>
-                  <button onClick={() => handleDeleteProduct(product.id)} className="p-2 text-red-500 md:text-gray-400 dark:md:text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-all" title="Excluir produto">
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
+                )}
               </div>
 
-              {/* Informações agrupadas */}
-              <div className="space-y-4 divide-y divide-gray-200 dark:divide-gray-700">
-                {/* Informações Gerais */}
-                <div className="space-y-2 pb-3">
-                  <Info label="Categoria" value={getCategoryBadge(product.category)} />
-                  <Info label="Status" value={getStatusBadge(product.status)} />
-                  <Info label="Quantidade" value={`${product.quantity} ${product.unit}`} extraClass={product.status === 'low-stock' ? 'text-orange-600' : 'text-gray-800'} />
-                  <Info label="Estoque Mínimo" value={product.minStock} />
-                </div>
+              {/* Exportar */}
+              <button
+                onClick={exportToExcel}
+                className="flex items-center gap-1.5 px-3 py-2.5 bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-sm font-medium transition-all"
+                title="Exportar Relatório (Excel)"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Exportar</span>
+              </button>
 
-                {/* Valores Financeiros */}
-                <div className="space-y-2 py-3">
-                  <Info label="Preço Unitário" value={formatCurrency(product.unitPrice)} />
-                  <Info label="Valor Total" value={formatCurrency(product.totalValue)} bold />
-                  <Info label="Nota Fiscal" value={product.invoiceNumber || '—'} />
-                  <Info label="Com Retenção?" value={product.isWithholding ? 'Sim' : 'Não'} extraClass={product.isWithholding ? 'text-red-600' : 'text-gray-500'} />
-                </div>
-
-                {/* Fornecedor */}
-                <div className="space-y-2 py-3 align-self-center">
-                  <Info label="Fornecedor (vinculado)" value={product.supplierName || '—'} />
-                </div>
-
-                {/* Datas e Localização */}
-                <div className="space-y-2 pt-3">
-                  <Info label="Lote" value={product.batch} />
-                  <Info label="Localização" value={product.location} />
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Validade:</span>
-                    <div className="flex items-center">
-                      <span className="text-sm text-gray-800 dark:text-gray-200 mr-2">{product.expirationDate}</span>
-                      {new Date(product.expirationDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
-                        <Calendar className="w-4 h-4 text-red-500" />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Alerta de Estoque Baixo */}
-              {product.status === 'low-stock' && (
-                <div className="flex items-center justify-center p-3 bg-gradient-to-r from-orange-50 to-amber-50 dark:from-orange-900/30 dark:to-amber-900/30 rounded-xl mt-4 border border-orange-100 dark:border-orange-800">
-                  <AlertTriangle className="w-4 h-4 text-orange-500 mr-2 animate-pulse" />
-                  <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">Estoque abaixo do mínimo ({product.minStock})</span>
-                </div>
-              )}
-
-              {/* Ações */}
-              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    onClick={() => setSelectedProduct(product)}
-                    className="px-3 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 flex items-center justify-center text-sm font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 transition-all duration-200"
-                    title="Adicionar estoque"
-                  >
-                    <Plus className="w-4 h-4 mr-1" /> Adicionar
-                  </button>
-                  <button
-                    onClick={() => handleRemoveStock(product)}
-                    disabled={product.quantity === 0}
-                    className="px-3 py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30 transition-all duration-200"
-                    title="Retirar estoque"
-                  >
-                    <Minus className="w-4 h-4 mr-1" /> Retirar
-                  </button>
-                </div>
-              </div>
+              {/* Importar */}
+              <label className="relative flex items-center gap-1.5 px-3 py-2.5 bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-sm font-medium transition-all cursor-pointer" title="Importar Arquivo">
+                <Upload className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Importar</span>
+                <input type="file" accept=".csv, .xlsx" onChange={handleFileUpload} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
+              </label>
             </div>
           </div>
-        ))}
-      </div>
 
-      {filteredProducts.length === 0 && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-12 text-center border border-gray-100 dark:border-gray-700 animate-fade-in">
-          <Package className="w-12 h-12 mx-auto text-gray-400 dark:text-gray-500 mb-4" />
-          <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-2">Nenhum produto encontrado</h3>
-          <p className="text-gray-500 dark:text-gray-400">Tente ajustar os filtros de busca ou adicione novos produtos ao sistema.</p>
+          {/* Linha 2: chips de status com badge de contagem */}
+          <div className="flex items-center gap-2 flex-wrap">
+            {(
+              [
+                { value: 'all',       label: 'Todos',         activeClass: 'bg-slate-700 dark:bg-slate-200 text-white dark:text-slate-900 border-transparent shadow-lg shadow-slate-500/20' },
+                { value: 'active',    label: 'Ativo',         activeClass: 'bg-emerald-500 text-white border-transparent shadow-lg shadow-emerald-500/25' },
+                { value: 'low-stock', label: 'Estoque Baixo', activeClass: 'bg-orange-500 text-white border-transparent shadow-lg shadow-orange-500/25' },
+                { value: 'expired',   label: 'Vencido',       activeClass: 'bg-red-500 text-white border-transparent shadow-lg shadow-red-500/25' },
+              ] as const
+            ).map(opt => {
+              const count = products.filter(p => {
+                const matchSearch = !searchTerm ||
+                  p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                  p.code.toLowerCase().includes(searchTerm.toLowerCase());
+                const matchCat = categoryFilter === 'all' || p.category === categoryFilter;
+                return matchSearch && matchCat && (opt.value === 'all' || p.status === opt.value);
+              }).length;
+              const isActive = statusFilter === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  onClick={() => setStatusFilter(opt.value as any)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-200 ${
+                    isActive
+                      ? opt.activeClass
+                      : 'bg-white/60 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200/60 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {opt.label}
+                  <span className={`inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 rounded-md text-[11px] font-bold ${
+                    isActive ? 'bg-white/25' : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+            <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
+              <span className="font-semibold text-slate-600 dark:text-slate-300">{filteredProducts.length}</span> produto(s)
+            </span>
+          </div>
+
         </div>
-      )}
+
+        {/* ── Grade de Produtos (Premium Glassmorphism) ────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+          {filteredProducts.map((product, index) => {
+            const stockPct = Math.min(
+              (product.quantity / ((product.minStock || 0) * 2 || 1)) * 100,
+              100
+            );
+            const isLow = product.quantity <= (product.minStock || 0);
+
+            return (
+              <div
+                key={product.id}
+                className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-0.5 animate-fade-in-up group"
+                style={{ animationDelay: `${Math.min(index * 0.05, 0.3)}s` }}
+              >
+                <div className="p-5">
+
+                  {/* Cabeçalho: ícone + nome + ações */}
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3 min-w-0 flex-1">
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-lg shadow-blue-500/25 flex-shrink-0 group-hover:scale-105 transition-transform duration-300">
+                        <Package className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                          {product.name}
+                        </h3>
+                        <p className="text-[11px] text-slate-400 font-mono">{product.code}</p>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-200 flex-shrink-0 ml-2">
+                      <button onClick={() => handleEditClick(product)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-500/10 transition-all" title="Editar produto">
+                        <Edit className="w-3.5 h-3.5" />
+                      </button>
+                      <button onClick={() => handleDeleteProduct(product.id)} className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-all" title="Excluir produto">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Badges */}
+                  <div className="flex items-center gap-1.5 mb-4 flex-wrap">
+                    {getStatusBadge(product.status)}
+                    {getCategoryBadge(product.category)}
+                  </div>
+
+                  {/* Quantidade em destaque + barra de progresso de estoque */}
+                  <div className="mb-4">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-baseline gap-1.5">
+                        <span className={`text-2xl font-bold leading-none transition-colors ${
+                          isLow ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-slate-100'
+                        }`}>
+                          {product.quantity}
+                        </span>
+                        <span className="text-sm font-normal text-slate-400">{product.unit}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        {isLow && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                        )}
+                        <span className={`text-xs font-medium transition-colors ${
+                          isLow ? 'text-red-500 dark:text-red-400' : 'text-slate-400'
+                        }`}>
+                          mín. {product.minStock}
+                        </span>
+                      </div>
+                    </div>
+                    <div className={`h-1.5 w-full rounded-full overflow-hidden transition-colors ${
+                      isLow ? 'bg-red-100 dark:bg-red-900/30' : 'bg-slate-100 dark:bg-slate-800'
+                    }`}>
+                      <div
+                        className={`h-full rounded-full transition-all duration-700 ${
+                          isLow
+                            ? 'bg-gradient-to-r from-red-500 to-orange-400'
+                            : 'bg-gradient-to-r from-emerald-400 to-blue-400'
+                        }`}
+                        style={{ width: `${stockPct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Mini-grid de informações */}
+                  <div className="grid grid-cols-2 gap-2.5 p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl">
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Preço Unit.</p>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{formatCurrency(product.unitPrice)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor Total</p>
+                      <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{formatCurrency(product.totalValue)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Lote</p>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{product.batch || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Localização</p>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{product.location || '—'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Validade</p>
+                      <div className="flex items-center gap-1">
+                        <p className={`text-sm font-medium truncate ${product.status === 'expired' ? 'text-red-500' : 'text-slate-700 dark:text-slate-200'}`}>
+                          {product.expirationDate || '—'}
+                        </p>
+                        {product.expirationDate && new Date(product.expirationDate) <= new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) && (
+                          <Calendar className="w-3 h-3 text-red-400 flex-shrink-0" />
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Fornecedor</p>
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{product.supplierName || '—'}</p>
+                    </div>
+                  </div>
+
+                  {/* Alerta de Estoque Baixo */}
+                  {product.status === 'low-stock' && (
+                    <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-orange-500/10 border border-orange-500/20 rounded-xl">
+                      <AlertTriangle className="w-3.5 h-3.5 text-orange-500 flex-shrink-0 animate-pulse" />
+                      <span className="text-xs text-orange-600 dark:text-orange-400 font-medium">Abaixo do mínimo ({product.minStock})</span>
+                    </div>
+                  )}
+
+                  {/* Botões de ação — pill style */}
+                  <div className="flex items-center gap-2 mt-4 pt-4 border-t border-slate-100/70 dark:border-slate-800/70">
+                    <button
+                      onClick={() => setSelectedProduct(product)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 border border-emerald-500/20 rounded-xl text-xs font-semibold transition-all"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Entrada
+                    </button>
+                    <button
+                      onClick={() => handleRemoveStock(product)}
+                      disabled={product.quantity === 0}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-red-500/10 text-red-500 dark:text-red-400 hover:bg-red-500/20 border border-red-500/20 rounded-xl text-xs font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      <Minus className="w-3.5 h-3.5" />
+                      Saída
+                    </button>
+                  </div>
+
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {filteredProducts.length === 0 && (
+          <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl p-12 text-center animate-fade-in">
+            <Package className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
+            <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-1">Nenhum produto encontrado</h3>
+            <p className="text-sm text-slate-400 dark:text-slate-500">Ajuste os filtros ou adicione novos produtos ao sistema.</p>
+          </div>
+        )}
       </div>
 
       {/* Movement Modal */}

@@ -33,6 +33,7 @@ import type { ITRequest, KanbanColumn } from './ITKanbanBoard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { hasPermission } from '../../utils/permissions';
+import { useNotificationCenter } from '../../hooks/useNotificationCenter';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LOCAL TYPES
@@ -345,6 +346,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
   const userId = userProfile?.id ?? '';
   const userPermissions = userProfile?.permissions ?? [];
   const isITManager = userProfile?.roleName === 'Desenvolvedor' || hasPermission(userPermissions, 'canManageIT');
+  const { sendNotification } = useNotificationCenter();
 
   // ─── States ────────────────────────────────────────────────────────────────
   const [comments, setComments] = useState<Comment[]>([]);
@@ -446,6 +448,41 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
       if (!error) {
         setCommentText('');
         await fetchComments();
+
+        // Notifica o solicitante caso não seja ele próprio a enviar a mensagem
+        if (task.requested_by !== userId) {
+          try {
+            const { data: requesterData } = await supabase
+              .from('user_profiles')
+              .select('email, name')
+              .eq('id', task.requested_by)
+              .single();
+
+            await sendNotification({
+              userId: task.requested_by,
+              title: 'Nova resposta da TI',
+              content: `Você tem uma nova mensagem no chamado ${task.codigo}.`,
+              module: 'IT',
+              type: 'info',
+              link: '/requests',
+              sendEmail: !!requesterData?.email,
+              emailData: requesterData?.email
+                ? {
+                    to: requesterData.email,
+                    templateSlug: 'it_ticket_update',
+                    variables: {
+                      user_name: requesterData.name || task.requester_name || 'Usuário',
+                      ticket_code: task.codigo,
+                      ticket_message: text,
+                      action_url: `${window.location.origin}/requests`,
+                    },
+                  }
+                : undefined,
+            });
+          } catch {
+            // Falha silenciosa — não bloqueia o fluxo principal
+          }
+        }
       }
     } finally {
       setIsSubmittingComment(false);
@@ -603,7 +640,8 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         transition={{ duration: 0.2 }}
-        className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm z-40"
+        style={{ zIndex: 300 }}
+        className="fixed inset-0 bg-black/20 dark:bg-black/40 backdrop-blur-sm"
         onClick={onClose}
       />
 
@@ -614,9 +652,9 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
         animate={isFullscreen ? { opacity: 1, scale: 1 } : { x: 0, opacity: 1 }}
         exit={isFullscreen ? { opacity: 0, scale: 0.97 } : { x: '100%', opacity: 0.5 }}
         transition={{ duration: 0.28, ease: [0.32, 0.72, 0, 1] }}
-        style={!isFullscreen ? { width: drawerWidth, maxWidth: '100vw' } : undefined}
+        style={!isFullscreen ? { width: drawerWidth, maxWidth: '100vw', zIndex: 310 } : { zIndex: 310 }}
         className={`
-          fixed z-50 flex flex-col overflow-hidden
+          fixed flex flex-col overflow-hidden
           ${isFullscreen
             ? 'inset-4 sm:inset-6 md:inset-8 lg:inset-12 sm:rounded-[2rem] bg-white/90 dark:bg-slate-900/95 shadow-2xl shadow-black/25 dark:shadow-black/50 border border-slate-200/80 dark:border-slate-800/70'
             : 'inset-y-2 right-2 rounded-[2rem] bg-white/90 dark:bg-slate-900/95 border border-slate-200 dark:border-slate-800 shadow-2xl shadow-black/15 dark:shadow-black/40'
@@ -628,7 +666,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
         {!isFullscreen && (
           <div
             onMouseDown={handleResizeMouseDown}
-            className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize z-[60] group flex items-center"
+            className="absolute left-0 top-0 bottom-0 w-2 cursor-col-resize z-[320] group flex items-center"
           >
             <div className="absolute inset-y-0 left-0 w-full hover:bg-violet-500/10 active:bg-violet-500/20 transition-colors" />
             <div className="relative w-1 h-12 rounded-full bg-slate-300/0 group-hover:bg-slate-400 dark:group-hover:bg-slate-500 transition-colors ml-0.5" />
@@ -908,7 +946,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
               <div className="rounded-2xl px-4 py-1 bg-white/70 dark:bg-slate-800/20 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/30">
 
                 {/* Status */}
-                <AttributeRow label="Status" className="z-[70]">
+                <AttributeRow label="Status" className="z-[370]">
                   <CustomDropdown
                     value={task.status}
                     options={STATUS_OPTIONS}
@@ -937,7 +975,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                 </AttributeRow>
 
                 {/* Priority */}
-                <AttributeRow label="Prioridade" className="z-[60]">
+                <AttributeRow label="Prioridade" className="z-[360]">
                   {isITManager ? (
                     <CustomDropdown
                       value={task.priority}
@@ -968,7 +1006,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                 </AttributeRow>
 
                 {/* Kanban column */}
-                <AttributeRow label="Coluna" className="z-[50]">
+                <AttributeRow label="Coluna" className="z-[350]">
                   <CustomDropdown
                     value={task.kanban_status}
                     options={KANBAN_OPTIONS}
@@ -997,7 +1035,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                 </AttributeRow>
 
                 {/* Assigned to */}
-                <AttributeRow label="Responsável" className="z-[40]">
+                <AttributeRow label="Responsável" className="z-[340]">
                   <CustomDropdown
                     value={task.assigned_to ?? ''}
                     options={[
@@ -1038,7 +1076,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                 </AttributeRow>
 
                 {/* Tags */}
-                <AttributeRow label="Tags" className="z-[30]">
+                <AttributeRow label="Tags" className="z-[330]">
                   <div className="space-y-2">
                     {/* Current Tags */}
                     <div className="flex flex-wrap gap-1.5">

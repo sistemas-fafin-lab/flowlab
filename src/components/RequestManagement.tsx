@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
-import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image, Clock, CheckCircle2, XCircle, Play } from 'lucide-react';
+import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image, Clock, CheckCircle2, XCircle, Play, ChevronDown } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
@@ -43,6 +43,18 @@ const RequestManagement: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState('');
+  const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
+  const [departmentDropdownOpen, setDepartmentDropdownOpen] = useState(false);
+  const [statusDropdownRect, setStatusDropdownRect] = useState<DOMRect | null>(null);
+  const [departmentDropdownRect, setDepartmentDropdownRect] = useState<DOMRect | null>(null);
+  const statusBtnRef = React.useRef<HTMLButtonElement>(null);
+  const departmentBtnRef = React.useRef<HTMLButtonElement>(null);
+  const priorityBtnRef = React.useRef<HTMLButtonElement>(null);
+  const [priorityDropdownOpen, setPriorityDropdownOpen] = useState(false);
+  const [priorityDropdownRect, setPriorityDropdownRect] = useState<DOMRect | null>(null);
+  const categoryModalBtnRef = React.useRef<HTMLButtonElement>(null);
+  const [categoryModalDropdownOpen, setCategoryModalDropdownOpen] = useState(false);
+  const [categoryModalDropdownRect, setCategoryModalDropdownRect] = useState<DOMRect | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [newRequest, setNewRequest] = useState({
@@ -751,7 +763,7 @@ const handleCompleteRequest = async (request: Request) => {
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 w-full sm:w-auto">
           <button
             onClick={generateReport}
-            className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 text-sm sm:text-base"
+            className="px-4 py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 hover:-translate-y-0.5 text-sm sm:text-base"
           >
             <Download className="w-4 h-4 mr-2" />
             Relatório
@@ -760,7 +772,7 @@ const handleCompleteRequest = async (request: Request) => {
             onClick={() => {
               handleNewRequestClick();
             }}
-            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 flex items-center justify-center transition-all duration-200 font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 text-base"
+            className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 flex items-center justify-center transition-all duration-200 font-semibold shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 hover:-translate-y-0.5 text-base"
           >
             <Plus className="w-5 h-5 mr-2" />
             Nova Solicitação
@@ -838,24 +850,29 @@ const handleCompleteRequest = async (request: Request) => {
       {/* Filtro de categoria */}
       <div className="col-span-2 sm:col-span-1 lg:col-span-3">
         <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Categoria</label>
-        <select
-          value={categoryFilter}
-          onChange={(e) => setCategoryFilter(e.target.value as any)}
-          className="w-full px-3 py-2.5 bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 text-sm cursor-pointer dark:text-gray-100"
+        <button
+          ref={categoryModalBtnRef}
+          type="button"
+          onClick={() => {
+            const rect = categoryModalBtnRef.current?.getBoundingClientRect() ?? null;
+            setCategoryModalDropdownRect(rect);
+            setCategoryModalDropdownOpen(o => !o);
+            setPriorityDropdownOpen(false);
+          }}
+          className={`w-full flex items-center justify-between px-3 py-2.5 bg-white dark:bg-gray-700 border rounded-xl transition-all duration-200 text-sm cursor-pointer ${
+            categoryModalDropdownOpen
+              ? 'border-blue-500 ring-2 ring-blue-500/20'
+              : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+          }`}
         >
-          <option value="all">Todas</option>
-          {categories.map(category => (
-            <option key={category} value={category}>
-              {category === 'general'
-                ? 'Uso Geral'
-                : category === 'technical'
-                ? 'Insumos Técnicos'
-                : category
-                    .replace(/-/g, ' ')
-                    .replace(/\b\w/g, c => c.toUpperCase())}
-            </option>
-          ))}
-        </select>
+          <span className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
+            <span className="text-gray-700 dark:text-gray-100 truncate">
+              {categoryFilter === 'all' ? 'Todas' : categoryFilter === 'general' ? 'Uso Geral' : categoryFilter === 'technical' ? 'Insumos Técnicos' : (categoryFilter as string).replace(/-/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+            </span>
+          </span>
+          <ChevronDown className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${categoryModalDropdownOpen ? 'rotate-180' : ''}`} />
+        </button>
       </div>
 
       {/* Quantidade */}
@@ -1018,27 +1035,39 @@ const handleCompleteRequest = async (request: Request) => {
           <form onSubmit={handleSubmitRequest} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Prioridade *</label>
-              <select
-                value={newRequest.priority}
-                onChange={(e) => setNewRequest(prev => ({ ...prev, priority: e.target.value as any }))}
-                required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
+              <button
+                ref={priorityBtnRef}
+                type="button"
+                onClick={() => {
+                  const rect = priorityBtnRef.current?.getBoundingClientRect() ?? null;
+                  setPriorityDropdownRect(rect);
+                  setPriorityDropdownOpen(o => !o);
+                  setCategoryModalDropdownOpen(false);
+                }}
+                className={`w-full flex items-center justify-between px-4 py-2.5 border rounded-xl transition-all duration-200 text-sm cursor-pointer bg-gray-50/50 dark:bg-gray-700 ${
+                  priorityDropdownOpen
+                    ? 'border-blue-500 ring-2 ring-blue-500/20'
+                    : 'border-gray-200 dark:border-gray-600 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
               >
-                <option value="standard">Padrão</option>
-                <option value="priority">Prioritário</option>
-                <option value="urgent">Urgente</option>
-              </select>
+                <span className="flex items-center gap-2">
+                  {newRequest.priority === 'standard' && <span className="w-2 h-2 rounded-full bg-gray-400" />}
+                  {newRequest.priority === 'priority' && <span className="w-2 h-2 rounded-full bg-orange-400" />}
+                  {newRequest.priority === 'urgent' && <span className="w-2 h-2 rounded-full bg-red-500" />}
+                  <span className="text-gray-700 dark:text-gray-100">
+                    {newRequest.priority === 'standard' ? 'Padrão' : newRequest.priority === 'priority' ? 'Prioritário' : 'Urgente'}
+                  </span>
+                </span>
+                <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${priorityDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Departamento *</label>
-              <input
-                type="text"
-                value={userProfile?.department || ''}
-                readOnly
-                disabled
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 bg-gray-100/80 dark:bg-gray-600 rounded-xl text-gray-600 dark:text-gray-300 cursor-not-allowed"
-              />  
+              <div className="w-full flex items-center gap-2 px-4 py-2.5 border border-gray-200 dark:border-gray-600 bg-gray-100/60 dark:bg-gray-600/60 rounded-xl cursor-not-allowed">
+                <Building2 className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                <span className="text-sm text-gray-500 dark:text-gray-300 truncate">{userProfile?.department || '—'}</span>
+              </div>
             </div>
 
             <div>
@@ -1050,25 +1079,6 @@ const handleCompleteRequest = async (request: Request) => {
                 disabled
                 className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 bg-gray-100/80 dark:bg-gray-600 rounded-xl text-gray-600 dark:text-gray-300 cursor-not-allowed"
               />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Fornecedor Sugerido</label>
-              <select
-                value={newRequest.supplierId || ''}
-                onChange={(e) => setNewRequest(prev => ({ 
-                  ...prev, 
-                  supplierId: e.target.value === '' ? null : e.target.value 
-                }))}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
-              >
-                <option value="">Selecione um fornecedor (opcional)</option>
-                {suppliers.filter(s => s.status === 'active').map(supplier => (
-                  <option key={supplier.id} value={supplier.id}>
-                    {supplier.name}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div className="md:col-span-2">
@@ -1317,115 +1327,326 @@ const handleCompleteRequest = async (request: Request) => {
         document.body
       )}
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-        <div className="flex items-center mb-4">
-          <div className="w-8 h-8 bg-gradient-to-br from-gray-500 to-slate-500 rounded-lg flex items-center justify-center mr-3 shadow-md shadow-gray-500/25">
-            <FilterIcon className="w-4 h-4 text-white" />  
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">Filtros e Pesquisa</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400 hidden sm:block">Refine sua busca por solicitações</p>
-          </div>
-        </div>
-        
-        {/* Campo de Pesquisa Inteligente */}
-        <div className="mb-4">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Pesquisar por ID, solicitante, produto, departamento, motivo..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 text-sm dark:text-gray-100 dark:placeholder-gray-400"
-            />
-            {searchQuery && (
+      {/* Status Dropdown Portal */}
+      {statusDropdownOpen && statusDropdownRect && ReactDOM.createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setStatusDropdownOpen(false)} />
+          <div
+            className="fixed z-[9999] bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xl overflow-hidden"
+            style={{
+              top: statusDropdownRect.bottom + 6,
+              left: statusDropdownRect.left,
+              width: statusDropdownRect.width,
+            }}
+          >
+            {[
+              { value: 'all', label: 'Todos', dot: 'bg-slate-400' },
+              { value: 'pending', label: 'Pendente', dot: 'bg-yellow-400' },
+              { value: 'approved', label: 'Aprovado', dot: 'bg-emerald-400' },
+              { value: 'rejected', label: 'Rejeitado', dot: 'bg-red-400' },
+              { value: 'completed', label: 'Concluído', dot: 'bg-blue-400' },
+            ].map(opt => (
               <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                key={opt.value}
+                type="button"
+                onClick={() => { setStatusFilter(opt.value); setStatusDropdownOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${
+                  statusFilter === opt.value
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                }`}
               >
-                <X className="w-4 h-4" />
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${opt.dot}`} />
+                {opt.label}
+                {statusFilter === opt.value && <Check className="w-3.5 h-3.5 ml-auto" />}
               </button>
-            )}
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Priority Dropdown Portal */}
+      {priorityDropdownOpen && priorityDropdownRect && ReactDOM.createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setPriorityDropdownOpen(false)} />
+          <div
+            className="fixed z-[9999] bg-white/95 dark:bg-gray-700/95 backdrop-blur-xl rounded-xl border border-gray-200/80 dark:border-gray-600/80 shadow-2xl overflow-hidden"
+            style={{
+              top: priorityDropdownRect.bottom + 6,
+              left: priorityDropdownRect.left,
+              width: priorityDropdownRect.width,
+            }}
+          >
+            {[
+              { value: 'standard', label: 'Padrão', dot: 'bg-gray-400', desc: 'Sem urgência' },
+              { value: 'priority', label: 'Prioritário', dot: 'bg-orange-400', desc: 'Atenção especial' },
+              { value: 'urgent', label: 'Urgente', dot: 'bg-red-500', desc: 'Necessidade imediata' },
+            ].map(opt => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { setNewRequest(prev => ({ ...prev, priority: opt.value as any })); setPriorityDropdownOpen(false); }}
+                className={`w-full flex items-center gap-3 px-4 py-2.5 text-sm transition-colors text-left ${
+                  newRequest.priority === opt.value
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600/50'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${opt.dot}`} />
+                <span className="flex-1">{opt.label}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">{opt.desc}</span>
+                {newRequest.priority === opt.value && <Check className="w-3.5 h-3.5 ml-1" />}
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Category Modal Dropdown Portal */}
+      {categoryModalDropdownOpen && categoryModalDropdownRect && ReactDOM.createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setCategoryModalDropdownOpen(false)} />
+          <div
+            className="fixed z-[9999] bg-white/95 dark:bg-gray-700/95 backdrop-blur-xl rounded-xl border border-gray-200/80 dark:border-gray-600/80 shadow-2xl overflow-hidden max-h-56 overflow-y-auto"
+            style={{
+              top: categoryModalDropdownRect.bottom + 6,
+              left: categoryModalDropdownRect.left,
+              width: categoryModalDropdownRect.width,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => { setCategoryFilter('all'); setCategoryModalDropdownOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${
+                categoryFilter === 'all'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                  : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600/50'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-gray-400 flex-shrink-0" />
+              Todas
+              {categoryFilter === 'all' && <Check className="w-3.5 h-3.5 ml-auto" />}
+            </button>
+            {categories.map(cat => (
+              <button
+                key={cat}
+                type="button"
+                onClick={() => { setCategoryFilter(cat as any); setCategoryModalDropdownOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${
+                  categoryFilter === cat
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                    : 'text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600/50'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0" />
+                {cat === 'general' ? 'Uso Geral' : cat === 'technical' ? 'Insumos Técnicos' : cat.replace(/-/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
+                {categoryFilter === cat && <Check className="w-3.5 h-3.5 ml-auto" />}
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Department Dropdown Portal */}
+      {departmentDropdownOpen && departmentDropdownRect && ReactDOM.createPortal(
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setDepartmentDropdownOpen(false)} />
+          <div
+            className="fixed z-[9999] bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl rounded-xl border border-slate-200/80 dark:border-slate-700/80 shadow-2xl overflow-hidden max-h-56 overflow-y-auto"
+            style={{
+              top: departmentDropdownRect.bottom + 6,
+              left: departmentDropdownRect.left,
+              width: departmentDropdownRect.width,
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => { setDepartmentFilter('all'); setDepartmentDropdownOpen(false); }}
+              className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${
+                departmentFilter === 'all'
+                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                  : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+              }`}
+            >
+              <span className="w-2 h-2 rounded-full bg-slate-400 flex-shrink-0" />
+              Todos
+              {departmentFilter === 'all' && <Check className="w-3.5 h-3.5 ml-auto" />}
+            </button>
+            {DEPARTMENTS.map(dept => (
+              <button
+                key={dept}
+                type="button"
+                onClick={() => { setDepartmentFilter(dept); setDepartmentDropdownOpen(false); }}
+                className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${
+                  departmentFilter === dept
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
+                    : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-indigo-400 flex-shrink-0" />
+                {dept}
+                {departmentFilter === dept && <Check className="w-3.5 h-3.5 ml-auto" />}
+              </button>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
+
+      {/* Filters */}
+      <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl shadow-sm border border-slate-200/50 dark:border-slate-700/50 p-4 sm:p-6 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+        <div className="flex items-center mb-4">
+          <div className="w-8 h-8 bg-gradient-to-br from-slate-500 to-slate-600 rounded-lg flex items-center justify-center mr-3 shadow-sm">
+            <FilterIcon className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <h3 className="text-base font-semibold text-slate-800 dark:text-slate-100">Filtros e Pesquisa</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 hidden sm:block">Refine sua busca por solicitações</p>
           </div>
         </div>
-        
-        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer text-sm dark:text-gray-100"
-            >
-              <option value="all">Todos</option>
-              <option value="pending">Pendente</option>
-              <option value="approved">Aprovado</option>
-              <option value="rejected">Rejeitado</option>
-              <option value="completed">Concluído</option>
-            </select>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+
+          {/* Pesquisa */}
+          <div className="col-span-1 md:col-span-2 lg:col-span-4">
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Pesquisa</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="ID, solicitante, produto, motivo…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-9 pr-9 py-2.5 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 hover:bg-white dark:hover:bg-slate-800"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
 
-          {['admin', 'operator'].includes(userProfile?.role) && (
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Depto.</label>
-              <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer text-sm dark:text-gray-100"
+          {/* Status */}
+          <div className="col-span-1 lg:col-span-2">
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Status</label>
+            <div className="relative">
+              <button
+                ref={statusBtnRef}
+                type="button"
+                onClick={() => {
+                  const rect = statusBtnRef.current?.getBoundingClientRect() ?? null;
+                  setStatusDropdownRect(rect);
+                  setStatusDropdownOpen(o => !o);
+                  setDepartmentDropdownOpen(false);
+                }}
+                className={`w-full flex items-center justify-between pl-4 pr-3 py-2.5 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border rounded-xl transition-all text-sm cursor-pointer hover:bg-white dark:hover:bg-slate-800 ${
+                  statusDropdownOpen
+                    ? 'border-blue-500 ring-2 ring-blue-500/20 bg-white dark:bg-slate-800'
+                    : 'border-slate-200 dark:border-slate-700'
+                }`}
               >
-                <option value="all">Todos</option>
-                {DEPARTMENTS.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
+                <span className="flex items-center gap-2">
+                  {statusFilter === 'all' && <span className="w-2 h-2 rounded-full bg-slate-400" />}
+                  {statusFilter === 'pending' && <span className="w-2 h-2 rounded-full bg-yellow-400" />}
+                  {statusFilter === 'approved' && <span className="w-2 h-2 rounded-full bg-emerald-400" />}
+                  {statusFilter === 'rejected' && <span className="w-2 h-2 rounded-full bg-red-400" />}
+                  {statusFilter === 'completed' && <span className="w-2 h-2 rounded-full bg-blue-400" />}
+                  <span className="text-slate-700 dark:text-slate-200">
+                    {statusFilter === 'all' ? 'Todos' : statusFilter === 'pending' ? 'Pendente' : statusFilter === 'approved' ? 'Aprovado' : statusFilter === 'rejected' ? 'Rejeitado' : 'Concluído'}
+                  </span>
+                </span>
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${statusDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Departamento */}
+          {['admin', 'operator'].includes(userProfile?.role) && (
+            <div className="col-span-1 lg:col-span-2">
+              <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Departamento</label>
+              <div className="relative">
+                <button
+                  ref={departmentBtnRef}
+                  type="button"
+                  onClick={() => {
+                    const rect = departmentBtnRef.current?.getBoundingClientRect() ?? null;
+                    setDepartmentDropdownRect(rect);
+                    setDepartmentDropdownOpen(o => !o);
+                    setStatusDropdownOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between pl-4 pr-3 py-2.5 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border rounded-xl transition-all text-sm cursor-pointer hover:bg-white dark:hover:bg-slate-800 ${
+                    departmentDropdownOpen
+                      ? 'border-blue-500 ring-2 ring-blue-500/20 bg-white dark:bg-slate-800'
+                      : 'border-slate-200 dark:border-slate-700'
+                  }`}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Building2 className="w-3.5 h-3.5 text-slate-400 flex-shrink-0" />
+                    <span className="text-slate-700 dark:text-slate-200 truncate">
+                      {departmentFilter === 'all' ? 'Todos' : departmentFilter}
+                    </span>
+                  </span>
+                  <ChevronDown className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform duration-200 ${departmentDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+              </div>
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-semibold text-gray-600 dark:text-gray-300 uppercase tracking-wider mb-2">Data</label>
+          {/* Data */}
+          <div className="col-span-1 lg:col-span-2">
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Data</label>
             <input
               type="date"
               value={dateFilter}
               onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full px-3 sm:px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 text-sm dark:text-gray-100"
+              className="w-full pl-4 pr-4 py-2.5 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all text-sm text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800"
             />
           </div>
 
-          <div className="col-span-2 sm:col-span-1 flex items-end">
-            <div className="w-full px-3 sm:px-4 py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-100 dark:border-blue-800 rounded-xl text-center sm:text-left">
-              <span className="text-xs sm:text-sm font-medium text-blue-700 dark:text-blue-300">
-                {filteredRequests.length} {filteredRequests.length === 1 ? 'solicitação' : 'solicitações'}
+          {/* Contador */}
+          <div className="col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-end">
+            <label className="block text-sm font-medium mb-1.5 invisible">&#8203;</label>
+            <div className="flex justify-center lg:justify-end">
+              <span className="inline-flex items-center px-4 py-2 bg-blue-50/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-sm font-semibold border border-blue-100 dark:border-blue-800 whitespace-nowrap">
+                <span className="font-bold mr-1">{filteredRequests.length}</span>
+                {filteredRequests.length === 1 ? 'solicitação' : 'solicitações'}
               </span>
             </div>
           </div>
+
         </div>
       </div>
 
       {/* Stats Cards - Apenas para admin e operator (informação de gestão) */}
       {userProfile?.role !== 'requester' && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           {/* Pendentes */}
           <button
             onClick={() => toggleStatusCardFilter('pending')}
-            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
-              selectedStatusFilters.has('pending') 
-                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50 dark:bg-yellow-900/30' 
-                : 'border-gray-100 dark:border-gray-700 hover:border-yellow-200 dark:hover:border-yellow-700'
+            className={`bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl rounded-2xl p-5 border shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden text-left group ${
+              selectedStatusFilters.has('pending')
+                ? 'border-yellow-400/60 ring-2 ring-yellow-400/20'
+                : 'border-slate-200/50 dark:border-slate-700/50 hover:border-yellow-300/50 dark:hover:border-yellow-700/50'
             }`}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100 dark:bg-yellow-900/50'
-              }`}>
-                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600 dark:text-yellow-400'}`} />
+              <div className="w-11 h-11 bg-yellow-100 dark:bg-yellow-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                <Clock className="w-5 h-5 text-yellow-600 dark:text-yellow-400 group-hover:scale-110 transition-transform duration-300" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                <p className={`text-2xl font-bold ${
+                  selectedStatusFilters.has('pending') ? 'text-yellow-600 dark:text-yellow-400' : 'text-slate-800 dark:text-slate-100'
+                }`}>
                   {requests.filter(r => r.status === 'pending').length}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Pendentes</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Pendentes</p>
               </div>
             </div>
           </button>
@@ -1433,23 +1654,23 @@ const handleCompleteRequest = async (request: Request) => {
           {/* Aprovadas */}
           <button
             onClick={() => toggleStatusCardFilter('approved')}
-            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
-              selectedStatusFilters.has('approved') 
-                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50 dark:bg-green-900/30' 
-                : 'border-gray-100 dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700'
+            className={`bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl rounded-2xl p-5 border shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden text-left group ${
+              selectedStatusFilters.has('approved')
+                ? 'border-emerald-400/60 ring-2 ring-emerald-400/20'
+                : 'border-slate-200/50 dark:border-slate-700/50 hover:border-emerald-300/50 dark:hover:border-emerald-700/50'
             }`}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('approved') ? 'bg-green-500' : 'bg-green-100 dark:bg-green-900/50'
-              }`}>
-                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('approved') ? 'text-white' : 'text-green-600 dark:text-green-400'}`} />
+              <div className="w-11 h-11 bg-emerald-100 dark:bg-emerald-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-transform duration-300" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                <p className={`text-2xl font-bold ${
+                  selectedStatusFilters.has('approved') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-100'
+                }`}>
                   {requests.filter(r => r.status === 'approved').length}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Aprovadas</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Aprovadas</p>
               </div>
             </div>
           </button>
@@ -1457,23 +1678,23 @@ const handleCompleteRequest = async (request: Request) => {
           {/* Rejeitadas */}
           <button
             onClick={() => toggleStatusCardFilter('rejected')}
-            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
-              selectedStatusFilters.has('rejected') 
-                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50 dark:bg-red-900/30' 
-                : 'border-gray-100 dark:border-gray-700 hover:border-red-200 dark:hover:border-red-700'
+            className={`bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl rounded-2xl p-5 border shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden text-left group ${
+              selectedStatusFilters.has('rejected')
+                ? 'border-red-400/60 ring-2 ring-red-400/20'
+                : 'border-slate-200/50 dark:border-slate-700/50 hover:border-red-300/50 dark:hover:border-red-700/50'
             }`}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('rejected') ? 'bg-red-500' : 'bg-red-100 dark:bg-red-900/50'
-              }`}>
-                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('rejected') ? 'text-white' : 'text-red-600 dark:text-red-400'}`} />
+              <div className="w-11 h-11 bg-red-100 dark:bg-red-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                <XCircle className="w-5 h-5 text-red-600 dark:text-red-400 group-hover:scale-110 transition-transform duration-300" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                <p className={`text-2xl font-bold ${
+                  selectedStatusFilters.has('rejected') ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-slate-100'
+                }`}>
                   {requests.filter(r => r.status === 'rejected').length}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Rejeitadas</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Rejeitadas</p>
               </div>
             </div>
           </button>
@@ -1481,23 +1702,23 @@ const handleCompleteRequest = async (request: Request) => {
           {/* Concluídas */}
           <button
             onClick={() => toggleStatusCardFilter('completed')}
-            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
-              selectedStatusFilters.has('completed') 
-                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50 dark:bg-blue-900/30' 
-                : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-700'
+            className={`bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl rounded-2xl p-5 border shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300 relative overflow-hidden text-left group ${
+              selectedStatusFilters.has('completed')
+                ? 'border-blue-400/60 ring-2 ring-blue-400/20'
+                : 'border-slate-200/50 dark:border-slate-700/50 hover:border-blue-300/50 dark:hover:border-blue-700/50'
             }`}
           >
             <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('completed') ? 'bg-blue-500' : 'bg-blue-100 dark:bg-blue-900/50'
-              }`}>
-                <Play className={`w-5 h-5 ${selectedStatusFilters.has('completed') ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
+              <div className="w-11 h-11 bg-blue-100 dark:bg-blue-900/40 rounded-full flex items-center justify-center flex-shrink-0">
+                <Play className="w-5 h-5 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform duration-300" />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+                <p className={`text-2xl font-bold ${
+                  selectedStatusFilters.has('completed') ? 'text-blue-600 dark:text-blue-400' : 'text-slate-800 dark:text-slate-100'
+                }`}>
                   {requests.filter(r => r.status === 'completed').length}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Concluídas</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Concluídas</p>
               </div>
             </div>
           </button>
@@ -1530,7 +1751,7 @@ const handleCompleteRequest = async (request: Request) => {
         {filteredRequests.map((request, index) => (
           <div 
             key={request.id} 
-            className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 dark:hover:border-blue-800 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
+            className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/50 dark:border-slate-700/50 p-5 sm:p-6 hover:border-blue-300/50 dark:hover:border-blue-600/50 hover:shadow-xl transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
             style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
           >
             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
@@ -1580,21 +1801,22 @@ const handleCompleteRequest = async (request: Request) => {
                 <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center shadow-sm shadow-blue-500/25 flex-shrink-0">
                   <Package className="w-3 h-3 text-white" />
                 </div>
-                <h4 className="text-sm font-medium text-gray-700 dark:text-gray-200">Produtos</h4>
-                <span className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-full">
+                <h4 className="text-sm font-medium text-slate-700 dark:text-slate-200">Produtos</h4>
+                <span className="px-2 py-0.5 bg-blue-500/10 dark:bg-blue-500/20 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-full border border-blue-500/20">
                   {request.items.length} item(ns)
                 </span>
               </div>
-              <div className="grid grid-cols-1 gap-2">
+              <div className="space-y-1.5">
                 {request.items.map((item, idx) => (
-                  <div key={idx} className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600 hover:border-blue-200 dark:hover:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all duration-200">
-                    <div className="w-6 h-6 sm:w-7 sm:h-7 bg-white dark:bg-gray-700 rounded-lg flex items-center justify-center mr-2 shadow-sm border border-gray-100 dark:border-gray-600 flex-shrink-0">
-                      <span className="text-[10px] sm:text-xs font-bold text-blue-600 dark:text-blue-400">{idx + 1}</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-xs sm:text-sm text-gray-800 dark:text-gray-200 font-medium truncate block">{item.productName}</span>
-                    </div>
-                    <span className="ml-2 px-1.5 sm:px-2 py-0.5 sm:py-1 bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300 text-[10px] sm:text-xs font-semibold rounded-lg whitespace-nowrap flex-shrink-0">
+                  <div
+                    key={idx}
+                    className="flex items-center gap-2.5 px-3 py-2 rounded-xl border border-slate-100 dark:border-slate-700/60 bg-slate-50/60 dark:bg-slate-800/40 hover:bg-white dark:hover:bg-slate-700/60 hover:border-blue-200 dark:hover:border-blue-700/60 hover:shadow-sm transition-all duration-150 group/item"
+                  >
+                    <span className="w-5 h-5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-500 dark:text-blue-400 text-[10px] font-bold flex items-center justify-center flex-shrink-0 group-hover/item:bg-blue-500 group-hover/item:text-white transition-colors duration-150">
+                      {idx + 1}
+                    </span>
+                    <span className="text-xs sm:text-sm text-slate-700 dark:text-slate-200 font-medium flex-1 min-w-0 truncate">{item.productName}</span>
+                    <span className="ml-auto px-2.5 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] sm:text-xs font-semibold rounded-full border border-blue-200/60 dark:border-blue-700/50 whitespace-nowrap flex-shrink-0">
                       {item.quantity} un.
                     </span>
                   </div>
@@ -1602,47 +1824,47 @@ const handleCompleteRequest = async (request: Request) => {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-4">
-              <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-blue-500/25 flex-shrink-0">
-                  <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-3 sm:p-4 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-700/50 mb-4">
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center shadow-sm shadow-blue-500/20 flex-shrink-0">
+                  <User className="w-3.5 h-3.5 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Solicitante</p>
-                  <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{request.requestedBy}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Solicitante</p>
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{request.requestedBy}</p>
                 </div>
               </div>
 
-              <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
-                <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-purple-500/25 flex-shrink-0">
-                  <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 bg-gradient-to-br from-purple-500 to-violet-500 rounded-lg flex items-center justify-center shadow-sm shadow-purple-500/20 flex-shrink-0">
+                  <Building2 className="w-3.5 h-3.5 text-white" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Departamento</p>
-                  <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{request.department || 'N/A'}</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Departamento</p>
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{request.department || 'N/A'}</p>
                 </div>
               </div>
 
               {request.supplierName && (
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-emerald-500/25 flex-shrink-0">
-                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 bg-gradient-to-br from-emerald-500 to-teal-500 rounded-lg flex items-center justify-center shadow-sm shadow-emerald-500/20 flex-shrink-0">
+                    <Building2 className="w-3.5 h-3.5 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Fornecedor</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{request.supplierName}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Fornecedor</p>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{request.supplierName}</p>
                   </div>
                 </div>
               )}
 
               {request.approvedBy && (
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-xl border border-green-100 dark:border-green-800">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-green-500/25 flex-shrink-0">
-                    <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 bg-gradient-to-br from-emerald-500 to-green-500 rounded-lg flex items-center justify-center shadow-sm shadow-emerald-500/20 flex-shrink-0">
+                    <Check className="w-3.5 h-3.5 text-white" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Aprovado por</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-200 truncate">{request.approvedBy}</p>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Aprovado por</p>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{request.approvedBy}</p>
                   </div>
                 </div>
               )}
@@ -1655,7 +1877,7 @@ const handleCompleteRequest = async (request: Request) => {
                 </div>
                 <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200">Justificativa</p>
               </div>
-              <div className="text-gray-700 dark:text-gray-200 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-600 text-xs sm:text-sm leading-relaxed break-words">{renderFormattedText(request.reason)}</div>
+              <div className="text-slate-600 dark:text-slate-300 bg-white/50 dark:bg-slate-900/50 p-3 sm:p-4 rounded-xl border border-slate-100/80 dark:border-slate-700/40 text-xs leading-relaxed break-words italic">{renderFormattedText(request.reason)}</div>
               <ChatButton
                 requestId={request.id}
                 userId={user?.id || ''}
@@ -1986,12 +2208,13 @@ const handleCompleteRequest = async (request: Request) => {
         }}
       />
     )}
-    {viewSignature && (
+    {viewSignature && ReactDOM.createPortal(
       <SignatureViewModal
         receiverName={viewSignature.name}
         signature={viewSignature.signature}
         onClose={() => setViewSignature(null)}
-      />
+      />,
+      document.body
     )}
     </div>
     );

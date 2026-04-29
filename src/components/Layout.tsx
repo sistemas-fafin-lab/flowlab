@@ -32,11 +32,13 @@ import {
   Headphones,
   KanbanSquare,
   Server,
+  Bell,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission, getRoleLabel } from '../utils/permissions';
 import { ThemeToggle } from './ThemeToggle';
+import { NotificationBell } from './NotificationBell';
 import { useTheme } from '../hooks/useTheme';
 import { supabase } from '../lib/supabase';
 
@@ -588,6 +590,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         subItems: [
           { name: 'Configurar Períodos', href: '/request-periods', icon: Clock, permission: 'canConfigureRequestPeriods' },
           { name: 'Provedores de Mensagens', href: '/messaging-settings', icon: MessageSquare, permission: 'canManageUsers' },
+          { name: 'Notificações', href: '/system/notifications', icon: Bell, permission: 'canManageUsers' },
         ],
       },
       {
@@ -797,7 +800,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // ═══════════════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
+    <div style={{ isolation: 'isolate' }} className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 transition-colors duration-300">
       {/* ─── Mobile drawer ─── */}
       <div className={`fixed inset-0 z-50 lg:hidden ${sidebarOpen ? '' : 'pointer-events-none'}`}>
         {/* Backdrop */}
@@ -867,8 +870,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* ─── Desktop sidebar ─── */}
-      <div className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col h-screen overflow-hidden transition-all duration-300 ${isCollapsed ? 'w-20' : 'w-64'}`}>
-        <div className="flex flex-col h-full w-full overflow-hidden border-r border-gray-200/80 dark:border-gray-700/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl">
+      <div className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col h-screen transition-all duration-300 z-[200] ${isCollapsed ? 'w-20' : 'w-56 xl:w-64'}`}>
+        <div className="flex flex-col h-full w-full border-r border-gray-200/80 dark:border-gray-700/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl">
           {/* Desktop Header */}
           <div className={`flex items-center h-16 border-b border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-800 transition-all duration-200 ${isCollapsed ? 'px-2 justify-center' : 'px-4'}`}>
             <Link to="/" className={`flex items-center ${isCollapsed ? 'justify-center' : 'flex-1 justify-center'}`}>
@@ -928,7 +931,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           </nav>
 
           {/* Desktop User Footer */}
-          <div className="border-t border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-gray-800 overflow-hidden">
+          <div className="border-t border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-gray-800">
             <AnimatePresence mode="wait">
               {isCollapsed ? (
                 /* Collapsed: stacked avatar + logout */
@@ -944,6 +947,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25">
                       <Shield className="w-5 h-5 text-white" />
                     </div>
+                  </SidebarTooltip>
+                  <SidebarTooltip label="Notificações" show={true}>
+                    <NotificationBell />
                   </SidebarTooltip>
                   <SidebarTooltip label="Tema" show={true}>
                     <ThemeToggle />
@@ -967,7 +973,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <div className="flex items-center gap-3 p-2.5 rounded-xl bg-white dark:bg-gray-800 shadow-sm dark:shadow-gray-900/50">
+                  <div className="flex items-center flex-wrap gap-2 lg:gap-1.5 xl:gap-2 p-2 lg:p-1.5 xl:p-2.5 rounded-xl bg-white dark:bg-gray-800 shadow-sm dark:shadow-gray-900/50">
                     <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/25">
                       <Shield className="w-5 h-5 text-white" />
                     </div>
@@ -982,6 +988,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">{userProfile.department}</p>
                       )}
                     </div>
+                    <NotificationBell />
                     <button
                       onClick={handleSignOut}
                       className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all flex-shrink-0"
@@ -1027,7 +1034,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* ─── Main content ─── */}
-      <div className={`min-h-screen transition-[padding] duration-300 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-64'}`}>
+      <div className={`min-h-screen transition-[padding] duration-300 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-56 xl:pl-64'}`}>
         {/* Mobile header */}
         <div className="sticky top-0 z-40 flex h-16 items-center px-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl lg:hidden">
           <button
@@ -1045,11 +1052,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
               />
             </Link>
           </div>
-          <ThemeToggle />
+          <div className="flex items-center gap-1">
+            <NotificationBell />
+            <ThemeToggle />
+          </div>
         </div>
 
         {/* Page content */}
-        <main className={`min-h-screen ${location.pathname === '/' ? '' : 'py-4 px-4 sm:px-6 lg:px-8'}`}>
+        <main className={`min-h-screen ${location.pathname === '/' ? '' : 'py-3 px-3 sm:px-4 lg:px-5 xl:px-8'}`}>
           {children}
         </main>
       </div>
