@@ -39,6 +39,17 @@ export const QuotationStatusColors: Record<QuotationStatus, string> = {
 };
 
 // ============================================
+// PAYMENT METHOD
+// ============================================
+export type PaymentMethod = 'pix' | 'credit_card' | 'boleto';
+
+export const PaymentMethodLabels: Record<PaymentMethod, string> = {
+  pix: 'Pix',
+  credit_card: 'Cartão de Crédito',
+  boleto: 'Boleto Bancário',
+};
+
+// ============================================
 // PROPOSAL STATUS
 // ============================================
 export type ProposalStatus =
@@ -197,8 +208,11 @@ export interface SupplierProposal {
   totalAmount: number;
   deliveryTime: string;
   paymentTerms?: string;
+  paymentMethod?: PaymentMethod;
+  boletoDueDays?: number;
   validUntil?: string;
   notes?: string;
+  additionalCosts?: { label: string; value: number }[];
   attachments?: ProposalAttachment[];
   submittedAt?: string;
   selectedAt?: string;
@@ -391,12 +405,12 @@ export interface SubmitProposalInput {
   }[];
   deliveryTime: string;
   paymentTerms?: string;
+  paymentMethod?: PaymentMethod;
+  boletoDueDays?: number;
   validUntil?: string;
   notes?: string;
+  additionalCosts?: { label: string; value: number }[];
 }
-
-// ============================================
-// FILTER & SORT
 // ============================================
 export interface QuotationFilters {
   status?: QuotationStatus[];
@@ -439,5 +453,6 @@ export interface QuotationPermissions {
   canReject: boolean;
   canConvertToPurchase: boolean;
   canCancel: boolean;
+  canRevert: boolean;
   maxApprovalAmount: number;
 }

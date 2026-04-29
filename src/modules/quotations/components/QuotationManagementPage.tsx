@@ -29,6 +29,7 @@ import {
 } from '../types';
 import { QuotationDrawer } from './QuotationDrawer';
 import { CreateQuotationModal } from './CreateQuotationModal';
+import { PurchaseOrderModal } from './PurchaseOrderModal';
 import { useInventory } from '../../../hooks/useInventory';
 
 // Helper functions
@@ -96,6 +97,7 @@ export const QuotationManagementPage: React.FC = () => {
     cancelQuotation,
     convertToPurchase,
     advanceToReview,
+    revertStatus,
     addItem,
     removeItem,
     setFilters,
@@ -107,10 +109,19 @@ export const QuotationManagementPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [purchaseOrder, setPurchaseOrder] = useState<{ quotation: Quotation; code: string } | null>(null);
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<QuotationStatus>>(new Set());
 
+  // Keep selectedQuotation in sync with quotations array so the drawer always shows fresh data
+  const selectedId = selectedQuotation?.id;
+  useEffect(() => {
+    if (!selectedId) return;
+    const updated = quotations.find(q => q.id === selectedId);
+    if (updated) setSelectedQuotation(updated);
+  }, [quotations, selectedId]);
+
   const { products, requests } = useInventory();
-  const permissions = getPermissions();
+  const permissions = getPermissions(selectedQuotation ?? undefined);
 
   useEffect(() => {
     refresh();
@@ -140,12 +151,7 @@ export const QuotationManagementPage: React.FC = () => {
 
   const handleRefreshAfterAction = async () => {
     await refresh();
-    if (selectedQuotation) {
-      const updated = quotations.find(q => q.id === selectedQuotation.id);
-      if (updated) {
-        setSelectedQuotation(updated);
-      }
-    }
+    // selectedQuotation is synced automatically via useEffect above
   };
 
   // Filter handlers
@@ -730,8 +736,12 @@ export const QuotationManagementPage: React.FC = () => {
             await handleRefreshAfterAction();
           }}
           onConvertToPurchase={async () => {
-            await convertToPurchase(selectedQuotation.id);
+            const snapshot = selectedQuotation;
+            const code = await convertToPurchase(selectedQuotation.id);
             await handleRefreshAfterAction();
+            // Show purchase order modal with the snapshot of the quotation at time of conversion
+            const refreshed = quotations.find(q => q.id === snapshot.id) ?? snapshot;
+            setPurchaseOrder({ quotation: { ...refreshed, finalTotalAmount: snapshot.finalTotalAmount }, code });
           }}
           onSubmitProposal={async (quotationId, data) => {
             await submitProposal({ ...data, quotationId });
@@ -739,6 +749,10 @@ export const QuotationManagementPage: React.FC = () => {
           }}
           onAdvanceToReview={async () => {
             await advanceToReview(selectedQuotation.id);
+            await handleRefreshAfterAction();
+          }}
+          onRevert={async () => {
+            await revertStatus(selectedQuotation.id);
             await handleRefreshAfterAction();
           }}
           onAddItem={async (quotationId, item) => {
@@ -752,6 +766,16 @@ export const QuotationManagementPage: React.FC = () => {
           }}
           allSuppliers={suppliers}
           products={products.map(p => ({ id: p.id, name: p.name, code: p.code, unit: p.unit, category: p.category, unitPrice: p.unitPrice }))}
+        />
+      )}
+
+      {/* Purchase Order Modal */}
+      {purchaseOrder && (
+        <PurchaseOrderModal
+          isOpen={true}
+          quotation={purchaseOrder.quotation}
+          purchaseOrderCode={purchaseOrder.code}
+          onClose={() => setPurchaseOrder(null)}
         />
       )}
     </div>

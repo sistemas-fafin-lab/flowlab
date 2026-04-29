@@ -178,10 +178,10 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
 
   if (quotation.proposals.length === 0) {
     return (
-      <div className="bg-white rounded-2xl border border-gray-200 p-8 text-center">
-        <Building2 className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Nenhuma proposta recebida</h3>
-        <p className="text-gray-500">
+      <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-8 text-center shadow-sm">
+        <Building2 className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-600 mb-4" />
+        <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300 mb-1">Nenhuma proposta recebida</h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
           As propostas dos fornecedores aparecerão aqui quando forem enviadas.
         </p>
       </div>
@@ -192,28 +192,26 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
     <div className="space-y-4">
       {/* Stats Summary */}
       {stats && (
-        <div className="bg-gradient-to-r from-slate-50 to-gray-50 rounded-2xl border border-gray-200 p-4 sm:p-6">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <p className="text-xs text-gray-500 mb-1">Propostas</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.proposalCount}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-gray-500 mb-1">Menor Valor</p>
-              <p className="text-xl sm:text-2xl font-bold text-green-600">{formatCurrency(stats.lowestTotal)}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-gray-500 mb-1">Maior Valor</p>
-              <p className="text-xl sm:text-2xl font-bold text-red-600">{formatCurrency(stats.highestTotal)}</p>
-            </div>
-            <div className="text-center">
-              <p className="text-xs text-gray-500 mb-1">Economia Potencial</p>
-              <div className="flex items-center justify-center gap-1">
-                <TrendingDown className="w-4 h-4 text-green-600" />
-                <p className="text-xl sm:text-2xl font-bold text-green-600">
-                  {stats.savingsPercentage.toFixed(1)}%
-                </p>
-              </div>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-3 text-center shadow-sm">
+            <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">Propostas</p>
+            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100">{stats.proposalCount}</p>
+          </div>
+          <div className="bg-emerald-50/80 dark:bg-emerald-900/20 border border-emerald-200/70 dark:border-emerald-800/50 rounded-2xl p-3 text-center shadow-sm">
+            <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider mb-1">Menor Valor</p>
+            <p className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-300">{formatCurrency(stats.lowestTotal)}</p>
+          </div>
+          <div className="bg-red-50/80 dark:bg-red-900/20 border border-red-200/70 dark:border-red-800/50 rounded-2xl p-3 text-center shadow-sm">
+            <p className="text-[10px] font-semibold text-red-500 dark:text-red-400 uppercase tracking-wider mb-1">Maior Valor</p>
+            <p className="text-base sm:text-lg font-bold text-red-600 dark:text-red-400">{formatCurrency(stats.highestTotal)}</p>
+          </div>
+          <div className="bg-blue-50/80 dark:bg-blue-900/20 border border-blue-200/70 dark:border-blue-800/50 rounded-2xl p-3 text-center shadow-sm">
+            <p className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 uppercase tracking-wider mb-1">Economia Potencial</p>
+            <div className="flex items-center justify-center gap-1">
+              <TrendingDown className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+              <p className="text-base sm:text-lg font-bold text-emerald-700 dark:text-emerald-300">
+                {stats.savingsPercentage.toFixed(1)}%
+              </p>
             </div>
           </div>
         </div>
@@ -222,11 +220,11 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
       {/* Filters and Sort */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-gray-400" />
+          <Filter className="w-4 h-4 text-slate-400 dark:text-slate-500" />
           <select
             value={selectedSupplierFilter || ''}
             onChange={(e) => setSelectedSupplierFilter(e.target.value || null)}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+            className="px-3 py-1.5 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white/80 dark:bg-slate-800/80 text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-blue-500/30 outline-none transition-all"
           >
             <option value="">Todos os fornecedores</option>
             {comparisonData.map(d => (
@@ -238,8 +236,8 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="text-sm text-gray-500">Ordenar por:</span>
-          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Ordenar por:</span>
+          <div className="flex rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden bg-white/60 dark:bg-slate-800/60">
             {[
               { field: 'totalAmount' as SortField, label: 'Preço' },
               { field: 'deliveryTime' as SortField, label: 'Prazo' },
@@ -248,10 +246,10 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
               <button
                 key={field}
                 onClick={() => toggleSort(field)}
-                className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 ${
+                className={`px-3 py-1.5 text-xs font-medium flex items-center gap-1 transition-colors ${
                   sortField === field
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                    ? 'bg-blue-600/10 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-700/50'
                 }`}
               >
                 {label}
@@ -265,77 +263,77 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
       </div>
 
       {/* Comparison Table */}
-      <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+      <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
         <div className="overflow-x-auto">
           <table className="min-w-full">
             <thead>
-              <tr className="bg-gray-50 border-b border-gray-200">
-                <th className="px-4 sm:px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+              <tr className="bg-slate-50/80 dark:bg-slate-900/50 border-b border-slate-200/70 dark:border-slate-700/50">
+                <th className="px-4 sm:px-5 py-3 text-left text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Fornecedor
                 </th>
                 {quotation.items.map(item => (
                   <th
                     key={item.id}
-                    className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider"
+                    className="px-3 sm:px-4 py-3 text-center text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider"
                   >
                     <div className="truncate max-w-[120px]" title={item.productName}>
                       {item.productName}
                     </div>
-                    <div className="text-gray-400 font-normal">
+                    <div className="text-slate-400 dark:text-slate-500 font-normal normal-case text-[10px]">
                       {item.quantity} {item.unit}
                     </div>
                   </th>
                 ))}
-                <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 text-center text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Total
                 </th>
-                <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                <th className="px-3 sm:px-4 py-3 text-center text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Prazo
                 </th>
                 {canSelect && (
-                  <th className="px-4 sm:px-6 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                  <th className="px-3 sm:px-4 py-3 text-center text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                     Ação
                   </th>
                 )}
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-200">
-              {sortedData.map((supplier, index) => {
+            <tbody className="divide-y divide-slate-100/70 dark:divide-slate-700/50">
+              {sortedData.map((supplier) => {
                 const isSelected = supplier.proposalId === quotation.selectedProposalId;
                 
                 return (
                   <tr
                     key={supplier.proposalId}
-                    className={`${
+                    className={`transition-colors ${
                       isSelected
-                        ? 'bg-green-50'
+                        ? 'bg-emerald-50/70 dark:bg-emerald-900/15'
                         : supplier.isBestOverall
-                        ? 'bg-blue-50'
-                        : 'bg-white hover:bg-gray-50'
-                    } transition-colors`}
+                        ? 'bg-blue-50/50 dark:bg-blue-900/10'
+                        : 'hover:bg-slate-50/70 dark:hover:bg-slate-700/30'
+                    }`}
                   >
                     {/* Supplier */}
-                    <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center">
-                          <Building2 className="w-4 h-4 text-gray-500" />
+                    <td className="px-4 sm:px-5 py-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5">
+                        <div className="flex-shrink-0 w-8 h-8 rounded-xl bg-slate-100 dark:bg-slate-700/70 flex items-center justify-center">
+                          <Building2 className="w-4 h-4 text-slate-500 dark:text-slate-400" />
                         </div>
                         <div>
-                          <div className="flex items-center gap-1">
-                            <span className="text-sm font-medium text-gray-900">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                               {supplier.supplierName}
                             </span>
                             {isSelected && (
-                              <span className="px-1.5 py-0.5 text-xs font-semibold bg-green-100 text-green-800 rounded">
+                              <span className="px-1.5 py-0.5 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-lg">
                                 Selecionado
                               </span>
                             )}
                             {supplier.isBestOverall && !isSelected && (
-                              <Crown className="w-4 h-4 text-amber-500" />
+                              <Crown className="w-3.5 h-3.5 text-amber-500" />
                             )}
                           </div>
                           {supplier.paymentTerms && (
-                            <p className="text-xs text-gray-500">{supplier.paymentTerms}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{supplier.paymentTerms}</p>
                           )}
                         </div>
                       </div>
@@ -346,45 +344,49 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                       const proposalItem = supplier.items.find(i => i.itemId === item.id);
                       
                       return (
-                        <td key={item.id} className="px-4 sm:px-6 py-4 text-center">
+                        <td key={item.id} className="px-3 sm:px-4 py-3.5 text-center">
                           {proposalItem ? (
                             <div>
                               <div className="flex items-center justify-center gap-1">
-                                <span className={`text-sm font-medium ${
-                                  proposalItem.isLowestPrice ? 'text-green-600' : 'text-gray-900'
+                                <span className={`text-sm font-semibold ${
+                                  proposalItem.isLowestPrice
+                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                    : 'text-slate-800 dark:text-slate-200'
                                 }`}>
                                   {formatCurrency(proposalItem.unitPrice)}
                                 </span>
                                 {proposalItem.isLowestPrice && (
-                                  <Star className="w-3 h-3 text-green-500 fill-current" />
+                                  <Star className="w-3 h-3 text-emerald-500 fill-current" />
                                 )}
                               </div>
                               {proposalItem.deliveryTime && (
-                                <div className="flex items-center justify-center gap-1 text-xs text-gray-500 mt-0.5">
+                                <div className="flex items-center justify-center gap-1 text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                                   <Clock className="w-3 h-3" />
                                   {proposalItem.deliveryTime}
                                   {proposalItem.isBestDelivery && (
-                                    <Award className="w-3 h-3 text-blue-500" />
+                                    <Award className="w-3 h-3 text-blue-500 dark:text-blue-400" />
                                   )}
                                 </div>
                               )}
                             </div>
                           ) : (
-                            <span className="text-gray-400">-</span>
+                            <span className="text-slate-300 dark:text-slate-600">—</span>
                           )}
                         </td>
                       );
                     })}
 
                     {/* Total */}
-                    <td className="px-4 sm:px-6 py-4 text-center">
+                    <td className="px-3 sm:px-4 py-3.5 text-center">
                       <div className={`text-sm font-bold ${
-                        supplier.isLowestTotal ? 'text-green-600' : 'text-gray-900'
+                        supplier.isLowestTotal
+                          ? 'text-emerald-600 dark:text-emerald-400'
+                          : 'text-slate-900 dark:text-slate-100'
                       }`}>
                         {formatCurrency(supplier.totalAmount)}
                       </div>
                       {supplier.savingsVsHighest > 0 && (
-                        <div className="flex items-center justify-center gap-1 text-xs text-green-600 mt-0.5">
+                        <div className="flex items-center justify-center gap-0.5 text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
                           <ArrowDown className="w-3 h-3" />
                           {formatCurrency(supplier.savingsVsHighest)}
                         </div>
@@ -392,27 +394,27 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                     </td>
 
                     {/* Delivery */}
-                    <td className="px-4 sm:px-6 py-4 text-center">
+                    <td className="px-3 sm:px-4 py-3.5 text-center">
                       <div className="flex items-center justify-center gap-1">
-                        <Clock className="w-4 h-4 text-gray-400" />
-                        <span className="text-sm text-gray-700">
-                          {supplier.deliveryTime || '-'}
+                        <Clock className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+                        <span className="text-sm text-slate-700 dark:text-slate-300">
+                          {supplier.deliveryTime || '—'}
                         </span>
                       </div>
                     </td>
 
                     {/* Action */}
                     {canSelect && (
-                      <td className="px-4 sm:px-6 py-4 text-center">
+                      <td className="px-3 sm:px-4 py-3.5 text-center">
                         {isSelected ? (
-                          <span className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full">
                             <Check className="w-3 h-3" />
                             Selecionado
                           </span>
                         ) : (
                           <button
                             onClick={() => onSelectWinner?.(supplier.proposalId)}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
                           >
                             <Check className="w-3 h-3" />
                             Selecionar
@@ -429,17 +431,17 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
       </div>
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-4 text-xs text-gray-500">
-        <div className="flex items-center gap-1">
-          <Star className="w-3 h-3 text-green-500 fill-current" />
+      <div className="flex flex-wrap items-center gap-4 text-xs text-slate-500 dark:text-slate-400 px-1">
+        <div className="flex items-center gap-1.5">
+          <Star className="w-3 h-3 text-emerald-500 fill-current" />
           <span>Menor preço do item</span>
         </div>
-        <div className="flex items-center gap-1">
-          <Award className="w-3 h-3 text-blue-500" />
+        <div className="flex items-center gap-1.5">
+          <Award className="w-3 h-3 text-blue-500 dark:text-blue-400" />
           <span>Melhor prazo do item</span>
         </div>
-        <div className="flex items-center gap-1">
-          <Crown className="w-4 h-4 text-amber-500" />
+        <div className="flex items-center gap-1.5">
+          <Crown className="w-3.5 h-3.5 text-amber-500" />
           <span>Melhor proposta geral</span>
         </div>
       </div>

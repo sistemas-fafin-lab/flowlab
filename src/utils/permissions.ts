@@ -22,6 +22,15 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canViewBilling', label: 'Visualizar Faturamento', group: 'Administração' },
   { key: 'canManageRoles', label: 'Gerenciar Cargos', group: 'Administração' },
   { key: 'canManageIT', label: 'Gerenciar TI', group: 'Tecnologia' },
+  // ── Cotações (granular) ────────────────────────────────────────────────────
+  { key: 'canViewQuotations',      label: 'Visualizar Cotações',              group: 'Cotações' },
+  { key: 'canCreateQuotations',    label: 'Criar Cotações',                   group: 'Cotações' },
+  { key: 'canAdvanceQuotation',    label: 'Avançar Etapa de Cotação',         group: 'Cotações' },
+  { key: 'canRevertQuotation',     label: 'Retornar Etapa de Cotação',        group: 'Cotações' },
+  { key: 'canSelectWinnerQuotation', label: 'Selecionar Proposta Vencedora',  group: 'Cotações' },
+  { key: 'canSubmitForApproval',   label: 'Submeter Cotação para Aprovação',  group: 'Cotações' },
+  { key: 'canConvertQuotation',    label: 'Converter Cotação em Pedido',      group: 'Cotações' },
+  { key: 'canCancelQuotation',     label: 'Cancelar Cotação',                 group: 'Cotações' },
 ];
 
 // ─── Fallback: permissões para roles legadas (usado quando custom_role não existe) ─

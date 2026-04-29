@@ -3,7 +3,80 @@ import react from '@vitejs/plugin-react';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createUmamiClient, buildTimeRangeParams } from './api/_lib/umami';
 import type { UmamiTimeRange, UmamiTimeUnit } from './api/_lib/umami';
+import nodemailer from 'nodemailer';
+// ── Dev-only middleware para POST /api/notifications/email ───────────────────
+function emailApiPlugin(env: Record<string, string>): Plugin {
+  return {
+    name: 'email-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        if (req.url !== '/api/notifications/email' || req.method !== 'POST') return next();
 
+        const send = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(body));
+        };
+
+        // Lê body JSON
+        let body: Record<string, string> = {};
+        try {
+          await new Promise<void>((resolve, reject) => {
+            let raw = '';
+            req.on('data', (chunk) => { raw += chunk; });
+            req.on('end', () => {
+              try { body = JSON.parse(raw); resolve(); }
+              catch { reject(new Error('JSON inválido')); }
+            });
+            req.on('error', reject);
+          });
+        } catch {
+          return send(400, { success: false, error: 'Body inválido' });
+        }
+
+        const { to, subject, html } = body;
+
+        if (!to || !subject || !html) {
+          return send(400, { success: false, error: 'Campos obrigatórios: to, subject, html' });
+        }
+
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
+          return send(400, { success: false, error: 'Endereço de email inválido' });
+        }
+
+        const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = env;
+
+        if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
+          console.error('[dev/email] Variáveis SMTP não configuradas no .env');
+          return send(500, { success: false, error: 'Configuração SMTP ausente' });
+        }
+
+        try {
+          const transporter = nodemailer.createTransport({
+            host: SMTP_HOST,
+            port: Number(SMTP_PORT),
+            secure: Number(SMTP_PORT) === 465,
+            auth: { user: SMTP_USER, pass: SMTP_PASS },
+          });
+
+          const info = await transporter.sendMail({
+            from: SMTP_FROM,
+            to,
+            subject,
+            html,
+          });
+
+          console.log('[dev/email] Enviado:', info.messageId);
+          send(200, { success: true, messageId: info.messageId });
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Erro desconhecido';
+          console.error('[dev/email] Falha:', message);
+          send(500, { success: false, error: message });
+        }
+      });
+    },
+  };
+}
 // ── Dev-only middleware that emula /api/umami sem precisar do vercel dev ──────
 function umamiApiPlugin(env: Record<string, string>): Plugin {
   return {
@@ -87,7 +160,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), umamiApiPlugin(env)],
+    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },

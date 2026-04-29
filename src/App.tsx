@@ -26,6 +26,7 @@ import ITHubDashboard from './components/IT/ITHubDashboard';
 import ITRequestManagement from './components/IT/ITRequestManagement';
 import ITKanbanBoard from './components/IT/ITKanbanBoard';
 import TestKanban from './components/IT/TestKanban';
+import { NotificationAdminPanel } from './components/NotificationAdminPanel';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ 
@@ -185,6 +186,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canManageUsers" permissions={userPermissions}>
               <MessagingProviderSettings />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/system/notifications"
+          element={
+            <ProtectedRoute permission="canManageUsers" permissions={userPermissions}>
+              <NotificationAdminPanel />
             </ProtectedRoute>
           }
         />

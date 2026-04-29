@@ -32,6 +32,7 @@ import {
   canApproveOrReject,
   canConvertToPurchase,
   canCancel,
+  getPreviousStatus,
 } from '../workflow/stateMachine';
 
 // Generate unique quotation code
@@ -82,21 +83,90 @@ export const useQuotation = () => {
     try {
       setLoading(true);
       
-      // For now, fetch from the existing quotations table
-      // In production, this would be a new quotations_v2 table with the full schema
       const { data, error: fetchError } = await supabase
         .from('quotations')
         .select(`
           *,
           quotation_items (*),
-          quotation_invited_suppliers (*)
+          quotation_invited_suppliers (*),
+          quotation_proposals (*, quotation_proposal_items (*)),
+          quotation_audit_logs (*)
         `)
         .order('created_at', { ascending: false });
 
       if (fetchError) throw fetchError;
 
       // Transform data to new model (backward compatible)
-      const transformedQuotations: Quotation[] = (data || []).map((q: any) => ({
+      const transformedQuotations: Quotation[] = (data || []).map((q: any) => {
+        // Build item lookup map for proposal item enrichment
+        const dbItems: any[] = q.quotation_items || [];
+
+        // If no items in quotation_items but there's a product in the main row, create synthetic
+        const items = dbItems.length > 0
+          ? dbItems.map((item: any) => ({
+              id: item.id,
+              quotationId: q.id,
+              productId: item.product_id,
+              productName: item.product_name || q.product_name,
+              productCode: item.product_code,
+              description: item.description,
+              quantity: item.quantity || q.requested_quantity,
+              unit: item.unit || 'un',
+              category: item.category || 'general',
+              estimatedUnitPrice: item.estimated_unit_price,
+              specifications: item.specifications,
+              createdAt: item.created_at,
+              updatedAt: item.updated_at,
+            }))
+          : q.product_name
+          ? [{
+              id: q.id + '_legacy_item',
+              quotationId: q.id,
+              productId: q.product_id || undefined,
+              productName: q.product_name,
+              quantity: q.requested_quantity || 1,
+              unit: 'un',
+              category: 'general',
+              estimatedUnitPrice: undefined,
+              createdAt: q.created_at,
+              updatedAt: q.updated_at,
+            }]
+          : [];
+
+        const itemMap = Object.fromEntries(items.map((i: any) => [i.id, i]));
+
+        // Map proposals from DB
+        const proposals: SupplierProposal[] = (q.quotation_proposals || []).map((p: any) => ({
+          id: p.id,
+          quotationId: q.id,
+          supplierId: p.supplier_id,
+          supplierName: p.supplier_name,
+          status: p.is_winner ? 'selected' : p.status === 'rejected' ? 'rejected' : 'submitted',
+          items: (p.quotation_proposal_items || []).map((pi: any) => {
+            const qItem = itemMap[pi.quotation_item_id];
+            return {
+              id: pi.id,
+              proposalId: p.id,
+              quotationItemId: pi.quotation_item_id,
+              productName: qItem?.productName || '',
+              quantity: qItem?.quantity || 0,
+              unitPrice: pi.unit_price,
+              totalPrice: pi.total_price,
+              deliveryTime: pi.delivery_days ? `${pi.delivery_days} dias` : undefined,
+              notes: pi.notes,
+            };
+          }),
+          totalAmount: p.total_amount,
+          deliveryTime: p.average_delivery_days ? `${p.average_delivery_days} dias` : '7 dias',
+          validUntil: p.valid_until,
+          notes: p.notes,
+          submittedAt: p.submitted_at,
+          selectedAt: p.selected_at,
+          createdAt: p.created_at,
+          updatedAt: p.updated_at,
+        }));
+
+        return {
         id: q.id,
         code: q.code || `COT-${q.id.slice(0, 8).toUpperCase()}`,
         title: q.title || q.product_name || 'Cotação sem título',
@@ -104,21 +174,7 @@ export const useQuotation = () => {
         status: mapLegacyStatus(q.status),
         requestId: q.request_id,
         requestCode: q.request_code,
-        items: (q.quotation_items || []).map((item: any) => ({
-          id: item.id,
-          quotationId: q.id,
-          productId: item.product_id,
-          productName: item.product_name || q.product_name,
-          productCode: item.product_code,
-          description: item.description,
-          quantity: item.quantity || q.requested_quantity,
-          unit: item.unit || 'un',
-          category: item.category || 'general',
-          estimatedUnitPrice: item.estimated_unit_price,
-          specifications: item.specifications,
-          createdAt: item.created_at,
-          updatedAt: item.updated_at,
-        })),
+        items,
         invitedSuppliers: (q.quotation_invited_suppliers || []).map((supplier: any) => ({
           id: supplier.id,
           quotationId: q.id,
@@ -130,14 +186,14 @@ export const useQuotation = () => {
           respondedAt: supplier.responded_at,
           status: supplier.status === 'responded' ? 'responded' : supplier.status === 'declined' ? 'declined' : 'invited',
         })),
-        proposals: [],
+        proposals,
         selectedProposalId: q.selected_proposal_id,
         selectedSupplierId: q.selected_supplier_id,
         selectedSupplierName: q.selected_supplier_name,
         selectedTotalAmount: q.selected_price,
-        estimatedTotalAmount: q.estimated_total || 0,
-        finalTotalAmount: q.selected_price,
-        requiredApprovalLevel: getRequiredApprovalLevel(q.estimated_total || q.selected_price || 0),
+        estimatedTotalAmount: q.estimated_total || q.final_total_amount || 0,
+        finalTotalAmount: q.selected_price || q.final_total_amount,
+        requiredApprovalLevel: getRequiredApprovalLevel(q.estimated_total || q.final_total_amount || q.selected_price || 0),
         currentApprovalLevel: undefined,
         approvals: [],
         department: q.department || 'ESTOQUE',
@@ -146,7 +202,18 @@ export const useQuotation = () => {
         priority: q.priority || 'medium',
         responseDeadline: q.response_deadline,
         deliveryDeadline: q.delivery_deadline,
-        auditLog: [],
+        auditLog: (q.quotation_audit_logs || [])
+          .sort((a: any, b: any) => new Date(a.performed_at).getTime() - new Date(b.performed_at).getTime())
+          .map((log: any): QuotationAuditLog => ({
+            id: log.id,
+            quotationId: q.id,
+            action: log.action as QuotationActionType,
+            performedBy: log.performed_by,
+            performedByName: log.performed_by_name,
+            performedAt: log.performed_at,
+            details: log.details || {},
+            metadata: log.metadata,
+          })),
         createdBy: q.created_by,
         createdByName: q.created_by_name || 'Sistema',
         createdAt: q.created_at,
@@ -154,7 +221,8 @@ export const useQuotation = () => {
         purchaseOrderId: q.purchase_order_id,
         purchaseOrderCode: q.purchase_order_code,
         convertedAt: q.converted_at,
-      }));
+        }; // end return
+      }); // end .map
 
       setQuotations(transformedQuotations);
     } catch (err) {
@@ -261,14 +329,23 @@ export const useQuotation = () => {
   // Map legacy status to new status
   const mapLegacyStatus = (status: string): QuotationStatus => {
     const mapping: Record<string, QuotationStatus> = {
+      // Legacy statuses
       draft: 'draft',
       open: 'draft',
       pending: 'draft',
       in_progress: 'waiting_responses',
       completed: 'approved',
       cancelled: 'cancelled',
+      // Current statuses — pass through as-is
+      sent_to_suppliers: 'sent_to_suppliers',
+      waiting_responses: 'waiting_responses',
+      under_review: 'under_review',
+      awaiting_approval: 'awaiting_approval',
+      approved: 'approved',
+      rejected: 'rejected',
+      converted_to_purchase: 'converted_to_purchase',
     };
-    return mapping[status] || 'draft';
+    return mapping[status] ?? 'draft';
   };
 
   // Initial fetch
@@ -382,14 +459,20 @@ export const useQuotation = () => {
     const role = userProfile?.role || 'requester';
     const isAdmin = role === 'admin';
     const isOperator = role === 'operator';
-    
+
     // Get user's max approval amount from database config or fallback to role-based defaults
     const userApprovalLimit = userApprovalConfig?.maxAmount ?? (isAdmin ? Infinity : isOperator ? 5000 : 0);
     const userCanApprove = userApprovalConfig?.canApprove ?? (isAdmin || isOperator);
-    
-    // Base permissions
-    const canView = isAdmin || isOperator;
-    const canCreate = isAdmin || isOperator;
+
+    // Helper: check fine-grained permission key, with fallback to canManageQuotations
+    const hasPerm = (key: string): boolean => {
+      const perms = userProfile?.permissions ?? [];
+      return perms.includes(key) || perms.includes('canManageQuotations');
+    };
+
+    // Base permissions — operators get access by role; requesters need explicit keys
+    const canView = isAdmin || isOperator || hasPerm('canViewQuotations');
+    const canCreate = isAdmin || isOperator || hasPerm('canCreateQuotations');
     
     // Admin has full permissions without restrictions
     if (isAdmin) {
@@ -404,6 +487,7 @@ export const useQuotation = () => {
         canReject: true,
         canConvertToPurchase: true,
         canCancel: true,
+        canRevert: true,
         maxApprovalAmount: Infinity,
       };
     }
@@ -421,6 +505,7 @@ export const useQuotation = () => {
         canReject: false,
         canConvertToPurchase: false,
         canCancel: false,
+        canRevert: false,
         maxApprovalAmount: userApprovalLimit,
       };
     }
@@ -434,11 +519,12 @@ export const useQuotation = () => {
       canEdit: canView && canEditQuotation(status),
       canDelete: false, // Only admin can delete
       canSendToSuppliers: canView && status === 'draft',
-      canSelectWinner: canView && canSelectWinner(status),
+      canSelectWinner: (canView || hasPerm('canSelectWinnerQuotation')) && canSelectWinner(status),
       canApprove: userCanApprove && canApproveOrReject(status) && quotationAmount <= userApprovalLimit,
       canReject: userCanApprove && canApproveOrReject(status),
-      canConvertToPurchase: false, // Only admin can convert
-      canCancel: canView && canCancel(status),
+      canConvertToPurchase: (canView || hasPerm('canConvertQuotation')) && canConvertToPurchase(status),
+      canCancel: (canView || hasPerm('canCancelQuotation')) && canCancel(status),
+      canRevert: (canView || hasPerm('canRevertQuotation')) && getPreviousStatus(status) !== null,
       maxApprovalAmount: userApprovalLimit,
     };
   }, [userProfile, userApprovalConfig]);
@@ -455,23 +541,43 @@ export const useQuotation = () => {
   ) => {
     if (!user || !userProfile) return;
 
-    const logEntry: Omit<QuotationAuditLog, 'id'> = {
+    const performedAt = new Date().toISOString();
+
+    // Persist to database
+    const { data: inserted, error: insertError } = await supabase
+      .from('quotation_audit_logs')
+      .insert({
+        quotation_id: quotationId,
+        action,
+        performed_by: user.id,
+        performed_by_name: userProfile.name,
+        performed_at: performedAt,
+        details,
+        metadata,
+      })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      console.error('Error saving audit log:', insertError);
+    }
+
+    const logEntry: QuotationAuditLog = {
+      id: inserted?.id ?? crypto.randomUUID(),
       quotationId,
       action,
       performedBy: user.id,
       performedByName: userProfile.name,
-      performedAt: new Date().toISOString(),
+      performedAt,
       details,
       metadata,
     };
 
-    // In production, save to database
-    // For now, update local state
     setQuotations(prev => prev.map(q => {
       if (q.id === quotationId) {
         return {
           ...q,
-          auditLog: [...q.auditLog, { ...logEntry, id: crypto.randomUUID() }],
+          auditLog: [...q.auditLog, logEntry],
         };
       }
       return q;
@@ -564,6 +670,7 @@ export const useQuotation = () => {
         product_id: newQuotation.items[0]?.productId || null,
         product_name: newQuotation.items[0]?.productName || newQuotation.title,
         requested_quantity: newQuotation.items[0]?.quantity || 1,
+        final_total_amount: estimatedTotal,
         department: newQuotation.department,
         cost_center: newQuotation.costCenter,
         justification: newQuotation.justification,
@@ -586,9 +693,28 @@ export const useQuotation = () => {
       
       console.log('Quotation inserted successfully');
 
-      // Note: quotation_items are for supplier proposals, not products
-      // Products are stored directly in the quotations table (product_id, product_name, requested_quantity)
-      // Supplier proposals (quotation_items) are created when suppliers submit their prices
+      // Insert all items to quotation_items table
+      if (newQuotation.items.length > 0) {
+        const { error: itemsError } = await supabase
+          .from('quotation_items')
+          .insert(
+            newQuotation.items.map(item => ({
+              id: item.id,
+              quotation_id: newQuotation.id,
+              ...(item.productId ? { product_id: item.productId } : {}),
+              product_name: item.productName,
+              product_code: item.productCode || null,
+              description: item.description || null,
+              quantity: item.quantity,
+              unit: item.unit,
+              estimated_unit_price: item.estimatedUnitPrice || null,
+            }))
+          );
+        if (itemsError) {
+          console.error('Error inserting quotation items:', itemsError);
+          // Don't throw — items can be re-added later
+        }
+      }
 
       // Insert invited suppliers
       if (newQuotation.invitedSuppliers.length > 0) {
@@ -904,7 +1030,9 @@ export const useQuotation = () => {
       };
     });
 
-    const totalAmount = proposalItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const itemsTotal = proposalItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const additionalTotal = (input.additionalCosts ?? []).reduce((sum, c) => sum + c.value, 0);
+    const totalAmount = itemsTotal + additionalTotal;
 
     const proposal: SupplierProposal = {
       id: crypto.randomUUID(),
@@ -914,8 +1042,11 @@ export const useQuotation = () => {
       status: 'submitted',
       items: proposalItems,
       totalAmount,
+      additionalCosts: input.additionalCosts,
       deliveryTime: input.deliveryTime,
       paymentTerms: input.paymentTerms,
+      paymentMethod: input.paymentMethod,
+      boletoDueDays: input.boletoDueDays,
       validUntil: input.validUntil,
       notes: input.notes,
       submittedAt: new Date().toISOString(),
@@ -925,6 +1056,88 @@ export const useQuotation = () => {
 
     // Update proposal IDs
     proposal.items = proposal.items.map(item => ({ ...item, proposalId: proposal.id }));
+
+    // Persist proposal to database
+    try {
+      const maxDeliveryDays = Math.max(
+        ...input.items.map(i => parseInt(i.deliveryTime?.replace(/\D/g, '') || '7') || 7)
+      );
+      const { error: proposalError } = await supabase
+        .from('quotation_proposals')
+        .insert({
+          id: proposal.id,
+          quotation_id: input.quotationId,
+          supplier_id: input.supplierId,
+          supplier_name: supplier.supplierName,
+          total_amount: totalAmount,
+          average_delivery_days: maxDeliveryDays,
+          notes: input.notes || null,
+          valid_until: input.validUntil || null,
+          status: 'submitted',
+          submitted_at: proposal.submittedAt,
+          is_winner: false,
+        });
+
+      if (proposalError) {
+        console.error('Error inserting proposal:', proposalError);
+      } else if (proposal.items.length > 0) {
+        // Materialize any legacy synthetic items (id ends with '_legacy_item') into real DB rows
+        const legacyIdMap: Record<string, string> = {};
+        const legacyItems = proposal.items.filter(item =>
+          item.quotationItemId.endsWith('_legacy_item')
+        );
+        if (legacyItems.length > 0) {
+          for (const legacyItem of legacyItems) {
+            const newId = crypto.randomUUID();
+            legacyIdMap[legacyItem.quotationItemId] = newId;
+            const sourceItem = quotation.items.find(qi => qi.id === legacyItem.quotationItemId);
+            await supabase.from('quotation_items').insert({
+              id: newId,
+              quotation_id: input.quotationId,
+              product_name: sourceItem?.productName || '',
+              ...(sourceItem?.productId ? { product_id: sourceItem.productId } : {}),
+              quantity: sourceItem?.quantity || 1,
+              unit: sourceItem?.unit || 'un',
+            });
+          }
+          // Replace legacy IDs in proposal items and local quotation state
+          proposal.items = proposal.items.map(item =>
+            legacyIdMap[item.quotationItemId]
+              ? { ...item, quotationItemId: legacyIdMap[item.quotationItemId] }
+              : item
+          );
+          setQuotations(prev => prev.map(q => {
+            if (q.id !== input.quotationId) return q;
+            return {
+              ...q,
+              items: q.items.map(qi =>
+                legacyIdMap[qi.id] ? { ...qi, id: legacyIdMap[qi.id] } : qi
+              ),
+            };
+          }));
+        }
+
+        const { error: itemsError } = await supabase
+          .from('quotation_proposal_items')
+          .insert(
+            proposal.items.map(item => ({
+              id: item.id,
+              proposal_id: proposal.id,
+              quotation_item_id: item.quotationItemId,
+              unit_price: item.unitPrice,
+              total_price: item.totalPrice,
+              delivery_days: parseInt(item.deliveryTime?.replace(/\D/g, '') || '7') || 7,
+              notes: item.notes || null,
+            }))
+          );
+        if (itemsError) {
+          console.error('Error inserting proposal items:', itemsError);
+        }
+      }
+    } catch (dbErr) {
+      console.error('Error persisting proposal to DB:', dbErr);
+      // Don't throw — proposal is in local state; user can still use the app
+    }
 
     // Determine new status
     let newStatus = quotation.status;
@@ -971,8 +1184,18 @@ export const useQuotation = () => {
     const quotation = quotations.find(q => q.id === quotationId);
     if (!quotation) throw new Error('Cotação não encontrada');
 
-    if (quotation.proposals.length < 3) {
-      throw new Error('São necessárias no mínimo 3 propostas para avançar para análise');
+    if (quotation.proposals.length < 1) {
+      throw new Error('É necessária ao menos 1 proposta para avançar para análise');
+    }
+
+    const { error: dbError } = await supabase
+      .from('quotations')
+      .update({ status: 'under_review' })
+      .eq('id', quotationId);
+
+    if (dbError) {
+      console.error('Error updating quotation status:', dbError);
+      throw new Error('Erro ao atualizar status da cotação');
     }
 
     setQuotations(prev => prev.map(q => {
@@ -1006,6 +1229,39 @@ export const useQuotation = () => {
     const proposal = quotation.proposals.find(p => p.id === proposalId);
     if (!proposal) throw new Error('Proposta não encontrada');
 
+    // Persist winner selection to DB
+    const now = new Date().toISOString();
+    const { error: quotationUpdateError } = await supabase
+      .from('quotations')
+      .update({
+        selected_proposal_id: proposalId,
+        final_total_amount: proposal.totalAmount,
+      })
+      .eq('id', quotationId);
+
+    if (quotationUpdateError) {
+      console.error('Error saving selected proposal:', quotationUpdateError);
+      throw new Error('Erro ao salvar proposta selecionada');
+    }
+
+    // Mark winning proposal as selected, others as rejected
+    const { error: winnerError } = await supabase
+      .from('quotation_proposals')
+      .update({ is_winner: true, status: 'selected', selected_at: now })
+      .eq('id', proposalId);
+
+    if (winnerError) {
+      console.error('Error marking proposal as winner:', winnerError);
+    }
+
+    const otherIds = quotation.proposals.filter(p => p.id !== proposalId).map(p => p.id);
+    if (otherIds.length > 0) {
+      await supabase
+        .from('quotation_proposals')
+        .update({ is_winner: false, status: 'rejected' })
+        .in('id', otherIds);
+    }
+
     setQuotations(prev => prev.map(q => {
       if (q.id === quotationId) {
         return {
@@ -1018,10 +1274,10 @@ export const useQuotation = () => {
           proposals: q.proposals.map(p => ({
             ...p,
             status: p.id === proposalId ? 'selected' : 'rejected',
-            selectedAt: p.id === proposalId ? new Date().toISOString() : undefined,
-            rejectedAt: p.id !== proposalId ? new Date().toISOString() : undefined,
+            selectedAt: p.id === proposalId ? now : undefined,
+            rejectedAt: p.id !== proposalId ? now : undefined,
           })),
-          updatedAt: new Date().toISOString(),
+          updatedAt: now,
         };
       }
       return q;
@@ -1044,6 +1300,17 @@ export const useQuotation = () => {
 
     if (!quotation.selectedProposalId) {
       throw new Error('É necessário selecionar uma proposta vencedora');
+    }
+
+    // Persist status change to DB
+    const { error: dbError } = await supabase
+      .from('quotations')
+      .update({ status: 'awaiting_approval' })
+      .eq('id', quotationId);
+
+    if (dbError) {
+      console.error('Error submitting for approval:', dbError);
+      throw new Error('Erro ao enviar para aprovação');
     }
 
     const approval: QuotationApproval = {
@@ -1088,6 +1355,17 @@ export const useQuotation = () => {
       throw new Error('Você não tem permissão para aprovar esta cotação');
     }
 
+    const { error: dbError } = await supabase
+      .from('quotations')
+      .update({ status: 'approved' })
+      .eq('id', quotationId);
+
+    if (dbError) {
+      console.error('Error approving quotation:', dbError);
+      throw new Error('Erro ao aprovar cotação');
+    }
+
+    const now = new Date().toISOString();
     setQuotations(prev => prev.map(q => {
       if (q.id === quotationId) {
         return {
@@ -1100,9 +1378,9 @@ export const useQuotation = () => {
             approverName: userProfile.name,
             approverRole: userProfile.role,
             comment,
-            approvedAt: new Date().toISOString(),
+            approvedAt: now,
           })),
-          updatedAt: new Date().toISOString(),
+          updatedAt: now,
         };
       }
       return q;
@@ -1125,6 +1403,17 @@ export const useQuotation = () => {
       throw new Error('Cotação não pode ser rejeitada neste status');
     }
 
+    const { error: dbError } = await supabase
+      .from('quotations')
+      .update({ status: 'rejected' })
+      .eq('id', quotationId);
+
+    if (dbError) {
+      console.error('Error rejecting quotation:', dbError);
+      throw new Error('Erro ao rejeitar cotação');
+    }
+
+    const now = new Date().toISOString();
     setQuotations(prev => prev.map(q => {
       if (q.id === quotationId) {
         return {
@@ -1137,9 +1426,9 @@ export const useQuotation = () => {
             approverName: userProfile.name,
             approverRole: userProfile.role,
             comment,
-            rejectedAt: new Date().toISOString(),
+            rejectedAt: now,
           })),
-          updatedAt: new Date().toISOString(),
+          updatedAt: now,
         };
       }
       return q;
@@ -1152,12 +1441,85 @@ export const useQuotation = () => {
     });
   }, [quotations, user, userProfile, addAuditLog]);
 
+  const revertStatus = useCallback(async (quotationId: string): Promise<void> => {
+    const quotation = quotations.find(q => q.id === quotationId);
+    if (!quotation) throw new Error('Cotação não encontrada');
+
+    const previousStatus = getPreviousStatus(quotation.status);
+    if (!previousStatus) throw new Error('Não é possível retornar desta etapa');
+
+    const updates: Record<string, unknown> = { status: previousStatus };
+
+    // When reverting from awaiting_approval back to under_review,
+    // clear the selected proposal so the analyst can re-evaluate
+    if (quotation.status === 'awaiting_approval') {
+      updates.selected_proposal_id = null;
+      updates.final_total_amount = null;
+    }
+
+    const { error: dbError } = await supabase
+      .from('quotations')
+      .update(updates)
+      .eq('id', quotationId);
+
+    if (dbError) {
+      console.error('Error reverting quotation status:', dbError);
+      throw new Error('Erro ao retornar etapa da cotação');
+    }
+
+    // If reverting from awaiting_approval, reset proposal statuses back to submitted
+    if (quotation.status === 'awaiting_approval') {
+      const proposalIds = quotation.proposals.map(p => p.id);
+      if (proposalIds.length > 0) {
+        await supabase
+          .from('quotation_proposals')
+          .update({ is_winner: false, status: 'submitted', selected_at: null })
+          .in('id', proposalIds);
+      }
+    }
+
+    setQuotations(prev => prev.map(q => {
+      if (q.id !== quotationId) return q;
+      const updated: typeof q = {
+        ...q,
+        status: previousStatus,
+        updatedAt: new Date().toISOString(),
+      };
+      if (quotation.status === 'awaiting_approval') {
+        updated.selectedProposalId = undefined;
+        updated.selectedSupplierId = undefined;
+        updated.selectedSupplierName = undefined;
+        updated.selectedTotalAmount = undefined;
+        updated.finalTotalAmount = undefined;
+        updated.proposals = q.proposals.map(p => ({ ...p, status: 'submitted' as const, selectedAt: undefined }));
+      }
+      return updated;
+    }));
+
+    await addAuditLog(quotationId, 'updated', {
+      note: `Status revertido de "${quotation.status}" para "${previousStatus}"`,
+    }, {
+      previousStatus: quotation.status,
+      newStatus: previousStatus,
+    });
+  }, [quotations, addAuditLog]);
+
   const cancelQuotation = useCallback(async (quotationId: string, reason: string): Promise<void> => {
     const quotation = quotations.find(q => q.id === quotationId);
     if (!quotation) throw new Error('Cotação não encontrada');
 
     if (!canCancel(quotation.status)) {
       throw new Error('Cotação não pode ser cancelada neste status');
+    }
+
+    const { error: dbError } = await supabase
+      .from('quotations')
+      .update({ status: 'cancelled' })
+      .eq('id', quotationId);
+
+    if (dbError) {
+      console.error('Error cancelling quotation:', dbError);
+      throw new Error('Erro ao cancelar cotação');
     }
 
     setQuotations(prev => prev.map(q => {
@@ -1188,6 +1550,21 @@ export const useQuotation = () => {
 
     const purchaseOrderId = crypto.randomUUID();
     const purchaseOrderCode = `PED-${new Date().getFullYear()}${String(new Date().getMonth() + 1).padStart(2, '0')}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    const now = new Date().toISOString();
+
+    const { error: dbError } = await supabase
+      .from('quotations')
+      .update({
+        status: 'converted_to_purchase',
+        purchase_order_id: purchaseOrderId,
+        converted_to_purchase_at: now,
+      })
+      .eq('id', quotationId);
+
+    if (dbError) {
+      console.error('Error converting to purchase:', dbError);
+      throw new Error('Erro ao converter em pedido');
+    }
 
     setQuotations(prev => prev.map(q => {
       if (q.id === quotationId) {
@@ -1196,8 +1573,8 @@ export const useQuotation = () => {
           status: 'converted_to_purchase',
           purchaseOrderId,
           purchaseOrderCode,
-          convertedAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
+          convertedAt: now,
+          updatedAt: now,
         };
       }
       return q;
@@ -1255,6 +1632,7 @@ export const useQuotation = () => {
     submitProposal,
     selectWinner,
     advanceToReview,
+    revertStatus,
     submitForApproval,
     approveQuotation,
     rejectQuotation,

@@ -10,11 +10,11 @@ import { QuotationStatus, QuotationActionType } from '../types';
  */
 export const VALID_TRANSITIONS: Record<QuotationStatus, QuotationStatus[]> = {
   draft: ['sent_to_suppliers', 'under_review', 'cancelled'],
-  sent_to_suppliers: ['waiting_responses', 'under_review', 'cancelled'],
-  waiting_responses: ['under_review', 'cancelled'],
-  under_review: ['awaiting_approval', 'rejected', 'cancelled'],
-  awaiting_approval: ['approved', 'rejected', 'cancelled'],
-  approved: ['converted_to_purchase', 'cancelled'],
+  sent_to_suppliers: ['waiting_responses', 'under_review', 'draft', 'cancelled'],
+  waiting_responses: ['under_review', 'sent_to_suppliers', 'cancelled'],
+  under_review: ['awaiting_approval', 'waiting_responses', 'rejected', 'cancelled'],
+  awaiting_approval: ['approved', 'under_review', 'rejected', 'cancelled'],
+  approved: ['converted_to_purchase', 'awaiting_approval', 'cancelled'],
   rejected: ['draft'], // Can restart from draft
   converted_to_purchase: [], // Terminal state
   cancelled: ['draft'], // Can restart from draft
@@ -48,6 +48,25 @@ export const TRANSITION_ACTIONS: Record<QuotationActionType, { from: QuotationSt
  */
 export function canTransition(from: QuotationStatus, to: QuotationStatus): boolean {
   return VALID_TRANSITIONS[from]?.includes(to) ?? false;
+}
+
+/**
+ * Maps each status to its logical previous (backward) step.
+ * Only statuses that have a natural predecessor are included.
+ */
+export const BACKWARD_TRANSITIONS: Partial<Record<QuotationStatus, QuotationStatus>> = {
+  sent_to_suppliers: 'draft',
+  waiting_responses: 'sent_to_suppliers',
+  under_review: 'waiting_responses',
+  awaiting_approval: 'under_review',
+  approved: 'awaiting_approval',
+};
+
+/**
+ * Returns the previous status for a given status, or null if none.
+ */
+export function getPreviousStatus(status: QuotationStatus): QuotationStatus | null {
+  return BACKWARD_TRANSITIONS[status] ?? null;
 }
 
 /**
