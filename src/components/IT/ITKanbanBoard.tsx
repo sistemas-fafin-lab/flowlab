@@ -128,6 +128,7 @@ const DraggableCard: React.FC<{
 
   const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    console.log('[ITKanbanBoard/DraggableCard] Delete button clicked for task:', item.id, item.title);
     onDeleteClick(item);
   };
 
@@ -169,6 +170,7 @@ const DraggableCard: React.FC<{
               {/* Action buttons — always visible, dnd skips interactive elements */}
               <button
                 onClick={handleMenuClick}
+                onMouseDown={(e) => e.stopPropagation()}
                 title="Opções"
                 className="flex-shrink-0 p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
               >
@@ -176,6 +178,7 @@ const DraggableCard: React.FC<{
               </button>
               <button
                 onClick={handleDeleteClick}
+                onMouseDown={(e) => e.stopPropagation()}
                 title="Excluir do Kanban"
                 className="flex-shrink-0 p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
               >
@@ -428,6 +431,9 @@ const ITKanbanBoard: React.FC = () => {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [draggingOverColumn, setDraggingOverColumn] = useState<KanbanColumn | null>(null);
 
+  // Race-condition guard: IDs being deleted right now (optimistic + fetch filter)
+  const deletingIdsRef = useRef<Set<string>>(new Set());
+
   const handleCardClick = (item: ITRequest) => setSelectedTask(item);
 
   const handleTaskUpdate = (updated: Partial<ITRequest> & { id: string }) => {
@@ -467,13 +473,19 @@ const ITKanbanBoard: React.FC = () => {
 
       if (error) throw error;
 
-      setRequests(
-        (data || []).map((r: any) => ({
-          ...r,
-          requester_name: r.requester?.name,
-          assignee_name: r.assignee?.name,
-        }))
-      );
+      const rawData = (data || []).map((r: any) => ({
+        ...r,
+        requester_name: r.requester?.name,
+        assignee_name: r.assignee?.name,
+      }));
+
+      // Race-condition filter: ignore cards that are being deleted right now
+      const filteredData = rawData.filter((r) => !deletingIdsRef.current.has(r.id));
+      if (deletingIdsRef.current.size > 0) {
+        console.log('[ITKanbanBoard/fetchRequests] Race-condition guard active. Filtering out pending-delete IDs:', Array.from(deletingIdsRef.current), 'Removed from fetch:', rawData.length - filteredData.length);
+      }
+
+      setRequests(filteredData);
     } catch (err) {
       console.error('Erro ao buscar chamados para Kanban:', err);
       showError('Erro ao carregar o quadro Kanban.');
@@ -488,8 +500,8 @@ const ITKanbanBoard: React.FC = () => {
 
   // ─── Columns data (with filters applied) ─────────────────────────────────────
   const columnItems = useMemo(() => {
-    // First, apply filters
-    let filtered = requests;
+    // Race-condition guard: strip cards being deleted so they never reappear
+    let filtered = requests.filter((r) => !deletingIdsRef.current.has(r.id));
 
     // Filter by type
     if (filterType !== 'all') {
@@ -622,24 +634,47 @@ const ITKanbanBoard: React.FC = () => {
 
   const handleConfirmDelete = async () => {
     if (!deleteConfirmTask) return;
+    const taskId = deleteConfirmTask.id;
+
+    // 1. Guarda o ID para bloquear reappearance em fetch concorrente
+    deletingIdsRef.current.add(taskId);
+    console.log('[ITKanbanBoard/delete] Race-condition guard: added ID to deletingIdsRef:', taskId);
+
+    // 2. Optimistic removal: remove do estado local IMEDIATAMENTE
+    setRequests((prev) => {
+      const next = prev.filter((r) => r.id !== taskId);
+      console.log('[ITKanbanBoard/delete] Optimistic local removal. Before:', prev.length, 'After:', next.length);
+      return next;
+    });
+    setDeleteConfirmTask(null);
     setIsDeletingTask(true);
+
     try {
-      // Sets kanban_hidden = true: removes the card from the Kanban board
-      // without changing the original request's status in ITRequests.
+      // 3. Persiste no banco
       const { error } = await supabase
         .from('it_requests')
         .update({ kanban_hidden: true })
-        .eq('id', deleteConfirmTask.id);
-      
+        .eq('id', taskId);
+
       if (error) throw error;
-      
-      setRequests((prev) => prev.filter((r) => r.id !== deleteConfirmTask.id));
+
+      console.log('[ITKanbanBoard/delete] DB update success for ID:', taskId);
       showSuccess('Card removido do Kanban!');
-      setDeleteConfirmTask(null);
     } catch (err) {
-      console.error('Erro ao excluir tarefa:', err);
-      showError('Erro ao remover card do Kanban.');
+      console.error('[ITKanbanBoard/delete] DB update failed:', err);
+      showError('Erro ao remover card do Kanban. Recarregando dados...');
+      // Remove do ref para não bloquear o card permanentemente
+      deletingIdsRef.current.delete(taskId);
+      // Força sincronização com o servidor para reverter estado
+      await fetchRequests();
     } finally {
+      // Delay para garantir que nenhum fetch "atrasado" venha depois
+      setTimeout(() => {
+        const wasDeleted = deletingIdsRef.current.delete(taskId);
+        if (wasDeleted) {
+          console.log('[ITKanbanBoard/delete] Cleaned up deletingIdsRef for ID:', taskId);
+        }
+      }, 800);
       setIsDeletingTask(false);
     }
   };
@@ -714,6 +749,7 @@ const ITKanbanBoard: React.FC = () => {
     } catch (err) {
       console.error('Erro ao mover card:', err);
       showError('Erro ao atualizar posição do chamado.');
+      console.log('[ITKanbanBoard/drag] Drag save failed — calling fetchRequests() which MAY cause race condition with pending deletes. deletingIdsRef:', Array.from(deletingIdsRef.current));
       await fetchRequests();
     }
   };
@@ -879,7 +915,10 @@ const ITKanbanBoard: React.FC = () => {
                 items={columnItems[col.id]}
                 onCardClick={handleCardClick}
                 onMenuOpen={handleContextMenuOpen}
-                onDeleteClick={(task) => setDeleteConfirmTask(task)}
+                onDeleteClick={(task) => {
+                  console.log('[ITKanbanBoard] Opening delete modal for task:', task.id, task.title);
+                  setDeleteConfirmTask(task);
+                }}
                 draggingOverColumn={draggingOverColumn}
                 isAnyDragging={Boolean(activeDragId)}
                 inlineAddColumn={inlineAddColumn}
@@ -908,8 +947,8 @@ const ITKanbanBoard: React.FC = () => {
       </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      <AnimatePresence>
-        {deleteConfirmTask && ReactDOM.createPortal(
+      {deleteConfirmTask && ReactDOM.createPortal(
+        <AnimatePresence>
           <motion.div
             key="delete-overlay"
             initial={{ opacity: 0 }}
@@ -985,14 +1024,14 @@ const ITKanbanBoard: React.FC = () => {
                 </div>
               </div>
             </motion.div>
-          </motion.div>,
-          document.body
-        )}
-      </AnimatePresence>
+          </motion.div>
+        </AnimatePresence>,
+        document.body
+      )}
 
       {/* Context Menu Portal */}
-      <AnimatePresence>
-        {contextMenu && ReactDOM.createPortal(
+      {contextMenu && ReactDOM.createPortal(
+        <AnimatePresence>
           <>
             {/* Invisible overlay to catch clicks */}
             <div 
@@ -1073,10 +1112,10 @@ const ITKanbanBoard: React.FC = () => {
                 </button>
               </div>
             </motion.div>
-          </>,
-          document.body
-        )}
-      </AnimatePresence>
+          </>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };
