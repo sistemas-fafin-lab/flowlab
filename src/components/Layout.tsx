@@ -33,6 +33,7 @@ import {
   KanbanSquare,
   Server,
   Bell,
+  Wallet,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -76,7 +77,7 @@ const DEFAULT_CATEGORIES: CategoryConfig[] = [
     id: 'operacoes',
     name: 'OPERAÇÕES',
     sort_order: 1,
-    items: ['Produtos', 'Movimentações', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento'],
+    items: ['Produtos', 'Movimentações', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos'],
   },
   {
     id: 'administracao',
@@ -560,6 +561,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         href: '/quotations',
         icon: Calculator,
         permission: 'canManageQuotations',
+        category: 'OPERAÇÕES',
+      },
+      {
+        name: 'Controle de Custos',
+        href: '/cost-control',
+        icon: Wallet,
+        permission: 'canViewBilling',
         category: 'OPERAÇÕES',
       },
       {

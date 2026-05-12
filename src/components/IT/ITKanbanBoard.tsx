@@ -27,6 +27,8 @@ import {
   Edit3,
   Tag,
   Lightbulb,
+  MoreVertical,
+  GripVertical,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
@@ -112,27 +114,31 @@ const DraggableCard: React.FC<{
   item: ITRequest;
   index: number;
   onCardClick: (item: ITRequest) => void;
-  onContextMenu: (e: React.MouseEvent, task: ITRequest) => void;
-}> = ({ item, index, onCardClick, onContextMenu }) => {
+  onMenuOpen: (e: React.MouseEvent, task: ITRequest) => void;
+  onDeleteClick: (task: ITRequest) => void;
+}> = ({ item, index, onCardClick, onMenuOpen, onDeleteClick }) => {
+  // @hello-pangea/dnd has built-in `isEventInInteractiveElement` detection:
+  // when the click target is a <button>, it does NOT initiate drag and does NOT
+  // call event.preventDefault() — so dragHandleProps on the whole card is safe
+  // and buttons inside it work normally.
+
   const handleClick = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
     onCardClick(item);
   };
 
-  const handleContextMenu = (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleDeleteClick = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onContextMenu(e, item);
+    onDeleteClick(item);
+  };
+
+  const handleMenuClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onMenuOpen(e, item);
   };
 
   return (
     <Draggable draggableId={item.id} index={index}>
       {(provided, snapshot) => (
-        /* ═══ CAMADA 1: CASCA FÍSICA (Atomic Wrapper) ═══════════════════
-           PROIBIDO aqui: margin, backdrop-blur, scale, rotate, transition.
-           Qualquer dessas cria um Containing Block que corrompe
-           o position:fixed usado pelo @hello-pangea/dnd durante o drag. */
         <div
           ref={provided.innerRef}
           {...provided.draggableProps}
@@ -140,19 +146,44 @@ const DraggableCard: React.FC<{
           style={provided.draggableProps.style}
           className="outline-none block w-full"
         >
-          {/* ═══ CAMADA 2: DESIGN VISUAL ═══════════════════════════════
-               ZERO backdrop-blur em QUALQUER estado.
-               Cores sólidas apenas. */}
           <div
             onClick={handleClick}
-            onContextMenu={handleContextMenu}
-            className={`relative w-full rounded-2xl border p-4 select-none ${
+            className={`relative w-full rounded-2xl border p-3 select-none ${
               snapshot.isDragging
                 ? 'bg-white dark:bg-slate-800 shadow-2xl border-violet-500/50 ring-2 ring-violet-500/20 cursor-grabbing'
                 : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-violet-400 dark:hover:border-violet-500 cursor-grab active:cursor-grabbing transition-shadow duration-200'
             }`}
           >
-            {/* Tags row */}
+            {/* Top row: code + type icon + action buttons */}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs font-mono font-semibold text-violet-600 dark:text-violet-400 flex-1 truncate">{item.codigo}</span>
+              {(() => {
+                const conf = TYPE_CONFIG[item.request_type];
+                const Icon = conf.icon;
+                return (
+                  <div className={`w-5 h-5 rounded-md ${conf.bg} flex items-center justify-center flex-shrink-0`}>
+                    <Icon className={`w-3 h-3 ${conf.color}`} />
+                  </div>
+                );
+              })()}
+              {/* Action buttons — always visible, dnd skips interactive elements */}
+              <button
+                onClick={handleMenuClick}
+                title="Opções"
+                className="flex-shrink-0 p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+              >
+                <MoreVertical className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={handleDeleteClick}
+                title="Excluir do Kanban"
+                className="flex-shrink-0 p-1 rounded-md text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Tags */}
             {item.tags && item.tags.length > 0 && (
               <div className="flex flex-wrap gap-1 mb-2">
                 {item.tags.slice(0, 3).map((tag, idx) => (
@@ -166,20 +197,6 @@ const DraggableCard: React.FC<{
                 )}
               </div>
             )}
-
-            {/* Top row */}
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-mono font-semibold text-violet-600 dark:text-violet-400">{item.codigo}</span>
-              {(() => {
-                const conf = TYPE_CONFIG[item.request_type];
-                const Icon = conf.icon;
-                return (
-                  <div className={`w-6 h-6 rounded-lg ${conf.bg} flex items-center justify-center flex-shrink-0`}>
-                    <Icon className={`w-3.5 h-3.5 ${conf.color}`} />
-                  </div>
-                );
-              })()}
-            </div>
 
             {/* Title */}
             <p className="text-sm font-medium text-slate-900 dark:text-white line-clamp-2 mb-3 leading-snug">{item.title}</p>
@@ -217,7 +234,8 @@ const KanbanColumnComponent: React.FC<{
   column: typeof COLUMNS[number];
   items: ITRequest[];
   onCardClick: (item: ITRequest) => void;
-  onContextMenu: (e: React.MouseEvent, task: ITRequest) => void;
+  onMenuOpen: (e: React.MouseEvent, task: ITRequest) => void;
+  onDeleteClick: (task: ITRequest) => void;
   draggingOverColumn: KanbanColumn | null;
   isAnyDragging: boolean;
   // Inline add props
@@ -228,7 +246,7 @@ const KanbanColumnComponent: React.FC<{
   onInlineAddTextChange: (text: string) => void;
   onInlineAddSubmit: (columnId: KanbanColumn, title: string) => void;
   isAddingTask: boolean;
-}> = ({ column, items, onCardClick, onContextMenu, draggingOverColumn, isAnyDragging, inlineAddColumn, inlineAddText, onInlineAddOpen, onInlineAddClose, onInlineAddTextChange, onInlineAddSubmit, isAddingTask }) => {
+}> = ({ column, items, onCardClick, onMenuOpen, onDeleteClick, draggingOverColumn, isAnyDragging, inlineAddColumn, inlineAddText, onInlineAddOpen, onInlineAddClose, onInlineAddTextChange, onInlineAddSubmit, isAddingTask }) => {
   const Icon = column.icon;
   const inputRef = useRef<HTMLInputElement>(null);
   const isAddingHere = inlineAddColumn === column.id;
@@ -293,7 +311,8 @@ const KanbanColumnComponent: React.FC<{
                   item={item}
                   index={index}
                   onCardClick={onCardClick}
-                  onContextMenu={onContextMenu}
+                  onMenuOpen={onMenuOpen}
+                  onDeleteClick={onDeleteClick}
                 />
               ))}
 
@@ -403,6 +422,9 @@ const ITKanbanBoard: React.FC = () => {
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
   const contextMenuRef = useRef<HTMLDivElement>(null);
+
+  // ─── Delete confirmation state ─────────────────────────────────────────────
+  const [deleteConfirmTask, setDeleteConfirmTask] = useState<ITRequest | null>(null);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [draggingOverColumn, setDraggingOverColumn] = useState<KanbanColumn | null>(null);
 
@@ -416,15 +438,32 @@ const ITKanbanBoard: React.FC = () => {
   // ─── Fetch ──────────────────────────────────────────────────────────────────
   const fetchRequests = useCallback(async () => {
     try {
-      const { data, error } = await supabase
+      // Try with kanban_hidden filter first (requires migration 20260430120000_kanban_hidden.sql).
+      // Falls back to status-based filter if the column doesn't exist yet.
+      let { data, error } = await supabase
         .from('it_requests')
         .select(`
           *,
           requester:user_profiles!requested_by(name),
           assignee:user_profiles!assigned_to(name)
         `)
-        .neq('status', 'cancelled')
+        .eq('kanban_hidden', false)
         .order('updated_at', { ascending: false });
+
+      if (error && (error as any).code === '42703') {
+        // Column does not exist yet — fallback query without kanban_hidden
+        const fallback = await supabase
+          .from('it_requests')
+          .select(`
+            *,
+            requester:user_profiles!requested_by(name),
+            assignee:user_profiles!assigned_to(name)
+          `)
+          .neq('status', 'cancelled')
+          .order('updated_at', { ascending: false });
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       if (error) throw error;
 
@@ -575,25 +614,33 @@ const ITKanbanBoard: React.FC = () => {
     handleContextMenuClose();
   };
 
-  const handleContextDelete = async () => {
+  const handleContextDelete = () => {
     if (!contextMenu) return;
+    setDeleteConfirmTask(contextMenu.task);
+    handleContextMenuClose();
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteConfirmTask) return;
     setIsDeletingTask(true);
     try {
+      // Sets kanban_hidden = true: removes the card from the Kanban board
+      // without changing the original request's status in ITRequests.
       const { error } = await supabase
         .from('it_requests')
-        .update({ status: 'cancelled' })
-        .eq('id', contextMenu.task.id);
+        .update({ kanban_hidden: true })
+        .eq('id', deleteConfirmTask.id);
       
       if (error) throw error;
       
-      setRequests((prev) => prev.filter((r) => r.id !== contextMenu.task.id));
-      showSuccess('Tarefa excluída!');
+      setRequests((prev) => prev.filter((r) => r.id !== deleteConfirmTask.id));
+      showSuccess('Card removido do Kanban!');
+      setDeleteConfirmTask(null);
     } catch (err) {
       console.error('Erro ao excluir tarefa:', err);
-      showError('Erro ao excluir tarefa.');
+      showError('Erro ao remover card do Kanban.');
     } finally {
       setIsDeletingTask(false);
-      handleContextMenuClose();
     }
   };
 
@@ -831,7 +878,8 @@ const ITKanbanBoard: React.FC = () => {
                 column={col}
                 items={columnItems[col.id]}
                 onCardClick={handleCardClick}
-                onContextMenu={handleContextMenuOpen}
+                onMenuOpen={handleContextMenuOpen}
+                onDeleteClick={(task) => setDeleteConfirmTask(task)}
                 draggingOverColumn={draggingOverColumn}
                 isAnyDragging={Boolean(activeDragId)}
                 inlineAddColumn={inlineAddColumn}
@@ -856,6 +904,89 @@ const ITKanbanBoard: React.FC = () => {
             onClose={() => setSelectedTask(null)}
             onUpdate={handleTaskUpdate}
           />
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirmation Modal */}
+      <AnimatePresence>
+        {deleteConfirmTask && ReactDOM.createPortal(
+          <motion.div
+            key="delete-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4"
+          >
+            {/* Backdrop */}
+            <div
+              className="absolute inset-0 bg-black/40 dark:bg-black/60"
+              onClick={() => !isDeletingTask && setDeleteConfirmTask(null)}
+            />
+
+            {/* Dialog */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.92, y: 12 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.92, y: 12 }}
+              transition={{ duration: 0.18, ease: 'easeOut' }}
+              className="relative z-10 w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl shadow-black/25 dark:shadow-black/60 border border-gray-200 dark:border-gray-700 overflow-hidden"
+            >
+              {/* Red top bar */}
+              <div className="h-1 w-full bg-gradient-to-r from-red-500 to-rose-500" />
+
+              <div className="p-6">
+                {/* Icon + title */}
+                <div className="flex items-start gap-4 mb-5">
+                  <div className="flex-shrink-0 w-11 h-11 rounded-xl bg-red-100 dark:bg-red-900/30 flex items-center justify-center">
+                    <Trash2 className="w-5 h-5 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-1">
+                      Excluir tarefa?
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Esta ação não poderá ser desfeita.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Task preview */}
+                <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-3 mb-6">
+                  <p className="text-[11px] font-mono font-bold text-violet-600 dark:text-violet-400 mb-0.5">
+                    {deleteConfirmTask.codigo}
+                  </p>
+                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100 line-clamp-2">
+                    {deleteConfirmTask.title}
+                  </p>
+                </div>
+
+                {/* Buttons */}
+                <div className="flex items-center justify-end gap-3">
+                  <button
+                    onClick={() => setDeleteConfirmTask(null)}
+                    disabled={isDeletingTask}
+                    className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleConfirmDelete}
+                    disabled={isDeletingTask}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 dark:bg-red-700 dark:hover:bg-red-600 rounded-xl transition-colors disabled:opacity-70 shadow-sm shadow-red-500/30"
+                  >
+                    {isDeletingTask ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4" />
+                    )}
+                    {isDeletingTask ? 'Excluindo…' : 'Sim, excluir'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>,
+          document.body
         )}
       </AnimatePresence>
 

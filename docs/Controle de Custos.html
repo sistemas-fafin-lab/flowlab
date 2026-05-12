@@ -1,0 +1,1336 @@
+<!doctype html>
+<html lang="pt-BR" class="">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Controle de Custos · Flow LAB</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        fontFamily: {
+          sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'],
+          display: ['"Plus Jakarta Sans"', 'Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        },
+      }
+    }
+  };
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  .text-gradient-brand {
+    background: linear-gradient(to right, #1e3a8a 0%, #1d4ed8 50%, #3730a3 100%);
+    -webkit-background-clip: text; background-clip: text;
+    -webkit-text-fill-color: transparent; color: transparent;
+  }
+  @keyframes fade-in { from { opacity: 0 } to { opacity: 1 } }
+  @keyframes scale-in { from { opacity: 0; transform: scale(.96) } to { opacity: 1; transform: scale(1) } }
+  @keyframes slide-up { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: translateY(0) } }
+  .animate-fade-in { animation: fade-in 200ms cubic-bezier(0.22,1,0.36,1) both }
+  .animate-scale-in { animation: scale-in 220ms cubic-bezier(0.22,1,0.36,1) both }
+  .animate-slide-up { animation: slide-up 240ms cubic-bezier(0.22,1,0.36,1) both }
+  .stagger-1 { animation-delay: 40ms } .stagger-2 { animation-delay: 80ms }
+  .stagger-3 { animation-delay: 120ms } .stagger-4 { animation-delay: 160ms }
+  .stagger-5 { animation-delay: 200ms } .stagger-6 { animation-delay: 240ms }
+
+  /* Subtle scrollbar */
+  ::-webkit-scrollbar { width: 10px; height: 10px }
+  ::-webkit-scrollbar-track { background: transparent }
+  ::-webkit-scrollbar-thumb { background: rgba(100,116,139,.25); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(100,116,139,.4); background-clip: padding-box; border: 2px solid transparent }
+
+  /* Auth-style background grid for tab area */
+  .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(30,58,138,.04) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(30,58,138,.04) 1px, transparent 1px);
+    background-size: 64px 64px;
+  }
+  .dark .bg-grid {
+    background-image:
+      linear-gradient(to right, rgba(148,163,184,.06) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(148,163,184,.06) 1px, transparent 1px);
+  }
+
+  /* Tabular numerals for monetary values */
+  .tabular-nums { font-variant-numeric: tabular-nums }
+</style>
+</head>
+<body class="bg-slate-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
+
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- Lucide as ESM via importmap-free global helper -->
+<script src="https://unpkg.com/lucide@0.469.0/dist/umd/lucide.js"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+/* ════════════════════════════════════════════════════════════════════════
+   ICON HELPER — renders Lucide SVG by name as a React component
+   (mirrors lucide-react usage in the real codebase)
+   ═══════════════════════════════════════════════════════════════════════ */
+const Icon = ({ name, className = "w-4 h-4", strokeWidth = 2, ...rest }) => {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!ref.current || !window.lucide) return;
+    const node = ref.current;
+    node.innerHTML = '';
+    const i = document.createElement('i');
+    i.setAttribute('data-lucide', name);
+    node.appendChild(i);
+    window.lucide.createIcons({ attrs: { 'stroke-width': strokeWidth }, nameAttr: 'data-lucide' });
+  }, [name, strokeWidth]);
+  return <span ref={ref} className={`inline-flex items-center justify-center ${className}`} {...rest}/>;
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   TYPES (interfaces — top of file as per Flow LAB standard)
+   ═══════════════════════════════════════════════════════════════════════ */
+// In TS this would be: interface IndirectCostItem { ... }
+// Sub-components mirror the structure for clarity in this preview.
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOCK DATA — useCostControl() simulation
+   Replaces real hook in the preview; keeps the same shape.
+   ═══════════════════════════════════════════════════════════════════════ */
+const SEED_INDIRECT = (total) => ([
+  { id: 'i1', label: 'Rateio de pessoal', value: +(total * 0.45).toFixed(2) },
+  { id: 'i2', label: 'Depreciação de equipamentos', value: +(total * 0.25).toFixed(2) },
+  { id: 'i3', label: 'Insumos auxiliares (agulhas, tubos)', value: +(total * 0.18).toFixed(2) },
+  { id: 'i4', label: 'Rateio de espaço/energia', value: +(total * 0.12).toFixed(2) },
+]);
+
+const SEED_EXAMS = [
+  { id: 'e1', code: 'HMG-001', name: 'Hemograma Completo',           location: 'Hematologia',     direct: 4.20,  indirect: 3.80, indirectItems: SEED_INDIRECT(3.80) },
+  { id: 'e2', code: 'GLI-014', name: 'Glicose em Jejum',             location: 'Bioquímica',      direct: 1.90,  indirect: 2.10, indirectItems: SEED_INDIRECT(2.10) },
+  { id: 'e3', code: 'COL-022', name: 'Colesterol Total',             location: 'Bioquímica',      direct: 2.40,  indirect: 2.60, indirectItems: SEED_INDIRECT(2.60) },
+  { id: 'e4', code: 'TSH-031', name: 'TSH Ultrassensível',           location: 'Hormônios',       direct: 6.10,  indirect: 5.90, indirectItems: SEED_INDIRECT(5.90) },
+  { id: 'e5', code: 'CIT-050', name: 'Citologia Cervico-Vaginal',    location: 'Anatomia Pat.',   direct: 11.20, indirect: 9.30, indirectItems: SEED_INDIRECT(9.30) },
+  { id: 'e6', code: 'PRT-077', name: 'Proteínas Totais e Frações',   location: 'Bioquímica',      direct: 3.10,  indirect: 4.40, indirectItems: SEED_INDIRECT(4.40) },
+  { id: 'e7', code: 'URI-088', name: 'Urina Tipo I (EAS)',           location: 'Uroanálise',      direct: 1.40,  indirect: 1.80, indirectItems: SEED_INDIRECT(1.80) },
+  { id: 'e8', code: 'BHC-101', name: 'Beta-HCG Quantitativo',        location: 'Hormônios',       direct: 7.80,  indirect: 6.20, indirectItems: SEED_INDIRECT(6.20) },
+  { id: 'e9', code: 'VIT-115', name: 'Vitamina D 25-OH',             location: 'Imunologia',      direct: 14.50, indirect: 8.60, indirectItems: SEED_INDIRECT(8.60) },
+  { id: 'e10',code: 'FER-122', name: 'Ferritina',                    location: 'Imunologia',      direct: 5.40,  indirect: 4.10, indirectItems: SEED_INDIRECT(4.10) },
+  { id: 'e11',code: 'PCR-130', name: 'Proteína C Reativa',           location: 'Bioquímica',      direct: 4.80,  indirect: 4.20, indirectItems: SEED_INDIRECT(4.20) },
+  { id: 'e12',code: 'HBA-141', name: 'Hemoglobina Glicada',          location: 'Bioquímica',      direct: 6.20,  indirect: 4.80, indirectItems: SEED_INDIRECT(4.80) },
+];
+
+const SEED_PAYORS = [
+  // payor, table, tusCode, examId, price
+  { id: 'p1',  payor: 'Unimed',          table: 'Unimed Coop.',     tus: '40304361', examId: 'e1',  price: 9.20  },
+  { id: 'p2',  payor: 'Unimed',          table: 'Unimed Coop.',     tus: '40301630', examId: 'e2',  price: 4.80  },
+  { id: 'p3',  payor: 'Unimed',          table: 'Unimed Coop.',     tus: '40301516', examId: 'e6',  price: 5.40  },
+  { id: 'p4',  payor: 'Bradesco Saúde',  table: 'AMB 90',           tus: '40304361', examId: 'e1',  price: 12.50 },
+  { id: 'p5',  payor: 'Bradesco Saúde',  table: 'AMB 90',           tus: '40307336', examId: 'e4',  price: 22.00 },
+  { id: 'p6',  payor: 'Saldo de Caixa',  table: 'Particular',       tus: '—',        examId: 'e9',  price: 95.00 },
+  { id: 'p7',  payor: 'Saldo de Caixa',  table: 'Particular',       tus: '—',        examId: 'e5',  price: 65.00 },
+  { id: 'p8',  payor: 'Saldo de Caixa',  table: 'Particular',       tus: '—',        examId: 'e8',  price: 48.00 },
+  { id: 'p9',  payor: 'SUS',             table: 'Tabela SUS',       tus: '0202010317',examId: 'e1', price: 3.20  },
+  { id: 'p10', payor: 'SUS',             table: 'Tabela SUS',       tus: '0202010317',examId: 'e6', price: 1.80  },
+  { id: 'p11', payor: 'SulAmérica',      table: 'CBHPM',            tus: '40307336', examId: 'e4',  price: 18.40 },
+  { id: 'p12', payor: 'SulAmérica',      table: 'CBHPM',            tus: '40310019', examId: 'e9',  price: 38.00 },
+  { id: 'p13', payor: 'Hapvida',         table: 'Hapvida 2024',     tus: '40304361', examId: 'e1',  price: 8.10  },
+  { id: 'p14', payor: 'Hapvida',         table: 'Hapvida 2024',     tus: '40301516', examId: 'e6',  price: 4.10  },
+  { id: 'p15', payor: 'Hapvida',         table: 'Hapvida 2024',     tus: '40310353', examId: 'e7',  price: 4.40  },
+  { id: 'p16', payor: 'Saldo de Caixa',  table: 'Particular',       tus: '—',        examId: 'e12', price: 38.00 },
+];
+
+const useCostControl = () => {
+  const [exams, setExams] = useState(SEED_EXAMS);
+  const [payors] = useState(SEED_PAYORS);
+  const [loading] = useState(false);
+
+  const addExam = (data) => setExams(prev => [{ ...data, id: 'e' + Date.now() }, ...prev]);
+  const updateExam = (id, data) => setExams(prev => prev.map(e => e.id === id ? { ...e, ...data } : e));
+  const deleteExam = (id) => setExams(prev => prev.filter(e => e.id !== id));
+
+  return { exams, payors, loading, addExam, updateExam, deleteExam };
+};
+
+/* Stub-globals to mirror Flow LAB hooks — in real code, imported from hooks/ */
+const useNotification = () => ({
+  showSuccess: (msg) => window.__toast?.({ kind: 'success', msg }),
+  showError:   (msg) => window.__toast?.({ kind: 'error',   msg }),
+});
+const useDialog = () => ({
+  showConfirmDialog: ({ title, message, onConfirm, type = 'danger', confirmText = 'Excluir' }) =>
+    window.__confirm?.({ title, message, onConfirm, type, confirmText }),
+});
+
+/* ════════════════════════════════════════════════════════════════════════
+   UTILS
+   ═══════════════════════════════════════════════════════════════════════ */
+const formatBRL = (v) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v || 0);
+const formatPct = (v) => `${(v).toFixed(1).replace('.', ',')}%`;
+
+/* ════════════════════════════════════════════════════════════════════════
+   ATOMS — Buttons, Inputs, Badges (in the spirit of Flow LAB)
+   ═══════════════════════════════════════════════════════════════════════ */
+const PrimaryButton = ({ icon, children, onClick, className = '', type = 'button' }) => (
+  <button
+    type={type}
+    onClick={onClick}
+    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white
+      bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700
+      shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30
+      active:scale-[.98] transition-all duration-200 ${className}`}>
+    {icon && <Icon name={icon} className="w-4 h-4"/>}
+    {children}
+  </button>
+);
+
+const GhostButton = ({ icon, children, onClick, className = '' }) => (
+  <button
+    onClick={onClick}
+    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
+      text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800
+      border border-gray-200 dark:border-gray-700
+      hover:bg-gray-50 dark:hover:bg-gray-700/60 hover:border-gray-300 dark:hover:border-gray-600
+      active:scale-[.98] transition-all duration-200 ${className}`}>
+    {icon && <Icon name={icon} className="w-4 h-4"/>}
+    {children}
+  </button>
+);
+
+const IconButton = ({ icon, onClick, tone = 'neutral', title }) => {
+  const tones = {
+    neutral: 'text-gray-500 hover:text-gray-700 hover:bg-gray-100 dark:text-gray-400 dark:hover:text-gray-100 dark:hover:bg-gray-700',
+    danger:  'text-gray-500 hover:text-red-600 hover:bg-red-50 dark:text-gray-400 dark:hover:text-red-400 dark:hover:bg-red-500/10',
+    primary: 'text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:text-gray-400 dark:hover:text-blue-400 dark:hover:bg-blue-500/10',
+  };
+  return (
+    <button title={title} onClick={onClick}
+      className={`p-2 rounded-lg transition-colors duration-150 ${tones[tone]}`}>
+      <Icon name={icon} className="w-4 h-4"/>
+    </button>
+  );
+};
+
+const Badge = ({ tone = 'blue', children, dot = false }) => {
+  const tones = {
+    blue:    'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+    green:   'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    red:     'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+    amber:   'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+    purple:  'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20',
+    slate:   'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20',
+  };
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold rounded-full border ${tones[tone]}`}>
+      {dot && <span className="w-1.5 h-1.5 rounded-full bg-current"/>}
+      {children}
+    </span>
+  );
+};
+
+const Field = ({ label, hint, children, required }) => (
+  <div className="space-y-1.5">
+    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
+      {label} {required && <span className="text-red-500">*</span>}
+    </label>
+    {children}
+    {hint && <p className="text-xs text-gray-500 dark:text-gray-400">{hint}</p>}
+  </div>
+);
+
+const TextInput = React.forwardRef(({ icon, prefix, ...props }, ref) => (
+  <div className="relative">
+    {icon && (
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+        <Icon name={icon} className="w-4 h-4"/>
+      </span>
+    )}
+    {prefix && (
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 font-medium pointer-events-none">
+        {prefix}
+      </span>
+    )}
+    <input
+      ref={ref}
+      {...props}
+      className={`w-full px-3 py-2.5 text-sm rounded-xl
+        bg-white dark:bg-gray-900/50
+        border border-gray-200 dark:border-gray-700
+        text-gray-900 dark:text-gray-100
+        placeholder:text-gray-400
+        focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30
+        transition-all duration-150
+        ${icon ? 'pl-9' : ''} ${prefix ? 'pl-8' : ''} ${props.className || ''}`}
+    />
+  </div>
+));
+
+/* ════════════════════════════════════════════════════════════════════════
+   APP SHELL — minimal sidebar mirroring Flow LAB's structure
+   ═══════════════════════════════════════════════════════════════════════ */
+const Sidebar = ({ active, onNav }) => {
+  const nav = [
+    { group: 'GERENCIAL', items: [
+      { name: 'Dashboard', icon: 'layout-dashboard', key: 'dash', disabled: true },
+    ]},
+    { group: 'OPERAÇÕES', items: [
+      { name: 'Estoque',       icon: 'package',      key: 'stock', disabled: true },
+      { name: 'Solicitações',  icon: 'file-text',    key: 'req',   disabled: true },
+      { name: 'Fornecedores',  icon: 'building-2',   key: 'sup',   disabled: true },
+      { name: 'Cotações',      icon: 'calculator',   key: 'quo',   disabled: true },
+      { name: 'Faturamento',   icon: 'receipt',      key: 'bil',   disabled: true },
+      { name: 'Controle de Custos', icon: 'wallet',  key: 'cost' },
+    ]},
+    { group: 'ADMINISTRAÇÃO', items: [
+      { name: 'Usuários', icon: 'users',     key: 'usr', disabled: true },
+      { name: 'Sistema',  icon: 'settings',  key: 'sys', disabled: true },
+    ]},
+  ];
+  return (
+    <aside className="hidden lg:flex flex-col w-64 fixed inset-y-0 left-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-r border-gray-100 dark:border-gray-800 z-30">
+      {/* Brand header */}
+      <div className="px-5 py-5 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-900/20 dark:via-indigo-900/20 dark:to-purple-900/20 border-b border-gray-100 dark:border-gray-800">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-md shadow-blue-500/30">
+            <span className="text-white font-extrabold text-lg tracking-tight">L<span className="text-cyan-300">.</span></span>
+          </div>
+          <div>
+            <div className="text-sm font-bold text-gradient-brand leading-none">FlowLab</div>
+            <div className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 mt-1">Medicina Diagnóstica</div>
+          </div>
+        </div>
+      </div>
+
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-6">
+        {nav.map((g) => (
+          <div key={g.group}>
+            <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{g.group}</div>
+            <div className="space-y-1">
+              {g.items.map((it) => {
+                const isActive = active === it.key;
+                return (
+                  <button key={it.key} disabled={it.disabled}
+                    onClick={() => !it.disabled && onNav(it.key)}
+                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm font-medium transition-all duration-150
+                      ${isActive
+                        ? 'bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-md shadow-blue-500/25'
+                        : it.disabled
+                          ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
+                    <Icon name={it.icon} className="w-5 h-5"/>
+                    <span className="truncate">{it.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+
+      <div className="px-3 py-3 border-t border-gray-100 dark:border-gray-800 flex items-center gap-3">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-blue-600 flex items-center justify-center text-white text-xs font-bold">MR</div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">Marina Rocha</div>
+          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">Gestão Financeira</div>
+        </div>
+      </div>
+    </aside>
+  );
+};
+
+const Topbar = ({ tab, onTab }) => {
+  const tabs = [
+    { key: 'exams',       label: 'Exames',              icon: 'flask-conical' },
+    { key: 'payors',      label: 'Fontes Pagadoras',    icon: 'building-2' },
+    { key: 'analytics',   label: 'Análise de Rentabilidade', icon: 'trending-up' },
+  ];
+  return (
+    <div className="border-b border-gray-100 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md sticky top-0 z-20">
+      <div className="px-4 sm:px-6 lg:px-8 pt-5 pb-0">
+        <div className="flex items-start justify-between flex-wrap gap-4">
+          <div>
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mb-1">
+              <span>Operações</span>
+              <Icon name="chevron-right" className="w-3 h-3"/>
+              <span className="text-gray-700 dark:text-gray-200 font-medium">Controle de Custos</span>
+            </div>
+            <h1 className="text-3xl font-bold text-gradient-brand font-display">Controle de Custos</h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Cruze custo de produção com receita por fonte pagadora para identificar rentabilidade.
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <GhostButton icon="bell"/>
+            <ThemeButton/>
+          </div>
+        </div>
+
+        <nav className="mt-5 flex gap-1 -mb-px overflow-x-auto">
+          {tabs.map(t => {
+            const active = tab === t.key;
+            return (
+              <button key={t.key} onClick={() => onTab(t.key)}
+                className={`group relative flex items-center gap-2 px-4 py-3 text-sm font-medium whitespace-nowrap transition-colors
+                  ${active ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200'}`}>
+                <Icon name={t.icon} className="w-4 h-4"/>
+                {t.label}
+                <span className={`absolute left-3 right-3 -bottom-px h-0.5 rounded-full transition-all
+                  ${active ? 'bg-gradient-to-r from-blue-500 to-indigo-600' : 'bg-transparent'}`}/>
+              </button>
+            );
+          })}
+        </nav>
+      </div>
+    </div>
+  );
+};
+
+const ThemeButton = () => {
+  const [dark, setDark] = useState(() => document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
+  }, [dark]);
+  return (
+    <button onClick={() => setDark(d => !d)}
+      className="p-2.5 rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors"
+      title={dark ? 'Tema claro' : 'Tema escuro'}>
+      <Icon name={dark ? 'sun' : 'moon'} className="w-4 h-4 text-gray-600 dark:text-gray-300"/>
+    </button>
+  );
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   TELA 1 — ExamTable + CostFilters
+   ═══════════════════════════════════════════════════════════════════════ */
+const CostFilters = ({ search, setSearch, location, setLocation, locations }) => (
+  <div className="flex flex-col sm:flex-row gap-3 flex-1">
+    <div className="relative flex-1 min-w-[240px]">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+        <Icon name="search" className="w-4 h-4"/>
+      </span>
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Buscar por nome ou código…"
+        className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-800
+          border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100
+          placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+      />
+    </div>
+    <div className="relative">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        <Icon name="filter" className="w-4 h-4"/>
+      </span>
+      <select
+        value={location}
+        onChange={(e) => setLocation(e.target.value)}
+        className="pl-9 pr-9 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-800
+          border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100
+          focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 appearance-none">
+        <option value="all">Todos os locais</option>
+        {locations.map(l => <option key={l} value={l}>{l}</option>)}
+      </select>
+      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        <Icon name="chevron-down" className="w-4 h-4"/>
+      </span>
+    </div>
+  </div>
+);
+
+const ExamTable = ({ exams, onEdit, onDelete }) => {
+  if (exams.length === 0) {
+    return (
+      <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-white/60 dark:bg-gray-800/40 p-12 text-center">
+        <div className="mx-auto w-12 h-12 rounded-2xl bg-blue-50 dark:bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center mb-3">
+          <Icon name="search-x" className="w-6 h-6"/>
+        </div>
+        <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">Nenhum exame encontrado</h3>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Ajuste os filtros ou cadastre um novo exame.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <tr>
+              <th className="px-5 py-3 text-left font-bold">Código</th>
+              <th className="px-5 py-3 text-left font-bold">Nome do Exame</th>
+              <th className="px-5 py-3 text-left font-bold">Local</th>
+              <th className="px-5 py-3 text-right font-bold">Custo Direto</th>
+              <th className="px-5 py-3 text-right font-bold">Custo Indireto</th>
+              <th className="px-5 py-3 text-right font-bold">Custo Total</th>
+              <th className="px-5 py-3 text-right font-bold w-28">Ações</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+            {exams.map((e, i) => (
+              <tr key={e.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
+                <td className="px-5 py-3.5">
+                  <span className="font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">{e.code}</span>
+                </td>
+                <td className="px-5 py-3.5">
+                  <div className="font-semibold text-gray-800 dark:text-gray-100">{e.name}</div>
+                </td>
+                <td className="px-5 py-3.5">
+                  <Badge tone="slate" dot>{e.location}</Badge>
+                </td>
+                <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-200">{formatBRL(e.direct)}</td>
+                <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-200">{formatBRL(e.indirect)}</td>
+                <td className="px-5 py-3.5 text-right tabular-nums font-bold text-gray-900 dark:text-white">{formatBRL(e.direct + e.indirect)}</td>
+                <td className="px-5 py-3.5">
+                  <div className="flex items-center justify-end gap-1">
+                    <IconButton icon="pencil" tone="primary" title="Editar" onClick={() => onEdit(e)}/>
+                    <IconButton icon="trash-2" tone="danger" title="Excluir" onClick={() => onDelete(e)}/>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   TELA 2 — ExamFormModal (with expandable Indirect Cost composer)
+   ═══════════════════════════════════════════════════════════════════════ */
+const IndirectComposer = ({ items, onChange }) => {
+  const [open, setOpen] = useState(false);
+  const total = items.reduce((s, it) => s + (Number(it.value) || 0), 0);
+
+  const update = (id, key, val) => onChange(items.map(it => it.id === id ? { ...it, [key]: val } : it));
+  const remove = (id) => onChange(items.filter(it => it.id !== id));
+  const add = () => onChange([...items, { id: 'i' + Date.now(), label: '', value: 0 }]);
+
+  return (
+    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-900/30 overflow-hidden">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-slate-100/60 dark:hover:bg-gray-800/40 transition-colors">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-600 dark:text-purple-400 flex items-center justify-center">
+            <Icon name="layers" className="w-4 h-4"/>
+          </div>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">Composição do Custo Indireto</div>
+            <div className="text-xs text-gray-500 dark:text-gray-400">{items.length} {items.length === 1 ? 'item' : 'itens'} · Soma: <span className="font-semibold tabular-nums">{formatBRL(total)}</span></div>
+          </div>
+        </div>
+        <Icon name={open ? 'chevron-up' : 'chevron-down'} className="w-4 h-4 text-gray-400"/>
+      </button>
+
+      {open && (
+        <div className="px-4 pb-4 pt-1 animate-slide-up">
+          <div className="space-y-2">
+            {items.map((it) => (
+              <div key={it.id} className="flex items-center gap-2">
+                <input
+                  value={it.label}
+                  onChange={(e) => update(it.id, 'label', e.target.value)}
+                  placeholder="Ex: Depreciação de equipamento"
+                  className="flex-1 px-3 py-2 text-sm rounded-lg bg-white dark:bg-gray-900/50
+                    border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                />
+                <div className="relative w-36">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">R$</span>
+                  <input
+                    type="number" step="0.01"
+                    value={it.value}
+                    onChange={(e) => update(it.id, 'value', parseFloat(e.target.value) || 0)}
+                    className="w-full pl-9 pr-2 py-2 text-sm tabular-nums rounded-lg bg-white dark:bg-gray-900/50
+                      border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                  />
+                </div>
+                <IconButton icon="x" tone="danger" onClick={() => remove(it.id)} title="Remover"/>
+              </div>
+            ))}
+          </div>
+          <button type="button" onClick={add}
+            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300">
+            <Icon name="plus" className="w-3.5 h-3.5"/> Adicionar item
+          </button>
+
+          <div className="mt-4 flex items-center justify-between px-3 py-2.5 rounded-lg bg-blue-50 dark:bg-blue-500/10 border border-blue-100 dark:border-blue-500/20">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300">Total Indireto</span>
+            <span className="text-sm font-bold tabular-nums text-blue-900 dark:text-blue-200">{formatBRL(total)}</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const ExamFormModal = ({ open, exam, onClose, onSave }) => {
+  const [form, setForm] = useState({
+    code: '', name: '', location: '', direct: 0, indirect: 0, indirectItems: [],
+  });
+
+  useEffect(() => {
+    if (exam) {
+      setForm({
+        code: exam.code, name: exam.name, location: exam.location,
+        direct: exam.direct, indirect: exam.indirect,
+        indirectItems: exam.indirectItems || [],
+      });
+    } else {
+      setForm({ code: '', name: '', location: '', direct: 0, indirect: 0, indirectItems: [] });
+    }
+  }, [exam, open]);
+
+  // Auto-sync indirect total from composer items
+  const indirectFromItems = useMemo(
+    () => form.indirectItems.reduce((s, it) => s + (Number(it.value) || 0), 0),
+    [form.indirectItems]
+  );
+  useEffect(() => {
+    if (form.indirectItems.length > 0) {
+      setForm(f => ({ ...f, indirect: +indirectFromItems.toFixed(2) }));
+    }
+  }, [indirectFromItems]);
+
+  if (!open) return null;
+
+  const total = (Number(form.direct) || 0) + (Number(form.indirect) || 0);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(form);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-fade-in"
+         onClick={onClose}>
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl shadow-slate-900/20 w-full max-w-2xl max-h-[92vh] flex flex-col animate-scale-in"
+           onClick={(e) => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
+              <Icon name={exam ? 'pencil' : 'plus'} className="w-5 h-5"/>
+            </div>
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {exam ? 'Editar exame' : 'Novo exame'}
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Cadastre custo direto e composição do custo indireto.
+              </p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 dark:hover:text-gray-200 transition-colors">
+            <Icon name="x" className="w-5 h-5"/>
+          </button>
+        </div>
+
+        {/* Body — scrollable */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
+          <div className="px-6 py-5 space-y-5">
+            {/* Base */}
+            <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Field label="Código" required>
+                <TextInput value={form.code} onChange={(e) => setForm(f => ({...f, code: e.target.value}))} placeholder="HMG-001"/>
+              </Field>
+              <Field label="Nome do exame" required>
+                <TextInput value={form.name} onChange={(e) => setForm(f => ({...f, name: e.target.value}))} placeholder="Hemograma Completo"/>
+              </Field>
+              <Field label="Local de realização" required>
+                <TextInput value={form.location} onChange={(e) => setForm(f => ({...f, location: e.target.value}))} placeholder="Hematologia"/>
+              </Field>
+            </section>
+
+            {/* Custos Diretos */}
+            <section>
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Custos Diretos</h3>
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-900/30 p-4">
+                <Field label="Materiais diretos" hint="Reagentes, descartáveis e insumos consumidos especificamente neste exame.">
+                  <TextInput
+                    type="number" step="0.01" prefix="R$"
+                    value={form.direct}
+                    onChange={(e) => setForm(f => ({...f, direct: parseFloat(e.target.value) || 0}))}
+                  />
+                </Field>
+              </div>
+            </section>
+
+            {/* Custos Indiretos */}
+            <section>
+              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Custos Indiretos</h3>
+              <IndirectComposer
+                items={form.indirectItems}
+                onChange={(items) => setForm(f => ({...f, indirectItems: items}))}
+              />
+              {form.indirectItems.length === 0 && (
+                <div className="mt-3">
+                  <Field label="Valor estimado (custo indireto)" hint="Preencha o valor estimado, ou expanda acima para detalhar.">
+                    <TextInput
+                      type="number" step="0.01" prefix="R$"
+                      value={form.indirect}
+                      onChange={(e) => setForm(f => ({...f, indirect: parseFloat(e.target.value) || 0}))}
+                    />
+                  </Field>
+                </div>
+              )}
+            </section>
+
+            {/* Total Summary */}
+            <div className="rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 p-5 text-white shadow-lg shadow-blue-500/30">
+              <div className="text-[11px] font-bold uppercase tracking-wider text-blue-100">Custo Total (Direto + Indireto)</div>
+              <div className="mt-1 text-3xl font-bold tabular-nums font-display">{formatBRL(total)}</div>
+              <div className="mt-2 flex items-center gap-4 text-xs text-blue-50">
+                <span>Direto: <strong className="tabular-nums">{formatBRL(form.direct)}</strong></span>
+                <span className="opacity-50">·</span>
+                <span>Indireto: <strong className="tabular-nums">{formatBRL(form.indirect)}</strong></span>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="px-6 py-4 bg-slate-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-3 rounded-b-2xl">
+            <GhostButton onClick={onClose}>Cancelar</GhostButton>
+            <PrimaryButton type="submit" icon="save">Salvar exame</PrimaryButton>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   TELA 3 — PayorsTable + APLIS sync indicator
+   ═══════════════════════════════════════════════════════════════════════ */
+const ApliSyncBadge = () => (
+  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold
+    bg-gradient-to-r from-cyan-500/10 to-blue-500/10
+    text-blue-700 dark:text-blue-300 border border-blue-500/20">
+    <span className="relative flex h-2 w-2">
+      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"/>
+      <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"/>
+    </span>
+    Sincronizado com APLIS
+    <Icon name="info" className="w-3.5 h-3.5 opacity-60"/>
+  </div>
+);
+
+const PayorsScreen = ({ payors, exams }) => {
+  const [payorFilter, setPayorFilter] = useState('all');
+  const [tableFilter, setTableFilter] = useState('all');
+  const [search, setSearch] = useState('');
+
+  const payorList = useMemo(() => Array.from(new Set(payors.map(p => p.payor))), [payors]);
+  const tableList = useMemo(() => Array.from(new Set(payors.map(p => p.table))), [payors]);
+  const examMap = useMemo(() => Object.fromEntries(exams.map(e => [e.id, e])), [exams]);
+
+  const filtered = payors.filter(p => {
+    const ex = examMap[p.examId];
+    const matchesSearch = !search ||
+      ex?.name.toLowerCase().includes(search.toLowerCase()) ||
+      p.tus.toLowerCase().includes(search.toLowerCase());
+    const matchesPayor = payorFilter === 'all' || p.payor === payorFilter;
+    const matchesTable = tableFilter === 'all' || p.table === tableFilter;
+    return matchesSearch && matchesPayor && matchesTable;
+  });
+
+  return (
+    <div className="space-y-5">
+      {/* Header card */}
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 p-5 shadow-sm">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Fontes Pagadoras</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Convênios, tabelas de preço e valores cobrados por exame.
+            </p>
+            <div className="mt-3"><ApliSyncBadge/></div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <GhostButton icon="refresh-cw">Atualizar do APLIS</GhostButton>
+            <GhostButton icon="download">Exportar (Excel)</GhostButton>
+          </div>
+        </div>
+
+        <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">
+              <Icon name="search" className="w-4 h-4"/>
+            </span>
+            <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por exame ou código TUS…"
+              className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50
+                border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"/>
+          </div>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <Icon name="building-2" className="w-4 h-4"/>
+            </span>
+            <select value={payorFilter} onChange={(e) => setPayorFilter(e.target.value)}
+              className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50
+                border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 appearance-none">
+              <option value="all">Todos os convênios</option>
+              {payorList.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <Icon name="chevron-down" className="w-4 h-4"/>
+            </span>
+          </div>
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <Icon name="table" className="w-4 h-4"/>
+            </span>
+            <select value={tableFilter} onChange={(e) => setTableFilter(e.target.value)}
+              className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50
+                border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 appearance-none">
+              <option value="all">Todas as tabelas</option>
+              {tableList.map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+              <Icon name="chevron-down" className="w-4 h-4"/>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <tr>
+                <th className="px-5 py-3 text-left font-bold">Fonte Pagadora</th>
+                <th className="px-5 py-3 text-left font-bold">Tabela Associada</th>
+                <th className="px-5 py-3 text-left font-bold">Código TUS</th>
+                <th className="px-5 py-3 text-left font-bold">Nome do Exame</th>
+                <th className="px-5 py-3 text-right font-bold">Valor Cobrado</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {filtered.map(p => {
+                const ex = examMap[p.examId];
+                return (
+                  <tr key={p.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                          <Icon name="building-2" className="w-3.5 h-3.5"/>
+                        </div>
+                        <span className="font-semibold text-gray-800 dark:text-gray-100">{p.payor}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <Badge tone="purple" dot>{p.table}</Badge>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="font-mono text-xs text-slate-600 dark:text-slate-400">{p.tus}</span>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{ex?.name || '—'}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">{ex?.code}</div>
+                    </td>
+                    <td className="px-5 py-3.5 text-right tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
+                      {formatBRL(p.price)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
+          <span>{filtered.length} {filtered.length === 1 ? 'registro' : 'registros'}</span>
+          <span className="inline-flex items-center gap-1.5">
+            <Icon name="lock" className="w-3 h-3"/>
+            Dados somente leitura — espelhados do APLIS
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   TELA 4 — Analytics: Filtros Proteus-style + Tabela de Rentabilidade
+   ═══════════════════════════════════════════════════════════════════════ */
+const StatCard = ({ icon, label, value, sub, tone = 'blue' }) => {
+  const tones = {
+    blue:    'from-blue-500/10 to-indigo-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20',
+    green:   'from-emerald-500/10 to-green-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+    red:     'from-red-500/10 to-rose-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+    amber:   'from-amber-500/10 to-orange-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+  };
+  return (
+    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 p-5 shadow-sm">
+      <div className="flex items-start justify-between">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</div>
+          <div className="mt-1 text-2xl font-bold text-gray-900 dark:text-white tabular-nums font-display">{value}</div>
+          {sub && <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{sub}</div>}
+        </div>
+        <div className={`w-10 h-10 rounded-xl bg-gradient-to-br border flex items-center justify-center ${tones[tone]}`}>
+          <Icon name={icon} className="w-5 h-5"/>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdvancedFilter = ({ field, op, val, val2, onChange, onRemove, fields }) => {
+  const ops = [
+    { v: 'gt', label: 'Maior que' },
+    { v: 'lt', label: 'Menor que' },
+    { v: 'eq', label: 'Igual a' },
+    { v: 'between', label: 'Entre' },
+  ];
+  return (
+    <div className="flex flex-wrap items-center gap-2 px-3 py-2 rounded-xl bg-slate-100/70 dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700">
+      <select value={field} onChange={(e) => onChange({ field: e.target.value, op, val, val2 })}
+        className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500">
+        {fields.map(f => <option key={f.k} value={f.k}>{f.label}</option>)}
+      </select>
+      <select value={op} onChange={(e) => onChange({ field, op: e.target.value, val, val2 })}
+        className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500">
+        {ops.map(o => <option key={o.v} value={o.v}>{o.label}</option>)}
+      </select>
+      <input type="number" step="0.01" value={val} onChange={(e) => onChange({ field, op, val: e.target.value, val2 })}
+        className="w-24 px-2 py-1.5 text-xs tabular-nums rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500"/>
+      {op === 'between' && (
+        <>
+          <span className="text-xs text-gray-400">e</span>
+          <input type="number" step="0.01" value={val2} onChange={(e) => onChange({ field, op, val, val2: e.target.value })}
+            className="w-24 px-2 py-1.5 text-xs tabular-nums rounded-lg bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500"/>
+        </>
+      )}
+      <button onClick={onRemove} className="ml-1 p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10">
+        <Icon name="x" className="w-3.5 h-3.5"/>
+      </button>
+    </div>
+  );
+};
+
+const InfoTooltip = ({ children, content }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <span className="relative inline-flex" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      {children}
+      {open && (
+        <span className="absolute bottom-full right-0 mb-2 w-64 p-3 rounded-xl bg-gray-900 dark:bg-gray-700 text-white text-xs leading-relaxed shadow-xl z-30 animate-fade-in">
+          {content}
+          <span className="absolute -bottom-1 right-3 w-2 h-2 bg-gray-900 dark:bg-gray-700 rotate-45"/>
+        </span>
+      )}
+    </span>
+  );
+};
+
+const AnalyticsScreen = ({ exams, payors }) => {
+  const [filters, setFilters] = useState([
+    { field: 'margin', op: 'lt', val: 0, val2: 0 },
+  ]);
+  const [payorFilter, setPayorFilter] = useState('Saldo de Caixa');
+  const [dateFrom, setDateFrom] = useState('2026-04-01');
+  const [dateTo, setDateTo] = useState('2026-04-30');
+
+  const fields = [
+    { k: 'cost',    label: 'Custo Total' },
+    { k: 'revenue', label: 'Receita' },
+    { k: 'profit',  label: 'Lucro/Prejuízo' },
+    { k: 'margin',  label: 'Margem (%)' },
+  ];
+
+  const examMap = useMemo(() => Object.fromEntries(exams.map(e => [e.id, e])), [exams]);
+
+  // Build rentabilidade rows
+  const rows = useMemo(() => {
+    const filteredP = payors.filter(p => payorFilter === 'all' || p.payor === payorFilter);
+    return filteredP.map(p => {
+      const ex = examMap[p.examId];
+      if (!ex) return null;
+      const cost = ex.direct + ex.indirect;
+      const revenue = p.price;
+      const profit = revenue - cost;
+      const margin = revenue > 0 ? ((revenue - cost) / revenue) * 100 : 0;
+      const ratio = revenue > 0 ? (cost / revenue) * 100 : 0; // > 100% = prejuízo
+      return { id: p.id, exam: ex, cost, revenue, profit, margin, ratio, payor: p.payor, table: p.table };
+    }).filter(Boolean);
+  }, [payors, examMap, payorFilter]);
+
+  // Apply advanced filters
+  const filteredRows = useMemo(() => {
+    return rows.filter(r => filters.every(f => {
+      const v = r[f.field];
+      const a = parseFloat(f.val);
+      const b = parseFloat(f.val2);
+      if (Number.isNaN(a) && f.op !== 'between') return true;
+      switch (f.op) {
+        case 'gt': return v > a;
+        case 'lt': return v < a;
+        case 'eq': return Math.abs(v - a) < 0.01;
+        case 'between':
+          if (Number.isNaN(a) || Number.isNaN(b)) return true;
+          return v >= Math.min(a, b) && v <= Math.max(a, b);
+        default: return true;
+      }
+    }));
+  }, [rows, filters]);
+
+  // Summary metrics
+  const summary = useMemo(() => {
+    const totalCost = filteredRows.reduce((s, r) => s + r.cost, 0);
+    const totalRev = filteredRows.reduce((s, r) => s + r.revenue, 0);
+    const totalProfit = totalRev - totalCost;
+    const lossCount = filteredRows.filter(r => r.profit < 0).length;
+    return { totalCost, totalRev, totalProfit, lossCount, count: filteredRows.length };
+  }, [filteredRows]);
+
+  return (
+    <div className="space-y-5">
+      {/* Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard icon="layers"        label="Exames analisados" value={summary.count}                              sub={`Período: abr/2026`} tone="blue"/>
+        <StatCard icon="trending-up"   label="Receita total"      value={formatBRL(summary.totalRev)}                sub="Soma das fontes pagadoras" tone="green"/>
+        <StatCard icon="dollar-sign"   label="Custo total"        value={formatBRL(summary.totalCost)}               sub="Direto + indireto" tone="amber"/>
+        <StatCard icon="alert-triangle" label="Exames com prejuízo" value={summary.lossCount}                        sub={summary.count ? `${((summary.lossCount/summary.count)*100).toFixed(0)}% da carteira` : '—'} tone={summary.lossCount > 0 ? 'red' : 'green'}/>
+      </div>
+
+      {/* Filters card */}
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 p-5 shadow-sm">
+        <div className="flex items-start justify-between flex-wrap gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
+              <Icon name="sliders-horizontal" className="w-4 h-4"/>
+            </div>
+            <div>
+              <h2 className="text-base font-semibold text-gray-900 dark:text-gray-100">Filtros avançados</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Combine condições para isolar cenários de rentabilidade.</p>
+            </div>
+          </div>
+          <PrimaryButton icon="download">Exportar relatório</PrimaryButton>
+        </div>
+
+        {/* Base filters: payor + date range */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <Field label="Fonte pagadora">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                <Icon name="building-2" className="w-4 h-4"/>
+              </span>
+              <select value={payorFilter} onChange={(e) => setPayorFilter(e.target.value)}
+                className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50
+                  border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 appearance-none">
+                <option value="all">Todos os convênios</option>
+                {Array.from(new Set(payors.map(p => p.payor))).map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+                <Icon name="chevron-down" className="w-4 h-4"/>
+              </span>
+            </div>
+          </Field>
+          <Field label="Data inicial">
+            <TextInput icon="calendar" type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)}/>
+          </Field>
+          <Field label="Data final">
+            <TextInput icon="calendar" type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)}/>
+          </Field>
+        </div>
+
+        {/* Advanced (Proteus-style) filters */}
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Condições</div>
+          <div className="flex flex-wrap gap-2">
+            {filters.map((f, i) => (
+              <AdvancedFilter
+                key={i} {...f} fields={fields}
+                onChange={(nf) => setFilters(arr => arr.map((x, j) => j === i ? nf : x))}
+                onRemove={() => setFilters(arr => arr.filter((_, j) => j !== i))}
+              />
+            ))}
+            <button
+              onClick={() => setFilters(arr => [...arr, { field: 'cost', op: 'gt', val: 0, val2: 0 }])}
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-dashed border-blue-300 dark:border-blue-700
+                text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 text-xs font-semibold transition-colors">
+              <Icon name="plus" className="w-3.5 h-3.5"/> Adicionar condição
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">Pré-visualização de rentabilidade</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Linhas em vermelho indicam <strong>prejuízo</strong> (Custo / Receita &gt; 100%).</p>
+          </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Badge tone="green" dot>Lucro</Badge>
+            <Badge tone="amber" dot>Margem &lt; 10%</Badge>
+            <Badge tone="red" dot>Prejuízo</Badge>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              <tr>
+                <th className="px-5 py-3 text-left font-bold">Exame</th>
+                <th className="px-5 py-3 text-left font-bold">Pagador / Tabela</th>
+                <th className="px-5 py-3 text-right font-bold">Custo Total</th>
+                <th className="px-5 py-3 text-right font-bold">Receita</th>
+                <th className="px-5 py-3 text-right font-bold">Lucro/Prejuízo</th>
+                <th className="px-5 py-3 text-right font-bold">Margem</th>
+                <th className="px-5 py-3 text-center font-bold w-24">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+              {filteredRows.map(r => {
+                const isLoss = r.profit < 0;
+                const isThin = !isLoss && r.margin < 10;
+                return (
+                  <tr key={r.id}
+                      className={`transition-colors ${isLoss
+                        ? 'bg-red-50/40 dark:bg-red-500/[.05] hover:bg-red-50/70 dark:hover:bg-red-500/[.08]'
+                        : 'hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04]'}`}>
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center gap-2">
+                        <div className="font-semibold text-gray-800 dark:text-gray-100">{r.exam.name}</div>
+                        {isLoss && (
+                          <InfoTooltip content="Exames podem ser mantidos no portfólio mesmo com prejuízo unitário, por integrarem painéis lucrativos maiores ou contratos de exclusividade. Avalie em conjunto.">
+                            <span className="text-amber-500 cursor-help inline-flex"><Icon name="info" className="w-3.5 h-3.5"/></span>
+                          </InfoTooltip>
+                        )}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 font-mono">{r.exam.code} · {r.exam.location}</div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="text-sm font-medium text-gray-800 dark:text-gray-100">{r.payor}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">{r.table}</div>
+                    </td>
+                    <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-200">{formatBRL(r.cost)}</td>
+                    <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-200">{formatBRL(r.revenue)}</td>
+                    <td className={`px-5 py-3.5 text-right tabular-nums font-bold
+                      ${isLoss ? 'text-red-600 dark:text-red-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {isLoss ? '−' : '+'}{formatBRL(Math.abs(r.profit))}
+                    </td>
+                    <td className={`px-5 py-3.5 text-right tabular-nums font-semibold
+                      ${isLoss ? 'text-red-600 dark:text-red-400' : isThin ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                      {formatPct(r.margin)}
+                    </td>
+                    <td className="px-5 py-3.5 text-center">
+                      {isLoss
+                        ? <Badge tone="red" dot>Prejuízo</Badge>
+                        : isThin
+                          ? <Badge tone="amber" dot>Margem baixa</Badge>
+                          : <Badge tone="green" dot>Lucro</Badge>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {filteredRows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                    Nenhum resultado para os filtros aplicados.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
+          <span>{filteredRows.length} {filteredRows.length === 1 ? 'linha' : 'linhas'}</span>
+          <span className="inline-flex items-center gap-1.5">
+            Resultado líquido:
+            <strong className={`tabular-nums ${summary.totalProfit >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
+              {summary.totalProfit >= 0 ? '+' : '−'}{formatBRL(Math.abs(summary.totalProfit))}
+            </strong>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   GLOBAL FEEDBACK — Toast + Confirm Dialog (mirrors useNotification/useDialog)
+   ═══════════════════════════════════════════════════════════════════════ */
+const FeedbackHost = () => {
+  const [toast, setToast] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+
+  useEffect(() => {
+    window.__toast = (t) => {
+      setToast(t);
+      setTimeout(() => setToast(null), 3200);
+    };
+    window.__confirm = (c) => setConfirm(c);
+  }, []);
+
+  return (
+    <>
+      {toast && (
+        <div className="fixed top-6 right-6 z-[60] animate-slide-up">
+          <div className={`flex items-center gap-3 px-4 py-3 rounded-xl shadow-xl border min-w-[280px]
+            ${toast.kind === 'success'
+              ? 'bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-200'
+              : 'bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30 text-red-800 dark:text-red-200'}`}>
+            <Icon name={toast.kind === 'success' ? 'check-circle' : 'alert-triangle'} className="w-5 h-5"/>
+            <span className="text-sm font-medium">{toast.msg}</span>
+          </div>
+        </div>
+      )}
+
+      {confirm && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[55] flex items-center justify-center p-4 animate-fade-in"
+             onClick={() => setConfirm(null)}>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-md w-full animate-scale-in" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+                  <Icon name="alert-triangle" className="w-5 h-5"/>
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{confirm.title}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{confirm.message}</p>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-slate-50 dark:bg-gray-900/50 border-t border-gray-100 dark:border-gray-700 rounded-b-2xl flex justify-end gap-3">
+              <GhostButton onClick={() => setConfirm(null)}>Cancelar</GhostButton>
+              <button onClick={() => { confirm.onConfirm(); setConfirm(null); }}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white
+                  bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700
+                  shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30 active:scale-[.98] transition-all">
+                <Icon name="trash-2" className="w-4 h-4"/> {confirm.confirmText || 'Excluir'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   TELA 1 — Dashboard wrapper (Exames)
+   ═══════════════════════════════════════════════════════════════════════ */
+const ExamsScreen = () => {
+  const { exams, loading, addExam, updateExam, deleteExam } = useCostControl();
+  const { showSuccess } = useNotification();
+  const { showConfirmDialog } = useDialog();
+
+  const [search, setSearch] = useState('');
+  const [location, setLocation] = useState('all');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editing, setEditing] = useState(null);
+
+  const locations = useMemo(() => Array.from(new Set(exams.map(e => e.location))), [exams]);
+  const filtered = exams.filter(e => {
+    const q = search.toLowerCase();
+    const matches = !q || e.name.toLowerCase().includes(q) || e.code.toLowerCase().includes(q);
+    const matchesLoc = location === 'all' || e.location === location;
+    return matches && matchesLoc;
+  });
+
+  // Stats
+  const stats = useMemo(() => {
+    const totalCost = exams.reduce((s, e) => s + e.direct + e.indirect, 0);
+    const avgCost = exams.length ? totalCost / exams.length : 0;
+    return { count: exams.length, totalCost, avgCost };
+  }, [exams]);
+
+  const handleSave = (form) => {
+    if (editing) {
+      updateExam(editing.id, form);
+      showSuccess('Exame atualizado com sucesso!');
+    } else {
+      addExam(form);
+      showSuccess('Exame cadastrado com sucesso!');
+    }
+    setModalOpen(false); setEditing(null);
+  };
+
+  const handleDelete = (exam) => {
+    showConfirmDialog({
+      title: 'Excluir exame',
+      message: `Tem certeza que deseja excluir "${exam.name}"? Esta ação não pode ser desfeita.`,
+      confirmText: 'Excluir',
+      onConfirm: () => { deleteExam(exam.id); showSuccess('Exame excluído com sucesso!'); },
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 p-12 text-center text-sm text-gray-500">
+        Carregando exames…
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        <StatCard icon="flask-conical"  label="Exames cadastrados" value={stats.count}                   sub="No catálogo" tone="blue"/>
+        <StatCard icon="dollar-sign"    label="Custo total da carteira" value={formatBRL(stats.totalCost)} sub="Soma de todos os exames" tone="amber"/>
+        <StatCard icon="bar-chart-3"    label="Custo médio por exame" value={formatBRL(stats.avgCost)}    sub="Direto + indireto" tone="green"/>
+      </div>
+
+      {/* Toolbar */}
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 p-4 shadow-sm">
+        <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+          <CostFilters search={search} setSearch={setSearch} location={location} setLocation={setLocation} locations={locations}/>
+          <div className="flex flex-wrap items-center gap-2">
+            <GhostButton icon="download">Exportar (Excel)</GhostButton>
+            <GhostButton icon="upload">Importar (Excel)</GhostButton>
+            <PrimaryButton icon="plus" onClick={() => { setEditing(null); setModalOpen(true); }}>Novo exame</PrimaryButton>
+          </div>
+        </div>
+      </div>
+
+      <ExamTable
+        exams={filtered}
+        onEdit={(e) => { setEditing(e); setModalOpen(true); }}
+        onDelete={handleDelete}
+      />
+
+      <ExamFormModal
+        open={modalOpen}
+        exam={editing}
+        onClose={() => { setModalOpen(false); setEditing(null); }}
+        onSave={handleSave}
+      />
+    </div>
+  );
+};
+
+/* ════════════════════════════════════════════════════════════════════════
+   ROOT
+   ═══════════════════════════════════════════════════════════════════════ */
+const App = () => {
+  const [tab, setTab] = useState('exams');
+  const cc = useCostControl();
+
+  return (
+    <div className="min-h-screen bg-slate-50 dark:bg-gray-900">
+      <Sidebar active="cost" onNav={() => {}}/>
+      <div className="lg:pl-64">
+        <Topbar tab={tab} onTab={setTab}/>
+        <main className="px-4 sm:px-6 lg:px-8 py-6">
+          <div className="animate-slide-up">
+            {tab === 'exams'     && <ExamsScreen/>}
+            {tab === 'payors'    && <PayorsScreen payors={cc.payors} exams={cc.exams}/>}
+            {tab === 'analytics' && <AnalyticsScreen exams={cc.exams} payors={cc.payors}/>}
+          </div>
+        </main>
+      </div>
+      <FeedbackHost/>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createUmamiClient, buildTimeRangeParams } from './api/_lib/umami';
 import type { UmamiTimeRange, UmamiTimeUnit } from './api/_lib/umami';
 import nodemailer from 'nodemailer';
+import { createClient } from '@supabase/supabase-js';
 // ── Dev-only middleware para POST /api/notifications/email ───────────────────
 function emailApiPlugin(env: Record<string, string>): Plugin {
   return {
@@ -19,7 +20,7 @@ function emailApiPlugin(env: Record<string, string>): Plugin {
         };
 
         // Lê body JSON
-        let body: Record<string, string> = {};
+        let body: Record<string, unknown> = {};
         try {
           await new Promise<void>((resolve, reject) => {
             let raw = '';
@@ -34,14 +35,57 @@ function emailApiPlugin(env: Record<string, string>): Plugin {
           return send(400, { success: false, error: 'Body inválido' });
         }
 
-        const { to, subject, html } = body;
+        const { to, templateSlug, variables } = body as {
+          to?: string;
+          templateSlug?: string;
+          variables?: Record<string, string>;
+        };
 
-        if (!to || !subject || !html) {
-          return send(400, { success: false, error: 'Campos obrigatórios: to, subject, html' });
+        if (!to || !templateSlug || !variables) {
+          return send(400, { success: false, error: 'Campos obrigatórios ausentes: to, templateSlug, variables' });
         }
 
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
           return send(400, { success: false, error: 'Endereço de email inválido' });
+        }
+
+        // Busca template no Supabase
+        const supabaseUrl = env.VITE_SUPABASE_URL;
+        const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
+
+        if (!supabaseUrl || !serviceRoleKey) {
+          console.error('[dev/email] VITE_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados no .env');
+          return send(500, { success: false, error: 'Configuração Supabase ausente no .env' });
+        }
+
+        let finalSubject: string;
+        let finalHtml: string;
+
+        try {
+          const supabase = createClient(supabaseUrl, serviceRoleKey, {
+            auth: { persistSession: false, autoRefreshToken: false },
+          });
+
+          const { data: template, error } = await supabase
+            .from('notification_templates')
+            .select('subject_template, body_html')
+            .eq('slug', templateSlug)
+            .single();
+
+          if (error || !template) {
+            console.error('[dev/email] Template não encontrado:', templateSlug, error?.message);
+            return send(404, { success: false, error: 'Template not found' });
+          }
+
+          const render = (str: string) =>
+            str.replace(/{{(\w+)}}/g, (_m: string, k: string) => variables[k] ?? '');
+
+          finalSubject = render(template.subject_template);
+          finalHtml    = render(template.body_html);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : 'Erro desconhecido';
+          console.error('[dev/email] Erro ao buscar template:', message);
+          return send(500, { success: false, error: 'Erro interno ao carregar template' });
         }
 
         const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = env;
@@ -62,8 +106,8 @@ function emailApiPlugin(env: Record<string, string>): Plugin {
           const info = await transporter.sendMail({
             from: SMTP_FROM,
             to,
-            subject,
-            html,
+            subject: finalSubject,
+            html: finalHtml,
           });
 
           console.log('[dev/email] Enviado:', info.messageId);

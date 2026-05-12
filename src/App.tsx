@@ -27,6 +27,7 @@ import ITRequestManagement from './components/IT/ITRequestManagement';
 import ITKanbanBoard from './components/IT/ITKanbanBoard';
 import TestKanban from './components/IT/TestKanban';
 import { NotificationAdminPanel } from './components/NotificationAdminPanel';
+import CostControlDashboard from './pages/CostControlDashboard';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ 
@@ -197,6 +198,16 @@ const AuthenticatedApp: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        {/* Cost Control */}
+        <Route
+          path="/cost-control"
+          element={
+            <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
+              <CostControlDashboard />
+            </ProtectedRoute>
+          }
+        />
+
         {/* Faturamento Routes */}
         <Route
           path="/faturamento/faturas"
