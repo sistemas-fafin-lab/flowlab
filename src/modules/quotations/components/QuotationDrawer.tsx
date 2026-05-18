@@ -101,6 +101,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [showAddItemForm, setShowAddItemForm] = useState(false);
   const [itemProductSearch, setItemProductSearch] = useState('');
+  const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [drawerWidth, setDrawerWidth] = useState(780);
   const isResizingRef = useRef(false);
@@ -453,16 +454,16 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                             <input
                               type="text"
                               value={itemProductSearch}
-                              onChange={(e) => setItemProductSearch(e.target.value)}
+                              onChange={(e) => { setItemProductSearch(e.target.value); setIsProductDropdownOpen(true); }}
                               className="w-full pl-9 pr-3 py-2 border border-slate-200 dark:border-slate-700 rounded-xl text-sm bg-white/80 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 outline-none transition-all"
                               placeholder="Nome do produto..."
                             />
-                            {itemProductSearch && products && products.filter(p => p.name.toLowerCase().includes(itemProductSearch.toLowerCase())).length > 0 && (
+                            {isProductDropdownOpen && itemProductSearch && products && products.filter(p => p.name.toLowerCase().includes(itemProductSearch.toLowerCase())).length > 0 && (
                               <div className="absolute top-full left-0 right-0 mt-1 max-h-40 overflow-y-auto bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-slate-200/70 dark:border-slate-700/70 rounded-xl shadow-xl z-10">
                                 {products.filter(p => p.name.toLowerCase().includes(itemProductSearch.toLowerCase())).slice(0, 8).map(product => (
                                   <div
                                     key={product.id}
-                                    onClick={() => setItemProductSearch(product.name)}
+                                    onClick={() => { setItemProductSearch(product.name); setIsProductDropdownOpen(false); }}
                                     className="px-3 py-2 text-sm text-slate-800 dark:text-slate-200 hover:bg-blue-50/70 dark:hover:bg-blue-900/20 cursor-pointer transition-colors"
                                   >
                                     <span className="font-medium">{product.name}</span>
@@ -501,6 +502,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                                   });
                                   setItemProductSearch('');
                                   setNewItemQuantity(1);
+                                  setIsProductDropdownOpen(false);
                                   setShowAddItemForm(false);
                                 } catch (error) {
                                   console.error('Error adding item:', error);
@@ -515,7 +517,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                             </button>
                             <button
                               type="button"
-                              onClick={() => { setShowAddItemForm(false); setItemProductSearch(''); setNewItemQuantity(1); }}
+                              onClick={() => { setShowAddItemForm(false); setItemProductSearch(''); setNewItemQuantity(1); setIsProductDropdownOpen(false); }}
                               className="px-3 py-2 text-slate-600 dark:text-slate-300 text-sm bg-slate-100 dark:bg-slate-700/70 rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
                             >
                               Cancelar

@@ -101,9 +101,7 @@ export const useQuotation = () => {
         // Build item lookup map for proposal item enrichment
         const dbItems: any[] = q.quotation_items || [];
 
-        // If no items in quotation_items but there's a product in the main row, create synthetic
-        const items = dbItems.length > 0
-          ? dbItems.map((item: any) => ({
+        const mappedItems = dbItems.map((item: any) => ({
               id: item.id,
               quotationId: q.id,
               productId: item.product_id,
@@ -117,21 +115,29 @@ export const useQuotation = () => {
               specifications: item.specifications,
               createdAt: item.created_at,
               updatedAt: item.updated_at,
-            }))
-          : q.product_name
-          ? [{
-              id: q.id + '_legacy_item',
-              quotationId: q.id,
-              productId: q.product_id || undefined,
-              productName: q.product_name,
-              quantity: q.requested_quantity || 1,
-              unit: 'un',
-              category: 'general',
-              estimatedUnitPrice: undefined,
-              createdAt: q.created_at,
-              updatedAt: q.updated_at,
-            }]
-          : [];
+            }));
+
+        // Include legacy product_name item if not already present in quotation_items
+        // (handles quotations created before quotation_items schema or when INSERT failed silently)
+        if (q.product_name && !dbItems.some((i: any) => i.product_name === q.product_name)) {
+          mappedItems.push({
+            id: q.id + '_legacy_item',
+            quotationId: q.id,
+            productId: q.product_id || undefined,
+            productName: q.product_name,
+            productCode: undefined,
+            description: undefined,
+            quantity: q.requested_quantity || 1,
+            unit: 'un',
+            category: 'general',
+            estimatedUnitPrice: undefined,
+            specifications: undefined,
+            createdAt: q.created_at,
+            updatedAt: q.updated_at,
+          });
+        }
+
+        const items = mappedItems;
 
         const itemMap = Object.fromEntries(items.map((i: any) => [i.id, i]));
 
@@ -816,6 +822,21 @@ export const useQuotation = () => {
       0
     );
 
+    const { error: itemError } = await supabase
+      .from('quotation_items')
+      .insert({
+        id: newItem.id,
+        quotation_id: quotationId,
+        ...(item.productId ? { product_id: item.productId } : {}),
+        product_name: item.productName,
+        product_code: item.productCode || null,
+        description: item.description || null,
+        quantity: item.quantity,
+        unit: item.unit,
+        estimated_unit_price: item.estimatedUnitPrice || null,
+      });
+    if (itemError) throw itemError;
+
     setQuotations(prev => prev.map(q => {
       if (q.id === quotationId) {
         return {
@@ -830,7 +851,7 @@ export const useQuotation = () => {
     }));
 
     await addAuditLog(quotationId, 'item_added', {}, { itemId: newItem.id, itemName: item.productName });
-    
+
     return newItem;
   }, [quotations, addAuditLog]);
 
@@ -848,6 +869,12 @@ export const useQuotation = () => {
       (sum, i) => sum + (i.estimatedUnitPrice || 0) * i.quantity,
       0
     );
+
+    const { error: deleteError } = await supabase
+      .from('quotation_items')
+      .delete()
+      .eq('id', itemId);
+    if (deleteError) throw deleteError;
 
     setQuotations(prev => prev.map(q => {
       if (q.id === quotationId) {
