@@ -252,7 +252,7 @@ const CustomDropdown: React.FC<{
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
-        className="w-full flex items-center justify-between gap-2 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-500 transition-colors rounded-xl px-3 py-2 text-sm cursor-pointer group"
+        className="w-full flex items-center justify-between gap-2 text-slate-800 dark:text-slate-200 bg-white/60 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 hover:border-violet-400 dark:hover:border-violet-500 transition-colors rounded-xl px-3 py-2 text-sm cursor-pointer group"
       >
         <span className="flex-1 text-left truncate">
           {renderTrigger ? renderTrigger(selected) : defaultTriggerContent()}
@@ -273,7 +273,7 @@ const CustomDropdown: React.FC<{
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -6, scale: 0.97 }}
             transition={{ duration: 0.13, ease: 'easeOut' }}
-            className="absolute top-[calc(100%+4px)] left-0 w-full min-w-max z-[100]
+            className="absolute top-[calc(100%+4px)] right-0 w-full min-w-max z-[100]
                        bg-white dark:bg-slate-800 
                        border border-slate-200 dark:border-slate-700 
                        rounded-xl shadow-xl shadow-black/10 dark:shadow-black/30
@@ -414,7 +414,11 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
 
   // ─── Fetch users (for assigned_to select) ─────────────────────────────────
   const fetchUsers = useCallback(async () => {
-    const { data } = await supabase.from('user_profiles').select('id, name').order('name');
+    const { data } = await supabase
+      .from('user_profiles')
+      .select('id, name')
+      .eq('department', 'TI')
+      .order('name');
     setUsers(data || []);
   }, []);
 
@@ -615,6 +619,23 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
     } catch (err) {
       console.error('Erro ao remover tag:', err);
     }
+  };
+
+  // ─── Assignee handlers ─────────────────────────────────────────────────────
+  const handleAddAssignee = async (newUserId: string) => {
+    if (!isITManager) return;
+    const current = task.assigned_to || [];
+    if (current.includes(newUserId)) return;
+    const updated = [...current, newUserId];
+    onUpdate({ id: task.id, assigned_to: updated });
+    await supabase.from('it_requests').update({ assigned_to: updated }).eq('id', task.id);
+  };
+
+  const handleRemoveAssignee = async (removeUserId: string) => {
+    if (!isITManager) return;
+    const updated = (task.assigned_to || []).filter((id) => id !== removeUserId);
+    onUpdate({ id: task.id, assigned_to: updated });
+    await supabase.from('it_requests').update({ assigned_to: updated }).eq('id', task.id);
   };
 
   const handleTagInputKeyDown = (e: React.KeyboardEvent) => {
@@ -1018,7 +1039,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                       return (
                         <span className="flex items-center gap-2">
                           {Icon && <Icon className={`w-4 h-4 ${selected.color}`} />}
-                          <span>{selected.label}</span>
+                          <span className="text-slate-800 dark:text-slate-200">{selected.label}</span>
                         </span>
                       );
                     }}
@@ -1036,43 +1057,80 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
 
                 {/* Assigned to */}
                 <AttributeRow label="Responsável" className="z-[340]">
-                  <CustomDropdown
-                    value={task.assigned_to ?? ''}
-                    options={[
-                      { value: '', label: 'Não atribuído', color: 'text-gray-400' },
-                      ...users.map(u => ({ value: u.id, label: u.name, avatar: u.name[0]?.toUpperCase() || '?' }))
-                    ]}
-                    onChange={(v) => saveField('assigned_to', v || null)}
-                    disabled={!isITManager}
-                    placeholder="Não atribuído"
-                    renderTrigger={(selected) => {
-                      if (!selected || !selected.value) {
-                        return <span className="text-gray-400">Não atribuído</span>;
-                      }
+                  <div className="space-y-2">
+                    {/* Current assignees as chips */}
+                    <div className="flex flex-wrap gap-1.5">
+                      {(task.assigned_to || []).map((uid) => {
+                        const user = users.find((u) => u.id === uid);
+                        if (!user) return null;
+                        return (
+                          <motion.span
+                            key={uid}
+                            initial={{ opacity: 0, scale: 0.9 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className="inline-flex items-center gap-1.5 px-2 py-1 text-xs font-medium bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300 rounded-lg border border-violet-200/60 dark:border-violet-700/40 group"
+                          >
+                            <span className="w-4 h-4 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-[8px] font-bold text-white flex-shrink-0">
+                              {user.name[0]?.toUpperCase()}
+                            </span>
+                            {user.name}
+                            {isITManager && (
+                              <button
+                                onClick={() => handleRemoveAssignee(uid)}
+                                className="ml-0.5 p-0.5 text-violet-400 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
+                                aria-label={`Remover ${user.name}`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </motion.span>
+                        );
+                      })}
+                      {(task.assigned_to || []).length === 0 && !isITManager && (
+                        <span className="text-sm text-gray-400 italic">Não atribuído</span>
+                      )}
+                    </div>
+
+                    {/* Add assignee dropdown (IT Manager only) */}
+                    {isITManager && (() => {
+                      const unassigned = users.filter((u) => !(task.assigned_to || []).includes(u.id));
+                      if (unassigned.length === 0) return null;
                       return (
-                        <span className="flex items-center gap-2">
-                          <span className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-[9px] font-bold text-white">
-                            {selected.avatar || selected.label[0]?.toUpperCase()}
-                          </span>
-                          <span className="truncate">{selected.label}</span>
-                        </span>
+                        <CustomDropdown
+                          value=""
+                          options={unassigned.map((u) => ({ value: u.id, label: u.name, avatar: u.name[0]?.toUpperCase() || '?' }))}
+                          onChange={(v) => { if (v) handleAddAssignee(v); }}
+                          placeholder="Adicionar responsável..."
+                          renderTrigger={(selected) => {
+                            if (!selected || !selected.value) {
+                              return (
+                                <span className="flex items-center gap-1.5 text-gray-400 dark:text-gray-500">
+                                  <Plus className="w-3.5 h-3.5" />
+                                  Adicionar responsável
+                                </span>
+                              );
+                            }
+                            return (
+                              <span className="flex items-center gap-2">
+                                <span className="w-5 h-5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-[9px] font-bold text-white">
+                                  {selected.avatar || selected.label[0]?.toUpperCase()}
+                                </span>
+                                <span className="truncate text-slate-800 dark:text-slate-200">{selected.label}</span>
+                              </span>
+                            );
+                          }}
+                          renderOption={(option, isSelected) => (
+                            <span className="flex items-center gap-2.5">
+                              <span className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
+                                {option.avatar || option.label[0]?.toUpperCase()}
+                              </span>
+                              <span className={isSelected ? 'font-medium' : ''}>{option.label}</span>
+                            </span>
+                          )}
+                        />
                       );
-                    }}
-                    renderOption={(option, isSelected) => (
-                      <span className="flex items-center gap-2.5">
-                        {option.value ? (
-                          <span className="w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-[10px] font-bold text-white flex-shrink-0">
-                            {option.avatar || option.label[0]?.toUpperCase()}
-                          </span>
-                        ) : (
-                          <span className="w-6 h-6 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center flex-shrink-0">
-                            <User className="w-3 h-3 text-gray-400" />
-                          </span>
-                        )}
-                        <span className={isSelected ? 'font-medium' : ''}>{option.label}</span>
-                      </span>
-                    )}
-                  />
+                    })()}
+                  </div>
                 </AttributeRow>
 
                 {/* Tags */}

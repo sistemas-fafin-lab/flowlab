@@ -51,7 +51,7 @@ export interface ITRequest {
   status: 'pending' | 'in_progress' | 'resolved' | 'cancelled';
   kanban_status: KanbanColumn;
   requested_by: string;
-  assigned_to: string | null;
+  assigned_to: string[];
   created_at: string;
   updated_at: string;
   // ITSM upgrade fields
@@ -61,7 +61,7 @@ export interface ITRequest {
   tags?: string[];
   // Joined
   requester_name?: string;
-  assignee_name?: string;
+  assignee_names?: string[];
 }
 
 export type KanbanColumn = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
@@ -215,13 +215,33 @@ const DraggableCard: React.FC<{
                   </span>
                 );
               })()}
-              <div className="flex items-center gap-1 min-w-0">
-                <User className="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
-                <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                  {item.assignee_name || item.requester_name || '—'}
-                </span>
-              </div>
+              {/* Requester fallback (only when no assignees) */}
+              {(item.assignee_names?.length ?? 0) === 0 && (
+                <div className="flex items-center gap-1 min-w-0">
+                  <User className="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                  <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                    {item.requester_name || '—'}
+                  </span>
+                </div>
+              )}
             </div>
+
+            {/* Assignees list (only when there are assignees) */}
+            {(item.assignee_names?.length ?? 0) > 0 && (
+              <div className="flex flex-col gap-0.5 mt-2">
+                {(item.assignee_names || []).slice(0, 2).map((name, i) => (
+                  <div key={i} className="flex items-center gap-1.5 min-w-0">
+                    <User className="w-3 h-3 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{name}</span>
+                  </div>
+                ))}
+                {(item.assignee_names?.length ?? 0) > 2 && (
+                  <span className="text-[10px] text-gray-400 dark:text-gray-500 pl-5">
+                    +{(item.assignee_names?.length ?? 0) - 2} mais
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -444,27 +464,26 @@ const ITKanbanBoard: React.FC = () => {
   // ─── Fetch ──────────────────────────────────────────────────────────────────
   const fetchRequests = useCallback(async () => {
     try {
-      // Try with kanban_hidden filter first (requires migration 20260430120000_kanban_hidden.sql).
-      // Falls back to status-based filter if the column doesn't exist yet.
-      let { data, error } = await supabase
-        .from('it_requests')
-        .select(`
-          *,
-          requester:user_profiles!requested_by(name),
-          assignee:user_profiles!assigned_to(name)
-        `)
-        .eq('kanban_hidden', false)
-        .order('updated_at', { ascending: false });
+      // Fetch users map for assignee name resolution (assigned_to is now UUID[])
+      const [requestsResult, usersResult] = await Promise.all([
+        supabase
+          .from('it_requests')
+          .select('*, requester:user_profiles!requested_by(name)')
+          .eq('kanban_hidden', false)
+          .order('updated_at', { ascending: false }),
+        supabase.from('user_profiles').select('id, name'),
+      ]);
+
+      let { data, error } = requestsResult;
+      const usersMap = Object.fromEntries(
+        (usersResult.data || []).map((u: any) => [u.id, u.name as string])
+      );
 
       if (error && (error as any).code === '42703') {
         // Column does not exist yet — fallback query without kanban_hidden
         const fallback = await supabase
           .from('it_requests')
-          .select(`
-            *,
-            requester:user_profiles!requested_by(name),
-            assignee:user_profiles!assigned_to(name)
-          `)
+          .select('*, requester:user_profiles!requested_by(name)')
           .neq('status', 'cancelled')
           .order('updated_at', { ascending: false });
         data = fallback.data;
@@ -476,7 +495,7 @@ const ITKanbanBoard: React.FC = () => {
       const rawData = (data || []).map((r: any) => ({
         ...r,
         requester_name: r.requester?.name,
-        assignee_name: r.assignee?.name,
+        assignee_names: (r.assigned_to || []).map((id: string) => usersMap[id]).filter(Boolean),
       }));
 
       // Race-condition filter: ignore cards that are being deleted right now
@@ -510,7 +529,7 @@ const ITKanbanBoard: React.FC = () => {
 
     // Filter by assignee
     if (filterAssignee === 'me' && userId) {
-      filtered = filtered.filter((r) => r.assigned_to === userId || r.requested_by === userId);
+      filtered = filtered.filter((r) => r.assigned_to.includes(userId) || r.requested_by === userId);
     }
 
     // Then distribute into columns

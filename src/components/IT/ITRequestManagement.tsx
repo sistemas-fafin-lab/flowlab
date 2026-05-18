@@ -44,13 +44,13 @@ interface ITRequest {
   status: 'pending' | 'in_progress' | 'resolved' | 'cancelled';
   kanban_status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
   requested_by: string;
-  assigned_to: string | null;
+  assigned_to: string[];
   created_at: string;
   updated_at: string;
   attachments?: { url: string; name: string; size: number }[];
   requester_name?: string;
   requester_email?: string;
-  assignee_name?: string;
+  assignee_names?: string[];
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -209,13 +209,16 @@ const ITRequestManagement: React.FC = () => {
   // ─── Fetch ──────────────────────────────────────────────────────────────────
   const fetchRequests = async () => {
     try {
+      const [usersResult] = await Promise.all([
+        supabase.from('user_profiles').select('id, name'),
+      ]);
+      const usersMap = Object.fromEntries(
+        (usersResult.data || []).map((u: any) => [u.id, u.name as string])
+      );
+
       let query = supabase
         .from('it_requests')
-        .select(`
-          *,
-          requester:user_profiles!requested_by(name, email),
-          assignee:user_profiles!assigned_to(name)
-        `)
+        .select('*, requester:user_profiles!requested_by(name, email)')
         .order('created_at', { ascending: false });
 
       // Non-managers see only their own requests
@@ -230,7 +233,7 @@ const ITRequestManagement: React.FC = () => {
         ...r,
         requester_name: r.requester?.name,
         requester_email: r.requester?.email,
-        assignee_name: r.assignee?.name,
+        assignee_names: (r.assigned_to || []).map((id: string) => usersMap[id]).filter(Boolean),
       }));
 
       setRequests(formatted);
@@ -370,10 +373,15 @@ const ITRequestManagement: React.FC = () => {
   // ─── Assign (IT managers only) ──────────────────────────────────────────────
   const handleAssignToMe = async (requestId: string) => {
     if (!isITManager) return;
+    const req = requests.find((r) => r.id === requestId);
+    if (!req) return;
+    const current = req.assigned_to || [];
+    if (current.includes(userId)) return;
+    const updated = [...current, userId];
     try {
       const { error } = await supabase
         .from('it_requests')
-        .update({ assigned_to: userId, status: 'in_progress' })
+        .update({ assigned_to: updated, status: 'in_progress' })
         .eq('id', requestId);
 
       if (error) throw error;
@@ -743,11 +751,15 @@ const ITRequestManagement: React.FC = () => {
                     <span className="text-xs text-gray-500 dark:text-gray-400">
                       {isITManager ? (req.requester_name || '—') : 'Você'}
                     </span>
-                    {req.assignee_name && (
+                    {(req.assignee_names?.length ?? 0) > 0 && (
                       <>
                         <span className="text-xs text-gray-300 dark:text-gray-600 mx-1">→</span>
                         <UserCheck className="w-3 h-3 text-violet-500 dark:text-violet-400" />
-                        <span className="text-xs text-gray-500 dark:text-gray-400">{req.assignee_name}</span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                          {req.assignee_names!.length === 1
+                            ? req.assignee_names![0]
+                            : `${req.assignee_names![0]} +${req.assignee_names!.length - 1}`}
+                        </span>
                       </>
                     )}
                   </div>
@@ -777,7 +789,7 @@ const ITRequestManagement: React.FC = () => {
                 {/* Manager actions */}
                 {isITManager && (
                   <div className="flex items-center gap-2 sm:ml-1 sm:pl-3 sm:border-l sm:border-gray-200 sm:dark:border-gray-700">
-                    {!req.assigned_to && (
+                    {!req.assigned_to?.includes(userId) && (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleAssignToMe(req.id); }}
                         className="px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all whitespace-nowrap"
@@ -932,7 +944,9 @@ const ITRequestManagement: React.FC = () => {
                           <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4">
                             <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Responsável</p>
                             <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 truncate">
-                              {selectedRequest.assignee_name || '—'}
+                              {(selectedRequest.assignee_names?.length ?? 0) > 0
+                              ? selectedRequest.assignee_names!.join(', ')
+                              : '—'}
                             </p>
                           </div>
                           <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4">
