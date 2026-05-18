@@ -266,41 +266,62 @@ export interface Database {
         Row: {
           id: string
           quotation_id: string
-          supplier_id: string
-          supplier_name: string
+          supplier_id: string | null
+          supplier_name: string | null
           unit_price: number | null
           total_price: number | null
           delivery_time: string | null
           notes: string | null
-          status: 'draft' | 'submitted' | 'selected' | 'rejected'
+          status: string
           submitted_at: string | null
-          created_at: string
+          created_at: string | null
+          product_id: string | null
+          product_name: string | null
+          product_code: string | null
+          description: string | null
+          quantity: number | null
+          unit: string | null
+          estimated_unit_price: number | null
         }
         Insert: {
           id?: string
           quotation_id: string
-          supplier_id: string
-          supplier_name: string
+          supplier_id?: string | null
+          supplier_name?: string | null
           unit_price?: number | null
           total_price?: number | null
           delivery_time?: string | null
           notes?: string | null
-          status?: 'draft' | 'submitted' | 'selected' | 'rejected'
+          status?: string
           submitted_at?: string | null
-          created_at?: string
+          created_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          product_code?: string | null
+          description?: string | null
+          quantity?: number | null
+          unit?: string | null
+          estimated_unit_price?: number | null
         }
         Update: {
           id?: string
           quotation_id?: string
-          supplier_id?: string
-          supplier_name?: string
+          supplier_id?: string | null
+          supplier_name?: string | null
           unit_price?: number | null
           total_price?: number | null
           delivery_time?: string | null
           notes?: string | null
-          status?: 'draft' | 'submitted' | 'selected' | 'rejected'
+          status?: string
           submitted_at?: string | null
-          created_at?: string
+          created_at?: string | null
+          product_id?: string | null
+          product_name?: string | null
+          product_code?: string | null
+          description?: string | null
+          quantity?: number | null
+          unit?: string | null
+          estimated_unit_price?: number | null
         }
       }
     }

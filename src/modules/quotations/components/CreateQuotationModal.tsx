@@ -129,20 +129,21 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   };
 
   const handleAddItemFromInventory = () => {
-    if (selectedProduct) {
-      const product = products.find(p => p.id === selectedProduct);
-      if (product) {
-        setItems([...items, {
-          productName: product.name,
-          quantity: newItem.quantity,
-          unit: product.unit || 'un',
-          category: product.category || 'general',
-          estimatedUnitPrice: product.unitPrice,
-        }]);
-        setNewItem({ productName: '', quantity: 1, unit: 'un', category: 'general' });
-        setProductSearch('');
-        setSelectedProduct('');
-      }
+    const product = selectedProduct
+      ? products.find(p => p.id === selectedProduct)
+      : matchedProduct;
+
+    if (product) {
+      setItems([...items, {
+        productName: product.name,
+        quantity: newItem.quantity,
+        unit: product.unit || 'un',
+        category: product.category || 'general',
+        estimatedUnitPrice: product.unitPrice,
+      }]);
+      setNewItem({ productName: '', quantity: 1, unit: 'un', category: 'general' });
+      setProductSearch('');
+      setSelectedProduct('');
     }
   };
 
