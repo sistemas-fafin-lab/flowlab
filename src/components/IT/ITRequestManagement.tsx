@@ -29,6 +29,7 @@ import { useNotification } from '../../hooks/useNotification';
 import { hasPermission } from '../../utils/permissions';
 import { supabase } from '../../lib/supabase';
 import Notification from '../Notification';
+import KanbanPromoteModal from './KanbanPromoteModal';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -43,6 +44,10 @@ interface ITRequest {
   priority: 'low' | 'medium' | 'high' | 'critical';
   status: 'pending' | 'in_progress' | 'resolved' | 'cancelled';
   kanban_status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
+  kanban_hidden: boolean;
+  is_internal?: boolean;
+  project_id?: string | null;
+  sprint_id?: string | null;
   requested_by: string;
   assigned_to: string[];
   created_at: string;
@@ -117,6 +122,11 @@ const ITRequestManagement: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('all');
   const [selectedRequest, setSelectedRequest] = useState<ITRequest | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details');
+  const [kanbanModalReq, setKanbanModalReq] = useState<{
+    id: string; title: string; description: string | null;
+    project_id?: string | null; sprint_id?: string | null;
+    kanban_status: string; kanban_hidden: boolean;
+  } | null>(null);
 
   // ─── Chat state ──────────────────────────────────────────────────────────────
   const [comments, setComments] = useState<any[]>([]);
@@ -219,6 +229,7 @@ const ITRequestManagement: React.FC = () => {
       let query = supabase
         .from('it_requests')
         .select('*, requester:user_profiles!requested_by(name, email)')
+        .eq('is_internal', false)
         .order('created_at', { ascending: false });
 
       // Non-managers see only their own requests
@@ -304,6 +315,7 @@ const ITRequestManagement: React.FC = () => {
         priority: formData.priority,
         requested_by: userId,
         attachments: uploadedAttachments,
+        kanban_hidden: true,
       });
 
       if (error) throw error;
@@ -810,6 +822,28 @@ const ITRequestManagement: React.FC = () => {
                       </select>
                       <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
                     </div>
+
+                    {/* Kanban control */}
+                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        onClick={() => setKanbanModalReq({
+                          id: req.id,
+                          title: req.title,
+                          description: req.description,
+                          project_id: req.project_id,
+                          sprint_id: req.sprint_id,
+                          kanban_status: req.kanban_status,
+                          kanban_hidden: req.kanban_hidden,
+                        })}
+                        className={`px-2.5 py-1.5 text-xs font-medium border rounded-lg transition-colors whitespace-nowrap ${
+                          req.kanban_hidden === false
+                            ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
+                            : 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+                        }`}
+                      >
+                        Kanban
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1105,6 +1139,18 @@ const ITRequestManagement: React.FC = () => {
           })()}
         </AnimatePresence>,
         document.body
+      )}
+
+      {kanbanModalReq && (
+        <KanbanPromoteModal
+          request={kanbanModalReq}
+          userId={userId}
+          onClose={() => setKanbanModalReq(null)}
+          onSuccess={async () => {
+            setKanbanModalReq(null);
+            await fetchRequests();
+          }}
+        />
       )}
     </div>
   );
