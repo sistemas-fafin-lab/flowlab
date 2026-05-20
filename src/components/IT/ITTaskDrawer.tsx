@@ -28,8 +28,10 @@ import {
   Tag,
   Plus,
   Lightbulb,
+  FolderOpen,
+  Zap,
 } from 'lucide-react';
-import type { ITRequest, KanbanColumn } from './ITKanbanBoard';
+import type { ITRequest, KanbanColumn, ITProject, ITSprint } from './ITKanbanBoard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { hasPermission } from '../../utils/permissions';
@@ -354,6 +356,8 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
+  const [projects, setProjects] = useState<ITProject[]>([]);
+  const [sprints, setSprints] = useState<ITSprint[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -422,11 +426,27 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
     setUsers(data || []);
   }, []);
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      const { data } = await supabase.from('it_projects').select('*').order('name');
+      setProjects((data as ITProject[]) ?? []);
+    } catch { /* table may not exist yet */ }
+  }, []);
+
+  const fetchSprints = useCallback(async () => {
+    try {
+      const { data } = await supabase.from('it_sprints').select('*').order('created_at', { ascending: false });
+      setSprints((data as ITSprint[]) ?? []);
+    } catch { /* table may not exist yet */ }
+  }, []);
+
   useEffect(() => {
     fetchComments();
     fetchAttachments();
     fetchUsers();
-  }, [fetchComments, fetchAttachments, fetchUsers]);
+    fetchProjects();
+    fetchSprints();
+  }, [fetchComments, fetchAttachments, fetchUsers, fetchProjects, fetchSprints]);
 
   useEffect(() => {
     commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -967,6 +987,106 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
               <div className="rounded-2xl px-4 py-1 bg-white/70 dark:bg-slate-800/20 backdrop-blur-sm border border-slate-200/50 dark:border-slate-700/30">
 
                 {/* Status */}
+                {/* Projeto */}
+                <AttributeRow label="Projeto" className="z-[390]">
+                  {isITManager ? (
+                    <CustomDropdown
+                      value={task.project_id ?? ''}
+                      options={[
+                        { value: '', label: 'Sem Projeto', color: 'text-gray-400 dark:text-gray-500' },
+                        ...projects.map(p => ({ value: p.id, label: p.name, color: 'text-gray-700 dark:text-gray-200', dot: p.color })),
+                      ]}
+                      onChange={async (v) => {
+                        await saveField('project_id', v || null);
+                        if (task.sprint_id) await saveField('sprint_id', null);
+                      }}
+                      renderTrigger={(selected) => {
+                        if (!selected || !selected.value) return <span className="text-gray-400 dark:text-gray-500">Sem Projeto</span>;
+                        const proj = projects.find(p => p.id === selected.value);
+                        return (
+                          <span className="flex items-center gap-2">
+                            {proj && <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: proj.color }} />}
+                            <span className="text-slate-800 dark:text-slate-200 truncate">{selected.label}</span>
+                          </span>
+                        );
+                      }}
+                      renderOption={(option, isSelected) => (
+                        <span className="flex items-center gap-2.5">
+                          {option.dot
+                            ? <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: option.dot }} />
+                            : <FolderOpen className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                          }
+                          <span className={isSelected ? 'font-medium' : ''}>{option.label}</span>
+                        </span>
+                      )}
+                    />
+                  ) : (
+                    <span className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      {task.project_id ? (
+                        <>
+                          <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: task.project_color ?? '#6366f1' }} />
+                          {task.project_name ?? '—'}
+                        </>
+                      ) : '—'}
+                    </span>
+                  )}
+                </AttributeRow>
+
+                {/* Sprint */}
+                <AttributeRow label="Sprint" className="z-[380]">
+                  {isITManager ? (
+                    <CustomDropdown
+                      value={task.sprint_id ?? ''}
+                      disabled={!task.project_id}
+                      options={[
+                        { value: '', label: 'Sem Sprint', color: 'text-gray-400 dark:text-gray-500' },
+                        ...sprints
+                          .filter(s => s.project_id === task.project_id)
+                          .map(s => ({
+                            value: s.id,
+                            label: s.name,
+                            color: s.status === 'active' ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-700 dark:text-gray-200',
+                            badge: s.status === 'active' ? 'Ativo' : undefined,
+                          })),
+                      ]}
+                      onChange={(v) => saveField('sprint_id', v || null)}
+                      renderTrigger={(selected) => {
+                        if (!task.project_id) return <span className="text-gray-400 dark:text-gray-500 text-xs italic">Selecione um projeto primeiro</span>;
+                        if (!selected || !selected.value) return <span className="text-gray-400 dark:text-gray-500">Sem Sprint</span>;
+                        return (
+                          <span className="flex items-center gap-2">
+                            <Zap className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                            <span className="text-slate-800 dark:text-slate-200 truncate">{selected.label}</span>
+                          </span>
+                        );
+                      }}
+                      renderOption={(option, isSelected) => {
+                        const sprint = sprints.find(s => s.id === option.value);
+                        return (
+                          <span className="flex items-center gap-2.5">
+                            <Zap className={`w-3.5 h-3.5 flex-shrink-0 ${option.value ? 'text-emerald-500' : 'text-gray-400'}`} />
+                            <span className={`flex-1 ${isSelected ? 'font-medium' : ''}`}>{option.label}</span>
+                            {sprint?.status === 'active' && (
+                              <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-md flex-shrink-0">
+                                Ativo
+                              </span>
+                            )}
+                          </span>
+                        );
+                      }}
+                    />
+                  ) : (
+                    <span className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      {task.sprint_id ? (
+                        <>
+                          <Zap className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                          {task.sprint_name ?? '—'}
+                        </>
+                      ) : '—'}
+                    </span>
+                  )}
+                </AttributeRow>
+
                 <AttributeRow label="Status" className="z-[370]">
                   <CustomDropdown
                     value={task.status}

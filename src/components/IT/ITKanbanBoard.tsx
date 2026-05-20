@@ -29,6 +29,10 @@ import {
   Lightbulb,
   MoreVertical,
   GripVertical,
+  FolderOpen,
+  Layers,
+  Zap,
+  ChevronDown,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
@@ -36,6 +40,7 @@ import { useNotification } from '../../hooks/useNotification';
 import { supabase } from '../../lib/supabase';
 import Notification from '../Notification';
 import ITTaskDrawer from './ITTaskDrawer';
+import ITProjectManager from './ITProjectManager';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -59,15 +64,44 @@ export interface ITRequest {
   estimated_hours?: number | null;
   due_date?: string | null;
   tags?: string[];
+  // Project / Sprint
+  project_id?: string | null;
+  sprint_id?: string | null;
   // Joined
   requester_name?: string;
   assignee_names?: string[];
+  project_name?: string;
+  project_color?: string;
+  sprint_name?: string;
+}
+
+export interface ITProject {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ITSprint {
+  id: string;
+  project_id: string;
+  name: string;
+  goal: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  status: 'planned' | 'active' | 'completed';
+  created_at: string;
+  updated_at: string;
 }
 
 export type KanbanColumn = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
 
 type FilterType = 'all' | 'suporte' | 'desenvolvimento' | 'consultoria';
 type FilterAssignee = 'all' | 'me';
+type ViewMode = 'all' | 'by_project' | 'by_sprint';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -269,7 +303,10 @@ const KanbanColumnComponent: React.FC<{
   onInlineAddTextChange: (text: string) => void;
   onInlineAddSubmit: (columnId: KanbanColumn, title: string) => void;
   isAddingTask: boolean;
-}> = ({ column, items, onCardClick, onMenuOpen, onDeleteClick, draggingOverColumn, isAnyDragging, inlineAddColumn, inlineAddText, onInlineAddOpen, onInlineAddClose, onInlineAddTextChange, onInlineAddSubmit, isAddingTask }) => {
+  // Project grouping
+  viewMode: ViewMode;
+  projectGroups?: { project: ITProject | null; items: ITRequest[] }[];
+}> = ({ column, items, onCardClick, onMenuOpen, onDeleteClick, draggingOverColumn, isAnyDragging, inlineAddColumn, inlineAddText, onInlineAddOpen, onInlineAddClose, onInlineAddTextChange, onInlineAddSubmit, isAddingTask, viewMode, projectGroups }) => {
   const Icon = column.icon;
   const inputRef = useRef<HTMLInputElement>(null);
   const isAddingHere = inlineAddColumn === column.id;
@@ -328,16 +365,51 @@ const KanbanColumnComponent: React.FC<{
           >
             {/* gap-4 controla o espaçamento — casca física do card NÃO pode ter margens */}
             <div className="flex flex-col gap-4 h-full overflow-y-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-              {items.map((item, index) => (
-                <DraggableCard
-                  key={item.id}
-                  item={item}
-                  index={index}
-                  onCardClick={onCardClick}
-                  onMenuOpen={onMenuOpen}
-                  onDeleteClick={onDeleteClick}
-                />
-              ))}
+              {viewMode === 'by_project' && projectGroups ? (
+                // Render grouped by project — visual headers are plain divs, not Draggable
+                projectGroups.flatMap((group, groupIndex) => {
+                  if (group.items.length === 0) return [];
+                  const headerEl = (
+                    <div
+                      key={`group-header-${groupIndex}`}
+                      className="flex items-center gap-2 px-1 mt-1 first:mt-0"
+                    >
+                      <div
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: group.project?.color ?? '#94a3b8' }}
+                      />
+                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">
+                        {group.project?.name ?? 'Sem Projeto'}
+                      </span>
+                      <span className="ml-auto text-[10px] text-gray-400 dark:text-gray-500 tabular-nums flex-shrink-0">
+                        {group.items.length}
+                      </span>
+                    </div>
+                  );
+                  const cards = group.items.map((item) => (
+                    <DraggableCard
+                      key={item.id}
+                      item={item}
+                      index={items.indexOf(item)}
+                      onCardClick={onCardClick}
+                      onMenuOpen={onMenuOpen}
+                      onDeleteClick={onDeleteClick}
+                    />
+                  ));
+                  return [headerEl, ...cards];
+                })
+              ) : (
+                items.map((item, index) => (
+                  <DraggableCard
+                    key={item.id}
+                    item={item}
+                    index={index}
+                    onCardClick={onCardClick}
+                    onMenuOpen={onMenuOpen}
+                    onDeleteClick={onDeleteClick}
+                  />
+                ))
+              )}
 
               {/* Empty column state */}
               {items.length === 0 && !isAddingHere && !snapshot.isDraggingOver && (
@@ -427,6 +499,7 @@ const KanbanColumnComponent: React.FC<{
 const ITKanbanBoard: React.FC = () => {
   const { userProfile } = useAuth();
   const userId = userProfile?.id ?? '';
+  const isITManager = userProfile?.role === 'admin' || userProfile?.department === 'TI';
   const { notification, showError, showSuccess, hideNotification } = useNotification();
   const [requests, setRequests] = useState<ITRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -435,6 +508,18 @@ const ITKanbanBoard: React.FC = () => {
   // ─── Filter states ─────────────────────────────────────────────────────────
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterAssignee, setFilterAssignee] = useState<FilterAssignee>('all');
+
+  // ─── Projects / Sprints ────────────────────────────────────────────────────
+  const [projects, setProjects]       = useState<ITProject[]>([]);
+  const [sprints,  setSprints]        = useState<ITSprint[]>([]);
+  const [viewMode, setViewMode]       = useState<ViewMode>('all');
+  const [selectedSprintId, setSelectedSprintId] = useState<string | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [showProjectManager, setShowProjectManager] = useState(false);
+  const [sprintDropdownOpen, setSprintDropdownOpen] = useState(false);
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const sprintDropdownRef = useRef<HTMLDivElement>(null);
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
 
   // ─── Inline Add states ─────────────────────────────────────────────────────
   const [inlineAddColumn, setInlineAddColumn] = useState<KanbanColumn | null>(null);
@@ -468,7 +553,7 @@ const ITKanbanBoard: React.FC = () => {
       const [requestsResult, usersResult] = await Promise.all([
         supabase
           .from('it_requests')
-          .select('*, requester:user_profiles!requested_by(name)')
+          .select('*, requester:user_profiles!requested_by(name), project:it_projects!project_id(id,name,color), sprint:it_sprints!sprint_id(id,name,status)')
           .eq('kanban_hidden', false)
           .order('updated_at', { ascending: false }),
         supabase.from('user_profiles').select('id, name'),
@@ -496,6 +581,9 @@ const ITKanbanBoard: React.FC = () => {
         ...r,
         requester_name: r.requester?.name,
         assignee_names: (r.assigned_to || []).map((id: string) => usersMap[id]).filter(Boolean),
+        project_name:   r.project?.name  ?? null,
+        project_color:  r.project?.color ?? null,
+        sprint_name:    r.sprint?.name   ?? null,
       }));
 
       // Race-condition filter: ignore cards that are being deleted right now
@@ -513,9 +601,53 @@ const ITKanbanBoard: React.FC = () => {
     }
   }, [showError]);
 
+  const fetchProjects = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('it_projects').select('*').order('created_at', { ascending: false });
+      if (error && (error as any).code !== '42P01') throw error;
+      setProjects((data as ITProject[]) ?? []);
+    } catch (err) {
+      console.error('Erro ao buscar projetos:', err);
+    }
+  }, []);
+
+  const fetchSprints = useCallback(async () => {
+    try {
+      const { data, error } = await supabase.from('it_sprints').select('*').order('created_at', { ascending: false });
+      if (error && (error as any).code !== '42P01') throw error;
+      setSprints((data as ITSprint[]) ?? []);
+    } catch (err) {
+      console.error('Erro ao buscar sprints:', err);
+    }
+  }, []);
+
   useEffect(() => {
     fetchRequests();
-  }, [fetchRequests]);
+    fetchProjects();
+    fetchSprints();
+  }, [fetchRequests, fetchProjects, fetchSprints]);
+
+  // Close sprint dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (sprintDropdownRef.current && !sprintDropdownRef.current.contains(e.target as Node)) {
+        setSprintDropdownOpen(false);
+      }
+    };
+    if (sprintDropdownOpen) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [sprintDropdownOpen]);
+
+  // Close project dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(e.target as Node)) {
+        setProjectDropdownOpen(false);
+      }
+    };
+    if (projectDropdownOpen) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [projectDropdownOpen]);
 
   // ─── Columns data (with filters applied) ─────────────────────────────────────
   const columnItems = useMemo(() => {
@@ -532,6 +664,16 @@ const ITKanbanBoard: React.FC = () => {
       filtered = filtered.filter((r) => r.assigned_to.includes(userId) || r.requested_by === userId);
     }
 
+    // Filter by sprint (by_sprint view mode)
+    if (viewMode === 'by_sprint' && selectedSprintId) {
+      filtered = filtered.filter((r) => r.sprint_id === selectedSprintId);
+    }
+
+    // Filter by project (by_project view mode)
+    if (viewMode === 'by_project' && selectedProjectId) {
+      filtered = filtered.filter((r) => r.project_id === selectedProjectId);
+    }
+
     // Then distribute into columns
     const map: Record<KanbanColumn, ITRequest[]> = {
       backlog: [],
@@ -544,7 +686,36 @@ const ITKanbanBoard: React.FC = () => {
       if (map[r.kanban_status]) map[r.kanban_status].push(r);
     });
     return map;
-  }, [requests, filterType, filterAssignee, userId]);
+  }, [requests, filterType, filterAssignee, userId, viewMode, selectedSprintId, selectedProjectId]);
+
+  // ─── Project grouping (only used in by_project mode) ──────────────────────
+  const columnItemsByProject = useMemo(() => {
+    if (viewMode !== 'by_project') return null;
+    const result: Record<KanbanColumn, { project: ITProject | null; items: ITRequest[] }[]> = {
+      backlog: [], todo: [], in_progress: [], review: [], done: [],
+    };
+    (Object.keys(columnItems) as KanbanColumn[]).forEach((col) => {
+      const byProjectId: Record<string, ITRequest[]> = {};
+      const unassigned: ITRequest[] = [];
+      columnItems[col].forEach((r) => {
+        if (r.project_id) {
+          if (!byProjectId[r.project_id]) byProjectId[r.project_id] = [];
+          byProjectId[r.project_id].push(r);
+        } else {
+          unassigned.push(r);
+        }
+      });
+      // Assigned projects first (sorted by project name)
+      const assignedGroups = Object.entries(byProjectId)
+        .map(([pid, items]) => ({ project: projects.find(p => p.id === pid) ?? null, items }))
+        .sort((a, b) => (a.project?.name ?? '').localeCompare(b.project?.name ?? ''));
+      result[col] = [
+        ...assignedGroups,
+        ...(unassigned.length > 0 ? [{ project: null, items: unassigned }] : []),
+      ];
+    });
+    return result;
+  }, [columnItems, projects, viewMode]);
 
   // ─── Total filtered count ──────────────────────────────────────────────────
   const filteredCount = useMemo(() => 
@@ -564,9 +735,16 @@ const ITKanbanBoard: React.FC = () => {
 
   const handleInlineAddSubmit = async (columnId: KanbanColumn, title: string) => {
     if (!userId || !title.trim()) return;
-    
+
     setIsAddingTask(true);
     try {
+      const sprintContext = viewMode === 'by_sprint' && selectedSprintId
+        ? {
+            sprint_id: selectedSprintId,
+            project_id: sprints.find(s => s.id === selectedSprintId)?.project_id ?? null,
+          }
+        : {};
+
       const { error } = await supabase.from('it_requests').insert({
         title: title.trim(),
         request_type: 'desenvolvimento',
@@ -575,6 +753,7 @@ const ITKanbanBoard: React.FC = () => {
         kanban_status: columnId,
         requested_by: userId,
         is_internal: true,
+        ...sprintContext,
       });
 
       if (error) throw error;
@@ -807,13 +986,24 @@ const ITKanbanBoard: React.FC = () => {
             Arraste os chamados entre as colunas para atualizar o progresso
           </p>
         </div>
-        <button
-          onClick={() => { setLoading(true); fetchRequests(); }}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Atualizar
-        </button>
+        <div className="flex items-center gap-2">
+          {isITManager && (
+            <button
+              onClick={() => setShowProjectManager(true)}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
+            >
+              <FolderOpen className="w-4 h-4" />
+              Projetos
+            </button>
+          )}
+          <button
+            onClick={() => { setLoading(true); fetchRequests(); fetchProjects(); fetchSprints(); }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Atualizar
+          </button>
+        </div>
       </div>
 
       {/* Filter Pills — SEM animate-fade-in-up */}
@@ -921,6 +1111,186 @@ const ITKanbanBoard: React.FC = () => {
         )}
       </div>
 
+      {/* View mode pills */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
+          <button
+            onClick={() => { setViewMode('all'); setSelectedSprintId(null); setSelectedProjectId(null); }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              viewMode === 'all'
+                ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <Layers className="w-3.5 h-3.5" />
+              Tudo
+            </span>
+          </button>
+          <button
+            onClick={() => { setViewMode('by_project'); setSelectedSprintId(null); setSelectedProjectId(null); }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              viewMode === 'by_project'
+                ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <FolderOpen className="w-3.5 h-3.5" />
+              Por Projeto
+            </span>
+          </button>
+          <button
+            onClick={() => { setViewMode('by_sprint'); setSelectedProjectId(null); }}
+            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+              viewMode === 'by_sprint'
+                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5" />
+              Por Sprint
+            </span>
+          </button>
+        </div>
+
+        {/* Project selector (only in by_project mode) */}
+        {viewMode === 'by_project' && (
+          <div className="relative" ref={projectDropdownRef}>
+            <button
+              onClick={() => setProjectDropdownOpen(prev => !prev)}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-violet-400 dark:hover:border-violet-600 transition-colors"
+            >
+              <FolderOpen className="w-3.5 h-3.5 text-violet-500" />
+              <span className="text-gray-700 dark:text-gray-300">
+                {selectedProjectId
+                  ? (projects.find(p => p.id === selectedProjectId)?.name ?? 'Projeto')
+                  : 'Selecionar projeto…'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+
+            <AnimatePresence>
+              {projectDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute left-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
+                >
+                  {projects.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs text-gray-400 dark:text-gray-500">
+                      Nenhum projeto encontrado.<br />Crie um projeto primeiro.
+                    </div>
+                  ) : (
+                    <div className="py-1 max-h-64 overflow-y-auto">
+                      {projects.map(project => (
+                        <button
+                          key={project.id}
+                          onClick={() => { setSelectedProjectId(project.id); setProjectDropdownOpen(false); }}
+                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
+                            selectedProjectId === project.id
+                              ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
+                        >
+                          <div
+                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: project.color }}
+                          />
+                          <span className="flex-1 truncate">{project.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* Sprint selector (only in by_sprint mode) */}
+        {viewMode === 'by_sprint' && (
+          <div className="relative" ref={sprintDropdownRef}>
+            <button
+              onClick={() => setSprintDropdownOpen(prev => !prev)}
+              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors"
+            >
+              <Zap className="w-3.5 h-3.5 text-emerald-500" />
+              <span className="text-gray-700 dark:text-gray-300">
+                {selectedSprintId
+                  ? (sprints.find(s => s.id === selectedSprintId)?.name ?? 'Sprint')
+                  : 'Selecionar sprint…'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
+            </button>
+
+            <AnimatePresence>
+              {sprintDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute left-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
+                >
+                  {sprints.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-xs text-gray-400 dark:text-gray-500">
+                      Nenhum sprint encontrado.<br />Crie um projeto e sprint primeiro.
+                    </div>
+                  ) : (
+                    <div className="py-1 max-h-64 overflow-y-auto">
+                      {projects.map(project => {
+                        const projectSprints = sprints.filter(s => s.project_id === project.id);
+                        if (projectSprints.length === 0) return null;
+                        return (
+                          <div key={project.id}>
+                            <div className="flex items-center gap-2 px-3 py-1.5 border-t border-gray-100 dark:border-gray-700 first:border-t-0">
+                              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
+                              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 truncate">
+                                {project.name}
+                              </span>
+                            </div>
+                            {projectSprints.map(sprint => (
+                              <button
+                                key={sprint.id}
+                                onClick={() => { setSelectedSprintId(sprint.id); setSprintDropdownOpen(false); }}
+                                className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs transition-colors ${
+                                  selectedSprintId === sprint.id
+                                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                }`}
+                              >
+                                <Zap className="w-3 h-3 flex-shrink-0 text-gray-400" />
+                                <span className="flex-1 truncate">{sprint.name}</span>
+                                {sprint.status === 'active' && (
+                                  <span className="text-[10px] font-medium px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-md flex-shrink-0">
+                                    Ativo
+                                  </span>
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+
+        {/* Empty sprint mode hint */}
+        {viewMode === 'by_sprint' && !selectedSprintId && (
+          <span className="text-xs text-gray-400 dark:text-gray-500 italic">
+            Selecione uma sprint para filtrar os cards
+          </span>
+        )}
+      </div>
+
       {/* Kanban board — ZERO transform/animation/backdrop neste wrapper.
            animate-fade-in-up criava transform:translateY(0) via forwards fill-mode,
            que estabelece um Containing Block e quebra position:fixed do drag. */}
@@ -947,6 +1317,8 @@ const ITKanbanBoard: React.FC = () => {
                 onInlineAddTextChange={setInlineAddText}
                 onInlineAddSubmit={handleInlineAddSubmit}
                 isAddingTask={isAddingTask}
+                viewMode={viewMode}
+                projectGroups={columnItemsByProject?.[col.id]}
               />
             ))}
           </div>
@@ -961,6 +1333,17 @@ const ITKanbanBoard: React.FC = () => {
             task={selectedTask}
             onClose={() => setSelectedTask(null)}
             onUpdate={handleTaskUpdate}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Project Manager */}
+      <AnimatePresence>
+        {showProjectManager && (
+          <ITProjectManager
+            userId={userId}
+            onClose={() => setShowProjectManager(false)}
+            onDataChanged={() => { fetchProjects(); fetchSprints(); fetchRequests(); }}
           />
         )}
       </AnimatePresence>
