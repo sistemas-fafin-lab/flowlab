@@ -32,6 +32,7 @@ import {
   FolderOpen,
   Layers,
   Zap,
+  Search,
   ChevronDown,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -347,6 +348,71 @@ const KanbanColumnComponent: React.FC<{
         </span>
       </div>
 
+      {/* Inline Add UI — TOP of column */}
+      <AnimatePresence mode="wait">
+        {isAddingHere ? (
+          <motion.div
+            key="inline-add-form"
+            initial={{ opacity: 0, y: -8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -8, scale: 0.97 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="mb-3"
+          >
+            <div className="bg-white dark:bg-gray-800 border-2 border-violet-400 dark:border-violet-500 rounded-xl p-3 shadow-lg shadow-violet-500/10">
+              <input
+                ref={inputRef}
+                type="text"
+                value={inlineAddText}
+                onChange={(e) => onInlineAddTextChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Título da tarefa…"
+                disabled={isAddingTask}
+                className="w-full text-sm text-gray-800 dark:text-gray-100 bg-transparent focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 mb-3"
+              />
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-gray-400 dark:text-gray-500">Enter para criar · Esc para cancelar</span>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={onInlineAddClose}
+                    disabled={isAddingTask}
+                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    aria-label="Cancelar"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={handleSubmit}
+                    disabled={!inlineAddText.trim() || isAddingTask}
+                    className="p-1.5 bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    aria-label="Criar tarefa"
+                  >
+                    {isAddingTask ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <CheckCircle2 className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        ) : (
+          <motion.button
+            key="inline-add-button"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.12, ease: 'easeOut' }}
+            onClick={() => onInlineAddOpen(column.id)}
+            className="mb-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50/60 dark:hover:bg-violet-900/15 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-violet-300 dark:hover:border-violet-600 transition-all duration-200"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Adicionar
+          </motion.button>
+        )}
+      </AnimatePresence>
+
       {/* Column body */}
       <Droppable droppableId={column.id}>
         {(provided, snapshot) => (
@@ -420,70 +486,6 @@ const KanbanColumnComponent: React.FC<{
               )}
 
               {provided.placeholder}
-
-              {/* Inline Add UI */}
-              <AnimatePresence mode="wait">
-                {isAddingHere ? (
-                  <motion.div
-                    key="inline-add-form"
-                    initial={{ opacity: 0, y: -10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.15 }}
-                    className="mt-2.5"
-                  >
-                    <div className="bg-white dark:bg-gray-800 border-2 border-violet-400 dark:border-violet-500 rounded-xl p-3 shadow-lg shadow-violet-500/10">
-                      <input
-                        ref={inputRef}
-                        type="text"
-                        value={inlineAddText}
-                        onChange={(e) => onInlineAddTextChange(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Título da tarefa…"
-                        disabled={isAddingTask}
-                        className="w-full text-sm text-gray-800 dark:text-gray-100 bg-transparent focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 mb-3"
-                      />
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[10px] text-gray-400 dark:text-gray-500">Enter para criar · Esc para cancelar</span>
-                        <div className="flex gap-1.5">
-                          <button
-                            onClick={onInlineAddClose}
-                            disabled={isAddingTask}
-                            className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                            aria-label="Cancelar"
-                          >
-                            <X className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={handleSubmit}
-                            disabled={!inlineAddText.trim() || isAddingTask}
-                            className="p-1.5 bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            aria-label="Criar tarefa"
-                          >
-                            {isAddingTask ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            ) : (
-                              <CheckCircle2 className="w-4 h-4" />
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                ) : (
-                  <motion.button
-                    key="inline-add-button"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    onClick={() => onInlineAddOpen(column.id)}
-                    className="mt-2.5 w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-white/70 dark:hover:bg-gray-800/70 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-violet-300 dark:hover:border-violet-600 transition-colors"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Nova Tarefa
-                  </motion.button>
-                )}
-              </AnimatePresence>
             </div>
           </div>
         )}
@@ -508,6 +510,7 @@ const ITKanbanBoard: React.FC = () => {
   // ─── Filter states ─────────────────────────────────────────────────────────
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterAssignee, setFilterAssignee] = useState<FilterAssignee>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   // ─── Projects / Sprints ────────────────────────────────────────────────────
   const [projects, setProjects]       = useState<ITProject[]>([]);
@@ -674,6 +677,28 @@ const ITKanbanBoard: React.FC = () => {
       filtered = filtered.filter((r) => r.project_id === selectedProjectId);
     }
 
+    // Search across all relevant fields
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim();
+      filtered = filtered.filter((r) => {
+        const searchableStrings = [
+          r.codigo,
+          r.title,
+          r.description ?? '',
+          r.request_type,
+          r.priority,
+          r.status,
+          r.kanban_status,
+          r.requester_name ?? '',
+          r.project_name ?? '',
+          r.sprint_name ?? '',
+          ...(r.tags ?? []),
+          ...(r.assignee_names ?? []),
+        ];
+        return searchableStrings.some((s) => s.toLowerCase().includes(q));
+      });
+    }
+
     // Then distribute into columns
     const map: Record<KanbanColumn, ITRequest[]> = {
       backlog: [],
@@ -686,7 +711,7 @@ const ITKanbanBoard: React.FC = () => {
       if (map[r.kanban_status]) map[r.kanban_status].push(r);
     });
     return map;
-  }, [requests, filterType, filterAssignee, userId, viewMode, selectedSprintId, selectedProjectId]);
+  }, [requests, filterType, filterAssignee, userId, viewMode, selectedSprintId, selectedProjectId, searchQuery]);
 
   // ─── Project grouping (only used in by_project mode) ──────────────────────
   const columnItemsByProject = useMemo(() => {
@@ -976,7 +1001,7 @@ const ITKanbanBoard: React.FC = () => {
       />
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent flex items-center gap-2.5">
             <KanbanSquare className="w-6 h-6 text-violet-600 dark:text-violet-400" />
@@ -986,309 +1011,277 @@ const ITKanbanBoard: React.FC = () => {
             Arraste os chamados entre as colunas para atualizar o progresso
           </p>
         </div>
-        <div className="flex items-center gap-2">
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════════════
+          CONTROL BAR — Glassmorphism unified toolbar
+         ═══════════════════════════════════════════════════════════════ */}
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 p-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm">
+
+        {/* ── LEFT: Search + Filters ─────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+
+          {/* Search — seamless into control bar */}
+          <div className="relative flex items-center">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Pesquisar tarefas..."
+              className="w-48 sm:w-56 pl-8 pr-6 py-1.5 text-sm bg-transparent border-none rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 placeholder-slate-400 dark:placeholder-slate-500 text-slate-800 dark:text-slate-100 transition-all"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery('')}
+                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
+                title="Limpar pesquisa"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Vertical separator */}
+          <div className="hidden sm:block w-px h-6 bg-slate-200 dark:bg-slate-700" />
+
+          {/* Type filter pills */}
+          <div className="flex items-center gap-1 bg-slate-100/60 dark:bg-slate-800/60 rounded-lg p-0.5">
+            {([
+              { value: 'all' as const, label: 'Todos', icon: Filter },
+              { value: 'suporte' as const, label: 'Suporte', icon: Wrench },
+              { value: 'desenvolvimento' as const, label: 'Dev', icon: Code },
+              { value: 'consultoria' as const, label: 'Consultoria', icon: Lightbulb },
+            ]).map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                onClick={() => setFilterType(value)}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all duration-200 ${
+                  filterType === value
+                    ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Icon className="w-3 h-3" />
+                  {label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Assignee filter */}
+          <button
+            onClick={() => setFilterAssignee(filterAssignee === 'all' ? 'me' : 'all')}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-all duration-200 border ${
+              filterAssignee === 'me'
+                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+            }`}
+          >
+            <UserCircle className="w-3.5 h-3.5" />
+            {filterAssignee === 'me' ? 'Atribuído a mim' : 'Todas'}
+          </button>
+
+          {/* Vertical separator */}
+          <div className="hidden sm:block w-px h-6 bg-slate-200 dark:bg-slate-700" />
+
+          {/* View mode pills */}
+          <div className="flex items-center gap-1 bg-slate-100/60 dark:bg-slate-800/60 rounded-lg p-0.5">
+            {([
+              { value: 'all' as const, label: 'Tudo', icon: Layers },
+              { value: 'by_project' as const, label: 'Projeto', icon: FolderOpen },
+              { value: 'by_sprint' as const, label: 'Sprint', icon: Zap },
+            ]).map(({ value, label, icon: Icon }) => (
+              <button
+                key={value}
+                onClick={() => {
+                  if (value === 'all') { setSelectedSprintId(null); setSelectedProjectId(null); }
+                  if (value === 'by_project') { setSelectedSprintId(null); setSelectedProjectId(null); }
+                  if (value === 'by_sprint') { setSelectedProjectId(null); }
+                  setViewMode(value);
+                }}
+                className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all duration-200 ${
+                  viewMode === value
+                    ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-slate-100 shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+                    : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Icon className="w-3 h-3" />
+                  {label}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Project selector (only in by_project mode) */}
+          {viewMode === 'by_project' && (
+            <div className="relative" ref={projectDropdownRef}>
+              <button
+                onClick={() => setProjectDropdownOpen(prev => !prev)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg bg-slate-100/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-transparent hover:border-violet-300 dark:hover:border-violet-600 transition-all"
+              >
+                <FolderOpen className="w-3 h-3 text-violet-500" />
+                <span>
+                  {selectedProjectId
+                    ? (projects.find(p => p.id === selectedProjectId)?.name ?? 'Projeto')
+                    : 'Todos'}
+                </span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              </button>
+
+              <AnimatePresence>
+                {projectDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute left-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
+                  >
+                    {projects.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-gray-400 dark:text-gray-500">
+                        Nenhum projeto encontrado.<br />Crie um projeto primeiro.
+                      </div>
+                    ) : (
+                      <div className="py-1 max-h-64 overflow-y-auto">
+                        {projects.map(project => (
+                          <button
+                            key={project.id}
+                            onClick={() => { setSelectedProjectId(project.id); setProjectDropdownOpen(false); }}
+                            className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
+                              selectedProjectId === project.id
+                                ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300'
+                                : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                            }`}
+                          >
+                            <div
+                              className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                              style={{ backgroundColor: project.color }}
+                            />
+                            <span className="flex-1 truncate">{project.name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Sprint selector (only in by_sprint mode) */}
+          {viewMode === 'by_sprint' && (
+            <div className="relative" ref={sprintDropdownRef}>
+              <button
+                onClick={() => setSprintDropdownOpen(prev => !prev)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg bg-slate-100/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-transparent hover:border-emerald-300 dark:hover:border-emerald-600 transition-all"
+              >
+                <Zap className="w-3 h-3 text-emerald-500" />
+                <span>
+                  {selectedSprintId
+                    ? (sprints.find(s => s.id === selectedSprintId)?.name ?? 'Sprint')
+                    : 'Todas'}
+                </span>
+                <ChevronDown className="w-3 h-3 text-slate-400" />
+              </button>
+
+              <AnimatePresence>
+                {sprintDropdownOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                    transition={{ duration: 0.12 }}
+                    className="absolute left-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
+                  >
+                    {sprints.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-xs text-gray-400 dark:text-gray-500">
+                        Nenhum sprint encontrado.<br />Crie um projeto e sprint primeiro.
+                      </div>
+                    ) : (
+                      <div className="py-1 max-h-64 overflow-y-auto">
+                        {projects.map(project => {
+                          const projectSprints = sprints.filter(s => s.project_id === project.id);
+                          if (projectSprints.length === 0) return null;
+                          return (
+                            <div key={project.id}>
+                              <div className="flex items-center gap-2 px-3 py-1.5 border-t border-gray-100 dark:border-gray-700 first:border-t-0">
+                                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
+                                <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 truncate">
+                                  {project.name}
+                                </span>
+                              </div>
+                              {projectSprints.map(sprint => (
+                                <button
+                                  key={sprint.id}
+                                  onClick={() => { setSelectedSprintId(sprint.id); setSprintDropdownOpen(false); }}
+                                  className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs transition-colors ${
+                                    selectedSprintId === sprint.id
+                                      ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
+                                      : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                                  }`}
+                                >
+                                  <Zap className="w-3 h-3 flex-shrink-0 text-gray-400" />
+                                  <span className="flex-1 truncate">{sprint.name}</span>
+                                  {sprint.status === 'active' && (
+                                    <span className="text-[10px] font-medium px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-md flex-shrink-0">
+                                      Ativo
+                                    </span>
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Active filter indicator */}
+          {(filterType !== 'all' || filterAssignee !== 'all' || searchQuery) && (
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-2"
+            >
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                {filteredCount} de {requests.length}
+              </span>
+              <button
+                onClick={() => { setFilterType('all'); setFilterAssignee('all'); setSearchQuery(''); }}
+                className="text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 font-medium transition-colors"
+              >
+                Limpar
+              </button>
+            </motion.div>
+          )}
+        </div>
+
+        {/* ── RIGHT: Actions ─────────────────────────────────────── */}
+        <div className="flex items-center gap-2 w-full lg:w-auto lg:justify-end">
           {isITManager && (
             <button
               onClick={() => setShowProjectManager(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/20 border border-violet-200 dark:border-violet-800 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-slate-100/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-transparent hover:border-violet-300 dark:hover:border-violet-600 transition-all"
             >
-              <FolderOpen className="w-4 h-4" />
-              Projetos
+              <FolderOpen className="w-3.5 h-3.5" />
+              Gerir Projetos
             </button>
           )}
           <button
             onClick={() => { setLoading(true); fetchRequests(); fetchProjects(); fetchSprints(); }}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-medium rounded-lg bg-slate-100/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border border-transparent hover:border-slate-300 dark:hover:border-slate-600 transition-all"
           >
-            <RefreshCw className="w-4 h-4" />
+            <RefreshCw className="w-3.5 h-3.5" />
             Atualizar
           </button>
         </div>
-      </div>
-
-      {/* Filter Pills — SEM animate-fade-in-up */}
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Type filters */}
-        <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-          <button
-            onClick={() => setFilterType('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filterType === 'all'
-                ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5" />
-              Todos
-            </span>
-          </button>
-          <button
-            onClick={() => setFilterType('suporte')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filterType === 'suporte'
-                ? 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <Wrench className="w-3.5 h-3.5" />
-              Suporte
-            </span>
-          </button>
-          <button
-            onClick={() => setFilterType('desenvolvimento')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filterType === 'desenvolvimento'
-                ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <Code className="w-3.5 h-3.5" />
-              Dev
-            </span>
-          </button>
-          <button
-            onClick={() => setFilterType('consultoria')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filterType === 'consultoria'
-                ? 'bg-teal-100 dark:bg-teal-900/40 text-teal-700 dark:text-teal-300 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <Lightbulb className="w-3.5 h-3.5" />
-              Consultoria
-            </span>
-          </button>
-        </div>
-
-        {/* Assignee filter */}
-        <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-          <button
-            onClick={() => setFilterAssignee('all')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filterAssignee === 'all'
-                ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            Todas Tarefas
-          </button>
-          <button
-            onClick={() => setFilterAssignee('me')}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              filterAssignee === 'me'
-                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <UserCircle className="w-3.5 h-3.5" />
-              Minhas
-            </span>
-          </button>
-        </div>
-
-        {/* Active filter indicator */}
-        {(filterType !== 'all' || filterAssignee !== 'all') && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-2"
-          >
-            <span className="text-xs text-gray-400 dark:text-gray-500">
-              {filteredCount} de {requests.length} tarefas
-            </span>
-            <button
-              onClick={() => { setFilterType('all'); setFilterAssignee('all'); }}
-              className="text-xs text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 font-medium transition-colors"
-            >
-              Limpar filtros
-            </button>
-          </motion.div>
-        )}
-      </div>
-
-      {/* View mode pills */}
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 rounded-xl p-1">
-          <button
-            onClick={() => { setViewMode('all'); setSelectedSprintId(null); setSelectedProjectId(null); }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              viewMode === 'all'
-                ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <Layers className="w-3.5 h-3.5" />
-              Tudo
-            </span>
-          </button>
-          <button
-            onClick={() => { setViewMode('by_project'); setSelectedSprintId(null); setSelectedProjectId(null); }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              viewMode === 'by_project'
-                ? 'bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <FolderOpen className="w-3.5 h-3.5" />
-              Por Projeto
-            </span>
-          </button>
-          <button
-            onClick={() => { setViewMode('by_sprint'); setSelectedProjectId(null); }}
-            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-              viewMode === 'by_sprint'
-                ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-            }`}
-          >
-            <span className="flex items-center gap-1.5">
-              <Zap className="w-3.5 h-3.5" />
-              Por Sprint
-            </span>
-          </button>
-        </div>
-
-        {/* Project selector (only in by_project mode) */}
-        {viewMode === 'by_project' && (
-          <div className="relative" ref={projectDropdownRef}>
-            <button
-              onClick={() => setProjectDropdownOpen(prev => !prev)}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-violet-400 dark:hover:border-violet-600 transition-colors"
-            >
-              <FolderOpen className="w-3.5 h-3.5 text-violet-500" />
-              <span className="text-gray-700 dark:text-gray-300">
-                {selectedProjectId
-                  ? (projects.find(p => p.id === selectedProjectId)?.name ?? 'Projeto')
-                  : 'Selecionar projeto…'}
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-            </button>
-
-            <AnimatePresence>
-              {projectDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                  transition={{ duration: 0.12 }}
-                  className="absolute left-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
-                >
-                  {projects.length === 0 ? (
-                    <div className="px-4 py-6 text-center text-xs text-gray-400 dark:text-gray-500">
-                      Nenhum projeto encontrado.<br />Crie um projeto primeiro.
-                    </div>
-                  ) : (
-                    <div className="py-1 max-h-64 overflow-y-auto">
-                      {projects.map(project => (
-                        <button
-                          key={project.id}
-                          onClick={() => { setSelectedProjectId(project.id); setProjectDropdownOpen(false); }}
-                          className={`w-full flex items-center gap-2.5 px-3 py-2 text-left text-xs transition-colors ${
-                            selectedProjectId === project.id
-                              ? 'bg-violet-50 dark:bg-violet-900/20 text-violet-700 dark:text-violet-300'
-                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                          }`}
-                        >
-                          <div
-                            className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                            style={{ backgroundColor: project.color }}
-                          />
-                          <span className="flex-1 truncate">{project.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {/* Sprint selector (only in by_sprint mode) */}
-        {viewMode === 'by_sprint' && (
-          <div className="relative" ref={sprintDropdownRef}>
-            <button
-              onClick={() => setSprintDropdownOpen(prev => !prev)}
-              className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:border-emerald-400 dark:hover:border-emerald-600 transition-colors"
-            >
-              <Zap className="w-3.5 h-3.5 text-emerald-500" />
-              <span className="text-gray-700 dark:text-gray-300">
-                {selectedSprintId
-                  ? (sprints.find(s => s.id === selectedSprintId)?.name ?? 'Sprint')
-                  : 'Selecionar sprint…'}
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-            </button>
-
-            <AnimatePresence>
-              {sprintDropdownOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
-                  transition={{ duration: 0.12 }}
-                  className="absolute left-0 top-full mt-1 z-50 w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
-                >
-                  {sprints.length === 0 ? (
-                    <div className="px-4 py-6 text-center text-xs text-gray-400 dark:text-gray-500">
-                      Nenhum sprint encontrado.<br />Crie um projeto e sprint primeiro.
-                    </div>
-                  ) : (
-                    <div className="py-1 max-h-64 overflow-y-auto">
-                      {projects.map(project => {
-                        const projectSprints = sprints.filter(s => s.project_id === project.id);
-                        if (projectSprints.length === 0) return null;
-                        return (
-                          <div key={project.id}>
-                            <div className="flex items-center gap-2 px-3 py-1.5 border-t border-gray-100 dark:border-gray-700 first:border-t-0">
-                              <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 truncate">
-                                {project.name}
-                              </span>
-                            </div>
-                            {projectSprints.map(sprint => (
-                              <button
-                                key={sprint.id}
-                                onClick={() => { setSelectedSprintId(sprint.id); setSprintDropdownOpen(false); }}
-                                className={`w-full flex items-center gap-2.5 px-4 py-2 text-left text-xs transition-colors ${
-                                  selectedSprintId === sprint.id
-                                    ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300'
-                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                                }`}
-                              >
-                                <Zap className="w-3 h-3 flex-shrink-0 text-gray-400" />
-                                <span className="flex-1 truncate">{sprint.name}</span>
-                                {sprint.status === 'active' && (
-                                  <span className="text-[10px] font-medium px-1.5 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 rounded-md flex-shrink-0">
-                                    Ativo
-                                  </span>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
-        )}
-
-        {/* Empty sprint mode hint */}
-        {viewMode === 'by_sprint' && !selectedSprintId && (
-          <span className="text-xs text-gray-400 dark:text-gray-500 italic">
-            Selecione uma sprint para filtrar os cards
-          </span>
-        )}
       </div>
 
       {/* Kanban board — ZERO transform/animation/backdrop neste wrapper.

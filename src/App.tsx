@@ -23,6 +23,9 @@ import RequestHub from './components/RequestHub';
 import { MaintenanceRequestManagement } from './components/MaintenanceRequest';
 import { FaturasDashboard, RecebimentosList, GlosasRecursos } from './modules/faturamento';
 import ITHubDashboard from './components/IT/ITHubDashboard';
+import { useParams } from 'react-router-dom';
+import ITProjectDashboard from './components/IT/ITProjectDashboard';
+import ITProjectMindMap from './pages/IT/ITProjectMindMap';
 import ITRequestManagement from './components/IT/ITRequestManagement';
 import ITKanbanBoard from './components/IT/ITKanbanBoard';
 import TestKanban from './components/IT/TestKanban';
@@ -243,6 +246,30 @@ const AuthenticatedApp: React.FC = () => {
           }
         />
         <Route
+          path="/it/projects"
+          element={
+            <ProtectedRoute permission="canManageIT" permissions={userPermissions}>
+              <ITProjectDashboard projectId={null} />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/projects/:projectId"
+          element={
+            <ProtectedRoute permission="canManageIT" permissions={userPermissions}>
+              <ITProjectDashboardWithParams />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/mindmap"
+          element={
+            <ProtectedRoute permission="canManageIT" permissions={userPermissions}>
+              <ITProjectMindMap />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/requests/it"
           element={
             <ProtectedRoute permission="canViewRequests" permissions={userPermissions}>
@@ -270,6 +297,12 @@ const AuthenticatedApp: React.FC = () => {
       </Routes>
     </Layout>
   );
+};
+
+// Wrapper para ler projectId da URL
+const ITProjectDashboardWithParams: React.FC = () => {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <ITProjectDashboard projectId={projectId ?? null} />;
 };
 
 function App() {

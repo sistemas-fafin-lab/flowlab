@@ -34,6 +34,7 @@ import {
   Server,
   Bell,
   Wallet,
+  Map,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -441,7 +442,14 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const { user, userProfile, signOut } = useAuth();
   const { isDark } = useTheme();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [expandedItems, setExpandedItems] = useState<string[]>(['Produtos']);
+  const [expandedItems, setExpandedItems] = useState<string[]>(() => {
+    const path = window.location.pathname;
+    if (['/products', '/add-product', '/expiration', '/changelog'].includes(path)) return ['Produtos'];
+    if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
+    if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
+    if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
+    return [];
+  });
   const [isCollapsed, setIsCollapsed] = useState(() => {
     try {
       return localStorage.getItem(COLLAPSE_KEY) === 'true';
@@ -609,7 +617,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         category: 'TECNOLOGIA',
         subItems: [
           { name: 'Hub de Aplicações', href: '/it/dashboard', icon: Server, permission: 'canManageIT' },
-          { name: 'Kanban / Sprints', href: '/it/kanban', icon: KanbanSquare, permission: 'canManageIT' },
+          { name: 'Board', href: '/it/kanban', icon: KanbanSquare, permission: 'canManageIT' },
+          { name: 'Mind Map', href: '/it/mindmap', icon: Map, permission: 'canManageIT' },
         ],
       },
     ],
@@ -878,8 +887,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* ─── Desktop sidebar ─── */}
-      <div className={`hidden lg:fixed lg:inset-y-0 lg:flex lg:flex-col h-screen transition-all duration-300 z-[200] ${isCollapsed ? 'w-20' : 'w-56 xl:w-64'}`}>
-        <div className="flex flex-col h-full w-full border-r border-gray-200/80 dark:border-gray-700/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl">
+      <div className={`hidden lg:fixed lg:top-4 lg:bottom-4 lg:left-4 lg:flex lg:flex-col h-[calc(100vh-2rem)] transition-all duration-300 z-30 ${isCollapsed ? 'w-20' : 'w-56 xl:w-64'}`}>
+        <div className="flex flex-col h-full w-full rounded-3xl border border-white/60 dark:border-gray-700/50 bg-white/70 dark:bg-gray-900/70 backdrop-blur-2xl shadow-2xl shadow-slate-900/10 overflow-hidden">
           {/* Desktop Header */}
           <div className={`flex items-center h-16 border-b border-gray-200/80 dark:border-gray-700/80 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-gray-800 dark:via-gray-800 dark:to-gray-800 transition-all duration-200 ${isCollapsed ? 'px-2 justify-center' : 'px-4'}`}>
             <Link to="/" className={`flex items-center ${isCollapsed ? 'justify-center' : 'flex-1 justify-center'}`}>
@@ -1042,7 +1051,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       </div>
 
       {/* ─── Main content ─── */}
-      <div className={`min-h-screen transition-[padding] duration-300 ${isCollapsed ? 'lg:pl-20' : 'lg:pl-56 xl:pl-64'}`}>
+      <div className={`min-h-screen transition-[padding] duration-300 ${isCollapsed ? 'lg:pl-28' : 'lg:pl-64 xl:pl-72'}`}>
         {/* Mobile header */}
         <div className="sticky top-0 z-40 flex h-16 items-center px-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl lg:hidden">
           <button
