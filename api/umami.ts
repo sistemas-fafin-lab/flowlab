@@ -101,8 +101,18 @@ class UmamiClient {
   }
 
   async getEvents(websiteId: string, params: UmamiQueryParams): Promise<UmamiEvent[]> {
-    const data = await this.request<UmamiEvent[] | { data: UmamiEvent[] }>(`/websites/${websiteId}/events?${this.buildQuery(params)}`);
-    return Array.isArray(data) ? data : (data?.data ?? []);
+    const pageSize = 500;
+    const all: UmamiEvent[] = [];
+    let page = 1;
+    while (true) {
+      const query = `${this.buildQuery(params)}&page=${page}&pageSize=${pageSize}`;
+      const data = await this.request<UmamiEvent[] | { data: UmamiEvent[] }>(`/websites/${websiteId}/events?${query}`);
+      const batch = Array.isArray(data) ? data : (data?.data ?? []);
+      all.push(...batch);
+      if (batch.length < pageSize) break;
+      page++;
+    }
+    return all;
   }
 
   private buildQuery(params: UmamiQueryParams): string {

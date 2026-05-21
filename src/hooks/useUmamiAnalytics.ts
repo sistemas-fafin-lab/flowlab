@@ -46,6 +46,17 @@ export interface ChartDataPoint {
   sessions: number;
 }
 
+export interface EventChartDataPoint {
+  date: string;
+  [eventName: string]: number | string;
+}
+
+export interface EventSummaryItem {
+  name: string;
+  count: number;
+  percentage: number;
+}
+
 // ── Aggregated stats across all websites ─────────────────────────────────────
 
 export interface AggregatedStats {
@@ -102,7 +113,7 @@ export function statValue(stat: number | { value: number } | undefined): number 
 
 /**
  * Formats an ISO date string to a display label based on the range unit:
- * - 24h → HH:mm
+ * - 24h → HH:00  (truncated to hour for consistent bucketing)
  * - 7d / 30d → dd/MM
  */
 function formatDateLabel(iso: string, range: UmamiRange): string {
@@ -114,9 +125,26 @@ function formatDateLabel(iso: string, range: UmamiRange): string {
   const pad = (n: number) => String(n).padStart(2, '0');
 
   if (range === '24h') {
-    return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${pad(d.getHours())}:00`;
   }
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+}
+
+/** Generates the full list of expected date labels for the selected range. */
+function generateRangeLabels(range: UmamiRange): string[] {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const now = new Date();
+  if (range === '24h') {
+    return Array.from({ length: 24 }, (_, i) => {
+      const d = new Date(now.getTime() - (23 - i) * 60 * 60 * 1000);
+      return `${pad(d.getHours())}:00`;
+    });
+  }
+  const days = range === '30d' ? 30 : 7;
+  return Array.from({ length: days }, (_, i) => {
+    const d = new Date(now.getTime() - (days - 1 - i) * 24 * 60 * 60 * 1000);
+    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+  });
 }
 
 /**
@@ -173,6 +201,48 @@ export function buildChartData(
     pageviews: pvMap.get(date) ?? 0,
     sessions: sessMap.get(date) ?? 0,
   }));
+}
+
+export function buildEventChartData(
+  results: SiteResult[],
+  range: UmamiRange,
+): { chartData: EventChartDataPoint[]; summary: EventSummaryItem[]; eventNames: string[] } {
+  const dateMap = new Map<string, Map<string, number>>();
+
+  for (const r of results) {
+    for (const e of r.events ?? []) {
+      if (!e.eventName) continue;
+      const label = formatDateLabel(e.createdAt, range);
+      if (!dateMap.has(label)) dateMap.set(label, new Map());
+      const byName = dateMap.get(label)!;
+      byName.set(e.eventName, (byName.get(e.eventName) ?? 0) + 1);
+    }
+  }
+
+  // Use all expected labels for the range so days/hours without events appear as zero
+  const allLabels = generateRangeLabels(range);
+
+  const nameSet = new Set<string>();
+  for (const byName of dateMap.values()) for (const n of byName.keys()) nameSet.add(n);
+  const eventNames = Array.from(nameSet);
+
+  const chartData: EventChartDataPoint[] = allLabels.map((date) => {
+    const row: EventChartDataPoint = { date };
+    const byName = dateMap.get(date);
+    for (const name of eventNames) row[name] = byName?.get(name) ?? 0;
+    return row;
+  });
+
+  const totals = new Map<string, number>();
+  for (const byName of dateMap.values())
+    for (const [name, count] of byName) totals.set(name, (totals.get(name) ?? 0) + count);
+
+  const grandTotal = Array.from(totals.values()).reduce((a, b) => a + b, 0);
+  const summary: EventSummaryItem[] = Array.from(totals.entries())
+    .map(([name, count]) => ({ name, count, percentage: grandTotal ? Math.round((count / grandTotal) * 100) : 0 }))
+    .sort((a, b) => b.count - a.count);
+
+  return { chartData, summary, eventNames };
 }
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
