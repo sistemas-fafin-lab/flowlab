@@ -50,7 +50,7 @@ const EVENT_COLORS = [
 
 // ── Range labels ─────────────────────────────────────────────────────────────
 
-const RANGE_OPTIONS: { value: UmamiRange; label: string }[] = [
+const RANGE_OPTIONS: { value: Exclude<UmamiRange, "custom">; label: string }[] = [
   { value: "24h", label: "24h" },
   { value: "7d", label: "7 dias" },
   { value: "30d", label: "30 dias" },
@@ -70,8 +70,10 @@ function formatAvgTime(totaltime: number, pageviews: number): string {
 
 const ITHubDashboard: React.FC = () => {
   const { isDark } = useTheme();
-  const { data, loading, error, range, setRange, refresh } =
+  const { data, loading, error, range, setRange, refresh, customStart, customEnd, setCustomRange } =
     useUmamiAnalytics("7d");
+  const [pickerStart, setPickerStart] = useState<string>("");
+  const [pickerEnd, setPickerEnd] = useState<string>("");
   const [selectedWebsite, setSelectedWebsite] = useState<string | "all">("all");
   const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"sites" | "outros">("sites");
@@ -82,6 +84,19 @@ const ITHubDashboard: React.FC = () => {
     setActiveTab(tab);
     if (tab === "outros") setSelectedWebsite("all");
     if (tab === "sites") setSelectedOtherProject("all");
+  };
+
+  const applyCustomRange = () => {
+    if (!pickerStart || !pickerEnd) return;
+    const [sy, sm, sd] = pickerStart.split("-").map(Number);
+    const [ey, em, ed] = pickerEnd.split("-").map(Number);
+    setCustomRange(new Date(sy, sm - 1, sd, 0, 0, 0), new Date(ey, em - 1, ed, 23, 59, 59));
+  };
+
+  const handleFixedRangeChange = (r: "24h" | "7d" | "30d") => {
+    setPickerStart("");
+    setPickerEnd("");
+    setRange(r);
   };
 
   const activeResults = useMemo<SiteResult[]>(
@@ -107,8 +122,8 @@ const ITHubDashboard: React.FC = () => {
     summary: eventSummary,
     eventNames,
   } = useMemo(
-    () => buildEventChartData(activeResults, range),
-    [activeResults, range],
+    () => buildEventChartData(activeResults, range, customStart, customEnd),
+    [activeResults, range, customStart, customEnd],
   );
 
   const filteredStats = useMemo(
@@ -261,8 +276,8 @@ const ITHubDashboard: React.FC = () => {
     summary: otherEventSummary,
     eventNames: otherEventNames,
   } = useMemo(
-    () => buildEventChartData(otherActiveResults, range),
-    [otherActiveResults, range],
+    () => buildEventChartData(otherActiveResults, range, customStart, customEnd),
+    [otherActiveResults, range, customStart, customEnd],
   );
 
   const otherEventStats = useMemo(() => {
@@ -301,7 +316,7 @@ const ITHubDashboard: React.FC = () => {
 
       {/* ── Tab Switch + Range Controls ───────────────────────────────── */}
       <div
-        className="flex items-center justify-between px-4 max-w-4xl mx-auto w-full animate-fade-in-up"
+        className="flex items-center justify-between px-4 w-full animate-fade-in-up"
         style={{ animationDelay: "0.3s" }}
       >
         <div className="flex bg-slate-200/50 dark:bg-slate-800/50 backdrop-blur-md rounded-xl p-1 shadow-inner border border-white/20 dark:border-slate-700/30">
@@ -331,7 +346,7 @@ const ITHubDashboard: React.FC = () => {
             {RANGE_OPTIONS.map((opt) => (
               <button
                 key={opt.value}
-                onClick={() => setRange(opt.value)}
+                onClick={() => handleFixedRangeChange(opt.value)}
                 className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
                   range === opt.value
                     ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10"
@@ -341,6 +356,17 @@ const ITHubDashboard: React.FC = () => {
                 {opt.label}
               </button>
             ))}
+            <button
+              onClick={() => setRange("custom")}
+              className={`inline-flex items-center gap-1 px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-200 ${
+                range === "custom"
+                  ? "bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10"
+                  : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+              }`}
+            >
+              <CalendarDays className="w-3 h-3" />
+              Período
+            </button>
           </div>
           <button
             onClick={refresh}
@@ -353,8 +379,46 @@ const ITHubDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* ── Custom Date Picker ────────────────────────────────────────── */}
+      {range === "custom" && (
+        <div
+          className="flex flex-wrap items-center gap-3 px-4 animate-fade-in-up"
+          style={{ animationDelay: "0.1s" }}
+        >
+          <div className="flex items-center gap-2 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/50 dark:border-slate-700/50 rounded-2xl px-4 py-2.5 shadow-sm">
+            <input
+              type="date"
+              value={pickerStart}
+              max={pickerEnd || undefined}
+              onChange={(e) => setPickerStart(e.target.value)}
+              className="bg-transparent text-xs font-medium text-slate-700 dark:text-slate-200 outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+            />
+            <span className="text-slate-300 dark:text-slate-600 select-none">—</span>
+            <input
+              type="date"
+              value={pickerEnd}
+              min={pickerStart || undefined}
+              onChange={(e) => setPickerEnd(e.target.value)}
+              className="bg-transparent text-xs font-medium text-slate-700 dark:text-slate-200 outline-none cursor-pointer [color-scheme:light] dark:[color-scheme:dark]"
+            />
+          </div>
+          <button
+            onClick={applyCustomRange}
+            disabled={!pickerStart || !pickerEnd || loading}
+            className="px-4 py-2.5 text-xs font-semibold rounded-2xl bg-violet-500 hover:bg-violet-600 disabled:opacity-40 disabled:cursor-not-allowed text-white shadow-lg shadow-violet-500/25 transition-all duration-200"
+          >
+            {loading ? "Carregando..." : "Aplicar"}
+          </button>
+          {customStart && customEnd && pickerStart && pickerEnd && (
+            <span className="text-xs text-slate-400 dark:text-slate-500">
+              {customStart.toLocaleDateString("pt-BR")} → {customEnd.toLocaleDateString("pt-BR")}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* ── Content ───────────────────────────────────────────────────── */}
-      <div className="max-w-4xl mx-auto w-full px-4 space-y-6">
+      <div className="w-full px-4 space-y-6">
         {activeTab === "sites" && <>
 
         {/* Section header */}
@@ -875,7 +939,7 @@ const ITHubDashboard: React.FC = () => {
                         prev === item.name ? null : item.name,
                       )
                     }
-                    className={`flex items-center gap-3 py-2.5 px-1 rounded-xl cursor-pointer transition-all duration-150 ${
+                    className={`flex items-center gap-3 py-3.5 px-1 rounded-xl cursor-pointer transition-all duration-150 ${
                       isSelected
                         ? "bg-slate-100 dark:bg-slate-800"
                         : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
@@ -1066,6 +1130,7 @@ const ITHubDashboard: React.FC = () => {
                 key={card.label}
                 className="relative overflow-hidden bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/50 dark:border-slate-700/50 rounded-3xl p-5 hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 animate-fade-in-up"
                 style={{ animationDelay: `${0.4 + i * 0.06}s` }}
+                title={card.isText && card.value !== "—" ? String(card.value) : undefined}
               >
                 <div
                   className={`absolute -right-6 -top-6 w-24 h-24 rounded-full blur-2xl opacity-20 ${card.flareColor}`}
@@ -1312,7 +1377,7 @@ const ITHubDashboard: React.FC = () => {
                         prev === item.name ? null : item.name,
                       )
                     }
-                    className={`flex items-center gap-3 py-2.5 px-1 rounded-xl cursor-pointer transition-all duration-150 ${
+                    className={`flex items-center gap-3 py-3.5 px-1 rounded-xl cursor-pointer transition-all duration-150 ${
                       isSelected
                         ? "bg-slate-100 dark:bg-slate-800"
                         : "hover:bg-slate-50 dark:hover:bg-slate-800/50"
