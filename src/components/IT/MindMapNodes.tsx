@@ -72,16 +72,17 @@ const ICON_MAP = {
 // 1. CENTRAL PROJECT NODE (Root)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const CentralProjectNode: React.FC<NodeProps<CentralProjectNodeData>> = memo(({ data }) => {
+const CentralProjectNode: React.FC<NodeProps<CentralProjectNodeData>> = memo(({ data, isConnectable }) => {
   const statusConf = STATUS_CONFIG[data.status] ?? STATUS_CONFIG.no_prazo;
+  const handleClass = '!w-3 !h-3 !bg-violet-500 !border-2 !border-white dark:!border-slate-900 !opacity-100 hover:!opacity-100 hover:!scale-125 transition-transform';
 
   return (
-    <div className="relative min-w-[280px] bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border-2 border-slate-200/50 dark:border-slate-700/50 rounded-3xl shadow-2xl shadow-slate-900/10 dark:shadow-black/30 overflow-visible">
+    <div className="relative min-w-[280px] bg-white/70 dark:bg-slate-900/50 backdrop-blur-xl border-2 border-slate-200/50 dark:border-slate-700/50 rounded-3xl shadow-2xl shadow-slate-900/10 dark:shadow-black/30 overflow-visible group/node">
       {/* Handles — 4 sides */}
-      <Handle type="source" position={Position.Top} className="!w-3 !h-3 !bg-violet-500 !border-2 !border-white dark:!border-slate-900" />
-      <Handle type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-violet-500 !border-2 !border-white dark:!border-slate-900" />
-      <Handle type="source" position={Position.Left} className="!w-3 !h-3 !bg-violet-500 !border-2 !border-white dark:!border-slate-900" />
-      <Handle type="source" position={Position.Right} className="!w-3 !h-3 !bg-violet-500 !border-2 !border-white dark:!border-slate-900" />
+      <Handle type="source" position={Position.Top} id="top" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="source" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="source" position={Position.Left} id="left" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className={handleClass} />
 
       {/* Glow blob */}
       <div className="absolute -inset-1 bg-gradient-to-r from-violet-500/10 via-blue-500/10 to-cyan-500/10 dark:from-violet-500/20 dark:via-blue-500/20 dark:to-cyan-500/20 rounded-3xl blur-xl -z-10" />
@@ -130,10 +131,15 @@ CentralProjectNode.displayName = 'CentralProjectNode';
 // 2. STRATEGIC NODE (North — Vision & Mission)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const StrategicNode: React.FC<NodeProps<StrategicNodeData>> = memo(({ data }) => (
-  <div className="relative min-w-[260px] max-w-[320px] bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-xl overflow-visible">
-    <Handle type="target" position={Position.Bottom} className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white dark:!border-slate-900" />
-    <Handle type="source" position={Position.Top} className="!w-3 !h-3 !bg-blue-500 !border-2 !border-white dark:!border-slate-900" />
+const StrategicNode: React.FC<NodeProps<StrategicNodeData>> = memo(({ data, isConnectable }) => {
+  const handleClass = '!w-3 !h-3 !bg-blue-500 !border-2 !border-white dark:!border-slate-900 !opacity-100 hover:!opacity-100 hover:!scale-125 transition-transform';
+
+  return (
+    <div className="relative min-w-[260px] max-w-[320px] bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-xl overflow-visible group/node">
+      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="target" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="source" position={Position.Left} id="left" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className={handleClass} />
 
     <div className="p-4">
       {/* Header */}
@@ -172,8 +178,9 @@ const StrategicNode: React.FC<NodeProps<StrategicNodeData>> = memo(({ data }) =>
         </div>
       )}
     </div>
-  </div>
-));
+    </div>
+  );
+});
 
 StrategicNode.displayName = 'StrategicNode';
 
@@ -181,10 +188,15 @@ StrategicNode.displayName = 'StrategicNode';
 // 3. BOUNDARY NODE (South — In-Scope / Out-of-Scope)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const BoundaryNode: React.FC<NodeProps<BoundaryNodeData>> = memo(({ data }) => (
-  <div className="relative min-w-[300px] max-w-[400px] bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-xl overflow-visible">
-    <Handle type="target" position={Position.Top} className="!w-3 !h-3 !bg-emerald-500 !border-2 !border-white dark:!border-slate-900" />
-    <Handle type="source" position={Position.Bottom} className="!w-3 !h-3 !bg-emerald-500 !border-2 !border-white dark:!border-slate-900" />
+const BoundaryNode: React.FC<NodeProps<BoundaryNodeData>> = memo(({ data, isConnectable }) => {
+  const handleClass = '!w-3 !h-3 !bg-emerald-500 !border-2 !border-white dark:!border-slate-900 !opacity-100 hover:!opacity-100 hover:!scale-125 transition-transform';
+
+  return (
+    <div className="relative min-w-[300px] max-w-[400px] bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-xl overflow-visible group/node">
+      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="target" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="source" position={Position.Left} id="left" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className={handleClass} />
 
     <div className="p-4">
       {/* Header */}
@@ -240,8 +252,9 @@ const BoundaryNode: React.FC<NodeProps<BoundaryNodeData>> = memo(({ data }) => (
         </div>
       </div>
     </div>
-  </div>
-));
+    </div>
+  );
+});
 
 BoundaryNode.displayName = 'BoundaryNode';
 
@@ -249,7 +262,7 @@ BoundaryNode.displayName = 'BoundaryNode';
 // 4. OPERATIONAL NODE (East/West — Key/Value from JSON)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const OperationalNode: React.FC<NodeProps<OperationalNodeData>> = memo(({ data }) => {
+const OperationalNode: React.FC<NodeProps<OperationalNodeData>> = memo(({ data, isConnectable }) => {
   const IconComponent = ICON_MAP[data.icon] ?? Layers;
 
   const gradientMap = {
@@ -259,11 +272,14 @@ const OperationalNode: React.FC<NodeProps<OperationalNodeData>> = memo(({ data }
   };
 
   const gradient = gradientMap[data.icon] ?? gradientMap.scope;
+  const handleClass = `!w-3 !h-3 !bg-${data.icon === 'infra' ? 'cyan' : data.icon === 'team' ? 'amber' : 'violet'}-500 !border-2 !border-white dark:!border-slate-900 !opacity-100 hover:!opacity-100 hover:!scale-125 transition-transform`;
 
   return (
-    <div className="relative min-w-[240px] max-w-[300px] bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-xl overflow-visible">
-      <Handle type="target" position={Position.Left} className="!w-3 !h-3 !bg-cyan-500 !border-2 !border-white dark:!border-slate-900" />
-      <Handle type="source" position={Position.Right} className="!w-3 !h-3 !bg-cyan-500 !border-2 !border-white dark:!border-slate-900" />
+    <div className="relative min-w-[240px] max-w-[300px] bg-white/60 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-2xl shadow-xl overflow-visible group/node">
+      <Handle type="target" position={Position.Top} id="top" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="target" position={Position.Bottom} id="bottom" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="source" position={Position.Left} id="left" isConnectable={isConnectable} className={handleClass} />
+      <Handle type="source" position={Position.Right} id="right" isConnectable={isConnectable} className={handleClass} />
 
       <div className="p-4">
         {/* Header */}

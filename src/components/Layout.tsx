@@ -43,6 +43,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { useTheme } from '../hooks/useTheme';
 import { supabase } from '../lib/supabase';
+import { CollapsedFlyoutMenu } from './CollapsedFlyoutMenu';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -688,6 +689,18 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
     // ── Collapsed mode ──
     if (collapsed) {
+      if (hasAccessibleSubItems) {
+        return (
+          <CollapsedFlyoutMenu
+            key={item.name}
+            item={item}
+            isActive={isActive}
+            subItems={accessibleSubItems}
+            isSubItemActive={isSubItemActive}
+          />
+        );
+      }
+
       return (
         <SidebarTooltip key={item.name} label={item.name} show={true}>
           <Link

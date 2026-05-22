@@ -18,16 +18,13 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import {
   Brain,
-  Search,
   FolderOpen,
   Loader2,
   AlertTriangle,
-  ChevronDown,
   Map,
   RefreshCw,
   X,
   Plus,
-  Check,
   Pencil,
   Save,
   ArrowRight,
@@ -37,6 +34,7 @@ import {
   Server,
   Users,
   Layers,
+  ChevronRight,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -245,7 +243,7 @@ const MindMapFormModal: React.FC<MindMapFormProps> = ({ project, existingVision,
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
         transition={{ type: 'spring', damping: 25, stiffness: 300 }}
       >
-        {/* Header */}
+        {/* Modal Header */}
         <div className="flex-none flex items-center justify-between p-5 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-blue-600 flex items-center justify-center">
@@ -419,7 +417,6 @@ const ITProjectMindMap: React.FC = () => {
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
   const [isLoadingVision, setIsLoadingVision] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -581,53 +578,16 @@ const ITProjectMindMap: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-2">
-            {/* Project Selector */}
-            <div className="relative">
+            {/* Back to projects */}
+            {selectedProjectId && (
               <button
-                onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
-                disabled={projects.length === 0}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-white/60 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50 rounded-xl hover:border-violet-400 dark:hover:border-violet-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed min-w-[200px] justify-between"
+                onClick={() => { setSelectedProjectId(null); setVisionData(null); }}
+                className="inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-300 bg-white/60 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50 rounded-xl hover:border-violet-400 dark:hover:border-violet-500 transition-all"
               >
-                <div className="flex items-center gap-2 min-w-0">
-                  {selectedProject ? (
-                    <>
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: selectedProject.color }} />
-                      <span className="truncate text-slate-700 dark:text-slate-200 font-medium">{selectedProject.name}</span>
-                    </>
-                  ) : (
-                    <span className="text-slate-400 dark:text-slate-500">Selecionar projeto...</span>
-                  )}
-                </div>
-                <ChevronDown className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <ChevronRight className="w-4 h-4 rotate-180" />
+                Projetos
               </button>
-
-              {projectDropdownOpen && (
-                <div className="absolute right-0 top-full mt-2 w-72 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 rounded-xl shadow-2xl overflow-hidden z-50">
-                  <div className="p-2">
-                    <div className="flex items-center gap-2 px-3 py-2 text-xs text-slate-400 dark:text-slate-500 border-b border-slate-100 dark:border-slate-700/50 mb-1">
-                      <Search className="w-3.5 h-3.5" />
-                      {projects.length} projeto{projects.length !== 1 ? 's' : ''}
-                    </div>
-                    <div className="max-h-64 overflow-y-auto">
-                      {projects.map(project => (
-                        <button
-                          key={project.id}
-                          onClick={() => { setSelectedProjectId(project.id); setProjectDropdownOpen(false); }}
-                          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-all ${
-                            selectedProjectId === project.id
-                              ? 'bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300'
-                              : 'text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                          }`}
-                        >
-                          <span className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: project.color }} />
-                          <span className="truncate font-medium">{project.name}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            )}
 
             {/* Create/Edit MindMap button */}
             {selectedProject && isManager && (
@@ -656,19 +616,91 @@ const ITProjectMindMap: React.FC = () => {
 
       {/* ── Main Content ──────────────────────────────────────────────── */}
       <div className="flex-1 relative" style={{ height: 'calc(100vh - 12rem)' }}>
-        {/* No project */}
+        {/* No project — Centered Glassmorphism Cards */}
         {!selectedProjectId && !isLoadingVision && (
-          <div className="absolute inset-0 flex items-center justify-center z-10">
-            <div className="text-center">
-              <div className="relative mx-auto w-20 h-20 mb-6">
-                <div className="absolute inset-0 bg-slate-300 dark:bg-slate-700 rounded-3xl blur-xl opacity-20" />
-                <div className="relative w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center border border-slate-200 dark:border-slate-700">
-                  <Map className="w-10 h-10 text-slate-400 dark:text-slate-500" />
-                </div>
-              </div>
-              <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Nenhum projeto selecionado</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400 max-w-sm">Selecione um projeto de TI no menu acima para visualizar o mapa mental estratégico.</p>
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-10 px-4 overflow-y-auto py-8">
+            {/* Header */}
+            <div className="text-center mb-10">
+              <h2 className="text-3xl sm:text-4xl font-extrabold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent mb-2">
+                Hub de Projetos
+              </h2>
+              <p className="text-base sm:text-lg text-slate-500 dark:text-slate-400">Selecione um projeto para visualizar o mapa mental estratégico</p>
             </div>
+
+            {/* Centered Cards Container */}
+            {projects.length > 0 ? (
+              <div className="flex flex-wrap justify-center gap-5 max-w-5xl">
+                {projects.map((project, index) => (
+                  <button
+                    key={project.id}
+                    onClick={() => setSelectedProjectId(project.id)}
+                    className="group relative w-72 bg-white/50 dark:bg-slate-900/40 backdrop-blur-xl rounded-2xl border border-white/50 dark:border-slate-700/40 overflow-hidden cursor-pointer shadow-lg transition-all duration-500 hover:-translate-y-2 text-left"
+                    style={{
+                      animationDelay: `${index * 0.08}s`,
+                      ['--neon-color' as string]: project.color,
+                    }}
+                  >
+                    {/* Neon glow blob — hidden by default, visible on hover */}
+                    <div
+                      className="absolute -inset-1 rounded-2xl blur-2xl opacity-0 group-hover:opacity-40 transition-opacity duration-500 pointer-events-none"
+                      style={{ background: `radial-gradient(circle, ${project.color} 0%, transparent 70%)` }}
+                    />
+
+                    {/* Top color accent line */}
+                    <div className="absolute top-0 left-0 right-0 h-0.5 opacity-60" style={{ backgroundColor: project.color }} />
+
+                    <div className="relative p-5">
+                      {/* Icon with glass container */}
+                      <div
+                        className="w-14 h-14 rounded-xl flex items-center justify-center mb-4 transition-all duration-500 group-hover:scale-110 group-hover:shadow-lg"
+                        style={{
+                          backgroundColor: `${project.color}15`,
+                          border: `1px solid ${project.color}30`,
+                        }}
+                      >
+                        <FolderOpen className="w-7 h-7 transition-colors duration-300" style={{ color: project.color }} />
+                      </div>
+
+                      {/* Content */}
+                      <h3
+                        className="text-base font-bold text-slate-800 dark:text-slate-100 mb-1.5 truncate transition-colors duration-300"
+                        style={{ color: undefined }}
+                      >
+                        {project.name}
+                      </h3>
+                      {project.description && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-4 line-clamp-2 leading-relaxed">
+                          {project.description}
+                        </p>
+                      )}
+
+                      {/* Action with neon underline */}
+                      <div className="flex items-center gap-2 text-sm font-medium transition-colors duration-300" style={{ color: project.color }}>
+                        <span>Visualizar mapa</span>
+                        <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1.5" />
+                      </div>
+
+                      {/* Bottom neon line on hover */}
+                      <div
+                        className="absolute bottom-0 left-1/2 -translate-x-1/2 w-0 h-0.5 rounded-full transition-all duration-500 group-hover:w-3/4"
+                        style={{ backgroundColor: project.color, boxShadow: `0 0 12px ${project.color}` }}
+                      />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center max-w-sm">
+                <div className="relative mx-auto w-20 h-20 mb-6">
+                  <div className="absolute inset-0 bg-slate-300 dark:bg-slate-700 rounded-3xl blur-xl opacity-20" />
+                  <div className="relative w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-3xl flex items-center justify-center border border-slate-200 dark:border-slate-700">
+                    <Map className="w-10 h-10 text-slate-400 dark:text-slate-500" />
+                  </div>
+                </div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-slate-100 mb-2">Nenhum projeto disponível</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Crie um projeto de TI primeiro para visualizar o mapa mental estratégico.</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -733,7 +765,39 @@ const ITProjectMindMap: React.FC = () => {
                 <Controls
                   showInteractive={false}
                   className="!bg-white/80 dark:!bg-slate-800/80 !backdrop-blur-xl !border !border-slate-200/50 dark:!border-slate-700/50 !rounded-xl !shadow-lg"
-                />
+                >
+                  <style>{`
+                    .react-flow__controls button {
+                      background: transparent !important;
+                      border: none !important;
+                      border-bottom: 1px solid rgba(148,163,184,0.15) !important;
+                      color: #64748b !important;
+                      padding: 8px !important;
+                      transition: all 0.2s ease !important;
+                    }
+                    .react-flow__controls button:last-child {
+                      border-bottom: none !important;
+                    }
+                    .react-flow__controls button:hover {
+                      background: rgba(139,92,246,0.1) !important;
+                      color: #7c3aed !important;
+                    }
+                    .dark .react-flow__controls button {
+                      color: #94a3b8 !important;
+                    }
+                    .dark .react-flow__controls button:hover {
+                      background: rgba(139,92,246,0.15) !important;
+                      color: #a78bfa !important;
+                    }
+                    .react-flow__controls button svg {
+                      max-width: 16px !important;
+                      max-height: 16px !important;
+                    }
+                    .react-flow__minimap {
+                      border-radius: 12px !important;
+                    }
+                  `}</style>
+                </Controls>
                 <MiniMap
                   nodeColor={(node) => {
                     switch (node.type) {

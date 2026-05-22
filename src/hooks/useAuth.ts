@@ -145,7 +145,9 @@ export const useAuth = () => {
   };
 
   const signOut = async () => {
-    const { error } = await supabase.auth.signOut();
+    // scope='local' clears only the local session from storage and does not
+    // require a valid JWT, preventing a 403 when the token has already expired.
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     setUserProfile(null);
     return { error };
   };
