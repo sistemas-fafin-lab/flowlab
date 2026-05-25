@@ -1,18 +1,91 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { LogIn, UserPlus, Eye, EyeOff, Sun, Moon, Package, History, FileText, Building2, Calculator, Receipt, LayoutDashboard, ChevronLeft, ChevronRight } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import React, { useState, useEffect, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  LogIn,
+  UserPlus,
+  Eye,
+  EyeOff,
+  Sun,
+  Moon,
+  Package,
+  History,
+  FileText,
+  Building2,
+  Calculator,
+  Receipt,
+  LayoutDashboard,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useAuth } from "../hooks/useAuth";
 import { DEPARTMENTS } from "../utils/permissions";
 
 const MODULES = [
-  { icon: LayoutDashboard, title: 'Dashboard', description: 'Visão geral com indicadores, gráficos e métricas em tempo real do seu negócio.' },
-  { icon: Package, title: 'Estoque', description: 'Controle completo de produtos, lotes, validades e movimentações de inventário.' },
-  { icon: FileText, title: 'Solicitações', description: 'Hub centralizado para compras, pagamentos e manutenções com fluxo de aprovação.' },
-  { icon: Building2, title: 'Fornecedores', description: 'Cadastro e gestão de fornecedores com histórico de negociações e avaliações.' },
-  { icon: Calculator, title: 'Cotações', description: 'Compare propostas de fornecedores lado a lado e aprove com agilidade.' },
-  { icon: Receipt, title: 'Faturamento', description: 'Emissão de notas, contas a receber, glosas e acompanhamento financeiro.' },
-  { icon: History, title: 'Movimentações', description: 'Rastreio de entradas, saídas e transferências de estoque em tempo real.' },
+  {
+    icon: LayoutDashboard,
+    title: "Dashboard",
+    description:
+      "Visão geral com indicadores, gráficos e métricas em tempo real do seu negócio.",
+  },
+  {
+    icon: Package,
+    title: "Estoque",
+    description:
+      "Controle completo de produtos, lotes, validades e movimentações de inventário.",
+  },
+  {
+    icon: FileText,
+    title: "Solicitações",
+    description:
+      "Hub centralizado para compras, pagamentos e manutenções com fluxo de aprovação.",
+  },
+  {
+    icon: Building2,
+    title: "Fornecedores",
+    description:
+      "Cadastro e gestão de fornecedores com histórico de negociações e avaliações.",
+  },
+  {
+    icon: Calculator,
+    title: "Cotações",
+    description:
+      "Compare propostas de fornecedores lado a lado e aprove com agilidade.",
+  },
+  {
+    icon: Receipt,
+    title: "Faturamento",
+    description:
+      "Emissão de notas, contas a receber, glosas e acompanhamento financeiro.",
+  },
+  {
+    icon: History,
+    title: "Movimentações",
+    description:
+      "Rastreio de entradas, saídas e transferências de estoque em tempo real.",
+  },
 ];
+
+const formatCPF = (value: string) => {
+  const digits = value.replace(/\D/g, "").slice(0, 11);
+  return digits
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d)/, "$1.$2")
+    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+};
+
+const validateCPF = (cpf: string) => {
+  const digits = cpf.replace(/\D/g, "");
+  if (digits.length !== 11 || /^(\d)\1+$/.test(digits)) return false;
+  const calc = (n: number) => {
+    const sum = digits
+      .slice(0, n)
+      .split("")
+      .reduce((acc, d, i) => acc + +d * (n + 1 - i), 0);
+    const rem = (sum * 10) % 11;
+    return rem === 10 || rem === 11 ? 0 : rem;
+  };
+  return calc(9) === +digits[9] && calc(10) === +digits[10];
+};
 
 const formVariants = {
   enter: { x: 20, opacity: 0 },
@@ -21,43 +94,61 @@ const formVariants = {
 };
 
 const slideVariants = {
-  enter: (dir: string) => ({ opacity: 0, x: dir === 'right' ? 40 : -40, scale: 0.95 }),
+  enter: (dir: string) => ({
+    opacity: 0,
+    x: dir === "right" ? 40 : -40,
+    scale: 0.95,
+  }),
   center: { opacity: 1, x: 0, scale: 1 },
-  exit: (dir: string) => ({ opacity: 0, x: dir === 'right' ? -40 : 40, scale: 0.95 }),
+  exit: (dir: string) => ({
+    opacity: 0,
+    x: dir === "right" ? -40 : 40,
+    scale: 0.95,
+  }),
 };
 
 const springTransition = {
-  type: 'spring' as const,
+  type: "spring" as const,
   stiffness: 300,
   damping: 30,
 };
 
 const Auth: React.FC = () => {
   const { signIn, signUp, resetPassword } = useAuth();
-  const [formView, setFormView] = useState<'login' | 'register' | 'forgot'>('login');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [department, setDepartment] = useState('');
+  const [formView, setFormView] = useState<"login" | "register" | "forgot">(
+    "login",
+  );
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [department, setDepartment] = useState("");
+  const [cpf, setCpf] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(() => document.documentElement.classList.contains('dark'));
+  const [isDarkMode, setIsDarkMode] = useState(() =>
+    document.documentElement.classList.contains("dark"),
+  );
   const [activeSlide, setActiveSlide] = useState(0);
   const [isAutoPlaying, setIsAutoPlaying] = useState(true);
-  const [slideDirection, setSlideDirection] = useState<'left' | 'right'>('right');
+  const [slideDirection, setSlideDirection] = useState<"left" | "right">(
+    "right",
+  );
 
-  const goToSlide = useCallback((index: number, direction?: 'left' | 'right') => {
-    setSlideDirection(direction || (index > activeSlide ? 'right' : 'left'));
-    setActiveSlide(index);
-  }, [activeSlide]);
+  const goToSlide = useCallback(
+    (index: number, direction?: "left" | "right") => {
+      setSlideDirection(direction || (index > activeSlide ? "right" : "left"));
+      setActiveSlide(index);
+    },
+    [activeSlide],
+  );
 
   const nextSlide = useCallback(() => {
-    goToSlide((activeSlide + 1) % MODULES.length, 'right');
+    goToSlide((activeSlide + 1) % MODULES.length, "right");
   }, [activeSlide, goToSlide]);
 
   const prevSlide = useCallback(() => {
-    goToSlide((activeSlide - 1 + MODULES.length) % MODULES.length, 'left');
+    goToSlide((activeSlide - 1 + MODULES.length) % MODULES.length, "left");
   }, [activeSlide, goToSlide]);
 
   useEffect(() => {
@@ -69,7 +160,7 @@ const Auth: React.FC = () => {
   const toggleTheme = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
-    document.documentElement.classList.toggle('dark', newMode);
+    document.documentElement.classList.toggle("dark", newMode);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -78,41 +169,76 @@ const Auth: React.FC = () => {
     setError(null);
 
     try {
-      if (formView === 'forgot') {
+      if (formView === "forgot") {
         const { error } = await resetPassword(email);
         if (error) {
-          setError('Erro ao enviar email de recuperação.');
+          setError("Erro ao enviar email de recuperação.");
         } else {
-          alert('Instruções de redefinição enviadas para seu email.');
-          setFormView('login');
+          alert("Instruções de redefinição enviadas para seu email.");
+          setFormView("login");
         }
       } else {
-        const { error } = formView === 'register'
-          ? await signUp(email, password, name, department)
-          : await signIn(email, password);
+        if (formView === "register" && !validateCPF(cpf)) {
+          setError("CPF inválido. Verifique e tente novamente.");
+          setLoading(false);
+          return;
+        }
+
+        const { error } =
+          formView === "register"
+            ? await signUp(email, password, name, department, cpf)
+            : await signIn(email, password);
 
         if (error) {
           let userFriendlyMessage = error.message;
 
-          if (error.message.includes('Invalid login credentials')) {
-            userFriendlyMessage = formView === 'register'
-              ? 'Falha ao criar conta. Verifique se o email é válido e a senha tem pelo menos 6 caracteres.'
-              : 'Email ou senha incorretos. Verifique suas credenciais e tente novamente. Se você não tem uma conta, clique em "Cadastre-se".';
-          } else if (error.message.includes('Email not confirmed')) {
-            userFriendlyMessage = 'Por favor, confirme seu email antes de fazer login.';
-          } else if (error.message.includes('Password should be at least')) {
-            userFriendlyMessage = 'A senha deve ter pelo menos 6 caracteres.';
-          } else if (error.message.includes('Invalid email')) {
-            userFriendlyMessage = 'Por favor, insira um endereço de email válido.';
-          } else if (error.message.includes('User already registered')) {
-            userFriendlyMessage = 'Este email já está cadastrado. Tente fazer login ou use outro email.';
+          if (error.message.includes("Invalid login credentials")) {
+            userFriendlyMessage =
+              formView === "register"
+                ? "Falha ao criar conta. Verifique se o email é válido e a senha tem pelo menos 6 caracteres."
+                : 'Email ou senha incorretos. Verifique suas credenciais e tente novamente. Se você não tem uma conta, clique em "Cadastre-se".';
+          } else if (error.message.includes("Email not confirmed")) {
+            userFriendlyMessage =
+              "Por favor, confirme seu email antes de fazer login.";
+          } else if (error.message.includes("Password should be at least")) {
+            userFriendlyMessage = "A senha deve ter pelo menos 6 caracteres.";
+          } else if (error.message.includes("Invalid email")) {
+            userFriendlyMessage =
+              "Por favor, insira um endereço de email válido.";
+          } else if (error.message.includes("User already registered")) {
+            userFriendlyMessage =
+              "Este email já está cadastrado. Tente fazer login ou use outro email.";
+          } else if (error.message.includes("CPF não autorizado")) {
+            userFriendlyMessage =
+              "CPF não autorizado para cadastro. Entre em contato com o administrador.";
+          } else if (error.message.includes("CPF inativo")) {
+            userFriendlyMessage =
+              "CPF inativo. Entre em contato com o administrador.";
+          } else if (error.message.includes("CPF inválido")) {
+            userFriendlyMessage = "CPF inválido. Verifique e tente novamente.";
+          } else if (error.message.includes("Acesso não autorizado")) {
+            userFriendlyMessage =
+              "Acesso não autorizado. Contate o administrador.";
           }
 
           setError(userFriendlyMessage);
         }
       }
     } catch (err) {
-      setError('Ocorreu um erro inesperado. Tente novamente.');
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("CPF não autorizado")) {
+        setError(
+          "CPF não autorizado para cadastro. Entre em contato com o administrador.",
+        );
+      } else if (msg.includes("CPF inativo")) {
+        setError("CPF inativo. Entre em contato com o administrador.");
+      } else if (msg.includes("CPF inválido")) {
+        setError("CPF inválido. Verifique e tente novamente.");
+      } else if (msg.includes("Departamento")) {
+        setError(msg);
+      } else {
+        setError("Ocorreu um erro inesperado. Tente novamente.");
+      }
     } finally {
       setLoading(false);
     }
@@ -145,8 +271,9 @@ const Auth: React.FC = () => {
             <div
               className="absolute w-32 h-32 rounded-full border-2 border-transparent animate-spin-slow"
               style={{
-                background: 'linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0.1)) padding-box, linear-gradient(to right, #1e3a8a, #3b82f6, #1e40af) border-box',
-                animationDuration: '8s',
+                background:
+                  "linear-gradient(rgba(255,255,255,0.1), rgba(255,255,255,0.1)) padding-box, linear-gradient(to right, #1e3a8a, #3b82f6, #1e40af) border-box",
+                animationDuration: "8s",
               }}
             />
             <div className="relative w-28 h-28 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-lg shadow-blue-900/20">
@@ -159,7 +286,9 @@ const Auth: React.FC = () => {
           </div>
 
           <div className="text-center space-y-3">
-            <h2 className="text-4xl font-bold text-white tracking-tight">FlowLab</h2>
+            <h2 className="text-4xl font-bold text-white tracking-tight">
+              FlowLab
+            </h2>
             <p className="text-blue-200/80 text-base max-w-sm leading-relaxed">
               Sistema de integração operacional do Laboratório Lab.
             </p>
@@ -171,7 +300,9 @@ const Auth: React.FC = () => {
           {/* Module count badge */}
           <div className="flex items-center gap-2 px-4 py-2 bg-white/10 rounded-full border border-white/15">
             <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse-soft"></div>
-            <span className="text-blue-100/90 text-xs font-medium">{MODULES.length} módulos integrados</span>
+            <span className="text-blue-100/90 text-xs font-medium">
+              {MODULES.length} módulos integrados
+            </span>
           </div>
         </motion.div>
 
@@ -182,7 +313,10 @@ const Auth: React.FC = () => {
           onMouseLeave={() => setIsAutoPlaying(true)}
         >
           {/* Carousel viewport */}
-          <div className="relative overflow-hidden rounded-2xl" style={{ minHeight: '140px' }}>
+          <div
+            className="relative overflow-hidden rounded-2xl"
+            style={{ minHeight: "140px" }}
+          >
             <AnimatePresence mode="wait" custom={slideDirection}>
               <motion.div
                 key={activeSlide}
@@ -204,8 +338,12 @@ const Auth: React.FC = () => {
                           <Icon className="w-6 h-6 text-blue-200" />
                         </div>
                         <div className="flex-1 min-w-0">
-                          <h3 className="text-white font-semibold text-base mb-1.5 group-hover:text-blue-200 transition-colors duration-300">{mod.title}</h3>
-                          <p className="text-blue-200/70 text-sm leading-relaxed">{mod.description}</p>
+                          <h3 className="text-white font-semibold text-base mb-1.5 group-hover:text-blue-200 transition-colors duration-300">
+                            {mod.title}
+                          </h3>
+                          <p className="text-blue-200/70 text-sm leading-relaxed">
+                            {mod.description}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -233,8 +371,8 @@ const Auth: React.FC = () => {
                   onClick={() => goToSlide(index)}
                   className={`rounded-full transition-all duration-300 ${
                     index === activeSlide
-                      ? 'w-6 h-2 bg-blue-400'
-                      : 'w-2 h-2 bg-white/30 hover:bg-white/50'
+                      ? "w-6 h-2 bg-blue-400"
+                      : "w-2 h-2 bg-white/30 hover:bg-white/50"
                   }`}
                   aria-label={`Ir para módulo ${index + 1}`}
                 />
@@ -267,7 +405,7 @@ const Auth: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
+          transition={{ duration: 0.4, ease: "easeOut" }}
           className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-slate-800/[0.15] dark:shadow-black/40 pt-12 px-8 pb-8 border border-slate-200/50 dark:border-gray-600/50 w-full max-w-md relative z-10"
         >
           {/* Subtle glow effect behind card */}
@@ -279,7 +417,11 @@ const Auth: React.FC = () => {
             className="absolute top-4 right-4 p-2 rounded-xl bg-slate-100/80 dark:bg-gray-700/80 hover:bg-slate-200 dark:hover:bg-gray-600 transition-all duration-200 text-slate-600 dark:text-gray-300 z-20"
             aria-label="Alternar tema"
           >
-            {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {isDarkMode ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
           </button>
 
           {/* Mobile logo — always visible on mobile */}
@@ -288,8 +430,9 @@ const Auth: React.FC = () => {
               <div
                 className="absolute w-28 h-28 rounded-full border-2 border-transparent animate-spin-slow"
                 style={{
-                  background: 'linear-gradient(white, white) padding-box, linear-gradient(to right, #1e3a8a, #3b82f6, #1e40af) border-box',
-                  animationDuration: '8s',
+                  background:
+                    "linear-gradient(white, white) padding-box, linear-gradient(to right, #1e3a8a, #3b82f6, #1e40af) border-box",
+                  animationDuration: "8s",
                 }}
               />
               <div className="relative w-24 h-24 rounded-full bg-white dark:bg-gray-700 backdrop-blur-md border border-slate-200 dark:border-gray-600 flex items-center justify-center shadow-lg shadow-blue-900/10 dark:shadow-black/20">
@@ -305,7 +448,7 @@ const Auth: React.FC = () => {
           {/* ── Animated form area ── */}
           <AnimatePresence mode="wait" initial={false}>
             {/* ════════ LOGIN ════════ */}
-            {formView === 'login' && (
+            {formView === "login" && (
               <motion.div
                 key="login"
                 variants={formVariants}
@@ -334,7 +477,9 @@ const Auth: React.FC = () => {
                       transition={{ duration: 0.2 }}
                       className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300 text-sm flex items-center gap-2"
                     >
-                      <span className="flex-shrink-0 w-5 h-5 bg-red-100 dark:bg-red-800 rounded-full flex items-center justify-center text-red-500 dark:text-red-300 font-bold text-xs">!</span>
+                      <span className="flex-shrink-0 w-5 h-5 bg-red-100 dark:bg-red-800 rounded-full flex items-center justify-center text-red-500 dark:text-red-300 font-bold text-xs">
+                        !
+                      </span>
                       {error}
                     </motion.div>
                   )}
@@ -342,7 +487,10 @@ const Auth: React.FC = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label htmlFor="login-email" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
+                    <label
+                      htmlFor="login-email"
+                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
+                    >
                       Email
                     </label>
                     <input
@@ -357,12 +505,15 @@ const Auth: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="login-password" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
+                    <label
+                      htmlFor="login-password"
+                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
+                    >
                       Senha
                     </label>
                     <div className="relative">
                       <input
-                        type={showPassword ? 'text' : 'password'}
+                        type={showPassword ? "text" : "password"}
                         id="login-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -376,7 +527,11 @@ const Auth: React.FC = () => {
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-gray-400 hover:text-slate-600 dark:hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-600"
                       >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -402,14 +557,20 @@ const Auth: React.FC = () => {
 
                 <div className="mt-8 text-center space-y-4">
                   <button
-                    onClick={() => { setFormView('register'); setError(null); }}
+                    onClick={() => {
+                      setFormView("register");
+                      setError(null);
+                    }}
                     className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 text-sm font-medium transition-colors hover:underline underline-offset-4"
                   >
                     Não tem uma conta? Cadastre-se
                   </button>
                   <div className="text-center">
                     <button
-                      onClick={() => { setFormView('forgot'); setError(null); }}
+                      onClick={() => {
+                        setFormView("forgot");
+                        setError(null);
+                      }}
                       className="text-slate-500 dark:text-gray-300 hover:text-blue-700 dark:hover:text-blue-400 text-sm transition-colors"
                     >
                       Esqueci minha senha
@@ -420,7 +581,7 @@ const Auth: React.FC = () => {
             )}
 
             {/* ════════ REGISTER ════════ */}
-            {formView === 'register' && (
+            {formView === "register" && (
               <motion.div
                 key="register"
                 variants={formVariants}
@@ -449,7 +610,9 @@ const Auth: React.FC = () => {
                       transition={{ duration: 0.2 }}
                       className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300 text-sm flex items-center gap-2"
                     >
-                      <span className="flex-shrink-0 w-5 h-5 bg-red-100 dark:bg-red-800 rounded-full flex items-center justify-center text-red-500 dark:text-red-300 font-bold text-xs">!</span>
+                      <span className="flex-shrink-0 w-5 h-5 bg-red-100 dark:bg-red-800 rounded-full flex items-center justify-center text-red-500 dark:text-red-300 font-bold text-xs">
+                        !
+                      </span>
                       {error}
                     </motion.div>
                   )}
@@ -457,7 +620,10 @@ const Auth: React.FC = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label htmlFor="reg-email" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
+                    <label
+                      htmlFor="reg-email"
+                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
+                    >
                       Email
                     </label>
                     <input
@@ -472,7 +638,10 @@ const Auth: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="reg-name" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
+                    <label
+                      htmlFor="reg-name"
+                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
+                    >
                       Nome Completo
                     </label>
                     <input
@@ -487,12 +656,34 @@ const Auth: React.FC = () => {
                   </div>
 
                   <div>
-                    <label htmlFor="reg-password" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
+                    <label
+                      htmlFor="reg-cpf"
+                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
+                    >
+                      CPF
+                    </label>
+                    <input
+                      type="text"
+                      id="reg-cpf"
+                      value={cpf}
+                      onChange={(e) => setCpf(formatCPF(e.target.value))}
+                      required
+                      maxLength={14}
+                      className="w-full px-4 py-3 border border-slate-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900/50 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400"
+                      placeholder="000.000.000-00"
+                    />
+                  </div>
+
+                  <div>
+                    <label
+                      htmlFor="reg-password"
+                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
+                    >
                       Senha
                     </label>
                     <div className="relative">
                       <input
-                        type={showPassword ? 'text' : 'password'}
+                        type={showPassword ? "text" : "password"}
                         id="reg-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
@@ -506,13 +697,20 @@ const Auth: React.FC = () => {
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-gray-400 hover:text-slate-600 dark:hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-600"
                       >
-                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                        {showPassword ? (
+                          <EyeOff className="w-4 h-4" />
+                        ) : (
+                          <Eye className="w-4 h-4" />
+                        )}
                       </button>
                     </div>
                   </div>
 
                   <div>
-                    <label htmlFor="reg-department" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
+                    <label
+                      htmlFor="reg-department"
+                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
+                    >
                       Departamento
                     </label>
                     <select
@@ -522,7 +720,12 @@ const Auth: React.FC = () => {
                       required
                       className="w-full px-4 py-3 border border-slate-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900/50 backdrop-blur-sm text-slate-800 dark:text-gray-100 cursor-pointer"
                     >
-                      <option value="" className="text-slate-400 dark:text-gray-400">Selecione um departamento</option>
+                      <option
+                        value=""
+                        className="text-slate-400 dark:text-gray-400"
+                      >
+                        Selecione um departamento
+                      </option>
                       {DEPARTMENTS.map((dept) => (
                         <option key={dept} value={dept}>
                           {dept}
@@ -552,7 +755,12 @@ const Auth: React.FC = () => {
 
                 <div className="mt-8 text-center">
                   <button
-                    onClick={() => { setFormView('login'); setName(''); setError(null); }}
+                    onClick={() => {
+                      setFormView("login");
+                      setName("");
+                      setCpf("");
+                      setError(null);
+                    }}
                     className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 text-sm font-medium transition-colors hover:underline underline-offset-4"
                   >
                     Já tem uma conta? Faça login
@@ -560,13 +768,17 @@ const Auth: React.FC = () => {
                 </div>
 
                 <div className="mt-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-xl text-slate-700 dark:text-gray-300 text-xs">
-                  <strong className="text-blue-800 dark:text-blue-400">Nota:</strong> Após criar sua conta, você poderá acessar o nosso sistema de Compras e Estoque.
+                  <strong className="text-blue-800 dark:text-blue-400">
+                    Nota:
+                  </strong>{" "}
+                  Após criar sua conta, você poderá acessar o nosso sistema de
+                  Compras e Estoque.
                 </div>
               </motion.div>
             )}
 
             {/* ════════ FORGOT PASSWORD ════════ */}
-            {formView === 'forgot' && (
+            {formView === "forgot" && (
               <motion.div
                 key="forgot"
                 variants={formVariants}
@@ -595,7 +807,9 @@ const Auth: React.FC = () => {
                       transition={{ duration: 0.2 }}
                       className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300 text-sm flex items-center gap-2"
                     >
-                      <span className="flex-shrink-0 w-5 h-5 bg-red-100 dark:bg-red-800 rounded-full flex items-center justify-center text-red-500 dark:text-red-300 font-bold text-xs">!</span>
+                      <span className="flex-shrink-0 w-5 h-5 bg-red-100 dark:bg-red-800 rounded-full flex items-center justify-center text-red-500 dark:text-red-300 font-bold text-xs">
+                        !
+                      </span>
                       {error}
                     </motion.div>
                   )}
@@ -603,7 +817,10 @@ const Auth: React.FC = () => {
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                   <div>
-                    <label htmlFor="forgot-email" className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5">
+                    <label
+                      htmlFor="forgot-email"
+                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
+                    >
                       Email
                     </label>
                     <input
@@ -628,14 +845,17 @@ const Auth: React.FC = () => {
                         Enviando...
                       </>
                     ) : (
-                      'Enviar instruções'
+                      "Enviar instruções"
                     )}
                   </button>
                 </form>
 
                 <div className="mt-8 text-center">
                   <button
-                    onClick={() => { setFormView('login'); setError(null); }}
+                    onClick={() => {
+                      setFormView("login");
+                      setError(null);
+                    }}
                     className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 text-sm font-medium transition-colors hover:underline underline-offset-4"
                   >
                     Voltar ao login
