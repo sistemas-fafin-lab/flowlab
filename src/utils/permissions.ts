@@ -22,6 +22,7 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canViewBilling', label: 'Visualizar Faturamento', group: 'Administração' },
   { key: 'canManageRoles', label: 'Gerenciar Cargos', group: 'Administração' },
   { key: 'canManageIT', label: 'Gerenciar TI', group: 'Tecnologia' },
+  { key: 'canManageWhitelist', label: 'Gerenciar Whitelist', group: 'Administração' },
   // ── Cotações (granular) ────────────────────────────────────────────────────
   { key: 'canViewQuotations',      label: 'Visualizar Cotações',              group: 'Cotações' },
   { key: 'canCreateQuotations',    label: 'Criar Cotações',                   group: 'Cotações' },

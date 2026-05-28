@@ -324,6 +324,64 @@ export interface Database {
           estimated_unit_price?: number | null
         }
       }
+      user_whitelist: {
+        Row: {
+          cpf: string
+          name: string
+          activity: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          cpf: string
+          name: string
+          activity?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          cpf?: string
+          name?: string
+          activity?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      user_profiles: {
+        Row: {
+          id: string
+          email: string
+          name: string
+          role: string
+          department: string | null
+          custom_role_id: string | null
+          cpf: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id: string
+          email: string
+          name: string
+          role?: string
+          department?: string | null
+          custom_role_id?: string | null
+          cpf?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          email?: string
+          name?: string
+          role?: string
+          department?: string | null
+          custom_role_id?: string | null
+          cpf?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

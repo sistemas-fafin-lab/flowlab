@@ -1,8 +1,12 @@
-import { useState, useEffect } from 'react';
-import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
-import { UserProfile, UserRole, Department } from '../types';
-import { getPermissionsForLegacyRole } from '../utils/permissions';
+import { useState, useEffect } from "react";
+import { User, Session } from "@supabase/supabase-js";
+import { supabase } from "../lib/supabase";
+import { UserProfile, UserRole, Department } from "../types";
+import { getPermissionsForLegacyRole } from "../utils/permissions";
+
+const normalizeCPF = (cpf: string): string => {
+  return cpf.replace(/\D/g, "").trim();
+};
 
 export const useAuth = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -29,6 +33,7 @@ export const useAuth = () => {
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
+        setLoading(true);
         loadUserProfile(session.user.id);
       } else {
         setUserProfile(null);
@@ -42,21 +47,21 @@ export const useAuth = () => {
   const loadUserProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase
-        .from('user_profiles')
-        .select('*, custom_roles(id, name, permissions)')
-        .eq('id', userId)
+        .from("user_profiles")
+        .select("*, custom_roles(id, name, permissions)")
+        .eq("id", userId)
         .single();
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Erro ao carregar perfil:', error);
+      if (error && error.code !== "PGRST116") {
+        console.error("Erro ao carregar perfil:", error);
         setLoading(false);
         return;
       }
 
       if (data) {
         const customRole = data.custom_roles as any;
-        const permissions: string[] = customRole?.permissions
-          || getPermissionsForLegacyRole(data.role);
+        const permissions: string[] =
+          customRole?.permissions || getPermissionsForLegacyRole(data.role);
 
         setUserProfile({
           id: data.id,
@@ -74,7 +79,7 @@ export const useAuth = () => {
         setUserProfile(null);
       }
     } catch (error) {
-      console.error('Erro ao carregar perfil:', error);
+      console.error("Erro ao carregar perfil:", error);
     } finally {
       setLoading(false);
     }
@@ -84,10 +89,36 @@ export const useAuth = () => {
     email: string,
     password: string,
     name?: string,
-    department?: string
+    department?: string,
+    cpf?: string,
   ) => {
     if (!department) {
-      throw new Error('Departamento é obrigatório.');
+      throw new Error("Departamento é obrigatório.");
+    }
+
+    if (!cpf) {
+      throw new Error("CPF é obrigatório.");
+    }
+
+    const normalizedCPF = normalizeCPF(cpf);
+
+    if (normalizedCPF.length !== 11) {
+      throw new Error("CPF inválido. Deve conter 11 dígitos.");
+    }
+
+    // Verifica whitelist
+    const { data: whitelistEntry, error: whitelistError } = await supabase
+      .from("user_whitelist")
+      .select("cpf, name, activity")
+      .eq("cpf", normalizedCPF)
+      .single();
+
+    if (whitelistError || !whitelistEntry) {
+      throw new Error("CPF não autorizado para cadastro.");
+    }
+
+    if (!whitelistEntry.activity) {
+      throw new Error("CPF inativo. Contate o administrador.");
     }
 
     const { data, error } = await supabase.auth.signUp({
@@ -95,7 +126,7 @@ export const useAuth = () => {
       password,
       options: {
         data: {
-          name: name || email.split('@')[0],
+          name: name || email.split("@")[0],
           department,
         },
       },
@@ -104,24 +135,27 @@ export const useAuth = () => {
     if (data.user && !error) {
       // Verifica se já existem perfis para definir se este será admin
       const existingProfiles = await supabase
-        .from('user_profiles')
-        .select('id')
+        .from("user_profiles")
+        .select("id")
         .limit(1);
 
       const defaultRole: UserRole =
-        existingProfiles.data?.length === 0 ? 'admin' : 'requester';
+        existingProfiles.data?.length === 0 ? "admin" : "requester";
 
       // Insere o perfil manualmente
-      const { error: insertError } = await supabase.from('user_profiles').insert({
-        id: data.user.id,
-        email,
-        name: name || email.split('@')[0],
-        role: defaultRole,
-        department,
-      });
+      const { error: insertError } = await supabase
+        .from("user_profiles")
+        .insert({
+          id: data.user.id,
+          email,
+          name: name || email.split("@")[0],
+          role: defaultRole,
+          department,
+          cpf: normalizedCPF,
+        });
 
       if (insertError) {
-        console.error('Erro ao inserir perfil:', insertError);
+        console.error("Erro ao inserir perfil:", insertError);
       }
 
       await loadUserProfile(data.user.id);
@@ -141,26 +175,71 @@ export const useAuth = () => {
       email,
       password,
     });
+
+    if (error || !data.user) {
+      return { data, error };
+    }
+
+    // Valida whitelist: busca perfil e verifica se CPF está ativo
+    const { data: profileData, error: profileError } = await supabase
+      .from("user_profiles")
+      .select("cpf")
+      .eq("id", data.user.id)
+      .single();
+
+    if (profileError || !profileData?.cpf) {
+      await supabase.auth.signOut({ scope: "local" });
+      return {
+        data: null as any,
+        error: new Error(
+          "Acesso não autorizado. Contate o administrador.",
+        ) as any,
+      };
+    }
+
+    const { data: whitelistEntry, error: whitelistError } = await supabase
+      .from("user_whitelist")
+      .select("activity")
+      .eq("cpf", profileData.cpf)
+      .single();
+
+    if (whitelistError || !whitelistEntry || !whitelistEntry.activity) {
+      await supabase.auth.signOut({ scope: "local" });
+      return {
+        data: null as any,
+        error: new Error(
+          "Acesso não autorizado. Contate o administrador.",
+        ) as any,
+      };
+    }
+
     return { data, error };
   };
 
   const signOut = async () => {
     // scope='local' clears only the local session from storage and does not
     // require a valid JWT, preventing a 403 when the token has already expired.
-    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    const { error } = await supabase.auth.signOut({ scope: "local" });
     setUserProfile(null);
     return { error };
   };
 
-  const updateUserRole = async (userId: string, newRole: UserRole, customRoleId?: string) => {
+  const updateUserRole = async (
+    userId: string,
+    newRole: UserRole,
+    customRoleId?: string,
+  ) => {
     try {
-      const updateData: any = { role: newRole, updated_at: new Date().toISOString() };
+      const updateData: any = {
+        role: newRole,
+        updated_at: new Date().toISOString(),
+      };
       if (customRoleId) updateData.custom_role_id = customRoleId;
 
       const { error } = await supabase
-        .from('user_profiles')
+        .from("user_profiles")
         .update(updateData)
-        .eq('id', userId);
+        .eq("id", userId);
 
       if (error) throw error;
 
@@ -170,7 +249,7 @@ export const useAuth = () => {
 
       return { success: true };
     } catch (error) {
-      console.error('Erro ao atualizar role do usuário:', error);
+      console.error("Erro ao atualizar role do usuário:", error);
       return { success: false, error };
     }
   };
