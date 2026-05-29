@@ -1,30 +1,7 @@
-<<<<<<< HEAD
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogIn, UserPlus, Eye, EyeOff, Sun, Moon, Package, History, FileText, Building2, Calculator, Receipt, LayoutDashboard, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-=======
-import React, { useState, useEffect, useCallback } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-  LogIn,
-  UserPlus,
-  Eye,
-  EyeOff,
-  Sun,
-  Moon,
-  Package,
-  History,
-  FileText,
-  Building2,
-  Calculator,
-  Receipt,
-  LayoutDashboard,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
-import { useAuth } from "../hooks/useAuth";
->>>>>>> 9e552e9a6b51bd568117b6b9881080c5d244d7e3
 import { DEPARTMENTS } from "../utils/permissions";
 
 const MODULES = [
@@ -122,24 +99,14 @@ const springTransition = {
 
 const Auth: React.FC = () => {
   const { signIn, signUp, resetPassword } = useAuth();
-<<<<<<< HEAD
   const [formView, setFormView] = useState<'login' | 'register' | 'forgot'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [department, setDepartment] = useState('');
+  const [cpf, setCpf] = useState('');
   const [deptOpen, setDeptOpen] = useState(false);
   const deptRef = useRef<HTMLDivElement>(null);
-=======
-  const [formView, setFormView] = useState<"login" | "register" | "forgot">(
-    "login",
-  );
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [department, setDepartment] = useState("");
-  const [cpf, setCpf] = useState("");
->>>>>>> 9e552e9a6b51bd568117b6b9881080c5d244d7e3
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -317,15 +284,8 @@ const Auth: React.FC = () => {
           </div>
 
           <div className="text-center space-y-3">
-<<<<<<< HEAD
             <h2 className="text-4xl font-bold text-white tracking-tight">FlowLab</h2>
             <p className="text-white/80 text-base max-w-sm leading-relaxed font-normal">
-=======
-            <h2 className="text-4xl font-bold text-white tracking-tight">
-              FlowLab
-            </h2>
-            <p className="text-blue-200/80 text-base max-w-sm leading-relaxed">
->>>>>>> 9e552e9a6b51bd568117b6b9881080c5d244d7e3
               Sistema de integração operacional do Laboratório Lab.
             </p>
           </div>
@@ -374,17 +334,8 @@ const Auth: React.FC = () => {
                           <Icon className="w-6 h-6 text-blue-200" />
                         </div>
                         <div className="flex-1 min-w-0">
-<<<<<<< HEAD
                           <h3 className="text-white font-semibold text-base mb-1.5 group-hover:text-blue-200 transition-colors duration-300">{mod.title}</h3>
                           <p className="text-white/65 text-sm leading-relaxed">{mod.description}</p>
-=======
-                          <h3 className="text-white font-semibold text-base mb-1.5 group-hover:text-blue-200 transition-colors duration-300">
-                            {mod.title}
-                          </h3>
-                          <p className="text-blue-200/70 text-sm leading-relaxed">
-                            {mod.description}
-                          </p>
->>>>>>> 9e552e9a6b51bd568117b6b9881080c5d244d7e3
                         </div>
                       </div>
                     </div>
@@ -446,13 +397,8 @@ const Auth: React.FC = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
-<<<<<<< HEAD
           transition={{ duration: 0.4, ease: 'easeOut' }}
           className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-2xl rounded-3xl shadow-[0_32px_80px_-8px_rgba(15,23,42,0.08),0_8px_24px_-4px_rgba(15,23,42,0.04)] dark:shadow-[0_32px_80px_-8px_rgba(0,0,0,0.35)] pt-12 px-8 pb-8 border border-slate-200/50 dark:border-gray-600/50 w-full max-w-md relative z-10"
-=======
-          transition={{ duration: 0.4, ease: "easeOut" }}
-          className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-slate-800/[0.15] dark:shadow-black/40 pt-12 px-8 pb-8 border border-slate-200/50 dark:border-gray-600/50 w-full max-w-md relative z-10"
->>>>>>> 9e552e9a6b51bd568117b6b9881080c5d244d7e3
         >
           {/* Subtle glow effect behind card */}
           <div className="absolute -inset-1 bg-gradient-to-r from-blue-500/[0.15] via-indigo-500/[0.12] to-slate-500/[0.08] dark:from-blue-500/10 dark:via-indigo-500/10 dark:to-slate-500/10 rounded-3xl blur-xl -z-10"></div>
@@ -621,20 +567,7 @@ const Auth: React.FC = () => {
                   >
                     Não tem uma conta? Cadastre-se
                   </button>
-<<<<<<< HEAD
-=======
-                  <div className="text-center">
-                    <button
-                      onClick={() => {
-                        setFormView("forgot");
-                        setError(null);
-                      }}
-                      className="text-slate-500 dark:text-gray-300 hover:text-blue-700 dark:hover:text-blue-400 text-sm transition-colors"
-                    >
-                      Esqueci minha senha
-                    </button>
-                  </div>
->>>>>>> 9e552e9a6b51bd568117b6b9881080c5d244d7e3
+
                 </div>
               </motion.div>
             )}
@@ -772,7 +705,6 @@ const Auth: React.FC = () => {
                     >
                       Departamento
                     </label>
-<<<<<<< HEAD
                     <div ref={deptRef} className="relative">
                       <button
                         id="reg-department"
@@ -825,27 +757,6 @@ const Auth: React.FC = () => {
                         )}
                       </AnimatePresence>
                     </div>
-=======
-                    <select
-                      id="reg-department"
-                      value={department}
-                      onChange={(e) => setDepartment(e.target.value)}
-                      required
-                      className="w-full px-4 py-3 border border-slate-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900/50 backdrop-blur-sm text-slate-800 dark:text-gray-100 cursor-pointer"
-                    >
-                      <option
-                        value=""
-                        className="text-slate-400 dark:text-gray-400"
-                      >
-                        Selecione um departamento
-                      </option>
-                      {DEPARTMENTS.map((dept) => (
-                        <option key={dept} value={dept}>
-                          {dept}
-                        </option>
-                      ))}
-                    </select>
->>>>>>> 9e552e9a6b51bd568117b6b9881080c5d244d7e3
                   </div>
 
                   <button
