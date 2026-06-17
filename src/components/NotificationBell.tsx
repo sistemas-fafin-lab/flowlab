@@ -142,7 +142,11 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onRea
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 
-export const NotificationBell: React.FC = () => {
+interface NotificationBellProps {
+  className?: string;
+}
+
+export const NotificationBell: React.FC<NotificationBellProps> = ({ className = '' }) => {
   const { user } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead, loading } =
     useNotificationCenter(user?.id);
@@ -335,13 +339,13 @@ export const NotificationBell: React.FC = () => {
         type="button"
         onClick={() => (isOpen ? setIsOpen(false) : openPanel())}
         aria-label="Notificações"
-        className="relative p-2 rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 active:scale-95"
+        className={`relative flex items-center justify-center rounded-xl text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 active:scale-95 ${className || 'w-11 h-11'}`}
       >
         <Bell className="w-5 h-5" />
 
-        {/* Badge */}
+        {/* Badge - posicionamento ajustado para botão maior */}
         {unreadCount > 0 && (
-          <span className="absolute -top-0.5 -right-0.5 flex items-center justify-center">
+          <span className="absolute top-2 right-2 flex items-center justify-center">
             <span className="absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75 animate-ping" />
             <span className="relative flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
               {unreadCount > 99 ? '99+' : unreadCount}

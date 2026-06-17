@@ -101,7 +101,6 @@ export interface ITSprint {
 export type KanbanColumn = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
 
 type FilterType = 'all' | 'suporte' | 'desenvolvimento' | 'consultoria';
-type FilterAssignee = 'all' | 'me';
 type ViewMode = 'all' | 'by_project' | 'by_sprint';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -509,8 +508,11 @@ const ITKanbanBoard: React.FC = () => {
 
   // ─── Filter states ─────────────────────────────────────────────────────────
   const [filterType, setFilterType] = useState<FilterType>('all');
-  const [filterAssignee, setFilterAssignee] = useState<FilterAssignee>('all');
+  const [filterUserId, setFilterUserId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string }[]>([]);
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   // ─── Projects / Sprints ────────────────────────────────────────────────────
   const [projects, setProjects]       = useState<ITProject[]>([]);
@@ -563,9 +565,9 @@ const ITKanbanBoard: React.FC = () => {
       ]);
 
       let { data, error } = requestsResult;
-      const usersMap = Object.fromEntries(
-        (usersResult.data || []).map((u: any) => [u.id, u.name as string])
-      );
+      const usersRaw = (usersResult.data || []) as { id: string; name: string }[];
+      const usersMap = Object.fromEntries(usersRaw.map((u) => [u.id, u.name]));
+      setAllUsers(usersRaw.sort((a, b) => a.name.localeCompare(b.name)));
 
       if (error && (error as any).code === '42703') {
         // Column does not exist yet — fallback query without kanban_hidden
@@ -652,6 +654,17 @@ const ITKanbanBoard: React.FC = () => {
     return () => document.removeEventListener('mousedown', handleClick);
   }, [projectDropdownOpen]);
 
+  // Close user dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(e.target as Node)) {
+        setUserDropdownOpen(false);
+      }
+    };
+    if (userDropdownOpen) document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [userDropdownOpen]);
+
   // ─── Columns data (with filters applied) ─────────────────────────────────────
   const columnItems = useMemo(() => {
     // Race-condition guard: strip cards being deleted so they never reappear
@@ -662,9 +675,9 @@ const ITKanbanBoard: React.FC = () => {
       filtered = filtered.filter((r) => r.request_type === filterType);
     }
 
-    // Filter by assignee
-    if (filterAssignee === 'me' && userId) {
-      filtered = filtered.filter((r) => r.assigned_to.includes(userId) || r.requested_by === userId);
+    // Filter by assignee/user
+    if (filterUserId) {
+      filtered = filtered.filter((r) => r.assigned_to.includes(filterUserId) || r.requested_by === filterUserId);
     }
 
     // Filter by sprint (by_sprint view mode)
@@ -1070,18 +1083,82 @@ const ITKanbanBoard: React.FC = () => {
             ))}
           </div>
 
-          {/* Assignee filter */}
-          <button
-            onClick={() => setFilterAssignee(filterAssignee === 'all' ? 'me' : 'all')}
-            className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-all duration-200 border ${
-              filterAssignee === 'me'
-                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-                : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
-            }`}
-          >
-            <UserCircle className="w-3.5 h-3.5" />
-            {filterAssignee === 'me' ? 'Atribuído a mim' : 'Todas'}
-          </button>
+          {/* User filter dropdown */}
+          <div className="relative" ref={userDropdownRef}>
+            <button
+              onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium rounded-lg transition-all duration-200 border ${
+                filterUserId
+                  ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                  : 'bg-slate-100/50 dark:bg-slate-800/50 text-slate-600 dark:text-slate-300 border-transparent hover:border-slate-200 dark:hover:border-slate-700'
+              }`}
+            >
+              <UserCircle className="w-3.5 h-3.5" />
+              {filterUserId
+                ? (allUsers.find((u) => u.id === filterUserId)?.name ?? 'Utilizador')
+                : 'Todas pessoas'}
+              <ChevronDown className={`w-3 h-3 transition-transform duration-150 ${userDropdownOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <AnimatePresence>
+              {userDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: -4, scale: 0.97 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.97 }}
+                  transition={{ duration: 0.12 }}
+                  className="absolute left-0 top-full mt-1 z-50 min-w-[180px] max-h-64 overflow-y-auto rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 shadow-xl py-1"
+                >
+                  {/* All */}
+                  <button
+                    onClick={() => { setFilterUserId(null); setUserDropdownOpen(false); }}
+                    className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left transition-colors ${
+                      !filterUserId
+                        ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium'
+                        : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <User className="w-3.5 h-3.5 shrink-0" />
+                    Todas pessoas
+                  </button>
+                  {/* Me */}
+                  {userId && (
+                    <button
+                      onClick={() => { setFilterUserId(userId); setUserDropdownOpen(false); }}
+                      className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left transition-colors ${
+                        filterUserId === userId
+                          ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium'
+                          : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      <UserCircle className="w-3.5 h-3.5 shrink-0" />
+                      Eu
+                    </button>
+                  )}
+                  {/* Separator */}
+                  {allUsers.filter((u) => u.id !== userId).length > 0 && (
+                    <div className="my-1 h-px bg-slate-100 dark:bg-slate-800" />
+                  )}
+                  {/* Other users */}
+                  {allUsers
+                    .filter((u) => u.id !== userId)
+                    .map((u) => (
+                      <button
+                        key={u.id}
+                        onClick={() => { setFilterUserId(u.id); setUserDropdownOpen(false); }}
+                        className={`w-full flex items-center gap-2 px-3 py-1.5 text-[11px] text-left transition-colors ${
+                          filterUserId === u.id
+                            ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 font-medium'
+                            : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        <User className="w-3.5 h-3.5 shrink-0" />
+                        {u.name}
+                      </button>
+                    ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Vertical separator */}
           <div className="hidden sm:block w-px h-6 bg-slate-200 dark:bg-slate-700" />
@@ -1244,7 +1321,7 @@ const ITKanbanBoard: React.FC = () => {
           )}
 
           {/* Active filter indicator */}
-          {(filterType !== 'all' || filterAssignee !== 'all' || searchQuery) && (
+          {(filterType !== 'all' || filterUserId !== null || searchQuery) && (
             <motion.div
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
@@ -1254,7 +1331,7 @@ const ITKanbanBoard: React.FC = () => {
                 {filteredCount} de {requests.length}
               </span>
               <button
-                onClick={() => { setFilterType('all'); setFilterAssignee('all'); setSearchQuery(''); }}
+                onClick={() => { setFilterType('all'); setFilterUserId(null); setSearchQuery(''); }}
                 className="text-[11px] text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 font-medium transition-colors"
               >
                 Limpar

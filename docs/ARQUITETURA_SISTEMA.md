@@ -436,7 +436,8 @@ type Department =
   | 'COPA_LIMPEZA'
   | 'ATENDIMENTO'
   | 'DIRETORIA'
-  | 'BIOLOGIA_MOLECULAR';
+  | 'BIOLOGIA_MOLECULAR'
+  | 'EQUIPE_MEDICA';
 ```
 
 ### 6.3 Matriz de Permissões

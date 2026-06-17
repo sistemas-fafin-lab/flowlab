@@ -979,10 +979,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     </div>
                   </SidebarTooltip>
                   <SidebarTooltip label="Notificações" show={true}>
-                    <NotificationBell />
+                    <NotificationBell className="w-10 h-10" />
                   </SidebarTooltip>
                   <SidebarTooltip label="Tema" show={true}>
-                    <ThemeToggle />
+                    <ThemeToggle className="w-10 h-10" />
                   </SidebarTooltip>
                   <SidebarTooltip label="Sair" show={true}>
                     <button
@@ -1066,23 +1066,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* ─── Main content ─── */}
       <div className={`min-h-screen transition-[padding] duration-300 ${isCollapsed ? 'lg:pl-28' : 'lg:pl-64 xl:pl-72'}`}>
         {/* Mobile header */}
-        <div className="sticky top-0 z-40 flex h-16 items-center px-4 border-b border-gray-200 dark:border-gray-700 bg-white/80 dark:bg-gray-900/80 backdrop-blur-xl lg:hidden">
+        <div className="sticky top-0 z-40 flex h-[72px] items-center px-5 border-b border-gray-200/80 dark:border-gray-700/80 bg-white/85 dark:bg-gray-900/85 backdrop-blur-xl lg:hidden">
+          {/* Botão menu - área de toque adequada (min 44px) */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white p-2 -ml-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200 active:scale-95"
+            className="flex items-center justify-center w-11 h-11 text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-all duration-200 active:scale-95"
+            aria-label="Abrir menu"
           >
             <Menu className="h-5 w-5" />
           </button>
+
+          {/* Logo centralizado com proporção ajustada */}
           <div className="flex items-center flex-1 justify-center">
             <Link to="/" className="flex items-center">
               <img
                 src={isDark ? '/LOGO-HOR-DM.svg' : '/LOGO-HOR.svg'}
                 alt="LAB Logo"
-                className="h-12 w-auto mr-2 hover:opacity-80 transition-opacity"
+                className="h-9 w-auto hover:opacity-80 transition-opacity"
               />
             </Link>
           </div>
-          <div className="flex items-center gap-1">
+
+          {/* Ações da direita - espaçamento adequado e áreas de toque */}
+          <div className="flex items-center gap-2">
             <NotificationBell />
             <ThemeToggle />
           </div>

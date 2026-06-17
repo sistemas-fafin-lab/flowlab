@@ -1,8 +1,19 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Product, StockMovement, Request, DashboardData, FinancialMetrics, Supplier, Quotation, QuotationItem, ProductChangeLog } from '../types';
+import { useDataCache, DEFAULT_STALE_TIME } from './useDataCache';
+
+const CACHE_KEYS = {
+  products: 'inventory:products',
+  movements: 'inventory:movements',
+  requests: 'inventory:requests',
+  suppliers: 'inventory:suppliers',
+  quotations: 'inventory:quotations',
+  changeLogs: 'inventory:changeLogs',
+} as const;
 
 export const useInventory = () => {
+  const { getCache, setCache, invalidate } = useDataCache();
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
   const [requests, setRequests] = useState<Request[]>([]);
@@ -12,8 +23,31 @@ export const useInventory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch all data on component mount
+  // Fetch all data on component mount (com cache)
   useEffect(() => {
+    const fillFromCache = <T,>(key: string, setter: (data: T[]) => void) => {
+      const entry = getCache<T[]>(key);
+      if (entry) setter(entry.data);
+    };
+
+    fillFromCache<Product>(CACHE_KEYS.products, setProducts);
+    fillFromCache<StockMovement>(CACHE_KEYS.movements, setMovements);
+    fillFromCache<Request>(CACHE_KEYS.requests, setRequests);
+    fillFromCache<Supplier>(CACHE_KEYS.suppliers, setSuppliers);
+    fillFromCache<Quotation>(CACHE_KEYS.quotations, setQuotations);
+    fillFromCache<ProductChangeLog>(CACHE_KEYS.changeLogs, setChangeLogs);
+
+    const isFresh = (key: string) => {
+      const entry = getCache(key);
+      return entry && Date.now() - entry.timestamp < DEFAULT_STALE_TIME;
+    };
+
+    const allFresh = Object.values(CACHE_KEYS).every(isFresh);
+    if (allFresh) {
+      setLoading(false);
+      return;
+    }
+
     fetchAllData();
   }, []);
 
@@ -66,6 +100,7 @@ export const useInventory = () => {
     }));
 
     setProducts(formattedProducts);
+    setCache(CACHE_KEYS.products, formattedProducts);
   };
 
   const fetchChangeLogs = async () => {
@@ -89,6 +124,7 @@ export const useInventory = () => {
     }));
 
     setChangeLogs(formattedLogs);
+    setCache(CACHE_KEYS.changeLogs, formattedLogs);
   };
 
   const addProductChangeLog = async (changeLog: Omit<ProductChangeLog, 'id' | 'createdAt'>) => {
@@ -114,16 +150,19 @@ export const useInventory = () => {
   };
 
   const deleteProduct = async (id: string) => {
-  const { error } = await supabase
-    .from('products')
-    .delete()
-    .eq('id', id);
+    const { error } = await supabase
+      .from('products')
+      .delete()
+      .eq('id', id);
 
-  if (error) {
-    console.error('Erro ao excluir produto:', error);
-    throw error;
-  }
-};
+    if (error) {
+      console.error('Erro ao excluir produto:', error);
+      throw error;
+    }
+
+    invalidate(CACHE_KEYS.products);
+    await fetchProducts();
+  };
 
   const fetchMovements = async () => {
     const { data, error } = await supabase
@@ -149,6 +188,7 @@ export const useInventory = () => {
     }));
 
     setMovements(formattedMovements);
+    setCache(CACHE_KEYS.movements, formattedMovements);
   };
 
   const fetchRequests = async () => {
@@ -186,6 +226,7 @@ export const useInventory = () => {
     }));
 
     setRequests(formattedRequests);
+    setCache(CACHE_KEYS.requests, formattedRequests);
   };
 
   const fetchSuppliers = async () => {
@@ -216,6 +257,7 @@ export const useInventory = () => {
     }));
 
     setSuppliers(formattedSuppliers);
+    setCache(CACHE_KEYS.suppliers, formattedSuppliers);
   };
 
   const fetchQuotations = async () => {
@@ -264,6 +306,7 @@ export const useInventory = () => {
     }));
 
     setQuotations(formattedQuotations);
+    setCache(CACHE_KEYS.quotations, formattedQuotations);
   };
 
   const getFinancialMetrics = (): FinancialMetrics => {

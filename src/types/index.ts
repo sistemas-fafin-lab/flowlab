@@ -148,7 +148,8 @@ export type Department =
   | 'COPA_LIMPEZA'
   | 'ATENDIMENTO'
   | 'DIRETORIA'
-  | 'BIOLOGIA_MOLECULAR';
+  | 'BIOLOGIA_MOLECULAR'
+  | 'EQUIPE_MEDICA';
 
 export const DepartmentLabels: Record<Department, string> = {
   TRANSPORTE: 'Transporte',
@@ -165,6 +166,7 @@ export const DepartmentLabels: Record<Department, string> = {
   ATENDIMENTO: 'Atendimento',
   DIRETORIA: 'Diretoria',
   BIOLOGIA_MOLECULAR: 'Biologia Molecular',
+  EQUIPE_MEDICA: 'Equipe Médica',
 };
 
 

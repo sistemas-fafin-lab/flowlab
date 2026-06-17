@@ -13,6 +13,9 @@ import {
   preparePayload,
   getNextValidDate
 } from '../utils/paymentUtils';
+import { useDataCache, DEFAULT_STALE_TIME } from './useDataCache';
+
+const CACHE_KEY = 'payment:requests';
 
 interface CreatePedidoResult {
   success: boolean;
@@ -24,6 +27,7 @@ interface CreatePedidoResult {
 }
 
 export const usePaymentRequest = () => {
+  const { getCache, setCache, invalidate } = useDataCache();
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,16 +77,25 @@ export const usePaymentRequest = () => {
       }));
 
       setPaymentRequests(formattedRequests);
+      setCache(CACHE_KEY, formattedRequests);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar solicitações de pagamento');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setCache]);
 
   useEffect(() => {
+    const cached = getCache<PaymentRequest[]>(CACHE_KEY);
+    if (cached) {
+      setPaymentRequests(cached.data);
+    }
+    if (cached && Date.now() - cached.timestamp < DEFAULT_STALE_TIME) {
+      setLoading(false);
+      return;
+    }
     fetchPaymentRequests();
-  }, [fetchPaymentRequests]);
+  }, [fetchPaymentRequests, getCache]);
 
   // Get count of pedidos for today
   const getPedidosCountToday = async (): Promise<number> => {

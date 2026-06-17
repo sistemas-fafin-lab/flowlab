@@ -8,6 +8,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
+import { useDataCache, DEFAULT_STALE_TIME } from './useDataCache';
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,8 @@ export interface SendNotificationInput {
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function useNotificationCenter(userId?: string) {
+  const { getCache, setCache } = useDataCache();
+  const cacheKey = userId ? `notifications:${userId}` : null;
   const [notifications, setNotifications] = useState<UserNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -73,17 +76,29 @@ export function useNotificationCenter(userId?: string) {
 
       if (err) throw err;
 
-      setNotifications((data as UserNotification[]) ?? []);
+      const result = (data as UserNotification[]) ?? [];
+      setNotifications(result);
+      if (cacheKey) setCache(cacheKey, result);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar notificações');
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [userId, cacheKey, setCache]);
 
   useEffect(() => {
+    if (!userId || !cacheKey) return;
+
+    const cached = getCache<UserNotification[]>(cacheKey);
+    if (cached) {
+      setNotifications(cached.data);
+    }
+    if (cached && Date.now() - cached.timestamp < DEFAULT_STALE_TIME) {
+      setLoading(false);
+      return;
+    }
     fetchNotifications();
-  }, [fetchNotifications]);
+  }, [fetchNotifications, getCache, userId, cacheKey]);
 
   // ── Supabase Realtime ────────────────────────────────────────────────────────
 

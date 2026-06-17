@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
+import { DataCacheProvider } from './hooks/useDataCache';
 import { hasPermission } from './utils/permissions';
 import Auth from './components/Auth';
 import Layout from './components/Layout';
@@ -68,10 +69,11 @@ const AuthenticatedApp: React.FC = () => {
   const userPermissions = userProfile?.permissions || [];
 
   return (
-    <Layout>
-      <Routes>
-        {/* Página inicial */}
-        <Route path="/" element={<Home />} />
+    <DataCacheProvider>
+      <Layout>
+        <Routes>
+          {/* Página inicial */}
+          <Route path="/" element={<Home />} />
 
         <Route
           path="/dashboard"
@@ -296,6 +298,7 @@ const AuthenticatedApp: React.FC = () => {
         />
       </Routes>
     </Layout>
+    </DataCacheProvider>
   );
 };
 

@@ -62,6 +62,7 @@ export const DEPARTMENT_ROLES: Record<string, UserRole> = {
   'Copa/Limpeza': 'requester',
   'Qualidade': 'requester',
   'Biologia Molecular': 'requester',
+  'Equipe Médica': 'requester',
 };
 
 export const DEPARTMENTS: Department[] = [
@@ -79,6 +80,7 @@ export const DEPARTMENTS: Department[] = [
   'Copa/Limpeza',
   'Qualidade',
   'Biologia Molecular',
+  'Equipe Médica',
 ] as any;
 
 export const getDepartmentLabel = (department: Department): string => {

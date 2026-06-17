@@ -27,17 +27,32 @@ export const useAuth = () => {
     });
 
     // Listener para mudanças de auth
+    // Ignora eventos que não requerem recarregamento do perfil
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } =     supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+
+      // Eventos que NÃO devem causar recarregamento do perfil:
+      // - TOKEN_REFRESHED: renovação silenciosa do token
+      // - INITIAL_SESSION: carregamento inicial da sessão (já tratado acima)
+      // - SIGNED_IN: já tratado no signIn/loadUserProfile inicial
       if (session?.user) {
-        setLoading(true);
-        loadUserProfile(session.user.id);
+        // Só recarregar se for um evento de sign in real e o perfil ainda não foi carregado
+        const shouldReloadProfile = _event === 'SIGNED_IN' && !userProfile;
+
+        if (shouldReloadProfile) {
+          setLoading(true);
+          loadUserProfile(session.user.id);
+        }
+        // Para outros eventos com sessão válida, mantém o estado atual
       } else {
-        setUserProfile(null);
-        setLoading(false);
+        // Só limpar se for um sign out real
+        if (_event === 'SIGNED_OUT') {
+          setUserProfile(null);
+          setLoading(false);
+        }
       }
     });
 

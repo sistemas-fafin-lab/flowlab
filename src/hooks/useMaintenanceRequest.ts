@@ -6,6 +6,9 @@ import {
   MaintenanceStatus,
   MaintenanceInventoryItem
 } from '../types';
+import { useDataCache, DEFAULT_STALE_TIME } from './useDataCache';
+
+const CACHE_KEY = 'maintenance:requests';
 
 interface CreateMaintenanceResult {
   success: boolean;
@@ -21,6 +24,7 @@ interface UpdateStatusResult {
 }
 
 export const useMaintenanceRequest = () => {
+  const { getCache, setCache, invalidate } = useDataCache();
   const [maintenanceRequests, setMaintenanceRequests] = useState<MaintenanceRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -63,16 +67,26 @@ export const useMaintenanceRequest = () => {
       }));
 
       setMaintenanceRequests(formattedRequests);
+      setCache(CACHE_KEY, formattedRequests);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao carregar solicitações de manutenção');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setCache]);
 
   useEffect(() => {
+    // Preenche do cache se fresco
+    const cached = getCache<MaintenanceRequest[]>(CACHE_KEY);
+    if (cached) {
+      setMaintenanceRequests(cached.data);
+    }
+    if (cached && Date.now() - cached.timestamp < DEFAULT_STALE_TIME) {
+      setLoading(false);
+      return;
+    }
     fetchMaintenanceRequests();
-  }, [fetchMaintenanceRequests]);
+  }, [fetchMaintenanceRequests, getCache]);
 
   // ============================================
   // UPLOAD: Fazer upload de imagens
