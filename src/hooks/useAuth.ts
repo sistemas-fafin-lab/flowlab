@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { UserProfile, UserRole, Department } from "../types";
@@ -14,6 +14,16 @@ export const useAuth = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isInitialized, setIsInitialized] = useState(false);
+
+  // Espelha userProfile numa ref para que o callback do onAuthStateChange
+  // (registrado uma única vez com deps []) leia sempre o valor atual, e não
+  // o null capturado no closure inicial. Sem isso, todo evento SIGNED_IN
+  // reemitido pelo Supabase ao voltar o foco da aba dispararia um reload
+  // desnecessário do perfil (e a remontagem da árvore via loading).
+  const userProfileRef = useRef<UserProfile | null>(null);
+  useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
 
   useEffect(() => {
     // Sessão inicial
@@ -49,7 +59,8 @@ export const useAuth = () => {
       if (session?.user) {
         // Só recarregar se for um SIGNED_IN e ainda não temos perfil
         // Ou se for INITIAL_SESSION (primeira carga)
-        const shouldReloadProfile = (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && !userProfile;
+        const shouldReloadProfile =
+          (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && !userProfileRef.current;
 
         if (shouldReloadProfile) {
           setLoading(true);
