@@ -8,4 +8,25 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Variáveis de ambiente do Supabase não estão definidas');
 }
 
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    // Armazenar sessão em localStorage para persistência entre recargas
+    storage: window.localStorage,
+    // Auto-refresh token habilitado
+    autoRefreshToken: true,
+    // Detectar sessões persistidas automaticamente
+    persistSession: true,
+    // Não chamar getSession() ao inicializar (evita loop de refresh)
+    detectSessionInUrl: true,
+  },
+  // Configurações globais
+  global: {
+    headers: {
+      'X-Client-Info': 'flowlab',
+    },
+  },
+  // Tratamento de erros mais tolerante
+  db: {
+    schema: 'public',
+  },
+});
