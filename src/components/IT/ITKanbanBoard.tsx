@@ -724,7 +724,7 @@ const ITKanbanBoard: React.FC = () => {
       if (map[r.kanban_status]) map[r.kanban_status].push(r);
     });
     return map;
-  }, [requests, filterType, filterAssignee, userId, viewMode, selectedSprintId, selectedProjectId, searchQuery]);
+  }, [requests, filterType, filterUserId, userId, viewMode, selectedSprintId, selectedProjectId, searchQuery]);
 
   // ─── Project grouping (only used in by_project mode) ──────────────────────
   const columnItemsByProject = useMemo(() => {
