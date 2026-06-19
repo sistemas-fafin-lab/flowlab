@@ -13,6 +13,7 @@ export const useAuth = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   useEffect(() => {
     // Sessão inicial
@@ -23,6 +24,7 @@ export const useAuth = () => {
         loadUserProfile(session.user.id);
       } else {
         setLoading(false);
+        setIsInitialized(true);
       }
     });
 
@@ -30,17 +32,24 @@ export const useAuth = () => {
     // Ignora eventos que não requerem recarregamento do perfil
     const {
       data: { subscription },
-    } =     supabase.auth.onAuthStateChange((_event, session) => {
+    } =     supabase.auth.onAuthStateChange((event, session) => {
+      // Ignorar completamente eventos de refresh - não causam recarregamento
+      if (event === 'TOKEN_REFRESHED') {
+        return;
+      }
+
       setSession(session);
       setUser(session?.user ?? null);
 
       // Eventos que NÃO devem causar recarregamento do perfil:
-      // - TOKEN_REFRESHED: renovação silenciosa do token
-      // - INITIAL_SESSION: carregamento inicial da sessão (já tratado acima)
-      // - SIGNED_IN: já tratado no signIn/loadUserProfile inicial
+      // - TOKEN_REFRESHED: já tratado acima (ignorado)
+      // - INITIAL_SESSION: carregamento inicial (já tratado no getSession)
+      // - SIGNED_IN: só recarregar se não temos perfil ainda
+      // - USER_UPDATED: atualização de metadados, não afeta perfil
       if (session?.user) {
-        // Só recarregar se for um evento de sign in real e o perfil ainda não foi carregado
-        const shouldReloadProfile = _event === 'SIGNED_IN' && !userProfile;
+        // Só recarregar se for um SIGNED_IN e ainda não temos perfil
+        // Ou se for INITIAL_SESSION (primeira carga)
+        const shouldReloadProfile = (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') && !userProfile;
 
         if (shouldReloadProfile) {
           setLoading(true);
@@ -49,10 +58,16 @@ export const useAuth = () => {
         // Para outros eventos com sessão válida, mantém o estado atual
       } else {
         // Só limpar se for um sign out real
-        if (_event === 'SIGNED_OUT') {
+        if (event === 'SIGNED_OUT') {
           setUserProfile(null);
           setLoading(false);
+          setIsInitialized(false);
         }
+      }
+
+      // Marcar como inicializado após o primeiro evento
+      if (event === 'INITIAL_SESSION') {
+        setIsInitialized(true);
       }
     });
 

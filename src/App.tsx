@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { DataCacheProvider } from './hooks/useDataCache';
 import { hasPermission } from './utils/permissions';
@@ -310,14 +310,17 @@ const ITProjectDashboardWithParams: React.FC = () => {
 
 function App() {
   return (
-    <Router>
+    <Router future={{
+      v7_startTransition: true,
+      v7_relativeSplatPath: true,
+    }}>
       <Routes>
         {/* Rota pública para redefinição de senha - deve ficar FORA da verificação de autenticação */}
         <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* Rota de teste - sem Layout */}
         <Route path="/test-kanban" element={<TestKanban />} />
-        
+
         {/* Todas as outras rotas passam pelo componente de autenticação */}
         <Route path="/*" element={<AuthenticatedApp />} />
       </Routes>
