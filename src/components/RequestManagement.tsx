@@ -18,6 +18,7 @@ import StockWithdrawalModal from './StockWithdrawalModal';
 import { PenTool, Loader2 } from 'lucide-react';
 import { RequestManagementSkeleton } from './PageLoadingSkeleton';
 
+const ITEMS_PER_PAGE = 25;
 
 const RequestManagement: React.FC = () => {
   const { user, userProfile } = useAuth();
@@ -77,6 +78,12 @@ const RequestManagement: React.FC = () => {
   // Estados para prevenir duplicidade de processamento
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
   const [processedRequestIds, setProcessedRequestIds] = useState<Set<string>>(new Set());
+
+  // Previne duplo envio da solicitação durante o upload/insert
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Paginação incremental da lista (mesmo padrão do Histórico de Alterações)
+  const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
 
   const [viewSignature, setViewSignature] = useState<{name: string; signature: string} | null>(null);
 
@@ -246,6 +253,21 @@ useEffect(() => {
     return matchesStatus && matchesType && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
   });
 
+  // Paginação incremental (mesmo padrão do Histórico de Alterações)
+  const displayedRequests = filteredRequests.slice(0, displayCount);
+  const hasMoreItems = filteredRequests.length > displayCount;
+  const remainingItems = filteredRequests.length - displayCount;
+  const nextBatchSize = Math.min(ITEMS_PER_PAGE, remainingItems);
+
+  const handleShowMore = () => {
+    setDisplayCount(prev => prev + ITEMS_PER_PAGE);
+  };
+
+  // Reinicia a paginação sempre que os filtros ou a busca mudarem
+  useEffect(() => {
+    setDisplayCount(ITEMS_PER_PAGE);
+  }, [searchQuery, statusFilter, selectedStatusFilters, typeFilter, departmentFilter, dateFilter]);
+
   // Toggle status filter via cards (multi-select)
   const toggleStatusCardFilter = (status: string) => {
     setSelectedStatusFilters(prev => {
@@ -405,12 +427,16 @@ useEffect(() => {
 
   const handleSubmitRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // Evita duplo envio enquanto a solicitação anterior ainda está sendo processada
+    if (isSubmitting) return;
+
     if (newRequest.items.length === 0) {
       showError('Adicione pelo menos um produto à solicitação');
       return;
     }
 
+    setIsSubmitting(true);
     try {
       await addRequest({
         type: newRequest.type,
@@ -444,6 +470,8 @@ useEffect(() => {
     } catch (error) {
       console.error('Erro ao criar solicitação:', error);
       showError('Erro ao criar solicitação. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -1229,11 +1257,20 @@ const handleCompleteRequest = async (request: Request) => {
                 </button>
                 <button
                   type="submit"
-                  disabled={newRequest.items.length === 0 || !newRequest.reason.trim()}
+                  disabled={newRequest.items.length === 0 || !newRequest.reason.trim() || isSubmitting}
                   className="flex-1 sm:flex-none px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-md flex items-center justify-center"
                 >
-                  <FileText className="w-4 h-4 mr-2" />
-                  Enviar Solicitação
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      Enviando...
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="w-4 h-4 mr-2" />
+                      Enviar Solicitação
+                    </>
+                  )}
                 </button>
               </div>
             </div>
@@ -1748,7 +1785,7 @@ const handleCompleteRequest = async (request: Request) => {
 
       {/* Requests List */}
       <div className="space-y-4">
-        {filteredRequests.map((request, index) => (
+        {displayedRequests.map((request, index) => (
           <div 
             key={request.id} 
             className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/50 dark:border-slate-700/50 p-5 sm:p-6 hover:border-blue-300/50 dark:hover:border-blue-600/50 hover:shadow-xl transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
@@ -2020,7 +2057,31 @@ const handleCompleteRequest = async (request: Request) => {
           </div>
         ))}
       </div>
-      
+
+      {/* Botão "Exibir mais" e rodapé */}
+      {hasMoreItems && (
+        <div className="flex flex-col items-center gap-2 animate-fade-in">
+          <button
+            onClick={handleShowMore}
+            className="px-6 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium text-sm"
+          >
+            Exibir mais {nextBatchSize}
+          </button>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Exibindo {displayCount} de {filteredRequests.length} • {remainingItems} restante(s)
+          </span>
+        </div>
+      )}
+
+      {/* Rodapé quando todas as solicitações estão sendo exibidas */}
+      {!hasMoreItems && displayedRequests.length > 0 && filteredRequests.length > ITEMS_PER_PAGE && (
+        <div className="text-center">
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Exibindo {displayedRequests.length} de {filteredRequests.length} solicitação(ões)
+          </span>
+        </div>
+      )}
+
     {filteredRequests.length === 0 && (
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-12 text-center border border-gray-100 dark:border-gray-700 animate-fade-in-up">
         <div className="w-16 h-16 mx-auto bg-gradient-to-br from-gray-100 to-slate-100 dark:from-gray-700 dark:to-slate-700 rounded-2xl flex items-center justify-center mb-4">
