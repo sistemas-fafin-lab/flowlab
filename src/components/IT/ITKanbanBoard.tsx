@@ -1029,7 +1029,7 @@ const ITKanbanBoard: React.FC = () => {
       {/* ═══════════════════════════════════════════════════════════════
           CONTROL BAR — Glassmorphism unified toolbar
          ═══════════════════════════════════════════════════════════════ */}
-      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 p-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm">
+      <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 p-3 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl border border-slate-200/50 dark:border-slate-700/50 shadow-sm relative z-10">
 
         {/* ── LEFT: Search + Filters ─────────────────────────────── */}
         <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">

@@ -73,6 +73,7 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
   const [projectDesc, setProjectDesc] = useState(request.description ?? '');
   const [projectColor, setProjectColor] = useState(PRESET_COLORS[0].hex);
   const [createColumn, setCreateColumn] = useState('backlog');
+  const [addToKanban, setAddToKanban] = useState(true);
 
   // Add/edit card form — pre-filled when editing
   const [projects, setProjects] = useState<ITProject[]>([]);
@@ -139,16 +140,18 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
 
       if (projErr) throw projErr;
 
-      const { error: reqErr } = await supabase
-        .from('it_requests')
-        .update({
-          project_id: project.id,
-          kanban_hidden: false,
-          kanban_status: createColumn,
-        })
-        .eq('id', request.id);
+      if (addToKanban) {
+        const { error: reqErr } = await supabase
+          .from('it_requests')
+          .update({
+            project_id: project.id,
+            kanban_hidden: false,
+            kanban_status: createColumn,
+          })
+          .eq('id', request.id);
 
-      if (reqErr) throw reqErr;
+        if (reqErr) throw reqErr;
+      }
 
       onSuccess();
     } catch {
@@ -373,6 +376,19 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
                   ))}
                 </select>
               </div>
+
+              {/* Add to Kanban toggle */}
+              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={addToKanban}
+                  onChange={(e) => setAddToKanban(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-violet-600 focus:ring-violet-500 cursor-pointer"
+                />
+                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                  Adicionar esta solicitação ao Kanban agora
+                </span>
+              </label>
 
               {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}
 
