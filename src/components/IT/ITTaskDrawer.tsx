@@ -32,6 +32,7 @@ import {
   Zap,
 } from 'lucide-react';
 import type { ITRequest, KanbanColumn, ITProject, ITSprint } from './ITKanbanBoard';
+import { calcES } from './ITKanbanBoard';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { hasPermission } from '../../utils/permissions';
@@ -1349,6 +1350,44 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                   ) : (
                     <span className="text-sm text-gray-700 dark:text-gray-300">
                       {task.estimated_hours != null ? `${task.estimated_hours}h` : <span className="text-gray-400 italic">—</span>}
+                    </span>
+                  )}
+                </AttributeRow>
+
+                {/* Function Quantity (Q) and Sprint Effort (ES) */}
+                <AttributeRow label="Qtd. Funções">
+                  {isITManager ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          step={0.5}
+                          value={task.function_quantity ?? ''}
+                          onChange={(e) => saveField('function_quantity', e.target.value ? parseFloat(e.target.value) : null)}
+                          placeholder="—"
+                          className="w-16 text-sm bg-transparent text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-0 border-b border-gray-300 dark:border-gray-600 focus:border-violet-500 transition-colors"
+                        />
+                        <span className="text-xs text-gray-400">Q</span>
+                      </div>
+                      {task.function_quantity != null && (() => {
+                        const es = calcES(task.function_quantity, task.priority);
+                        return (
+                          <p className="text-xs font-semibold text-violet-600 dark:text-violet-400">
+                            ES = {es} <span className="font-normal text-gray-400">min(13, round({task.function_quantity} × P))</span>
+                          </p>
+                        );
+                      })()}
+                    </div>
+                  ) : (
+                    <span className="text-sm text-gray-700 dark:text-gray-300">
+                      {task.function_quantity != null ? (
+                        <span className="flex items-center gap-1.5">
+                          {task.function_quantity} Q
+                          <span className="text-gray-400">→</span>
+                          <span className="font-semibold text-violet-600 dark:text-violet-400">ES {calcES(task.function_quantity, task.priority)}</span>
+                        </span>
+                      ) : <span className="text-gray-400 italic">—</span>}
                     </span>
                   )}
                 </AttributeRow>

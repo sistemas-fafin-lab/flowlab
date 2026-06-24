@@ -63,6 +63,7 @@ export interface ITRequest {
   // ITSM upgrade fields
   is_internal?: boolean;
   estimated_hours?: number | null;
+  function_quantity?: number | null;
   due_date?: string | null;
   tags?: string[];
   // Project / Sprint
@@ -108,8 +109,8 @@ type ViewMode = 'all' | 'by_project' | 'by_sprint';
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const COLUMNS: { id: KanbanColumn; label: string; icon: React.ComponentType<{ className?: string }>; accent: string; dotColor: string }[] = [
-  { id: 'backlog',     label: 'Backlog',      icon: Inbox,        accent: 'text-gray-500 dark:text-gray-400',    dotColor: 'bg-gray-400' },
   { id: 'todo',        label: 'A Fazer',      icon: ListTodo,     accent: 'text-blue-600 dark:text-blue-400',    dotColor: 'bg-blue-500' },
+  { id: 'backlog',     label: 'Backlog',      icon: Inbox,        accent: 'text-gray-500 dark:text-gray-400',    dotColor: 'bg-gray-400' },
   { id: 'in_progress', label: 'Em Progresso', icon: Play,         accent: 'text-amber-600 dark:text-amber-400',  dotColor: 'bg-amber-500' },
   { id: 'review',      label: 'Revisão',      icon: Eye,          accent: 'text-violet-600 dark:text-violet-400', dotColor: 'bg-violet-500' },
   { id: 'done',        label: 'Concluído',    icon: CheckCircle2, accent: 'text-emerald-600 dark:text-emerald-400', dotColor: 'bg-emerald-500' },
@@ -127,6 +128,16 @@ const TYPE_CONFIG: Record<string, { label: string; icon: React.ComponentType<{ c
   desenvolvimento: { label: 'Dev',       icon: Code,      color: 'text-violet-500 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30' },
   consultoria:     { label: 'Consultoria', icon: Lightbulb, color: 'text-teal-500 dark:text-teal-400',  bg: 'bg-teal-100 dark:bg-teal-900/30' },
 };
+
+const PRIORITY_MULTIPLIER: Record<string, number> = {
+  low: 1.0, medium: 1.5, high: 2.0, critical: 2.6,
+};
+
+export function calcES(q: number | null | undefined, priority: string): number | null {
+  if (q == null) return null;
+  const p = PRIORITY_MULTIPLIER[priority] ?? 1.0;
+  return Math.min(13, Math.round(q * p));
+}
 
 // Nenhum helper de estilo necessário — a casca física usa provided.draggableProps.style diretamente.
 
@@ -240,15 +251,26 @@ const DraggableCard: React.FC<{
 
             {/* Footer */}
             <div className="flex items-center justify-between gap-2">
-              {(() => {
-                const prio = PRIORITY_CONFIG[item.priority];
-                return (
-                  <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-md ${prio.badge}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${prio.dot}`} />
-                    {prio.label}
-                  </span>
-                );
-              })()}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {(() => {
+                  const prio = PRIORITY_CONFIG[item.priority];
+                  return (
+                    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded-md ${prio.badge}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${prio.dot}`} />
+                      {prio.label}
+                    </span>
+                  );
+                })()}
+                {(() => {
+                  const es = calcES(item.function_quantity, item.priority);
+                  if (es == null) return null;
+                  return (
+                    <span className="inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-md bg-violet-100 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300">
+                      ES {es}
+                    </span>
+                  );
+                })()}
+              </div>
               {/* Requester fallback (only when no assignees) */}
               {(item.assignee_names?.length ?? 0) === 0 && (
                 <div className="flex items-center gap-1 min-w-0">
@@ -310,6 +332,7 @@ const KanbanColumnComponent: React.FC<{
   const Icon = column.icon;
   const inputRef = useRef<HTMLInputElement>(null);
   const isAddingHere = inlineAddColumn === column.id;
+  const totalES = items.reduce((acc, item) => acc + (calcES(item.function_quantity, item.priority) ?? 0), 0);
 
   // Focus input when opened
   useEffect(() => {
@@ -342,9 +365,16 @@ const KanbanColumnComponent: React.FC<{
         <span className={`w-2 h-2 rounded-full ${column.dotColor}`} />
         <Icon className={`w-4 h-4 ${column.accent}`} />
         <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{column.label}</h3>
-        <span className="ml-auto text-xs font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md tabular-nums">
-          {items.length}
-        </span>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span className="text-xs font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md tabular-nums">
+            {items.length}
+          </span>
+          {totalES > 0 && (
+            <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 px-2 py-0.5 rounded-md tabular-nums">
+              ES {totalES}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Inline Add UI — TOP of column */}
@@ -1174,8 +1204,8 @@ const ITKanbanBoard: React.FC = () => {
                 key={value}
                 onClick={() => {
                   if (value === 'all') { setSelectedSprintId(null); setSelectedProjectId(null); }
-                  if (value === 'by_project') { setSelectedSprintId(null); setSelectedProjectId(null); }
-                  if (value === 'by_sprint') { setSelectedProjectId(null); }
+                  if (value === 'by_project') { setSelectedSprintId(null); }
+                  if (value === 'by_sprint') { setSelectedSprintId(null); }
                   setViewMode(value);
                 }}
                 className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all duration-200 ${
@@ -1192,8 +1222,8 @@ const ITKanbanBoard: React.FC = () => {
             ))}
           </div>
 
-          {/* Project selector (only in by_project mode) */}
-          {viewMode === 'by_project' && (
+          {/* Project selector (in by_project and by_sprint modes) */}
+          {(viewMode === 'by_project' || viewMode === 'by_sprint') && (
             <div className="relative" ref={projectDropdownRef}>
               <button
                 onClick={() => setProjectDropdownOpen(prev => !prev)}
@@ -1279,7 +1309,7 @@ const ITKanbanBoard: React.FC = () => {
                       </div>
                     ) : (
                       <div className="py-1 max-h-64 overflow-y-auto">
-                        {projects.map(project => {
+                        {(selectedProjectId ? projects.filter(p => p.id === selectedProjectId) : projects).map(project => {
                           const projectSprints = sprints.filter(s => s.project_id === project.id);
                           if (projectSprints.length === 0) return null;
                           return (
