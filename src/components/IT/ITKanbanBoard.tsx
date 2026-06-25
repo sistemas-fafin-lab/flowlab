@@ -591,13 +591,18 @@ const ITKanbanBoard: React.FC = () => {
           .select('*, requester:user_profiles!requested_by(name), project:it_projects!project_id(id,name,color), sprint:it_sprints!sprint_id(id,name,status)')
           .eq('kanban_hidden', false)
           .order('updated_at', { ascending: false }),
-        supabase.from('user_profiles').select('id, name'),
+        supabase.from('user_profiles').select('id, name, department'),
       ]);
 
       let { data, error } = requestsResult;
-      const usersRaw = (usersResult.data || []) as { id: string; name: string }[];
+      const usersRaw = (usersResult.data || []) as { id: string; name: string; department?: string | null }[];
+      // Map completo (todos os usuários) para resolver nomes de solicitantes/responsáveis
       const usersMap = Object.fromEntries(usersRaw.map((u) => [u.id, u.name]));
-      setAllUsers(usersRaw.sort((a, b) => a.name.localeCompare(b.name)));
+      // Dropdown de filtro: apenas pessoas do departamento de TI
+      const itUsers = usersRaw
+        .filter((u) => u.department === 'TI')
+        .map((u) => ({ id: u.id, name: u.name }));
+      setAllUsers(itUsers.sort((a, b) => a.name.localeCompare(b.name)));
 
       if (error && (error as any).code === '42703') {
         // Column does not exist yet — fallback query without kanban_hidden

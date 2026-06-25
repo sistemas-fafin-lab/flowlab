@@ -161,17 +161,13 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
   };
 
   const handleSaveCard = async () => {
-    if (!selectedProjectId) {
-      setError('Selecione um projeto.');
-      return;
-    }
     setSaving(true);
     setError(null);
     try {
       const { error: reqErr } = await supabase
         .from('it_requests')
         .update({
-          project_id: selectedProjectId,
+          project_id: selectedProjectId || null,
           sprint_id: selectedSprintId || null,
           kanban_hidden: false,
           kanban_status: cardColumn,
@@ -296,9 +292,9 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
                   <LayoutGrid className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Card em Projeto</p>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">Adicionar como Card</p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                    Adiciona a um projeto e sprint existentes
+                    Adiciona ao Kanban, com projeto e sprint opcionais
                   </p>
                 </div>
               </button>
@@ -424,21 +420,19 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
               {/* Project select */}
               <div>
                 <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
-                  Projeto <span className="text-red-500">*</span>
+                  Projeto <span className="text-gray-400 font-normal">(opcional)</span>
                 </label>
                 {loadingProjects ? (
                   <div className="flex items-center gap-2 py-2 text-xs text-gray-400">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando projetos…
                   </div>
-                ) : projects.length === 0 ? (
-                  <p className="text-xs text-gray-400 italic py-1">Nenhum projeto encontrado.</p>
                 ) : (
                   <select
                     value={selectedProjectId}
                     onChange={(e) => setSelectedProjectId(e.target.value)}
                     className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
                   >
-                    <option value="">Selecionar projeto</option>
+                    <option value="">Sem projeto</option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
@@ -508,7 +502,7 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
                   </button>
                   <button
                     onClick={handleSaveCard}
-                    disabled={saving || !selectedProjectId}
+                    disabled={saving}
                     className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl transition-colors disabled:opacity-70"
                   >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <LayoutGrid className="w-4 h-4" />}
