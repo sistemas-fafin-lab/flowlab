@@ -191,9 +191,9 @@ export function useNotificationCenter(userId?: string) {
           });
 
           if (!response.ok) {
-            const { error: emailErr } = await response.json().catch(() => ({ error: 'Erro desconhecido' }));
+            const payload = await response.json().catch(() => ({} as Record<string, unknown>));
             // Não lança — notificação in-app já foi salva com sucesso
-            console.warn('[sendNotification] Falha no envio de email:', emailErr);
+            console.warn('[sendNotification] Falha no envio de email — HTTP', response.status, payload);
           }
         }
       } catch (err) {

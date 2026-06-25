@@ -30,6 +30,8 @@ import { hasPermission } from '../../utils/permissions';
 import { supabase } from '../../lib/supabase';
 import Notification from '../Notification';
 import KanbanPromoteModal from './KanbanPromoteModal';
+import { useNotificationCenter } from '../../hooks/useNotificationCenter';
+import { APP_BASE_URL } from '../../utils/appUrl';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -52,6 +54,7 @@ interface ITRequest {
   assigned_to: string[];
   created_at: string;
   updated_at: string;
+  last_status_email_at?: string | null;
   attachments?: { url: string; name: string; size: number }[];
   requester_name?: string;
   requester_email?: string;
@@ -68,6 +71,9 @@ const PRIORITY_CONFIG: Record<string, { label: string; badge: string; dot: strin
   high:     { label: 'Alta',    badge: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300', dot: 'bg-orange-500', pill: 'text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20', pillActive: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-200 ring-1 ring-orange-300 dark:ring-orange-700' },
   critical: { label: 'Crítica', badge: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',           dot: 'bg-red-500',   pill: 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20',      pillActive: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 ring-1 ring-red-300 dark:ring-red-700' },
 };
+
+// Cooldown anti-spam: no máximo 1 email de mudança de status a cada 5 min por chamado.
+const STATUS_EMAIL_COOLDOWN_MS = 5 * 60 * 1000;
 
 const STATUS_CONFIG: Record<string, { label: string; badge: string; icon: React.ComponentType<{ className?: string }> }> = {
   pending:     { label: 'Pendente',      badge: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',     icon: Clock },
@@ -105,6 +111,7 @@ const ITRequestManagement: React.FC = () => {
   const { userProfile } = useAuth();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const userId = userProfile?.id || '';
+  const { sendNotification } = useNotificationCenter(userId);
   const userPermissions = userProfile?.permissions || [];
 
   // ─── Permission layer ───────────────────────────────────────────────────────
@@ -367,6 +374,8 @@ const ITRequestManagement: React.FC = () => {
   // ─── Status update (IT managers only) ───────────────────────────────────────
   const handleStatusChange = async (requestId: string, newStatus: string) => {
     if (!isITManager) return;
+    const req = requests.find((r) => r.id === requestId);
+    const prevStatus = req?.status;
     try {
       const { error } = await supabase
         .from('it_requests')
@@ -375,6 +384,53 @@ const ITRequestManagement: React.FC = () => {
 
       if (error) throw error;
       showSuccess('Status atualizado!');
+
+      // Notifica o solicitante a cada mudança de status (email + notificação in-app).
+      // O email respeita um cooldown de 5 min por chamado (anti-spam); a notificação
+      // in-app é sempre criada.
+      if (req && newStatus !== prevStatus) {
+        const statusLabel = STATUS_CONFIG[newStatus]?.label ?? newStatus;
+
+        const lastEmailAt = req.last_status_email_at ? new Date(req.last_status_email_at).getTime() : 0;
+        const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
+        const sendEmail = !!req.requester_email && !withinCooldown;
+
+        try {
+          await sendNotification({
+            userId: req.requested_by,
+            title: 'Status do chamado atualizado',
+            content: `O status do chamado ${req.codigo} mudou para ${statusLabel}.`,
+            module: 'IT',
+            type: newStatus === 'resolved' ? 'success' : newStatus === 'cancelled' ? 'warning' : 'info',
+            link: '/requests',
+            sendEmail,
+            emailData: req.requester_email && !withinCooldown
+              ? {
+                  to: req.requester_email,
+                  templateSlug: 'it_ticket_status_changed',
+                  variables: {
+                    user_name: req.requester_name || 'Usuário',
+                    ticket_code: req.codigo,
+                    ticket_title: req.title,
+                    status_label: statusLabel,
+                    action_url: `${APP_BASE_URL}/requests`,
+                  },
+                }
+              : undefined,
+          });
+
+          // Registra o envio para o cooldown (otimista — evita reenvio em rajada)
+          if (sendEmail) {
+            await supabase
+              .from('it_requests')
+              .update({ last_status_email_at: new Date().toISOString() })
+              .eq('id', requestId);
+          }
+        } catch (notifyErr) {
+          console.error('Erro ao notificar solicitante sobre mudança de status:', notifyErr);
+        }
+      }
+
       await fetchRequests();
     } catch (error) {
       console.error('Erro ao atualizar status:', error);

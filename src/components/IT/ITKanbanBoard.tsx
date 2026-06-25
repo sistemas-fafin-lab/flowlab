@@ -60,6 +60,7 @@ export interface ITRequest {
   assigned_to: string[];
   created_at: string;
   updated_at: string;
+  last_status_email_at?: string | null;
   // ITSM upgrade fields
   is_internal?: boolean;
   estimated_hours?: number | null;

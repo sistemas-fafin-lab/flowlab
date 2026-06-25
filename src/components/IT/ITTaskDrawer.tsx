@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import type { ITRequest, KanbanColumn, ITProject, ITSprint } from './ITKanbanBoard';
 import { calcES } from './ITKanbanBoard';
+import { APP_BASE_URL } from '../../utils/appUrl';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { hasPermission } from '../../utils/permissions';
@@ -82,6 +83,9 @@ const PRIORITY_OPTIONS = [
   { value: 'high',     label: 'Alta',    dot: 'bg-orange-500', text: 'text-orange-700 dark:text-orange-300' },
   { value: 'critical', label: 'Crítica', dot: 'bg-red-500',   text: 'text-red-700 dark:text-red-300' },
 ] as const;
+
+// Cooldown anti-spam: no máximo 1 email de mudança de status a cada 5 min por chamado.
+const STATUS_EMAIL_COOLDOWN_MS = 5 * 60 * 1000;
 
 const STATUS_OPTIONS: { value: string; label: string; icon: React.ComponentType<{ className?: string }>; color: string }[] = [
   { value: 'pending',     label: 'Pendente',     icon: Clock,        color: 'text-amber-600 dark:text-amber-400' },
@@ -455,9 +459,58 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
 
   // ─── Save a single field to DB + propagate to kanban ──────────────────────
   const saveField = useCallback(async (field: string, value: unknown) => {
+    const prevStatus = task.status;
     onUpdate({ id: task.id, [field]: value } as Partial<ITRequest> & { id: string });
     await supabase.from('it_requests').update({ [field]: value }).eq('id', task.id);
-  }, [task.id, onUpdate]);
+
+    // Notifica o solicitante a cada mudança do campo status (email com cooldown + in-app)
+    if (field === 'status' && value !== prevStatus) {
+      try {
+        const statusLabel = STATUS_OPTIONS.find((o) => o.value === value)?.label ?? String(value);
+        const { data: requesterData } = await supabase
+          .from('user_profiles')
+          .select('email, name')
+          .eq('id', task.requested_by)
+          .single();
+
+        const lastEmailAt = task.last_status_email_at ? new Date(task.last_status_email_at).getTime() : 0;
+        const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
+        const sendEmail = !!requesterData?.email && !withinCooldown;
+
+        await sendNotification({
+          userId: task.requested_by,
+          title: 'Status do chamado atualizado',
+          content: `O status do chamado ${task.codigo} mudou para ${statusLabel}.`,
+          module: 'IT',
+          type: value === 'resolved' ? 'success' : value === 'cancelled' ? 'warning' : 'info',
+          link: '/requests',
+          sendEmail,
+          emailData: requesterData?.email && !withinCooldown
+            ? {
+                to: requesterData.email,
+                templateSlug: 'it_ticket_status_changed',
+                variables: {
+                  user_name: requesterData.name || task.requester_name || 'Usuário',
+                  ticket_code: task.codigo,
+                  ticket_title: task.title,
+                  status_label: statusLabel,
+                  action_url: `${APP_BASE_URL}/requests`,
+                },
+              }
+            : undefined,
+        });
+
+        // Registra o envio para o cooldown (otimista — evita reenvio em rajada)
+        if (sendEmail) {
+          const now = new Date().toISOString();
+          onUpdate({ id: task.id, last_status_email_at: now });
+          await supabase.from('it_requests').update({ last_status_email_at: now }).eq('id', task.id);
+        }
+      } catch (err) {
+        console.error('Erro ao notificar solicitante sobre mudança de status:', err);
+      }
+    }
+  }, [task.id, task.status, task.requested_by, task.codigo, task.title, task.requester_name, task.last_status_email_at, onUpdate, sendNotification]);
 
   // ─── Submit comment ────────────────────────────────────────────────────────
   const handleCommentSubmit = async () => {
@@ -499,7 +552,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                       user_name: requesterData.name || task.requester_name || 'Usuário',
                       ticket_code: task.codigo,
                       ticket_message: text,
-                      action_url: `${window.location.origin}/requests`,
+                      action_url: `${APP_BASE_URL}/requests`,
                     },
                   }
                 : undefined,
