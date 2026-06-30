@@ -23,6 +23,9 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canManageRoles', label: 'Gerenciar Cargos', group: 'Administração' },
   { key: 'canManageIT', label: 'Gerenciar TI', group: 'Tecnologia' },
   { key: 'canManageWhitelist', label: 'Gerenciar Whitelist', group: 'Administração' },
+  // ── Análises Clínicas ──────────────────────────────────────────────────────
+  { key: 'canViewAnalisesClinicas', label: 'Visualizar Análises Clínicas', group: 'Análises Clínicas' },
+  { key: 'canManageAnalisesClinicas', label: 'Gerenciar Postos e Horários', group: 'Análises Clínicas' },
   // ── Cotações (granular) ────────────────────────────────────────────────────
   { key: 'canViewQuotations',      label: 'Visualizar Cotações',              group: 'Cotações' },
   { key: 'canCreateQuotations',    label: 'Criar Cotações',                   group: 'Cotações' },

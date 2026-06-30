@@ -35,6 +35,9 @@ import {
   Bell,
   Wallet,
   Map,
+  Stethoscope,
+  CalendarClock,
+  MapPin,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -79,7 +82,7 @@ const DEFAULT_CATEGORIES: CategoryConfig[] = [
     id: 'operacoes',
     name: 'OPERAÇÕES',
     sort_order: 1,
-    items: ['Produtos', 'Movimentações', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos'],
+    items: ['Produtos', 'Movimentações', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas'],
   },
   {
     id: 'administracao',
@@ -449,6 +452,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
+    if (['/analises-clinicas/agendamentos', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -589,6 +593,17 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Faturas / Notas', href: '/faturamento/faturas', icon: FileText, permission: 'canViewBilling' },
           { name: 'Contas a Receber', href: '/faturamento/recebimentos', icon: DollarSign, permission: 'canViewBilling' },
           { name: 'Glosas e Recursos', href: '/faturamento/glosas', icon: AlertCircle, permission: 'canViewBilling' },
+        ],
+      },
+      {
+        name: 'Análises Clínicas',
+        href: '/analises-clinicas/agendamentos',
+        icon: Stethoscope,
+        permission: 'canViewAnalisesClinicas',
+        category: 'OPERAÇÕES',
+        subItems: [
+          { name: 'Agendamentos', href: '/analises-clinicas/agendamentos', icon: CalendarClock, permission: 'canViewAnalisesClinicas' },
+          { name: 'Postos de Coleta', href: '/analises-clinicas/postos', icon: MapPin, permission: 'canManageAnalisesClinicas' },
         ],
       },
       {

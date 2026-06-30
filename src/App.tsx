@@ -32,6 +32,7 @@ import ITKanbanBoard from './components/IT/ITKanbanBoard';
 import TestKanban from './components/IT/TestKanban';
 import { NotificationAdminPanel } from './components/NotificationAdminPanel';
 import CostControlDashboard from './pages/CostControlDashboard';
+import { AgendamentosPage, PostosPage } from './modules/analises-clinicas';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ 
@@ -235,6 +236,23 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
               <GlosasRecursos />
+            </ProtectedRoute>
+          }
+        />
+        {/* Análises Clínicas — Agendamento */}
+        <Route
+          path="/analises-clinicas/agendamentos"
+          element={
+            <ProtectedRoute permission="canViewAnalisesClinicas" permissions={userPermissions}>
+              <AgendamentosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/postos"
+          element={
+            <ProtectedRoute permission="canManageAnalisesClinicas" permissions={userPermissions}>
+              <PostosPage />
             </ProtectedRoute>
           }
         />
