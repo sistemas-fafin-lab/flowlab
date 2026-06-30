@@ -15,25 +15,13 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import nodemailer from 'nodemailer';
-import { getSupabaseAdminClient } from '../_lib/supabase.js';
+import { sendTemplatedEmail } from '../_lib/email.js';
 
 interface EmailRequestBody {
   to: string;
   templateSlug: string;
   variables: Record<string, string>;
 }
-
-function isValidEmail(email: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-const renderTemplate = (
-  templateString: string,
-  variables: Record<string, string>
-): string => {
-  return templateString.replace(/{{(\w+)}}/g, (_match, key) => variables[key] ?? '');
-};
 
 export default async function handler(
   req: VercelRequest,
@@ -57,76 +45,21 @@ export default async function handler(
     return;
   }
 
-  if (!isValidEmail(to)) {
-    res.status(400).json({ success: false, error: 'Endereço de email inválido' });
-    return;
-  }
-
   if (typeof variables !== 'object' || Array.isArray(variables)) {
     res.status(400).json({ success: false, error: 'O campo variables deve ser um objeto chave-valor' });
     return;
   }
 
-  // Buscar template no Supabase
-  let finalSubject: string;
-  let finalHtml: string;
+  const result = await sendTemplatedEmail({ to, templateSlug, variables });
 
-  try {
-    const supabase = getSupabaseAdminClient();
-
-    const { data: template, error } = await supabase
-      .from('notification_templates')
-      .select('subject_template, body_html')
-      .eq('slug', templateSlug)
-      .single();
-
-    if (error || !template) {
-      console.error('[email] Template não encontrado:', templateSlug, error?.message);
-      res.status(404).json({ success: false, error: 'Template not found' });
-      return;
-    }
-
-    finalSubject = renderTemplate(template.subject_template, variables);
-    finalHtml    = renderTemplate(template.body_html, variables);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[email] Erro ao buscar template no Supabase:', message);
-    res.status(500).json({ success: false, error: 'Erro interno ao carregar template' });
+  if (result.success) {
+    res.status(200).json({ success: true, messageId: result.messageId });
     return;
   }
 
-  // Validação das variáveis de ambiente SMTP
-  const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+  const status =
+    result.errorCode === 'invalid_email' ? 400 :
+    result.errorCode === 'template_not_found' ? 404 : 500;
 
-  if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
-    console.error('[email] Variáveis de ambiente SMTP não configuradas');
-    res.status(500).json({ success: false, error: 'Configuração SMTP ausente no servidor' });
-    return;
-  }
-
-  // Enviar e-mail via Nodemailer
-  try {
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT),
-      secure: Number(SMTP_PORT) === 465, // true para 465 (SSL), false para 587 (STARTTLS)
-      auth: {
-        user: SMTP_USER,
-        pass: SMTP_PASS,
-      },
-    });
-
-    const info = await transporter.sendMail({
-      from: SMTP_FROM,
-      to,
-      subject: finalSubject,
-      html: finalHtml,
-    });
-
-    res.status(200).json({ success: true, messageId: info.messageId });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[email] Falha ao enviar email:', message);
-    res.status(500).json({ success: false, error: message });
-  }
+  res.status(status).json({ success: false, error: result.error });
 }

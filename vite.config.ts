@@ -198,13 +198,79 @@ function umamiApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
+// ── Dev-only middleware para POST /api/users/create ──────────────────────────
+// Carrega o fluxo (api/_lib/createUser.ts) sob demanda via ssrLoadModule, para
+// não puxar googleapis/nodemailer para o bundle da config. O fluxo lê segredos
+// de process.env, então mapeamos as vars do .env antes de invocá-lo.
+function createUserApiPlugin(env: Record<string, string>): Plugin {
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
+    'GOOGLE_SA_CLIENT_EMAIL', 'GOOGLE_SA_PRIVATE_KEY', 'GOOGLE_ADMIN_SUBJECT',
+    'GOOGLE_ALIAS_TARGET', 'GOOGLE_ALIAS_DOMAIN', 'SLACK_INVITE_URL',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
+  return {
+    name: 'create-user-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        if (req.url !== '/api/users/create' || req.method !== 'POST') return next();
+
+        const send = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(body));
+        };
+
+        let body: Record<string, unknown> = {};
+        try {
+          await new Promise<void>((resolve, reject) => {
+            let raw = '';
+            req.on('data', (chunk) => { raw += chunk; });
+            req.on('end', () => {
+              try { body = raw ? JSON.parse(raw) : {}; resolve(); }
+              catch { reject(new Error('JSON inválido')); }
+            });
+            req.on('error', reject);
+          });
+        } catch {
+          return send(400, { success: false, error: 'Body inválido' });
+        }
+
+        const authHeader = (req.headers['authorization'] as string) ?? '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+        try {
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule('/api/_lib/createUser.ts');
+          const { status, payload } = await mod.createUserFlow(token, body);
+          send(status, payload);
+        } catch (err) {
+          console.error('[dev/users/create]', err);
+          send(500, { success: false, error: err instanceof Error ? err.message : 'Erro interno' });
+        }
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // loadEnv com prefix '' carrega TODAS as vars (inclusive UMAMI_* sem prefixo VITE_)
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env)],
+    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },

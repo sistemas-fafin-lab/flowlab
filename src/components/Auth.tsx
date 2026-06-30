@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { LogIn, UserPlus, Eye, EyeOff, Sun, Moon, Package, History, FileText, Building2, Calculator, Receipt, LayoutDashboard, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { DEPARTMENTS } from "../utils/permissions";
+import { formatCPF, validateCPF } from "../utils/cpf";
 
 const MODULES = [
   {
@@ -48,28 +49,6 @@ const MODULES = [
       "Rastreio de entradas, saídas e transferências de estoque em tempo real.",
   },
 ];
-
-const formatCPF = (value: string) => {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-  return digits
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d)/, "$1.$2")
-    .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-};
-
-const validateCPF = (cpf: string) => {
-  const digits = cpf.replace(/\D/g, "");
-  if (digits.length !== 11 || /^(\d)\1+$/.test(digits)) return false;
-  const calc = (n: number) => {
-    const sum = digits
-      .slice(0, n)
-      .split("")
-      .reduce((acc, d, i) => acc + +d * (n + 1 - i), 0);
-    const rem = (sum * 10) % 11;
-    return rem === 10 || rem === 11 ? 0 : rem;
-  };
-  return calc(9) === +digits[9] && calc(10) === +digits[10];
-};
 
 const formVariants = {
   enter: { x: 20, opacity: 0 },

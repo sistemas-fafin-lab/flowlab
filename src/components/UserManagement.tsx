@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock, Search, SlidersHorizontal } from 'lucide-react';
+import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock, Search, SlidersHorizontal, UserPlus } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { supabase } from '../lib/supabase';
 import { UserProfile, UserRole, Department, CustomRole } from '../types';
 import { DEPARTMENTS, getRoleForDepartment, getRoleLabel, getDepartmentLabel, ALL_PERMISSION_KEYS, hasPermission } from '../utils/permissions';
 import Notification from './Notification';
+import NewUserForm from './NewUserForm';
 
 // Type for approval level configuration from database
 interface ApprovalLevelConfig {
@@ -52,6 +53,7 @@ const UserManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<UserProfile | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [showNewUserForm, setShowNewUserForm] = useState(false);
   const [showLevelConfig, setShowLevelConfig] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingLevels, setIsSavingLevels] = useState(false);
@@ -364,6 +366,17 @@ const UserManagement: React.FC = () => {
     }));
   };
 
+  // Chamado pelo NewUserForm após cadastro bem-sucedido
+  const handleUserCreated = async (warnings: string[]) => {
+    setShowNewUserForm(false);
+    await fetchUsers();
+    if (warnings.length > 0) {
+      showSuccess(`Usuário cadastrado, mas com avisos: ${warnings.join(' | ')}`);
+    } else {
+      showSuccess('Usuário cadastrado com sucesso! E-mail de boas-vindas enviado.');
+    }
+  };
+
   // ─── Roles CRUD helpers ─────────────────────────────────────────────────────
   const handleEditRole = (role: CustomRole) => {
     setRoleFormData({
@@ -511,6 +524,14 @@ const UserManagement: React.FC = () => {
         onClose={hideNotification}
       />
 
+      {showNewUserForm && (
+        <NewUserForm
+          customRoles={customRoles}
+          onClose={() => setShowNewUserForm(false)}
+          onCreated={handleUserCreated}
+        />
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center animate-fade-in-up">
         <div>
@@ -518,13 +539,22 @@ const UserManagement: React.FC = () => {
           <p className="text-gray-500 dark:text-gray-400">Gerencie perfis, cargos e permissões do sistema</p>
         </div>
         {hasPermission(userProfile?.permissions || [], 'canManageUsers') && activeTab === 'users' && (
-          <button
-            onClick={() => setShowLevelConfig(!showLevelConfig)}
-            className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 shadow-md"
-          >
-            <Settings className="w-4 h-4 mr-2" />
-            Configurar Alçadas
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowNewUserForm(true)}
+              className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 shadow-md"
+            >
+              <UserPlus className="w-4 h-4 mr-2" />
+              Novo Usuário
+            </button>
+            <button
+              onClick={() => setShowLevelConfig(!showLevelConfig)}
+              className="flex items-center px-4 py-2 bg-gradient-to-r from-purple-500 to-indigo-500 text-white rounded-xl hover:from-purple-600 hover:to-indigo-600 transition-all duration-200 shadow-md"
+            >
+              <Settings className="w-4 h-4 mr-2" />
+              Configurar Alçadas
+            </button>
+          </div>
         )}
       </div>
 
