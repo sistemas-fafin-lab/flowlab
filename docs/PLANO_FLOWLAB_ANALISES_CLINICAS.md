@@ -1,11 +1,12 @@
-# Plano de Implementação — FlowLab · Análises Clínicas (Agendamento)
+# Plano de Implementação — FlowLab · Análises Clínicas
 
-> **Escopo desta fase: apenas AGENDAMENTO.** Resultados, coletas, recoletas, análise, cultura, temperatura, estoque, dashboard e **notificação WhatsApp** estão **adiados** — ver "Adiado (fora de escopo agora)" no fim.
+> **Escopo do projeto:** o **AGENDAMENTO** (✅ concluído — Fases 0–3) e a **operação interna do laboratório** — permissões/role `analista`, estoque departamental, coleta/recoleta, análise/cultura/temperatura e dashboard de KPIs (Fases 4–8, a fazer).
+> **Fora de escopo:** **Resultados** (liberação + entrega ao paciente) e **notificação WhatsApp**, mais o que depende deles (reconciliação `ac_resultados`↔`ac_analises`, permissão `canLiberarResultados`) — ver "Fora de escopo" no fim.
 > O portal do paciente (agendamento + resultados) é do LAB-HUB — ver `LAB-HUB/docs/PLANO_ANALISES_CLINICAS.md`.
 > Baseado em: `LAB-HUB/docs/ARQUITETURA_ANALISES_CLINICAS.md`, `FLUXO.md`, `ANALISES_CLINICAS.md`.
-> Criado em: Junho/2026 · **Reduzido ao escopo de agendamento em 30/Jun/2026**, após verificar o que o LAB-HUB (Fases 1–4 ✅) e o FlowLab (fatia de integração ✅) já implementaram.
+> Criado em: Junho/2026 · **Reduzido ao escopo de agendamento em 30/Jun/2026** · **Reexpandido em 30/Jun/2026** para incluir a operação interna (coleta → análise → dashboard); só Resultados e WhatsApp seguem fora.
 >
-> **Última atualização:** 30/Jun/2026 — agendamento completo no FlowLab + cancelamento cruzado fechado (FlowLab `receive-cancelamento` + propagação do LAB-HUB).
+> **Última atualização:** 30/Jun/2026 — agendamento completo + cancelamento cruzado fechado; plano reexpandido com as Fases 4–8 (operação interna). **Fase 4 concluída:** permissão `canManageColetas` + cargo de sistema `analistaSaude` (custom role, não role legacy) + backfill de AC nos cargos seedados.
 
 ---
 
@@ -184,7 +185,7 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 | `/analises-clinicas/agendamentos` | AgendamentosPage | `canViewAnalisesClinicas` | ✅ |
 | `/analises-clinicas/postos` | PostosPage | `canManageAnalisesClinicas` | ✅ |
 
-- ✅ Adicionadas `canViewAnalisesClinicas` e `canManageAnalisesClinicas` a `ALL_PERMISSION_KEYS` em `src/utils/permissions.ts` (grupo "Análises Clínicas"). Pelos legacy roles, admin e operator recebem ambas automaticamente; requester não. (Role `analista` e permissões de coleta/liberação ficam para as fases adiadas.)
+- ✅ Adicionadas `canViewAnalisesClinicas`, `canManageAnalisesClinicas` e `canManageColetas` (Fase 4) a `ALL_PERMISSION_KEYS` em `src/utils/permissions.ts` (grupo "Análises Clínicas"). Pelos legacy roles, admin e operator recebem todas automaticamente (mapeiam `ALL_PERMISSION_KEYS`); requester não. Para usuários em **custom roles de sistema** (Administrador/Operador), o backfill em `20260630140000` as injeta nos arrays seedados. O cargo `analistaSaude` (seed na mesma migration) recebe `canViewAnalisesClinicas` + `canManageColetas`. (Permissão `canLiberarResultados` segue fora — acompanha Resultados.)
 - Item de menu "Análises Clínicas" (grupo OPERAÇÕES) com subitens Agendamentos e Postos de Coleta em `src/components/Layout.tsx`.
 - A RLS de mutação (admin/operator) está na migration `20260630120000`. Como o sistema também usa permissões de app, a PostosPage é gateada por `canManageAnalisesClinicas`; a RLS é a defesa no banco.
 
@@ -204,7 +205,9 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 
 ---
 
-## Fases (escopo agendamento)
+## Fases
+
+> **Concluído:** Fases 0–3 (agendamento) + Fase 4 (fundação de permissões). **A fazer:** Fases 5–8 (operação interna), na ordem abaixo — ordenadas por dependência técnica + valor (jornada do paciente: coleta → análise → KPIs).
 
 ### Fase 0 — Integração ✅ (concluída)
 - [x] Migration `ac_postos` / `ac_slots_disponiveis` / `ac_agendamentos` (+ RLS, triggers, seed)
@@ -226,6 +229,42 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 - [x] Policies de mutação de `ac_postos` (migration `20260630120000`)
 - [x] `get-disponibilidade` reescrito: gera a agenda (base seg–sáb + exceções) no fuso de Brasília, descontando ocupação
 - [x] `PostosPage` (CRUD posto + toggle + excluir) com modal de **Agenda**: horários fixos e exceções por dia (fechar/horários especiais), capacidade padrão 1 + rota `/analises-clinicas/postos` + `canManageAnalisesClinicas`
+
+### Fase 4 — Permissões e cargo `analistaSaude` ✅
+- [x] Permissão `canManageColetas` em `ALL_PERMISSION_KEYS` (grupo "Análises Clínicas") — `src/utils/permissions.ts`
+- [x] **Decisão:** "analista" virou um **cargo de sistema (custom role) `analistaSaude`**, não role legacy. Motivo: o sistema atribui cargos só via custom roles (`UserManagement`/`customRoleId`); a role legacy não tem UI de atribuição (é definida automaticamente: 1º usuário `admin`, demais `requester`), então uma role legacy `analista` seria invasiva (tipo `UserRole`, CHECK constraint, `Record<UserRole>`) **e inerte**. Seed em `20260630140000_ac_role_analista.sql` (`canViewAnalisesClinicas` + `canManageColetas`, sem `canManageAnalisesClinicas`).
+- [x] **Backfill** dos cargos de sistema `Administrador`/`Operador` com as 3 permissões de AC (`canViewAnalisesClinicas`, `canManageAnalisesClinicas`, `canManageColetas`) — corrige o gap latente das Fases 2–3 (esses cargos seedados nunca enxergaram o módulo). Mesma migration.
+- [ ] (forward-looking) Gatear as páginas operacionais (coleta/recoleta, análise) por `canManageColetas` — **fica para as Fases 6–7**, quando essas páginas existirem. A key já está pronta.
+
+> Fundação barata e que **gateia tudo abaixo** — feita primeiro para evitar retrabalho de permissão.
+> `canLiberarResultados` fica fora (acompanha Resultados).
+
+### Fase 5 — Estoque departamental 🔜
+- [ ] `Department.ANALISES_CLINICAS` + categoria de produto `insumos_clinicos`
+- [ ] Fluxo de recebimento de insumos com assinatura
+
+> Dependência da coleta: `ac_coleta_insumos` dá baixa em `stock_movements`, então o departamento/categoria precisam existir antes.
+
+### Fase 6 — Coleta / recoleta 🔜
+- [ ] Migrations `ac_coletas`, `ac_recoletas`, `ac_coleta_insumos` (+ RLS, índices, triggers `updated_at`)
+- [ ] Baixa de insumos em `stock_movements` ao registrar a coleta
+- [ ] `PainelColetasPage` (fila derivada dos agendamentos `recebido`) + `RecoletasPage`
+- [ ] Rotas `/analises-clinicas/{coletas,recoletas}` + gating `canManageColetas`
+
+> Próximo passo após o agendamento e **porta de entrada dos dados** a jusante. A notificação `ac_recoleta` fica fora (WhatsApp fora de escopo).
+
+### Fase 7 — Análise / cultura / temperatura 🔜
+- [ ] Migrations `ac_analises`, `ac_culturas`, `ac_temperaturas`, `ac_equipamentos` (+ RLS, índices)
+- [ ] Páginas de análise e cultura + monitoramento de temperatura de equipamentos com alertas
+- [ ] Rotas + gating
+
+> Camada de **rigor interno** (QC). Vem depois da coleta (analisa-se o que foi coletado) e não bloqueia nada do lado do paciente.
+
+### Fase 8 — Dashboard / KPIs 🔜
+- [ ] Widget no dashboard principal + página de KPIs: recoletas, culturas, temperatura/desperdício, produtividade
+- [ ] (KPIs de SLA de resultado ficam para quando Resultados entrar no escopo)
+
+> Por último: os KPIs só têm dado depois que coleta/recoleta/análise estão gerando registros.
 
 ---
 
@@ -252,18 +291,13 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 
 ---
 
-## Adiado (fora de escopo agora)
+## Fora de escopo
 
-Mantido aqui para não se perder; retomar após o agendamento:
+Deliberadamente fora do escopo do projeto (retomar só se a prioridade mudar):
 
-- **Notificação WhatsApp:** template `ac_agendamento_confirmado` (e `ac_recoleta`/`ac_resultado_disponivel`) via MessagingService (WAHA), disparada no `receive-agendamento`. Cortada do escopo essencial de agendamento.
-- **Resultados:** `ac_resultados` (já existe) + `deliver-resultado` (já existe, sem UI) + `LiberacaoResultadosPage` + notificação `ac_resultado_disponivel`.
-- **Coleta/recoleta:** `ac_coletas`, `ac_recoletas`, `ac_coleta_insumos` + baixa em `stock_movements` + `PainelColetasPage`/`RecoletasPage` + notificação `ac_recoleta`.
-- **Análise/cultura/temperatura:** `ac_analises`, `ac_culturas`, `ac_temperaturas`, `ac_equipamentos` + páginas + alertas.
-- **Estoque departamental:** enum `Department` `ANALISES_CLINICAS`, categoria `insumos_clinicos`, recebimento com assinatura.
-- **Dashboard:** KPIs (SLAs, recoletas, culturas, desperdício, produtividade) + widget no dashboard principal.
-- **Role `analista`** e permissões `canManageColetas` / `canLiberarResultados`.
-- **Reconciliação `ac_resultados` ↔ `ac_analises`** (hoje `ac_resultados.agendamento_id` aponta direto ao agendamento).
+- **Resultados:** `ac_resultados` (já existe) + `deliver-resultado` (já existe, sem UI) + `LiberacaoResultadosPage` + permissão `canLiberarResultados`. A liberação e a entrega do resultado ao paciente passam pelo portal do LAB-HUB.
+- **Notificação WhatsApp:** templates `ac_agendamento_confirmado`, `ac_recoleta` e `ac_resultado_disponivel` via MessagingService (WAHA), disparados nos respectivos eventos.
+- **Reconciliação `ac_resultados` ↔ `ac_analises`:** hoje `ac_resultados.agendamento_id` aponta direto ao agendamento; religar à análise (Fase 7) só faz sentido quando Resultados entrar no escopo.
 
 ---
 

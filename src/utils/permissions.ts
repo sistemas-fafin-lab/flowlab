@@ -26,6 +26,7 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // ── Análises Clínicas ──────────────────────────────────────────────────────
   { key: 'canViewAnalisesClinicas', label: 'Visualizar Análises Clínicas', group: 'Análises Clínicas' },
   { key: 'canManageAnalisesClinicas', label: 'Gerenciar Postos e Horários', group: 'Análises Clínicas' },
+  { key: 'canManageColetas', label: 'Gerenciar Coletas e Análises', group: 'Análises Clínicas' },
   // ── Cotações (granular) ────────────────────────────────────────────────────
   { key: 'canViewQuotations',      label: 'Visualizar Cotações',              group: 'Cotações' },
   { key: 'canCreateQuotations',    label: 'Criar Cotações',                   group: 'Cotações' },
