@@ -1,0 +1,32 @@
+{
+  "projectId": "e8bc400e-17f8-40c4-be03-c06a0a28af88",
+  "shape": "package",
+  "pkg": "inventory-system",
+  "globalName": "FlowLabDS",
+  "entry": ".design-sync/ds-entry.tsx",
+  "tsconfig": "tsconfig.json",
+  "cssEntry": ".design-sync/.cache/compiled.css",
+  "componentSrcMap": {
+    "ConfirmDialog": "src/components/ConfirmDialog.tsx",
+    "InputDialog": "src/components/InputDialog.tsx",
+    "Notification": "src/components/Notification.tsx",
+    "DetailModal": "src/components/DetailModal.tsx",
+    "SignatureViewModal": "src/components/SignatureViewModal.tsx",
+    "SkeletonCard": "src/components/PageLoadingSkeleton.tsx",
+    "SkeletonListItem": "src/components/PageLoadingSkeleton.tsx",
+    "SkeletonFilters": "src/components/PageLoadingSkeleton.tsx",
+    "LoadingSpinner": "src/components/PageLoadingSkeleton.tsx"
+  },
+  "overrides": {
+    "ConfirmDialog": { "cardMode": "single", "primaryStory": "Danger" },
+    "InputDialog": { "cardMode": "single", "primaryStory": "Required" },
+    "Notification": { "cardMode": "single", "primaryStory": "Success" },
+    "DetailModal": { "cardMode": "single", "primaryStory": "WithContent" },
+    "SignatureViewModal": { "cardMode": "single", "primaryStory": "Default" }
+  },
+  "libOverrides": {
+    "package-capture.mjs": "settle() raced RAF-scheduled paints (framer-motion mount animation) and captured a blank shot; fixed clock + a second same-page navigation froze rAF entirely, so per-story/discovery navigations now each get a fresh page"
+  },
+  "readmeHeader": ".design-sync/conventions.md",
+  "guidelinesGlob": ["docs/DESIGN_SYSTEM_FLOWLAB.md"]
+}
