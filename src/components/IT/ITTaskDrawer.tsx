@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import type { ITRequest, KanbanColumn, ITProject, ITSprint } from './ITKanbanBoard';
 import { calcES } from './ITKanbanBoard';
+import SLABadge from './SLABadge';
 import { APP_BASE_URL } from '../../utils/appUrl';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
@@ -1383,6 +1384,17 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                         : <span className="text-gray-400 italic">Não definido</span>}
                     </span>
                   )}
+                </AttributeRow>
+
+                {/* SLA calculado automaticamente pela prioridade (somente leitura) */}
+                <AttributeRow label="Prazo (SLA)">
+                  <SLABadge
+                    variant="row"
+                    createdAt={task.created_at}
+                    priority={task.priority}
+                    status={task.status}
+                    kanbanStatus={task.kanban_status}
+                  />
                 </AttributeRow>
 
                 {/* Estimated hours */}
