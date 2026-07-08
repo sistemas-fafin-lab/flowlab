@@ -240,10 +240,15 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 > `canLiberarResultados` fica fora (acompanha Resultados).
 
 ### Fase 5 — Estoque departamental 🔜
-- [ ] `Department.ANALISES_CLINICAS` + categoria de produto `insumos_clinicos`
-- [ ] Fluxo de recebimento de insumos com assinatura
+> **Plano detalhado:** [`PLANO_FASE5_ESTOQUE_DEPARTAMENTAL.md`](PLANO_FASE5_ESTOQUE_DEPARTAMENTAL.md)
 
-> Dependência da coleta: `ac_coleta_insumos` dá baixa em `stock_movements`, então o departamento/categoria precisam existir antes.
+**Redesenho (substitui "`Department.ANALISES_CLINICAS` + categoria `insumos_clinicos`"):** estoque **multi-local plano** — `products.quantity` vira cache do total; saldo por local em `product_stock`; `products.location` (texto livre, hoje "Estoque"/"Depósito"/…) é promovido para `stock_locations`.
+
+- [ ] **Parte A — Fundação:** `stock_locations` (plano) + `product_stock` + `stock_movements` com `from/to` + reescrita do trigger `update_stock_on_movement` + seed/promoção do `location` (migration defensiva)
+- [ ] **Parte B — UI mínima:** dropdown de local no form, recebimento (com assinatura), transferência entre locais, saldo por local
+- [ ] (fora de escopo) RLS por setor e dashboard departamental → refinamento / Fase 8
+
+> Dependência da coleta: `ac_coleta_insumos` (Fase 6) dá baixa em `stock_movements`, então os locais precisam existir antes.
 
 ### Fase 6 — Coleta / recoleta 🔜
 - [ ] Migrations `ac_coletas`, `ac_recoletas`, `ac_coleta_insumos` (+ RLS, índices, triggers `updated_at`)
