@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Search, Filter, Package, AlertTriangle, Calendar, Edit, Trash2, X, Save, Plus, Minus, ArrowUpDown, Download, Upload, ChevronDown, CheckCircle } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
-import { Product } from '../types';
+import { Product, ProductStock } from '../types';
 import { ProductListSkeleton } from './PageLoadingSkeleton';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -16,7 +16,7 @@ import AddStockModal from './AddStockModal';
 
 
 const ProductList: React.FC = () => {
-  const { products, updateProduct, addMovement, suppliers, deleteProduct, setProducts, fetchProducts, addProductChangeLog, loading } = useInventory();
+  const { products, updateProduct, addMovement, suppliers, deleteProduct, setProducts, fetchProducts, addProductChangeLog, loading, locations, receiveStock, fetchProductStock } = useInventory();
   const navigate = useNavigate();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm, inputDialog, showInputDialog, hideInputDialog, handleInputDialogConfirm } = useDialog();
@@ -53,6 +53,44 @@ const ProductList: React.FC = () => {
     notes: '',
     authorizedBy: ''
   });
+  // Fase 5: local de origem da baixa + saldos por local do produto selecionado
+  const [fromLocationId, setFromLocationId] = useState('');
+  const [productStockRows, setProductStockRows] = useState<ProductStock[]>([]);
+  // Fase 5: expandir um card para ver o saldo por local (product_stock)
+  const [expandedProductId, setExpandedProductId] = useState<string | null>(null);
+  const [expandedStockRows, setExpandedStockRows] = useState<ProductStock[]>([]);
+  const [loadingExpandedStock, setLoadingExpandedStock] = useState(false);
+
+  const stockPopoverRef = useRef<HTMLDivElement>(null);
+
+  // Abre/fecha a quebra de saldo por local de um produto (popover flutuante, 1 por vez).
+  const toggleStockBreakdown = async (productId: string) => {
+    if (expandedProductId === productId) {
+      setExpandedProductId(null);
+      return;
+    }
+    setExpandedProductId(productId);
+    setLoadingExpandedStock(true);
+    try {
+      setExpandedStockRows(await fetchProductStock(productId));
+    } catch {
+      setExpandedStockRows([]);
+    } finally {
+      setLoadingExpandedStock(false);
+    }
+  };
+
+  // Fecha o popover de saldo por local ao clicar fora dele.
+  useEffect(() => {
+    if (!expandedProductId) return;
+    const onDown = (e: MouseEvent) => {
+      if (stockPopoverRef.current && !stockPopoverRef.current.contains(e.target as Node)) {
+        setExpandedProductId(null);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [expandedProductId]);
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -302,20 +340,14 @@ const handleSaveChanges = async () => {
     setSelectedProduct(product);
   };
 
-  const handleConfirmAddStock = async (quantity: number) => {
+  // §6.1: recebimento passa por stock_movements (type:'in'), não escreve quantity direto.
+  const handleConfirmAddStock = async (quantity: number, locationId: string) => {
     if (!selectedProduct) return;
 
-    const newQuantity = selectedProduct.quantity + quantity;
-    const updatedProduct = {
-      ...selectedProduct,
-      quantity: newQuantity,
-      totalValue: newQuantity * selectedProduct.unitPrice,
-    };
-
     try {
-      await updateProduct(selectedProduct.id, updatedProduct);
+      await receiveStock(selectedProduct.id, locationId, quantity);
       await fetchProducts();
-      showSuccess(`✅ Estoque atualizado! Nova quantidade: ${newQuantity}`);
+      showSuccess(`✅ Estoque recebido! +${quantity} ${selectedProduct.unit}`);
     } catch (error) {
       console.error(error);
       showError('Erro ao adicionar estoque', 'Tente novamente.');
@@ -324,7 +356,7 @@ const handleSaveChanges = async () => {
     }
   };
 
-  const handleRemoveStock = (product: Product) => {
+  const handleRemoveStock = async (product: Product) => {
     setSelectedProduct(product);
     setMovementData({
       quantity: 0,
@@ -332,6 +364,17 @@ const handleSaveChanges = async () => {
       notes: '',
       authorizedBy: ''
     });
+    // Fase 5: carrega saldos por local rastreável e escolhe origem default
+    try {
+      const rows = await fetchProductStock(product.id);
+      setProductStockRows(rows);
+      const withStock = [...rows].filter(r => r.quantity > 0).sort((a, b) => b.quantity - a.quantity);
+      const principal = locations.find(l => l.isPrincipal);
+      setFromLocationId(withStock[0]?.locationId ?? principal?.id ?? '');
+    } catch {
+      setProductStockRows([]);
+      setFromLocationId(locations.find(l => l.isPrincipal)?.id ?? '');
+    }
     setShowMovementModal(true);
   };
 
@@ -360,6 +403,7 @@ const handleSaveChanges = async () => {
         date: new Date().toISOString().split('T')[0],
         authorizedBy: movementData.authorizedBy,
         notes: movementData.notes,
+        fromLocationId: fromLocationId || undefined,
         unitPrice: selectedProduct.unitPrice,
         totalValue: movementData.quantity * selectedProduct.unitPrice
       });
@@ -728,7 +772,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             return (
               <div
                 key={product.id}
-                className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-0.5 animate-fade-in-up group"
+                className={`bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl border border-slate-200/50 dark:border-slate-700/50 shadow-xl rounded-2xl transition-all duration-300 hover:shadow-2xl hover:-translate-y-0.5 animate-fade-in-up group ${expandedProductId === product.id ? 'relative z-40' : ''}`}
                 style={{ animationDelay: `${Math.min(index * 0.05, 0.3)}s` }}
               >
                 <div className="p-5">
@@ -833,6 +877,48 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     </div>
                   </div>
 
+                  {/* Saldo por local (Fase 5) — popover flutuante com a quebra de product_stock */}
+                  <div className="mt-3 relative" ref={expandedProductId === product.id ? stockPopoverRef : undefined}>
+                    <button
+                      onClick={() => toggleStockBreakdown(product.id)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-50/70 dark:bg-slate-800/40 hover:bg-slate-100 dark:hover:bg-slate-800 text-xs font-semibold text-slate-500 dark:text-slate-400 transition-all"
+                    >
+                      <span>Saldo por local</span>
+                      <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${expandedProductId === product.id ? 'rotate-180' : ''}`} />
+                    </button>
+                    {expandedProductId === product.id && (
+                      <div className="absolute left-0 right-0 top-full mt-1.5 z-30 p-2 space-y-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10 animate-fade-in">
+                        {loadingExpandedStock ? (
+                          <p className="text-xs text-slate-400 px-2 py-1.5">Carregando…</p>
+                        ) : expandedStockRows.filter(r => r.quantity > 0).length === 0 ? (
+                          <p className="text-xs text-slate-400 px-2 py-1.5">Sem saldo em locais rastreáveis.</p>
+                        ) : (
+                          expandedStockRows
+                            .filter(r => r.quantity > 0)
+                            .sort((a, b) => b.quantity - a.quantity)
+                            .map(r => {
+                              const loc = locations.find(l => l.id === r.locationId);
+                              return (
+                                <div
+                                  key={r.locationId}
+                                  className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-slate-50 dark:bg-slate-800/60"
+                                >
+                                  <span className="text-xs text-slate-600 dark:text-slate-300 truncate flex items-center gap-1.5">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
+                                    {loc?.nome ?? 'Local'}
+                                    {loc?.isPrincipal && <span className="text-[10px] text-slate-400">(principal)</span>}
+                                  </span>
+                                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 tabular-nums flex-shrink-0">
+                                    {r.quantity} {product.unit}
+                                  </span>
+                                </div>
+                              );
+                            })
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Alerta de Estoque Baixo */}
                   {product.status === 'low-stock' && (
                     <div className="flex items-center gap-2 mt-3 px-3 py-2 bg-orange-500/10 border border-orange-500/20 rounded-xl">
@@ -901,6 +987,30 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Local de origem *</label>
+                <select
+                  value={fromLocationId}
+                  onChange={(e) => setFromLocationId(e.target.value)}
+                  required
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                >
+                  {productStockRows.filter(r => r.quantity > 0).length === 0 && (
+                    <option value="">Sem saldo rastreável</option>
+                  )}
+                  {productStockRows
+                    .filter(r => r.quantity > 0)
+                    .map(r => {
+                      const loc = locations.find(l => l.id === r.locationId);
+                      return (
+                        <option key={r.locationId} value={r.locationId}>
+                          {loc?.nome ?? 'Local'} — {r.quantity} {selectedProduct.unit}
+                        </option>
+                      );
+                    })}
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quantidade *</label>
                 <input
                   type="number"
@@ -908,7 +1018,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   onChange={(e) => setMovementData(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
                   required
                   min="1"
-                  max={selectedProduct.quantity}
+                  max={productStockRows.find(r => r.locationId === fromLocationId)?.quantity ?? selectedProduct.quantity}
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                 />
               </div>
@@ -978,6 +1088,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
             <AddStockModal
               isOpen={!!selectedProduct}   // 👈 aqui
               product={selectedProduct}
+              locations={locations}
               onClose={() => setSelectedProduct(null)}
               onConfirm={handleConfirmAddStock}
             />
@@ -1145,15 +1256,22 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                    Localização *
+                    Estoque/Local *
                   </label>
-                  <input
-                    type="text"
+                  <select
                     name="location"
                     value={editFormData.location}
                     onChange={handleFormChange}
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
-                  />
+                  >
+                    {/* preserva texto legado que ainda não corresponde a um local cadastrado */}
+                    {editFormData.location && !locations.some(l => l.nome === editFormData.location) && (
+                      <option value={editFormData.location}>{editFormData.location} (legado)</option>
+                    )}
+                    {locations.map(l => (
+                      <option key={l.id} value={l.nome}>{l.nome}</option>
+                    ))}
+                  </select>
                 </div>
 
                 <div>

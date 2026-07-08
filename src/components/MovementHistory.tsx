@@ -14,6 +14,7 @@ import {
   Search
 } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
+import { ProductStock } from '../types';
 import { useNotification } from '../hooks/useNotification';
 import Notification from './Notification';
 import { MovementHistorySkeleton } from './PageLoadingSkeleton';
@@ -21,7 +22,7 @@ import { MovementHistorySkeleton } from './PageLoadingSkeleton';
 const ITEMS_PER_PAGE = 25;
 
 const MovementHistory: React.FC = () => {
-  const { movements, products, addMovement, loading } = useInventory();
+  const { movements, products, addMovement, loading, locations, fetchProductStock } = useInventory();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const [showAddMovement, setShowAddMovement] = useState(false);
   const [filterReason, setFilterReason] = useState<string>('all');
@@ -39,6 +40,25 @@ const MovementHistory: React.FC = () => {
     notes: '',
     authorizedBy: ''
   });
+  // Fase 5: local de origem da baixa + saldos por local do produto selecionado
+  const [fromLocationId, setFromLocationId] = useState('');
+  const [productStockRows, setProductStockRows] = useState<ProductStock[]>([]);
+
+  const handleSelectProduct = async (productId: string) => {
+    setNewMovement(prev => ({ ...prev, productId }));
+    setFromLocationId('');
+    setProductStockRows([]);
+    if (!productId) return;
+    try {
+      const rows = await fetchProductStock(productId);
+      setProductStockRows(rows);
+      const withStock = [...rows].filter(r => r.quantity > 0).sort((a, b) => b.quantity - a.quantity);
+      const principal = locations.find(l => l.isPrincipal);
+      setFromLocationId(withStock[0]?.locationId ?? principal?.id ?? '');
+    } catch {
+      setFromLocationId(locations.find(l => l.isPrincipal)?.id ?? '');
+    }
+  };
 
   const reasonLabels: Record<string, string> = {
     'internal-transfer': 'Transferência Interna',
@@ -167,6 +187,7 @@ const MovementHistory: React.FC = () => {
         date: new Date().toISOString().split('T')[0],
         authorizedBy: newMovement.authorizedBy,
         notes: newMovement.notes,
+        fromLocationId: fromLocationId || undefined,
         unitPrice: 0,
         totalValue: 0
       });
@@ -178,6 +199,8 @@ const MovementHistory: React.FC = () => {
         notes: '',
         authorizedBy: ''
       });
+      setFromLocationId('');
+      setProductStockRows([]);
       setShowAddMovement(false);
       showSuccess('Movimentação registrada com sucesso!');
     } catch (error) {
@@ -225,7 +248,7 @@ const MovementHistory: React.FC = () => {
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Produto *</label>
               <select
                 value={newMovement.productId}
-                onChange={(e) => setNewMovement(prev => ({ ...prev, productId: e.target.value }))}
+                onChange={(e) => handleSelectProduct(e.target.value)}
                 required
                 className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
               >
@@ -235,6 +258,31 @@ const MovementHistory: React.FC = () => {
                     {product.name} - {product.code} (Estoque: {product.quantity} {product.unit})
                   </option>
                 ))}
+              </select>
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Local de origem *</label>
+              <select
+                value={fromLocationId}
+                onChange={(e) => setFromLocationId(e.target.value)}
+                required
+                disabled={!newMovement.productId}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 disabled:opacity-50"
+              >
+                {productStockRows.filter(r => r.quantity > 0).length === 0 && (
+                  <option value="">Sem saldo rastreável</option>
+                )}
+                {productStockRows
+                  .filter(r => r.quantity > 0)
+                  .map(r => {
+                    const loc = locations.find(l => l.id === r.locationId);
+                    return (
+                      <option key={r.locationId} value={r.locationId}>
+                        {loc?.nome ?? 'Local'} — {r.quantity}
+                      </option>
+                    );
+                  })}
               </select>
             </div>
 

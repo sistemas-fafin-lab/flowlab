@@ -10,6 +10,9 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canDeleteProducts', label: 'Excluir Produtos', group: 'Produtos' },
   { key: 'canViewMovements', label: 'Visualizar Movimentações', group: 'Movimentações' },
   { key: 'canAddMovements', label: 'Adicionar Movimentações', group: 'Movimentações' },
+  // ── Estoque Departamental (Fase 5) ───────────────────────────────────────────
+  { key: 'canViewStockDepart', label: 'Visualizar Estoque Departamental', group: 'Estoque Departamental' },
+  { key: 'canConsumeStockDepart', label: 'Registrar Consumo do Setor', group: 'Estoque Departamental' },
   { key: 'canViewRequests', label: 'Visualizar Solicitações', group: 'Solicitações' },
   { key: 'canAddRequests', label: 'Criar Solicitações', group: 'Solicitações' },
   { key: 'canApproveRequests', label: 'Aprovar Solicitações', group: 'Solicitações' },

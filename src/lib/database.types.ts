@@ -82,13 +82,15 @@ export interface Database {
           id: string
           product_id: string
           product_name: string
-          type: 'out'
-          reason: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'other'
+          type: 'out' | 'in' | 'transfer'
+          reason: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'manutencao' | 'other' | 'purchase'
           quantity: number
           date: string
           request_id: string | null
           authorized_by: string | null
           notes: string | null
+          from_location_id: string | null
+          to_location_id: string | null
           unit_price: number | null
           created_at: string
         }
@@ -96,13 +98,15 @@ export interface Database {
           id?: string
           product_id: string
           product_name: string
-          type?: 'out'
-          reason: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'other'
+          type?: 'out' | 'in' | 'transfer'
+          reason: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'manutencao' | 'other' | 'purchase'
           quantity: number
           date?: string
           request_id?: string | null
           authorized_by?: string | null
           notes?: string | null
+          from_location_id?: string | null
+          to_location_id?: string | null
           unit_price?: number | null
           created_at?: string
         }
@@ -110,15 +114,75 @@ export interface Database {
           id?: string
           product_id?: string
           product_name?: string
-          type?: 'out'
-          reason?: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'other'
+          type?: 'out' | 'in' | 'transfer'
+          reason?: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'manutencao' | 'other' | 'purchase'
           quantity?: number
           date?: string
           request_id?: string | null
           authorized_by?: string | null
           notes?: string | null
+          from_location_id?: string | null
+          to_location_id?: string | null
           unit_price?: number | null
           created_at?: string
+        }
+      }
+      stock_locations: {
+        Row: {
+          id: string
+          nome: string
+          department: string | null
+          posto_id: string | null
+          is_principal: boolean
+          rastreavel: boolean
+          controla_consumo: boolean
+          ativo: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          nome: string
+          department?: string | null
+          posto_id?: string | null
+          is_principal?: boolean
+          rastreavel?: boolean
+          controla_consumo?: boolean
+          ativo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          nome?: string
+          department?: string | null
+          posto_id?: string | null
+          is_principal?: boolean
+          rastreavel?: boolean
+          controla_consumo?: boolean
+          ativo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      product_stock: {
+        Row: {
+          product_id: string
+          location_id: string
+          quantity: number
+          updated_at: string
+        }
+        Insert: {
+          product_id: string
+          location_id: string
+          quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          product_id?: string
+          location_id?: string
+          quantity?: number
+          updated_at?: string
         }
       }
       requests: {

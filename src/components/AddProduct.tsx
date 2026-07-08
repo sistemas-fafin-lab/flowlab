@@ -8,7 +8,7 @@ import { useNotification } from '../hooks/useNotification';
 import Notification from './Notification';
 
 const AddProduct: React.FC = () => {
-  const { addProduct } = useInventory();
+  const { addProduct, locations, receiveStock } = useInventory();
   const location = useLocation();
   const prefilledData = location.state?.prefilledData;
   const { notification, showSuccess, showError, hideNotification } = useNotification();
@@ -128,12 +128,25 @@ const AddProduct: React.FC = () => {
         status = 'expired';
       }
 
-      await addProduct({
+      // Todo produto novo entra no estoque principal (não há mais escolha de local aqui).
+      const principal = locations.find(l => l.isPrincipal);
+
+      const newId = await addProduct({
         ...formData,
+        location: principal?.nome ?? formData.location,
         category: formData.category as 'general' | 'technical',
         status,
         totalValue
       });
+
+      // §6.1: recebimento inicial via movimentação (type:'in') no estoque principal,
+      // em vez de gravar quantity direto no produto.
+      if (newId && formData.quantity > 0 && principal) {
+        await receiveStock(newId, principal.id, formData.quantity, {
+          productName: formData.name,
+          unitPrice: formData.unitPrice,
+        });
+      }
 
       showSuccess('Produto adicionado com sucesso!');
       setFormData({
@@ -395,22 +408,6 @@ const AddProduct: React.FC = () => {
                 required
                 className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
                 placeholder="Ex: LT240315"
-              />
-            </div>
-
-            <div>
-              <label htmlFor="location" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Localização *
-              </label>
-              <input
-                type="text"
-                id="location"
-                name="location"
-                value={formData.location}
-                onChange={handleChange}
-                required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
-                placeholder="Ex: Prateleira A1, Geladeira B2"
               />
             </div>
 

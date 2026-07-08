@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
+  Boxes,
   Plus,
   History,
   FileText,
@@ -82,7 +83,7 @@ const DEFAULT_CATEGORIES: CategoryConfig[] = [
     id: 'operacoes',
     name: 'OPERAÇÕES',
     sort_order: 1,
-    items: ['Produtos', 'Movimentações', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas'],
+    items: ['Produtos', 'Movimentações', 'Estoque Departamental', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas'],
   },
   {
     id: 'administracao',
@@ -553,6 +554,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         href: '/movements',
         icon: History,
         permission: 'canViewMovements',
+        category: 'OPERAÇÕES',
+      },
+      {
+        name: 'Estoque Departamental',
+        href: '/estoque-departamental',
+        icon: Boxes,
+        permission: 'canViewStockDepart',
         category: 'OPERAÇÕES',
       },
       {

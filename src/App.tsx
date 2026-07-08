@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard';
 import ProductList from './components/ProductList';
 import AddProduct from './components/AddProduct';
 import MovementHistory from './components/MovementHistory';
+import EstoqueDepartamental from './components/EstoqueDepartamental';
 import RequestManagement from './components/RequestManagement';
 import ExpirationMonitor from './components/ExpirationMonitor';
 import ProductChangeLog from './components/ProductChangeLog';
@@ -105,6 +106,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canViewMovements" permissions={userPermissions}>
               <MovementHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/estoque-departamental"
+          element={
+            <ProtectedRoute permission="canViewStockDepart" permissions={userPermissions}>
+              <EstoqueDepartamental />
             </ProtectedRoute>
           }
         />
