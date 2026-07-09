@@ -39,6 +39,7 @@ import {
   Stethoscope,
   CalendarClock,
   MapPin,
+  Droplets,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -453,7 +454,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
-    if (['/analises-clinicas/agendamentos', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
+    if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -611,6 +612,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         category: 'OPERAÇÕES',
         subItems: [
           { name: 'Agendamentos', href: '/analises-clinicas/agendamentos', icon: CalendarClock, permission: 'canViewAnalisesClinicas' },
+          { name: 'Check-in', href: '/analises-clinicas/coletas', icon: Droplets, permission: 'canManageColetas' },
           { name: 'Postos de Coleta', href: '/analises-clinicas/postos', icon: MapPin, permission: 'canManageAnalisesClinicas' },
         ],
       },
