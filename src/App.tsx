@@ -33,15 +33,19 @@ import ITKanbanBoard from './components/IT/ITKanbanBoard';
 import TestKanban from './components/IT/TestKanban';
 import { NotificationAdminPanel } from './components/NotificationAdminPanel';
 import CostControlDashboard from './pages/CostControlDashboard';
-import { AgendamentosPage, PostosPage, PainelColetasPage } from './modules/analises-clinicas';
+import { AgendamentosPage, PostosPage, PainelColetasPage, TemperaturaEquipamentosPage } from './modules/analises-clinicas';
 
 // Protected Route Component
-const ProtectedRoute: React.FC<{ 
-  children: React.ReactNode; 
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
   permission?: string;
+  anyOf?: string[];
   permissions: string[];
-}> = ({ children, permission, permissions }) => {
-  if (permission && !hasPermission(permissions, permission)) {
+}> = ({ children, permission, anyOf, permissions }) => {
+  const denied =
+    (permission && !hasPermission(permissions, permission)) ||
+    (anyOf && anyOf.length > 0 && !anyOf.some((p) => hasPermission(permissions, p)));
+  if (denied) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
         <h3 className="text-lg font-medium text-red-800 mb-2">Acesso Negado</h3>
@@ -270,6 +274,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canManageColetas" permissions={userPermissions}>
               <PainelColetasPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/temperatura"
+          element={
+            <ProtectedRoute anyOf={['canViewTemperatura', 'canManageColetas']} permissions={userPermissions}>
+              <TemperaturaEquipamentosPage />
             </ProtectedRoute>
           }
         />

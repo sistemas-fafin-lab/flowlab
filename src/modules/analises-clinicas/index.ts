@@ -2,11 +2,14 @@
 export { default as AgendamentosPage } from './components/AgendamentosPage';
 export { default as PostosPage } from './components/PostosPage';
 export { default as PainelColetasPage } from './components/PainelColetasPage';
+export { default as TemperaturaEquipamentosPage } from './components/TemperaturaEquipamentosPage';
 export { useAgendamentos } from './hooks/useAgendamentos';
 export { usePostos } from './hooks/usePostos';
 export { useColetas } from './hooks/useColetas';
+export { useTemperaturas } from './hooks/useTemperaturas';
 export {
   CHECKLIST_RECEPCAO,
+  TIPOS_EQUIPAMENTO,
 } from './types';
 export type {
   AcAgendamento,
@@ -21,4 +24,7 @@ export type {
   CheckinResultado,
   ChecklistItemKey,
   InsumoInput,
+  AcEquipamento,
+  AcTemperatura,
+  EquipamentoTipo,
 } from './types';

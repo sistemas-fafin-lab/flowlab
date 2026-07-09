@@ -115,3 +115,52 @@ export interface InsumoInput {
   productId: string;
   quantity: number;
 }
+
+// ─── Fase 7 (Etapa C) — Temperatura e Equipamentos ──────────────────────────────
+
+// Tipos de equipamento monitorado (espelham o CHECK de ac_equipamentos.tipo).
+export type EquipamentoTipo =
+  | 'geladeira'
+  | 'freezer'
+  | 'estufa'
+  | 'incubadora'
+  | 'banho_maria'
+  | 'ambiente'
+  | 'outro';
+
+// Lista FIXA dos tipos (fonte do select da tela e das chaves válidas de tipo).
+export const TIPOS_EQUIPAMENTO: { key: EquipamentoTipo; label: string }[] = [
+  { key: 'geladeira',   label: 'Geladeira' },
+  { key: 'freezer',     label: 'Freezer' },
+  { key: 'estufa',      label: 'Estufa' },
+  { key: 'incubadora',  label: 'Incubadora' },
+  { key: 'banho_maria', label: 'Banho-maria' },
+  { key: 'ambiente',    label: 'Ambiente' },
+  { key: 'outro',       label: 'Outro' },
+];
+
+// Equipamento monitorado + faixa aceitável — espelha ac_equipamentos.
+export interface AcEquipamento {
+  id: string;
+  nome: string;
+  tipo: EquipamentoTipo;
+  localizacao: string | null;
+  temp_min: number;
+  temp_max: number;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Leitura de temperatura (log append-only) — espelha ac_temperaturas.
+// `fora_faixa` é derivado no banco (trigger) contra a faixa do equipamento.
+export interface AcTemperatura {
+  id: string;
+  equipamento_id: string;
+  temperatura: number;
+  fora_faixa: boolean;
+  registrado_por: string;
+  observacao: string | null;
+  registrado_em: string; // ISO 8601
+  created_at: string;
+}
