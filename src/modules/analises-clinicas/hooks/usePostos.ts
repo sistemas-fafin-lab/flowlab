@@ -51,8 +51,26 @@ export function usePostos(): UsePostosResult {
 
   const createPosto: UsePostosResult['createPosto'] = useCallback(
     async ({ nome, endereco }) => {
-      const { error: err } = await supabase.from('ac_postos').insert({ nome, endereco });
+      const { data, error: err } = await supabase
+        .from('ac_postos')
+        .insert({ nome, endereco })
+        .select('id, nome')
+        .single();
       if (err) return err.message;
+      // Cada posto ganha um estoque departamental próprio (local rastreável com
+      // controle de consumo): a Qualidade transfere para ele; o posto consome/vence.
+      if (data) {
+        const { error: locErr } = await supabase.from('stock_locations').insert({
+          nome: `Posto — ${data.nome}`,
+          department: data.nome,
+          is_principal: false,
+          rastreavel: true,
+          controla_consumo: true,
+          posto_id: data.id,
+        });
+        // 23505 = nome já existe (local já criado): não é motivo para falhar o posto.
+        if (locErr && locErr.code !== '23505') console.error('Falha ao criar o estoque do posto:', locErr.message);
+      }
       await refetch();
       return null;
     },
@@ -63,6 +81,13 @@ export function usePostos(): UsePostosResult {
     async (id, patch) => {
       const { error: err } = await supabase.from('ac_postos').update(patch).eq('id', id);
       if (err) return err.message;
+      // Mantém o estoque departamental do posto em sincronia (nome/ativo).
+      const locPatch: Record<string, unknown> = {};
+      if (patch.nome !== undefined) { locPatch.nome = `Posto — ${patch.nome}`; locPatch.department = patch.nome; }
+      if (patch.ativo !== undefined) locPatch.ativo = patch.ativo;
+      if (Object.keys(locPatch).length > 0) {
+        await supabase.from('stock_locations').update(locPatch).eq('posto_id', id);
+      }
       await refetch();
       return null;
     },
@@ -71,6 +96,15 @@ export function usePostos(): UsePostosResult {
 
   const deletePosto: UsePostosResult['deletePosto'] = useCallback(
     async (id) => {
+      // O estoque departamental do posto referencia ac_postos (FK RESTRICT); remove-o
+      // antes. Se o local ainda tiver saldo, o RESTRICT de product_stock (23503) barra
+      // e devolvemos um erro claro — não se exclui um posto que ainda tem estoque.
+      const { error: locErr } = await supabase.from('stock_locations').delete().eq('posto_id', id);
+      if (locErr) {
+        return locErr.code === '23503'
+          ? 'Não é possível excluir: o posto ainda possui estoque departamental com saldo.'
+          : locErr.message;
+      }
       // Horários padrão e exceções somem junto (FK ON DELETE CASCADE); agendamentos
       // existentes mantêm o snapshot local_posto (posto_id vira NULL).
       const { error: err } = await supabase.from('ac_postos').delete().eq('id', id);
