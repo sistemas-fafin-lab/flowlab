@@ -251,10 +251,16 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 > Dependência da coleta: `ac_coleta_insumos` (Fase 6) dá baixa em `stock_movements`, então os locais precisam existir antes.
 
 ### Fase 6 — Coleta / recoleta 🔜
-- [ ] Migrations `ac_coletas`, `ac_recoletas`, `ac_coleta_insumos` (+ RLS, índices, triggers `updated_at`)
-- [ ] Baixa de insumos em `stock_movements` ao registrar a coleta
-- [ ] `PainelColetasPage` (fila derivada dos agendamentos `recebido`) + `RecoletasPage`
-- [ ] Rotas `/analises-clinicas/{coletas,recoletas}` + gating `canManageColetas`
+> **Plano detalhado:** [`PLANO_FASE6_COLETAS.md`](PLANO_FASE6_COLETAS.md)
+
+**Etapa A — Coletas + baixa (esta rodada):**
+- [ ] Migrations `ac_coletas`, `ac_coleta_insumos` (+ RLS, índices, trigger `updated_at`)
+- [ ] Baixa de insumos em `stock_movements` ao registrar a coleta, via RPC transacional `registrar_coleta` (reusa o trigger multi-local da Fase 5; origem = estoque do posto)
+- [ ] `PainelColetasPage` (fila derivada dos agendamentos `recebido`/`em_coleta`) — insumo por seleção manual
+- [ ] Rota `/analises-clinicas/coletas` + gating `canManageColetas`
+
+**Etapa B — Recoletas (adiada):**
+- [ ] `ac_recoletas` + `RecoletasPage` + rota `/recoletas` — quando o gatilho da recoleta estiver definido (provável: reprovação na análise, Fase 7)
 
 > Próximo passo após o agendamento e **porta de entrada dos dados** a jusante. A notificação `ac_recoleta` fica fora (WhatsApp fora de escopo).
 
