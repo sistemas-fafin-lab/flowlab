@@ -264,10 +264,19 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 
 > Próximo passo após o agendamento e **porta de entrada dos dados** a jusante. A notificação `ac_recoleta` fica fora (WhatsApp fora de escopo).
 
-### Fase 7 — Análise / cultura / temperatura 🔜
-- [ ] Migrations `ac_analises`, `ac_culturas`, `ac_temperaturas`, `ac_equipamentos` (+ RLS, índices)
-- [ ] Páginas de análise e cultura + monitoramento de temperatura de equipamentos com alertas
-- [ ] Rotas + gating
+### Fase 7 — Análise / cultura / temperatura 🚧
+> Dividida em etapas independentes (ver `docs/PLANO_FASE7_ANALISE.md`).
+
+**Etapa A — Análise (planejada):**
+- [ ] Migration `ac_analises` (+ `ac_analise_insumos`, RLS, índices) e RPC `registrar_analise`
+- [ ] Página de análise: desfecho aprovado/reprovado + baixa de reagentes — o `reprovado` habilita a recoleta (Fase 6 Etapa B)
+
+**Etapa B — Cultura (adiada):**
+- [ ] Migration `ac_culturas` + página de cultura (microbiologia)
+
+**Etapa C — Temperatura / equipamentos ✅ (independente, feita):**
+- [x] Migrations `ac_equipamentos` + `ac_temperaturas` (faixa aceitável, trigger de `fora_faixa`, RLS) — `20260709120000`
+- [x] Página `TemperaturaEquipamentosPage` (cards com situação normal/no limite/fora, sparkline, header-resumo com indicadores) + rota/nav + permissão de leitura `canViewTemperatura`
 
 > Camada de **rigor interno** (QC). Vem depois da coleta (analisa-se o que foi coletado) e não bloqueia nada do lado do paciente.
 
