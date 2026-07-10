@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { supabase } from '../../../lib/supabase';
-import type { AcCheckin, CheckinResultado, ChecklistItemKey, InsumoInput } from '../types';
+import type { AcCheckin, CheckinResultado, ChecklistItemKey } from '../types';
 
 interface UseColetasResult {
   // Conferência de recepção (gate). Retorna a mensagem de erro, ou null em sucesso.
@@ -11,12 +11,15 @@ interface UseColetasResult {
     problemaEm: ChecklistItemKey | null,
     motivo: string | null,
   ) => Promise<string | null>;
-  // Coleta + baixa de insumos. Retorna a mensagem de erro, ou null em sucesso.
+  // Recebimento (Fase 7A): exames do pedido + validade + etiqueta. Insumo saiu do
+  // check-in (a capacidade segue na RPC). Retorna a mensagem de erro, ou null.
   registrarColeta: (
     agendamentoId: string,
     coletadoPor: string,
     observacoes: string,
-    insumos: InsumoInput[],
+    exameIds: string[],
+    validadeOk: boolean | null,
+    etiquetado: boolean | null,
   ) => Promise<string | null>;
   // Conferências dos agendamentos informados (p/ exibir o motivo dos bloqueados).
   fetchCheckins: (agendamentoIds: string[]) => Promise<AcCheckin[]>;
@@ -40,12 +43,15 @@ export function useColetas(): UseColetasResult {
   );
 
   const registrarColeta = useCallback<UseColetasResult['registrarColeta']>(
-    async (agendamentoId, coletadoPor, observacoes, insumos) => {
+    async (agendamentoId, coletadoPor, observacoes, exameIds, validadeOk, etiquetado) => {
       const { error } = await supabase.rpc('registrar_coleta', {
         p_agendamento_id: agendamentoId,
         p_coletado_por: coletadoPor,
         p_observacoes: observacoes,
-        p_insumos: insumos.map((i) => ({ product_id: i.productId, quantity: i.quantity })),
+        p_exame_ids: exameIds,
+        p_validade_ok: validadeOk,
+        p_etiquetado: etiquetado,
+        p_insumos: [], // baixa de insumo saiu do check-in (capacidade preservada na RPC)
       });
       return error ? error.message : null;
     },

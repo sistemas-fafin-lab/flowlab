@@ -33,7 +33,7 @@ import ITKanbanBoard from './components/IT/ITKanbanBoard';
 import TestKanban from './components/IT/TestKanban';
 import { NotificationAdminPanel } from './components/NotificationAdminPanel';
 import CostControlDashboard from './pages/CostControlDashboard';
-import { AgendamentosPage, PostosPage, PainelColetasPage, TemperaturaEquipamentosPage } from './modules/analises-clinicas';
+import { AgendamentosPage, PostosPage, PainelColetasPage, TemperaturaEquipamentosPage, CulturasPage } from './modules/analises-clinicas';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -282,6 +282,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute anyOf={['canViewTemperatura', 'canManageColetas']} permissions={userPermissions}>
               <TemperaturaEquipamentosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/culturas"
+          element={
+            <ProtectedRoute permission="canManageColetas" permissions={userPermissions}>
+              <CulturasPage />
             </ProtectedRoute>
           }
         />

@@ -41,6 +41,7 @@ import {
   MapPin,
   Droplets,
   Thermometer,
+  Microscope,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -456,7 +457,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
-    if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/temperatura', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
+    if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/temperatura', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -615,6 +616,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         subItems: [
           { name: 'Agendamentos', href: '/analises-clinicas/agendamentos', icon: CalendarClock, permission: 'canViewAnalisesClinicas' },
           { name: 'Check-in', href: '/analises-clinicas/coletas', icon: Droplets, permission: 'canManageColetas' },
+          { name: 'Culturas', href: '/analises-clinicas/culturas', icon: Microscope, permission: 'canManageColetas' },
           { name: 'Temperatura', href: '/analises-clinicas/temperatura', icon: Thermometer, anyOf: ['canViewTemperatura', 'canManageColetas'] },
           { name: 'Postos de Coleta', href: '/analises-clinicas/postos', icon: MapPin, permission: 'canManageAnalisesClinicas' },
         ],

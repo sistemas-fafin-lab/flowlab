@@ -1,0 +1,113 @@
+import { useCallback, useEffect, useState } from 'react';
+import { supabase } from '../../../lib/supabase';
+import type { AcCultura, AcCulturaEtapa, CulturaStatus } from '../types';
+
+// Campos editáveis manualmente de uma cultura (a via de criação é o check-in).
+export interface CulturaPatch {
+  etapaOrdem?: number;
+  status?: CulturaStatus;
+  nota?: string | null;
+  resultado?: string | null;
+  prazoDias?: number;
+}
+
+interface UseCulturasResult {
+  culturas: AcCultura[];
+  etapas: AcCulturaEtapa[]; // trilha ordenada (ac_cultura_etapas) p/ o stepper
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+  updateCultura: (id: string, patch: CulturaPatch) => Promise<string | null>;
+  deleteCultura: (id: string) => Promise<string | null>;
+}
+
+const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v));
+
+const mapCultura = (r: Record<string, unknown>): AcCultura => ({
+  id: r.id as string,
+  agendamento_id: r.agendamento_id as string,
+  exame_id: (r.exame_id as string) ?? null,
+  exame_nome: r.exame_nome as string,
+  paciente_nome: (r.paciente_nome as string) ?? null,
+  posto_id: (r.posto_id as string) ?? null,
+  local_posto: (r.local_posto as string) ?? null,
+  etapa_ordem: num(r.etapa_ordem),
+  status: r.status as CulturaStatus,
+  nota: (r.nota as string) ?? null,
+  resultado: (r.resultado as string) ?? null,
+  iniciada_em: r.iniciada_em as string,
+  prazo_dias: num(r.prazo_dias),
+  created_at: r.created_at as string,
+  updated_at: r.updated_at as string,
+});
+
+const mapEtapa = (r: Record<string, unknown>): AcCulturaEtapa => ({
+  id: r.id as string,
+  ordem: num(r.ordem),
+  nome: r.nome as string,
+  ativo: Boolean(r.ativo),
+});
+
+// Acompanhamento manual de culturas (ac_culturas / ac_cultura_etapas, Fase 7A).
+// RLS permissiva por authenticated; o gate é o frontend + a permissão. As culturas
+// nascem no check-in (registrar_coleta); aqui só se lê e atualiza etapa/status.
+export function useCulturas(): UseCulturasResult {
+  const [culturas, setCulturas] = useState<AcCultura[]>([]);
+  const [etapas, setEtapas] = useState<AcCulturaEtapa[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const refetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    const [cRes, eRes] = await Promise.all([
+      supabase.from('ac_culturas').select('*').order('iniciada_em', { ascending: false }),
+      supabase.from('ac_cultura_etapas').select('*').eq('ativo', true).order('ordem', { ascending: true }),
+    ]);
+    if (cRes.error) {
+      setError(cRes.error.message);
+      setCulturas([]);
+    } else {
+      setCulturas((cRes.data ?? []).map(mapCultura));
+    }
+    if (eRes.error) {
+      if (!cRes.error) setError(eRes.error.message);
+      setEtapas([]);
+    } else {
+      setEtapas((eRes.data ?? []).map(mapEtapa));
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void refetch();
+  }, [refetch]);
+
+  const updateCultura: UseCulturasResult['updateCultura'] = useCallback(
+    async (id, patch) => {
+      const row: Record<string, unknown> = {};
+      if (patch.etapaOrdem !== undefined) row.etapa_ordem = patch.etapaOrdem;
+      if (patch.status !== undefined) row.status = patch.status;
+      if (patch.nota !== undefined) row.nota = patch.nota || null;
+      if (patch.resultado !== undefined) row.resultado = patch.resultado || null;
+      if (patch.prazoDias !== undefined) row.prazo_dias = patch.prazoDias;
+      const { error: err } = await supabase.from('ac_culturas').update(row).eq('id', id);
+      if (err) return err.message;
+      await refetch();
+      return null;
+    },
+    [refetch],
+  );
+
+  const deleteCultura: UseCulturasResult['deleteCultura'] = useCallback(
+    async (id) => {
+      const { error: err } = await supabase.from('ac_culturas').delete().eq('id', id);
+      if (err) return err.message;
+      await refetch();
+      return null;
+    },
+    [refetch],
+  );
+
+  return { culturas, etapas, loading, error, refetch, updateCultura, deleteCultura };
+}

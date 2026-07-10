@@ -11,7 +11,6 @@ import {
   AlertTriangle,
   Ban,
   Plus,
-  Trash2,
   Loader2,
   FlaskConical,
   Contact,
@@ -19,6 +18,10 @@ import {
   Utensils,
   ShieldCheck,
   Check,
+  Search,
+  Microscope,
+  Tag,
+  CalendarClock,
   type LucideIcon,
 } from 'lucide-react';
 import { useAgendamentos } from '../hooks/useAgendamentos';
@@ -31,7 +34,6 @@ import {
   type AcAgendamento,
   type AcCheckin,
   type ChecklistItemKey,
-  type InsumoInput,
 } from '../types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -55,24 +57,22 @@ const fmtTelefone = (tel: string): string => {
 const iniciais = (nome: string) =>
   nome.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase();
 
+// Normaliza p/ busca acento-insensível (os nomes dos exames vêm em caixa alta com acento).
+const normalize = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
 // Rótulo de uma chave do checklist (p/ exibir nos bloqueados).
 const CHECKLIST_LABEL: Record<string, string> = Object.fromEntries(
   CHECKLIST_RECEPCAO.map((i) => [i.key, i.label]),
 );
 
-interface StockItem {
-  productId: string;
-  productName: string;
-  unit: string;
-  code: string;
-  quantity: number;
-}
-
-// Linha crua da query de saldo (product_stock + join em products).
-interface StockQueryRow {
-  product_id: string;
-  quantity: number;
-  products: { name: string | null; unit: string | null; code: string | null } | null;
+// Opção do catálogo de exames (ac_exames) usada no multi-select do check-in.
+interface ExameOpt {
+  id: string;
+  nome: string;
+  mnemonico: string | null;
+  material: string | null;
+  is_cultura: boolean;
 }
 
 // ─── Subcomponentes ─────────────────────────────────────────────────────────────
@@ -205,7 +205,7 @@ const PainelColetasPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Coletas</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Conferência de recepção e registro de coleta · baixa de insumos no posto
+              Conferência de recepção, seleção de exames, validade e etiqueta
             </p>
           </div>
         </div>
@@ -287,7 +287,7 @@ const PainelColetasPage: React.FC = () => {
           {/* Fila: liberados p/ coleta */}
           <Fila
             titulo="Liberados p/ coleta"
-            descricao="Registre a coleta e a baixa de insumos"
+            descricao="Selecione os exames, confira validade e etiquete"
             icon={<FlaskConical className="w-[18px] h-[18px]" />}
             cor="from-amber-400 to-orange-500"
             count={liberados.length}
@@ -642,7 +642,45 @@ const ConferenciaModal: React.FC<{
   );
 };
 
-// ─── Modal: registrar coleta + baixa de insumos ─────────────────────────────────
+// ─── Toggle de conferência (validade / etiqueta) ────────────────────────────────
+const ToggleCard: React.FC<{
+  icon: LucideIcon;
+  label: string;
+  desc: string;
+  on: boolean;
+  onClick: () => void;
+}> = ({ icon: Icon, label, desc, on, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all ${
+      on
+        ? 'border-emerald-300 bg-emerald-50/60 dark:bg-emerald-900/15 dark:border-emerald-800'
+        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/30'
+    }`}
+  >
+    <div
+      className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+        on ? 'bg-emerald-500 text-white' : 'bg-slate-700 text-white'
+      }`}
+    >
+      <Icon className="w-[18px] h-[18px]" />
+    </div>
+    <div className="min-w-0 flex-1">
+      <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{label}</div>
+      <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{desc}</div>
+    </div>
+    <span
+      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+        on ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-gray-300 dark:border-gray-600 text-transparent'
+      }`}
+    >
+      <Check className="w-3 h-3" />
+    </span>
+  </button>
+);
+
+// ─── Modal: recebimento — exames do pedido + validade + etiqueta ─────────────────
 const ColetaModal: React.FC<{
   ag: AcAgendamento;
   coletorNome: string;
@@ -652,103 +690,79 @@ const ColetaModal: React.FC<{
 }> = ({ ag, coletorNome, onClose, onDone, registrarColeta }) => {
   const [coletadoPor, setColetadoPor] = useState(coletorNome);
   const [observacoes, setObservacoes] = useState('');
-  const [insumos, setInsumos] = useState<InsumoInput[]>([]);
-  const [estoque, setEstoque] = useState<StockItem[]>([]);
-  const [loadingEstoque, setLoadingEstoque] = useState(true);
-  const [estoqueErro, setEstoqueErro] = useState<string | null>(null);
+  const [catalogo, setCatalogo] = useState<ExameOpt[]>([]);
+  const [loadingExames, setLoadingExames] = useState(true);
+  const [examesErro, setExamesErro] = useState<string | null>(null);
+  const [busca, setBusca] = useState('');
+  const [selecionados, setSelecionados] = useState<ExameOpt[]>([]);
+  const [validadeOk, setValidadeOk] = useState(false);
+  const [etiquetado, setEtiquetado] = useState(false);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  // Resolve o local do posto e carrega os produtos com saldo (espelha o §5.2).
+  // Carrega o catálogo de exames ativos (~500 linhas; o filtro é client-side).
   useEffect(() => {
     let ativo = true;
     (async () => {
-      setLoadingEstoque(true);
-      setEstoqueErro(null);
-      if (!ag.posto_id) {
-        if (ativo) {
-          setEstoqueErro('Agendamento sem posto: não há estoque de onde baixar.');
-          setLoadingEstoque(false);
-        }
-        return;
-      }
-      const { data: loc, error: locErr } = await supabase
-        .from('stock_locations')
-        .select('id')
-        .eq('posto_id', ag.posto_id)
-        .eq('rastreavel', true)
+      setLoadingExames(true);
+      setExamesErro(null);
+      const { data, error } = await supabase
+        .from('ac_exames')
+        .select('id, nome, mnemonico, material, is_cultura')
         .eq('ativo', true)
-        .order('is_principal', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('nome');
       if (!ativo) return;
-      if (locErr || !loc) {
-        setEstoqueErro('Posto sem estoque rastreável configurado.');
-        setLoadingEstoque(false);
-        return;
-      }
-      const { data: rows, error: stErr } = await supabase
-        .from('product_stock')
-        .select('product_id, quantity, products(name, unit, code)')
-        .eq('location_id', loc.id)
-        .gt('quantity', 0);
-      if (!ativo) return;
-      if (stErr) {
-        setEstoqueErro(stErr.message);
-      } else {
-        const typed = (rows ?? []) as unknown as StockQueryRow[];
-        setEstoque(
-          typed.map((r) => ({
-            productId: r.product_id,
-            productName: r.products?.name ?? '',
-            unit: r.products?.unit ?? '',
-            code: r.products?.code ?? '',
-            quantity: r.quantity,
-          })),
-        );
-      }
-      setLoadingEstoque(false);
+      if (error) setExamesErro(error.message);
+      else setCatalogo((data ?? []) as ExameOpt[]);
+      setLoadingExames(false);
     })();
     return () => {
       ativo = false;
     };
-  }, [ag.posto_id]);
+  }, []);
 
-  const saldoDe = (productId: string) => estoque.find((e) => e.productId === productId)?.quantity ?? 0;
+  const selIds = useMemo(() => new Set(selecionados.map((e) => e.id)), [selecionados]);
+  const resultados = useMemo(() => {
+    const q = normalize(busca);
+    if (!q) return [];
+    return catalogo
+      .filter((e) => !selIds.has(e.id))
+      .filter((e) => normalize(e.nome).includes(q) || (e.mnemonico ? normalize(e.mnemonico).includes(q) : false))
+      .slice(0, 20);
+  }, [busca, catalogo, selIds]);
+  const culturasSel = useMemo(() => selecionados.filter((e) => e.is_cultura).length, [selecionados]);
 
-  const addInsumo = () => setInsumos((prev) => [...prev, { productId: '', quantity: 1 }]);
-  const updateInsumo = (idx: number, patch: Partial<InsumoInput>) =>
-    setInsumos((prev) => prev.map((it, i) => (i === idx ? { ...it, ...patch } : it)));
-  const removeInsumo = (idx: number) => setInsumos((prev) => prev.filter((_, i) => i !== idx));
+  const addExame = (e: ExameOpt) =>
+    setSelecionados((prev) => (prev.some((x) => x.id === e.id) ? prev : [...prev, e]));
+  const removeExame = (id: string) => setSelecionados((prev) => prev.filter((e) => e.id !== id));
 
   const salvar = async () => {
-    const limpos = insumos.filter((i) => i.productId && i.quantity > 0);
-    // Guarda de UI: nenhuma linha pode exceder o saldo (o RPC também barra via CHECK>=0).
-    for (const it of limpos) {
-      if (it.quantity > saldoDe(it.productId)) {
-        setErro('Um insumo excede o saldo disponível no posto.');
-        return;
-      }
-    }
     if (!coletadoPor.trim()) {
-      setErro('Informe quem realizou a coleta.');
+      setErro('Informe quem registrou o recebimento.');
+      return;
+    }
+    if (selecionados.length === 0) {
+      setErro('Selecione ao menos um exame do pedido.');
       return;
     }
     setSaving(true);
     setErro(null);
-    const err = await registrarColeta(ag.id, coletadoPor.trim(), observacoes, limpos);
+    const err = await registrarColeta(
+      ag.id,
+      coletadoPor.trim(),
+      observacoes,
+      selecionados.map((e) => e.id),
+      validadeOk,
+      etiquetado,
+    );
     setSaving(false);
     if (err) setErro(err);
     else await onDone();
   };
 
-  // Produtos ainda não escolhidos em outras linhas (evita duplicidade confusa).
-  const disponiveis = (atual: string) =>
-    estoque.filter((e) => e.productId === atual || !insumos.some((i) => i.productId === e.productId));
-
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -763,9 +777,10 @@ const ColetaModal: React.FC<{
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5 overflow-y-auto space-y-4">
+        <div className="px-6 py-5 overflow-y-auto space-y-5">
+          {/* Registrado por */}
           <div>
-            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Coletado por</label>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">Registrado por</label>
             <input
               type="text"
               value={coletadoPor}
@@ -774,68 +789,129 @@ const ColetaModal: React.FC<{
             />
           </div>
 
-          {/* Insumos */}
+          {/* Exames do pedido */}
           <div>
-            <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs font-medium text-gray-600 dark:text-gray-300">
-                Insumos consumidos <span className="text-gray-400">(opcional)</span>
-              </label>
-              <button
-                onClick={addInsumo}
-                disabled={loadingEstoque || !!estoqueErro || estoque.length === 0}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors disabled:opacity-40"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                Adicionar
-              </button>
-            </div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">Exames do pedido</label>
 
-            {loadingEstoque ? (
+            {loadingExames ? (
               <div className="flex items-center gap-2 text-sm text-gray-400 py-2">
-                <Loader2 className="w-4 h-4 animate-spin" /> Carregando estoque do posto…
+                <Loader2 className="w-4 h-4 animate-spin" /> Carregando catálogo de exames…
               </div>
-            ) : estoqueErro ? (
+            ) : examesErro ? (
               <div className="p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-sm">
-                {estoqueErro}
+                {examesErro}
               </div>
-            ) : insumos.length === 0 ? (
-              <p className="text-xs text-gray-400 py-1">Nenhum insumo — a coleta será registrada sem baixa.</p>
             ) : (
-              <div className="space-y-2">
-                {insumos.map((it, idx) => (
-                  <div key={idx} className="flex items-center gap-2">
-                    <select
-                      value={it.productId}
-                      onChange={(e) => updateInsumo(idx, { productId: e.target.value })}
-                      className="flex-1 min-w-0 px-2.5 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="">Selecione o produto…</option>
-                      {disponiveis(it.productId).map((e) => (
-                        <option key={e.productId} value={e.productId}>
-                          {e.productName} ({e.quantity} {e.unit || 'un'})
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      min={1}
-                      max={saldoDe(it.productId) || undefined}
-                      value={it.quantity}
-                      onChange={(e) => updateInsumo(idx, { quantity: Math.max(1, Number(e.target.value) || 1) })}
-                      className="w-20 px-2.5 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 tabular-nums focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      onClick={() => removeInsumo(idx)}
-                      className="p-2 rounded-lg text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+              <div className="space-y-2.5">
+                {/* Selecionados */}
+                {selecionados.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {selecionados.map((e) => (
+                      <span
+                        key={e.id}
+                        className={`inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg text-xs font-medium border ${
+                          e.is_cultura
+                            ? 'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-800/60'
+                            : 'bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700/50 dark:text-gray-200 dark:border-gray-600'
+                        }`}
+                      >
+                        {e.is_cultura && <Microscope className="w-3.5 h-3.5 shrink-0" />}
+                        <span className="truncate max-w-[200px]">{e.nome}</span>
+                        <button
+                          onClick={() => removeExame(e.id)}
+                          className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                          aria-label={`Remover ${e.nome}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </span>
+                    ))}
                   </div>
-                ))}
+                )}
+
+                {/* Busca */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Buscar exame por nome ou mnemônico…"
+                    className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                {/* Resultados da busca */}
+                {busca.trim() &&
+                  (resultados.length === 0 ? (
+                    <p className="text-xs text-gray-400 px-1">Nenhum exame encontrado.</p>
+                  ) : (
+                    <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 max-h-56 overflow-y-auto">
+                      {resultados.map((e) => (
+                        <button
+                          key={e.id}
+                          type="button"
+                          onClick={() => addExame(e)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shrink-0">
+                            <FlaskConical className="w-4 h-4" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{e.nome}</div>
+                            <div className="text-xs text-gray-400 truncate">
+                              {[e.mnemonico, e.material].filter(Boolean).join(' · ') || 'sem mnemônico'}
+                            </div>
+                          </div>
+                          {e.is_cultura && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300 shrink-0">
+                              cultura
+                            </span>
+                          )}
+                          <Plus className="w-4 h-4 text-gray-400 shrink-0" />
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+
+                {selecionados.length === 0 && !busca.trim() && (
+                  <p className="text-xs text-gray-400 px-1">Busque e selecione os exames do pedido médico.</p>
+                )}
+                {culturasSel > 0 && (
+                  <p className="inline-flex items-center gap-1.5 text-xs text-violet-600 dark:text-violet-400 px-1">
+                    <Microscope className="w-3.5 h-3.5" />
+                    {culturasSel} exame{culturasSel > 1 ? 's' : ''} de cultura{' '}
+                    {culturasSel > 1 ? 'serão acompanhados' : 'será acompanhado'} na página Culturas.
+                  </p>
+                )}
               </div>
             )}
           </div>
 
+          {/* Conferência da amostra: validade + etiqueta */}
+          <div>
+            <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">
+              Conferência da amostra <span className="text-gray-400">(opcional)</span>
+            </label>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <ToggleCard
+                icon={CalendarClock}
+                label="Validade da amostra"
+                desc="Dentro do prazo"
+                on={validadeOk}
+                onClick={() => setValidadeOk((v) => !v)}
+              />
+              <ToggleCard
+                icon={Tag}
+                label="Etiqueta colocada"
+                desc="Amostra identificada"
+                on={etiquetado}
+                onClick={() => setEtiquetado((v) => !v)}
+              />
+            </div>
+          </div>
+
+          {/* Observações */}
           <div>
             <label className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
               Observações <span className="text-gray-400">(opcional)</span>
@@ -856,22 +932,27 @@ const ColetaModal: React.FC<{
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/40 rounded-b-2xl flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            disabled={saving}
-            className="px-3.5 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={() => void salvar()}
-            disabled={saving || loadingEstoque}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-br from-amber-500 to-orange-500 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            Confirmar coleta
-          </button>
+        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/40 rounded-b-2xl flex items-center justify-between gap-3">
+          <span className="text-xs text-gray-400 tabular-nums">
+            {selecionados.length} exame{selecionados.length === 1 ? '' : 's'} selecionado{selecionados.length === 1 ? '' : 's'}
+          </span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onClose}
+              disabled={saving}
+              className="px-3.5 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => void salvar()}
+              disabled={saving || loadingExames || selecionados.length === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-br from-amber-500 to-orange-500 hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              Confirmar coleta
+            </button>
+          </div>
         </div>
       </div>
     </div>

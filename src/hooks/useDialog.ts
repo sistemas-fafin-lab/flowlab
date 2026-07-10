@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type ReactNode } from 'react';
 
 interface ConfirmDialogState {
   isOpen: boolean;
   title: string;
-  message: string;
+  message: ReactNode; // aceita JSX (ex.: <strong>) — o ConfirmDialog já renderiza ReactNode
   confirmText?: string;
   cancelText?: string;
   type?: 'danger' | 'warning' | 'info';
@@ -37,7 +37,7 @@ export const useDialog = () => {
 
   const showConfirmDialog = useCallback((
     title: string,
-    message: string,
+    message: ReactNode,
     onConfirm: () => void,
     options?: {
       confirmText?: string;

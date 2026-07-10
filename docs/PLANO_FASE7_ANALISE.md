@@ -1,256 +1,233 @@
-# Fase 7 — Análise (registro operacional + baixa de reagentes)
+# Fase 7A — Recebimento de exames + Acompanhamento de Culturas
 
-> **Status:** **Etapa C (Temperatura e Equipamentos) ✅ implementada** — construída de forma independente (não depende de A/B); migration `20260709120000_fase7c_temperatura_equipamentos.sql`. Etapa A (registro da análise + desfecho + baixa de reagentes) 🚧 planejada; cultura (Etapa B) adiada.
-> **Plano mestre:** `docs/PLANO_FLOWLAB_ANALISES_CLINICAS.md` (Fase 7 — Análise / cultura / temperatura)
-> **Depende de:** Fase 5 (multi-local: `product_stock`, trigger de baixa, estoque por local) + Fase 6 ✅ (coleta → `coletado`, o insumo de entrada da análise). **Habilita:** Fase 6 **Etapa B (recoleta)** — o desfecho `reprovado` é o gatilho — e a Fase 8 (KPIs de desperdício/produtividade).
+> **Status:** ✅ **Implementada (2026-07-10).** O desenho anterior desta fase — *análise central com baixa de reagentes* — foi **descartado** depois que o cliente esclareceu a operação real (§0). **Camada de dados** ✅ (migrations `20260709130000` / `131000` / `132000`, + `20260710120000` renomeando a etapa final) e **camada visual** ✅ (check-in estendido + página Culturas + rota/nav), tudo aplicado ao banco de test.
+> **Plano mestre:** `docs/PLANO_FLOWLAB_ANALISES_CLINICAS.md` — ⚠️ ainda descreve o desenho antigo (análise/reagentes/laudo interno). **Para a Fase 7A, este documento prevalece.**
+> **Depende de:** Fase 6 ✅ (conferência de recepção + o passo pós-conferência). Fase 5 só é tocada pela **baixa de insumo opcional** (§4). **Não** depende de análise interna — a análise é feita **fora** (laboratório de apoio).
 
-## 1. Objetivo
+---
 
-Fechar a etapa **depois da coleta**: a amostra `coletado` chega ao laboratório central, é **analisada** e recebe um **desfecho operacional** — aprovada (seguiu para resultado, fora do nosso escopo) ou **reprovada** (amostra imprópria → precisa de recoleta). No mesmo ato, a análise **dá baixa nos reagentes/insumos consumidos** no estoque do setor do lab — reaproveitando integralmente a fundação multi-local da Fase 5 e o padrão de baixa da Fase 6.
+## 0. Reescopo — por que o plano mudou
 
-> **Fora de escopo (do projeto inteiro, não só desta fase):** os **valores do exame / laudo** (resultado clínico). O plano mestre coloca "Resultados (liberação + entrega ao paciente)" fora de escopo; `ac_analises` é o **registro operacional** da análise (qual amostra, quem, quando, desfecho, reagentes), **não** os resultados. A entrega ao paciente é do portal do LAB-HUB.
+O plano original assumia que o **laboratório coletava** a amostra e a **analisava internamente**, consumindo reagentes (daí `ac_analises` + baixa). O cliente corrigiu a operação real:
 
-Ciclo do agendamento (o trecho novo em **negrito**):
+- **Quem coleta é o médico**, não o laboratório. O paciente marca **data + local** e leva o material.
+- No local, o funcionário faz o **checkup**: a conferência de recepção (já existe) **+ lê o pedido e seleciona os exames + confere a validade da amostra + coloca a etiqueta**.
+- A **análise é externa** (laboratório de apoio) → **não há baixa de reagentes de análise** no FlowLab.
+- Os exames de **cultura** (microbiologia) são **acompanhados manualmente** — o funcionário atualiza etapa/status conforme o exame anda, no **mesmo molde da página Temperatura e Equipamentos** (Fase 7C). "Acompanhar o resultado firme" = esse acompanhamento manual.
+
+**Consequência:** todo o desenho de *análise interna com desfecho aprovado/reprovado e baixa de reagentes* (antigo §3–§7, preservado em §10 como histórico) **sai**. Entram: catálogo de exames, seleção de exames no check-in, e a página de Culturas.
+
+> Registro durável do reescopo: memória `analises-clinicas-reescopo-fluxo-real.md`.
+
+---
+
+## 1. Fluxo real
+
 ```
-recebido ─► em_coleta ─► coletado ─►[registrar análise: aprovado]─► analisado
-   │            │                          │
-   │            │                          └─[registrar análise: reprovado]─► reprovado
-   │            └─[problema]─► bloqueado                                          │
-   │                                                                             │
-   └─► cancelado                          reprovado ═══► recoleta (Fase 6 Etapa B) ┘
+        (LAB-HUB)                         no local, com o funcionário
+recebido ──► [conferência de recepção] ──► em_coleta ──► [registrar: exames + validade + etiqueta] ──► coletado
+   │                    │                                          │
+   │                    └─[problema]─► bloqueado                   ├─ para cada exame de CULTURA:
+   └─► cancelado                                                   │     abre linha em ac_culturas ──► (acompanhamento manual)
+                                                                   │
+                                                                   └─ (amostra enviada ao apoio externo; resultado acompanhado à parte)
 ```
-> `analisado` é terminal nesta fase (Resultados fora de escopo). `reprovado` é o **dead-end análogo ao `bloqueado`**: quem o resolve é a **recoleta (Fase 6 Etapa B)**, ainda não implementada. Até lá, `reprovado` só sinaliza e sai da fila (igual `bloqueado` hoje).
+
+- A **state machine do agendamento não muda**: `recebido → em_coleta → coletado`, com `bloqueado`/`cancelado`. **Sem** novos status (`analisado`/`reprovado` do desenho antigo **não** entram — não há desfecho interno).
+- O passo pós-conferência (hoje "coleta") passa a registrar **exames + validade + etiqueta** em vez de "coleta com baixa de insumos". O nome dos status (`em_coleta`/`coletado`) foi **mantido** (decisão do usuário — menos risco no que o LAB-HUB grava).
+- **Culturas** são um acompanhamento **paralelo e manual**, não alteram o status do agendamento.
+
+---
 
 ## 2. Decisões travadas (com o usuário)
 
-1. **Etapa A = só a análise.** Cultura (`ac_culturas`) fica para a **Etapa B**; temperatura/equipamentos (`ac_temperaturas`, `ac_equipamentos`) para a **Etapa C**. Espelha o corte enxuto da Fase 6 (entrega valor cedo, mantém escopo controlável).
-2. **A análise dá baixa de reagentes** — do estoque de um **setor do laboratório central** (uma `stock_locations` com `posto_id IS NULL`), não do posto. Reusa o mesmo movimento `out`/`internal-consumption` da coleta (§4).
-3. **Sem valores de exame / laudo** (fora de escopo do projeto). `ac_analises` guarda só o desfecho operacional (`aprovado`/`reprovado`) + motivo quando reprovado.
-4. **Passo único (`registrar_analise`), sem estado intermediário `em_analise` na v1.** A análise vai de `coletado` direto a `analisado`|`reprovado` num ato só — espelha `registrar_coleta` (coletado num ato). Uma fila "em processamento" (`em_analise`) é refinamento posterior, se surgir necessidade de separar "entrou no equipamento" de "desfecho saiu" (mesma lógica YAGNI da §12.2 da Fase 6).
-5. **Reprovação com motivo obrigatório, de lista fixa.** `reprovado` exige `motivo_reprova` (hemólise, volume insuficiente, coágulo, amostra inadequada, contaminação, armazenamento) — a lista fixa no frontend, validada por `CHECK`. Igual ao `problema_em` da conferência (Fase 6 §2.2). É esse motivo que alimenta o desperdício (Fase 8) e a recoleta (Fase 6 Etapa B).
-6. **Reagentes por seleção manual** (produto + quantidade), **opcionais** — coerente com a coleta (§12.1 da Fase 6). Reprovação na triagem (visual, antes de rodar) → sem reagentes; reprovação/aprovação após rodar → com reagentes. O array vazio é válido nos dois desfechos.
-7. **Análise 1:1 agendamento** (`UNIQUE (agendamento_id)`), como conferência e coleta. Vínculo `coleta_id` guardado (snapshot) para o turnaround coleta→análise (KPIs Fase 8).
-8. **Baixa é `out` simples (consumo), sem estorno automático** na v1 — o `stock_movement_id` fica guardado para viabilizar estorno depois (idêntico à Fase 6 §2.8).
-9. **Atomicidade via RPC.** A análise roda numa **função Postgres transacional** (§5) — herda o `CHECK (quantity >= 0)` + rollback da Fase 5.
-10. **RPC `SECURITY DEFINER SET search_path = public`.** As tabelas `ac_*` têm RLS só-SELECT (escritas vêm do LAB-HUB via `service_role`); um `SELECT ... FOR UPDATE` sob `INVOKER` retorna 0 linhas → "não encontrado". Foi o bug da Fase 6; a Fase 7 já nasce `DEFINER` (ver `20260708140000_fix_coletas_security_definer.sql`).
+1. **Laboratório não coleta nem analisa.** Médico coleta; análise no apoio externo. Sem baixa de reagentes de análise.
+2. **Check-in ganha 3 coisas:** seleção de exames (do catálogo), validade da amostra (um check), etiqueta (um check).
+3. **Catálogo de exames importado da planilha** Google Sheets (comparativo de valores) → tabela `ac_exames`, seed re-executável. **Não** integração live com a API do Google.
+4. **Culturas detectadas pelo nome** ("cultura" no nome do exame → `is_cultura`). Pega 8 exames no catálogo atual; editável à mão (marcar exceções).
+5. **Página Culturas = molde da Temperatura** (Fase 7C): lista de itens atualizada manualmente, escrita direta sob RLS permissiva. **Sem RPC, sem integração.**
+6. **Etapas da cultura começam mínimas e extensíveis** (o cliente ainda não conhece a trilha microbiológica). Trilha vive em `ac_cultura_etapas` (ordenada); adicionar etapa = inserir uma linha, sem migration de schema.
+7. **Consumo de insumo é preservado como capacidade** (o consumo "pode ocorrer em outros lugares"), mas **sai do passo de check-in** — a `registrar_coleta` ainda aceita insumos, agora **opcionais**.
+8. **Validade/etiqueta não bloqueiam** o registro (só ficam gravadas). `prazo_dias` padrão **5**.
+9. **Permissão:** reusar `canManageColetas` ("Gerenciar Coletas e Análises", já dada ao `analistaSaude`). **Sem** nova chave (o antigo `canManageAnalises` foi descartado).
 
-## 3. Modelo de dados
+---
 
-### 3.1 `ac_analises` — registro da análise (1:1 agendamento)
+## 3. Modelo de dados (✅ implementado)
+
+RLS **permissiva por `authenticated`** em todas as tabelas novas (o gate real é o frontend + a permissão), consistente com a Fase 6/7C. Trigger `ac_set_updated_at()` compartilhado.
+
+### 3.1 `ac_exames` — catálogo de exames (migration `…130000`)
 ```sql
-CREATE TABLE IF NOT EXISTS ac_analises (
-  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  agendamento_id uuid NOT NULL UNIQUE REFERENCES ac_agendamentos(id) ON DELETE RESTRICT,
-  coleta_id      uuid REFERENCES ac_coletas(id),        -- a coleta que originou a amostra (snapshot p/ turnaround)
-  location_id    uuid REFERENCES stock_locations(id),   -- setor do lab de onde saiu a baixa (snapshot; null se sem reagentes)
-  analisado_por  text NOT NULL,
-  analisado_em   timestamptz NOT NULL DEFAULT now(),
-  resultado      text NOT NULL CHECK (resultado IN ('aprovado','reprovado')),
-  motivo_reprova text CHECK (motivo_reprova IN
-                    ('hemolise','volume_insuficiente','coagulo','amostra_inadequada','contaminacao','armazenamento')),
-  observacoes    text,
-  created_at     timestamptz NOT NULL DEFAULT now(),
-  updated_at     timestamptz NOT NULL DEFAULT now(),
-  -- 'reprovado' exige motivo; 'aprovado' não tem motivo
-  CONSTRAINT ck_analise_reprova CHECK (
-       (resultado = 'reprovado' AND motivo_reprova IS NOT NULL)
-    OR (resultado = 'aprovado'  AND motivo_reprova IS NULL)
-  )
+CREATE TABLE ac_exames (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  nome        text NOT NULL,          -- Descrição Exame (campo confiável; 100% preenchido)
+  mnemonico   text,
+  codigo_tuss text,
+  material    text,                   -- tipo de amostra: S (soro), U (urina), F (fezes)…
+  is_cultura  boolean NOT NULL DEFAULT false,  -- microbiológico de cultura (nome contém "cultura")
+  ativo       boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_ac_analises_analisado_em ON ac_analises(analisado_em DESC);
-CREATE INDEX IF NOT EXISTS idx_ac_analises_resultado    ON ac_analises(resultado);
 ```
-- **Uma linha por agendamento** (`UNIQUE`). `resultado='aprovado'` ⇒ agendamento → `analisado`; `'reprovado'` ⇒ `reprovado`.
-- `motivo_reprova` = chave do motivo (mesmas chaves da lista fixa do frontend). `CHECK ck_analise_reprova` garante os dois formatos válidos: aprovado sem motivo, ou reprovado **sempre** com motivo.
-- `location_id` fica `null` quando a análise não baixou reagentes (reprovação na triagem).
+- **Seed idempotente** (só popula se a tabela estiver vazia → preserva edições): **529 exames**, dos quais **8** `is_cultura`. Importado da planilha "Comparativo de Valores A C / Orçamento Particular"; preço e colunas de convênio ficam **fora**.
+- Re-importação futura (planilha mudou) = migration nova e pontual.
 
-### 3.2 `ac_analise_insumos` — reagentes consumidos (linha por produto)
+### 3.2 `ac_agendamento_exames` — exames marcados no check-in (migration `…131000`)
 ```sql
-CREATE TABLE IF NOT EXISTS ac_analise_insumos (
-  id                uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  analise_id        uuid NOT NULL REFERENCES ac_analises(id) ON DELETE CASCADE,
-  product_id        uuid NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
-  quantity          integer NOT NULL CHECK (quantity > 0),
-  stock_movement_id uuid REFERENCES stock_movements(id),  -- a baixa gerada (rastreio/estorno futuro)
-  created_at        timestamptz NOT NULL DEFAULT now()
+CREATE TABLE ac_agendamento_exames (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  agendamento_id uuid NOT NULL REFERENCES ac_agendamentos(id) ON DELETE CASCADE,
+  exame_id       uuid NOT NULL REFERENCES ac_exames(id) ON DELETE RESTRICT,
+  exame_nome     text NOT NULL,                   -- snapshot
+  is_cultura     boolean NOT NULL DEFAULT false,  -- snapshot
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (agendamento_id, exame_id)
 );
-CREATE INDEX IF NOT EXISTS idx_ac_analise_insumos_analise ON ac_analise_insumos(analise_id);
 ```
 
-### 3.3 Status do agendamento + `updated_at`
-- **Novos status `analisado` e `reprovado`.** Se `ac_agendamentos.status` tiver `CHECK`, a migration o **relaxa defensivamente** (padrão da Fase 5/6) para: `recebido | em_coleta | coletado | bloqueado | analisado | reprovado | cancelado`.
-- `updated_at`: reusa a função de trigger já usada pelas demais `ac_*`. `ac_analise_insumos` é imutável (sem trigger).
+### 3.3 `ac_coletas` — validade + etiqueta (ALTER, migration `…131000`)
+```sql
+ALTER TABLE ac_coletas ADD COLUMN validade_ok boolean;  -- amostra dentro da validade
+ALTER TABLE ac_coletas ADD COLUMN etiquetado  boolean;  -- etiqueta colocada
+```
 
-## 4. Baixa de reagentes — reuso da Fase 5/6
+### 3.4 `ac_cultura_etapas` — trilha ordenada e extensível (migration `…131000`)
+```sql
+CREATE TABLE ac_cultura_etapas (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  ordem integer NOT NULL UNIQUE,
+  nome  text NOT NULL,
+  ativo boolean NOT NULL DEFAULT true,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+-- Seed genérico mínimo: (1,'Recebida'),(2,'Em análise'),(3,'Pronta p/ laudo')
+```
+O stepper da página desenha a partir daqui. O cliente renomeia/insere as etapas microbiológicas reais quando as conhecer — só inserir linhas.
 
-Idêntico à coleta (Fase 6 §4), só muda a **origem**: em vez do estoque do posto, sai do **estoque de um setor do lab central** — uma `stock_locations` com `posto_id IS NULL`, `rastreavel = true`, `ativo = true` (a "Qualidade"/principal ou um setor departamental de análises). É a **2ª etapa (consumo real)** do modelo multi-local: a Qualidade transfere para o setor, o setor consome ao analisar.
+### 3.5 `ac_culturas` — cultura acompanhada (1 por exame de cultura/agendamento) (migration `…131000`)
+```sql
+CREATE TABLE ac_culturas (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  agendamento_id uuid NOT NULL REFERENCES ac_agendamentos(id) ON DELETE RESTRICT,
+  exame_id       uuid REFERENCES ac_exames(id),
+  exame_nome     text NOT NULL,             -- tipo do exame (snapshot)
+  paciente_nome  text,                      -- snapshot (exibe sem join)
+  posto_id       uuid,
+  local_posto    text,                      -- snapshot do nome do posto
+  etapa_ordem    integer NOT NULL DEFAULT 1,           -- → ac_cultura_etapas.ordem
+  status         text NOT NULL DEFAULT 'em_andamento', -- em_andamento|positiva|sem_crescimento|pronta_laudo
+  nota           text,                      -- nota livre da etapa atual
+  resultado      text,                      -- desfecho/laudo textual (opcional)
+  iniciada_em    timestamptz NOT NULL DEFAULT now(),
+  prazo_dias     integer NOT NULL DEFAULT 5,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (agendamento_id, exame_id)
+);
+```
 
-Cada reagente vira **uma** linha em `stock_movements`, interpretada pelo trigger `update_stock_on_movement` da Fase 5:
+---
 
-| Campo | Valor |
-|---|---|
-| `type` | `'out'` |
-| `reason` | `'internal-consumption'` |
-| `from_location_id` | estoque do **setor do lab** (`location_id` escolhido na tela; `posto_id IS NULL`) |
-| `to_location_id` | `null` |
-| `product_id` / `quantity` | o reagente selecionado |
-| `notes` | `'Análise <id>'` |
+## 4. RPC `registrar_coleta` v2 (✅ implementada, migration `…132000`)
 
-O trigger debita `product_stock` do setor e o cache atualiza `products.quantity`. Saldo insuficiente ⇒ `CHECK (quantity >= 0)` estoura e **reverte a transação** (a RPC do §5).
-
-## 5. RPC transacional — `registrar_analise`
+`SECURITY DEFINER SET search_path = public` (toca `ac_agendamentos`, que tem RLS só-SELECT → `FOR UPDATE` precisa de DEFINER; ver `20260708140000`). Assinatura nova:
 
 ```sql
--- p_insumos: jsonb array de { "product_id": uuid, "quantity": int }
-DROP FUNCTION IF EXISTS registrar_analise(uuid, text, uuid, text, text, text, jsonb);
-
-CREATE OR REPLACE FUNCTION registrar_analise(
+registrar_coleta(
   p_agendamento_id uuid,
-  p_analisado_por  text,
-  p_location_id    uuid,   -- setor do lab de onde sai a baixa (obrigatório se houver reagentes)
-  p_resultado      text,   -- 'aprovado' | 'reprovado'
-  p_motivo_reprova text,   -- chave do motivo (só quando 'reprovado')
+  p_coletado_por   text,
   p_observacoes    text,
-  p_insumos        jsonb
+  p_exame_ids      uuid[]  DEFAULT '{}',   -- exames marcados
+  p_validade_ok    boolean DEFAULT NULL,
+  p_etiquetado     boolean DEFAULT NULL,
+  p_insumos        jsonb   DEFAULT '[]'    -- baixa opcional (capacidade preservada)
 ) RETURNS uuid
-LANGUAGE plpgsql
-SECURITY DEFINER            -- ac_* têm RLS só-SELECT; FOR UPDATE precisa de DEFINER (§2.10)
-SET search_path = public
-AS $$
-DECLARE
-  v_agendamento_id uuid; v_status text; v_coleta_id uuid;
-  v_analise_id uuid; v_mov_id uuid; v_prod uuid; v_qty int; ins jsonb;
-  v_has_insumos boolean := jsonb_array_length(COALESCE(p_insumos,'[]'::jsonb)) > 0;
-BEGIN
-  -- Resolve por id local; se não achar, tenta por labhub_id (padrão da Fase 6).
-  SELECT id, status INTO v_agendamento_id, v_status
-    FROM ac_agendamentos WHERE id = p_agendamento_id FOR UPDATE;
-  IF NOT FOUND THEN
-    SELECT id, status INTO v_agendamento_id, v_status
-      FROM ac_agendamentos WHERE labhub_id = p_agendamento_id FOR UPDATE;
-  END IF;
-  IF v_agendamento_id IS NULL THEN
-    RAISE EXCEPTION 'Agendamento % não encontrado', p_agendamento_id;
-  END IF;
-  IF v_status <> 'coletado' THEN
-    RAISE EXCEPTION 'Análise exige amostra coletada (status coletado; atual: %)', v_status;
-  END IF;
-
-  IF p_resultado NOT IN ('aprovado','reprovado') THEN RAISE EXCEPTION 'Resultado inválido'; END IF;
-  IF p_resultado = 'reprovado' AND p_motivo_reprova IS NULL THEN
-    RAISE EXCEPTION 'Reprovação exige o motivo';
-  END IF;
-
-  -- Valida o local só quando há reagentes a baixar.
-  IF v_has_insumos THEN
-    IF p_location_id IS NULL THEN RAISE EXCEPTION 'Selecione o estoque do setor para baixar os reagentes'; END IF;
-    PERFORM 1 FROM stock_locations
-      WHERE id = p_location_id AND rastreavel = true AND ativo = true;
-    IF NOT FOUND THEN RAISE EXCEPTION 'Estoque do setor inválido (precisa ser rastreável e ativo)'; END IF;
-  END IF;
-
-  -- Vínculo com a coleta que originou a amostra (snapshot; pode não existir).
-  SELECT id INTO v_coleta_id FROM ac_coletas WHERE agendamento_id = v_agendamento_id;
-
-  INSERT INTO ac_analises (agendamento_id, coleta_id, location_id, analisado_por,
-                           resultado, motivo_reprova, observacoes)
-  VALUES (v_agendamento_id, v_coleta_id,
-          CASE WHEN v_has_insumos THEN p_location_id END,
-          p_analisado_por, p_resultado,
-          CASE WHEN p_resultado = 'reprovado' THEN p_motivo_reprova END,
-          NULLIF(p_observacoes, ''))
-  RETURNING id INTO v_analise_id;
-
-  FOR ins IN SELECT * FROM jsonb_array_elements(COALESCE(p_insumos,'[]'::jsonb))
-  LOOP
-    v_prod := (ins->>'product_id')::uuid;
-    v_qty  := (ins->>'quantity')::int;
-    IF v_qty IS NULL OR v_qty <= 0 THEN RAISE EXCEPTION 'Quantidade inválida para reagente %', v_prod; END IF;
-
-    INSERT INTO stock_movements (product_id, product_name, type, reason, quantity,
-                                 from_location_id, authorized_by, notes)
-    SELECT v_prod, p.name, 'out', 'internal-consumption', v_qty, p_location_id, p_analisado_por,
-           'Análise ' || v_analise_id
-      FROM products p WHERE p.id = v_prod
-    RETURNING id INTO v_mov_id;   -- trigger da Fase 5 debita product_stock (CHECK>=0 barra saldo insuficiente)
-    IF NOT FOUND THEN RAISE EXCEPTION 'Produto % não encontrado', v_prod; END IF;
-
-    INSERT INTO ac_analise_insumos (analise_id, product_id, quantity, stock_movement_id)
-    VALUES (v_analise_id, v_prod, v_qty, v_mov_id);
-  END LOOP;
-
-  UPDATE ac_agendamentos
-     SET status = CASE WHEN p_resultado = 'aprovado' THEN 'analisado' ELSE 'reprovado' END,
-         updated_at = now()
-   WHERE id = v_agendamento_id;
-
-  RETURN v_analise_id;
-END; $$;
-
-GRANT EXECUTE ON FUNCTION registrar_analise(uuid, text, uuid, text, text, text, jsonb) TO authenticated;
 ```
-- **Gate:** exige `coletado`. Não dá para analisar `recebido`/`em_coleta`/`bloqueado`/`reprovado`/`analisado`.
-- **Análise sem reagentes** é permitida (array vazio) — registra o desfecho sem baixa e sem exigir `location_id`. Cobre a reprovação na triagem.
-- A validação do local não bloqueia postos por ID, mas a **tela só oferece locais `posto_id IS NULL`** (§6) — a baixa de análise nunca sai de um posto.
 
-## 6. Frontend (Etapa A)
+Comportamento:
+1. Gate: exige `em_coleta` (resolve por `id`, senão por `labhub_id`).
+2. Insere `ac_coletas` (com `validade_ok`/`etiquetado`; `location_id` só quando há insumos).
+3. Para cada `exame_id`: grava `ac_agendamento_exames` (snapshot nome + `is_cultura`); se for cultura, **abre** `ac_culturas` (snapshot paciente/posto, etapa 1, status `em_andamento`, prazo 5). `ON CONFLICT DO NOTHING`.
+4. **Insumos opcionais:** o loop de baixa (`out`/`internal-consumption`, trigger da Fase 5) só roda se houver insumos; **o estoque rastreável do posto só é exigido nesse caso** (antes a RPC falhava sempre sem estoque).
+5. `em_coleta → coletado`.
 
-- **`types.ts`:** adicionar `'analisado'` e `'reprovado'` a `AcAgendamentoStatus`; tipos `AcAnalise`, `AcAnaliseInsumo`; `AnaliseResultado = 'aprovado' | 'reprovado'`; `MotivoReprovaKey`; e a **lista fixa** `MOTIVOS_REPROVA_ANALISE` (chave + rótulo) — fonte dos itens da tela e das chaves de `motivo_reprova`. Reusa `InsumoInput`.
-- **Hook `useAnalises`** (novo, espelha `useColetas`): `registrarAnalise(agendamentoId, analisadoPor, locationId, resultado, motivoReprova, observacoes, insumos)` → `rpc('registrar_analise')`; `fetchAnalises(agendamentoIds)` → lê `ac_analises` (para exibir motivo dos reprovados). O saldo do setor reusa `useInventory().fetchLocationStock(locationId)` (mesmo helper da coleta).
-- **`PainelAnalisesPage`** (`/analises-clinicas/analises`, gated — ver §7): a análise é **central**, não por posto, então a fila é **global** (todos os `coletado`), sem o seletor de posto da coleta (posto entra só como coluna informativa). Um seletor de **setor do lab** (dropdown de `stock_locations` com `posto_id IS NULL`, `rastreavel`, `ativo`, default `is_principal`) define de onde sai a baixa.
-  - **Aguardando análise** (`coletado`) → ação **"Registrar análise"** abre o modal: `analisado_por`, o setor do lab, um toggle **Aprovado / Reprovado**, e **linhas de reagente** (produto + qtd) alimentadas por `fetchLocationStock(setor)` (só o que tem saldo, com `max`).
-    - **Aprovado** → confirma ⇒ `registrar_analise` ⇒ `analisado`.
-    - **Reprovado** → exige **motivo** (dropdown de `MOTIVOS_REPROVA_ANALISE`) + observação; reagentes opcionais ⇒ `registrar_analise` ⇒ `reprovado`.
-  - **Analisadas** (`analisado`) e **Reprovadas** (`reprovado`) aparecem como histórico/estatística; as reprovadas em destaque (fila da futura recoleta + desperdício).
-- **Rota + nav** em `App.tsx`/`Layout.tsx` (subitem "Análise" no grupo Análises Clínicas, mesmo padrão do "Check-in"). *Sem tela de cultura/temperatura nesta etapa.*
+---
 
-## 7. RLS / permissões
+## 5. Frontend (✅ implementado)
 
-- `ac_analises`, `ac_analise_insumos`: RLS habilitada, policies **consistentes com as demais `ac_*`** (`authenticated` SELECT; escritas via RPC `DEFINER`).
-- **Gating — nova chave `canManageAnalises` (decisão travada).** A análise acontece no **lab central** e é feita pelo **analista**, papel/local distinto do **coletor** no posto — é uma **segregação de função real** (exatamente o caso que a §12.2 da Fase 6 previa para justificar uma chave dedicada). Criar `canManageAnalises` (grupo "Análises Clínicas" em `src/utils/permissions.ts`), dá-la ao cargo `analistaSaude` e fazer o backfill de Administrador/Operador (padrão da migration `20260630140000`). A `PainelAnalisesPage` e a RPC ficam sob ela.
-  - *Descartada:* reusar `canManageColetas` (sugestão da linha 237 do plano mestre) — era mais barato (sem migration de permissão), mas não separaria coletor de analista.
+### 5.1 Check-in estendido — `PainelColetasPage` / `ColetaModal`
+- Trocar o corpo do modal do passo pós-conferência: **remove a seção de insumos** e coloca:
+  - **multi-select de exames** (lê `ac_exames` `ativo`; busca por nome/mnemônico) — é aqui que "os exames vêm pra cá";
+  - **check "validade da amostra"** e **check "etiqueta colocada"**.
+- `useColetas.registrarColeta(...)` passa a mandar `p_exame_ids`, `p_validade_ok`, `p_etiquetado` (e `p_insumos: []`).
+- A capacidade de insumos permanece na RPC para reuso futuro; sai só da tela de check-in.
 
-## 8. Escopo da Fase 7
+### 5.2 Página Culturas — `CulturasPage` (`/analises-clinicas/culturas`)
+Molde da `TemperaturaEquipamentosPage` (escrita direta, sem RPC). Espelha o mockup aprovado:
+- **Filtro de posto** (derivado das culturas presentes). **Tracking-only:** não há "+ Nova cultura" — como `ac_culturas.agendamento_id` é `NOT NULL`, toda cultura nasce no check-in; a página só acompanha.
+- **4 KPIs** derivados: em andamento, positivas (+ % positividade), laudo concluído, **atrasadas** (além do `prazo_dias`). ("prazo médio" foi trocado por "atrasadas" — mais acionável, já que o prazo padrão é sempre 5.)
+- **Grade de cards**: tipo do exame · paciente · posto; **badge de status** (`STATUS_CULTURA`: Em andamento · Positiva · Laudo concluído); **stepper** desenhado de `ac_cultura_etapas` com a `etapa_ordem` atual destacada; nota/resultado; iniciada em + prazo.
+- **Edição manual:** avançar/retroceder etapa (controle segmentado), trocar status, editar nota/resultado, ajustar prazo, remover acompanhamento — tudo `UPDATE`/`DELETE` direto em `ac_culturas`.
+- Hook novo **`useCulturas`** (espelha `useTemperaturas`): `refetch` (culturas + etapas), `updateCultura`, `deleteCultura`.
 
-- **Etapa A (esta rodada):** §3 (2 tabelas: `ac_analises`, `ac_analise_insumos` + status `analisado`/`reprovado` + RLS/índices/updated_at) + §5 (RPC `registrar_analise`) + §6 (`PainelAnalisesPage` + hook + rota/gating). Entrega o fluxo coleta→análise com desfecho e baixa de reagentes.
-- **Etapa B (depois):** `ac_culturas` (microbiologia: incubação, positivo/negativo, tempo). Provável reuso do mesmo padrão de baixa/registro.
-- **Etapa C (✅ implementada, independente):** `ac_equipamentos` + `ac_temperaturas` — cadastro de equipamentos com faixa aceitável e log de leituras com alerta de "fora da faixa" (derivado por trigger). Página `TemperaturaEquipamentosPage` (`/analises-clinicas/temperatura`, gated `canManageColetas`), hook `useTemperaturas`, migration `20260709120000`. Feed do desperdício (Fase 8). *Não* depende de A/B nem toca `ac_agendamentos`.
-- **Habilita a Fase 6 Etapa B (recoleta):** com `reprovado` existindo e carregando o motivo, a recoleta ganha seu gatilho — a `RecoletasPage` consome os agendamentos `reprovado` (e os `bloqueado` da conferência).
-- **Fora de escopo:** valores de exame / laudo (Resultados); estorno automático de baixa (§2.8); notificação (WhatsApp); escopo/RLS por setor.
+### 5.3 Rota + nav
+- Rota `/analises-clinicas/culturas` em `App.tsx`, gated `canManageColetas`.
+- Subitem **"Culturas"** no grupo "Análises Clínicas" em `Layout.tsx` (mesmo padrão de "Check-in"/"Temperatura"), + incluir no breadcrumb e no `anyOf` do grupo.
 
-## 9. Verificação
+---
 
-1. **Type-check/lint** sem novos erros.
-2. **Migration idempotente** (`IF NOT EXISTS`; `DROP FUNCTION IF EXISTS`; relaxamento defensivo do `CHECK` de status).
-3. **RPC (transacional) — testar no ambiente test** (padrão da Fase 5/6, rollback sem resíduo):
-   - **Gate:** `registrar_analise` em agendamento que não está `coletado` (ex.: `em_coleta`, `bloqueado`) ⇒ erro; só passa em `coletado`.
-   - **Aprovado com N reagentes com saldo** ⇒ `ac_analises` (1, resultado `aprovado`, sem motivo) + `ac_analise_insumos` (N) + N `out` no setor; `product_stock`/`products.quantity` caem; agendamento → `analisado`.
-   - **Reprovado com motivo** (ex.: `hemolise`) ⇒ `ac_analises` (resultado `reprovado`, motivo obrigatório) + agendamento → `reprovado`; reprovado **sem** motivo ⇒ erro (RPC e `CHECK`); aprovado **com** motivo ⇒ erro (`CHECK`).
-   - **Reprovado na triagem** (sem reagentes, sem `location_id`) ⇒ registra sem baixa (`location_id` null); agendamento → `reprovado`.
-   - **Um** reagente sem saldo ⇒ **nada** gravado (análise, insumos, baixas e status revertem juntos).
-   - Reagentes informados mas **sem `location_id`** ⇒ erro claro; local não rastreável/inativo ⇒ erro.
-   - Re-registrar a mesma análise ⇒ barrado pelo `UNIQUE (agendamento_id)`.
-4. **UI:** fila de análise mostra os `coletado` (global, com o posto como coluna); aprovar move para "Analisadas"; reprovar move para "Reprovadas" com o motivo; dropdown de reagentes só oferta produtos com saldo no setor; baixa reflete no Estoque Departamental do setor.
+## 6. RLS / permissões
 
-## 10. Riscos & mitigação
+- Tabelas novas: RLS **permissiva por `authenticated`** (SELECT/INSERT/UPDATE/DELETE conforme a tabela). O gate real é o frontend + a permissão.
+- **Gating:** `canManageColetas` (reuso). Sem nova chave, sem migration de permissão.
 
-- **Atomicidade** (análise multi-reagente) — RPC única (§5); `CHECK>=0` reverte o conjunto.
-- **Setor do lab sem `stock_locations` configurada** — sem local rastreável não há de onde baixar; mitigado exigindo o local só quando há reagentes (a análise "seca"/triagem passa sem local) e por erro claro quando falta.
-- **Dependência da Fase 5 em produção** — a baixa exige o trigger novo + `product_stock`; a Fase 7 **não sobe em prod antes do cutover da Fase 5** (herda a §11 da Fase 6).
-- **Motivos de reprova fixos no frontend** (§2.5) — trocar a lista exige deploy + ajustar o `CHECK` de `motivo_reprova`; aceitável na v1 (mesmo trade-off do checklist da Fase 6).
-- **`reprovado` como dead-end até a recoleta** — igual ao `bloqueado` hoje: sai da fila e aguarda a Fase 6 Etapa B. Aceitável; é o gancho que justifica a Etapa B.
-- **Baixa sem estorno (v1)** — análise corrigida deixaria a baixa órfã; mitigado guardando `stock_movement_id` para estorno futuro.
+---
 
-## 11. Dependências (ordem de rollout)
+## 7. Escopo / status
 
-1. **Fase 6 em produção** (que por sua vez exige **Fase 5 + vínculo posto→`stock_locations`**, §11 da Fase 6) — a análise consome amostras `coletado`, geradas pela coleta.
-2. **Estoque do setor do lab em `stock_locations`** (`posto_id IS NULL`, `rastreavel`, `ativo`, abastecido pela Qualidade) — sem ele, só a análise sem reagentes funciona.
-3. **Migration de permissão `canManageAnalises` (§7):** nova chave + seed no `analistaSaude` + backfill Administrador/Operador — precisa ir junto.
+| Item | Status |
+|---|---|
+| `ac_exames` + seed 529 exames | ✅ implementado (migration) |
+| `ac_agendamento_exames` · `ac_coletas`(+2 col) · `ac_cultura_etapas` · `ac_culturas` | ✅ implementado (migration) |
+| `registrar_coleta` v2 (exames + validade + etiqueta + culturas) | ✅ implementado (migration) |
+| Tipos (`AcExame`, `AcCultura`, `AcCulturaEtapa`, `AcAgendamentoExame`, `STATUS_CULTURA`) | ✅ implementado |
+| Migrations aplicadas ao banco de test (`supabase db push`) | ✅ aplicado |
+| Etapa final renomeada `Pronta p/ laudo` → `Laudo concluído` (migration `…20260710120000`) | ✅ implementado |
+| Check-in estendido (UI + `useColetas`) | ✅ implementado |
+| Página Culturas + `useCulturas` + rota/nav | ✅ implementado |
 
-## 12. Decisões (perguntas respondidas)
+**Fora de escopo:** valores de exame/laudo clínico (o acompanhamento aqui é operacional); integração automática de resultado (é manual); estorno de baixa; cultura como fluxo com ramificação positivo/negativo (a trilha é linear e editável na v1); microbiologia detalhada (antibiograma como etapa própria) — refináveis via `ac_cultura_etapas`.
 
-1. **Escopo da Etapa A → só análise.** Cultura e temperatura/equipamentos ficam para as Etapas B/C. Motivo: entregar o desfecho (que destrava a recoleta) e a baixa de reagentes rápido, sem carregar o escopo de microbiologia e IoT de equipamentos.
-2. **Baixa de reagentes → sim, do setor do lab central.** Reusa Fase 5/6 (movimento `out`/`internal-consumption`), com a origem sendo uma `stock_locations` `posto_id IS NULL` escolhida na tela. Mantém a análise fiel ao módulo de estoque (é o valor central do projeto).
-3. **Passo único vs `em_analise` → passo único.** `coletado → analisado|reprovado` num ato, espelhando `registrar_coleta`. `em_analise` (fila "em processamento") vira refinamento se a operação pedir separar entrada no equipamento do desfecho.
-4. **Reagentes opcionais nos dois desfechos → sim.** Cobre reprovação na triagem (sem baixa) e análise rodada (com baixa), sem `IF` extra no form nem na RPC.
-5. **Permissão → nova chave `canManageAnalises` (§7).** Segregação real coletor×analista justifica chave dedicada; descartado reusar `canManageColetas` (sugestão do plano mestre). Custa uma migration de permissão (nova key + seed `analistaSaude` + backfill Administrador/Operador).
+---
+
+## 8. Verificação
+
+1. **Type-check/lint** sem novos erros (os erros pré-existentes em IT/quotations/Postos não são desta fase).
+2. **Migrations idempotentes** — `IF NOT EXISTS`, seed guardado por "só se vazia", `ON CONFLICT DO NOTHING`, `DROP FUNCTION IF EXISTS`.
+3. **Seed:** `ac_exames` com 529 linhas, 8 `is_cultura` (copro/uro/cultura bacteriana/fungos/strepto B/urina c/ colônias).
+4. **RPC (ambiente test):**
+   - Gate: `registrar_coleta` fora de `em_coleta` ⇒ erro.
+   - Com exames (inclui 1 cultura) + validade/etiqueta, **sem insumos** ⇒ `ac_coletas` (com os 2 checks), `ac_agendamento_exames` (N), **1** `ac_culturas` aberta; agendamento → `coletado`; **sem** exigir estoque do posto.
+   - Com insumos ⇒ baixa `out` no estoque do posto (Fase 5) + exige estoque rastreável; saldo insuficiente reverte tudo.
+   - Re-registrar ⇒ barrado pelo `UNIQUE(agendamento_id)` de `ac_coletas`.
+5. **UI:** check-in lista/seleciona exames do catálogo; ao confirmar, a cultura aparece na página; a página edita etapa/status manualmente e os KPIs refletem.
+
+---
+
+## 9. Riscos & mitigação
+
+- **Detecção de cultura por nome** pode errar bordas (ex.: microbiológicos sem "cultura" no nome) — mitigado por `is_cultura` editável à mão.
+- **Trilha de etapas provisória** (trio genérico) — assumido; refinar em `ac_cultura_etapas` quando o cliente conhecer as etapas reais.
+- **Catálogo desatualiza** vs. planilha — re-import pontual quando necessário; seed não sobrescreve edições.
+- **`registrar_coleta` mudou de assinatura** — a versão antiga `(uuid,text,text,jsonb)` é dropada; o hook `useColetas` **precisa** ser atualizado junto (senão manda parâmetros a menos, mas os defaults cobrem — ainda assim, atualizar para enviar exames/validade/etiqueta).
+
+---
+
+## 10. Desenho descartado (histórico — NÃO implementar)
+
+O plano original desta fase modelava a **análise interna**: tabelas `ac_analises` + `ac_analise_insumos`, RPC `registrar_analise` (baixa de reagentes do setor do lab), status `analisado`/`reprovado`, `PainelAnalisesPage` com desfecho aprovado/reprovado e motivo de reprova, e uma nova permissão `canManageAnalises`.
+
+**Por que foi descartado:** pressupunha que o laboratório analisava a amostra consumindo reagentes. Na operação real, a análise é **externa** (apoio) e não há baixa de reagentes nossa; o "resultado" é acompanhado **manualmente** (Culturas). Manter esse desenho seria retrabalho e enganaria quem lê. Preservado aqui só como registro da decisão.

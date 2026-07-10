@@ -96,6 +96,8 @@ export interface AcColeta {
   coletado_por: string;
   coletado_em: string; // ISO 8601
   observacoes: string | null;
+  validade_ok: boolean | null; // validade da amostra conferida no check-in (Fase 7A)
+  etiquetado: boolean | null;  // etiqueta colocada no check-in (Fase 7A)
   created_at: string;
   updated_at: string;
 }
@@ -114,6 +116,75 @@ export interface AcColetaInsumo {
 export interface InsumoInput {
   productId: string;
   quantity: number;
+}
+
+// ─── Fase 7 (Etapa A) — Catálogo de exames + Culturas ───────────────────────────
+
+// Exame do catálogo (espelha ac_exames). Importado da planilha de valores;
+// `is_cultura` marca os microbiológicos que geram acompanhamento em ac_culturas.
+export interface AcExame {
+  id: string;
+  nome: string;
+  mnemonico: string | null;
+  codigo_tuss: string | null;
+  material: string | null; // tipo de amostra: S (soro), U (urina), F (fezes)…
+  is_cultura: boolean;
+  ativo: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// Exame marcado num agendamento no check-in (espelha ac_agendamento_exames).
+export interface AcAgendamentoExame {
+  id: string;
+  agendamento_id: string;
+  exame_id: string;
+  exame_nome: string; // snapshot
+  is_cultura: boolean;
+  created_at: string;
+}
+
+// Etapa da trilha de cultura (espelha ac_cultura_etapas). Ordenada e extensível —
+// o stepper da página desenha a partir dela; adicionar etapa = inserir uma linha.
+export interface AcCulturaEtapa {
+  id: string;
+  ordem: number;
+  nome: string;
+  ativo: boolean;
+}
+
+// Status/desfecho de uma cultura. Lista fixa (badge); tolera novos valores.
+// `sem_crescimento` foi removido do fluxo; o `string & {}` ainda tolera linhas legadas.
+export type CulturaStatus =
+  | 'em_andamento'
+  | 'positiva'
+  | 'pronta_laudo'
+  | (string & {});
+
+// Lista FIXA dos status (fonte do badge e do select da página).
+export const STATUS_CULTURA: { key: CulturaStatus; label: string }[] = [
+  { key: 'em_andamento', label: 'Em andamento' },
+  { key: 'positiva',     label: 'Positiva' },
+  { key: 'pronta_laudo', label: 'Laudo concluído' },
+];
+
+// Cultura acompanhada manualmente (espelha ac_culturas).
+export interface AcCultura {
+  id: string;
+  agendamento_id: string;
+  exame_id: string | null;
+  exame_nome: string;         // tipo do exame (snapshot)
+  paciente_nome: string | null;
+  posto_id: string | null;
+  local_posto: string | null;
+  etapa_ordem: number;        // etapa atual (→ AcCulturaEtapa.ordem)
+  status: CulturaStatus;
+  nota: string | null;
+  resultado: string | null;   // desfecho/laudo textual (opcional)
+  iniciada_em: string;        // ISO 8601
+  prazo_dias: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // ─── Fase 7 (Etapa C) — Temperatura e Equipamentos ──────────────────────────────
