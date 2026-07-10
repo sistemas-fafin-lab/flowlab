@@ -49,9 +49,9 @@ const TIPO_OPTS: { value: SaidaTipo; label: string }[] = [
   { value: 'consumo', label: 'Consumo' },
 ];
 
-type SaidaForm = { quantity: number; tipo: SaidaTipo; destinationId: string; authorizedBy: string; notes: string };
+type SaidaForm = { quantity: number; tipo: SaidaTipo; destinationId: string; notes: string };
 
-const EMPTY_FORM: SaidaForm = { quantity: 0, tipo: 'consumo', destinationId: '', authorizedBy: '', notes: '' };
+const EMPTY_FORM: SaidaForm = { quantity: 0, tipo: 'consumo', destinationId: '', notes: '' };
 
 // dias até a validade (negativo = vencido)
 const daysUntil = (dateStr?: string): number | null => {
@@ -282,7 +282,8 @@ const EstoqueDepartamental: React.FC = () => {
     const qty = form.quantity;
     if (qty <= 0) { showError('Informe uma quantidade válida'); return; }
     if (qty > pendingConsumo.quantity) { showError('Quantidade maior que o saldo do setor'); return; }
-    if (!form.authorizedBy.trim()) { showError('Informe quem autorizou'); return; }
+    const userName = userProfile?.name?.trim();
+    if (!userName) { showError('Não foi possível identificar o usuário logado'); return; }
     const isTransfer = form.tipo === 'transferencia';
     if (isTransfer && isPostoSector) { showError('Postos não transferem — registre consumo ou vencimento'); return; }
     if (isTransfer && !form.destinationId) { showError('Escolha o local de destino da transferência'); return; }
@@ -301,7 +302,7 @@ const EstoqueDepartamental: React.FC = () => {
         date: new Date().toISOString().split('T')[0],
         fromLocationId: selectedSector,
         toLocationId: isTransfer ? form.destinationId : undefined,
-        authorizedBy: form.authorizedBy.trim(),
+        authorizedBy: userName,
         notes: [
           isTransfer ? `Transferência do setor ${sectorName} para ${destName}` : `Saída (${tipoLabel}) do setor ${sectorName}`,
           form.notes.trim(),
@@ -692,16 +693,13 @@ const EstoqueDepartamental: React.FC = () => {
                 </div>
               )}
 
-              {/* Autorizado por */}
+              {/* Autorizado por — fixo no usuário logado (não editável) */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Autorizado por *</label>
-                <input
-                  type="text"
-                  value={form.authorizedBy}
-                  onChange={(e) => setForm(prev => ({ ...prev, authorizedBy: e.target.value }))}
-                  placeholder="Nome do responsável"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Autorizado por</label>
+                <div className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-200">
+                  {userProfile?.name ?? '—'}
+                </div>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">Registrado automaticamente com o usuário logado.</p>
               </div>
 
               {/* Observações */}
@@ -727,7 +725,7 @@ const EstoqueDepartamental: React.FC = () => {
               </button>
               <button
                 onClick={confirmConsumo}
-                disabled={confirming || form.quantity <= 0 || form.quantity > pendingConsumo.quantity || !form.authorizedBy.trim() || (form.tipo === 'transferencia' && !form.destinationId)}
+                disabled={confirming || form.quantity <= 0 || form.quantity > pendingConsumo.quantity || (form.tipo === 'transferencia' && !form.destinationId)}
                 className="px-4 py-2 rounded-lg bg-gradient-to-r from-blue-500 to-indigo-500 text-white text-sm font-medium hover:from-blue-600 hover:to-indigo-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {confirming ? 'Registrando…' : 'Registrar saída'}
