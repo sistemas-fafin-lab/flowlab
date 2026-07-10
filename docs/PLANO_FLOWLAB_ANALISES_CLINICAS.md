@@ -239,13 +239,14 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 > Fundação barata e que **gateia tudo abaixo** — feita primeiro para evitar retrabalho de permissão.
 > `canLiberarResultados` fica fora (acompanha Resultados).
 
-### Fase 5 — Estoque departamental ✅
+### Fase 5 — Estoque departamental ✅ construída · ⬜ deploy em produção
 > **Plano detalhado:** [`PLANO_FASE5_ESTOQUE_DEPARTAMENTAL.md`](PLANO_FASE5_ESTOQUE_DEPARTAMENTAL.md)
 
 **Redesenho (substitui "`Department.ANALISES_CLINICAS` + categoria `insumos_clinicos`"):** estoque **multi-local plano** — `products.quantity` vira cache do total; saldo por local em `product_stock`; `products.location` (texto livre, hoje "Estoque"/"Depósito"/…) é promovido para `stock_locations`.
 
 - [x] **Parte A — Fundação:** `stock_locations` (plano) + `product_stock` + `stock_movements` com `from/to` + reescrita do trigger `update_stock_on_movement` + seed/promoção do `location` (migration defensiva)
 - [x] **Parte B — UI mínima:** dropdown de local no form, recebimento (com assinatura), transferência entre locais, saldo por local — `EstoqueDepartamental.tsx` (o "Autorizado por" da saída é fixado no usuário logado)
+- [ ] **Deploy em produção** — cutover + biomol (`controla_consumo` = Biologia Molecular) + frontend da Parte B, aplicados **juntos**. Migrations validadas no ambiente de test (9/9 cenários). Ver status em `PLANO_FASE5_ESTOQUE_DEPARTAMENTAL.md`.
 - [ ] (fora de escopo) RLS por setor e dashboard departamental → refinamento / Fase 8
 
 > Dependência da coleta: `ac_coleta_insumos` (Fase 6) dá baixa em `stock_movements`, então os locais precisam existir antes.
