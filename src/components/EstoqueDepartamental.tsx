@@ -8,6 +8,7 @@ import {
   PackageCheck,
   History as HistoryIcon,
   CheckCircle2,
+  ChevronDown,
 } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useNotification } from '../hooks/useNotification';
@@ -358,20 +359,23 @@ const EstoqueDepartamental: React.FC = () => {
         {setores.length > 1 ? (
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Setor</label>
-            <select
-              value={selectedSector}
-              onChange={(e) => setSelectedSector(e.target.value)}
-              className="w-full sm:w-64 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
-            >
-              {setores.map(s => (
-                <option key={s.id} value={s.id}>{s.nome}</option>
-              ))}
-            </select>
+            <div className="relative w-full sm:w-64">
+              <select
+                value={selectedSector}
+                onChange={(e) => setSelectedSector(e.target.value)}
+                className="w-full pl-4 pr-10 py-2.5 text-sm rounded-xl appearance-none cursor-pointer bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-100 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 dark:[color-scheme:dark]"
+              >
+                {setores.map(s => (
+                  <option key={s.id} value={s.id}>{s.nome}</option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            </div>
           </div>
         ) : setores.length === 1 ? (
           <div>
             <label className="block text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">Setor</label>
-            <div className="w-full sm:w-64 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 flex items-center gap-2">
+            <div className="w-full sm:w-64 px-4 py-2.5 border border-gray-200 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800 text-gray-800 dark:text-gray-100 flex items-center gap-2">
               <Boxes className="w-4 h-4 text-blue-500 flex-shrink-0" />
               <span className="truncate font-medium">{setores[0].nome}</span>
             </div>
