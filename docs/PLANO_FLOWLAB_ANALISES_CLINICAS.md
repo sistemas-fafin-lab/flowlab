@@ -286,10 +286,15 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 > Camada de **rigor interno** (QC) + recebimento. A análise é externa; o "resultado" da cultura é acompanhado **manualmente** e não bloqueia nada do lado do paciente.
 
 ### Fase 8 — Dashboard / KPIs 🔜
-- [ ] Widget no dashboard principal + página de KPIs: recoletas, culturas, temperatura/desperdício, produtividade
+> **Plano detalhado:** [`PLANO_FASE8_DASHBOARD_KPIS.md`](PLANO_FASE8_DASHBOARD_KPIS.md) (prevalece)
+
+- [x] **Página de Indicadores** no módulo AC (`/analises-clinicas/indicadores`, gated `canViewAnalisesClinicas`) — ✅ **Etapa 1 construída (10/Jul)**: 6 tiles + 5 gráficos (produtividade/culturas/temperatura/exames/recepção) + seletor 7/30/90, leitura client-side, sem migration. Falta drive visual + deploy.
+- [ ] KPIs **com dado hoje (v1):** **produtividade** (coleta/recepção/mix de exames) · **culturas** (status/positividade/atrasadas) · **temperatura** (% fora de faixa/excursões/compliance)
+- [ ] **Fora da v1 → placeholders** (ambos confirmados como não-necessários agora): **recoletas** (depende da Fase 6B + gatilho a definir) e **desperdício** (= insumo baixado mas não usado; exige marcar a baixa como desperdício no modelo)
+- [ ] (opcional) Widget no dashboard principal — só para admin (o `Dashboard.tsx` é gated por `canViewDashboard`, que operator/analistaSaude **não** têm)
 - [ ] (KPIs de SLA de resultado ficam para quando Resultados entrar no escopo)
 
-> Por último: os KPIs só têm dado depois que coleta/recoleta/análise estão gerando registros.
+> Por último: os KPIs só têm dado depois que coleta/cultura/temperatura estão gerando registros — o que já ocorre (Fases 6A/7 no ar), então a fase está **destravada**. ⚠️ 2 dos 4 KPIs do escopo original (recoletas, desperdício) **não têm fonte de dados** — ver §1 do plano detalhado.
 
 ---
 
