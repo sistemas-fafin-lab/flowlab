@@ -26,11 +26,19 @@ import { isFlowlabApiKeyValid, signHmacHex, requireEnv } from '../_lib/labhubInt
 const STATUS_PROPAGAVEIS = ['em_coleta', 'coletado', 'bloqueado'] as const;
 type StatusPropagavel = (typeof STATUS_PROPAGAVEIS)[number];
 
+// Exame marcado no check-in (snapshot). Espelha ExameColeta de @lab-hub/shared.
+interface ExameColeta {
+  nome: string;
+  isCultura: boolean;
+  material?: string;
+}
+
 // Espelha coletaStatusWebhookSchema de @lab-hub/api (apps/api/src/schemas/coletaStatus.ts).
 interface ColetaStatusWebhookPayload {
   agendamentoLabhubId: string;
   status: StatusPropagavel;
   ocorridoEm?: string; // ISO 8601 com 'Z'
+  exames?: ExameColeta[]; // presentes a partir de 'coletado'
 }
 
 export default async function handler(
@@ -80,11 +88,25 @@ export default async function handler(
       return;
     }
 
+    // Exames marcados no check-in (snapshot p/ a timeline do LAB-HUB). São gravados
+    // em ac_agendamento_exames por registrar_coleta na mesma transação que faz
+    // 'coletado', então em 'em_coleta'/'bloqueado' a lista vem vazia — só anexamos
+    // quando há exames.
+    const { data: exameRows } = await supabase
+      .from('ac_agendamento_exames')
+      .select('exame_nome, is_cultura')
+      .eq('agendamento_id', agendamento.id);
+    const exames: ExameColeta[] = (exameRows ?? []).map((e) => ({
+      nome: e.exame_nome as string,
+      isCultura: Boolean(e.is_cultura),
+    }));
+
     const payload: ColetaStatusWebhookPayload = {
       agendamentoLabhubId: agendamento.labhub_id,
       status: agendamento.status as StatusPropagavel,
       ocorridoEm: new Date(agendamento.updated_at).toISOString(),
     };
+    if (exames.length > 0) payload.exames = exames;
 
     // Assina e envia O MESMO corpo serializado (o LAB-HUB valida o HMAC sobre o
     // corpo cru exato — ver apps/api/src/lib/hmac.ts).
