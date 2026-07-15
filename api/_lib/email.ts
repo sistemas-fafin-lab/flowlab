@@ -8,6 +8,7 @@
 
 import nodemailer from 'nodemailer';
 import { getSupabaseAdminClient } from './supabase.js';
+import { describeError } from './errors.js';
 
 export interface SendTemplatedEmailParams {
   to: string;
@@ -63,8 +64,7 @@ export async function sendTemplatedEmail(
     finalSubject = renderTemplate(template.subject_template, variables);
     finalHtml = renderTemplate(template.body_html, variables);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[email] Erro ao buscar template no Supabase:', message);
+    console.error('[email] Erro ao buscar template no Supabase:', describeError(err));
     return { success: false, errorCode: 'send_failed', error: 'Erro interno ao carregar template' };
   }
 
@@ -93,8 +93,10 @@ export async function sendTemplatedEmail(
 
     return { success: true, messageId: info.messageId };
   } catch (err) {
+    console.error('[email] Falha ao enviar email:', describeError(err));
+    // `error` chega ao cliente via api/notifications/email.ts: mantém a mensagem
+    // enxuta do nodemailer, sem os extras de diagnóstico do describeError.
     const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[email] Falha ao enviar email:', message);
     return { success: false, errorCode: 'send_failed', error: message };
   }
 }

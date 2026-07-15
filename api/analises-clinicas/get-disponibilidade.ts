@@ -28,6 +28,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../_lib/supabase.js';
 import { isFlowlabApiKeyValid } from '../_lib/labhubIntegration.js';
+import { describeError } from '../_lib/errors.js';
 
 interface PostoDisponivel {
   id: string;
@@ -167,8 +168,7 @@ export default async function handler(
 
     res.status(200).json(resposta);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[analises-clinicas/get-disponibilidade] erro:', message);
+    console.error('[analises-clinicas/get-disponibilidade] erro:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });
   }
 }

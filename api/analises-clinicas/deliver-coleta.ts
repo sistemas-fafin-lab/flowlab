@@ -20,6 +20,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../_lib/supabase.js';
 import { isFlowlabApiKeyValid, signHmacHex, requireEnv } from '../_lib/labhubIntegration.js';
+import { describeError } from '../_lib/errors.js';
 
 // Estados da coleta que o LAB-HUB precisa refletir. O mapeamento p/ o vocabulário
 // do LAB-HUB (coletado → realizado) é feito lá, em POST /webhooks/coletas.
@@ -137,8 +138,7 @@ export default async function handler(
 
     res.status(200).json({ success: true, agendamentoLabhubId: payload.agendamentoLabhubId, status: payload.status });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[analises-clinicas/deliver-coleta] erro:', message);
+    console.error('[analises-clinicas/deliver-coleta] erro:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });
   }
 }
