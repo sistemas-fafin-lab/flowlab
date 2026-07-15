@@ -194,6 +194,14 @@ const PainelColetasPage: React.FC = () => {
     await refetch();
   };
 
+  // Liberou na conferência → fecha o check-in e abre direto o "Registrar coleta"
+  // do mesmo agendamento (o problema/bloqueio segue por posConcluir, sem encadear).
+  const posLiberar = async (ag: AcAgendamento) => {
+    setConferindo(null);
+    setColetando(ag);
+    await refetch();
+  };
+
   return (
     <div className="max-w-7xl mx-auto pt-4 sm:pt-6 pb-10">
       {/* Header */}
@@ -365,6 +373,7 @@ const PainelColetasPage: React.FC = () => {
           conferidoPor={coletorNome}
           onClose={() => setConferindo(null)}
           onDone={posConcluir}
+          onLiberado={() => posLiberar(conferindo)}
           registrarCheckin={registrarCheckin}
         />
       )}
@@ -432,8 +441,9 @@ const ConferenciaModal: React.FC<{
   conferidoPor: string;
   onClose: () => void;
   onDone: () => void | Promise<void>;
+  onLiberado: () => void | Promise<void>;
   registrarCheckin: ReturnType<typeof useColetas>['registrarCheckin'];
-}> = ({ ag, conferidoPor, onClose, onDone, registrarCheckin }) => {
+}> = ({ ag, conferidoPor, onClose, onDone, onLiberado, registrarCheckin }) => {
   const [checked, setChecked] = useState<Set<ChecklistItemKey>>(new Set());
   const [problemaMode, setProblemaMode] = useState(false);
   const [problemaEm, setProblemaEm] = useState<ChecklistItemKey | ''>('');
@@ -457,7 +467,7 @@ const ConferenciaModal: React.FC<{
     const err = await registrarCheckin(ag.id, conferidoPor, 'liberado', null, null);
     setSaving(false);
     if (err) setErro(err);
-    else await onDone();
+    else await onLiberado(); // encadeia direto p/ o modal de registrar coleta
   };
 
   const registrarProblema = async () => {
@@ -732,8 +742,10 @@ const ColetaModal: React.FC<{
   }, [busca, catalogo, selIds]);
   const culturasSel = useMemo(() => selecionados.filter((e) => e.is_cultura).length, [selecionados]);
 
-  const addExame = (e: ExameOpt) =>
+  const addExame = (e: ExameOpt) => {
     setSelecionados((prev) => (prev.some((x) => x.id === e.id) ? prev : [...prev, e]));
+    setBusca(''); // limpa o input após selecionar p/ facilitar a próxima busca
+  };
   const removeExame = (id: string) => setSelecionados((prev) => prev.filter((e) => e.id !== id));
 
   const salvar = async () => {
