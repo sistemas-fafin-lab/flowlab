@@ -108,6 +108,7 @@ HANDLERS.set('POST /api/users/create', () => import('./users/create.js'));
 HANDLERS.set('POST /api/analises-clinicas/deliver-coleta',     () => import('./analises-clinicas/deliver-coleta.js'));
 HANDLERS.set('POST /api/analises-clinicas/deliver-resultado',  () => import('./analises-clinicas/deliver-resultado.js'));
 HANDLERS.set('GET /api/analises-clinicas/get-disponibilidade', () => import('./analises-clinicas/get-disponibilidade.js'));
+HANDLERS.set('GET /api/analises-clinicas/get-documentos',      () => import('./analises-clinicas/get-documentos.js'));
 HANDLERS.set('POST /api/analises-clinicas/receive-agendamento', () => import('./analises-clinicas/receive-agendamento.js'));
 HANDLERS.set('POST /api/analises-clinicas/receive-cancelamento', () => import('./analises-clinicas/receive-cancelamento.js'));
 
