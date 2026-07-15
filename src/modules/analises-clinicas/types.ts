@@ -55,15 +55,56 @@ export type ChecklistItemKey = 'identidade' | 'guia' | 'pedido_medico' | 'jejum'
 // Resultado de uma conferência: liberou a coleta ou registrou um problema.
 export type CheckinResultado = 'liberado' | 'problema';
 
+// Tipo de documento que o paciente envia pelo app do LAB-HUB.
+// Espelha TipoDocumento de @lab-hub/shared (packages/shared/src/index.ts:79).
+export type TipoDocumento = 'identidade' | 'carteirinha' | 'pedido_medico' | 'outro';
+
+// Documento exibido na conferência de recepção.
+// Espelha DocumentoFlowLab de @lab-hub/shared (packages/shared/src/index.ts:184).
+// `url` é signed URL FRESCA gerada pelo LAB-HUB a cada busca: os bytes ficam só lá
+// (LGPD) e o link vence em ~15min — daí `expiraEm`, e daí não cachearmos nada.
+export interface DocumentoCheckin {
+  id: string;
+  tipo: TipoDocumento;
+  nomeArquivo: string;
+  mimeType: string;
+  tamanhoBytes: number;
+  criadoEm: string; // ISO 8601
+  url: string;
+  expiraEm: string; // ISO 8601
+}
+
+// Decide pelo mimeType, não pela extensão do nome: o nome vem do paciente, enquanto
+// o mimeType foi conferido por magic bytes no upload ao LAB-HUB.
+export const isImagem = (mimeType: string): boolean => mimeType.startsWith('image/');
+
 // Lista FIXA do checklist de recepção (§2.2). É a fonte dos itens da tela e das
 // chaves válidas de problema_em. Trocar a lista = ajuste aqui + no CHECK da tabela.
-export const CHECKLIST_RECEPCAO: { key: ChecklistItemKey; label: string; descricao: string }[] = [
-  { key: 'identidade',    label: 'Identidade do paciente', descricao: 'Documento com foto confere com o cadastro.' },
-  { key: 'guia',          label: 'Guia do convênio',       descricao: 'Guia apresentada e autorização válida.' },
-  { key: 'pedido_medico', label: 'Pedido médico',          descricao: 'Pedido apresentado, assinatura e CRM legíveis.' },
+//
+// `tipoDocumento` liga o item ao documento que o paciente enviou pelo LAB-HUB, p/ o
+// operador conferir o arquivo no mesmo item que está marcando. Itens sem documento
+// (jejum, termo) são confirmados de viva voz e ficam sem o campo. É opcional de
+// propósito: a lista e as chaves seguem intactas, então todosOk, o ProgressRing e o
+// CHECK de ac_checkins.problema_em não mudam.
+export const CHECKLIST_RECEPCAO: {
+  key: ChecklistItemKey;
+  label: string;
+  descricao: string;
+  tipoDocumento?: TipoDocumento;
+}[] = [
+  { key: 'identidade',    label: 'Identidade do paciente', descricao: 'Documento com foto confere com o cadastro.',    tipoDocumento: 'identidade' },
+  { key: 'guia',          label: 'Guia do convênio',       descricao: 'Guia apresentada e autorização válida.',        tipoDocumento: 'carteirinha' },
+  { key: 'pedido_medico', label: 'Pedido médico',          descricao: 'Pedido apresentado, assinatura e CRM legíveis.', tipoDocumento: 'pedido_medico' },
   { key: 'jejum',         label: 'Preparo / jejum',        descricao: 'Preparo/jejum confirmado com o paciente.' },
   { key: 'termo',         label: 'Termo de coleta',        descricao: 'Termo de consentimento assinado.' },
 ];
+
+// Tipos já cobertos por algum item do checklist. Derivado da lista acima em vez de
+// escrito à mão: um `tipo` novo no LAB-HUB cai automaticamente em "outros documentos"
+// na tela, em vez de sumir calado quando o espelho de tipos ficar desatualizado.
+export const TIPOS_NO_CHECKLIST = new Set(
+  CHECKLIST_RECEPCAO.map((i) => i.tipoDocumento).filter(Boolean),
+);
 
 // Conferência de recepção (1:1 agendamento) — espelha ac_checkins.
 export interface AcCheckin {

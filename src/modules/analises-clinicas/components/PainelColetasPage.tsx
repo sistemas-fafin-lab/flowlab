@@ -27,13 +27,19 @@ import {
 import { useAgendamentos } from '../hooks/useAgendamentos';
 import { usePostos } from '../hooks/usePostos';
 import { useColetas } from '../hooks/useColetas';
+import { useDocumentosAgendamento } from '../hooks/useDocumentosAgendamento';
 import { useAuth } from '../../../hooks/useAuth';
 import { supabase } from '../../../lib/supabase';
+import { DocumentoThumb } from './DocumentoThumb';
+import { DocumentoLightbox } from './DocumentoLightbox';
 import {
   CHECKLIST_RECEPCAO,
+  TIPOS_NO_CHECKLIST,
+  isImagem,
   type AcAgendamento,
   type AcCheckin,
   type ChecklistItemKey,
+  type DocumentoCheckin,
 } from '../types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -451,6 +457,38 @@ const ConferenciaModal: React.FC<{
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
+  // Arquivos que o paciente enviou pelo app do LAB-HUB, p/ conferir cada item com o
+  // documento à vista em vez de no palpite.
+  const {
+    documentos,
+    loading: docsLoading,
+    error: docsErro,
+    expirado: docsExpirados,
+    refetch: recarregarDocs,
+  } = useDocumentosAgendamento(ag.id);
+
+  const porTipo = useMemo(() => {
+    const mapa: Record<string, DocumentoCheckin[]> = {};
+    for (const d of documentos) (mapa[d.tipo] ??= []).push(d);
+    return mapa;
+  }, [documentos]);
+
+  // Tipo fora do checklist (`outro`, ou um tipo novo criado no LAB-HUB): vai p/ a
+  // seção do rodapé em vez de sumir da tela.
+  const outros = useMemo(
+    () => documentos.filter((d) => !TIPOS_NO_CHECKLIST.has(d.tipo)),
+    [documentos],
+  );
+
+  // O lightbox navega por TODAS as imagens do agendamento, não só as do item clicado
+  // — o operador folheia identidade → carteirinha → pedido sem fechar e reabrir.
+  const imagens = useMemo(() => documentos.filter((d) => isImagem(d.mimeType)), [documentos]);
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
+  const abrirLightbox = (doc: DocumentoCheckin) => {
+    const i = imagens.findIndex((d) => d.id === doc.id);
+    if (i >= 0) setLightboxIdx(i);
+  };
+
   const todosOk = checked.size === CHECKLIST_RECEPCAO.length;
 
   const toggle = (key: ChecklistItemKey) =>
@@ -521,38 +559,103 @@ const ConferenciaModal: React.FC<{
 
           <div className="px-5 space-y-2.5 overflow-y-auto flex-1">
             {!problemaMode ? (
-              CHECKLIST_RECEPCAO.map((item) => {
-                const on = checked.has(item.key);
-                const Icon = ITEM_ICON[item.key];
-                return (
-                  <button
-                    key={item.key}
-                    onClick={() => toggle(item.key)}
-                    className={`w-full flex items-center gap-3.5 p-3.5 rounded-xl border text-left transition-all ${
-                      on
-                        ? 'border-emerald-300 bg-emerald-50/60 dark:bg-emerald-900/15 dark:border-emerald-800'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/30'
-                    }`}
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-slate-700 text-white flex items-center justify-center shrink-0">
-                      <Icon className="w-5 h-5" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{item.label}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">{item.descricao}</div>
-                    </div>
-                    <span
-                      className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+              <>
+                {/* Faixa não-bloqueante: LAB-HUB fora do ar não pode travar o
+                    check-in — o operador ainda confere no papel e libera. */}
+                {docsErro && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <span className="flex-1">Não foi possível carregar os documentos — confira no balcão.</span>
+                    <button
+                      onClick={() => void recarregarDocs()}
+                      className="font-semibold underline underline-offset-2 hover:no-underline shrink-0"
+                    >
+                      Tentar de novo
+                    </button>
+                  </div>
+                )}
+                {docsExpirados && !docsErro && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300">
+                    <CalendarClock className="w-4 h-4 shrink-0" />
+                    <span className="flex-1">Os links dos documentos expiraram.</span>
+                    <button
+                      onClick={() => void recarregarDocs()}
+                      className="font-semibold underline underline-offset-2 hover:no-underline shrink-0"
+                    >
+                      Atualizar
+                    </button>
+                  </div>
+                )}
+
+                {CHECKLIST_RECEPCAO.map((item) => {
+                  const on = checked.has(item.key);
+                  const Icon = ITEM_ICON[item.key];
+                  const docs = item.tipoDocumento ? porTipo[item.tipoDocumento] ?? [] : [];
+                  return (
+                    // O contêiner é <div>, não <button>: as miniaturas são botões e
+                    // links, e aninhá-las num botão é HTML inválido — o clique
+                    // borbulharia e abrir o documento marcaria o item como conferido.
+                    <div
+                      key={item.key}
+                      className={`rounded-xl border transition-all ${
                         on
-                          ? 'bg-emerald-500 border-emerald-500 text-white'
-                          : 'border-gray-300 dark:border-gray-600 text-gray-300 dark:text-gray-600'
+                          ? 'border-emerald-300 bg-emerald-50/60 dark:bg-emerald-900/15 dark:border-emerald-800'
+                          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
                       }`}
                     >
-                      <Check className="w-3.5 h-3.5" />
-                    </span>
-                  </button>
-                );
-              })
+                      <button
+                        onClick={() => toggle(item.key)}
+                        className="w-full flex items-center gap-3.5 p-3.5 text-left rounded-xl"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-slate-700 text-white flex items-center justify-center shrink-0">
+                          <Icon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-semibold text-gray-800 dark:text-gray-100">{item.label}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">{item.descricao}</div>
+                        </div>
+                        <span
+                          className={`w-6 h-6 rounded-full border flex items-center justify-center shrink-0 transition-colors ${
+                            on
+                              ? 'bg-emerald-500 border-emerald-500 text-white'
+                              : 'border-gray-300 dark:border-gray-600 text-gray-300 dark:text-gray-600'
+                          }`}
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                        </span>
+                      </button>
+
+                      {/* Irmão do botão de toggle, nunca dentro dele. */}
+                      {item.tipoDocumento && (docsLoading || docs.length > 0) && (
+                        <div className="flex flex-wrap items-center gap-2 px-3.5 pb-3.5 pl-[4.25rem]">
+                          {docsLoading ? (
+                            <div className="w-14 h-14 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />
+                          ) : (
+                            docs.map((doc) => (
+                              <DocumentoThumb key={doc.id} doc={doc} onAbrir={() => abrirLightbox(doc)} />
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Fora do CHECKLIST_RECEPCAO de propósito: entrar na lista mexeria em
+                    todosOk e no ProgressRing. */}
+                {outros.length > 0 && (
+                  <div className="pt-1">
+                    <div className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">
+                      Outros documentos
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {outros.map((doc) => (
+                        <DocumentoThumb key={doc.id} doc={doc} onAbrir={() => abrirLightbox(doc)} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="space-y-3 pb-1">
                 <div className="flex items-center gap-2 text-sm text-rose-600 dark:text-rose-400 font-medium">
@@ -648,6 +751,15 @@ const ConferenciaModal: React.FC<{
           </div>
         </div>
       </div>
+
+      {lightboxIdx !== null && (
+        <DocumentoLightbox
+          documentos={imagens}
+          indice={lightboxIdx}
+          onNavegar={setLightboxIdx}
+          onClose={() => setLightboxIdx(null)}
+        />
+      )}
     </div>
   );
 };

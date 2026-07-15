@@ -11,8 +11,10 @@ export { useColetas } from './hooks/useColetas';
 export { useTemperaturas } from './hooks/useTemperaturas';
 export { useCulturas } from './hooks/useCulturas';
 export { useAcIndicadores } from './hooks/useAcIndicadores';
+export { useDocumentosAgendamento } from './hooks/useDocumentosAgendamento';
 export {
   CHECKLIST_RECEPCAO,
+  TIPOS_NO_CHECKLIST,
   TIPOS_EQUIPAMENTO,
   STATUS_CULTURA,
 } from './types';
@@ -35,4 +37,6 @@ export type {
   AcCulturaEtapa,
   CulturaStatus,
   AcCultura,
+  TipoDocumento,
+  DocumentoCheckin,
 } from './types';
