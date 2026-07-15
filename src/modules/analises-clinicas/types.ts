@@ -29,31 +29,22 @@ export interface AcPosto {
   nome: string;
   endereco: string;
   ativo: boolean;
+  // Grade de agenda (1:1): a janela início→fim com passo `intervalo` gera os
+  // horários; `dias_semana` (0=dom … 6=sáb) define em quais dias o posto opera.
+  // Campos de hora nulos = agenda ainda não configurada. Cada horário atende 1.
+  agenda_hora_inicio: string | null;   // 'HH:MM'
+  agenda_hora_fim: string | null;      // 'HH:MM'
+  agenda_intervalo_min: number | null; // minutos entre atendimentos
+  agenda_dias_semana: number[];        // subconjunto de 0..6
   created_at?: string;
   updated_at?: string;
 }
 
-// Um horário (HH:MM) com a capacidade de atendimento simultâneo (default 1).
-export interface AcHorarioItem {
-  hora: string; // 'HH:MM'
-  capacidade: number;
-}
-
-// Horário fixo recorrente do posto (vale seg–sáb).
-export interface AcHorarioPadrao {
-  id: string;
-  posto_id: string;
-  hora: string; // 'HH:MM'
-  capacidade: number;
-}
-
-// Sobreposição de um dia específico: fecha o dia ou troca a lista de horários.
+// Data bloqueada de um posto (feriado): nenhum agendamento naquela data.
 export interface AcDiaExcecao {
   id: string;
   posto_id: string;
   data: string; // 'YYYY-MM-DD'
-  fechado: boolean;
-  horarios: AcHorarioItem[]; // usado quando fechado = false
 }
 
 // ─── Fase 6 — Coleta ────────────────────────────────────────────────────────────

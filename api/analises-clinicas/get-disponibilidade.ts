@@ -5,11 +5,14 @@
  * disponíveis (direção LAB-HUB → FlowLab, D3). O SchedulePage do LAB-HUB consome
  * essa lista via proxy GET /api/v1/postos/disponibilidade.
  *
- * A agenda é GERADA a partir do modelo recorrente:
- *   • ac_horarios_padrao — horários fixos do posto, válidos de SEG a SÁB
- *   • ac_dias_excecao    — por data, fecha o dia ou troca a lista de horários
- * Para os próximos N dias, aplicamos a base/exceção e descontamos os agendamentos
+ * A agenda é GERADA a partir da GRADE configurada em cada posto:
+ *   • agenda_hora_inicio / agenda_hora_fim / agenda_intervalo_min — a janela e o
+ *     passo (ex.: 08:00–11:00 a cada 15 min) que gera os horários do dia;
+ *   • agenda_dias_semana — em quais dias (0=dom … 6=sáb) o posto opera;
+ *   • ac_dias_excecao   — datas bloqueadas (feriados): não geram agenda.
+ * Para os próximos N dias, aplicamos a grade/bloqueios e descontamos os agendamentos
  * já feitos (ocupação derivada de ac_agendamentos; cancelar libera o horário).
+ * Cada horário atende 1 paciente.
  *
  * Autorização: header `Authorization: Bearer <FLOWLAB_API_KEY>` (server-to-server).
  *
@@ -33,21 +36,43 @@ interface PostoDisponivel {
   slots: string[];
 }
 
-interface HorarioItem {
-  hora: string; // 'HH:MM'
-  capacidade: number;
+// Grade de agenda de um posto (colunas agenda_* de ac_postos).
+interface AgendaGrade {
+  inicioMin: number;   // minutos desde 00:00
+  fimMin: number;      // minutos desde 00:00
+  intervaloMin: number;
+  dias: Set<number>;   // dias-da-semana operados (0=dom … 6=sáb)
 }
 
-// 'HH:MM:SS' | 'HH:MM' → 'HH:MM'
-const normHora = (h: string): string => String(h).slice(0, 5);
-
-const toItem = (raw: unknown): HorarioItem | null => {
-  if (!raw || typeof raw !== 'object') return null;
-  const o = raw as { hora?: unknown; capacidade?: unknown };
-  if (typeof o.hora !== 'string') return null;
-  const capacidade = Number(o.capacidade);
-  return { hora: normHora(o.hora), capacidade: Number.isFinite(capacidade) && capacidade >= 1 ? capacidade : 1 };
+// 'HH:MM:SS' | 'HH:MM' → minutos desde 00:00, ou null se inválido.
+const horaParaMin = (h: unknown): number | null => {
+  if (typeof h !== 'string') return null;
+  const m = /^(\d{1,2}):(\d{2})/.exec(h);
+  if (!m) return null;
+  return Number(m[1]) * 60 + Number(m[2]);
 };
+
+// Constrói a grade do posto; devolve null se a agenda não estiver configurada.
+const toGrade = (p: {
+  agenda_hora_inicio: unknown;
+  agenda_hora_fim: unknown;
+  agenda_intervalo_min: unknown;
+  agenda_dias_semana: unknown;
+}): AgendaGrade | null => {
+  const inicioMin = horaParaMin(p.agenda_hora_inicio);
+  const fimMin = horaParaMin(p.agenda_hora_fim);
+  const intervaloMin = Number(p.agenda_intervalo_min);
+  const dias = Array.isArray(p.agenda_dias_semana)
+    ? new Set((p.agenda_dias_semana as unknown[]).map(Number).filter((d) => d >= 0 && d <= 6))
+    : new Set<number>();
+  if (inicioMin === null || fimMin === null) return null;
+  if (!Number.isFinite(intervaloMin) || intervaloMin <= 0) return null;
+  if (fimMin < inicioMin || dias.size === 0) return null;
+  return { inicioMin, fimMin, intervaloMin, dias };
+};
+
+const pad = (n: number) => String(n).padStart(2, '0');
+const minParaHora = (min: number) => `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
 
 export default async function handler(
   req: VercelRequest,
@@ -73,15 +98,17 @@ export default async function handler(
     const m = /^([+-])(\d{2}):(\d{2})$/.exec(tzOffset);
     const offsetMin = m ? (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3])) : -180;
 
-    const [{ data: postos, error: postosErr }, { data: padroes, error: padErr }, { data: excecoes, error: excErr }] =
+    const [{ data: postos, error: postosErr }, { data: bloqueios, error: bloqErr }] =
       await Promise.all([
-        supabase.from('ac_postos').select('id, nome, endereco').eq('ativo', true).order('nome'),
-        supabase.from('ac_horarios_padrao').select('posto_id, hora, capacidade'),
-        supabase.from('ac_dias_excecao').select('posto_id, data, fechado, horarios'),
+        supabase
+          .from('ac_postos')
+          .select('id, nome, endereco, agenda_hora_inicio, agenda_hora_fim, agenda_intervalo_min, agenda_dias_semana')
+          .eq('ativo', true)
+          .order('nome'),
+        supabase.from('ac_dias_excecao').select('posto_id, data'),
       ]);
     if (postosErr) throw postosErr;
-    if (padErr) throw padErr;
-    if (excErr) throw excErr;
+    if (bloqErr) throw bloqErr;
 
     const nowMs = Date.now();
     const nowIso = new Date(nowMs).toISOString();
@@ -102,57 +129,35 @@ export default async function handler(
       ocupacao.set(k, (ocupacao.get(k) ?? 0) + 1);
     }
 
-    // Base recorrente por posto (ordenada por hora).
-    const baseraw = new Map<string, HorarioItem[]>();
-    for (const p of padroes ?? []) {
-      const lista = baseraw.get(p.posto_id) ?? [];
-      lista.push({ hora: normHora(p.hora as string), capacidade: (p.capacidade as number) ?? 1 });
-      baseraw.set(p.posto_id, lista);
-    }
-    for (const lista of baseraw.values()) lista.sort((a, b) => a.hora.localeCompare(b.hora));
-
-    // Exceções por posto+data.
-    const excMap = new Map<string, { fechado: boolean; horarios: HorarioItem[] }>();
-    for (const e of excecoes ?? []) {
-      const horarios = Array.isArray(e.horarios)
-        ? (e.horarios as unknown[]).map(toItem).filter((x): x is HorarioItem => x !== null)
-        : [];
-      horarios.sort((a, b) => a.hora.localeCompare(b.hora));
-      excMap.set(`${e.posto_id}|${e.data}`, { fechado: Boolean(e.fechado), horarios });
+    // Datas bloqueadas por posto (feriados).
+    const bloqueado = new Set<string>();
+    for (const b of bloqueios ?? []) {
+      bloqueado.add(`${b.posto_id}|${b.data}`);
     }
 
     // "Hoje" no fuso local (Brasília): desloca o relógio UTC e lê os componentes.
     const localNow = new Date(nowMs + offsetMin * 60_000);
     const baseUTC = Date.UTC(localNow.getUTCFullYear(), localNow.getUTCMonth(), localNow.getUTCDate());
-    const pad = (n: number) => String(n).padStart(2, '0');
 
     const resposta: PostoDisponivel[] = (postos ?? []).map((p) => {
-      const base = baseraw.get(p.id) ?? [];
+      const grade = toGrade(p as Parameters<typeof toGrade>[0]);
       const slots: string[] = [];
+      if (!grade) return { id: p.id, nome: p.nome, endereco: p.endereco ?? '', slots };
 
       for (let i = 0; i < diasJanela; i++) {
         const d = new Date(baseUTC + i * 86_400_000);
         const dateStr = `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
         const dow = d.getUTCDay(); // 0 = domingo
 
-        let horarios: HorarioItem[];
-        const exc = excMap.get(`${p.id}|${dateStr}`);
-        if (exc) {
-          if (exc.fechado) continue; // feriado/fechado
-          horarios = exc.horarios; // lista própria do dia (vazia = sem agenda)
-        } else if (dow === 0) {
-          continue; // domingo não tem base
-        } else {
-          horarios = base;
-        }
+        if (bloqueado.has(`${p.id}|${dateStr}`)) continue; // feriado/bloqueado
+        if (!grade.dias.has(dow)) continue;                // dia fora da operação
 
-        for (const h of horarios) {
-          const instante = new Date(`${dateStr}T${h.hora}:00${tzOffset}`);
+        for (let t = grade.inicioMin; t <= grade.fimMin; t += grade.intervaloMin) {
+          const instante = new Date(`${dateStr}T${minParaHora(t)}:00${tzOffset}`);
           const ms = instante.getTime();
           if (!Number.isFinite(ms) || ms <= nowMs) continue; // inválido ou já passou
           const iso = instante.toISOString();
-          const ocupado = ocupacao.get(chave(p.id, iso)) ?? 0;
-          if (ocupado >= h.capacidade) continue;
+          if ((ocupacao.get(chave(p.id, iso)) ?? 0) >= 1) continue; // 1 paciente por horário
           slots.push(iso);
         }
       }

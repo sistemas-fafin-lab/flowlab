@@ -20,8 +20,6 @@ export type {
   AcAgendamento,
   AcAgendamentoStatus,
   AcPosto,
-  AcHorarioItem,
-  AcHorarioPadrao,
   AcDiaExcecao,
   AcCheckin,
   AcColeta,
