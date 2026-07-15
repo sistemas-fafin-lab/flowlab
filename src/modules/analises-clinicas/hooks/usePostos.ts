@@ -1,8 +1,34 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import type { AcDiaExcecao, AcHorarioItem, AcHorarioPadrao, AcPosto } from '../types';
+import type { AcDiaExcecao, AcPosto } from '../types';
 
 const normHora = (h: string): string => String(h).slice(0, 5); // 'HH:MM:SS' → 'HH:MM'
+const normHoraOpt = (h: unknown): string | null => (typeof h === 'string' && h ? normHora(h) : null);
+
+// Linha de ac_postos (snake_case do banco) → AcPosto do domínio.
+const mapPosto = (r: Record<string, unknown>): AcPosto => ({
+  id: r.id as string,
+  nome: r.nome as string,
+  endereco: (r.endereco as string) ?? '',
+  ativo: Boolean(r.ativo),
+  agenda_hora_inicio: normHoraOpt(r.agenda_hora_inicio),
+  agenda_hora_fim: normHoraOpt(r.agenda_hora_fim),
+  agenda_intervalo_min:
+    r.agenda_intervalo_min == null ? null : Number(r.agenda_intervalo_min),
+  agenda_dias_semana: Array.isArray(r.agenda_dias_semana)
+    ? (r.agenda_dias_semana as unknown[]).map(Number)
+    : [],
+  created_at: r.created_at as string | undefined,
+  updated_at: r.updated_at as string | undefined,
+});
+
+// Configuração da grade de agenda de um posto.
+export interface AgendaInput {
+  horaInicio: string | null;   // 'HH:MM'
+  horaFim: string | null;      // 'HH:MM'
+  intervaloMin: number | null; // minutos entre atendimentos
+  diasSemana: number[];        // 0=dom … 6=sáb
+}
 
 interface UsePostosResult {
   postos: AcPosto[];
@@ -12,18 +38,18 @@ interface UsePostosResult {
   createPosto: (input: { nome: string; endereco: string }) => Promise<string | null>;
   updatePosto: (id: string, patch: Partial<Pick<AcPosto, 'nome' | 'endereco' | 'ativo'>>) => Promise<string | null>;
   deletePosto: (id: string) => Promise<string | null>;
-  // ── Agenda recorrente ──────────────────────────────────────────────────────
-  fetchHorariosPadrao: (postoId: string) => Promise<AcHorarioPadrao[]>;
-  addHorarioPadrao: (input: { postoId: string; hora: string; capacidade: number }) => Promise<string | null>;
-  removeHorarioPadrao: (id: string) => Promise<string | null>;
+  // ── Grade de agenda ─────────────────────────────────────────────────────────
+  saveAgenda: (postoId: string, input: AgendaInput) => Promise<string | null>;
+  // ── Datas bloqueadas (feriados) ─────────────────────────────────────────────
   fetchExcecoes: (postoId: string) => Promise<AcDiaExcecao[]>;
-  saveExcecao: (input: { postoId: string; data: string; fechado: boolean; horarios: AcHorarioItem[] }) => Promise<string | null>;
+  addExcecao: (input: { postoId: string; data: string }) => Promise<string | null>;
   removeExcecao: (id: string) => Promise<string | null>;
 }
 
-// Gestão de postos e da agenda recorrente (ac_postos / ac_horarios_padrao /
-// ac_dias_excecao). Mutações dependem das policies de RLS (admin/operator) das
-// migrations 20260630120000 e 20260630130000; se a RLS negar, o erro é devolvido.
+// Gestão de postos, da grade de agenda (colunas agenda_* de ac_postos) e das datas
+// bloqueadas (ac_dias_excecao). Mutações dependem das policies de RLS (admin/operator)
+// das migrations 20260630120000 / 20260630130000 / 20260714120000; se a RLS negar, o
+// erro é devolvido.
 export function usePostos(): UsePostosResult {
   const [postos, setPostos] = useState<AcPosto[]>([]);
   const [loading, setLoading] = useState(true);
@@ -40,7 +66,7 @@ export function usePostos(): UsePostosResult {
       setError(err.message);
       setPostos([]);
     } else {
-      setPostos((data ?? []) as AcPosto[]);
+      setPostos((data ?? []).map((r) => mapPosto(r as Record<string, unknown>)));
     }
     setLoading(false);
   }, []);
@@ -105,8 +131,9 @@ export function usePostos(): UsePostosResult {
           ? 'Não é possível excluir: o posto ainda possui estoque departamental com saldo.'
           : locErr.message;
       }
-      // Horários padrão e exceções somem junto (FK ON DELETE CASCADE); agendamentos
-      // existentes mantêm o snapshot local_posto (posto_id vira NULL).
+      // As datas bloqueadas somem junto (ac_dias_excecao FK ON DELETE CASCADE); a grade
+      // de agenda vive nas próprias colunas do posto. Agendamentos existentes mantêm o
+      // snapshot local_posto (posto_id vira NULL).
       const { error: err } = await supabase.from('ac_postos').delete().eq('id', id);
       if (err) return err.message;
       await refetch();
@@ -115,46 +142,30 @@ export function usePostos(): UsePostosResult {
     [refetch],
   );
 
-  // ── Horários fixos (recorrentes) ────────────────────────────────────────────
-  const fetchHorariosPadrao: UsePostosResult['fetchHorariosPadrao'] = useCallback(async (postoId) => {
-    const { data, error: err } = await supabase
-      .from('ac_horarios_padrao')
-      .select('*')
-      .eq('posto_id', postoId)
-      .order('hora', { ascending: true });
-    if (err) {
-      setError(err.message);
-      return [];
-    }
-    return (data ?? []).map((r: Record<string, unknown>) => ({
-      id: r.id as string,
-      posto_id: r.posto_id as string,
-      hora: normHora(r.hora as string),
-      capacidade: (r.capacidade as number) ?? 1,
-    }));
-  }, []);
-
-  const addHorarioPadrao: UsePostosResult['addHorarioPadrao'] = useCallback(
-    async ({ postoId, hora, capacidade }) => {
+  // ── Grade de agenda (colunas agenda_* de ac_postos) ─────────────────────────
+  const saveAgenda: UsePostosResult['saveAgenda'] = useCallback(
+    async (postoId, { horaInicio, horaFim, intervaloMin, diasSemana }) => {
       const { error: err } = await supabase
-        .from('ac_horarios_padrao')
-        .insert({ posto_id: postoId, hora: normHora(hora), capacidade });
-      if (err) return err.code === '23505' ? 'Esse horário já existe no posto.' : err.message;
+        .from('ac_postos')
+        .update({
+          agenda_hora_inicio: horaInicio ? normHora(horaInicio) : null,
+          agenda_hora_fim: horaFim ? normHora(horaFim) : null,
+          agenda_intervalo_min: intervaloMin,
+          agenda_dias_semana: diasSemana,
+        })
+        .eq('id', postoId);
+      if (err) return err.message;
+      await refetch();
       return null;
     },
-    [],
+    [refetch],
   );
 
-  const removeHorarioPadrao: UsePostosResult['removeHorarioPadrao'] = useCallback(async (id) => {
-    const { error: err } = await supabase.from('ac_horarios_padrao').delete().eq('id', id);
-    return err ? err.message : null;
-  }, []);
-
-  // ── Exceções por dia ────────────────────────────────────────────────────────
+  // ── Datas bloqueadas (feriados) ─────────────────────────────────────────────
   const fetchExcecoes: UsePostosResult['fetchExcecoes'] = useCallback(async (postoId) => {
     const { data, error: err } = await supabase
       .from('ac_dias_excecao')
-      .select('*')
+      .select('id, posto_id, data')
       .eq('posto_id', postoId)
       .order('data', { ascending: true });
     if (err) {
@@ -165,24 +176,14 @@ export function usePostos(): UsePostosResult {
       id: r.id as string,
       posto_id: r.posto_id as string,
       data: r.data as string,
-      fechado: Boolean(r.fechado),
-      horarios: Array.isArray(r.horarios)
-        ? (r.horarios as AcHorarioItem[]).map((h) => ({ hora: normHora(h.hora), capacidade: h.capacidade ?? 1 }))
-        : [],
     }));
   }, []);
 
-  const saveExcecao: UsePostosResult['saveExcecao'] = useCallback(
-    async ({ postoId, data, fechado, horarios }) => {
-      const payload = {
-        posto_id: postoId,
-        data,
-        fechado,
-        horarios: fechado ? [] : horarios.map((h) => ({ hora: normHora(h.hora), capacidade: h.capacidade })),
-      };
+  const addExcecao: UsePostosResult['addExcecao'] = useCallback(
+    async ({ postoId, data }) => {
       const { error: err } = await supabase
         .from('ac_dias_excecao')
-        .upsert(payload, { onConflict: 'posto_id,data' });
+        .upsert({ posto_id: postoId, data }, { onConflict: 'posto_id,data', ignoreDuplicates: true });
       return err ? err.message : null;
     },
     [],
@@ -201,11 +202,9 @@ export function usePostos(): UsePostosResult {
     createPosto,
     updatePosto,
     deletePosto,
-    fetchHorariosPadrao,
-    addHorarioPadrao,
-    removeHorarioPadrao,
+    saveAgenda,
     fetchExcecoes,
-    saveExcecao,
+    addExcecao,
     removeExcecao,
   };
 }
