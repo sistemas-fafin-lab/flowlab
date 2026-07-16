@@ -17,6 +17,7 @@ import AddStockModal from './AddStockModal';
 
 const ProductList: React.FC = () => {
   const { products, updateProduct, addMovement, suppliers, deleteProduct, setProducts, fetchProducts, addProductChangeLog, loading, locations, receiveStock, fetchProductStock } = useInventory();
+  const { userProfile } = useAuth();
   const navigate = useNavigate();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm, inputDialog, showInputDialog, hideInputDialog, handleInputDialogConfirm } = useDialog();
@@ -345,7 +346,18 @@ const handleSaveChanges = async () => {
     if (!selectedProduct) return;
 
     try {
-      await receiveStock(selectedProduct.id, locationId, quantity);
+      // Autor da entrada = usuário logado (nome vem do user_profiles, igual ao estoque departamental)
+      const authorizedBy = userProfile?.name?.trim() || userProfile?.email || 'Sistema';
+
+      // Produto não tem campo de observação: monta um resumo com os dados do produto
+      const infoParts = [
+        selectedProduct.batch ? `Lote ${selectedProduct.batch}` : null,
+        selectedProduct.invoiceNumber ? `NF ${selectedProduct.invoiceNumber}` : null,
+        (selectedProduct.supplierName || selectedProduct.supplier) ? `Fornecedor ${selectedProduct.supplierName || selectedProduct.supplier}` : null,
+      ].filter(Boolean);
+      const notes = ['Reposição de estoque', ...infoParts].join(' · ');
+
+      await receiveStock(selectedProduct.id, locationId, quantity, { authorizedBy, notes });
       await fetchProducts();
       showSuccess(`✅ Estoque recebido! +${quantity} ${selectedProduct.unit}`);
     } catch (error) {
@@ -1032,7 +1044,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                 >
                   <option value="internal-consumption">Consumo Interno</option>
-                  <option value="sale">Venda</option>
+                  <option value="sale">Solicitação</option>
                   <option value="internal-transfer">Transferência Interna</option>
                   <option value="return">Devolução</option>
                   <option value="other">Outros</option>

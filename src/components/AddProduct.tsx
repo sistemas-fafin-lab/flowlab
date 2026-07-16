@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Plus, Package, Save, X } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
+import { useAuth } from '../hooks/useAuth';
 import { Product } from '../types';
 import { useLocation } from 'react-router-dom';
 import { supabase} from '../lib/supabase.ts';
@@ -9,6 +10,7 @@ import Notification from './Notification';
 
 const AddProduct: React.FC = () => {
   const { addProduct, locations, receiveStock } = useInventory();
+  const { userProfile } = useAuth();
   const location = useLocation();
   const prefilledData = location.state?.prefilledData;
   const { notification, showSuccess, showError, hideNotification } = useNotification();
@@ -142,9 +144,22 @@ const AddProduct: React.FC = () => {
       // §6.1: recebimento inicial via movimentação (type:'in') no estoque principal,
       // em vez de gravar quantity direto no produto.
       if (newId && formData.quantity > 0 && principal) {
+        // Autor da entrada = usuário logado (nome vem do user_profiles, igual ao estoque departamental)
+        const authorizedBy = userProfile?.name?.trim() || userProfile?.email || 'Sistema';
+
+        // Produto não tem campo de observação: monta um resumo com os dados do cadastro
+        const infoParts = [
+          formData.batch ? `Lote ${formData.batch}` : null,
+          formData.invoiceNumber ? `NF ${formData.invoiceNumber}` : null,
+          (formData.supplierName || formData.supplier) ? `Fornecedor ${formData.supplierName || formData.supplier}` : null,
+        ].filter(Boolean);
+        const notes = ['Entrada inicial de cadastro', ...infoParts].join(' · ');
+
         await receiveStock(newId, principal.id, formData.quantity, {
           productName: formData.name,
           unitPrice: formData.unitPrice,
+          authorizedBy,
+          notes,
         });
       }
 

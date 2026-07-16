@@ -61,13 +61,24 @@ const MovementHistory: React.FC = () => {
   };
 
   const reasonLabels: Record<string, string> = {
+    'sale': 'Solicitação',
     'internal-transfer': 'Transferência Interna',
     'return': 'Devolução',
     'internal-consumption': 'Consumo Interno',
-    'other': 'Outros'
+    'manutencao': 'Manutenção',
+    'other': 'Outros',
+    'purchase': 'Compra'
   };
 
   const reasonColors: Record<string, { bg: string; bgActive: string; text: string; textActive: string; border: string; borderActive: string }> = {
+    'sale': {
+      bg: 'bg-emerald-100 dark:bg-emerald-900/50',
+      bgActive: 'bg-emerald-500',
+      text: 'text-emerald-600 dark:text-emerald-400',
+      textActive: 'text-white',
+      border: 'border-gray-100 dark:border-gray-700 hover:border-emerald-200 dark:hover:border-emerald-700',
+      borderActive: 'border-emerald-400 ring-2 ring-emerald-400/30 bg-emerald-50 dark:bg-emerald-900/20'
+    },
     'internal-transfer': {
       bg: 'bg-purple-100 dark:bg-purple-900/50',
       bgActive: 'bg-purple-500',
@@ -92,6 +103,14 @@ const MovementHistory: React.FC = () => {
       border: 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-700',
       borderActive: 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50 dark:bg-blue-900/20'
     },
+    'manutencao': {
+      bg: 'bg-orange-100 dark:bg-orange-900/50',
+      bgActive: 'bg-orange-500',
+      text: 'text-orange-600 dark:text-orange-400',
+      textActive: 'text-white',
+      border: 'border-gray-100 dark:border-gray-700 hover:border-orange-200 dark:hover:border-orange-700',
+      borderActive: 'border-orange-400 ring-2 ring-orange-400/30 bg-orange-50 dark:bg-orange-900/20'
+    },
     'other': {
       bg: 'bg-gray-200 dark:bg-gray-600',
       bgActive: 'bg-gray-500',
@@ -99,14 +118,25 @@ const MovementHistory: React.FC = () => {
       textActive: 'text-white',
       border: 'border-gray-100 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600',
       borderActive: 'border-gray-400 ring-2 ring-gray-400/30 bg-gray-100 dark:bg-gray-700'
+    },
+    'purchase': {
+      bg: 'bg-cyan-100 dark:bg-cyan-900/50',
+      bgActive: 'bg-cyan-500',
+      text: 'text-cyan-600 dark:text-cyan-400',
+      textActive: 'text-white',
+      border: 'border-gray-100 dark:border-gray-700 hover:border-cyan-200 dark:hover:border-cyan-700',
+      borderActive: 'border-cyan-400 ring-2 ring-cyan-400/30 bg-cyan-50 dark:bg-cyan-900/20'
     }
   };
 
   const reasonIcons: Record<string, React.ReactNode> = {
+    'sale': <ArrowUpDown className="w-5 h-5" />,
     'internal-transfer': <Repeat className="w-5 h-5" />,
     'return': <RotateCcw className="w-5 h-5" />,
     'internal-consumption': <Coffee className="w-5 h-5" />,
-    'other': <MoreHorizontal className="w-5 h-5" />
+    'manutencao': <Package className="w-5 h-5" />,
+    'other': <MoreHorizontal className="w-5 h-5" />,
+    'purchase': <ArrowUpDown className="w-5 h-5" />
   };
 
   // Filtra movimentações baseado em todos os filtros
@@ -579,9 +609,15 @@ const MovementHistory: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                      -{movement.quantity}
-                    </span>
+                    {movement.type === 'in' ? (
+                      <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                        +{movement.quantity}
+                      </span>
+                    ) : (
+                      <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                        -{movement.quantity}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 rounded-full">
