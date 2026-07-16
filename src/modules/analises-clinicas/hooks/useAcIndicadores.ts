@@ -41,6 +41,13 @@ export interface IndCultura {
   exame_nome: string | null;
   paciente_nome: string | null;
 }
+export interface IndRecoleta {
+  id: string;
+  status: string;
+  motivo: string;
+  solicitada_em: string;
+  prazo_dias: number;
+}
 export interface IndTemperatura {
   equipamento_id: string;
   fora_faixa: boolean;
@@ -84,6 +91,7 @@ export interface IndicadoresData {
   checkins: IndCheckin[];
   exames: IndExame[];
   culturas: IndCultura[];
+  recoletas: IndRecoleta[];
   temperaturas: IndTemperatura[];
   equipamentos: IndEquipamento[];
   insumos: IndInsumo[]; // saldo por posto — base do alerta de validade e do mínimo por local
@@ -103,6 +111,7 @@ const EMPTY: IndicadoresData = {
   checkins: [],
   exames: [],
   culturas: [],
+  recoletas: [],
   temperaturas: [],
   equipamentos: [],
   insumos: [],
@@ -120,7 +129,7 @@ export function useAcIndicadores(desde: string, ate: string): UseAcIndicadoresRe
     setLoading(true);
     setError(null);
 
-    const [agRes, coRes, ckRes, exRes, cuRes, tpRes, eqRes, locRes] = await Promise.all([
+    const [agRes, coRes, ckRes, exRes, cuRes, reRes, tpRes, eqRes, locRes] = await Promise.all([
       // Agendamentos da janela [desde, ate].
       supabase
         .from('ac_agendamentos')
@@ -144,6 +153,8 @@ export function useAcIndicadores(desde: string, ate: string): UseAcIndicadoresRe
         .lte('created_at', ate),
       // Culturas: distribuição por status é estado atual → sem filtro de data (tabela pequena).
       supabase.from('ac_culturas').select('id,status,iniciada_em,prazo_dias,exame_nome,paciente_nome'),
+      // Recoletas: estado atual (pendentes/atrasadas) → sem filtro de data (tabela pequena).
+      supabase.from('ac_recoletas').select('id,status,motivo,solicitada_em,prazo_dias'),
       supabase
         .from('ac_temperaturas')
         .select('equipamento_id,fora_faixa,temperatura,registrado_em')
@@ -154,7 +165,7 @@ export function useAcIndicadores(desde: string, ate: string): UseAcIndicadoresRe
       supabase.from('stock_locations').select('id,nome,posto_id').eq('ativo', true).not('posto_id', 'is', null),
     ]);
 
-    const firstErr = [agRes, coRes, ckRes, exRes, cuRes, tpRes, eqRes, locRes].find((r) => r.error)?.error;
+    const firstErr = [agRes, coRes, ckRes, exRes, cuRes, reRes, tpRes, eqRes, locRes].find((r) => r.error)?.error;
     if (firstErr) {
       setError(firstErr.message);
       setData(EMPTY);
@@ -226,6 +237,7 @@ export function useAcIndicadores(desde: string, ate: string): UseAcIndicadoresRe
         exame_nome: (r.exame_nome as string) ?? null,
         paciente_nome: (r.paciente_nome as string) ?? null,
       })),
+      recoletas: (reRes.data ?? []) as IndRecoleta[],
       temperaturas: (tpRes.data ?? []) as IndTemperatura[],
       equipamentos: (eqRes.data ?? []) as IndEquipamento[],
       insumos,

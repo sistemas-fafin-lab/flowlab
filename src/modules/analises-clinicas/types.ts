@@ -219,6 +219,65 @@ export interface AcCultura {
   updated_at: string;
 }
 
+// ─── Fase 6 (Etapa B) — Recoletas ───────────────────────────────────────────────
+
+// Status de uma recoleta. Lista fixa (badge/select); tolera valores futuros.
+export type RecoletaStatus =
+  | 'pendente'
+  | 'concluida'
+  | 'cancelada'
+  | (string & {});
+
+// Lista FIXA dos status (fonte do badge e do select da página).
+export const STATUS_RECOLETA: { key: RecoletaStatus; label: string }[] = [
+  { key: 'pendente',  label: 'Pendente' },
+  { key: 'concluida', label: 'Concluída' },
+  { key: 'cancelada', label: 'Cancelada' },
+];
+
+// Motivo da recoleta (espelha o CHECK de ac_recoletas.motivo).
+export type RecoletaMotivo =
+  | 'hemolise'
+  | 'insuficiente'
+  | 'coagulada'
+  | 'extraviada'
+  | 'contaminada'
+  | 'identificacao'
+  | 'outro';
+
+// Lista FIXA dos motivos (fonte do select da tela e das chaves válidas de motivo).
+export const MOTIVOS_RECOLETA: { key: RecoletaMotivo; label: string }[] = [
+  { key: 'hemolise',      label: 'Hemólise' },
+  { key: 'insuficiente',  label: 'Quantidade insuficiente' },
+  { key: 'coagulada',     label: 'Amostra coagulada' },
+  { key: 'extraviada',    label: 'Amostra extraviada' },
+  { key: 'contaminada',   label: 'Contaminação' },
+  { key: 'identificacao', label: 'Erro de identificação' },
+  { key: 'outro',         label: 'Outro' },
+];
+
+// Recoleta acompanhada manualmente (espelha ac_recoletas).
+export interface AcRecoleta {
+  id: string;
+  agendamento_id: string | null;      // NULL = recoleta avulsa (registrada à mão)
+  coleta_id: string | null;           // coleta cuja amostra ficou inviável (se conhecida)
+  origem_recoleta_id: string | null;  // recoleta anterior (a "recoleta da recoleta")
+  exame_nome: string | null;     // exame/material a recoletar (snapshot)
+  paciente_nome: string | null;
+  posto_id: string | null;
+  local_posto: string | null;
+  motivo: RecoletaMotivo;
+  motivo_detalhe: string | null; // texto livre (obrigatório quando motivo='outro')
+  status: RecoletaStatus;
+  nota: string | null;
+  prazo_dias: number;
+  solicitado_por: string;
+  solicitada_em: string;         // ISO 8601
+  resolvida_em: string | null;   // carimbo ao concluir/cancelar
+  created_at: string;
+  updated_at: string;
+}
+
 // ─── Fase 7 (Etapa C) — Temperatura e Equipamentos ──────────────────────────────
 
 // Tipos de equipamento monitorado (espelham o CHECK de ac_equipamentos.tipo).
@@ -266,4 +325,34 @@ export interface AcTemperatura {
   observacao: string | null;
   registrado_em: string; // ISO 8601
   created_at: string;
+}
+
+// ─── Fase 8 — Laudos ────────────────────────────────────────────────────────────
+
+// Status de um laudo. Lista fixa (badge/select); tolera valores futuros.
+export type LaudoStatus =
+  | 'aguarda_liberacao'
+  | 'laudo_parcial_liberado'
+  | 'laudo_completo_liberado'
+  | (string & {});
+
+// Lista FIXA dos status (fonte do badge e do select da página).
+export const STATUS_LAUDO: { key: LaudoStatus; label: string }[] = [
+  { key: 'aguarda_liberacao',      label: 'Aguarda liberação' },
+  { key: 'laudo_parcial_liberado', label: 'Laudo parcial liberado' },
+  { key: 'laudo_completo_liberado',label: 'Laudo completo liberado' },
+];
+
+// Laudo vinculado a um agendamento (1:1) — espelha ac_laudos.
+export interface AcLaudo {
+  id: string;
+  agendamento_id: string;
+  status: LaudoStatus;
+  exames_concluidos: number;
+  exames_total: number;
+  nota: string | null;
+  criado_por: string;
+  criado_em: string;      // ISO 8601
+  atualizado_em: string;  // ISO 8601
+  liberado_em: string | null; // ISO 8601 (carimbo ao liberar)
 }

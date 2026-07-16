@@ -260,6 +260,16 @@ const IndicadoresPage: React.FC = () => {
     return { emAndamento, positivas, prontas, atrasadas, total: emAndamento + positivas + prontas };
   }, [data]);
 
+  // Recoletas: estado atual (não filtrado por data). Pendentes = aguardando nova coleta;
+  // atrasadas = pendentes além do prazo.
+  const recol = useMemo(() => {
+    const pendentes = data.recoletas.filter((r) => r.status === 'pendente').length;
+    const atrasadas = data.recoletas.filter(
+      (r) => r.status === 'pendente' && diasDesde(r.solicitada_em) > r.prazo_dias,
+    ).length;
+    return { pendentes, atrasadas, total: data.recoletas.length };
+  }, [data]);
+
   const temp = useMemo(() => {
     const total = data.temperaturas.length;
     const fora = data.temperaturas.filter((t) => t.fora_faixa).length;
@@ -820,13 +830,27 @@ const IndicadoresPage: React.FC = () => {
             </ChartCard>
           </div>
 
-          {/* Placeholders — KPIs sem fonte de dado ainda (§1 do plano da Fase 8) */}
+          {/* Recoletas agora têm fonte (Fase 6B); desperdício segue sem fonte de dado (§1 do plano). */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Placeholder
-              icon={<RotateCcw className="w-5 h-5" />}
-              titulo="Recoletas"
-              motivo="Aguardando a Fase 6B (o gatilho da recoleta ainda será definido)."
-            />
+            <div className="p-5 rounded-2xl border border-amber-200 dark:border-amber-800 bg-white dark:bg-gray-800 flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center text-white shrink-0">
+                <RotateCcw className="w-5 h-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-2xl font-bold text-gray-900 dark:text-gray-100 tabular-nums leading-tight">
+                  {recol.pendentes}
+                </div>
+                <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Recoletas pendentes</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  {recol.atrasadas > 0 && (
+                    <span className="text-amber-600 dark:text-amber-400 font-medium">
+                      {recol.atrasadas} atrasada{recol.atrasadas > 1 ? 's' : ''} ·{' '}
+                    </span>
+                  )}
+                  {recol.total} no total
+                </p>
+              </div>
+            </div>
             <Placeholder
               icon={<Trash2 className="w-5 h-5" />}
               titulo="Desperdício"
