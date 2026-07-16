@@ -2,12 +2,24 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { AcCultura, AcCulturaEtapa, CulturaStatus } from '../types';
 
-// Campos editáveis manualmente de uma cultura (a via de criação é o check-in).
+// Campos editáveis manualmente de uma cultura (criada no check-in ou avulsa).
 export interface CulturaPatch {
   etapaOrdem?: number;
   status?: CulturaStatus;
   nota?: string | null;
   resultado?: string | null;
+  prazoDias?: number;
+}
+
+// Cadastro de cultura AVULSA (sem vínculo com agendamento/coleta): a via alternativa
+// à criação pelo check-in. `exameId` fica null quando o tipo é digitado à mão ("Outro").
+export interface CulturaCreateInput {
+  exameNome: string;
+  exameId?: string | null;
+  pacienteNome?: string | null;
+  postoId?: string | null;
+  localPosto?: string | null;
+  nota?: string | null;
   prazoDias?: number;
 }
 
@@ -17,6 +29,7 @@ interface UseCulturasResult {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
+  createCultura: (input: CulturaCreateInput) => Promise<string | null>;
   updateCultura: (id: string, patch: CulturaPatch) => Promise<string | null>;
   deleteCultura: (id: string) => Promise<string | null>;
 }
@@ -25,7 +38,7 @@ const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v));
 
 const mapCultura = (r: Record<string, unknown>): AcCultura => ({
   id: r.id as string,
-  agendamento_id: r.agendamento_id as string,
+  agendamento_id: (r.agendamento_id as string) ?? null,
   exame_id: (r.exame_id as string) ?? null,
   exame_nome: r.exame_nome as string,
   paciente_nome: (r.paciente_nome as string) ?? null,
@@ -50,7 +63,8 @@ const mapEtapa = (r: Record<string, unknown>): AcCulturaEtapa => ({
 
 // Acompanhamento manual de culturas (ac_culturas / ac_cultura_etapas, Fase 7A).
 // RLS permissiva por authenticated; o gate é o frontend + a permissão. As culturas
-// nascem no check-in (registrar_coleta); aqui só se lê e atualiza etapa/status.
+// nascem no check-in (registrar_coleta) ou como cadastro avulso (createCultura);
+// aqui se lê, cria (avulsa), atualiza etapa/status e remove.
 export function useCulturas(): UseCulturasResult {
   const [culturas, setCulturas] = useState<AcCultura[]>([]);
   const [etapas, setEtapas] = useState<AcCulturaEtapa[]>([]);
@@ -83,6 +97,29 @@ export function useCulturas(): UseCulturasResult {
     void refetch();
   }, [refetch]);
 
+  const createCultura: UseCulturasResult['createCultura'] = useCallback(
+    async (input) => {
+      const nome = input.exameNome.trim();
+      if (!nome) return 'Informe o tipo de cultura.';
+      const row: Record<string, unknown> = {
+        agendamento_id: null, // avulsa: sem vínculo com coleta/agendamento
+        exame_id: input.exameId ?? null,
+        exame_nome: nome,
+        paciente_nome: input.pacienteNome?.trim() || null,
+        posto_id: input.postoId ?? null,
+        local_posto: input.localPosto?.trim() || null,
+        nota: input.nota?.trim() || null,
+      };
+      // status / etapa_ordem / iniciada_em ficam no default do banco.
+      if (input.prazoDias !== undefined) row.prazo_dias = input.prazoDias;
+      const { error: err } = await supabase.from('ac_culturas').insert(row);
+      if (err) return err.message;
+      await refetch();
+      return null;
+    },
+    [refetch],
+  );
+
   const updateCultura: UseCulturasResult['updateCultura'] = useCallback(
     async (id, patch) => {
       const row: Record<string, unknown> = {};
@@ -109,5 +146,5 @@ export function useCulturas(): UseCulturasResult {
     [refetch],
   );
 
-  return { culturas, etapas, loading, error, refetch, updateCultura, deleteCultura };
+  return { culturas, etapas, loading, error, refetch, createCultura, updateCultura, deleteCultura };
 }

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Microscope,
   RefreshCw,
@@ -7,6 +7,9 @@ import {
   ChevronLeft,
   ChevronRight,
   Pencil,
+  Plus,
+  Search,
+  Loader2,
   Trash2,
   X,
   Check,
@@ -14,7 +17,9 @@ import {
   FileCheck2,
   AlertTriangle,
 } from 'lucide-react';
-import { useCulturas, type CulturaPatch } from '../hooks/useCulturas';
+import { useCulturas, type CulturaPatch, type CulturaCreateInput } from '../hooks/useCulturas';
+import { usePostos } from '../hooks/usePostos';
+import { supabase } from '../../../lib/supabase';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { useDialog } from '../../../hooks/useDialog';
@@ -32,7 +37,7 @@ const atrasada = (c: AcCultura) => c.status === 'em_andamento' && diasDecorridos
 
 const statusLabel = (s: CulturaStatus) => STATUS_CULTURA.find((x) => x.key === s)?.label ?? s;
 
-// Cor do badge por status: em andamento = neutro; positiva = alerta (patógeno); laudo concluído = fechado.
+// Cor do badge por status: em andamento = neutro; positivada = alerta (patógeno); concluída = fechado.
 const STATUS_STYLE: Record<string, string> = {
   em_andamento:
     'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800',
@@ -227,15 +232,272 @@ const CulturaModal: React.FC<{
   );
 };
 
+// ─── Modal de criação avulsa (sem vínculo com coleta/agendamento) ───────────────
+// Busca sem acento/caixa (espelha o seletor de exames do check-in).
+const normalize = (s: string) =>
+  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
+interface CulturaOpt {
+  id: string;
+  nome: string;
+  mnemonico: string | null;
+  material: string | null;
+}
+
+const NovaCulturaModal: React.FC<{
+  onClose: () => void;
+  onCreate: (input: CulturaCreateInput) => Promise<string | null>;
+}> = ({ onClose, onCreate }) => {
+  const { postos } = usePostos();
+  const [catalogo, setCatalogo] = useState<CulturaOpt[]>([]);
+  const [loadingCat, setLoadingCat] = useState(true);
+  const [busca, setBusca] = useState('');
+  const [selecionado, setSelecionado] = useState<{ id: string | null; nome: string } | null>(null);
+  const [paciente, setPaciente] = useState('');
+  const [postoSel, setPostoSel] = useState('');
+  const [prazoDias, setPrazoDias] = useState('5');
+  const [nota, setNota] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // Catálogo só com exames de cultura ativos (espelha o fetch do check-in).
+  useEffect(() => {
+    let ativo = true;
+    (async () => {
+      setLoadingCat(true);
+      const { data, error } = await supabase
+        .from('ac_exames')
+        .select('id, nome, mnemonico, material')
+        .eq('ativo', true)
+        .eq('is_cultura', true)
+        .order('nome');
+      if (!ativo) return;
+      if (!error) setCatalogo((data ?? []) as CulturaOpt[]);
+      setLoadingCat(false);
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, []);
+
+  const postosAtivos = useMemo(() => postos.filter((p) => p.ativo), [postos]);
+  const resultados = useMemo(() => {
+    const q = normalize(busca);
+    if (!q) return [];
+    return catalogo
+      .filter((e) => normalize(e.nome).includes(q) || (e.mnemonico ? normalize(e.mnemonico).includes(q) : false))
+      .slice(0, 20);
+  }, [busca, catalogo]);
+
+  const handleSave = async () => {
+    setErro(null);
+    if (!selecionado || !selecionado.nome.trim()) {
+      setErro('Selecione ou informe o tipo de cultura.');
+      return;
+    }
+    const prazo = Number(prazoDias);
+    if (Number.isNaN(prazo) || prazo <= 0) {
+      setErro('Informe um prazo válido (dias).');
+      return;
+    }
+    const posto = postosAtivos.find((p) => p.id === postoSel);
+    setSaving(true);
+    const msg = await onCreate({
+      exameNome: selecionado.nome.trim(),
+      exameId: selecionado.id,
+      pacienteNome: paciente.trim() || null,
+      postoId: posto?.id ?? null,
+      localPosto: posto?.nome ?? null,
+      nota: nota.trim() || null,
+      prazoDias: prazo,
+    });
+    setSaving(false);
+    if (msg) setErro(msg);
+    else onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-bold text-gray-900 dark:text-gray-100">Nova cultura</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Cadastro avulso · sem vínculo com coleta</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 overflow-y-auto space-y-4">
+          {erro && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+              {erro}
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de cultura</label>
+
+            {selecionado ? (
+              // Selecionado: chip com opção de trocar.
+              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1.5 rounded-lg text-sm font-medium border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-800/60">
+                <Microscope className="w-4 h-4 shrink-0" />
+                <span className="truncate max-w-[240px]">{selecionado.nome}</span>
+                <button
+                  onClick={() => setSelecionado(null)}
+                  className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
+                  aria-label="Trocar tipo de cultura"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </span>
+            ) : (
+              <div className="space-y-2">
+                {/* Busca (mesmo padrão do check-in) */}
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    value={busca}
+                    onChange={(e) => setBusca(e.target.value)}
+                    placeholder="Buscar cultura ou digitar um tipo…"
+                    autoFocus
+                    className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
+                  />
+                </div>
+
+                {loadingCat && (
+                  <p className="inline-flex items-center gap-1.5 text-xs text-gray-400 px-1">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando catálogo…
+                  </p>
+                )}
+
+                {/* Resultados + opção de tipo livre com o texto digitado */}
+                {busca.trim() && (
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 max-h-56 overflow-y-auto">
+                    {resultados.map((e) => (
+                      <button
+                        key={e.id}
+                        type="button"
+                        onClick={() => {
+                          setSelecionado({ id: e.id, nome: e.nome });
+                          setBusca('');
+                        }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
+                          <Microscope className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{e.nome}</div>
+                          <div className="text-xs text-gray-400 truncate">
+                            {[e.mnemonico, e.material].filter(Boolean).join(' · ') || 'sem mnemônico'}
+                          </div>
+                        </div>
+                        <Plus className="w-4 h-4 text-gray-400 shrink-0" />
+                      </button>
+                    ))}
+                    {/* Tipo livre: usa exatamente o texto digitado (exame_id = null) */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelecionado({ id: null, nome: busca.trim() });
+                        setBusca('');
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-gray-500/10 text-gray-500 dark:text-gray-400 flex items-center justify-center shrink-0">
+                        <Pencil className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">Usar “{busca.trim()}”</div>
+                        <div className="text-xs text-gray-400 truncate">tipo livre (fora do catálogo)</div>
+                      </div>
+                      <Plus className="w-4 h-4 text-gray-400 shrink-0" />
+                    </button>
+                  </div>
+                )}
+
+                {!busca.trim() && !loadingCat && (
+                  <p className="text-xs text-gray-400 px-1">Busque uma cultura do catálogo ou digite um tipo livre.</p>
+                )}
+              </div>
+            )}
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Paciente <span className="text-gray-400">(opcional)</span>
+            </label>
+            <input
+              value={paciente}
+              onChange={(e) => setPaciente(e.target.value)}
+              placeholder="Nome do paciente"
+              className={inputCls}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Posto <span className="text-gray-400">(opcional)</span>
+              </label>
+              <select value={postoSel} onChange={(e) => setPostoSel(e.target.value)} className={inputCls}>
+                <option value="">—</option>
+                {postosAtivos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nome}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Prazo (dias)</label>
+              <input type="number" min={1} value={prazoDias} onChange={(e) => setPrazoDias(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Nota <span className="text-gray-400">(opcional)</span>
+            </label>
+            <textarea
+              value={nota}
+              onChange={(e) => setNota(e.target.value)}
+              rows={2}
+              placeholder="Observação inicial…"
+              className={`${inputCls} resize-none`}
+            />
+          </div>
+        </div>
+
+        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl flex justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+          >
+            {saving ? 'Criando…' : 'Criar cultura'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Página ───────────────────────────────────────────────────────────────────
 const CulturasPage: React.FC = () => {
-  const { culturas, etapas, loading, error, refetch, updateCultura, deleteCultura } = useCulturas();
+  const { culturas, etapas, loading, error, refetch, createCultura, updateCultura, deleteCultura } = useCulturas();
   const { userProfile } = useAuth();
   const canManage = hasPermission(userProfile?.permissions || [], 'canManageColetas');
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
 
   const [postoSel, setPostoSel] = useState<string>('');
   const [editando, setEditando] = useState<AcCultura | null>(null);
+  const [criando, setCriando] = useState(false);
 
   // Postos presentes nas culturas (snapshot local_posto), para o filtro.
   const postosDisponiveis = useMemo(() => {
@@ -303,7 +565,7 @@ const CulturasPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Culturas</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Acompanhamento manual · as culturas nascem no check-in
+              Acompanhamento manual · do check-in ou avulsas
             </p>
           </div>
         </div>
@@ -327,6 +589,15 @@ const CulturasPage: React.FC = () => {
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             Atualizar
           </button>
+          {canManage && (
+            <button
+              onClick={() => setCriando(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Nova cultura
+            </button>
+          )}
         </div>
       </div>
 
@@ -335,12 +606,12 @@ const CulturasPage: React.FC = () => {
         <Kpi icon={<Activity className="w-5 h-5" />} label="Em andamento" valor={kpis.emAndamento} cor="from-blue-500 to-indigo-600" />
         <Kpi
           icon={<Microscope className="w-5 h-5" />}
-          label="Positivas"
+          label="Positivadas"
           valor={kpis.positivas}
           sub={`${kpis.positividade}% positividade`}
           cor="from-rose-500 to-red-600"
         />
-        <Kpi icon={<FileCheck2 className="w-5 h-5" />} label="Laudo concluído" valor={kpis.prontas} cor="from-violet-500 to-purple-600" />
+        <Kpi icon={<FileCheck2 className="w-5 h-5" />} label="Concluídas" valor={kpis.prontas} cor="from-violet-500 to-purple-600" />
         <Kpi
           icon={<AlertTriangle className="w-5 h-5" />}
           label="Atrasadas"
@@ -367,7 +638,7 @@ const CulturasPage: React.FC = () => {
           </div>
           <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">Nenhuma cultura em acompanhamento</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Selecione um exame de cultura no check-in para abrir o acompanhamento aqui.
+            Selecione um exame de cultura no check-in{canManage ? ' ou use "Nova cultura" para cadastrar uma avulsa' : ''} para abrir o acompanhamento aqui.
           </p>
         </div>
       ) : (
@@ -491,6 +762,8 @@ const CulturasPage: React.FC = () => {
           onSave={(patch) => updateCultura(editando.id, patch)}
         />
       )}
+
+      {criando && <NovaCulturaModal onClose={() => setCriando(false)} onCreate={createCultura} />}
 
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}

@@ -196,14 +196,14 @@ export type CulturaStatus =
 // Lista FIXA dos status (fonte do badge e do select da página).
 export const STATUS_CULTURA: { key: CulturaStatus; label: string }[] = [
   { key: 'em_andamento', label: 'Em andamento' },
-  { key: 'positiva',     label: 'Positiva' },
-  { key: 'pronta_laudo', label: 'Laudo concluído' },
+  { key: 'positiva',     label: 'Positivada' },
+  { key: 'pronta_laudo', label: 'Concluída' },
 ];
 
 // Cultura acompanhada manualmente (espelha ac_culturas).
 export interface AcCultura {
   id: string;
-  agendamento_id: string;
+  agendamento_id: string | null; // NULL = cultura avulsa (sem vínculo com coleta/agendamento)
   exame_id: string | null;
   exame_nome: string;         // tipo do exame (snapshot)
   paciente_nome: string | null;

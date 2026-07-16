@@ -429,8 +429,8 @@ const IndicadoresPage: React.FC = () => {
 
   const donut = [
     { name: 'Em andamento', value: cult.emAndamento, fill: COR_EM_ANDAMENTO },
-    { name: 'Positivas', value: cult.positivas, fill: COR_POSITIVA },
-    { name: 'Laudo concluído', value: cult.prontas, fill: COR_LAUDO },
+    { name: 'Positivada', value: cult.positivas, fill: COR_POSITIVA },
+    { name: 'Concluída', value: cult.prontas, fill: COR_LAUDO },
   ];
 
   return (
