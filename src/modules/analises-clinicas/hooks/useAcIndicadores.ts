@@ -56,15 +56,25 @@ export interface IndEquipamento {
   temp_max: number;
   ativo: boolean;
 }
-// Saldo de um insumo num estoque de posto (para alertas de mínimo/validade).
-// Junta product_stock (saldo por local) com o produto (mínimo, validade).
+// Saldo de um insumo num estoque de posto (para alertas de mínimo/validade). Junta
+// product_stock (saldo + mínimo POR LOCAL) com o produto (nome, unidade, validade).
 export interface IndInsumo {
   product_id: string;
   product_nome: string;
   unit: string | null;
   quantity: number;
-  min_stock: number;
+  min_stock: number; // mínimo POR LOCAL (product_stock.min_stock), não o global do produto
   expiration_date: string | null;
+  posto_nome: string;
+}
+// Insumo abaixo do mínimo POR LOCAL — saldo do posto ≤ product_stock.min_stock (inclui
+// zerados). Derivado dos IndInsumo do posto; carrega o posto para exibir no alerta.
+export interface IndInsumoBaixo {
+  product_id: string;
+  product_nome: string;
+  unit: string | null;
+  quantity: number;
+  min_stock: number;
   posto_nome: string;
 }
 
@@ -76,7 +86,8 @@ export interface IndicadoresData {
   culturas: IndCultura[];
   temperaturas: IndTemperatura[];
   equipamentos: IndEquipamento[];
-  insumos: IndInsumo[];
+  insumos: IndInsumo[]; // saldo por posto — base do alerta de validade e do mínimo por local
+  insumosBaixos: IndInsumoBaixo[]; // insumos abaixo do mínimo POR LOCAL (derivado de insumos)
 }
 
 interface UseAcIndicadoresResult {
@@ -95,6 +106,7 @@ const EMPTY: IndicadoresData = {
   temperaturas: [],
   equipamentos: [],
   insumos: [],
+  insumosBaixos: [],
 };
 
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v));
@@ -138,7 +150,7 @@ export function useAcIndicadores(desde: string, ate: string): UseAcIndicadoresRe
         .gte('registrado_em', desde)
         .lte('registrado_em', ate),
       supabase.from('ac_equipamentos').select('id,nome,tipo,localizacao,temp_min,temp_max,ativo'),
-      // Estoques de posto (Fase 5): locais com posto_id → alerta de insumo por posto.
+      // Estoques de posto (Fase 5): locais com posto_id → base dos alertas de mínimo/validade por posto.
       supabase.from('stock_locations').select('id,nome,posto_id').eq('ativo', true).not('posto_id', 'is', null),
     ]);
 
@@ -150,18 +162,19 @@ export function useAcIndicadores(desde: string, ate: string): UseAcIndicadoresRe
       return;
     }
 
-    // Saldo dos insumos nos estoques de posto (para os alertas de mínimo/validade).
-    // Segundo passo: depende dos ids dos locais de posto acima. Mesmo embed de
-    // `products(...)` já usado em useInventory.fetchLocationStock.
+    // Saldo dos insumos nos estoques de posto (base dos alertas de mínimo POR LOCAL e de
+    // validade). Segundo passo: depende dos ids dos locais de posto acima. O mínimo vem da
+    // coluna product_stock.min_stock (por local); do produto só nome/unidade/validade.
+    // `.or(quantity>0, min>0)` traz também o insumo zerado que tem mínimo (pior caso).
     const locs = (locRes.data ?? []) as { id: string; nome: string; posto_id: string | null }[];
     const locNome = new Map(locs.map((l) => [l.id, l.nome]));
     let insumos: IndInsumo[] = [];
     if (locs.length) {
       const psRes = await supabase
         .from('product_stock')
-        .select('product_id,quantity,location_id,products(name,unit,min_stock,expiration_date)')
+        .select('product_id,quantity,min_stock,location_id,products(name,unit,expiration_date)')
         .in('location_id', locs.map((l) => l.id))
-        .gt('quantity', 0);
+        .or('quantity.gt.0,min_stock.gt.0');
       if (psRes.error) {
         setError(psRes.error.message);
         setData(EMPTY);
@@ -171,19 +184,34 @@ export function useAcIndicadores(desde: string, ate: string): UseAcIndicadoresRe
       const psRows = (psRes.data ?? []) as unknown as {
         product_id: string;
         quantity: number;
+        min_stock: number | null;
         location_id: string;
-        products: { name: string | null; unit: string | null; min_stock: number | null; expiration_date: string | null } | null;
+        products: { name: string | null; unit: string | null; expiration_date: string | null } | null;
       }[];
       insumos = psRows.map((r) => ({
         product_id: r.product_id,
         product_nome: r.products?.name ?? '',
         unit: r.products?.unit ?? null,
         quantity: num(r.quantity),
-        min_stock: num(r.products?.min_stock ?? 0),
+        min_stock: num(r.min_stock ?? 0),
         expiration_date: r.products?.expiration_date ?? null,
         posto_nome: locNome.get(r.location_id) ?? '',
       }));
     }
+
+    // Insumos abaixo do mínimo POR LOCAL: saldo do posto ≤ product_stock.min_stock. Mais
+    // crítico (maior déficit) primeiro. Inclui zerados (quantity 0 ≤ min_stock).
+    const insumosBaixos: IndInsumoBaixo[] = insumos
+      .filter((i) => i.min_stock > 0 && i.quantity <= i.min_stock)
+      .map((i) => ({
+        product_id: i.product_id,
+        product_nome: i.product_nome,
+        unit: i.unit,
+        quantity: i.quantity,
+        min_stock: i.min_stock,
+        posto_nome: i.posto_nome,
+      }))
+      .sort((a, b) => a.quantity - a.min_stock - (b.quantity - b.min_stock));
 
     setData({
       agendamentos: (agRes.data ?? []) as IndAgendamento[],
@@ -201,6 +229,7 @@ export function useAcIndicadores(desde: string, ate: string): UseAcIndicadoresRe
       temperaturas: (tpRes.data ?? []) as IndTemperatura[],
       equipamentos: (eqRes.data ?? []) as IndEquipamento[],
       insumos,
+      insumosBaixos,
     });
     setLoading(false);
   }, [desde, ate]);

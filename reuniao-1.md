@@ -134,14 +134,19 @@ Implementado nesta branch (`feat/coleta-status-callback`) — falta apenas merge
 ## 6. Dashboard e Indicadores 🚧
 
 - ✅ **Página de Indicadores** construída (Fase 8, Etapa 1) — `IndicadoresPage.tsx`,
-  rota `/analises-clinicas/indicadores`, seletor 7/30/90 dias. Já entrega:
-  - Total de agendamentos, coletas realizadas.
-  - **Gráfico agendamentos × coletas** ao longo do tempo (produtividade).
+  rota `/analises-clinicas/indicadores`, seletor 7/30/90 dias + intervalo personalizado. Já entrega:
+  - Total de agendamentos, coletas realizadas, conversão e cancelamentos.
+  - **Gráfico agendamentos × coletas** ao longo do tempo + produtividade por posto.
   - **Culturas por status.**
   - **Exames mais pedidos.**
   - **Alertas de temperatura** (% fora de faixa / excursões).
+- ✅ **Alertas de insumos abaixo do mínimo** — KPI de contagem ("Insumos < mín.") + linha no
+  card "Alertas do processo", **por local** (posto). Usa o **mínimo por local**
+  (`product_stock.min_stock`), editável no **Estoque Departamental**, incluindo insumos **zerados**.
+  - Migration `20260716130000_product_stock_min_local.sql` adiciona o mínimo por local.
+  - Corrige de quebra o badge "Estoque baixo" do Estoque Departamental, que comparava a fatia
+    do local contra o mínimo **global** do produto (falso-positivo).
 - ⬜ **Falta no painel:**
-  - **Alertas de insumos abaixo do mínimo** (estoque).
   - **Recoletas pendentes** — depende da Fase 6 Etapa B (recoleta) + gatilho a definir.
   - **Registro de desperdício/consumo de insumos** — hoje **sem fonte de dado**
     (exige marcar a baixa como desperdício no modelo).
@@ -190,17 +195,15 @@ Não é item de desenvolvimento. Registro:
 ## Próximos passos sugeridos (ordem prática)
 
 > Atualizado em 16/Jul após decisões do cliente. **Já resolvidos:** nomenclatura de status
-> das culturas (1.3 ✅), Suabe dispensado, canal Slack criado, preview no ar, config de
-> colaborador dispensada.
+> das culturas (1.3 ✅), cultura avulsa / botão "+" (3a ✅), alerta de insumos abaixo do mínimo
+> (item 6 ✅ — corrigido p/ comparação global), Suabe dispensado, canal Slack criado, preview no
+> ar, config de colaborador dispensada.
 
-1. **Cultura avulsa / botão "+" (item 3a):** tornar `agendamento_id` opcional + UI de criação
-   manual — próximo item de código destravado.
-2. **Dashboard (item 6):** alerta de insumos abaixo do mínimo (já tem fonte de dado).
-3. **Convênio (item 1b/1c):** validar o seletor (lista dos atendidos) e a regra de 24h.
-4. **Conferência opcional (item 1a):** aguardando a lista da Marina.
-5. **Gatilho de recoleta (Fase 6B):** destrava o KPI de recoletas pendentes (item 6) e a
+1. **Convênio (item 1b/1c):** validar o seletor (lista dos atendidos) e a regra de 24h.
+2. **Conferência opcional (item 1a):** aguardando a lista da Marina.
+3. **Gatilho de recoleta (Fase 6B):** destrava o KPI de recoletas pendentes (item 6) e a
    notificação de recoleta (item 2).
-6. **WhatsApp (item 2):** decidir entrada em escopo (confirmação imediata → lembrete 24h →
+4. **WhatsApp (item 2):** decidir entrada em escopo (confirmação imediata → lembrete 24h →
    recoleta).
-7. **Promover preview → produção definitiva (item 9)** + cutover da Fase 5 + merge da agenda
+5. **Promover preview → produção definitiva (item 9)** + cutover da Fase 5 + merge da agenda
    de posto (item 5).

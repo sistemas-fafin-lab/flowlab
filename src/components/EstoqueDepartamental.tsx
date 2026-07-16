@@ -117,7 +117,7 @@ const StatCard: React.FC<{
 );
 
 const EstoqueDepartamental: React.FC = () => {
-  const { products, locations, movements, addMovement, fetchLocationStock, fetchLocations, loading } = useInventory();
+  const { products, locations, movements, addMovement, fetchLocationStock, updateLocationMinStock, fetchLocations, loading } = useInventory();
   const { showSuccess, showError } = useNotification();
   const { userProfile } = useAuth();
 
@@ -151,7 +151,10 @@ const EstoqueDepartamental: React.FC = () => {
   }, [locations, isAdmin, isQualidade, userDept, userDeptLabel]);
 
   const [selectedSector, setSelectedSector] = useState('');
-  const [baseRows, setBaseRows] = useState<{ productId: string; productName: string; unit: string; code: string; quantity: number }[]>([]);
+  const [baseRows, setBaseRows] = useState<{ productId: string; productName: string; unit: string; code: string; quantity: number; minStock: number }[]>([]);
+  // Edição inline do mínimo por local: guarda o productId em edição e o texto do input.
+  const [editandoMin, setEditandoMin] = useState<{ productId: string; valor: string } | null>(null);
+  const [salvandoMin, setSalvandoMin] = useState(false);
   const [loadingStock, setLoadingStock] = useState(false);
   // Modal de registro/confirmação do consumo (espelha o "Registrar Saída")
   const [pendingConsumo, setPendingConsumo] = useState<StockRow | null>(null);
@@ -197,18 +200,38 @@ const EstoqueDepartamental: React.FC = () => {
   // Opções de tipo por setor: posto não tem "Transferência interna".
   const tipoOpts = isPostoSector ? TIPO_OPTS.filter(o => o.value !== 'transferencia') : TIPO_OPTS;
 
-  // Enriquece o saldo do local com dados do produto (mínimo, validade, categoria)
+  // Enriquece o saldo do local com dados do produto (validade, categoria). O mínimo é o
+  // POR LOCAL (product_stock.min_stock, já em baseRows), não o global do produto.
   const stockRows: StockRow[] = useMemo(() => {
     return baseRows.map(r => {
       const p = products.find(prod => prod.id === r.productId);
       return {
         ...r,
-        minStock: p?.minStock ?? 0,
+        minStock: r.minStock,
         expirationDate: p?.expirationDate,
         category: p?.category,
       };
     });
   }, [baseRows, products]);
+
+  // Salva o mínimo por local do insumo em edição e recarrega o estoque do setor.
+  const salvarMin = useCallback(async (productId: string) => {
+    if (!editandoMin || editandoMin.productId !== productId) return;
+    const valor = Math.max(0, Math.floor(Number(editandoMin.valor)));
+    if (Number.isNaN(valor)) { setEditandoMin(null); return; }
+    setSalvandoMin(true);
+    try {
+      await updateLocationMinStock(productId, selectedSector, valor);
+      setEditandoMin(null);
+      await loadStock(selectedSector);
+      showSuccess('Mínimo do local atualizado');
+    } catch (e) {
+      console.error(e);
+      showError('Erro ao salvar o mínimo do local');
+    } finally {
+      setSalvandoMin(false);
+    }
+  }, [editandoMin, updateLocationMinStock, selectedSector, loadStock, showSuccess, showError]);
 
   // Status por linha (validade tem prioridade sobre estoque baixo)
   const rowStatus = (row: StockRow): { tone: Tone; label: string } => {
@@ -482,8 +505,35 @@ const EstoqueDepartamental: React.FC = () => {
                               <div className="mt-1.5 w-20">
                                 <Meter value={(row.quantity / meterMax) * 100} tone={low ? 'amber' : 'green'} />
                               </div>
-                              {row.minStock > 0 && (
-                                <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">mín. {row.minStock}</p>
+                              {editandoMin?.productId === row.productId ? (
+                                <input
+                                  type="number"
+                                  min={0}
+                                  autoFocus
+                                  disabled={salvandoMin}
+                                  value={editandoMin.valor}
+                                  onChange={(e) => setEditandoMin({ productId: row.productId, valor: e.target.value })}
+                                  onBlur={() => void salvarMin(row.productId)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') void salvarMin(row.productId);
+                                    if (e.key === 'Escape') setEditandoMin(null);
+                                  }}
+                                  className="mt-1 w-16 px-1.5 py-0.5 text-[11px] rounded border border-blue-300 dark:border-blue-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 tabular-nums"
+                                  aria-label="Mínimo do local"
+                                />
+                              ) : canConsume ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setEditandoMin({ productId: row.productId, valor: row.minStock ? String(row.minStock) : '' })}
+                                  className="mt-1 text-[10px] text-gray-400 dark:text-gray-500 hover:text-blue-600 dark:hover:text-blue-400 underline decoration-dotted underline-offset-2"
+                                  title="Definir o mínimo deste insumo neste local"
+                                >
+                                  {row.minStock > 0 ? `mín. ${row.minStock}` : 'definir mín.'}
+                                </button>
+                              ) : (
+                                row.minStock > 0 && (
+                                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">mín. {row.minStock}</p>
+                                )
                               )}
                             </td>
                             <td className={`px-3 py-3 tabular-nums ${dias !== null && dias <= 30 ? 'text-red-600 dark:text-red-400 font-semibold' : 'text-gray-600 dark:text-gray-300'}`}>

@@ -356,18 +356,17 @@ const IndicadoresPage: React.FC = () => {
       });
     }
 
-    // 3) Insumo abaixo do mínimo (saldo do estoque de posto < mínimo do produto).
-    for (const i of data.insumos) {
-      if (i.min_stock > 0 && i.quantity < i.min_stock) {
-        out.push({
-          key: `min-${i.product_id}-${i.posto_nome}`,
-          tone: 'amber',
-          icon: <Boxes className="w-4 h-4" />,
-          titulo: `${i.product_nome} abaixo do mínimo`,
-          detalhe: `${i.posto_nome} · ${i.quantity}${i.unit ? ' ' + i.unit : ''} (mín. ${i.min_stock})`,
-          sev: 2,
-        });
-      }
+    // 3) Insumo abaixo do mínimo POR LOCAL: saldo do posto ≤ product_stock.min_stock
+    // (inclui zerados). Já vem ordenado por déficit no hook; um alerta por (produto, posto).
+    for (const i of data.insumosBaixos) {
+      out.push({
+        key: `min-${i.product_id}-${i.posto_nome}`,
+        tone: 'amber',
+        icon: <Boxes className="w-4 h-4" />,
+        titulo: `${i.product_nome} abaixo do mínimo`,
+        detalhe: `${i.posto_nome} · ${i.quantity}${i.unit ? ' ' + i.unit : ''} (mín. ${i.min_stock})`,
+        sev: 2,
+      });
     }
 
     // 4) Recepção bloqueada: conferência de recepção falhou (sai da fila normal).
@@ -535,7 +534,7 @@ const IndicadoresPage: React.FC = () => {
       ) : (
         <>
           {/* KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-3 mb-6">
             <Kpi icon={<CalendarClock className="w-5 h-5" />} label="Agendamentos" valor={prod.total} cor="from-blue-500 to-indigo-600" />
             <Kpi icon={<Droplets className="w-5 h-5" />} label="Coletas" valor={prod.coletas} cor="from-cyan-500 to-blue-600" />
             <Kpi
@@ -566,6 +565,13 @@ const IndicadoresPage: React.FC = () => {
               sub={`${temp.fora} de ${temp.total}`}
               cor="from-amber-500 to-orange-500"
             />
+            <Kpi
+              icon={<Boxes className="w-5 h-5" />}
+              label="Insumos < mín."
+              valor={data.insumosBaixos.length}
+              sub={data.insumosBaixos.length ? 'repor estoque' : 'em dia'}
+              cor="from-orange-500 to-red-600"
+            />
           </div>
 
           {/* Alertas do processo — exigem ação agora */}
@@ -591,27 +597,29 @@ const IndicadoresPage: React.FC = () => {
                 <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum alerta — tudo em dia 👍</p>
               </div>
             ) : (
-              <div className="space-y-2">
-                {alertas.slice(0, 8).map((a) => {
-                  const tone = ALERTA_TONE[a.tone];
-                  return (
-                    <div key={a.key} className={`flex items-center gap-3 p-3 rounded-xl border ${tone.row}`}>
-                      <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0 ${tone.icon}`}>
-                        {a.icon}
+              <>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {alertas.slice(0, 8).map((a) => {
+                    const tone = ALERTA_TONE[a.tone];
+                    return (
+                      <div key={a.key} className={`flex items-center gap-3 p-3 rounded-xl border ${tone.row}`}>
+                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0 ${tone.icon}`}>
+                          {a.icon}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{a.titulo}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{a.detalhe}</div>
+                        </div>
                       </div>
-                      <div className="min-w-0">
-                        <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{a.titulo}</div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{a.detalhe}</div>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
                 {alertas.length > 8 && (
-                  <p className="text-xs text-gray-400 dark:text-gray-500 pt-1 text-center">
+                  <p className="text-xs text-gray-400 dark:text-gray-500 pt-2 text-center">
                     +{alertas.length - 8} outro(s) alerta(s)
                   </p>
                 )}
-              </div>
+              </>
             )}
           </div>
 

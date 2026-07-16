@@ -587,14 +587,16 @@ export const useInventory = () => {
   };
 
   // Estoque de um local (o que o setor recebeu e ainda não usou), com dados do produto.
+  // Inclui `minStock` por local (product_stock.min_stock). Mostra também insumo zerado que
+  // tenha mínimo definido (quantity 0 + min > 0) — é o pior caso de "abaixo do mínimo".
   const fetchLocationStock = useCallback(async (
     locationId: string,
-  ): Promise<{ productId: string; productName: string; unit: string; code: string; quantity: number }[]> => {
+  ): Promise<{ productId: string; productName: string; unit: string; code: string; quantity: number; minStock: number }[]> => {
     const { data, error } = await supabase
       .from('product_stock')
-      .select('product_id, quantity, products(name, unit, code)')
+      .select('product_id, quantity, min_stock, products(name, unit, code)')
       .eq('location_id', locationId)
-      .gt('quantity', 0);
+      .or('quantity.gt.0,min_stock.gt.0');
 
     if (error) throw error;
 
@@ -604,7 +606,22 @@ export const useInventory = () => {
       unit: r.products?.unit ?? '',
       code: r.products?.code ?? '',
       quantity: r.quantity,
+      minStock: r.min_stock ?? 0,
     }));
+  }, []);
+
+  // Define o mínimo por local de um insumo (product_stock.min_stock). A linha já existe
+  // (o insumo está no local); RLS de UPDATE já libera authenticated.
+  const updateLocationMinStock = useCallback(async (
+    productId: string,
+    locationId: string,
+    minStock: number,
+  ): Promise<void> => {
+    const { error } = await supabase
+      .from('product_stock')
+      .update({ min_stock: minStock, updated_at: new Date().toISOString() })
+      .match({ product_id: productId, location_id: locationId });
+    if (error) throw error;
   }, []);
 
   // Recebimento (entrada): stock_movements type 'in' → o trigger credita o destino.
@@ -1049,6 +1066,7 @@ export const useInventory = () => {
     fetchLocations,
     fetchProductStock,
     fetchLocationStock,
+    updateLocationMinStock,
     receiveStock,
     transferStock,
     getDashboardData,
