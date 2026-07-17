@@ -145,7 +145,7 @@ export function usePostos(): UsePostosResult {
   // ── Grade de agenda (colunas agenda_* de ac_postos) ─────────────────────────
   const saveAgenda: UsePostosResult['saveAgenda'] = useCallback(
     async (postoId, { horaInicio, horaFim, intervaloMin, diasSemana }) => {
-      const { error: err } = await supabase
+      const { data, error: err } = await supabase
         .from('ac_postos')
         .update({
           agenda_hora_inicio: horaInicio ? normHora(horaInicio) : null,
@@ -153,8 +153,16 @@ export function usePostos(): UsePostosResult {
           agenda_intervalo_min: intervaloMin,
           agenda_dias_semana: diasSemana,
         })
-        .eq('id', postoId);
-      if (err) return err.message;
+        .eq('id', postoId)
+        .select();
+      if (err) {
+        console.error('[saveAgenda] Erro do Supabase:', err);
+        return err.message;
+      }
+      if (!data || data.length === 0) {
+        console.warn('[saveAgenda] Nenhuma linha afetada — provável bloqueio de RLS ou posto inexistente.');
+        return 'O posto não foi atualizado. Verifique permissões (RLS) ou se o posto existe.';
+      }
       await refetch();
       return null;
     },
