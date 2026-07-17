@@ -216,3 +216,5 @@ export function usePostos(): UsePostosResult {
     removeExcecao,
   };
 }
+
+// Test deploy trigger — Vercel auth check
