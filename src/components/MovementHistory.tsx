@@ -42,11 +42,13 @@ const MovementHistory: React.FC = () => {
   });
   // Fase 5: local de origem da baixa + saldos por local do produto selecionado
   const [fromLocationId, setFromLocationId] = useState('');
+  const [toLocationId, setToLocationId] = useState('');
   const [productStockRows, setProductStockRows] = useState<ProductStock[]>([]);
 
   const handleSelectProduct = async (productId: string) => {
     setNewMovement(prev => ({ ...prev, productId }));
     setFromLocationId('');
+    setToLocationId('');
     setProductStockRows([]);
     if (!productId) return;
     try {
@@ -59,6 +61,11 @@ const MovementHistory: React.FC = () => {
       setFromLocationId(locations.find(l => l.isPrincipal)?.id ?? '');
     }
   };
+
+  // Saldo disponível no local de origem selecionado
+  const availableStock = productStockRows.find(r => r.locationId === fromLocationId)?.quantity ?? 0;
+  const isOverStock = newMovement.quantity > 0 && newMovement.quantity > availableStock;
+  const isTransfer = newMovement.reason === 'internal-transfer';
 
   const reasonLabels: Record<string, string> = {
     'sale': 'Solicitação',
@@ -207,19 +214,40 @@ const MovementHistory: React.FC = () => {
       return;
     }
 
+    if (!fromLocationId) {
+      showError('Selecione o local de origem');
+      return;
+    }
+
+    if (newMovement.quantity <= 0) {
+      showError('Informe uma quantidade válida');
+      return;
+    }
+
+    if (newMovement.quantity > availableStock) {
+      showError(`Quantidade ultrapassa o saldo do local. Disponível: ${availableStock}`);
+      return;
+    }
+
+    if (isTransfer && !toLocationId) {
+      showError('Selecione o local de destino da transferência');
+      return;
+    }
+
     try {
       await addMovement({
         productId: newMovement.productId,
         productName: product.name,
-        type: 'out',
+        type: isTransfer ? 'transfer' : 'out',
         reason: newMovement.reason,
         quantity: newMovement.quantity,
         date: new Date().toISOString().split('T')[0],
         authorizedBy: newMovement.authorizedBy,
         notes: newMovement.notes,
-        fromLocationId: fromLocationId || undefined,
-        unitPrice: 0,
-        totalValue: 0
+        fromLocationId,
+        toLocationId: isTransfer ? toLocationId : undefined,
+        unitPrice: product.unitPrice,
+        totalValue: newMovement.quantity * product.unitPrice
       });
 
       setNewMovement({
@@ -230,6 +258,7 @@ const MovementHistory: React.FC = () => {
         authorizedBy: ''
       });
       setFromLocationId('');
+      setToLocationId('');
       setProductStockRows([]);
       setShowAddMovement(false);
       showSuccess('Movimentação registrada com sucesso!');
@@ -272,7 +301,9 @@ const MovementHistory: React.FC = () => {
       {/* Add Movement Form */}
       {showAddMovement && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6 animate-scale-in">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Registrar Nova Saída</h3>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+            {isTransfer ? 'Registrar Nova Transferência' : 'Registrar Nova Saída'}
+          </h3>
           <form onSubmit={handleSubmitMovement} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Produto *</label>
@@ -324,15 +355,29 @@ const MovementHistory: React.FC = () => {
                 onChange={(e) => setNewMovement(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
                 required
                 min="1"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                max={availableStock || undefined}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 ${
+                  isOverStock
+                    ? 'border-red-400 dark:border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 dark:border-gray-600'
+                }`}
               />
+              <p className={`text-xs mt-1 ${isOverStock ? 'text-red-500 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+                {isOverStock
+                  ? `Quantidade ultrapassa o saldo! Disponível: ${availableStock}`
+                  : `Saldo disponível no local: ${availableStock}`}
+              </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Motivo *</label>
               <select
                 value={newMovement.reason}
-                onChange={(e) => setNewMovement(prev => ({ ...prev, reason: e.target.value as any }))}
+                onChange={(e) => {
+                  const reason = e.target.value;
+                  setNewMovement(prev => ({ ...prev, reason }));
+                  if (reason !== 'internal-transfer') setToLocationId('');
+                }}
                 required
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
               >
@@ -342,6 +387,27 @@ const MovementHistory: React.FC = () => {
                 <option value="other">Outros</option>
               </select>
             </div>
+
+            {isTransfer && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Local de destino *</label>
+                <select
+                  value={toLocationId}
+                  onChange={(e) => setToLocationId(e.target.value)}
+                  required={isTransfer}
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
+                >
+                  <option value="">Selecione o destino</option>
+                  {locations
+                    .filter(l => l.ativo && l.id !== fromLocationId)
+                    .map(l => (
+                      <option key={l.id} value={l.id}>
+                        {l.nome}{l.department ? ` — ${l.department}` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Autorizado por *</label>
@@ -369,14 +435,27 @@ const MovementHistory: React.FC = () => {
             <div className="md:col-span-2 flex justify-end space-x-3">
               <button
                 type="button"
-                onClick={() => setShowAddMovement(false)}
+                onClick={() => {
+                  setShowAddMovement(false);
+                  setToLocationId('');
+                  setFromLocationId('');
+                  setProductStockRows([]);
+                  setNewMovement({
+                    productId: '',
+                    quantity: 0,
+                    reason: 'internal-consumption',
+                    notes: '',
+                    authorizedBy: ''
+                  });
+                }}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                disabled={isOverStock || (isTransfer && !toLocationId)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Registrar Saída
               </button>
