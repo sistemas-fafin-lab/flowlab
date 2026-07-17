@@ -9,6 +9,7 @@ import Dashboard from './components/Dashboard';
 import ProductList from './components/ProductList';
 import AddProduct from './components/AddProduct';
 import MovementHistory from './components/MovementHistory';
+import EstoqueDepartamental from './components/EstoqueDepartamental';
 import RequestManagement from './components/RequestManagement';
 import ExpirationMonitor from './components/ExpirationMonitor';
 import ProductChangeLog from './components/ProductChangeLog';
@@ -32,15 +33,19 @@ import ITKanbanBoard from './components/IT/ITKanbanBoard';
 import TestKanban from './components/IT/TestKanban';
 import { NotificationAdminPanel } from './components/NotificationAdminPanel';
 import CostControlDashboard from './pages/CostControlDashboard';
-import { AgendamentosPage, PostosPage } from './modules/analises-clinicas';
+import { AgendamentosPage, PostosPage, PainelColetasPage, TemperaturaEquipamentosPage, CulturasPage, RecoletasPage, LaudosPage, IndicadoresPage } from './modules/analises-clinicas';
 
 // Protected Route Component
-const ProtectedRoute: React.FC<{ 
-  children: React.ReactNode; 
+const ProtectedRoute: React.FC<{
+  children: React.ReactNode;
   permission?: string;
+  anyOf?: string[];
   permissions: string[];
-}> = ({ children, permission, permissions }) => {
-  if (permission && !hasPermission(permissions, permission)) {
+}> = ({ children, permission, anyOf, permissions }) => {
+  const denied =
+    (permission && !hasPermission(permissions, permission)) ||
+    (anyOf && anyOf.length > 0 && !anyOf.some((p) => hasPermission(permissions, p)));
+  if (denied) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
         <h3 className="text-lg font-medium text-red-800 mb-2">Acesso Negado</h3>
@@ -105,6 +110,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canViewMovements" permissions={userPermissions}>
               <MovementHistory />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/estoque-departamental"
+          element={
+            <ProtectedRoute permission="canViewStockDepart" permissions={userPermissions}>
+              <EstoqueDepartamental />
             </ProtectedRoute>
           }
         />
@@ -253,6 +266,54 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canManageAnalisesClinicas" permissions={userPermissions}>
               <PostosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/coletas"
+          element={
+            <ProtectedRoute permission="canManageColetas" permissions={userPermissions}>
+              <PainelColetasPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/temperatura"
+          element={
+            <ProtectedRoute anyOf={['canViewTemperatura', 'canManageColetas']} permissions={userPermissions}>
+              <TemperaturaEquipamentosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/culturas"
+          element={
+            <ProtectedRoute permission="canManageColetas" permissions={userPermissions}>
+              <CulturasPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/recoletas"
+          element={
+            <ProtectedRoute permission="canManageColetas" permissions={userPermissions}>
+              <RecoletasPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/laudos"
+          element={
+            <ProtectedRoute permission="canManageColetas" permissions={userPermissions}>
+              <LaudosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/indicadores"
+          element={
+            <ProtectedRoute permission="canViewAnalisesClinicas" permissions={userPermissions}>
+              <IndicadoresPage />
             </ProtectedRoute>
           }
         />

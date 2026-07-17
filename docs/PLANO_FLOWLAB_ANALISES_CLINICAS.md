@@ -1,12 +1,12 @@
 # Plano de Implementação — FlowLab · Análises Clínicas
 
-> **Escopo do projeto:** o **AGENDAMENTO** (✅ concluído — Fases 0–3) e a **operação interna do laboratório** — permissões/role `analista`, estoque departamental, coleta/recoleta, análise/cultura/temperatura e dashboard de KPIs (Fases 4–8, a fazer).
-> **Fora de escopo:** **Resultados** (liberação + entrega ao paciente) e **notificação WhatsApp**, mais o que depende deles (reconciliação `ac_resultados`↔`ac_analises`, permissão `canLiberarResultados`) — ver "Fora de escopo" no fim.
+> **Escopo do projeto:** o **AGENDAMENTO** (✅ concluído — Fases 0–3) e a **operação interna do laboratório** — permissões/role `analista`, estoque departamental, coleta/recoleta, recebimento de exames/cultura/temperatura e dashboard de KPIs. **Fases 4–7 concluídas** (a Fase 7 foi reescopada — ver abaixo; recoleta adiada). **Fase 8 (KPIs) a fazer.**
+> **Fora de escopo:** **Resultados** (liberação + entrega ao paciente) e **notificação WhatsApp**, mais o que depende deles (reconciliação de `ac_resultados`, permissão `canLiberarResultados`) — ver "Fora de escopo" no fim.
 > O portal do paciente (agendamento + resultados) é do LAB-HUB — ver `LAB-HUB/docs/PLANO_ANALISES_CLINICAS.md`.
 > Baseado em: `LAB-HUB/docs/ARQUITETURA_ANALISES_CLINICAS.md`, `FLUXO.md`, `ANALISES_CLINICAS.md`.
 > Criado em: Junho/2026 · **Reduzido ao escopo de agendamento em 30/Jun/2026** · **Reexpandido em 30/Jun/2026** para incluir a operação interna (coleta → análise → dashboard); só Resultados e WhatsApp seguem fora.
 >
-> **Última atualização:** 30/Jun/2026 — agendamento completo + cancelamento cruzado fechado; plano reexpandido com as Fases 4–8 (operação interna). **Fase 4 concluída:** permissão `canManageColetas` + cargo de sistema `analistaSaude` (custom role, não role legacy) + backfill de AC nos cargos seedados.
+> **Última atualização:** 10/Jul/2026 — **Fase 5 (estoque departamental), Fase 6 Etapa A (coletas) e Fase 7 concluídas e no ar.** A **Fase 7 foi reescopada** (ver `docs/PLANO_FASE7_ANALISE.md`, que prevalece): a análise interna com baixa de reagentes foi **descartada** (a análise é externa/apoio); entraram o **recebimento de exames no check-in** e o **acompanhamento manual de culturas**. Falta: **Fase 8 (KPIs)** e **redefinir o gatilho da recoleta** (Fase 6 Etapa B), órfão desde que a análise interna saiu. *(Histórico: 30/Jun/2026 — agendamento + cancelamento cruzado; Fase 4 — `canManageColetas` + cargo `analistaSaude` + backfill.)*
 
 ---
 
@@ -239,32 +239,62 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 > Fundação barata e que **gateia tudo abaixo** — feita primeiro para evitar retrabalho de permissão.
 > `canLiberarResultados` fica fora (acompanha Resultados).
 
-### Fase 5 — Estoque departamental 🔜
-- [ ] `Department.ANALISES_CLINICAS` + categoria de produto `insumos_clinicos`
-- [ ] Fluxo de recebimento de insumos com assinatura
+### Fase 5 — Estoque departamental ✅ construída · ⬜ deploy em produção
+> **Plano detalhado:** [`PLANO_FASE5_ESTOQUE_DEPARTAMENTAL.md`](PLANO_FASE5_ESTOQUE_DEPARTAMENTAL.md)
 
-> Dependência da coleta: `ac_coleta_insumos` dá baixa em `stock_movements`, então o departamento/categoria precisam existir antes.
+**Redesenho (substitui "`Department.ANALISES_CLINICAS` + categoria `insumos_clinicos`"):** estoque **multi-local plano** — `products.quantity` vira cache do total; saldo por local em `product_stock`; `products.location` (texto livre, hoje "Estoque"/"Depósito"/…) é promovido para `stock_locations`.
 
-### Fase 6 — Coleta / recoleta 🔜
-- [ ] Migrations `ac_coletas`, `ac_recoletas`, `ac_coleta_insumos` (+ RLS, índices, triggers `updated_at`)
-- [ ] Baixa de insumos em `stock_movements` ao registrar a coleta
-- [ ] `PainelColetasPage` (fila derivada dos agendamentos `recebido`) + `RecoletasPage`
-- [ ] Rotas `/analises-clinicas/{coletas,recoletas}` + gating `canManageColetas`
+- [x] **Parte A — Fundação:** `stock_locations` (plano) + `product_stock` + `stock_movements` com `from/to` + reescrita do trigger `update_stock_on_movement` + seed/promoção do `location` (migration defensiva)
+- [x] **Parte B — UI mínima:** dropdown de local no form, recebimento (com assinatura), transferência entre locais, saldo por local — `EstoqueDepartamental.tsx` (o "Autorizado por" da saída é fixado no usuário logado)
+- [ ] **Deploy em produção** — cutover + biomol (`controla_consumo` = Biologia Molecular) + frontend da Parte B, aplicados **juntos**. Migrations validadas no ambiente de test (9/9 cenários). Ver status em `PLANO_FASE5_ESTOQUE_DEPARTAMENTAL.md`.
+- [ ] (fora de escopo) RLS por setor e dashboard departamental → refinamento / Fase 8
+
+> Dependência da coleta: `ac_coleta_insumos` (Fase 6) dá baixa em `stock_movements`, então os locais precisam existir antes.
+
+### Fase 6 — Coleta / recoleta 🚧 (Etapa A ✅ · Etapa B adiada)
+> **Plano detalhado:** [`PLANO_FASE6_COLETAS.md`](PLANO_FASE6_COLETAS.md)
+
+**Etapa A — Coletas + baixa ✅:**
+- [x] Migrations `ac_coletas`, `ac_coleta_insumos` (+ RLS, índices, trigger `updated_at`)
+- [x] Baixa de insumos em `stock_movements` ao registrar a coleta, via RPC transacional `registrar_coleta` (reusa o trigger multi-local da Fase 5; origem = estoque do posto) — na **Fase 7A** a baixa virou **opcional** e o check-in ganhou exames/validade/etiqueta
+- [x] `PainelColetasPage` (fila derivada dos agendamentos `recebido`/`em_coleta`) — estendida na 7A (seleção de exames em vez de insumo manual)
+- [x] Rota `/analises-clinicas/coletas` + gating `canManageColetas`
+
+**Etapa B — Recoletas (adiada · gatilho a redefinir):**
+- [ ] `ac_recoletas` + `RecoletasPage` + rota `/recoletas`. **O gatilho antigo ("reprovação na análise") caiu com o reescopo da Fase 7** — não há análise interna. Redefinir o disparo (ex.: amostra inviável no check-in, ou solicitação do laboratório de apoio) **antes** de implementar.
 
 > Próximo passo após o agendamento e **porta de entrada dos dados** a jusante. A notificação `ac_recoleta` fica fora (WhatsApp fora de escopo).
 
-### Fase 7 — Análise / cultura / temperatura 🔜
-- [ ] Migrations `ac_analises`, `ac_culturas`, `ac_temperaturas`, `ac_equipamentos` (+ RLS, índices)
-- [ ] Páginas de análise e cultura + monitoramento de temperatura de equipamentos com alertas
-- [ ] Rotas + gating
+### Fase 7 — Recebimento de exames / cultura / temperatura ✅ (reescopada)
+> **Reescopada em 09/Jul/2026** (ver `docs/PLANO_FASE7_ANALISE.md`, que **prevalece**). O cliente esclareceu a operação real: **o médico coleta e a análise é externa** (laboratório de apoio) — o FlowLab **não** analisa nem dá baixa de reagentes de análise. Etapas independentes:
 
-> Camada de **rigor interno** (QC). Vem depois da coleta (analisa-se o que foi coletado) e não bloqueia nada do lado do paciente.
+**Etapa A — Recebimento de exames + culturas ✅ (substitui a antiga "Análise"):**
+- [x] Catálogo `ac_exames` (seed 529 exames, 8 culturas) + `ac_agendamento_exames` + `ac_cultura_etapas` + `ac_culturas` — migrations `20260709130000`/`131000`; rename da etapa final "Pronta p/ laudo" → "Laudo concluído" em `20260710120000`
+- [x] RPC `registrar_coleta` v2 (`SECURITY DEFINER`): grava exames + validade + etiqueta no check-in e abre `ac_culturas` por exame de cultura; insumos **opcionais** — migration `20260709132000`
+- [x] Check-in estendido (`PainelColetasPage`/`ColetaModal`: multi-select de exames + validade + etiqueta) + página `CulturasPage` (acompanhamento manual — etapa/status/nota/resultado/prazo) + rota/nav — gating `canManageColetas`
+
+**Etapa B — Cultura ✅ (feita via Etapa A):**
+- [x] `ac_culturas` + `CulturasPage` — acompanhamento **manual** (molde da Temperatura), com status Em andamento/Positiva/Laudo concluído. **Não** é o fluxo com desfecho positivo/negativo automático do desenho antigo.
+
+**~~Análise interna (aprovado/reprovado + baixa de reagentes)~~ ❌ descartada:**
+- A análise ocorre **fora** (apoio externo); **não** existem `ac_analises`/`ac_analise_insumos`/`registrar_analise` nem a permissão `canManageAnalises`. Preservado como histórico em `PLANO_FASE7_ANALISE.md` §10.
+
+**Etapa C — Temperatura / equipamentos ✅ (independente, feita):**
+- [x] Migrations `ac_equipamentos` + `ac_temperaturas` (faixa aceitável, trigger de `fora_faixa`, RLS) — `20260709120000`
+- [x] Página `TemperaturaEquipamentosPage` (cards com situação normal/no limite/fora, sparkline, header-resumo com indicadores) + rota/nav + permissão de leitura `canViewTemperatura`
+
+> Camada de **rigor interno** (QC) + recebimento. A análise é externa; o "resultado" da cultura é acompanhado **manualmente** e não bloqueia nada do lado do paciente.
 
 ### Fase 8 — Dashboard / KPIs 🔜
-- [ ] Widget no dashboard principal + página de KPIs: recoletas, culturas, temperatura/desperdício, produtividade
+> **Plano detalhado:** [`PLANO_FASE8_DASHBOARD_KPIS.md`](PLANO_FASE8_DASHBOARD_KPIS.md) (prevalece)
+
+- [x] **Página de Indicadores** no módulo AC (`/analises-clinicas/indicadores`, gated `canViewAnalisesClinicas`) — ✅ **Etapa 1 construída (10/Jul)**: 6 tiles + 5 gráficos (produtividade/culturas/temperatura/exames/recepção) + seletor 7/30/90, leitura client-side, sem migration. Falta drive visual + deploy.
+- [ ] KPIs **com dado hoje (v1):** **produtividade** (coleta/recepção/mix de exames) · **culturas** (status/positividade/atrasadas) · **temperatura** (% fora de faixa/excursões/compliance)
+- [ ] **Fora da v1 → placeholders** (ambos confirmados como não-necessários agora): **recoletas** (depende da Fase 6B + gatilho a definir) e **desperdício** (= insumo baixado mas não usado; exige marcar a baixa como desperdício no modelo)
+- [ ] (opcional) Widget no dashboard principal — só para admin (o `Dashboard.tsx` é gated por `canViewDashboard`, que operator/analistaSaude **não** têm)
 - [ ] (KPIs de SLA de resultado ficam para quando Resultados entrar no escopo)
 
-> Por último: os KPIs só têm dado depois que coleta/recoleta/análise estão gerando registros.
+> Por último: os KPIs só têm dado depois que coleta/cultura/temperatura estão gerando registros — o que já ocorre (Fases 6A/7 no ar), então a fase está **destravada**. ⚠️ 2 dos 4 KPIs do escopo original (recoletas, desperdício) **não têm fonte de dados** — ver §1 do plano detalhado.
 
 ---
 
@@ -297,7 +327,7 @@ Deliberadamente fora do escopo do projeto (retomar só se a prioridade mudar):
 
 - **Resultados:** `ac_resultados` (já existe) + `deliver-resultado` (já existe, sem UI) + `LiberacaoResultadosPage` + permissão `canLiberarResultados`. A liberação e a entrega do resultado ao paciente passam pelo portal do LAB-HUB.
 - **Notificação WhatsApp:** templates `ac_agendamento_confirmado`, `ac_recoleta` e `ac_resultado_disponivel` via MessagingService (WAHA), disparados nos respectivos eventos.
-- **Reconciliação `ac_resultados` ↔ `ac_analises`:** hoje `ac_resultados.agendamento_id` aponta direto ao agendamento; religar à análise (Fase 7) só faz sentido quando Resultados entrar no escopo.
+- **Reconciliação de `ac_resultados`:** hoje `ac_resultados.agendamento_id` aponta direto ao agendamento. A ideia antiga de religar à análise interna (`ac_analises`) **caiu com o reescopo da Fase 7** (a análise é externa); se Resultados entrar no escopo, o vínculo natural passa a ser com os exames/culturas do agendamento.
 
 ---
 

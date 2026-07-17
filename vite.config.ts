@@ -264,13 +264,70 @@ function createUserApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
+// ── Dev-only middleware para GET /api/analises-clinicas/get-documentos ───────
+// `npm run dev` é vite puro (sem runtime Vercel): sem este plugin a rota cai no
+// fallback do SPA e devolve index.html, e o .json() do hook estoura com
+// "Unexpected token '<'".
+function documentosApiPlugin(env: Record<string, string>): Plugin {
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'LABHUB_API_URL', 'FLOWLAB_API_KEY',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
+  return {
+    name: 'documentos-checkin-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        // Compara o pathname, não req.url: aqui vem query string junto.
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        if (url.pathname !== '/api/analises-clinicas/get-documentos' || req.method !== 'GET') {
+          return next();
+        }
+
+        const send = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify(body));
+        };
+
+        const authHeader = (req.headers['authorization'] as string) ?? '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+        try {
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule('/api/_lib/documentosCheckin.ts');
+          const { status, payload } = await mod.listarDocumentosCheckin(
+            token,
+            url.searchParams.get('agendamentoId') ?? undefined,
+          );
+          send(status, payload);
+        } catch (err) {
+          console.error('[dev/analises-clinicas/get-documentos]', err);
+          send(500, { success: false, error: err instanceof Error ? err.message : 'Erro interno' });
+        }
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // loadEnv com prefix '' carrega TODAS as vars (inclusive UMAMI_* sem prefixo VITE_)
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env)],
+    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },

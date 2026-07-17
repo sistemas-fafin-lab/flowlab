@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { useDialog } from '../hooks/useDialog';
 import { DEPARTMENTS } from '../utils/permissions';
-import { Request, RequestItem } from '../types';
+import { Request, RequestItem, Product, DepartmentLabels } from '../types';
 import { useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Notification from './Notification';
@@ -22,16 +22,68 @@ const ITEMS_PER_PAGE = 25;
 
 const RequestManagement: React.FC = () => {
   const { user, userProfile } = useAuth();
-  const { 
-    requests, 
-    products, 
-    suppliers, 
+  const {
+    requests,
+    products,
+    suppliers,
     loading,
-    addRequest, 
-    updateRequestStatus, 
-    addMovement, 
-    createQuotation 
+    addRequest,
+    updateRequestStatus,
+    addMovement,
+    createQuotation,
+    locations,
+    fetchProductStock,
   } = useInventory();
+
+  // Fase 5 (§4.2): retirada de solicitação vira TRANSFERÊNCIA para o local do setor
+  // quando o department tem controla_consumo=true; senão, baixa (out) como hoje.
+  const processRetirada = async (
+    item: { productId: string; productName: string; quantity: number },
+    product: Product,
+    request: Request | undefined,
+    authorizedBy?: string,
+  ) => {
+    const base = {
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      date: new Date().toISOString().split('T')[0],
+      requestId: request?.id,
+      authorizedBy,
+      notes: `Solicitação: ${request?.reason ?? ''}`,
+      unitPrice: product.unitPrice,
+      totalValue: item.quantity * product.unitPrice,
+    };
+
+    // O department do perfil pode vir como código ('BIOLOGIA_MOLECULAR') ou como
+    // rótulo ('Biologia Molecular'); stock_locations guarda o rótulo. Normaliza para
+    // casar nos dois formatos (mesma defesa da tela Estoque Departamental).
+    const reqDept = request?.department;
+    const reqDeptLabel = reqDept
+      ? ((DepartmentLabels as Record<string, string>)[reqDept] ?? reqDept)
+      : undefined;
+    const sectorLoc = locations.find(
+      l => (l.department === reqDeptLabel || l.department === reqDept) && l.controlaConsumo && l.rastreavel,
+    );
+
+    if (sectorLoc) {
+      // origem = local que hoje detém o saldo (default principal)
+      const rows = await fetchProductStock(item.productId);
+      const withStock = [...rows].filter(r => r.quantity > 0).sort((a, b) => b.quantity - a.quantity);
+      const originId = withStock[0]?.locationId ?? locations.find(l => l.isPrincipal)?.id;
+      await addMovement({
+        ...base,
+        type: 'transfer',
+        reason: 'internal-transfer',
+        fromLocationId: originId,
+        toLocationId: sectorLoc.id,
+      });
+    } else {
+      // baixa direta (comportamento atual). Sem from_location_id → o trigger debita
+      // o local com saldo (legado). O total cai na hora.
+      await addMovement({ ...base, type: 'out', reason: 'sale' });
+    }
+  };
 
   const { notification, showSuccess, showError, showWarning, showInfo, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
@@ -2130,23 +2182,12 @@ const handleCompleteRequest = async (request: Request) => {
               })
               .eq('id', showSignatureModal.id);
     
-            // Criar movimentação para cada item (UMA ÚNICA VEZ)
+            // Criar movimentação para cada item (UMA ÚNICA VEZ) — §4.2: transfer/out
+            const sigRequest = requests.find(r => r.id === showSignatureModal.id);
             for (const item of showSignatureModal.items) {
               const product = products.find(p => p.id === item.productId);
               if (product) {
-                await addMovement({
-                  productId: item.productId,
-                  productName: item.productName,
-                  type: 'out',
-                  reason: 'sale',
-                  quantity: item.quantity,
-                  date: new Date().toISOString().split('T')[0],
-                  requestId: showSignatureModal.id,
-                  authorizedBy: showSignatureModal.approvedBy,
-                  notes: `Solicitação: ${showSignatureModal.reason}`,
-                  unitPrice: product.unitPrice,
-                  totalValue: item.quantity * product.unitPrice,
-                });
+                await processRetirada(item, product, sigRequest, showSignatureModal.approvedBy);
               }
             }
     
@@ -2207,7 +2248,8 @@ const handleCompleteRequest = async (request: Request) => {
             // Processar cada item individualmente com tratamento de erro
             const processedItems: string[] = [];
             const failedItems: { item: string; error: string }[] = [];
-            
+            const wdRequest = requests.find(r => r.id === showWithdrawalModal.id);
+
             for (const item of itemsToDeduct) {
               try {
                 // Verificar estoque atual antes de deduzir
@@ -2217,22 +2259,15 @@ const handleCompleteRequest = async (request: Request) => {
                   failedItems.push({ item: item.productName, error: 'Produto não encontrado' });
                   continue;
                 }
-                
-                // Criar movimentação
-                await addMovement({
-                  productId: item.productId!,
-                  productName: item.productName,
-                  type: 'out',
-                  reason: 'sale',
-                  quantity: item.quantity,
-                  date: new Date().toISOString().split('T')[0],
-                  requestId: showWithdrawalModal.id,
-                  authorizedBy: showWithdrawalModal.approvedBy,
-                  notes: `Solicitação: ${showWithdrawalModal.reason}`,
-                  unitPrice: product.unitPrice,
-                  totalValue: item.quantity * product.unitPrice,
-                });
-                
+
+                // Criar movimentação — §4.2: transfer (setor opt-in) ou out (padrão)
+                await processRetirada(
+                  { productId: item.productId!, productName: item.productName, quantity: item.quantity },
+                  product,
+                  wdRequest,
+                  showWithdrawalModal.approvedBy,
+                );
+
                 processedItems.push(item.productName);
                 onItemProcessed(item.id, true);
                 

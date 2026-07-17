@@ -77,7 +77,7 @@ const springTransition = {
 };
 
 const Auth: React.FC = () => {
-  const { signIn, signUp, resetPassword } = useAuth();
+  const { signIn, signUp, resetPassword, pendingAuthError, clearPendingAuthError } = useAuth();
   const [formView, setFormView] = useState<'login' | 'register' | 'forgot'>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -89,6 +89,16 @@ const Auth: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Exibe erro global do contexto (ex.: whitelist rejeitada no signIn).
+  // Como Auth pode ser desmontado/remontado durante o fluxo de login,
+  // pendingAuthError persiste no Context para que a mensagem não se perca.
+  useEffect(() => {
+    if (pendingAuthError) {
+      setError(pendingAuthError);
+      clearPendingAuthError();
+    }
+  }, [pendingAuthError, clearPendingAuthError]);
   const [isDarkMode, setIsDarkMode] = useState(() =>
     document.documentElement.classList.contains("dark"),
   );

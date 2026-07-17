@@ -13,6 +13,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { createUserFlow } from '../_lib/createUser.js';
+import { describeError } from '../_lib/errors.js';
 
 export default async function handler(
   req: VercelRequest,
@@ -31,8 +32,7 @@ export default async function handler(
     const { status, payload } = await createUserFlow(token, req.body ?? {});
     res.status(status).json(payload);
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[users/create] Falha inesperada:', message);
+    console.error('[users/create] Falha inesperada:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno ao cadastrar usuário.' });
   }
 }

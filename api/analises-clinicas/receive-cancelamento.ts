@@ -17,6 +17,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../_lib/supabase.js';
 import { isFlowlabApiKeyValid } from '../_lib/labhubIntegration.js';
+import { describeError } from '../_lib/errors.js';
 
 // Payload enviado pelo LAB-HUB (espelha CancelamentoPayloadFlowLab de @lab-hub/shared).
 interface ReceiveCancelamentoBody {
@@ -80,8 +81,7 @@ export default async function handler(
     }
     res.status(200).json({ status: 'nao_encontrado', idempotency: 'ignored' });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[analises-clinicas/receive-cancelamento] erro inesperado:', message);
+    console.error('[analises-clinicas/receive-cancelamento] erro inesperado:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });
   }
 }

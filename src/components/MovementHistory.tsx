@@ -14,6 +14,7 @@ import {
   Search
 } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
+import { ProductStock } from '../types';
 import { useNotification } from '../hooks/useNotification';
 import Notification from './Notification';
 import { MovementHistorySkeleton } from './PageLoadingSkeleton';
@@ -21,7 +22,7 @@ import { MovementHistorySkeleton } from './PageLoadingSkeleton';
 const ITEMS_PER_PAGE = 25;
 
 const MovementHistory: React.FC = () => {
-  const { movements, products, addMovement, loading } = useInventory();
+  const { movements, products, addMovement, loading, locations, fetchProductStock } = useInventory();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const [showAddMovement, setShowAddMovement] = useState(false);
   const [filterReason, setFilterReason] = useState<string>('all');
@@ -39,15 +40,52 @@ const MovementHistory: React.FC = () => {
     notes: '',
     authorizedBy: ''
   });
+  // Fase 5: local de origem da baixa + saldos por local do produto selecionado
+  const [fromLocationId, setFromLocationId] = useState('');
+  const [toLocationId, setToLocationId] = useState('');
+  const [productStockRows, setProductStockRows] = useState<ProductStock[]>([]);
+
+  const handleSelectProduct = async (productId: string) => {
+    setNewMovement(prev => ({ ...prev, productId }));
+    setFromLocationId('');
+    setToLocationId('');
+    setProductStockRows([]);
+    if (!productId) return;
+    try {
+      const rows = await fetchProductStock(productId);
+      setProductStockRows(rows);
+      const withStock = [...rows].filter(r => r.quantity > 0).sort((a, b) => b.quantity - a.quantity);
+      const principal = locations.find(l => l.isPrincipal);
+      setFromLocationId(withStock[0]?.locationId ?? principal?.id ?? '');
+    } catch {
+      setFromLocationId(locations.find(l => l.isPrincipal)?.id ?? '');
+    }
+  };
+
+  // Saldo disponível no local de origem selecionado
+  const availableStock = productStockRows.find(r => r.locationId === fromLocationId)?.quantity ?? 0;
+  const isOverStock = newMovement.quantity > 0 && newMovement.quantity > availableStock;
+  const isTransfer = newMovement.reason === 'internal-transfer';
 
   const reasonLabels: Record<string, string> = {
+    'sale': 'Solicitação',
     'internal-transfer': 'Transferência Interna',
     'return': 'Devolução',
     'internal-consumption': 'Consumo Interno',
-    'other': 'Outros'
+    'manutencao': 'Manutenção',
+    'other': 'Outros',
+    'purchase': 'Compra'
   };
 
   const reasonColors: Record<string, { bg: string; bgActive: string; text: string; textActive: string; border: string; borderActive: string }> = {
+    'sale': {
+      bg: 'bg-emerald-100 dark:bg-emerald-900/50',
+      bgActive: 'bg-emerald-500',
+      text: 'text-emerald-600 dark:text-emerald-400',
+      textActive: 'text-white',
+      border: 'border-gray-100 dark:border-gray-700 hover:border-emerald-200 dark:hover:border-emerald-700',
+      borderActive: 'border-emerald-400 ring-2 ring-emerald-400/30 bg-emerald-50 dark:bg-emerald-900/20'
+    },
     'internal-transfer': {
       bg: 'bg-purple-100 dark:bg-purple-900/50',
       bgActive: 'bg-purple-500',
@@ -72,6 +110,14 @@ const MovementHistory: React.FC = () => {
       border: 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-700',
       borderActive: 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50 dark:bg-blue-900/20'
     },
+    'manutencao': {
+      bg: 'bg-orange-100 dark:bg-orange-900/50',
+      bgActive: 'bg-orange-500',
+      text: 'text-orange-600 dark:text-orange-400',
+      textActive: 'text-white',
+      border: 'border-gray-100 dark:border-gray-700 hover:border-orange-200 dark:hover:border-orange-700',
+      borderActive: 'border-orange-400 ring-2 ring-orange-400/30 bg-orange-50 dark:bg-orange-900/20'
+    },
     'other': {
       bg: 'bg-gray-200 dark:bg-gray-600',
       bgActive: 'bg-gray-500',
@@ -79,14 +125,25 @@ const MovementHistory: React.FC = () => {
       textActive: 'text-white',
       border: 'border-gray-100 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600',
       borderActive: 'border-gray-400 ring-2 ring-gray-400/30 bg-gray-100 dark:bg-gray-700'
+    },
+    'purchase': {
+      bg: 'bg-cyan-100 dark:bg-cyan-900/50',
+      bgActive: 'bg-cyan-500',
+      text: 'text-cyan-600 dark:text-cyan-400',
+      textActive: 'text-white',
+      border: 'border-gray-100 dark:border-gray-700 hover:border-cyan-200 dark:hover:border-cyan-700',
+      borderActive: 'border-cyan-400 ring-2 ring-cyan-400/30 bg-cyan-50 dark:bg-cyan-900/20'
     }
   };
 
   const reasonIcons: Record<string, React.ReactNode> = {
+    'sale': <ArrowUpDown className="w-5 h-5" />,
     'internal-transfer': <Repeat className="w-5 h-5" />,
     'return': <RotateCcw className="w-5 h-5" />,
     'internal-consumption': <Coffee className="w-5 h-5" />,
-    'other': <MoreHorizontal className="w-5 h-5" />
+    'manutencao': <Package className="w-5 h-5" />,
+    'other': <MoreHorizontal className="w-5 h-5" />,
+    'purchase': <ArrowUpDown className="w-5 h-5" />
   };
 
   // Filtra movimentações baseado em todos os filtros
@@ -157,18 +214,40 @@ const MovementHistory: React.FC = () => {
       return;
     }
 
+    if (!fromLocationId) {
+      showError('Selecione o local de origem');
+      return;
+    }
+
+    if (newMovement.quantity <= 0) {
+      showError('Informe uma quantidade válida');
+      return;
+    }
+
+    if (newMovement.quantity > availableStock) {
+      showError(`Quantidade ultrapassa o saldo do local. Disponível: ${availableStock}`);
+      return;
+    }
+
+    if (isTransfer && !toLocationId) {
+      showError('Selecione o local de destino da transferência');
+      return;
+    }
+
     try {
       await addMovement({
         productId: newMovement.productId,
         productName: product.name,
-        type: 'out',
+        type: isTransfer ? 'transfer' : 'out',
         reason: newMovement.reason,
         quantity: newMovement.quantity,
         date: new Date().toISOString().split('T')[0],
         authorizedBy: newMovement.authorizedBy,
         notes: newMovement.notes,
-        unitPrice: 0,
-        totalValue: 0
+        fromLocationId,
+        toLocationId: isTransfer ? toLocationId : undefined,
+        unitPrice: product.unitPrice,
+        totalValue: newMovement.quantity * product.unitPrice
       });
 
       setNewMovement({
@@ -178,6 +257,9 @@ const MovementHistory: React.FC = () => {
         notes: '',
         authorizedBy: ''
       });
+      setFromLocationId('');
+      setToLocationId('');
+      setProductStockRows([]);
       setShowAddMovement(false);
       showSuccess('Movimentação registrada com sucesso!');
     } catch (error) {
@@ -219,13 +301,15 @@ const MovementHistory: React.FC = () => {
       {/* Add Movement Form */}
       {showAddMovement && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6 animate-scale-in">
-          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">Registrar Nova Saída</h3>
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4">
+            {isTransfer ? 'Registrar Nova Transferência' : 'Registrar Nova Saída'}
+          </h3>
           <form onSubmit={handleSubmitMovement} className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Produto *</label>
               <select
                 value={newMovement.productId}
-                onChange={(e) => setNewMovement(prev => ({ ...prev, productId: e.target.value }))}
+                onChange={(e) => handleSelectProduct(e.target.value)}
                 required
                 className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
               >
@@ -238,6 +322,31 @@ const MovementHistory: React.FC = () => {
               </select>
             </div>
 
+            <div className="md:col-span-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Local de origem *</label>
+              <select
+                value={fromLocationId}
+                onChange={(e) => setFromLocationId(e.target.value)}
+                required
+                disabled={!newMovement.productId}
+                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 disabled:opacity-50"
+              >
+                {productStockRows.filter(r => r.quantity > 0).length === 0 && (
+                  <option value="">Sem saldo rastreável</option>
+                )}
+                {productStockRows
+                  .filter(r => r.quantity > 0)
+                  .map(r => {
+                    const loc = locations.find(l => l.id === r.locationId);
+                    return (
+                      <option key={r.locationId} value={r.locationId}>
+                        {loc?.nome ?? 'Local'} — {r.quantity}
+                      </option>
+                    );
+                  })}
+              </select>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Quantidade *</label>
               <input
@@ -246,15 +355,29 @@ const MovementHistory: React.FC = () => {
                 onChange={(e) => setNewMovement(prev => ({ ...prev, quantity: parseInt(e.target.value) || 0 }))}
                 required
                 min="1"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                max={availableStock || undefined}
+                className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 ${
+                  isOverStock
+                    ? 'border-red-400 dark:border-red-500 focus:ring-red-500'
+                    : 'border-gray-300 dark:border-gray-600'
+                }`}
               />
+              <p className={`text-xs mt-1 ${isOverStock ? 'text-red-500 font-medium' : 'text-gray-500 dark:text-gray-400'}`}>
+                {isOverStock
+                  ? `Quantidade ultrapassa o saldo! Disponível: ${availableStock}`
+                  : `Saldo disponível no local: ${availableStock}`}
+              </p>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Motivo *</label>
               <select
                 value={newMovement.reason}
-                onChange={(e) => setNewMovement(prev => ({ ...prev, reason: e.target.value as any }))}
+                onChange={(e) => {
+                  const reason = e.target.value;
+                  setNewMovement(prev => ({ ...prev, reason }));
+                  if (reason !== 'internal-transfer') setToLocationId('');
+                }}
                 required
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
               >
@@ -264,6 +387,27 @@ const MovementHistory: React.FC = () => {
                 <option value="other">Outros</option>
               </select>
             </div>
+
+            {isTransfer && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Local de destino *</label>
+                <select
+                  value={toLocationId}
+                  onChange={(e) => setToLocationId(e.target.value)}
+                  required={isTransfer}
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
+                >
+                  <option value="">Selecione o destino</option>
+                  {locations
+                    .filter(l => l.ativo && l.id !== fromLocationId)
+                    .map(l => (
+                      <option key={l.id} value={l.id}>
+                        {l.nome}{l.department ? ` — ${l.department}` : ''}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Autorizado por *</label>
@@ -291,14 +435,27 @@ const MovementHistory: React.FC = () => {
             <div className="md:col-span-2 flex justify-end space-x-3">
               <button
                 type="button"
-                onClick={() => setShowAddMovement(false)}
+                onClick={() => {
+                  setShowAddMovement(false);
+                  setToLocationId('');
+                  setFromLocationId('');
+                  setProductStockRows([]);
+                  setNewMovement({
+                    productId: '',
+                    quantity: 0,
+                    reason: 'internal-consumption',
+                    notes: '',
+                    authorizedBy: ''
+                  });
+                }}
                 className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                disabled={isOverStock || (isTransfer && !toLocationId)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Registrar Saída
               </button>
@@ -531,9 +688,15 @@ const MovementHistory: React.FC = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className="text-sm font-medium text-red-600 dark:text-red-400">
-                      -{movement.quantity}
-                    </span>
+                    {movement.type === 'in' ? (
+                      <span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+                        +{movement.quantity}
+                      </span>
+                    ) : (
+                      <span className="text-sm font-medium text-red-600 dark:text-red-400">
+                        -{movement.quantity}
+                      </span>
+                    )}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className="px-2 py-1 text-xs font-medium bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 rounded-full">

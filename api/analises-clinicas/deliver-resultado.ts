@@ -17,6 +17,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../_lib/supabase.js';
 import { isFlowlabApiKeyValid, signHmacHex, requireEnv } from '../_lib/labhubIntegration.js';
+import { describeError } from '../_lib/errors.js';
 
 // Espelha ResultadoWebhookPayload de @lab-hub/shared / resultadoWebhookSchema.
 interface ResultadoWebhookPayload {
@@ -127,8 +128,7 @@ export default async function handler(
 
     res.status(200).json({ success: true, agendamentoLabhubId });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[analises-clinicas/deliver-resultado] erro:', message);
+    console.error('[analises-clinicas/deliver-resultado] erro:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });
   }
 }

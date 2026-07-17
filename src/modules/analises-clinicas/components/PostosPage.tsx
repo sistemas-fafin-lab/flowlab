@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   MapPin,
   Plus,
   Pencil,
   CalendarClock,
   CalendarOff,
+  CalendarDays,
   Clock,
   Trash2,
   X,
@@ -12,10 +13,10 @@ import {
   Power,
   Building2,
 } from 'lucide-react';
-import { usePostos } from '../hooks/usePostos';
+import { usePostos, type AgendaInput } from '../hooks/usePostos';
 import { useDialog } from '../../../hooks/useDialog';
 import ConfirmDialog from '../../../components/ConfirmDialog';
-import type { AcDiaExcecao, AcHorarioItem, AcHorarioPadrao, AcPosto } from '../types';
+import type { AcDiaExcecao, AcPosto } from '../types';
 
 const fmtData = (d: string) =>
   new Date(`${d}T00:00:00`).toLocaleDateString('pt-BR', {
@@ -24,7 +25,29 @@ const fmtData = (d: string) =>
     month: '2-digit',
   });
 
-const cap = (c: number) => (c > 1 ? ` · ${c}` : '');
+// Dias da semana (0=dom … 6=sáb) — fonte dos toggles e do resumo da grade.
+const DIAS_SEMANA: { n: number; label: string }[] = [
+  { n: 0, label: 'Dom' },
+  { n: 1, label: 'Seg' },
+  { n: 2, label: 'Ter' },
+  { n: 3, label: 'Qua' },
+  { n: 4, label: 'Qui' },
+  { n: 5, label: 'Sex' },
+  { n: 6, label: 'Sáb' },
+];
+
+const horaParaMin = (h: string): number | null => {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(h);
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+
+// Quantos horários a janela início→fim gera no passo `intervalo` (0 se inválida).
+const contarHorarios = (inicio: string, fim: string, intervalo: number): number => {
+  const ini = horaParaMin(inicio);
+  const f = horaParaMin(fim);
+  if (ini === null || f === null || !Number.isFinite(intervalo) || intervalo <= 0 || f < ini) return 0;
+  return Math.floor((f - ini) / intervalo) + 1;
+};
 
 // ─── Modal de posto (criar/editar) ─────────────────────────────────────────────
 const PostoModal: React.FC<{
@@ -106,52 +129,38 @@ const PostoModal: React.FC<{
   );
 };
 
-// ─── Editor de lista de horários (reutilizado em "fixos" e "exceção") ───────────
+// ─── Inputs compartilhados ─────────────────────────────────────────────────────
 const inputCls =
   'px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500';
 
-// ─── Modal de agenda do posto (horários fixos + exceções) ──────────────────────
+// ─── Modal de agenda do posto (grade de horários + datas bloqueadas) ───────────
 const AgendaModal: React.FC<{
   posto: AcPosto;
   onClose: () => void;
-  fetchHorariosPadrao: (postoId: string) => Promise<AcHorarioPadrao[]>;
-  addHorarioPadrao: (input: { postoId: string; hora: string; capacidade: number }) => Promise<string | null>;
-  removeHorarioPadrao: (id: string) => Promise<string | null>;
+  saveAgenda: (postoId: string, input: AgendaInput) => Promise<string | null>;
   fetchExcecoes: (postoId: string) => Promise<AcDiaExcecao[]>;
-  saveExcecao: (input: { postoId: string; data: string; fechado: boolean; horarios: AcHorarioItem[] }) => Promise<string | null>;
+  addExcecao: (input: { postoId: string; data: string }) => Promise<string | null>;
   removeExcecao: (id: string) => Promise<string | null>;
-}> = ({
-  posto,
-  onClose,
-  fetchHorariosPadrao,
-  addHorarioPadrao,
-  removeHorarioPadrao,
-  fetchExcecoes,
-  saveExcecao,
-  removeExcecao,
-}) => {
-  const [padroes, setPadroes] = useState<AcHorarioPadrao[]>([]);
+}> = ({ posto, onClose, saveAgenda, fetchExcecoes, addExcecao, removeExcecao }) => {
+  // Grade — semeada a partir do posto.
+  const [inicio, setInicio] = useState(posto.agenda_hora_inicio ?? '');
+  const [fim, setFim] = useState(posto.agenda_hora_fim ?? '');
+  const [intervalo, setIntervalo] = useState<number>(posto.agenda_intervalo_min ?? 15);
+  const [dias, setDias] = useState<number[]>(posto.agenda_dias_semana ?? []);
+  const [salvandoAgenda, setSalvandoAgenda] = useState(false);
+  const [agendaSalva, setAgendaSalva] = useState(false);
+
+  // Datas bloqueadas.
   const [excecoes, setExcecoes] = useState<AcDiaExcecao[]>([]);
   const [loading, setLoading] = useState(true);
+  const [novaData, setNovaData] = useState('');
+  const [salvandoData, setSalvandoData] = useState(false);
+
   const [erro, setErro] = useState<string | null>(null);
-
-  // Form: novo horário fixo
-  const [horaP, setHoraP] = useState('');
-  const [capP, setCapP] = useState(1);
-
-  // Form: nova exceção
-  const [excData, setExcData] = useState('');
-  const [excFechado, setExcFechado] = useState(false);
-  const [excHorarios, setExcHorarios] = useState<AcHorarioItem[]>([]);
-  const [excHora, setExcHora] = useState('');
-  const [excCap, setExcCap] = useState(1);
-  const [salvandoExc, setSalvandoExc] = useState(false);
 
   const recarregar = async () => {
     setLoading(true);
-    const [p, e] = await Promise.all([fetchHorariosPadrao(posto.id), fetchExcecoes(posto.id)]);
-    setPadroes(p);
-    setExcecoes(e);
+    setExcecoes(await fetchExcecoes(posto.id));
     setLoading(false);
   };
 
@@ -160,69 +169,66 @@ const AgendaModal: React.FC<{
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [posto.id]);
 
-  const handleAddPadrao = async () => {
+  const qtdHorarios = useMemo(() => contarHorarios(inicio, fim, intervalo), [inicio, fim, intervalo]);
+  const diasResumo = useMemo(
+    () => DIAS_SEMANA.filter((d) => dias.includes(d.n)).map((d) => d.label).join(', '),
+    [dias],
+  );
+
+  const toggleDia = (n: number) => {
+    setAgendaSalva(false);
+    setDias((prev) => (prev.includes(n) ? prev.filter((d) => d !== n) : [...prev, n].sort((a, b) => a - b)));
+  };
+
+  const handleSalvarAgenda = async () => {
     setErro(null);
-    if (!horaP) {
-      setErro('Escolha um horário.');
+    setAgendaSalva(false);
+    if (!inicio || !fim) {
+      setErro('Informe o horário de início e de fim.');
       return;
     }
-    const msg = await addHorarioPadrao({ postoId: posto.id, hora: horaP, capacidade: capP });
-    if (msg) {
-      setErro(msg);
+    if (horaParaMin(fim)! < horaParaMin(inicio)!) {
+      setErro('O horário de fim deve ser maior ou igual ao de início.');
       return;
     }
-    setHoraP('');
-    setCapP(1);
-    await recarregar();
-  };
-
-  const handleRemovePadrao = async (id: string) => {
-    const msg = await removeHorarioPadrao(id);
-    if (msg) setErro(msg);
-    else await recarregar();
-  };
-
-  const addExcHorario = () => {
-    if (!excHora) return;
-    setExcHorarios((prev) =>
-      prev.some((h) => h.hora === excHora) ? prev : [...prev, { hora: excHora, capacidade: excCap }].sort((a, b) => a.hora.localeCompare(b.hora)),
-    );
-    setExcHora('');
-    setExcCap(1);
-  };
-
-  const removeExcHorario = (hora: string) =>
-    setExcHorarios((prev) => prev.filter((h) => h.hora !== hora));
-
-  const handleSalvarExcecao = async () => {
-    setErro(null);
-    if (!excData) {
-      setErro('Escolha a data da exceção.');
+    if (!Number.isFinite(intervalo) || intervalo < 1) {
+      setErro('O intervalo deve ser de pelo menos 1 minuto.');
       return;
     }
-    if (!excFechado && excHorarios.length === 0) {
-      setErro('Adicione horários para o dia ou marque como fechado.');
+    if (dias.length === 0) {
+      setErro('Selecione ao menos um dia de funcionamento.');
       return;
     }
-    setSalvandoExc(true);
-    const msg = await saveExcecao({
-      postoId: posto.id,
-      data: excData,
-      fechado: excFechado,
-      horarios: excHorarios,
+    setSalvandoAgenda(true);
+    const msg = await saveAgenda(posto.id, {
+      horaInicio: inicio,
+      horaFim: fim,
+      intervaloMin: intervalo,
+      diasSemana: dias,
     });
-    setSalvandoExc(false);
+    setSalvandoAgenda(false);
+    if (msg) setErro(msg);
+    else setAgendaSalva(true);
+  };
+
+  const handleBloquearData = async () => {
+    setErro(null);
+    if (!novaData) {
+      setErro('Escolha a data a bloquear.');
+      return;
+    }
+    setSalvandoData(true);
+    const msg = await addExcecao({ postoId: posto.id, data: novaData });
+    setSalvandoData(false);
     if (msg) {
       setErro(msg);
       return;
     }
-    setExcData('');
-    setExcFechado(false);
-    setExcHorarios([]);
+    setNovaData('');
     await recarregar();
   };
 
-  const handleRemoveExcecao = async (id: string) => {
+  const handleRemoverData = async (id: string) => {
     const msg = await removeExcecao(id);
     if (msg) setErro(msg);
     else await recarregar();
@@ -248,97 +254,124 @@ const AgendaModal: React.FC<{
         )}
 
         <div className="px-6 py-4 overflow-y-auto space-y-6">
-          {loading ? (
-            <div className="flex justify-center py-10">
-              <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent" />
+          {/* ── Seção 1: Horário de atendimento (grade) ── */}
+          <section>
+            <div className="flex items-center gap-2 mb-3">
+              <Clock className="w-4 h-4 text-blue-500" />
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100">Horário de atendimento</h4>
             </div>
-          ) : (
-            <>
-              {/* ── Seção 1: Horários fixos ── */}
-              <section>
-                <div className="flex items-center gap-2 mb-2">
-                  <Clock className="w-4 h-4 text-blue-500" />
-                  <h4 className="font-semibold text-gray-900 dark:text-gray-100">Horários fixos</h4>
-                  <span className="text-xs text-gray-400">seg a sáb</span>
-                </div>
 
-                {padroes.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Nenhum horário fixo ainda.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {padroes.map((h) => (
-                      <span
-                        key={h.id}
-                        className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                        title={h.capacidade > 1 ? `Capacidade ${h.capacidade}` : undefined}
-                      >
-                        {h.hora}
-                        {cap(h.capacidade)}
-                        <button
-                          onClick={() => void handleRemovePadrao(h.id)}
-                          className="p-0.5 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600"
-                          title="Remover"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Início</label>
+                <input
+                  type="time"
+                  value={inicio}
+                  onChange={(e) => { setInicio(e.target.value); setAgendaSalva(false); }}
+                  className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark]`}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Fim</label>
+                <input
+                  type="time"
+                  value={fim}
+                  onChange={(e) => { setFim(e.target.value); setAgendaSalva(false); }}
+                  className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark]`}
+                />
+              </div>
+              <div className="flex flex-col gap-1 w-32">
+                <label
+                  className="text-xs font-medium text-gray-500 dark:text-gray-400"
+                  title="Minutos entre um atendimento e o próximo (ex.: 15)."
+                >
+                  Intervalo (min)
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  value={intervalo}
+                  onChange={(e) => { setIntervalo(Math.max(1, Number(e.target.value))); setAgendaSalva(false); }}
+                  className={inputCls}
+                />
+              </div>
+            </div>
 
-                <div className="flex flex-wrap items-end gap-2">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Horário</label>
-                    <input
-                      type="time"
-                      value={horaP}
-                      onChange={(e) => setHoraP(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          void handleAddPadrao();
-                        }
-                      }}
-                      className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark]`}
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1 w-28">
-                    <label
-                      className="text-xs font-medium text-gray-500 dark:text-gray-400"
-                      title="Quantos pacientes podem marcar este mesmo horário (padrão 1)."
+            {/* Dias de funcionamento */}
+            <div className="mt-4">
+              <div className="flex items-center gap-2 mb-2">
+                <CalendarDays className="w-4 h-4 text-indigo-500" />
+                <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Dias de funcionamento</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {DIAS_SEMANA.map((d) => {
+                  const on = dias.includes(d.n);
+                  return (
+                    <button
+                      key={d.n}
+                      type="button"
+                      onClick={() => toggleDia(d.n)}
+                      aria-pressed={on}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
+                        on
+                          ? 'bg-blue-500 text-white border-blue-500 shadow-sm shadow-blue-500/25'
+                          : 'bg-white dark:bg-gray-900 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'
+                      }`}
                     >
-                      Capacidade
-                    </label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={capP}
-                      onChange={(e) => setCapP(Math.max(1, Number(e.target.value)))}
-                      className={inputCls}
-                    />
-                  </div>
-                  <button
-                    onClick={() => void handleAddPadrao()}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all"
-                  >
-                    <Plus className="w-4 h-4" />
-                    Adicionar horário
-                  </button>
-                </div>
-              </section>
+                      {d.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-              <div className="border-t border-gray-100 dark:border-gray-700" />
+            {/* Resumo + salvar */}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {qtdHorarios > 0 && dias.length > 0 ? (
+                  <>
+                    Gera <span className="font-semibold text-gray-700 dark:text-gray-200">{qtdHorarios}</span>{' '}
+                    {qtdHorarios === 1 ? 'horário' : 'horários'}/dia
+                    <span className="text-gray-400"> · </span>
+                    {diasResumo}
+                  </>
+                ) : (
+                  <span className="text-amber-600 dark:text-amber-400">
+                    Preencha início, fim, intervalo e ao menos um dia.
+                  </span>
+                )}
+              </p>
+              <div className="flex items-center gap-2">
+                {agendaSalva && <span className="text-xs font-medium text-green-600 dark:text-green-400">Agenda salva ✓</span>}
+                <button
+                  onClick={() => void handleSalvarAgenda()}
+                  disabled={salvandoAgenda}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+                >
+                  {salvandoAgenda ? 'Salvando…' : 'Salvar agenda'}
+                </button>
+              </div>
+            </div>
+          </section>
 
-              {/* ── Seção 2: Exceções por dia ── */}
-              <section>
-                <div className="flex items-center gap-2 mb-2">
-                  <CalendarOff className="w-4 h-4 text-amber-500" />
-                  <h4 className="font-semibold text-gray-900 dark:text-gray-100">Exceções por dia</h4>
-                  <span className="text-xs text-gray-400">feriado ou horário especial</span>
-                </div>
+          <div className="border-t border-gray-100 dark:border-gray-700" />
 
+          {/* ── Seção 2: Datas bloqueadas ── */}
+          <section>
+            <div className="flex items-center gap-2 mb-2">
+              <CalendarOff className="w-4 h-4 text-amber-500" />
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100">Datas bloqueadas</h4>
+              <span className="text-xs text-gray-400">feriados</span>
+            </div>
+
+            {loading ? (
+              <div className="flex justify-center py-6">
+                <div className="animate-spin rounded-full h-6 w-6 border-4 border-blue-600 border-t-transparent" />
+              </div>
+            ) : (
+              <>
                 {excecoes.length === 0 ? (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Nenhuma exceção cadastrada.</p>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">Nenhuma data bloqueada.</p>
                 ) : (
                   <ul className="space-y-2 mb-3">
                     {excecoes.map((ex) => (
@@ -346,24 +379,13 @@ const AgendaModal: React.FC<{
                         key={ex.id}
                         className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/50"
                       >
-                        <div className="min-w-0">
-                          <span className="text-sm font-medium text-gray-800 dark:text-gray-200 capitalize">
-                            {fmtData(ex.data)}
-                          </span>
-                          {ex.fechado ? (
-                            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                              Fechado
-                            </span>
-                          ) : (
-                            <span className="ml-2 text-xs text-gray-500 dark:text-gray-400">
-                              {ex.horarios.map((h) => h.hora + cap(h.capacidade)).join(', ') || '—'}
-                            </span>
-                          )}
-                        </div>
+                        <span className="text-sm font-medium text-gray-800 dark:text-gray-200 capitalize">
+                          {fmtData(ex.data)}
+                        </span>
                         <button
-                          onClick={() => void handleRemoveExcecao(ex.id)}
+                          onClick={() => void handleRemoverData(ex.id)}
                           className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex-shrink-0"
-                          title="Remover exceção"
+                          title="Desbloquear data"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -372,104 +394,31 @@ const AgendaModal: React.FC<{
                   </ul>
                 )}
 
-                {/* Form nova exceção */}
-                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3 space-y-3">
-                  <div className="flex flex-wrap items-end gap-3">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Data</label>
-                      <input
-                        type="date"
-                        value={excData}
-                        onChange={(e) => setExcData(e.target.value)}
-                        className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark]`}
-                      />
-                    </div>
-                    <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300 pb-2">
-                      <input
-                        type="checkbox"
-                        checked={excFechado}
-                        onChange={(e) => setExcFechado(e.target.checked)}
-                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      Fechar o dia (feriado)
-                    </label>
+                <div className="flex flex-wrap items-end gap-2">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Data</label>
+                    <input
+                      type="date"
+                      value={novaData}
+                      onChange={(e) => setNovaData(e.target.value)}
+                      className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark]`}
+                    />
                   </div>
-
-                  {!excFechado && (
-                    <div>
-                      {excHorarios.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-2">
-                          {excHorarios.map((h) => (
-                            <span
-                              key={h.hora}
-                              className="inline-flex items-center gap-1 pl-2.5 pr-1 py-1 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300"
-                            >
-                              {h.hora}
-                              {cap(h.capacidade)}
-                              <button
-                                onClick={() => removeExcHorario(h.hora)}
-                                className="p-0.5 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/40"
-                                title="Remover"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex flex-wrap items-end gap-2">
-                        <div className="flex flex-col gap-1">
-                          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Horário</label>
-                          <input
-                            type="time"
-                            value={excHora}
-                            onChange={(e) => setExcHora(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                addExcHorario();
-                              }
-                            }}
-                            className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark]`}
-                          />
-                        </div>
-                        <div className="flex flex-col gap-1 w-24">
-                          <label className="text-xs font-medium text-gray-500 dark:text-gray-400">Capacidade</label>
-                          <input
-                            type="number"
-                            min={1}
-                            value={excCap}
-                            onChange={(e) => setExcCap(Math.max(1, Number(e.target.value)))}
-                            className={inputCls}
-                          />
-                        </div>
-                        <button
-                          onClick={addExcHorario}
-                          className="inline-flex items-center gap-1 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
-                        >
-                          <Plus className="w-4 h-4" />
-                          Adicionar horário
-                        </button>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex justify-end">
-                    <button
-                      onClick={() => void handleSalvarExcecao()}
-                      disabled={salvandoExc}
-                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
-                    >
-                      {salvandoExc ? 'Salvando…' : 'Salvar exceção'}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
-                    A exceção vale só para a data escolhida; os demais dias seguem os horários fixos.
-                  </p>
+                  <button
+                    onClick={() => void handleBloquearData()}
+                    disabled={salvandoData}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-900/20 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/40 transition-colors disabled:opacity-60"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {salvandoData ? 'Bloqueando…' : 'Bloquear data'}
+                  </button>
                 </div>
-              </section>
-            </>
-          )}
+                <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
+                  Uma data bloqueada não gera agenda; os demais dias seguem o horário de atendimento.
+                </p>
+              </>
+            )}
+          </section>
         </div>
       </div>
     </div>
@@ -486,11 +435,9 @@ const PostosPage: React.FC = () => {
     createPosto,
     updatePosto,
     deletePosto,
-    fetchHorariosPadrao,
-    addHorarioPadrao,
-    removeHorarioPadrao,
+    saveAgenda,
     fetchExcecoes,
-    saveExcecao,
+    addExcecao,
     removeExcecao,
   } = usePostos();
 
@@ -500,13 +447,15 @@ const PostosPage: React.FC = () => {
     open: false,
     posto: null,
   });
-  const [agendaPosto, setAgendaPosto] = useState<AcPosto | null>(null);
+  const [agendaPostoId, setAgendaPostoId] = useState<string | null>(null);
+  // Deriva o posto da lista para o modal sempre refletir a última agenda salva.
+  const agendaPosto = agendaPostoId ? postos.find((p) => p.id === agendaPostoId) ?? null : null;
 
   const handleDeletePosto = (p: AcPosto) => {
     showConfirmDialog(
       'Excluir posto',
       <span>
-        Excluir o posto <strong className="text-gray-900 dark:text-gray-100">"{p.nome}"</strong>? Os horários dele também serão removidos.
+        Excluir o posto <strong className="text-gray-900 dark:text-gray-100">"{p.nome}"</strong>? A agenda dele também será removida.
       </span>,
       async () => {
         const msg = await deletePosto(p.id);
@@ -592,7 +541,7 @@ const PostosPage: React.FC = () => {
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 flex-1">{p.endereco || '—'}</p>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setAgendaPosto(p)}
+                  onClick={() => setAgendaPostoId(p.id)}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
                 >
                   <CalendarClock className="w-4 h-4" />
@@ -640,12 +589,10 @@ const PostosPage: React.FC = () => {
       {agendaPosto && (
         <AgendaModal
           posto={agendaPosto}
-          onClose={() => setAgendaPosto(null)}
-          fetchHorariosPadrao={fetchHorariosPadrao}
-          addHorarioPadrao={addHorarioPadrao}
-          removeHorarioPadrao={removeHorarioPadrao}
+          onClose={() => setAgendaPostoId(null)}
+          saveAgenda={saveAgenda}
           fetchExcecoes={fetchExcecoes}
-          saveExcecao={saveExcecao}
+          addExcecao={addExcecao}
           removeExcecao={removeExcecao}
         />
       )}

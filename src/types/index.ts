@@ -24,16 +24,37 @@ export interface StockMovement {
   id: string;
   productId: string;
   productName: string;
-  type: 'out';
-  reason: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'manutencao' | 'other';
+  type: 'out' | 'in' | 'transfer';
+  reason: 'sale' | 'internal-transfer' | 'return' | 'internal-consumption' | 'manutencao' | 'other' | 'purchase';
   quantity: number;
   date: string;
   requestId?: string;
   maintenanceRequestId?: string;
   authorizedBy?: string;
   notes?: string;
+  fromLocationId?: string; // Fase 5: local de origem (débito). null em recebimento
+  toLocationId?: string;   // Fase 5: local de destino (crédito). null em baixa/consumo
   unitPrice: number; // Preço unitário na movimentação
   totalValue: number; // Valor total da movimentação
+}
+
+// Fase 5 — Estoque Departamental (multi-local)
+export interface StockLocation {
+  id: string;
+  nome: string;
+  department?: string;
+  postoId?: string;
+  isPrincipal: boolean;
+  rastreavel: boolean;       // false = nunca mantém saldo (ex: Copa)
+  controlaConsumo: boolean;  // true = consumo em 2 etapas (recebe por transferência, baixa por consumo próprio)
+  ativo: boolean;
+}
+
+export interface ProductStock {
+  productId: string;
+  locationId: string;
+  quantity: number;
+  updatedAt?: string;
 }
 
 export interface RequestItem {

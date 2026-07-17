@@ -13,6 +13,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../_lib/supabase.js';
 import { isFlowlabApiKeyValid } from '../_lib/labhubIntegration.js';
+import { describeError } from '../_lib/errors.js';
 
 // Payload enviado pelo LAB-HUB (espelha AgendamentoPayloadFlowLab de @lab-hub/shared).
 interface ReceiveAgendamentoBody {
@@ -102,8 +103,7 @@ export default async function handler(
 
     res.status(201).json({ flowlabId: criado.id });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    console.error('[analises-clinicas/receive-agendamento] erro inesperado:', message);
+    console.error('[analises-clinicas/receive-agendamento] erro inesperado:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });
   }
 }

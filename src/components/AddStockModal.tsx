@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { StockLocation } from '../types';
 
 interface AddStockModalProps {
   isOpen: boolean;
@@ -9,18 +10,31 @@ interface AddStockModalProps {
     quantity: number;
     unit: string;
   };
-  onConfirm: (quantity: number) => void;
+  locations: StockLocation[];
+  onConfirm: (quantity: number, locationId: string) => void;
 }
 
-const AddStockModal: React.FC<AddStockModalProps> = ({ isOpen, onClose, product, onConfirm }) => {
+const AddStockModal: React.FC<AddStockModalProps> = ({ isOpen, onClose, product, locations, onConfirm }) => {
   const [quantityToAdd, setQuantityToAdd] = useState('');
+  const [locationId, setLocationId] = useState('');
+
+  // Recebimento só faz sentido em local rastreável (não-rastreável não guarda saldo)
+  const rastreaveis = locations.filter(l => l.rastreavel);
+
+  // Default = local principal ao abrir
+  useEffect(() => {
+    if (isOpen && !locationId && rastreaveis.length > 0) {
+      const principal = rastreaveis.find(l => l.isPrincipal) ?? rastreaveis[0];
+      setLocationId(principal.id);
+    }
+  }, [isOpen, rastreaveis, locationId]);
 
   if (!isOpen) return null;
 
   const handleConfirm = () => {
     const value = parseInt(quantityToAdd, 10);
-    if (!isNaN(value) && value > 0) {
-      onConfirm(value);
+    if (!isNaN(value) && value > 0 && locationId) {
+      onConfirm(value, locationId);
       setQuantityToAdd('');
     }
   };
@@ -40,6 +54,23 @@ const AddStockModal: React.FC<AddStockModalProps> = ({ isOpen, onClose, product,
               {product.quantity} {product.unit}
             </span>
           </p>
+        </div>
+
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Local de destino
+          </label>
+          <select
+            value={locationId}
+            onChange={(e) => setLocationId(e.target.value)}
+            className="w-full border border-gray-200 dark:border-gray-600 rounded-xl px-4 py-2.5 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+          >
+            {rastreaveis.map(l => (
+              <option key={l.id} value={l.id}>
+                {l.nome}{l.isPrincipal ? ' (principal)' : ''}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div className="mb-6">

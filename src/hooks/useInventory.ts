@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
-import { Product, StockMovement, Request, DashboardData, FinancialMetrics, Supplier, Quotation, QuotationItem, ProductChangeLog } from '../types';
+import { Product, StockMovement, Request, DashboardData, FinancialMetrics, Supplier, Quotation, QuotationItem, ProductChangeLog, StockLocation, ProductStock } from '../types';
 import { useDataCache, DEFAULT_STALE_TIME } from './useDataCache';
 
 const CACHE_KEYS = {
@@ -12,6 +12,9 @@ const CACHE_KEYS = {
   changeLogs: 'inventory:changeLogs',
 } as const;
 
+// Fase 5 — locais rastreáveis; fora de CACHE_KEYS para não afetar o gate allFresh
+const LOCATIONS_CACHE_KEY = 'inventory:locations';
+
 export const useInventory = () => {
   const { getCache, setCache, invalidate } = useDataCache();
   const [products, setProducts] = useState<Product[]>([]);
@@ -20,6 +23,7 @@ export const useInventory = () => {
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [changeLogs, setChangeLogs] = useState<ProductChangeLog[]>([]);
+  const [locations, setLocations] = useState<StockLocation[]>([]); // Fase 5
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,13 +40,16 @@ export const useInventory = () => {
     fillFromCache<Supplier>(CACHE_KEYS.suppliers, setSuppliers);
     fillFromCache<Quotation>(CACHE_KEYS.quotations, setQuotations);
     fillFromCache<ProductChangeLog>(CACHE_KEYS.changeLogs, setChangeLogs);
+    fillFromCache<StockLocation>(LOCATIONS_CACHE_KEY, setLocations);
 
     const isFresh = (key: string) => {
       const entry = getCache(key);
       return entry && Date.now() - entry.timestamp < DEFAULT_STALE_TIME;
     };
 
-    const allFresh = Object.values(CACHE_KEYS).every(isFresh);
+    // LOCATIONS_CACHE_KEY não está em CACHE_KEYS; inclui-lo evita servir uma lista
+    // de locais defasada (ex.: posto novo) quando os demais caches estão frescos.
+    const allFresh = Object.values(CACHE_KEYS).every(isFresh) && isFresh(LOCATIONS_CACHE_KEY);
     if (allFresh) {
       setLoading(false);
       return;
@@ -60,7 +67,8 @@ export const useInventory = () => {
         fetchRequests(),
         fetchSuppliers(),
         fetchQuotations(),
-        fetchChangeLogs()
+        fetchChangeLogs(),
+        fetchLocations()
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
@@ -183,6 +191,8 @@ export const useInventory = () => {
       requestId: movement.request_id,
       authorizedBy: movement.authorized_by,
       notes: movement.notes,
+      fromLocationId: movement.from_location_id ?? undefined,
+      toLocationId: movement.to_location_id ?? undefined,
       unitPrice: movement.unit_price || 0,
       totalValue: movement.quantity * (movement.unit_price || 0)
     }));
@@ -437,7 +447,10 @@ export const useInventory = () => {
     };
   };
 
-  const addProduct = async (product: Omit<Product, 'id'>) => {
+  // §6.1: quantity nasce derivada (0). O recebimento inicial é feito via receiveStock
+  // pelo chamador, para manter a trilha de auditoria e o invariante do cache.
+  // Retorna o id do produto criado.
+  const addProduct = async (product: Omit<Product, 'id'>): Promise<string | undefined> => {
     try {
       const { data, error } = await supabase
         .from('products')
@@ -445,7 +458,7 @@ export const useInventory = () => {
           name: product.name,
           code: product.code,
           category: product.category,
-          quantity: product.quantity,
+          quantity: 0,
           unit: product.unit,
           supplier: product.supplier,
           batch: product.batch,
@@ -463,6 +476,7 @@ export const useInventory = () => {
       if (error) throw error;
 
       await fetchProducts(); // Refresh products list
+      return data?.id as string | undefined;
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to add product');
     }
@@ -515,6 +529,8 @@ export const useInventory = () => {
           request_id: movement.requestId,
           authorized_by: movement.authorizedBy,
           notes: movement.notes,
+          from_location_id: movement.fromLocationId ?? null,
+          to_location_id: movement.toLocationId ?? null,
           unit_price: movement.unitPrice,
         });
 
@@ -525,6 +541,140 @@ export const useInventory = () => {
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to add movement');
     }
+  };
+
+  // ─── Fase 5 — Estoque Departamental (multi-local) ──────────────────────────
+  const fetchLocations = async () => {
+    const { data, error } = await supabase
+      .from('stock_locations')
+      .select('*')
+      .eq('ativo', true)
+      .order('is_principal', { ascending: false })
+      .order('nome', { ascending: true });
+
+    if (error) throw error;
+
+    const formatted: StockLocation[] = (data || []).map(l => ({
+      id: l.id,
+      nome: l.nome,
+      department: l.department ?? undefined,
+      postoId: l.posto_id ?? undefined,
+      isPrincipal: l.is_principal,
+      rastreavel: l.rastreavel,
+      controlaConsumo: l.controla_consumo,
+      ativo: l.ativo,
+    }));
+
+    setLocations(formatted);
+    setCache(LOCATIONS_CACHE_KEY, formatted);
+  };
+
+  // Saldo por local de um produto (só locais rastreáveis têm linha). Sob demanda.
+  const fetchProductStock = async (productId: string): Promise<ProductStock[]> => {
+    const { data, error } = await supabase
+      .from('product_stock')
+      .select('*')
+      .eq('product_id', productId);
+
+    if (error) throw error;
+
+    return (data || []).map(r => ({
+      productId: r.product_id,
+      locationId: r.location_id,
+      quantity: r.quantity,
+      updatedAt: r.updated_at ?? undefined,
+    }));
+  };
+
+  // Estoque de um local (o que o setor recebeu e ainda não usou), com dados do produto.
+  // Inclui `minStock` por local (product_stock.min_stock). Mostra também insumo zerado que
+  // tenha mínimo definido (quantity 0 + min > 0) — é o pior caso de "abaixo do mínimo".
+  const fetchLocationStock = useCallback(async (
+    locationId: string,
+  ): Promise<{ productId: string; productName: string; unit: string; code: string; quantity: number; minStock: number }[]> => {
+    const { data, error } = await supabase
+      .from('product_stock')
+      .select('product_id, quantity, min_stock, products(name, unit, code)')
+      .eq('location_id', locationId)
+      .or('quantity.gt.0,min_stock.gt.0');
+
+    if (error) throw error;
+
+    return (data || []).map((r: any) => ({
+      productId: r.product_id,
+      productName: r.products?.name ?? '',
+      unit: r.products?.unit ?? '',
+      code: r.products?.code ?? '',
+      quantity: r.quantity,
+      minStock: r.min_stock ?? 0,
+    }));
+  }, []);
+
+  // Define o mínimo por local de um insumo (product_stock.min_stock). A linha já existe
+  // (o insumo está no local); RLS de UPDATE já libera authenticated.
+  const updateLocationMinStock = useCallback(async (
+    productId: string,
+    locationId: string,
+    minStock: number,
+  ): Promise<void> => {
+    const { error } = await supabase
+      .from('product_stock')
+      .update({ min_stock: minStock, updated_at: new Date().toISOString() })
+      .match({ product_id: productId, location_id: locationId });
+    if (error) throw error;
+  }, []);
+
+  // Recebimento (entrada): stock_movements type 'in' → o trigger credita o destino.
+  const receiveStock = async (
+    productId: string,
+    locationId: string,
+    quantity: number,
+    opts?: { reason?: StockMovement['reason']; notes?: string; authorizedBy?: string; date?: string; productName?: string; unitPrice?: number },
+  ) => {
+    const product = products.find(p => p.id === productId);
+    // Overrides via opts p/ produto recém-criado (ainda fora do closure de `products`)
+    const productName = opts?.productName ?? product?.name ?? '';
+    const unitPrice = opts?.unitPrice ?? product?.unitPrice ?? 0;
+    await addMovement({
+      productId,
+      productName,
+      type: 'in',
+      reason: opts?.reason ?? 'purchase',
+      quantity,
+      date: opts?.date ?? new Date().toISOString().split('T')[0],
+      toLocationId: locationId,
+      authorizedBy: opts?.authorizedBy,
+      notes: opts?.notes,
+      unitPrice,
+      totalValue: quantity * unitPrice,
+    });
+  };
+
+  // Transferência entre locais: stock_movements type 'transfer'. O trigger debita a
+  // origem e credita o destino (se rastreável; se não, só debita — §4.1).
+  const transferStock = async (
+    productId: string,
+    fromLocationId: string,
+    toLocationId: string,
+    quantity: number,
+    opts?: { notes?: string; authorizedBy?: string; requestId?: string; date?: string },
+  ) => {
+    const product = products.find(p => p.id === productId);
+    await addMovement({
+      productId,
+      productName: product?.name ?? '',
+      type: 'transfer',
+      reason: 'internal-transfer',
+      quantity,
+      date: opts?.date ?? new Date().toISOString().split('T')[0],
+      fromLocationId,
+      toLocationId,
+      requestId: opts?.requestId,
+      authorizedBy: opts?.authorizedBy,
+      notes: opts?.notes,
+      unitPrice: product?.unitPrice ?? 0,
+      totalValue: quantity * (product?.unitPrice ?? 0),
+    });
   };
 
   const addRequest = async (request: Omit<Request, 'id'>, attachments?: File[] | null) => {
@@ -910,8 +1060,15 @@ export const useInventory = () => {
     suppliers,
     quotations,
     changeLogs,
+    locations,
     loading,
     error,
+    fetchLocations,
+    fetchProductStock,
+    fetchLocationStock,
+    updateLocationMinStock,
+    receiveStock,
+    transferStock,
     getDashboardData,
     getFinancialMetrics,
     addProduct,

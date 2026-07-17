@@ -1,0 +1,43 @@
+# FlowLAB (Vite SPA + API) + túnel ngrok, para rodar no VPS.
+#
+# Deploy manual (você mesmo sobe, sem CI):
+#   git pull
+#   docker compose up -d --build      # rebuilda a imagem e reinicia
+#   docker compose logs -f api        # acompanha os logs
+#
+# Pré-requisitos no VPS: Docker + Docker Compose, e um arquivo `.env` ao lado
+# deste (ver .env.example) com SUPABASE_*, SMTP_*, GOOGLE_*, LABHUB_* e o
+# NGROK_AUTHTOKEN.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: flowlab-api:latest
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: "3000"
+    expose:
+      - "3000"            # só na rede interna do compose (o ngrok alcança por aqui)
+    # Descomente p/ acessar direto no host do VPS (debug), preso ao loopback:
+    # ports:
+    #   - "127.0.0.1:3000:3000"
+
+  # Túnel público (HTTPS) para webhooks externos alcançarem a API.
+  # Plano free do ngrok = 1 agente online por vez: rodando aqui, pare o ngrok local.
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    depends_on:
+      - api
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN}
+    command:
+      - http
+      - api:3000          # alvo = a API na rede do compose (NÃO a porta 80)
+      - --url=https://flowlab.ngrok.app
+      - --log=stdout

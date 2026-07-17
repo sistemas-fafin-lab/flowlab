@@ -4,6 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
   Package,
+  Boxes,
   Plus,
   History,
   FileText,
@@ -38,6 +39,11 @@ import {
   Stethoscope,
   CalendarClock,
   MapPin,
+  Droplets,
+  Thermometer,
+  Microscope,
+  FileCheck2,
+  BarChart3,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -61,6 +67,7 @@ interface NavigationItem {
   href: string;
   icon: React.ComponentType<any>;
   permission?: string;
+  anyOf?: string[]; // acessível se o usuário tiver QUALQUER uma destas permissões
   category?: string;
   subItems?: NavigationItem[];
 }
@@ -82,7 +89,7 @@ const DEFAULT_CATEGORIES: CategoryConfig[] = [
     id: 'operacoes',
     name: 'OPERAÇÕES',
     sort_order: 1,
-    items: ['Produtos', 'Movimentações', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas'],
+    items: ['Produtos', 'Movimentações', 'Estoque Departamental', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas'],
   },
   {
     id: 'administracao',
@@ -452,7 +459,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
-    if (['/analises-clinicas/agendamentos', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
+    if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -556,6 +563,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         category: 'OPERAÇÕES',
       },
       {
+        name: 'Estoque Departamental',
+        href: '/estoque-departamental',
+        icon: Boxes,
+        permission: 'canViewStockDepart',
+        category: 'OPERAÇÕES',
+      },
+      {
         name: 'Solicitações',
         href: '/requests',
         icon: FileText,
@@ -599,10 +613,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         name: 'Análises Clínicas',
         href: '/analises-clinicas/agendamentos',
         icon: Stethoscope,
-        permission: 'canViewAnalisesClinicas',
+        anyOf: ['canViewAnalisesClinicas', 'canManageColetas', 'canManageAnalisesClinicas', 'canViewTemperatura'],
         category: 'OPERAÇÕES',
         subItems: [
           { name: 'Agendamentos', href: '/analises-clinicas/agendamentos', icon: CalendarClock, permission: 'canViewAnalisesClinicas' },
+          { name: 'Check-in', href: '/analises-clinicas/coletas', icon: Droplets, permission: 'canManageColetas' },
+          { name: 'Culturas', href: '/analises-clinicas/culturas', icon: Microscope, permission: 'canManageColetas' },
+          { name: 'Recoletas', href: '/analises-clinicas/recoletas', icon: RotateCcw, permission: 'canManageColetas' },
+          { name: 'Laudos', href: '/analises-clinicas/laudos', icon: FileCheck2, permission: 'canManageColetas' },
+          { name: 'Temperatura', href: '/analises-clinicas/temperatura', icon: Thermometer, anyOf: ['canViewTemperatura', 'canManageColetas'] },
+          { name: 'Indicadores', href: '/analises-clinicas/indicadores', icon: BarChart3, permission: 'canViewAnalisesClinicas' },
           { name: 'Postos de Coleta', href: '/analises-clinicas/postos', icon: MapPin, permission: 'canManageAnalisesClinicas' },
         ],
       },
@@ -661,6 +681,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isSubItemActive = (href: string) => location.pathname === href;
 
   const canAccessItem = (item: NavigationItem) => {
+    if (item.anyOf && item.anyOf.length > 0) {
+      return item.anyOf.some((p) => hasPermission(userPermissions, p));
+    }
     if (!item.permission) return true;
     return hasPermission(userPermissions, item.permission);
   };
