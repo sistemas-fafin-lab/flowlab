@@ -489,7 +489,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
           emailData: requesterData?.email && !withinCooldown
             ? {
                 to: requesterData.email,
-                templateSlug: 'it_ticket_status_changed',
+                templateSlug: value === 'resolved' ? 'it_ticket_resolved' : 'it_ticket_status_changed',
                 variables: {
                   user_name: requesterData.name || task.requester_name || 'Usuário',
                   ticket_code: task.codigo,

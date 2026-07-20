@@ -392,25 +392,52 @@ const ITRequestManagement: React.FC = () => {
       if (req && newStatus !== prevStatus) {
         const statusLabel = STATUS_CONFIG[newStatus]?.label ?? newStatus;
 
+        // Busca o email do solicitante diretamente do Supabase para garantir
+        // que temos o dado mais atualizado, independente do estado local.
+        let requesterEmail = req.requester_email ?? null;
+        let requesterName = req.requester_name ?? null;
+        try {
+          const { data: requesterData } = await supabase
+            .from('user_profiles')
+            .select('email, name')
+            .eq('id', req.requested_by)
+            .single();
+          if (requesterData?.email) requesterEmail = requesterData.email;
+          if (requesterData?.name) requesterName = requesterData.name;
+        } catch {
+          // Fallback: usa o que já temos no estado local
+        }
+
         const lastEmailAt = req.last_status_email_at ? new Date(req.last_status_email_at).getTime() : 0;
         const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
-        const sendEmail = !!req.requester_email && !withinCooldown;
+        const sendEmail = !!requesterEmail && !withinCooldown;
+
+        console.log('[ITRequestManagement/handleStatusChange] email debug:', {
+          requestId,
+          newStatus,
+          requesterEmail,
+          withinCooldown,
+          sendEmail,
+          last_status_email_at: req.last_status_email_at,
+        });
 
         try {
           await sendNotification({
             userId: req.requested_by,
-            title: 'Status do chamado atualizado',
-            content: `O status do chamado ${req.codigo} mudou para ${statusLabel}.`,
+            title: newStatus === 'resolved' ? 'Chamado de TI resolvido' : 'Status do chamado atualizado',
+            content: newStatus === 'resolved'
+              ? `O chamado ${req.codigo} foi concluído e marcado como resolvido.`
+              : `O status do chamado ${req.codigo} mudou para ${statusLabel}.`,
             module: 'IT',
             type: newStatus === 'resolved' ? 'success' : newStatus === 'cancelled' ? 'warning' : 'info',
             link: '/requests',
             sendEmail,
-            emailData: req.requester_email && !withinCooldown
+            emailData: sendEmail
               ? {
-                  to: req.requester_email,
-                  templateSlug: 'it_ticket_status_changed',
+                  to: requesterEmail!,
+                  templateSlug: newStatus === 'resolved' ? 'it_ticket_resolved' : 'it_ticket_status_changed',
                   variables: {
-                    user_name: req.requester_name || 'Usuário',
+                    user_name: requesterName || 'Usuário',
                     ticket_code: req.codigo,
                     ticket_title: req.title,
                     status_label: statusLabel,

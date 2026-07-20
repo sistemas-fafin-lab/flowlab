@@ -38,7 +38,9 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
+import { useNotificationCenter } from '../../hooks/useNotificationCenter';
 import { supabase } from '../../lib/supabase';
+import { APP_BASE_URL } from '../../utils/appUrl';
 import Notification from '../Notification';
 import ITTaskDrawer from './ITTaskDrawer';
 import ITProjectManager from './ITProjectManager';
@@ -72,6 +74,7 @@ export interface ITRequest {
   sprint_id?: string | null;
   // Joined
   requester_name?: string;
+  requester_email?: string;
   assignee_names?: string[];
   project_name?: string;
   project_color?: string;
@@ -141,6 +144,8 @@ export function calcES(q: number | null | undefined, priority: string): number |
 }
 
 // Nenhum helper de estilo necessário — a casca física usa provided.draggableProps.style diretamente.
+
+const STATUS_EMAIL_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutos
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONTEXT MENU TYPE
@@ -533,6 +538,7 @@ const ITKanbanBoard: React.FC = () => {
   const userId = userProfile?.id ?? '';
   const isITManager = userProfile?.role === 'admin' || userProfile?.department === 'TI';
   const { notification, showError, showSuccess, hideNotification } = useNotification();
+  const { sendNotification } = useNotificationCenter(userId);
   const [requests, setRequests] = useState<ITRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTask, setSelectedTask] = useState<ITRequest | null>(null);
@@ -589,7 +595,7 @@ const ITKanbanBoard: React.FC = () => {
       const [requestsResult, usersResult] = await Promise.all([
         supabase
           .from('it_requests')
-          .select('*, requester:user_profiles!requested_by(name), project:it_projects!project_id(id,name,color), sprint:it_sprints!sprint_id(id,name,status)')
+          .select('*, requester:user_profiles!requested_by(name, email), project:it_projects!project_id(id,name,color), sprint:it_sprints!sprint_id(id,name,status)')
           .eq('kanban_hidden', false)
           .order('updated_at', { ascending: false }),
         supabase.from('user_profiles').select('id, name, department'),
@@ -609,7 +615,7 @@ const ITKanbanBoard: React.FC = () => {
         // Column does not exist yet — fallback query without kanban_hidden
         const fallback = await supabase
           .from('it_requests')
-          .select('*, requester:user_profiles!requested_by(name)')
+          .select('*, requester:user_profiles!requested_by(name, email)')
           .neq('status', 'cancelled')
           .order('updated_at', { ascending: false });
         data = fallback.data;
@@ -621,6 +627,7 @@ const ITKanbanBoard: React.FC = () => {
       const rawData = (data || []).map((r: any) => ({
         ...r,
         requester_name: r.requester?.name,
+        requester_email: r.requester?.email,
         assignee_names: (r.assigned_to || []).map((id: string) => usersMap[id]).filter(Boolean),
         project_name:   r.project?.name  ?? null,
         project_color:  r.project?.color ?? null,
@@ -882,15 +889,69 @@ const ITKanbanBoard: React.FC = () => {
   const handleContextStatusChange = async (newStatus: KanbanColumn) => {
     if (!contextMenu) return;
     try {
+      const updatePayload: Record<string, unknown> = { kanban_status: newStatus };
+      if (newStatus === 'done') {
+        updatePayload.status = 'resolved';
+      }
       await supabase
         .from('it_requests')
-        .update({ kanban_status: newStatus })
+        .update(updatePayload)
         .eq('id', contextMenu.task.id);
       
       setRequests((prev) =>
-        prev.map((r) => r.id === contextMenu.task.id ? { ...r, kanban_status: newStatus } : r)
+        prev.map((r) => r.id === contextMenu.task.id ? { ...r, kanban_status: newStatus, ...(newStatus === 'done' ? { status: 'resolved' } : {}) } : r)
       );
       showSuccess('Status atualizado!');
+
+      // Notifica o solicitante quando o chamado é concluído via menu de contexto
+      if (newStatus === 'done') {
+        const task = contextMenu.task;
+        if (task && task.requested_by) {
+          const statusLabel = 'Resolvido';
+          const lastEmailAt = task.last_status_email_at ? new Date(task.last_status_email_at).getTime() : 0;
+          const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
+          const shouldSendEmail = !!task.requester_email && !withinCooldown;
+
+          try {
+            await sendNotification({
+              userId: task.requested_by,
+              title: 'Chamado de TI resolvido',
+              content: `O chamado ${task.codigo} foi concluído e marcado como resolvido.`,
+              module: 'IT',
+              type: 'success',
+              link: '/requests',
+              sendEmail: shouldSendEmail,
+              emailData: shouldSendEmail
+                ? {
+                    to: task.requester_email!,
+                    templateSlug: 'it_ticket_resolved',
+                    variables: {
+                      user_name: task.requester_name || 'Usuário',
+                      ticket_code: task.codigo,
+                      ticket_title: task.title,
+                      status_label: statusLabel,
+                      action_url: `${APP_BASE_URL}/requests`,
+                    },
+                  }
+                : undefined,
+            });
+
+            if (shouldSendEmail) {
+              await supabase
+                .from('it_requests')
+                .update({ last_status_email_at: new Date().toISOString() })
+                .eq('id', contextMenu.task.id);
+              setRequests((prev) =>
+                prev.map((r) =>
+                  r.id === contextMenu.task.id ? { ...r, last_status_email_at: new Date().toISOString() } : r
+                )
+              );
+            }
+          } catch (notifyErr) {
+            console.error('Erro ao notificar solicitante sobre resolução via contexto:', notifyErr);
+          }
+        }
+      }
     } catch (err) {
       console.error('Erro ao atualizar status:', err);
       showError('Erro ao atualizar status.');
@@ -993,6 +1054,7 @@ const ITKanbanBoard: React.FC = () => {
       const movedWithStatus: ITRequest = {
         ...moved,
         kanban_status: destinationCol,
+        ...(destinationCol === 'done' ? { status: 'resolved' } : {}),
       };
 
       if (sourceCol === destinationCol) {
@@ -1012,12 +1074,67 @@ const ITKanbanBoard: React.FC = () => {
 
     // Persistencia apenas quando muda de coluna
     try {
+      const updatePayload: Record<string, unknown> = { kanban_status: destinationCol };
+      if (destinationCol === 'done') {
+        updatePayload.status = 'resolved';
+      }
       const { error } = await supabase
         .from('it_requests')
-        .update({ kanban_status: destinationCol })
+        .update(updatePayload)
         .eq('id', draggableId);
 
       if (error) throw error;
+
+      // Notifica o solicitante quando o chamado é concluído no Kanban
+      if (destinationCol === 'done') {
+        const task = requests.find((r) => r.id === draggableId);
+        if (task && task.requested_by) {
+          const statusLabel = 'Resolvido';
+          const lastEmailAt = task.last_status_email_at ? new Date(task.last_status_email_at).getTime() : 0;
+          const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
+          const shouldSendEmail = !!task.requester_email && !withinCooldown;
+
+          try {
+            await sendNotification({
+              userId: task.requested_by,
+              title: 'Chamado de TI resolvido',
+              content: `O chamado ${task.codigo} foi concluído e marcado como resolvido.`,
+              module: 'IT',
+              type: 'success',
+              link: '/requests',
+              sendEmail: shouldSendEmail,
+              emailData: shouldSendEmail
+                ? {
+                    to: task.requester_email!,
+                    templateSlug: 'it_ticket_resolved',
+                    variables: {
+                      user_name: task.requester_name || 'Usuário',
+                      ticket_code: task.codigo,
+                      ticket_title: task.title,
+                      status_label: statusLabel,
+                      action_url: `${APP_BASE_URL}/requests`,
+                    },
+                  }
+                : undefined,
+            });
+
+            if (shouldSendEmail) {
+              await supabase
+                .from('it_requests')
+                .update({ last_status_email_at: new Date().toISOString() })
+                .eq('id', draggableId);
+              // Atualiza estado local para refletir o cooldown
+              setRequests((prev) =>
+                prev.map((r) =>
+                  r.id === draggableId ? { ...r, last_status_email_at: new Date().toISOString() } : r
+                )
+              );
+            }
+          } catch (notifyErr) {
+            console.error('Erro ao notificar solicitante sobre resolução no Kanban:', notifyErr);
+          }
+        }
+      }
     } catch (err) {
       console.error('Erro ao mover card:', err);
       showError('Erro ao atualizar posição do chamado.');
