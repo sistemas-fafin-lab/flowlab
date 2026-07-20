@@ -410,13 +410,106 @@ function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
+// ── Dev-only middleware para o upload de documento da recepção ───────────────
+// POST /api/analises-clinicas/upload-documento — corpo BINÁRIO cru (o arquivo),
+// `agendamentoId` + `tipo` na query e o nome no header x-nome-arquivo. Sem este
+// plugin, `npm run dev` (vite puro) cai no fallback do SPA e devolve index.html.
+function uploadDocumentoApiPlugin(env: Record<string, string>): Plugin {
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'LABHUB_API_URL', 'FLOWLAB_API_KEY',
+  ];
+  const TAMANHO_MAX_BYTES = 10 * 1024 * 1024;
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
+  return {
+    name: 'upload-documento-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        if (url.pathname !== '/api/analises-clinicas/upload-documento' || req.method !== 'POST') {
+          return next();
+        }
+
+        const send = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify(body));
+        };
+
+        const authHeader = (req.headers['authorization'] as string) ?? '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+        // Lê o corpo cru em Buffer, abortando ao passar do teto.
+        let buffer: Buffer;
+        try {
+          buffer = await new Promise<Buffer>((resolve, reject) => {
+            const chunks: Buffer[] = [];
+            let total = 0;
+            req.on('data', (chunk) => {
+              const b = Buffer.from(chunk);
+              total += b.length;
+              if (total > TAMANHO_MAX_BYTES) {
+                reject(new Error('too-large'));
+                req.destroy();
+              } else {
+                chunks.push(b);
+              }
+            });
+            req.on('end', () => resolve(Buffer.concat(chunks)));
+            req.on('error', reject);
+          });
+        } catch (err) {
+          if (err instanceof Error && err.message === 'too-large') {
+            return send(413, { success: false, error: 'Arquivo maior que 10 MB.' });
+          }
+          return send(400, { success: false, error: 'Falha ao ler o arquivo.' });
+        }
+
+        const nomeHeader = req.headers['x-nome-arquivo'];
+        let nomeArquivo: string | undefined;
+        try {
+          nomeArquivo = typeof nomeHeader === 'string' ? decodeURIComponent(nomeHeader) : undefined;
+        } catch {
+          nomeArquivo = undefined;
+        }
+
+        try {
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule('/api/_lib/uploadDocumentoRecepcao.ts');
+          const { status, payload } = await mod.uploadDocumentoRecepcao(
+            token,
+            url.searchParams.get('agendamentoId') ?? undefined,
+            url.searchParams.get('tipo') ?? undefined,
+            nomeArquivo,
+            buffer,
+          );
+          send(status, payload);
+        } catch (err) {
+          console.error('[dev/analises-clinicas/upload-documento]', err);
+          send(500, { success: false, error: err instanceof Error ? err.message : 'Erro interno' });
+        }
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // loadEnv com prefix '' carrega TODAS as vars (inclusive UMAMI_* sem prefixo VITE_)
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env)],
+    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },

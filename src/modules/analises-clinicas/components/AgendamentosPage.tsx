@@ -17,18 +17,27 @@ import {
   Check,
   Loader2,
   UserCheck,
+  ChevronRight,
+  Droplets,
+  Paperclip,
+  FileText,
+  Image as ImageIcon,
+  Trash2,
+  AlertTriangle,
   type LucideIcon,
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import {
   useAgendamentos,
   type AgendamentoManualInput,
+  type AgendamentoCriado,
   type PacienteBuscaItem,
   type PostoDisponivel,
 } from '../hooks/useAgendamentos';
 import { usePostos } from '../hooks/usePostos';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
-import type { AcAgendamento, AcAgendamentoStatus, AcPosto } from '../types';
+import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento } from '../types';
 
 // Classe compartilhada de input (foco azul, cor do módulo de agendamentos).
 const inputCls =
@@ -209,6 +218,30 @@ const statusCfg = (status: AcAgendamentoStatus): StatusCfg =>
     avatar: 'from-gray-400 to-gray-500',
   };
 
+// Descrição do status exibida no drawer de detalhe.
+const STATUS_DESC: Record<string, string> = {
+  recebido: 'Aguardando conferência de recepção.',
+  em_coleta: 'Liberado — aguardando registro da coleta.',
+  coletado: 'Coleta registrada.',
+  bloqueado: 'Conferência com problema — fora da fila de coleta.',
+  cancelado: 'Agendamento cancelado.',
+};
+
+// Ação contextual por status. Só `recebido`/`em_coleta` levam a um modal no Painel
+// de Coletas; os demais são terminais (o drawer mostra apenas o detalhe).
+const ACAO_STATUS: Record<string, { label: string; icon: LucideIcon; classes: string }> = {
+  recebido: {
+    label: 'Fazer conferência',
+    icon: ClipboardCheck,
+    classes: 'from-blue-500 to-indigo-600 shadow-blue-500/25',
+  },
+  em_coleta: {
+    label: 'Registrar coleta',
+    icon: Droplets,
+    classes: 'from-amber-500 to-orange-500 shadow-amber-500/25',
+  },
+};
+
 // ─── Subcomponentes ─────────────────────────────────────────────────────────────
 const StatusChip: React.FC<{ status: AcAgendamentoStatus }> = ({ status }) => {
   const cfg = statusCfg(status);
@@ -282,12 +315,19 @@ const PostoCard: React.FC<{
   );
 };
 
-// Linha de um agendamento no formato "premium" da referência.
-const AgendamentoRow: React.FC<{ ag: AcAgendamento; last: boolean }> = ({ ag, last }) => {
+// Linha de um agendamento no formato "premium" da referência. Clicar abre o drawer
+// de detalhe (com a ação contextual ao status).
+const AgendamentoRow: React.FC<{ ag: AcAgendamento; last: boolean; onClick: () => void }> = ({
+  ag,
+  last,
+  onClick,
+}) => {
   const cfg = statusCfg(ag.status);
   return (
-    <div
-      className={`flex items-center gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors ${
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full text-left flex items-center gap-4 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors ${
         last ? '' : 'border-b border-gray-100 dark:border-gray-700'
       }`}
     >
@@ -320,9 +360,158 @@ const AgendamentoRow: React.FC<{ ag: AcAgendamento; last: boolean }> = ({ ag, la
         </span>
       </div>
       <StatusChip status={ag.status} />
+      <ChevronRight className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+    </button>
+  );
+};
+
+// ─── Drawer de detalhe do agendamento ───────────────────────────────────────────
+// Gradiente sutil do hero, tingido pela cor do status (comunica o estado de relance).
+const STATUS_HERO: Record<string, string> = {
+  recebido: 'from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20',
+  em_coleta: 'from-amber-50 to-orange-50 dark:from-amber-900/20 dark:to-orange-900/20',
+  coletado: 'from-emerald-50 to-green-50 dark:from-emerald-900/20 dark:to-green-900/20',
+  bloqueado: 'from-rose-50 to-red-50 dark:from-rose-900/20 dark:to-red-900/20',
+  cancelado: 'from-gray-100 to-gray-50 dark:from-gray-800/40 dark:to-gray-900/30',
+};
+
+// Linha de dado do detalhe (ícone em tile · rótulo · valor à direita).
+const DetalheLinha: React.FC<{ icon: LucideIcon; label: string; valor: string }> = ({
+  icon: Icon,
+  label,
+  valor,
+}) => (
+  <div className="flex items-center gap-3 px-4 py-2.5">
+    <div className="w-8 h-8 rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-center justify-center text-gray-400 shrink-0">
+      <Icon className="w-4 h-4" />
+    </div>
+    <span className="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+      {label}
+    </span>
+    <span className="ml-auto text-sm font-semibold text-gray-800 dark:text-gray-100 text-right tabular-nums truncate">
+      {valor}
+    </span>
+  </div>
+);
+
+// Abre ao clicar numa linha da lista. Mostra os dados do agendamento e, quando o
+// status permite (recebido → conferência, em_coleta → coleta) e o operador tem
+// permissão, oferece o botão que leva ao modal correspondente no Painel de Coletas.
+const DetalheAgendamentoModal: React.FC<{
+  ag: AcAgendamento;
+  canManage: boolean;
+  onClose: () => void;
+  onIrParaAcao: () => void;
+}> = ({ ag, canManage, onClose, onIrParaAcao }) => {
+  const cfg = statusCfg(ag.status);
+  const acao = ACAO_STATUS[ag.status];
+  const AcaoIcon = acao?.icon;
+  const heroTint = STATUS_HERO[ag.status] ?? STATUS_HERO.cancelado;
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Hero tingido pelo status: avatar + nome + chip */}
+        <div
+          className={`relative bg-gradient-to-br ${heroTint} px-6 pt-6 pb-5 border-b border-gray-100 dark:border-gray-700`}
+        >
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-white/60 dark:hover:bg-gray-700/60 transition-all duration-200 hover:rotate-90"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="flex items-center gap-4 pr-8">
+            <div
+              className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${cfg.avatar} text-white font-bold text-lg flex items-center justify-center shrink-0 shadow-md`}
+            >
+              {iniciais(ag.paciente_nome)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-lg font-bold text-gray-900 dark:text-gray-100 truncate">
+                {ag.paciente_nome}
+              </h3>
+              <div className="mt-1.5">
+                <StatusChip status={ag.status} />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Corpo: callout do status + painel de dados */}
+        <div className="px-6 py-5 space-y-4">
+          <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700/60">
+            <span className={`w-2 h-2 rounded-full ${cfg.dot} animate-pulse-soft shrink-0`} />
+            <span className="text-sm text-gray-600 dark:text-gray-300">
+              {STATUS_DESC[ag.status] ?? cfg.label}
+            </span>
+          </div>
+
+          <div className="rounded-xl border border-gray-100 dark:border-gray-700/60 divide-y divide-gray-100 dark:divide-gray-700/60 overflow-hidden bg-gray-50/50 dark:bg-gray-900/20">
+            <DetalheLinha icon={MapPin} label="Posto" valor={ag.local_posto || '—'} />
+            <DetalheLinha
+              icon={CalendarClock}
+              label="Agendado"
+              valor={`${fmtHora(ag.data_hora)} · ${fmtData(ag.data_hora)}`}
+            />
+            {ag.paciente_telefone && (
+              <DetalheLinha icon={Phone} label="Telefone" valor={fmtTelefone(ag.paciente_telefone)} />
+            )}
+            <DetalheLinha
+              icon={Inbox}
+              label="Recebido em"
+              valor={`${fmtHora(ag.recebido_em)} · ${fmtData(ag.recebido_em)}`}
+            />
+          </div>
+        </div>
+
+        {/* Rodapé: fechar + ação contextual (só operador, só status com ação) */}
+        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-700 rounded-b-2xl flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 transition-all duration-200"
+          >
+            Fechar
+          </button>
+          {acao && canManage && AcaoIcon && (
+            <button
+              onClick={onIrParaAcao}
+              className={`inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r ${acao.classes} shadow-md hover:shadow-lg hover-lift transition-all duration-200`}
+            >
+              <AcaoIcon className="w-4 h-4" />
+              {acao.label}
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
+
+// ─── Documentos anexados na criação (upload opcional) ───────────────────────────
+type DocStatus = 'pendente' | 'enviando' | 'ok' | 'erro';
+interface DocItem {
+  id: string;
+  file: File;
+  tipo: TipoDocumento;
+  status: DocStatus;
+  erro?: string;
+}
+// Rótulos amigáveis dos tipos (o value espelha o CHECK de documentos.tipo no LAB-HUB).
+const TIPO_DOC_OPCOES: { value: TipoDocumento; label: string }[] = [
+  { value: 'identidade', label: 'Identidade' },
+  { value: 'carteirinha', label: 'Carteirinha / Guia' },
+  { value: 'pedido_medico', label: 'Pedido médico' },
+  { value: 'outro', label: 'Outro' },
+];
+// Mesmos formatos que o LAB-HUB aceita (lib/fileType.ts) e teto do bucket.
+const DOC_MIMES_ACEITOS = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const DOC_MAX_BYTES = 10 * 1024 * 1024;
 
 // ─── Modal de criação manual (walk-in / encaixe) ────────────────────────────────
 // Vincula o agendamento a um paciente do LAB-HUB. O operador busca por nome
@@ -333,10 +522,11 @@ const AgendamentoRow: React.FC<{ ag: AcAgendamento; last: boolean }> = ({ ag, la
 const NovoAgendamentoModal: React.FC<{
   postos: AcPosto[]; // apenas ativos
   onClose: () => void;
-  onCreate: (input: AgendamentoManualInput) => Promise<string | null>;
+  onCreate: (input: AgendamentoManualInput) => Promise<{ erro: string } | { criado: AgendamentoCriado }>;
+  onUpload: (agendamentoFlowlabId: string, file: File, tipo: TipoDocumento) => Promise<string | null>;
   onBuscar: (q: string) => Promise<PacienteBuscaItem[]>;
   onDisponibilidade: () => Promise<PostoDisponivel[]>;
-}> = ({ postos, onClose, onCreate, onBuscar, onDisponibilidade }) => {
+}> = ({ postos, onClose, onCreate, onUpload, onBuscar, onDisponibilidade }) => {
   const [nome, setNome] = useState('');
   const [pacienteSel, setPacienteSel] = useState<PacienteBuscaItem | null>(null);
   const [resultados, setResultados] = useState<PacienteBuscaItem[]>([]);
@@ -352,6 +542,13 @@ const NovoAgendamentoModal: React.FC<{
   const [slotSel, setSlotSel] = useState(''); // ISO do horário escolhido
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // Documentos anexados (opcional). Enviados APÓS a criação — precisam do agendamento.
+  const [docs, setDocs] = useState<DocItem[]>([]);
+  const [docErro, setDocErro] = useState<string | null>(null);
+  // Trava recriação em retries: uma vez criado, novos cliques só reenviam documentos.
+  const [agCriado, setAgCriado] = useState(false);
+  const [agCriadoId, setAgCriadoId] = useState<string | null>(null); // flowlabId p/ o upload
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Carrega a disponibilidade real (mesma grade do paciente) ao abrir o modal.
   useEffect(() => {
@@ -440,43 +637,107 @@ const NovoAgendamentoModal: React.FC<{
   const nascValid = modoNovo && nascimentoValido(dataNascimento);
   const telValid = telefone.length > 0 && telefoneValido(telefone);
 
+  // ── Documentos ────────────────────────────────────────────────────────────────
+  const adicionarArquivos = (files: FileList | null) => {
+    if (!files) return;
+    setDocErro(null);
+    const novos: DocItem[] = [];
+    const rejeitados: string[] = [];
+    for (const file of Array.from(files)) {
+      if (!DOC_MIMES_ACEITOS.includes(file.type)) rejeitados.push(`${file.name} (formato)`);
+      else if (file.size > DOC_MAX_BYTES) rejeitados.push(`${file.name} (>10 MB)`);
+      else novos.push({ id: crypto.randomUUID(), file, tipo: 'outro', status: 'pendente' });
+    }
+    if (novos.length) setDocs((prev) => [...prev, ...novos]);
+    if (rejeitados.length) setDocErro(`Ignorado(s): ${rejeitados.join(', ')}.`);
+  };
+  const removerDoc = (id: string) => setDocs((prev) => prev.filter((d) => d.id !== id));
+  const mudarTipoDoc = (id: string, tipo: TipoDocumento) =>
+    setDocs((prev) => prev.map((d) => (d.id === id ? { ...d, tipo } : d)));
+
+  const docsPendentes = docs.some((d) => d.status !== 'ok');
+
   const handleSave = async () => {
     setErro(null);
-    if (modoNovo) {
-      if (!nome.trim()) return setErro('Informe o nome do paciente.');
-      if (!validarCpf(cpf)) return setErro('CPF inválido. Confira os números.');
-      if (!nascimentoValido(dataNascimento)) return setErro('Data de nascimento inválida.');
-    }
-    // Telefone é opcional, mas se informado precisa ser um número BR válido.
-    if (telefone.trim() && !telefoneValido(telefone)) {
-      return setErro('Telefone inválido — inclua o DDD.');
-    }
-    if (!postoSel) return setErro('Selecione o posto.');
-    if (!slotSel) return setErro('Selecione a data e o horário.');
 
-    const iso = slotSel; // já é o ISO do slot escolhido na grade
-    const telefoneDigitos = soDigitos(telefone) || null; // armazena limpo
+    // Enquanto o agendamento não existe, valida o form; depois, é só reenvio de docs.
+    if (!agCriado) {
+      if (modoNovo) {
+        if (!nome.trim()) return setErro('Informe o nome do paciente.');
+        if (!validarCpf(cpf)) return setErro('CPF inválido. Confira os números.');
+        if (!nascimentoValido(dataNascimento)) return setErro('Data de nascimento inválida.');
+      }
+      // Telefone é opcional, mas se informado precisa ser um número BR válido.
+      if (telefone.trim() && !telefoneValido(telefone)) {
+        return setErro('Telefone inválido — inclua o DDD.');
+      }
+      if (!postoSel) return setErro('Selecione o posto.');
+      if (!slotSel) return setErro('Selecione a data e o horário.');
+    }
+
     setSaving(true);
-    const msg = await onCreate(
-      pacienteSel
-        ? {
-            pacienteId: pacienteSel.id,
-            telefone: telefoneDigitos,
-            postoId: postoSel,
-            dataHora: iso,
-          }
-        : {
-            nome: nome.trim(),
-            cpf: soDigitos(cpf),
-            dataNascimento,
-            telefone: telefoneDigitos,
-            postoId: postoSel,
-            dataHora: iso,
-          },
-    );
+
+    // 1) Cria o agendamento — uma única vez. `agCriado` impede recriar num retry.
+    let flowlabId = agCriadoId;
+    if (!agCriado) {
+      const telefoneDigitos = soDigitos(telefone) || null; // armazena limpo
+      const resultado = await onCreate(
+        pacienteSel
+          ? { pacienteId: pacienteSel.id, telefone: telefoneDigitos, postoId: postoSel, dataHora: slotSel }
+          : {
+              nome: nome.trim(),
+              cpf: soDigitos(cpf),
+              dataNascimento,
+              telefone: telefoneDigitos,
+              postoId: postoSel,
+              dataHora: slotSel,
+            },
+      );
+      if ('erro' in resultado) {
+        setSaving(false);
+        return setErro(resultado.erro);
+      }
+      setAgCriado(true);
+      flowlabId = resultado.criado.flowlabId;
+      setAgCriadoId(flowlabId);
+    }
+
+    // Sem documentos: encerra assim que criou.
+    if (docs.length === 0) {
+      setSaving(false);
+      return onClose();
+    }
+
+    // 2) Sobe os documentos. Precisamos do id do FlowLab p/ resolver o labhub_id no
+    //    servidor; se o sync não confirmou (flowlabId null), o agendamento existe mas
+    //    não dá p/ anexar agora — avisa e mantém o modal aberto.
+    if (!flowlabId) {
+      setSaving(false);
+      return setErro(
+        'Agendamento criado, mas a sincronização com o FlowLab não confirmou a tempo — os documentos não puderam ser anexados. Tente novamente em instantes.',
+      );
+    }
+
+    let algumaFalha = false;
+    for (const d of docs) {
+      if (d.status === 'ok') continue; // já enviado num retry anterior
+      setDocs((prev) =>
+        prev.map((x) => (x.id === d.id ? { ...x, status: 'enviando', erro: undefined } : x)),
+      );
+      const err = await onUpload(flowlabId, d.file, d.tipo);
+      setDocs((prev) =>
+        prev.map((x) =>
+          x.id === d.id ? { ...x, status: err ? 'erro' : 'ok', erro: err ?? undefined } : x,
+        ),
+      );
+      if (err) algumaFalha = true;
+    }
+
     setSaving(false);
-    if (msg) setErro(msg);
-    else onClose();
+    if (algumaFalha) {
+      return setErro('Alguns documentos não foram enviados. Ajuste e toque em "Reenviar documentos".');
+    }
+    onClose();
   };
 
   return (
@@ -496,11 +757,20 @@ const NovoAgendamentoModal: React.FC<{
 
         <div className="px-6 py-5 overflow-y-auto space-y-4">
           {erro && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm whitespace-pre-line">
               {erro}
             </div>
           )}
 
+          {agCriado && (
+            <div className="flex items-center gap-2 p-3 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800/60 text-emerald-700 dark:text-emerald-300 text-sm">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              Agendamento criado.{docsPendentes ? ' Envie os documentos abaixo.' : ''}
+            </div>
+          )}
+
+          {/* Campos do agendamento — travados após a criação (fieldset disabled). */}
+          <fieldset disabled={agCriado} className="space-y-4 border-0 p-0 m-0 min-w-0 disabled:opacity-60">
           {/* Nome + typeahead de pacientes do LAB-HUB */}
           <div className="relative">
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -686,6 +956,106 @@ const NovoAgendamentoModal: React.FC<{
               Sem horários disponíveis para este posto. Ajuste a agenda do posto ou escolha outro.
             </p>
           )}
+          </fieldset>
+
+          {/* Documentos (opcional) — enviados ao LAB-HUB após criar o agendamento */}
+          <div className="space-y-2.5 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <Paperclip className="w-4 h-4 text-gray-400" />
+                Documentos <span className="text-gray-400 font-normal">(opcional)</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Adicionar
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept="image/jpeg,image/png,image/webp,application/pdf"
+                className="hidden"
+                onChange={(e) => {
+                  adicionarArquivos(e.target.files);
+                  e.target.value = ''; // permite reescolher o mesmo arquivo
+                }}
+              />
+            </div>
+            <p className="text-xs text-gray-400">
+              Identidade, carteirinha, pedido médico… JPG, PNG, WEBP ou PDF, até 10 MB.
+            </p>
+
+            {docErro && <p className="text-xs text-amber-600 dark:text-amber-400">{docErro}</p>}
+
+            {docs.length > 0 && (
+              <div className="space-y-2">
+                {docs.map((d) => {
+                  const DocIcon = d.file.type === 'application/pdf' ? FileText : ImageIcon;
+                  return (
+                    <div
+                      key={d.id}
+                      className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-900/30"
+                    >
+                      <div
+                        className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                          d.status === 'ok'
+                            ? 'bg-emerald-500 text-white'
+                            : d.status === 'erro'
+                              ? 'bg-rose-500 text-white'
+                              : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-400'
+                        }`}
+                      >
+                        {d.status === 'enviando' ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : d.status === 'ok' ? (
+                          <Check className="w-4 h-4" />
+                        ) : d.status === 'erro' ? (
+                          <AlertTriangle className="w-4 h-4" />
+                        ) : (
+                          <DocIcon className="w-4 h-4" />
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                          {d.file.name}
+                        </div>
+                        <div className="text-xs text-gray-400 tabular-nums truncate">
+                          {(d.file.size / 1024).toFixed(0)} KB
+                          {d.status === 'erro' && d.erro ? ` · ${d.erro}` : ''}
+                        </div>
+                      </div>
+                      <select
+                        value={d.tipo}
+                        onChange={(e) => mudarTipoDoc(d.id, e.target.value as TipoDocumento)}
+                        disabled={d.status === 'ok' || d.status === 'enviando'}
+                        className="px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-xs text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 shrink-0"
+                      >
+                        {TIPO_DOC_OPCOES.map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                      {d.status !== 'ok' && d.status !== 'enviando' && (
+                        <button
+                          type="button"
+                          onClick={() => removerDoc(d.id)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors shrink-0"
+                          aria-label={`Remover ${d.file.name}`}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-2">
@@ -693,14 +1063,20 @@ const NovoAgendamentoModal: React.FC<{
             onClick={onClose}
             className="px-5 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
-            Cancelar
+            {agCriado ? 'Fechar' : 'Cancelar'}
           </button>
           <button
             onClick={() => void handleSave()}
-            disabled={saving}
+            disabled={saving || (agCriado && !docsPendentes)}
             className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
           >
-            {saving ? 'Salvando…' : 'Criar agendamento'}
+            {saving
+              ? agCriado
+                ? 'Enviando…'
+                : 'Salvando…'
+              : agCriado
+                ? 'Reenviar documentos'
+                : 'Criar agendamento'}
           </button>
         </div>
       </div>
@@ -716,6 +1092,8 @@ const AgendamentosPage: React.FC = () => {
   const [statusSel, setStatusSel] = useState(''); // '' = todos os status
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [mostrarNovo, setMostrarNovo] = useState(false);
+  const [detalhe, setDetalhe] = useState<AcAgendamento | null>(null);
+  const navigate = useNavigate();
 
   // O posto é filtrado no cliente para que os cartões-resumo sempre reflitam o
   // total do dia; a data continua filtrando no servidor (janela do dia).
@@ -728,10 +1106,19 @@ const AgendamentosPage: React.FC = () => {
     buscarPacientes,
     buscarDisponibilidade,
     criarAgendamentoManual,
+    uploadDocumento,
   } = useAgendamentos(filtros);
   const { postos } = usePostos();
   const { userProfile } = useAuth();
   const canManage = hasPermission(userProfile?.permissions || [], 'canManageColetas');
+
+  // Deep-link para o Painel de Coletas: leva o item ao modal do seu status já no
+  // dia certo (?data). A rota /coletas exige canManageColetas — por isso o botão de
+  // ação no drawer só aparece quando canManage é true.
+  const abrirNoColetas = (ag: AcAgendamento) => {
+    const dataKey = new Date(ag.data_hora).toLocaleDateString('en-CA'); // YYYY-MM-DD local
+    navigate(`/analises-clinicas/coletas?open=${ag.id}&data=${dataKey}`);
+  };
 
   const postosAtivos = useMemo(() => postos.filter((p) => p.ativo), [postos]);
 
@@ -810,8 +1197,18 @@ const AgendamentosPage: React.FC = () => {
           postos={postosAtivos}
           onClose={() => setMostrarNovo(false)}
           onCreate={criarAgendamentoManual}
+          onUpload={uploadDocumento}
           onBuscar={buscarPacientes}
           onDisponibilidade={buscarDisponibilidade}
+        />
+      )}
+
+      {detalhe && (
+        <DetalheAgendamentoModal
+          ag={detalhe}
+          canManage={canManage}
+          onClose={() => setDetalhe(null)}
+          onIrParaAcao={() => abrirNoColetas(detalhe)}
         />
       )}
 
@@ -940,7 +1337,12 @@ const AgendamentosPage: React.FC = () => {
         ) : (
           <div>
             {lista.map((ag, i) => (
-              <AgendamentoRow key={ag.id} ag={ag} last={i === lista.length - 1} />
+              <AgendamentoRow
+                key={ag.id}
+                ag={ag}
+                last={i === lista.length - 1}
+                onClick={() => setDetalhe(ag)}
+              />
             ))}
           </div>
         )}

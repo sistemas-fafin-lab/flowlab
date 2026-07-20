@@ -24,6 +24,7 @@ import {
   CalendarClock,
   type LucideIcon,
 } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useAgendamentos } from '../hooks/useAgendamentos';
 import { usePostos } from '../hooks/usePostos';
 import { useColetas } from '../hooks/useColetas';
@@ -153,8 +154,12 @@ const PainelColetasPage: React.FC = () => {
   const { user, userProfile } = useAuth();
   const coletorNome = userProfile?.name || user?.email || 'Sistema';
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [postoSel, setPostoSel] = useState<string>(''); // ac_postos.id — '' = todos
-  const [data, setData] = useState(hojeISO());
+  // A data pode vir do deep-link da lista de Agendamentos (?data=<dia>); senão, hoje.
+  const [data, setData] = useState(() => searchParams.get('data') || hojeISO());
+  // Agendamento a abrir automaticamente (?open=<id>), tratado quando a lista carrega.
+  const [pendingOpen, setPendingOpen] = useState<string | null>(() => searchParams.get('open'));
 
   const filtros = useMemo(
     () => ({ postoId: postoSel || undefined, data: data || undefined }),
@@ -207,6 +212,23 @@ const PainelColetasPage: React.FC = () => {
     setColetando(ag);
     await refetch();
   };
+
+  // Deep-link vindo da lista de Agendamentos (?open=<id>&data=<dia>): quando os
+  // agendamentos do dia terminam de carregar, abre o modal do status do item
+  // (recebido → conferência, em_coleta → coleta) e limpa os parâmetros da URL.
+  useEffect(() => {
+    if (!pendingOpen || loading) return;
+    const ag = agendamentos.find((a) => a.id === pendingOpen);
+    if (ag) {
+      if (ag.status === 'recebido') setConferindo(ag);
+      else if (ag.status === 'em_coleta') setColetando(ag);
+    }
+    setPendingOpen(null);
+    const next = new URLSearchParams(searchParams);
+    next.delete('open');
+    next.delete('data');
+    setSearchParams(next, { replace: true });
+  }, [pendingOpen, loading, agendamentos, searchParams, setSearchParams]);
 
   return (
     <div className="max-w-7xl mx-auto pt-4 sm:pt-6 pb-10">
