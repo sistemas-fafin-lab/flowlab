@@ -238,22 +238,20 @@ export const STATUS_RECOLETA: { key: RecoletaStatus; label: string }[] = [
 // Motivo da recoleta (espelha o CHECK de ac_recoletas.motivo).
 export type RecoletaMotivo =
   | 'hemolise'
-  | 'insuficiente'
-  | 'coagulada'
-  | 'extraviada'
-  | 'contaminada'
-  | 'identificacao'
-  | 'outro';
+  | 'estabilidade'
+  | 'recipiente_inadequado'
+  | 'amostra_insuficiente'
+  | 'confirmacao_resultados'
+  | 'amostra_extraviada';
 
 // Lista FIXA dos motivos (fonte do select da tela e das chaves válidas de motivo).
 export const MOTIVOS_RECOLETA: { key: RecoletaMotivo; label: string }[] = [
-  { key: 'hemolise',      label: 'Hemólise' },
-  { key: 'insuficiente',  label: 'Quantidade insuficiente' },
-  { key: 'coagulada',     label: 'Amostra coagulada' },
-  { key: 'extraviada',    label: 'Amostra extraviada' },
-  { key: 'contaminada',   label: 'Contaminação' },
-  { key: 'identificacao', label: 'Erro de identificação' },
-  { key: 'outro',         label: 'Outro' },
+  { key: 'hemolise',             label: 'Hemólise' },
+  { key: 'estabilidade',         label: 'Estabilidade' },
+  { key: 'recipiente_inadequado', label: 'Recipiente Inadequado' },
+  { key: 'amostra_insuficiente',  label: 'Amostra Insuficiente' },
+  { key: 'confirmacao_resultados',  label: 'Nova amostra para confirmação de resultados' },
+  { key: 'amostra_extraviada',    label: 'Amostra Extraviada' },
 ];
 
 // Recoleta acompanhada manualmente (espelha ac_recoletas).

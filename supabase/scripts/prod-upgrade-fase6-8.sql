@@ -1802,9 +1802,9 @@ CREATE TABLE IF NOT EXISTS ac_recoletas (
   posto_id       uuid REFERENCES ac_postos(id), -- snapshot (posto de origem)
   local_posto    text,                          -- snapshot do nome do posto
   motivo         text NOT NULL CHECK (motivo IN (
-                   'hemolise','insuficiente','coagulada','extraviada',
-                   'contaminada','identificacao','outro')),
-  motivo_detalhe text,                          -- texto livre (obrigatório na UI quando motivo='outro')
+                   'hemolise','estabilidade','recipiente_inadequado',
+                   'amostra_insuficiente','confirmacao_resultados','amostra_extraviada')),
+  motivo_detalhe text,                          -- texto livre (opcional na UI)
   status         text NOT NULL DEFAULT 'pendente'
                    CHECK (status IN ('pendente','concluida','cancelada')),
   nota           text,                          -- observação livre

@@ -94,10 +94,6 @@ const RecoletaModal: React.FC<{
       setErro('Informe um prazo válido (dias).');
       return;
     }
-    if (motivo === 'outro' && !motivoDetalhe.trim()) {
-      setErro('Descreva o motivo quando for "Outro".');
-      return;
-    }
     setSaving(true);
     const msg = await onSave({
       status,
@@ -163,8 +159,7 @@ const RecoletaModal: React.FC<{
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Detalhe do motivo{' '}
-              <span className="text-gray-400">{motivo === 'outro' ? '(obrigatório)' : '(opcional)'}</span>
+              Detalhe do motivo <span className="text-gray-400">(opcional)</span>
             </label>
             <input
               value={motivoDetalhe}
@@ -276,10 +271,6 @@ const NovaRecoletaModal: React.FC<{
       setErro('Selecione o motivo da recoleta.');
       return;
     }
-    if (motivo === 'outro' && !motivoDetalhe.trim()) {
-      setErro('Descreva o motivo quando for "Outro".');
-      return;
-    }
     if (!solicitadoPor.trim()) {
       setErro('Informe quem está solicitando a recoleta.');
       return;
@@ -348,11 +339,10 @@ const NovaRecoletaModal: React.FC<{
               ))}
             </select>
           </div>
-          {(motivo === 'outro' || motivoDetalhe) && (
+          {motivo && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Detalhe do motivo{' '}
-                <span className="text-gray-400">{motivo === 'outro' ? '(obrigatório)' : '(opcional)'}</span>
+                Detalhe do motivo <span className="text-gray-400">(opcional)</span>
               </label>
               <input
                 value={motivoDetalhe}

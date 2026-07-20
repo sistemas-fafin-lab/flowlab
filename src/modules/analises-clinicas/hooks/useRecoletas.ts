@@ -92,9 +92,7 @@ export function useRecoletas(): UseRecoletasResult {
     async (input) => {
       const solicitadoPor = input.solicitadoPor.trim();
       if (!solicitadoPor) return 'Informe quem está solicitando a recoleta.';
-      if (input.motivo === 'outro' && !input.motivoDetalhe?.trim()) {
-        return 'Descreva o motivo quando for "Outro".';
-      }
+
       const row: Record<string, unknown> = {
         agendamento_id: null, // avulsa: sem vínculo com o agendamento original
         coleta_id: input.coletaId ?? null,
