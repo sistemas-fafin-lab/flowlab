@@ -40,7 +40,10 @@ const renderTemplate = (
 export async function sendTemplatedEmail(
   { to, templateSlug, variables }: SendTemplatedEmailParams,
 ): Promise<SendTemplatedEmailResult> {
+  console.log('[email] Iniciando envio:', { to, templateSlug, variablesKeys: Object.keys(variables) });
+
   if (!isValidEmail(to)) {
+    console.error('[email] Email inválido:', to);
     return { success: false, errorCode: 'invalid_email', error: 'Endereço de email inválido' };
   }
 
@@ -50,6 +53,7 @@ export async function sendTemplatedEmail(
 
   try {
     const supabase = getSupabaseAdminClient();
+    console.log('[email] Buscando template no Supabase:', templateSlug, 'URL:', process.env.SUPABASE_URL?.slice(0, 30));
     const { data: template, error } = await supabase
       .from('notification_templates')
       .select('subject_template, body_html')
@@ -57,12 +61,13 @@ export async function sendTemplatedEmail(
       .single();
 
     if (error || !template) {
-      console.error('[email] Template não encontrado:', templateSlug, error?.message);
+      console.error('[email] Template não encontrado:', templateSlug, 'Erro Supabase:', error?.message, 'Código:', error?.code);
       return { success: false, errorCode: 'template_not_found', error: 'Template not found' };
     }
 
     finalSubject = renderTemplate(template.subject_template, variables);
     finalHtml = renderTemplate(template.body_html, variables);
+    console.log('[email] Template renderizado com sucesso. Subject:', finalSubject.slice(0, 50));
   } catch (err) {
     console.error('[email] Erro ao buscar template no Supabase:', describeError(err));
     return { success: false, errorCode: 'send_failed', error: 'Erro interno ao carregar template' };
@@ -70,8 +75,9 @@ export async function sendTemplatedEmail(
 
   // Valida configuração SMTP
   const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = process.env;
+  console.log('[email] Config SMTP:', { host: SMTP_HOST, port: SMTP_PORT, user: SMTP_USER, from: SMTP_FROM });
   if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
-    console.error('[email] Variáveis de ambiente SMTP não configuradas');
+    console.error('[email] Variáveis de ambiente SMTP não configuradas. Host:', !!SMTP_HOST, 'Port:', !!SMTP_PORT, 'User:', !!SMTP_USER, 'Pass:', !!SMTP_PASS, 'From:', !!SMTP_FROM);
     return { success: false, errorCode: 'smtp_not_configured', error: 'Configuração SMTP ausente no servidor' };
   }
 
@@ -91,6 +97,7 @@ export async function sendTemplatedEmail(
       html: finalHtml,
     });
 
+    console.log('[email] Email enviado com sucesso. MessageId:', info.messageId);
     return { success: true, messageId: info.messageId };
   } catch (err) {
     console.error('[email] Falha ao enviar email:', describeError(err));

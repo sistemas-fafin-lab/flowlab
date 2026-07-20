@@ -476,20 +476,23 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
 
         const lastEmailAt = task.last_status_email_at ? new Date(task.last_status_email_at).getTime() : 0;
         const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
-        const sendEmail = !!requesterData?.email && !withinCooldown;
+        // Email só é enviado quando o chamado é marcado como resolvido
+        const sendEmail = value === 'resolved' && !!requesterData?.email && !withinCooldown;
 
         await sendNotification({
           userId: task.requested_by,
-          title: 'Status do chamado atualizado',
-          content: `O status do chamado ${task.codigo} mudou para ${statusLabel}.`,
+          title: value === 'resolved' ? 'Chamado de TI resolvido' : 'Status do chamado atualizado',
+          content: value === 'resolved'
+            ? `O chamado ${task.codigo} foi concluído e marcado como resolvido.`
+            : `O status do chamado ${task.codigo} mudou para ${statusLabel}.`,
           module: 'IT',
           type: value === 'resolved' ? 'success' : value === 'cancelled' ? 'warning' : 'info',
           link: '/requests',
           sendEmail,
-          emailData: requesterData?.email && !withinCooldown
+          emailData: sendEmail
             ? {
                 to: requesterData.email,
-                templateSlug: value === 'resolved' ? 'it_ticket_resolved' : 'it_ticket_status_changed',
+                templateSlug: 'it_ticket_resolved',
                 variables: {
                   user_name: requesterData.name || task.requester_name || 'Usuário',
                   ticket_code: task.codigo,

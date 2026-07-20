@@ -410,7 +410,8 @@ const ITRequestManagement: React.FC = () => {
 
         const lastEmailAt = req.last_status_email_at ? new Date(req.last_status_email_at).getTime() : 0;
         const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
-        const sendEmail = !!requesterEmail && !withinCooldown;
+        // Email só é enviado quando o chamado é marcado como resolvido
+        const sendEmail = newStatus === 'resolved' && !!requesterEmail && !withinCooldown;
 
         console.log('[ITRequestManagement/handleStatusChange] email debug:', {
           requestId,
@@ -435,7 +436,7 @@ const ITRequestManagement: React.FC = () => {
             emailData: sendEmail
               ? {
                   to: requesterEmail!,
-                  templateSlug: newStatus === 'resolved' ? 'it_ticket_resolved' : 'it_ticket_status_changed',
+                  templateSlug: 'it_ticket_resolved',
                   variables: {
                     user_name: requesterName || 'Usuário',
                     ticket_code: req.codigo,
