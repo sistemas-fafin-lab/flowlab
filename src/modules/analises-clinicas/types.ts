@@ -13,7 +13,7 @@ export type AcAgendamentoStatus =
 
 export interface AcAgendamento {
   id: string;
-  labhub_id: string;
+  labhub_id: string | null; // NULL = agendamento nativo do FlowLab (criado à mão, sem LAB-HUB)
   paciente_nome: string;
   paciente_telefone: string | null;
   posto_id: string | null;

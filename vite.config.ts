@@ -321,13 +321,102 @@ function documentosApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
+// ── Dev-only middleware para o agendamento manual da recepção ────────────────
+// Duas rotas contra o LAB-HUB (proxy autenticado por JWT do operador):
+//   GET  /api/analises-clinicas/buscar-pacientes?q=   (typeahead)
+//   POST /api/analises-clinicas/criar-agendamento-labhub
+// Sem este plugin, `npm run dev` (vite puro) cai no fallback do SPA e devolve
+// index.html, quebrando o .json() do hook.
+function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'LABHUB_API_URL', 'FLOWLAB_API_KEY',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
+  return {
+    name: 'recepcao-agendamento-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        const isDisp =
+          url.pathname === '/api/analises-clinicas/disponibilidade-operador' && req.method === 'GET';
+        const isBuscar =
+          url.pathname === '/api/analises-clinicas/buscar-pacientes' && req.method === 'GET';
+        const isCriar =
+          url.pathname === '/api/analises-clinicas/criar-agendamento-labhub' && req.method === 'POST';
+        if (!isDisp && !isBuscar && !isCriar) return next();
+
+        const send = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          if (isBuscar) res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify(body));
+        };
+
+        const authHeader = (req.headers['authorization'] as string) ?? '';
+        const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+        try {
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule('/api/_lib/recepcaoAgendamento.ts');
+
+          if (isDisp) {
+            const { status, payload } = await mod.disponibilidadeOperador(token);
+            return send(status, payload);
+          }
+
+          if (isBuscar) {
+            const { status, payload } = await mod.buscarPacientesRecepcao(
+              token,
+              url.searchParams.get('q') ?? undefined,
+            );
+            return send(status, payload);
+          }
+
+          // POST criar — lê o corpo JSON.
+          let body: Record<string, unknown> = {};
+          try {
+            await new Promise<void>((resolve, reject) => {
+              let raw = '';
+              req.on('data', (chunk) => { raw += chunk; });
+              req.on('end', () => {
+                try { body = raw ? JSON.parse(raw) : {}; resolve(); }
+                catch { reject(new Error('JSON inválido')); }
+              });
+              req.on('error', reject);
+            });
+          } catch {
+            return send(400, { success: false, error: 'Body inválido' });
+          }
+
+          const { status, payload } = await mod.criarAgendamentoRecepcao(token, body);
+          send(status, payload);
+        } catch (err) {
+          console.error('[dev/analises-clinicas/recepcao-agendamento]', err);
+          send(500, { success: false, error: err instanceof Error ? err.message : 'Erro interno' });
+        }
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // loadEnv com prefix '' carrega TODAS as vars (inclusive UMAMI_* sem prefixo VITE_)
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env)],
+    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },

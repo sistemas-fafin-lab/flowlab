@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarClock,
   MapPin,
@@ -13,11 +13,30 @@ import {
   Filter,
   Search,
   Users,
+  Plus,
+  Check,
+  Loader2,
+  UserCheck,
   type LucideIcon,
 } from 'lucide-react';
-import { useAgendamentos } from '../hooks/useAgendamentos';
+import {
+  useAgendamentos,
+  type AgendamentoManualInput,
+  type PacienteBuscaItem,
+  type PostoDisponivel,
+} from '../hooks/useAgendamentos';
 import { usePostos } from '../hooks/usePostos';
-import type { AcAgendamento, AcAgendamentoStatus } from '../types';
+import { useAuth } from '../../../hooks/useAuth';
+import { hasPermission } from '../../../utils/permissions';
+import type { AcAgendamento, AcAgendamentoStatus, AcPosto } from '../types';
+
+// Classe compartilhada de input (foco azul, cor do módulo de agendamentos).
+const inputCls =
+  'w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500';
+
+// Input com borda vermelha (inválido) ou verde (válido) em tempo real.
+const fieldCls = (erro = false, valid = false) =>
+  `w-full px-3 py-2 rounded-lg border ${erro ? 'border-red-500 dark:border-red-500 focus:ring-red-500' : valid ? 'border-emerald-500 dark:border-emerald-500 focus:ring-emerald-500' : 'border-gray-200 dark:border-gray-600 focus:ring-blue-500'} bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2`;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmtHora = (iso: string) =>
@@ -39,6 +58,79 @@ const fmtTelefone = (tel: string): string => {
   if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   return tel;
 };
+
+// Só os dígitos de uma string (para CPF/telefone).
+const soDigitos = (s: string): string => s.replace(/\D/g, '');
+
+// Aplica a máscara de CPF (000.000.000-00) conforme o usuário digita.
+const formatCpf = (s: string): string => {
+  const d = soDigitos(s).slice(0, 11);
+  if (d.length <= 3) return d;
+  if (d.length <= 6) return `${d.slice(0, 3)}.${d.slice(3)}`;
+  if (d.length <= 9) return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6)}`;
+  return `${d.slice(0, 3)}.${d.slice(3, 6)}.${d.slice(6, 9)}-${d.slice(9)}`;
+};
+
+// Valida o CPF pelos dígitos verificadores (não só o comprimento). Rejeita
+// sequências repetidas (000… 999…), que passam na conta mas não são CPFs reais.
+const validarCpf = (valor: string): boolean => {
+  const d = soDigitos(valor);
+  if (d.length !== 11 || /^(\d)\1{10}$/.test(d)) return false;
+  const digito = (ate: number): number => {
+    let soma = 0;
+    for (let i = 0; i < ate; i++) soma += Number(d[i]) * (ate + 1 - i);
+    const resto = (soma * 10) % 11;
+    return resto === 10 || resto === 11 ? 0 : resto;
+  };
+  return digito(9) === Number(d[9]) && digito(10) === Number(d[10]);
+};
+
+// Máscara progressiva de telefone: (00) 0000-0000 (fixo) ou (00) 00000-0000 (cel).
+const maskTelefone = (s: string): string => {
+  const d = soDigitos(s).slice(0, 11);
+  if (d.length <= 2) return d.length ? `(${d}` : '';
+  if (d.length <= 6) return `(${d.slice(0, 2)}) ${d.slice(2)}`;
+  if (d.length <= 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+};
+
+// Telefone BR válido: 10 (fixo) ou 11 (celular) dígitos, tolerando DDI +55.
+const telefoneValido = (tel: string): boolean => {
+  let d = soDigitos(tel);
+  if (d.length === 12 || d.length === 13) d = d.replace(/^55/, '');
+  return d.length === 10 || d.length === 11;
+};
+
+// Data de nascimento real (não inexistente/futura/anterior a 1900). 'YYYY-MM-DD'.
+const nascimentoValido = (s: string): boolean => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return false;
+  const [ano, mes, dia] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const dt = new Date(ano, mes - 1, dia);
+  if (dt.getFullYear() !== ano || dt.getMonth() !== mes - 1 || dt.getDate() !== dia) return false;
+  const hoje = new Date();
+  hoje.setHours(0, 0, 0, 0);
+  return ano >= 1900 && dt <= hoje;
+};
+
+// Hoje em YYYY-MM-DD local — teto do seletor de nascimento.
+const hojeISO = (): string => new Date().toLocaleDateString('en-CA');
+
+// Data de nascimento (YYYY-MM-DD) → dd/mm/aaaa. Sem new Date() de propósito:
+// data pura não tem fuso e new Date('YYYY-MM-DD') recuaria um dia em fusos oeste.
+const fmtNasc = (d: string): string => {
+  const p = d.split('-');
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
+};
+
+// Rótulo da opção de data no seletor de slots (chave YYYY-MM-DD local).
+// Ex.: "seg., 21/07". Meia-noite local evita o recuo de fuso.
+const fmtDataOpcao = (dateKey: string): string =>
+  new Date(`${dateKey}T00:00:00`).toLocaleDateString('pt-BR', {
+    weekday: 'short',
+    day: '2-digit',
+    month: '2-digit',
+  });
 
 // Normaliza p/ busca: remove acentos e caixa (ex.: "João" → "joao").
 const norm = (s: string): string =>
@@ -232,6 +324,390 @@ const AgendamentoRow: React.FC<{ ag: AcAgendamento; last: boolean }> = ({ ag, la
   );
 };
 
+// ─── Modal de criação manual (walk-in / encaixe) ────────────────────────────────
+// Vincula o agendamento a um paciente do LAB-HUB. O operador busca por nome
+// (typeahead); se a pessoa já existe, escolhe na lista e o agendamento sai para
+// aquele paciente. Se não existe, informa nome + CPF + nascimento e o LAB-HUB cria
+// um paciente "fantasma" (sem conta) que a pessoa reivindica ao se cadastrar com o
+// mesmo CPF. O agendamento nasce no LAB-HUB e é sincronizado de volta.
+const NovoAgendamentoModal: React.FC<{
+  postos: AcPosto[]; // apenas ativos
+  onClose: () => void;
+  onCreate: (input: AgendamentoManualInput) => Promise<string | null>;
+  onBuscar: (q: string) => Promise<PacienteBuscaItem[]>;
+  onDisponibilidade: () => Promise<PostoDisponivel[]>;
+}> = ({ postos, onClose, onCreate, onBuscar, onDisponibilidade }) => {
+  const [nome, setNome] = useState('');
+  const [pacienteSel, setPacienteSel] = useState<PacienteBuscaItem | null>(null);
+  const [resultados, setResultados] = useState<PacienteBuscaItem[]>([]);
+  const [buscando, setBuscando] = useState(false);
+  const [dropdownAberto, setDropdownAberto] = useState(false);
+  const [cpf, setCpf] = useState('');
+  const [dataNascimento, setDataNascimento] = useState('');
+  const [telefone, setTelefone] = useState('');
+  const [postoSel, setPostoSel] = useState(postos.length === 1 ? postos[0].id : '');
+  const [disponibilidade, setDisponibilidade] = useState<PostoDisponivel[]>([]);
+  const [carregandoDisp, setCarregandoDisp] = useState(true);
+  const [dataSel, setDataSel] = useState(''); // YYYY-MM-DD (local) escolhido
+  const [slotSel, setSlotSel] = useState(''); // ISO do horário escolhido
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // Carrega a disponibilidade real (mesma grade do paciente) ao abrir o modal.
+  useEffect(() => {
+    let vivo = true;
+    setCarregandoDisp(true);
+    void onDisponibilidade().then((d) => {
+      if (!vivo) return;
+      setDisponibilidade(d);
+      setCarregandoDisp(false);
+    });
+    return () => { vivo = false; };
+  }, [onDisponibilidade]);
+
+  // Slots do posto escolhido, agrupados por data local (chave ordenável YYYY-MM-DD).
+  const slotsDoPosto = useMemo(
+    () => disponibilidade.find((d) => d.id === postoSel)?.slots ?? [],
+    [disponibilidade, postoSel],
+  );
+  const porData = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const iso of slotsDoPosto) {
+      const k = new Date(iso).toLocaleDateString('en-CA'); // YYYY-MM-DD local
+      const arr = m.get(k);
+      if (arr) arr.push(iso);
+      else m.set(k, [iso]);
+    }
+    return m;
+  }, [slotsDoPosto]);
+  const datas = useMemo(() => [...porData.keys()].sort(), [porData]);
+  const horariosDaData = dataSel ? porData.get(dataSel) ?? [] : [];
+
+  // Trocar de posto invalida a data/horário escolhidos (a grade é outra).
+  useEffect(() => {
+    setDataSel('');
+    setSlotSel('');
+  }, [postoSel]);
+  // Trocar de data invalida o horário.
+  useEffect(() => {
+    setSlotSel('');
+  }, [dataSel]);
+
+  // Debounce da busca por nome. Só busca no modo "novo" (sem paciente escolhido);
+  // o contador descarta respostas fora de ordem.
+  const buscaSeq = useRef(0);
+  useEffect(() => {
+    if (pacienteSel) return;
+    const termo = nome.trim();
+    if (termo.length < 2) {
+      setResultados([]);
+      setDropdownAberto(false);
+      return;
+    }
+    const seq = ++buscaSeq.current;
+    setBuscando(true);
+    const t = setTimeout(async () => {
+      const achados = await onBuscar(termo);
+      if (seq !== buscaSeq.current) return;
+      setResultados(achados);
+      setDropdownAberto(true);
+      setBuscando(false);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [nome, pacienteSel, onBuscar]);
+
+  const escolherPaciente = (p: PacienteBuscaItem) => {
+    setPacienteSel(p);
+    setNome(p.nome);
+    setResultados([]);
+    setDropdownAberto(false);
+    setErro(null);
+  };
+
+  // Editar o nome desfaz a escolha e volta ao modo busca/novo paciente.
+  const handleNomeChange = (v: string) => {
+    setNome(v);
+    if (pacienteSel) setPacienteSel(null);
+  };
+
+  const modoNovo = !pacienteSel;
+
+  // Estados de erro / valid visual em tempo real (borda vermelha / verde).
+  const cpfErro = modoNovo && cpf.length > 0 && !validarCpf(cpf);
+  const nascErro = modoNovo && dataNascimento.length > 0 && !nascimentoValido(dataNascimento);
+  const telErro = telefone.length > 0 && !telefoneValido(telefone);
+  const cpfValid = modoNovo && validarCpf(cpf);
+  const nascValid = modoNovo && nascimentoValido(dataNascimento);
+  const telValid = telefone.length > 0 && telefoneValido(telefone);
+
+  const handleSave = async () => {
+    setErro(null);
+    if (modoNovo) {
+      if (!nome.trim()) return setErro('Informe o nome do paciente.');
+      if (!validarCpf(cpf)) return setErro('CPF inválido. Confira os números.');
+      if (!nascimentoValido(dataNascimento)) return setErro('Data de nascimento inválida.');
+    }
+    // Telefone é opcional, mas se informado precisa ser um número BR válido.
+    if (telefone.trim() && !telefoneValido(telefone)) {
+      return setErro('Telefone inválido — inclua o DDD.');
+    }
+    if (!postoSel) return setErro('Selecione o posto.');
+    if (!slotSel) return setErro('Selecione a data e o horário.');
+
+    const iso = slotSel; // já é o ISO do slot escolhido na grade
+    const telefoneDigitos = soDigitos(telefone) || null; // armazena limpo
+    setSaving(true);
+    const msg = await onCreate(
+      pacienteSel
+        ? {
+            pacienteId: pacienteSel.id,
+            telefone: telefoneDigitos,
+            postoId: postoSel,
+            dataHora: iso,
+          }
+        : {
+            nome: nome.trim(),
+            cpf: soDigitos(cpf),
+            dataNascimento,
+            telefone: telefoneDigitos,
+            postoId: postoSel,
+            dataHora: iso,
+          },
+    );
+    setSaving(false);
+    if (msg) setErro(msg);
+    else onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-bold text-gray-900 dark:text-gray-100">Criar agendamento</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+              Walk-in / encaixe · vinculado ao paciente no Lab Hub
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 overflow-y-auto space-y-4">
+          {erro && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+              {erro}
+            </div>
+          )}
+
+          {/* Nome + typeahead de pacientes do LAB-HUB */}
+          <div className="relative">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Nome do paciente
+            </label>
+            <div className="relative flex items-center">
+              <input
+                value={nome}
+                onChange={(e) => handleNomeChange(e.target.value)}
+                onFocus={() => resultados.length > 0 && setDropdownAberto(true)}
+                // Fecha depois de um tick p/ o clique num resultado registrar antes.
+                onBlur={() => setTimeout(() => setDropdownAberto(false), 150)}
+                placeholder="Digite para buscar ou cadastrar"
+                autoFocus
+                autoComplete="off"
+                className={`${inputCls} pr-10`}
+              />
+              {buscando && (
+                <Loader2 className="absolute right-3 w-4 h-4 text-gray-400 animate-spin" />
+              )}
+            </div>
+
+            {/* Dropdown de resultados */}
+            {dropdownAberto && !pacienteSel && (
+              <div className="absolute z-10 mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl overflow-hidden">
+                {resultados.length === 0 ? (
+                  <div className="px-3 py-3 text-sm text-gray-500 dark:text-gray-400">
+                    Nenhum paciente encontrado — preencha CPF e nascimento para cadastrar.
+                  </div>
+                ) : (
+                  resultados.map((p) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => escolherPaciente(p)}
+                      className="w-full text-left px-3 py-2.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-b border-gray-50 dark:border-gray-700/50 last:border-0 transition-colors"
+                    >
+                      <div className="text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">
+                        {p.nome}
+                      </div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                        CPF {p.cpfMascarado} · Nasc. {fmtNasc(p.dataNascimento)}
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Paciente escolhido: confirmação + trocar. Sem CPF/nascimento (já é dele). */}
+          {pacienteSel ? (
+            <div className="flex items-center gap-3 p-3 rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-900/20">
+              <div className="w-9 h-9 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                <UserCheck className="w-5 h-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-semibold text-emerald-800 dark:text-emerald-200">
+                  Paciente do Lab Hub
+                </div>
+                <div className="text-xs text-emerald-700/80 dark:text-emerald-300/80 tabular-nums truncate">
+                  CPF {pacienteSel.cpfMascarado} · Nasc. {fmtNasc(pacienteSel.dataNascimento)}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPacienteSel(null)}
+                className="text-xs font-medium text-emerald-700 dark:text-emerald-300 hover:underline shrink-0"
+              >
+                Trocar
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* CPF + Nascimento (obrigatórios p/ paciente novo) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">CPF</label>
+                  <div className="relative flex items-center">
+                    <input
+                      value={cpf}
+                      onChange={(e) => setCpf(formatCpf(e.target.value))}
+                      placeholder="000.000.000-00"
+                      inputMode="numeric"
+                      className={`${fieldCls(cpfErro, cpfValid)} tabular-nums pr-10`}
+                    />
+                    {cpfValid && <Check className="absolute right-3 w-4 h-4 text-emerald-500" />}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Nascimento
+                  </label>
+                  <div className="relative flex items-center">
+                    <input
+                      type="date"
+                      value={dataNascimento}
+                      onChange={(e) => setDataNascimento(e.target.value)}
+                      min="1900-01-01"
+                      max={hojeISO()}
+                      className={`${fieldCls(nascErro, nascValid)} [color-scheme:light] dark:[color-scheme:dark] pr-10`}
+                    />
+                    {nascValid && <Check className="absolute right-3 w-4 h-4 text-emerald-500" />}
+                  </div>
+                </div>
+              </div>
+              <p className="-mt-2 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-500">
+                <Check className="w-3.5 h-3.5" />
+                Se o CPF já tiver conta, o agendamento é vinculado a ela automaticamente.
+              </p>
+            </>
+          )}
+
+          {/* Telefone (opcional) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Telefone <span className="text-gray-400">(opcional)</span>
+            </label>
+            <div className="relative flex items-center">
+              <input
+                value={telefone}
+                onChange={(e) => setTelefone(maskTelefone(e.target.value))}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
+                className={`${fieldCls(telErro, telValid)} pr-10`}
+              />
+              {telValid && <Check className="absolute right-3 w-4 h-4 text-emerald-500" />}
+            </div>
+          </div>
+
+          {/* Posto (obrigatório) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Posto</label>
+            <select value={postoSel} onChange={(e) => setPostoSel(e.target.value)} className={inputCls}>
+              <option value="">Selecione…</option>
+              {postos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Data e horário — apenas slots reais da grade do posto */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
+              <select
+                value={dataSel}
+                onChange={(e) => setDataSel(e.target.value)}
+                disabled={!postoSel || carregandoDisp}
+                className={`${inputCls} disabled:opacity-60`}
+              >
+                <option value="">
+                  {!postoSel ? 'Escolha o posto' : carregandoDisp ? 'Carregando…' : 'Selecione…'}
+                </option>
+                {datas.map((k) => (
+                  <option key={k} value={k}>
+                    {fmtDataOpcao(k)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Horário</label>
+              <select
+                value={slotSel}
+                onChange={(e) => setSlotSel(e.target.value)}
+                disabled={!dataSel}
+                className={`${inputCls} tabular-nums disabled:opacity-60`}
+              >
+                <option value="">Selecione…</option>
+                {horariosDaData.map((iso) => (
+                  <option key={iso} value={iso}>
+                    {fmtHora(iso)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {postoSel && !carregandoDisp && datas.length === 0 && (
+            <p className="-mt-2 text-xs text-amber-600 dark:text-amber-400">
+              Sem horários disponíveis para este posto. Ajuste a agenda do posto ou escolha outro.
+            </p>
+          )}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+          >
+            {saving ? 'Salvando…' : 'Criar agendamento'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Página ───────────────────────────────────────────────────────────────────
 const AgendamentosPage: React.FC = () => {
   const [postoSel, setPostoSel] = useState<string>(''); // ac_postos.id — '' = todos
@@ -239,12 +715,23 @@ const AgendamentosPage: React.FC = () => {
   const [busca, setBusca] = useState(''); // nome ou telefone
   const [statusSel, setStatusSel] = useState(''); // '' = todos os status
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [mostrarNovo, setMostrarNovo] = useState(false);
 
   // O posto é filtrado no cliente para que os cartões-resumo sempre reflitam o
   // total do dia; a data continua filtrando no servidor (janela do dia).
   const filtros = useMemo(() => ({ data: data || undefined }), [data]);
-  const { agendamentos, loading, error, refetch } = useAgendamentos(filtros);
+  const {
+    agendamentos,
+    loading,
+    error,
+    refetch,
+    buscarPacientes,
+    buscarDisponibilidade,
+    criarAgendamentoManual,
+  } = useAgendamentos(filtros);
   const { postos } = usePostos();
+  const { userProfile } = useAuth();
+  const canManage = hasPermission(userProfile?.permissions || [], 'canManageColetas');
 
   const postosAtivos = useMemo(() => postos.filter((p) => p.ativo), [postos]);
 
@@ -298,14 +785,35 @@ const AgendamentosPage: React.FC = () => {
             </p>
           </div>
         </div>
-        <button
-          onClick={() => void refetch()}
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-          Sincronizar
-        </button>
+        <div className="flex items-center gap-2">
+          {canManage && (
+            <button
+              onClick={() => setMostrarNovo(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all"
+            >
+              <Plus className="w-4 h-4" />
+              Criar agendamento
+            </button>
+          )}
+          <button
+            onClick={() => void refetch()}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            Sincronizar
+          </button>
+        </div>
       </div>
+
+      {mostrarNovo && (
+        <NovoAgendamentoModal
+          postos={postosAtivos}
+          onClose={() => setMostrarNovo(false)}
+          onCreate={criarAgendamentoManual}
+          onBuscar={buscarPacientes}
+          onDisponibilidade={buscarDisponibilidade}
+        />
+      )}
 
       {/* Cartões-resumo por posto */}
       {postosAtivos.length > 0 && (
