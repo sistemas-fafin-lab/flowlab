@@ -105,12 +105,12 @@ const HANDLERS = new Map<string, () => Promise<{ default: (req: VercelLikeReques
 HANDLERS.set('GET /api/umami',      () => import('./umami.js'));
 HANDLERS.set('POST /api/notifications/email', () => import('./notifications/email.js'));
 HANDLERS.set('POST /api/users/create', () => import('./users/create.js'));
-HANDLERS.set('POST /api/analises-clinicas/deliver-coleta',     () => import('./analises-clinicas/deliver-coleta.js'));
-HANDLERS.set('POST /api/analises-clinicas/deliver-resultado',  () => import('./analises-clinicas/deliver-resultado.js'));
-HANDLERS.set('GET /api/analises-clinicas/get-disponibilidade', () => import('./analises-clinicas/get-disponibilidade.js'));
-HANDLERS.set('GET /api/analises-clinicas/get-documentos',      () => import('./analises-clinicas/get-documentos.js'));
-HANDLERS.set('POST /api/analises-clinicas/receive-agendamento', () => import('./analises-clinicas/receive-agendamento.js'));
-HANDLERS.set('POST /api/analises-clinicas/receive-cancelamento', () => import('./analises-clinicas/receive-cancelamento.js'));
+HANDLERS.set('POST /api/analises-clinicas/deliver-coleta',     () => import('./_lib/handlers/deliver-coleta.js'));
+HANDLERS.set('POST /api/analises-clinicas/deliver-resultado',  () => import('./_lib/handlers/deliver-resultado.js'));
+HANDLERS.set('GET /api/analises-clinicas/get-disponibilidade', () => import('./_lib/handlers/get-disponibilidade.js'));
+HANDLERS.set('GET /api/analises-clinicas/get-documentos',      () => import('./_lib/handlers/get-documentos.js'));
+HANDLERS.set('POST /api/analises-clinicas/receive-agendamento', () => import('./_lib/handlers/receive-agendamento.js'));
+HANDLERS.set('POST /api/analises-clinicas/receive-cancelamento', () => import('./_lib/handlers/receive-cancelamento.js'));
 
 async function parseBody(req: http.IncomingMessage): Promise<unknown> {
   if (!req.headers['content-type']?.includes('application/json')) return undefined;

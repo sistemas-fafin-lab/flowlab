@@ -15,9 +15,9 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSupabaseAdminClient } from '../_lib/supabase.js';
-import { isFlowlabApiKeyValid, signHmacHex, requireEnv } from '../_lib/labhubIntegration.js';
-import { describeError } from '../_lib/errors.js';
+import { getSupabaseAdminClient } from '../supabase.js';
+import { isFlowlabApiKeyValid, signHmacHex, requireEnv } from '../labhubIntegration.js';
+import { describeError } from '../errors.js';
 
 // Espelha ResultadoWebhookPayload de @lab-hub/shared / resultadoWebhookSchema.
 interface ResultadoWebhookPayload {

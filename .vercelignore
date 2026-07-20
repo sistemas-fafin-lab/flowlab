@@ -1,0 +1,4 @@
+# Servidor standalone usado APENAS no Docker (CMD node api/server.js).
+# No Vercel ele não deve virar Serverless Function — economiza 1 slot do plano
+# Hobby (limite de 12) e evitaria um "function" que só chama server.listen().
+api/server.ts

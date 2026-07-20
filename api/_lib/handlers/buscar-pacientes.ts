@@ -15,8 +15,8 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { buscarPacientesRecepcao } from '../_lib/recepcaoAgendamento.js';
-import { describeError } from '../_lib/errors.js';
+import { buscarPacientesRecepcao } from '../recepcaoAgendamento.js';
+import { describeError } from '../errors.js';
 
 export default async function handler(
   req: VercelRequest,

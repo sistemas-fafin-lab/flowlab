@@ -26,9 +26,9 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { computarDisponibilidade } from '../_lib/disponibilidade.js';
-import { isFlowlabApiKeyValid } from '../_lib/labhubIntegration.js';
-import { describeError } from '../_lib/errors.js';
+import { computarDisponibilidade } from '../disponibilidade.js';
+import { isFlowlabApiKeyValid } from '../labhubIntegration.js';
+import { describeError } from '../errors.js';
 
 export default async function handler(
   req: VercelRequest,

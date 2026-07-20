@@ -19,8 +19,8 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { listarDocumentosCheckin } from '../_lib/documentosCheckin.js';
-import { describeError } from '../_lib/errors.js';
+import { listarDocumentosCheckin } from '../documentosCheckin.js';
+import { describeError } from '../errors.js';
 
 export default async function handler(
   req: VercelRequest,
