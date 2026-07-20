@@ -94,6 +94,109 @@ const Chip: React.FC<{ tone: Tone; icon?: React.ReactNode; children: React.React
   </span>
 );
 
+// ── Skeletons de carregamento ─────────────────────────────────────────────
+// Barra base de placeholder (animate-pulse). Usada para montar o esqueleto que
+// espelha a estrutura real da tela enquanto o inventário/estoque carrega.
+const Bar: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <div className={`animate-pulse rounded-md bg-gray-200 dark:bg-gray-700 ${className}`} />
+);
+
+// Card de KPI em estado de carregamento (mesma moldura do StatCard).
+const StatCardSkeleton: React.FC = () => (
+  <div className="relative overflow-hidden bg-white/60 dark:bg-slate-900/60 backdrop-blur-md rounded-2xl shadow-sm p-4 sm:p-5 border border-white/50 dark:border-slate-700/50">
+    <div className="flex items-start justify-between gap-2">
+      <div className="min-w-0 flex-1 space-y-2.5">
+        <Bar className="h-3 w-24" />
+        <Bar className="h-8 w-14" />
+        <Bar className="h-2.5 w-20" />
+      </div>
+      <Bar className="w-10 h-10 rounded-xl flex-shrink-0" />
+    </div>
+  </div>
+);
+
+// Linhas de placeholder para a tabela de insumos (espelha as colunas Insumo,
+// Quantidade, Validade, Status, Ação). Reutilizado no load do setor.
+const TableRowsSkeleton: React.FC<{ rows?: number }> = ({ rows = 5 }) => (
+  <div className="divide-y divide-gray-100 dark:divide-gray-700">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div key={i} className="px-5 py-3.5 flex items-center gap-4">
+        <div className="flex-1 min-w-0 space-y-2">
+          <Bar className="h-4 w-40 max-w-full" />
+          <Bar className="h-3 w-20" />
+        </div>
+        <div className="w-24 space-y-1.5 hidden sm:block">
+          <Bar className="h-4 w-16" />
+          <Bar className="h-1.5 w-20" />
+        </div>
+        <Bar className="h-4 w-20 hidden md:block" />
+        <Bar className="h-6 w-24 rounded-full flex-shrink-0" />
+      </div>
+    ))}
+  </div>
+);
+
+// Esqueleto completo da tela — cabeçalho, KPIs e as duas colunas (insumos +
+// movimentações). Exibido no load inicial do inventário.
+const EstoqueSkeleton: React.FC = () => (
+  <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
+    {/* Cabeçalho */}
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center gap-3">
+        <Bar className="w-11 h-11 rounded-xl flex-shrink-0" />
+        <div className="space-y-2">
+          <Bar className="h-6 w-52" />
+          <Bar className="h-3.5 w-64 max-w-[70vw]" />
+        </div>
+      </div>
+      <div className="space-y-1.5">
+        <Bar className="h-2.5 w-12" />
+        <Bar className="h-11 w-full sm:w-64 rounded-xl" />
+      </div>
+    </div>
+
+    {/* KPIs */}
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      {Array.from({ length: 4 }).map((_, i) => <StatCardSkeleton key={i} />)}
+    </div>
+
+    {/* Colunas: insumos + movimentações */}
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+      <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
+          <Bar className="w-5 h-5 rounded" />
+          <div className="space-y-1.5">
+            <Bar className="h-4 w-36" />
+            <Bar className="h-3 w-56 max-w-[60vw]" />
+          </div>
+        </div>
+        <TableRowsSkeleton rows={5} />
+      </div>
+
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 space-y-3">
+          <div className="flex items-center gap-2">
+            <Bar className="w-5 h-5 rounded" />
+            <Bar className="h-4 w-44" />
+          </div>
+          <Bar className="h-9 w-full rounded-lg" />
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-gray-700">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="px-5 py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0 space-y-1.5">
+                <Bar className="h-4 w-32" />
+                <Bar className="h-3 w-24" />
+              </div>
+              <Bar className="h-4 w-8 flex-shrink-0" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
 const StatCard: React.FC<{
   icon: React.ComponentType<{ className?: string }>;
   value: React.ReactNode;
@@ -362,7 +465,7 @@ const EstoqueDepartamental: React.FC = () => {
   }, [locations, selectedSector]);
 
   if (loading) {
-    return <div className="p-6 text-gray-500 dark:text-gray-400">Carregando…</div>;
+    return <EstoqueSkeleton />;
   }
 
   return (
@@ -471,7 +574,7 @@ const EstoqueDepartamental: React.FC = () => {
               </div>
 
               {loadingStock ? (
-                <div className="p-6 text-gray-500 dark:text-gray-400">Carregando estoque do setor…</div>
+                <TableRowsSkeleton rows={5} />
               ) : stockRows.length === 0 ? (
                 <div className="p-6 text-gray-500 dark:text-gray-400">Nada em posse do setor no momento.</div>
               ) : (
