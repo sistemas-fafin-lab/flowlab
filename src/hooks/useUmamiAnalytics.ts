@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 
 // ── Types (espelhando docs/umami/umami.ts) ───────────────────────────────────
 
@@ -57,16 +58,6 @@ export interface EventSummaryItem {
   percentage: number;
 }
 
-// ── Aggregated stats across all websites ─────────────────────────────────────
-
-export interface AggregatedStats {
-  pageviews: number;
-  visitors: number;
-  visits: number;
-  bounces: number;
-  totaltime: number;
-}
-
 // ── API response shape for all=true (matches route.ts) ───────────────────────
 
 export interface SiteResult {
@@ -86,10 +77,13 @@ interface UmamiAllApiResponse {
 
 export type UmamiRange = '24h' | '7d' | '30d' | 'custom';
 
+/**
+ * Dados crus da API. A agregação e a montagem dos gráficos ficam a cargo de quem
+ * consome — o dashboard filtra por site antes de agregar, então totais calculados
+ * aqui seriam sempre descartados.
+ */
 export interface UmamiAnalyticsData {
   websites: UmamiWebsite[];
-  aggregatedStats: AggregatedStats;
-  chartData: ChartDataPoint[];
   results: SiteResult[];
 }
 
@@ -133,92 +127,171 @@ function formatDateLabel(iso: string, range: UmamiRange): string {
   return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
 }
 
-/** Generates the full list of expected date labels for the selected range. */
-function generateRangeLabels(
+/** Builds the sortable key of a Date, matching the format of `dateKey`. */
+function dateKeyFromDate(d: Date, range: UmamiRange): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return range === '24h' ? `${day}T${pad(d.getHours())}` : day;
+}
+
+/**
+ * Sortable key derived from an ISO string, used to order buckets chronologically.
+ * - 24h → "YYYY-MM-DDTHH"
+ * - demais → "YYYY-MM-DD"
+ *
+ * A API mistura dois formatos: as séries de pageviews vêm sem fuso
+ * ("2026-06-22 00:00:00"), já convertidas para o timezone pedido na query — aí
+ * fatiar a string é o certo. Já os eventos vêm em UTC ("2026-07-21T12:19:13.795Z")
+ * e precisam ser convertidos, senão tudo que acontece depois das 21h (BRT) cai no
+ * dia seguinte.
+ */
+function dateKey(iso: string, range: UmamiRange): string {
+  const normalized = iso.replace(' ', 'T');
+
+  if (/(?:Z|[+-]\d{2}:?\d{2})$/.test(normalized)) {
+    const d = new Date(normalized);
+    if (!isNaN(d.getTime())) return dateKeyFromDate(d, range);
+  }
+
+  return range === '24h' ? normalized.slice(0, 13) : normalized.slice(0, 10);
+}
+
+/** Local calendar day ("YYYY-MM-DD") of an Umami timestamp or Date. */
+export function localDayKey(value: string | Date): string {
+  return value instanceof Date ? dateKeyFromDate(value, '7d') : dateKey(value, '7d');
+}
+
+/**
+ * Distingue pageview (eventType 1) de evento customizado (eventType 2). O endpoint
+ * /events devolve os dois misturados: só a contagem de eventType 1 bate com
+ * `stats.pageviews`.
+ */
+export function isPageviewEvent(e: UmamiEvent): boolean {
+  return e.eventType === undefined ? !e.eventName : e.eventType === 1;
+}
+
+export interface RangeBucket {
+  key: string;
+  label: string;
+}
+
+export interface RangeWindow {
+  start: Date;
+  end: Date;
+  unit: 'hour' | 'day';
+}
+
+/**
+ * Janela consultada para cada range, ancorada na virada da hora/dia local.
+ *
+ * Ancorar importa: "30 dias" a partir de `now - 30*24h` cai no meio do dia -30,
+ * e o Umami devolve esse dia truncado como um 31º bucket — um degrau falso na
+ * ponta esquerda do gráfico. Ancorando à meia-noite saem exatamente 30 dias.
+ */
+export function buildRangeWindow(
   range: UmamiRange,
   customStart?: Date | null,
   customEnd?: Date | null,
-): string[] {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const now = new Date();
+): RangeWindow {
+  const end = new Date();
+
   if (range === '24h') {
-    return Array.from({ length: 24 }, (_, i) => {
-      const d = new Date(now.getTime() - (23 - i) * 60 * 60 * 1000);
-      return `${pad(d.getHours())}:00`;
-    });
+    const start = new Date(end);
+    start.setMinutes(0, 0, 0);
+    start.setHours(start.getHours() - 23);
+    return { start, end, unit: 'hour' };
   }
+
   if (range === 'custom' && customStart && customEnd) {
-    const labels: string[] = [];
-    const current = new Date(customStart);
-    current.setHours(0, 0, 0, 0);
-    const end = new Date(customEnd);
-    end.setHours(23, 59, 59, 999);
-    while (current <= end) {
-      labels.push(`${pad(current.getDate())}/${pad(current.getMonth() + 1)}`);
-      current.setDate(current.getDate() + 1);
-    }
-    return labels;
+    const start = new Date(customStart);
+    start.setHours(0, 0, 0, 0);
+    const stop = new Date(customEnd);
+    stop.setHours(23, 59, 59, 999);
+    return { start, end: stop, unit: 'day' };
   }
+
   const days = range === '30d' ? 30 : 7;
-  return Array.from({ length: days }, (_, i) => {
-    const d = new Date(now.getTime() - (days - 1 - i) * 24 * 60 * 60 * 1000);
-    return `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
-  });
+  const start = new Date(end);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - (days - 1));
+  return { start, end, unit: 'day' };
 }
 
 /**
- * Aggregates stats from all site results into a single total.
+ * Generates the full list of expected buckets (key + display label) for the range.
+ * Deriva da mesma janela enviada à API, então os rótulos do eixo e os buckets
+ * devolvidos pelo Umami cobrem exatamente o mesmo período.
  */
-function aggregateStats(results: SiteResult[]): AggregatedStats {
-  const agg: AggregatedStats = { pageviews: 0, visitors: 0, visits: 0, bounces: 0, totaltime: 0 };
+function generateRangeBuckets(
+  range: UmamiRange,
+  customStart?: Date | null,
+  customEnd?: Date | null,
+): RangeBucket[] {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const { start, end, unit } = buildRangeWindow(range, customStart, customEnd);
 
-  for (const r of results) {
-    agg.pageviews += statValue(r.stats.pageviews);
-    agg.visitors += statValue(r.stats.visitors);
-    agg.visits += statValue(r.stats.visits);
-    agg.bounces += statValue(r.stats.bounces);
-    agg.totaltime += statValue(r.stats.totaltime);
+  const buckets: RangeBucket[] = [];
+  const current = new Date(start);
+  while (current <= end) {
+    buckets.push({
+      key: dateKeyFromDate(current, range),
+      label:
+        unit === 'hour'
+          ? `${pad(current.getHours())}:00`
+          : `${pad(current.getDate())}/${pad(current.getMonth() + 1)}`,
+    });
+    // Setters de Date (e não aritmética de ms) para não escorregar em mudanças de fuso.
+    if (unit === 'hour') current.setHours(current.getHours() + 1);
+    else current.setDate(current.getDate() + 1);
   }
-
-  return agg;
+  return buckets;
 }
 
 /**
- * Combines pageviews + sessions arrays from ALL sites, grouping by date label,
- * and returns a Recharts-ready dataset sorted chronologically.
+ * Combines pageviews + sessions arrays from ALL sites, grouping by bucket key,
+ * and returns a Recharts-ready dataset sorted chronologically. Buckets sem dados
+ * no período aparecem zerados.
  */
 export function buildChartData(
   results: SiteResult[],
   range: UmamiRange,
+  customStart?: Date | null,
+  customEnd?: Date | null,
 ): ChartDataPoint[] {
   const pvMap = new Map<string, number>();
   const sessMap = new Map<string, number>();
+  const labelByKey = new Map<string, string>();
 
   for (const r of results) {
     if (!r.pageviews) continue;
 
     for (const p of r.pageviews.pageviews) {
-      const label = formatDateLabel(p.x, range);
-      pvMap.set(label, (pvMap.get(label) ?? 0) + p.y);
+      const key = dateKey(p.x, range);
+      labelByKey.set(key, formatDateLabel(p.x, range));
+      pvMap.set(key, (pvMap.get(key) ?? 0) + p.y);
     }
 
     for (const s of r.pageviews.sessions) {
-      const label = formatDateLabel(s.x, range);
-      sessMap.set(label, (sessMap.get(label) ?? 0) + s.y);
+      const key = dateKey(s.x, range);
+      labelByKey.set(key, formatDateLabel(s.x, range));
+      sessMap.set(key, (sessMap.get(key) ?? 0) + s.y);
     }
   }
 
-  const allLabels = Array.from(new Set([...pvMap.keys(), ...sessMap.keys()]));
+  // Nenhum resultado ativo → gráfico vazio (o dashboard mostra o estado "sem dados").
+  if (!labelByKey.size) return [];
 
-  // Sort labels chronologically (dd/MM or HH:mm both sort correctly as strings
-  // when the original x values are ISO dates — we preserve insertion order which
-  // already comes sorted from Umami, but an explicit sort guarantees it).
-  allLabels.sort((a, b) => a.localeCompare(b));
+  for (const b of generateRangeBuckets(range, customStart, customEnd)) {
+    if (!labelByKey.has(b.key)) labelByKey.set(b.key, b.label);
+  }
 
-  return allLabels.map((date) => ({
-    date,
-    pageviews: pvMap.get(date) ?? 0,
-    sessions: sessMap.get(date) ?? 0,
+  // As chaves são "YYYY-MM-DD[THH]", que ordenam corretamente como string.
+  const allKeys = Array.from(labelByKey.keys()).sort();
+
+  return allKeys.map((key) => ({
+    date: labelByKey.get(key)!,
+    pageviews: pvMap.get(key) ?? 0,
+    sessions: sessMap.get(key) ?? 0,
   }));
 }
 
@@ -233,23 +306,23 @@ export function buildEventChartData(
   for (const r of results) {
     for (const e of r.events ?? []) {
       if (!e.eventName) continue;
-      const label = formatDateLabel(e.createdAt, range);
-      if (!dateMap.has(label)) dateMap.set(label, new Map());
-      const byName = dateMap.get(label)!;
+      const key = dateKey(e.createdAt, range);
+      if (!dateMap.has(key)) dateMap.set(key, new Map());
+      const byName = dateMap.get(key)!;
       byName.set(e.eventName, (byName.get(e.eventName) ?? 0) + 1);
     }
   }
 
-  // Use all expected labels for the range so days/hours without events appear as zero
-  const allLabels = generateRangeLabels(range, customStart, customEnd);
+  // Use all expected buckets for the range so days/hours without events appear as zero
+  const buckets = generateRangeBuckets(range, customStart, customEnd);
 
   const nameSet = new Set<string>();
   for (const byName of dateMap.values()) for (const n of byName.keys()) nameSet.add(n);
   const eventNames = Array.from(nameSet);
 
-  const chartData: EventChartDataPoint[] = allLabels.map((date) => {
-    const row: EventChartDataPoint = { date };
-    const byName = dateMap.get(date);
+  const chartData: EventChartDataPoint[] = buckets.map(({ key, label }) => {
+    const row: EventChartDataPoint = { date: label };
+    const byName = dateMap.get(key);
     for (const name of eventNames) row[name] = byName?.get(name) ?? 0;
     return row;
   });
@@ -270,19 +343,19 @@ export function buildEventChartData(
 
 const API_URL = '/api/umami';
 
-/** Umami client-side tracker — injected once into <head> */
+/**
+ * Umami client-side tracker — injected once into <head>. Endereço e id do site
+ * são públicos (vão no HTML), mas ficam no .env para não precisar recompilar ao
+ * trocar de instância — as duas variáveis já existiam ali, sem uso.
+ */
 const UMAMI_TRACKER = {
-  src: 'https://umamilab.ngrok.dev/script.js',
-  websiteId: '237b1a87-ebab-4ff1-affd-3a1b87068881',
+  src: import.meta.env.VITE_UMAMI_TRACKER_SRC ?? 'https://umamilab.ngrok.dev/script.js',
+  websiteId: import.meta.env.VITE_UMAMI_WEBSITE_ID ?? '237b1a87-ebab-4ff1-affd-3a1b87068881',
   scriptId: 'umami-tracker',
 } as const;
 
-const EMPTY_STATS: AggregatedStats = { pageviews: 0, visitors: 0, visits: 0, bounces: 0, totaltime: 0 };
-
 const EMPTY_DATA: UmamiAnalyticsData = {
   websites: [],
-  aggregatedStats: EMPTY_STATS,
-  chartData: [],
   results: [],
 };
 
@@ -321,21 +394,40 @@ export function useUmamiAnalytics(
       setError(null);
 
       try {
-        const url =
-          r === 'custom' && cStart && cEnd
-            ? `${apiUrl}?all=true&startAt=${cStart.getTime()}&endAt=${cEnd.getTime()}&unit=day`
-            : `${apiUrl}?all=true&range=${encodeURIComponent(r)}`;
+        // A janela é sempre calculada aqui (e não a partir de `range` no servidor)
+        // para que os buckets do Umami batam com os rótulos do eixo. O timezone do
+        // navegador vai junto: é ele que define onde o Umami corta cada bucket.
+        const { start, end, unit } = buildRangeWindow(r, cStart, cEnd);
+        const query = new URLSearchParams({
+          all: 'true',
+          startAt: String(start.getTime()),
+          endAt: String(end.getTime()),
+          unit,
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        });
+        const url = `${apiUrl}?${query.toString()}`;
+
+        // A rota exige a sessão do usuário (permissão canManageIT) — ver
+        // api/_lib/umamiAuth.ts.
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
         const res = await fetch(url, {
           signal: controller.signal,
           headers: {
             'Accept': 'application/json',
+            'Authorization': `Bearer ${token}`,
             'ngrok-skip-browser-warning': '69420',
           },
         });
 
         if (!res.ok) {
-          throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+          // 401/403 trazem uma mensagem útil no corpo ("Sessão inválida ou
+          // expirada.", "Sem permissão...") — mostrar isso em vez do status cru.
+          const body = await res.json().catch(() => null);
+          const apiError = (body as { error?: string } | null)?.error;
+          throw new Error(apiError || `HTTP ${res.status}: ${res.statusText}`);
         }
 
         // Guard against ngrok / proxy returning an HTML warning page
@@ -352,15 +444,9 @@ export function useUmamiAnalytics(
           throw new Error(json.error);
         }
 
-        const results = json.results ?? [];
-        const aggregatedStats = aggregateStats(results);
-        const chartData = buildChartData(results, r);
-
         setData({
           websites: json.websites ?? [],
-          aggregatedStats,
-          chartData,
-          results,
+          results: json.results ?? [],
         });
       } catch (err: unknown) {
         if (err instanceof DOMException && err.name === 'AbortError') return;

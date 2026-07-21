@@ -34,6 +34,8 @@ import {
   type SiteResult,
   buildChartData,
   buildEventChartData,
+  isPageviewEvent,
+  localDayKey,
   statValue,
 } from "../../hooks/useUmamiAnalytics";
 import { useTheme } from "../../hooks/useTheme";
@@ -58,8 +60,14 @@ const RANGE_OPTIONS: { value: Exclude<UmamiRange, "custom">; label: string }[] =
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatAvgTime(totaltime: number, pageviews: number): string {
-  const avgSeconds = Math.round(totaltime / Math.max(pageviews, 1));
+/**
+ * Duração média da visita, na definição do Umami: tempo total dividido pelas
+ * visitas que viram mais de uma página (ou seja, descontando as rejeições).
+ * https://docs.umami.is/docs/metric-definitions
+ */
+function formatAvgTime(totaltime: number, visits: number, bounces: number): string {
+  const engagedVisits = visits - Math.min(bounces, visits);
+  const avgSeconds = Math.round(totaltime / Math.max(engagedVisits, 1));
   if (avgSeconds < 60) return `${avgSeconds}s`;
   const mins = Math.floor(avgSeconds / 60);
   const secs = avgSeconds % 60;
@@ -113,8 +121,8 @@ const ITHubDashboard: React.FC = () => {
   );
 
   const filteredChartData = useMemo(
-    () => buildChartData(activeResults, range),
-    [activeResults, range],
+    () => buildChartData(activeResults, range, customStart, customEnd),
+    [activeResults, range, customStart, customEnd],
   );
 
   const {
@@ -155,7 +163,9 @@ const ITHubDashboard: React.FC = () => {
   const topPages = useMemo(() => {
     const counts = new Map<string, number>();
     for (const r of activeResults) {
-      for (const e of r.events ?? []) {
+      // Só pageviews: contar também os eventos customizados inflaria os números
+      // e nunca fecharia com o card "Visualizações".
+      for (const e of (r.events ?? []).filter(isPageviewEvent)) {
         const path = e.urlPath || "/";
         counts.set(path, (counts.get(path) ?? 0) + 1);
       }
@@ -223,7 +233,7 @@ const ITHubDashboard: React.FC = () => {
     },
     {
       label: "Tempo Médio",
-      value: hasStats ? formatAvgTime(s.totaltime, s.pageviews) : "—",
+      value: hasStats ? formatAvgTime(s.totaltime, s.visits, s.bounces) : "—",
       icon: Clock,
       color: "bg-gradient-to-br from-emerald-500 to-green-600",
       shadow: "shadow-emerald-500/30",
@@ -281,13 +291,15 @@ const ITHubDashboard: React.FC = () => {
   );
 
   const otherEventStats = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    // `createdAt` vem em UTC; `localDayKey` converte para o dia local antes de
+    // comparar, senão tudo que acontece depois das 21h conta como "amanhã".
+    const today = localDayKey(new Date());
     const allEvents = otherActiveResults
       .flatMap((r) => r.events ?? [])
       .filter((e) => e.eventName);
     const totalEvents = otherEventSummary.reduce((s, i) => s + i.count, 0);
-    const eventsToday = allEvents.filter((e) =>
-      e.createdAt.replace(" ", "T").startsWith(today),
+    const eventsToday = allEvents.filter(
+      (e) => localDayKey(e.createdAt) === today,
     ).length;
     const uniqueTypes = otherEventNames.length;
     const topEvent = otherEventSummary[0] ?? null;
@@ -582,7 +594,7 @@ const ITHubDashboard: React.FC = () => {
             </div>
 
             {/* Live dot */}
-            {!loading && data.chartData.length > 0 && (
+            {!loading && filteredChartData.length > 0 && (
               <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/20 border border-emerald-500/30">
                 <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
