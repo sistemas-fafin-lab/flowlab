@@ -24,6 +24,7 @@ import {
   Lock,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
 import { hasPermission } from '../../utils/permissions';
@@ -32,7 +33,8 @@ import Notification from '../Notification';
 import KanbanPromoteModal from './KanbanPromoteModal';
 import SLABadge from './SLABadge';
 import { useNotificationCenter } from '../../hooks/useNotificationCenter';
-import { APP_BASE_URL } from '../../utils/appUrl';
+import { IT_REQUESTS_PATH, itRequestUrl } from '../../utils/itRequestLink';
+import type { ITRequestNavState, ITRequestTab } from '../../utils/itRequestLink';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -130,6 +132,16 @@ const ITRequestManagement: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('all');
   const [selectedRequest, setSelectedRequest] = useState<ITRequest | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details');
+
+  // ─── Chamado a abrir automaticamente ────────────────────────────────────────
+  // Vem do sino (state do react-router, com o código do chamado) ou do botão de
+  // um email (?open=<id> na URL). Guarda o identificador até a lista carregar.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [pendingOpen, setPendingOpen] = useState<string | null>(null);
+  const pendingTabRef = useRef<ITRequestTab | null>(null);
+
   const [kanbanModalReq, setKanbanModalReq] = useState<{
     id: string; title: string; description: string | null;
     project_id?: string | null; sprint_id?: string | null;
@@ -142,9 +154,12 @@ const ITRequestManagement: React.FC = () => {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
-  // Reset tab to 'details' whenever a new request is opened
+  // Reset tab whenever a new request is opened — 'details', exceto na abertura
+  // vinda de um deep-link com ?tab=chat (consumido uma única vez).
   useEffect(() => {
-    if (selectedRequest) setActiveTab('details');
+    if (!selectedRequest) return;
+    setActiveTab(pendingTabRef.current ?? 'details');
+    pendingTabRef.current = null;
   }, [selectedRequest?.id]);
 
   // Fetch comments when modal opens on chat tab or when switching to chat
@@ -267,6 +282,37 @@ const ITRequestManagement: React.FC = () => {
   useEffect(() => {
     if (userId) fetchRequests();
   }, [userId, isITManager]);
+
+  // ─── Abertura automática de um chamado ──────────────────────────────────────
+  // 1) Captura o alvo a cada navegação (location.key muda mesmo quando o sino é
+  //    clicado já estando nesta página, o que remonta nada mas precisa reabrir).
+  useEffect(() => {
+    const navState = location.state as ITRequestNavState | null;
+    const target = navState?.itTicketCode ?? searchParams.get('open');
+    if (!target) return;
+    pendingTabRef.current =
+      navState?.itTab === 'chat' || searchParams.get('tab') === 'chat' ? 'chat' : null;
+    setPendingOpen(target);
+  }, [location.key, location.state, searchParams]);
+
+  // 2) Quando a lista termina de carregar, abre o modal do chamado — casando por
+  //    código (sino) ou id (email) — e apaga o alvo do histórico, para que voltar
+  //    ou recarregar a página não reabra o modal sozinho.
+  useEffect(() => {
+    if (!pendingOpen || loading) return;
+    const req = requests.find((r) => r.id === pendingOpen || r.codigo === pendingOpen);
+    if (req) setSelectedRequest(req);
+    setPendingOpen(null);
+
+    if (searchParams.has('open') || searchParams.has('tab')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('open');
+      next.delete('tab');
+      setSearchParams(next, { replace: true });
+    } else if (location.state) {
+      navigate(location.pathname, { replace: true, state: null });
+    }
+  }, [pendingOpen, loading, requests, searchParams, setSearchParams, location.state, location.pathname, navigate]);
 
   // ─── Filtered list ──────────────────────────────────────────────────────────
   const filteredRequests = useMemo(() => {
@@ -431,7 +477,7 @@ const ITRequestManagement: React.FC = () => {
               : `O status do chamado ${req.codigo} mudou para ${statusLabel}.`,
             module: 'IT',
             type: newStatus === 'resolved' ? 'success' : newStatus === 'cancelled' ? 'warning' : 'info',
-            link: '/requests',
+            link: IT_REQUESTS_PATH,
             sendEmail,
             emailData: sendEmail
               ? {
@@ -442,7 +488,7 @@ const ITRequestManagement: React.FC = () => {
                     ticket_code: req.codigo,
                     ticket_title: req.title,
                     status_label: statusLabel,
-                    action_url: `${APP_BASE_URL}/requests`,
+                    action_url: itRequestUrl(req.id),
                   },
                 }
               : undefined,

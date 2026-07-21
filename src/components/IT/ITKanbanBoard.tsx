@@ -40,7 +40,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
 import { useNotificationCenter } from '../../hooks/useNotificationCenter';
 import { supabase } from '../../lib/supabase';
-import { APP_BASE_URL } from '../../utils/appUrl';
+import { IT_REQUESTS_PATH, itRequestUrl } from '../../utils/itRequestLink';
 import Notification from '../Notification';
 import ITTaskDrawer from './ITTaskDrawer';
 import ITProjectManager from './ITProjectManager';
@@ -919,7 +919,7 @@ const ITKanbanBoard: React.FC = () => {
               content: `O chamado ${task.codigo} foi concluído e marcado como resolvido.`,
               module: 'IT',
               type: 'success',
-              link: '/requests',
+              link: IT_REQUESTS_PATH,
               sendEmail: shouldSendEmail,
               emailData: shouldSendEmail
                 ? {
@@ -930,7 +930,7 @@ const ITKanbanBoard: React.FC = () => {
                       ticket_code: task.codigo,
                       ticket_title: task.title,
                       status_label: statusLabel,
-                      action_url: `${APP_BASE_URL}/requests`,
+                      action_url: itRequestUrl(task.id),
                     },
                   }
                 : undefined,
@@ -1101,7 +1101,7 @@ const ITKanbanBoard: React.FC = () => {
               content: `O chamado ${task.codigo} foi concluído e marcado como resolvido.`,
               module: 'IT',
               type: 'success',
-              link: '/requests',
+              link: IT_REQUESTS_PATH,
               sendEmail: shouldSendEmail,
               emailData: shouldSendEmail
                 ? {
@@ -1112,7 +1112,7 @@ const ITKanbanBoard: React.FC = () => {
                       ticket_code: task.codigo,
                       ticket_title: task.title,
                       status_label: statusLabel,
-                      action_url: `${APP_BASE_URL}/requests`,
+                      action_url: itRequestUrl(task.id),
                     },
                   }
                 : undefined,

@@ -28,6 +28,7 @@ import {
 } from 'lucide-react';
 import { useNotificationCenter, UserNotification, NotificationModule } from '../hooks/useNotificationCenter';
 import { useAuth } from '../hooks/useAuth';
+import { resolveNotificationTarget } from '../utils/itRequestLink';
 
 
 
@@ -85,16 +86,20 @@ interface NotificationItemProps {
 
 const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onRead, onClose }) => {
   const navigate = useNavigate();
-  const { id, title, content, module, type, link, is_read, created_at } = notification;
+  const { id, title, content, module, type, is_read, created_at } = notification;
 
   const moduleColor = MODULE_COLORS[module] ?? 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400';
+
+  // Destino do clique: para chamados de TI, abre o modal do chamado citado no
+  // texto; para o resto, o `link` gravado na notificação.
+  const target = resolveNotificationTarget(notification);
 
   const handleClick = async () => {
     if (!is_read) {
       await onRead(id).catch(() => {/* silencioso */});
     }
-    if (link) {
-      navigate(link);
+    if (target) {
+      navigate(target.path, target.state ? { state: target.state } : undefined);
       onClose();
     }
   };
@@ -109,7 +114,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({ notification, onRea
           ? 'bg-violet-50/60 dark:bg-violet-900/20 hover:bg-violet-50 dark:hover:bg-violet-900/30'
           : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
         }
-        ${link ? 'cursor-pointer' : 'cursor-default'}
+        ${target ? 'cursor-pointer' : 'cursor-default'}
       `}
     >
       {/* Ícone do módulo */}

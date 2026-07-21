@@ -34,7 +34,7 @@ import {
 import type { ITRequest, KanbanColumn, ITProject, ITSprint } from './ITKanbanBoard';
 import { calcES } from './ITKanbanBoard';
 import SLABadge from './SLABadge';
-import { APP_BASE_URL } from '../../utils/appUrl';
+import { IT_NEW_REPLY_TITLE, IT_REQUESTS_PATH, itRequestUrl } from '../../utils/itRequestLink';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
 import { hasPermission } from '../../utils/permissions';
@@ -487,7 +487,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
             : `O status do chamado ${task.codigo} mudou para ${statusLabel}.`,
           module: 'IT',
           type: value === 'resolved' ? 'success' : value === 'cancelled' ? 'warning' : 'info',
-          link: '/requests',
+          link: IT_REQUESTS_PATH,
           sendEmail,
           emailData: sendEmail
             ? {
@@ -498,7 +498,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                   ticket_code: task.codigo,
                   ticket_title: task.title,
                   status_label: statusLabel,
-                  action_url: `${APP_BASE_URL}/requests`,
+                  action_url: itRequestUrl(task.id),
                 },
               }
             : undefined,
@@ -542,11 +542,11 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
 
             await sendNotification({
               userId: task.requested_by,
-              title: 'Nova resposta da TI',
+              title: IT_NEW_REPLY_TITLE,
               content: `Você tem uma nova mensagem no chamado ${task.codigo}.`,
               module: 'IT',
               type: 'info',
-              link: '/requests',
+              link: IT_REQUESTS_PATH,
               sendEmail: !!requesterData?.email,
               emailData: requesterData?.email
                 ? {
@@ -556,7 +556,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                       user_name: requesterData.name || task.requester_name || 'Usuário',
                       ticket_code: task.codigo,
                       ticket_message: text,
-                      action_url: `${APP_BASE_URL}/requests`,
+                      action_url: itRequestUrl(task.id, 'chat'),
                     },
                   }
                 : undefined,
