@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createUmamiClient, buildTimeRangeParams } from './api/_lib/umami';
 import type { UmamiTimeRange, UmamiTimeUnit } from './api/_lib/umami';
+import { authorizeUmamiRequest } from './api/_lib/umamiAuth';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 // ── Dev-only middleware para POST /api/notifications/email ───────────────────
@@ -132,11 +133,28 @@ function umamiApiPlugin(env: Record<string, string>): Plugin {
         const url = new URL(req.url, 'http://localhost');
         const param = (key: string): string | null => url.searchParams.get(key);
 
+        const send = (status: number, body: unknown) => {
+          res.statusCode = status;
+          res.setHeader('Content-Type', 'application/json');
+          res.setHeader('Cache-Control', 'no-store');
+          res.end(JSON.stringify(body));
+        };
+
+        // Mesma autorização da produção: dev que não exige sessão esconde 401/403
+        // que só apareceriam depois do deploy. `authorizeUmamiRequest` lê os
+        // segredos de process.env, então mapeamos as vars do .env antes.
+        for (const k of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
+          if (env[k] && !process.env[k]) process.env[k] = env[k];
+        }
+        const auth = await authorizeUmamiRequest(req.headers.authorization);
+        if (!auth.ok) return send(auth.status, { error: auth.error });
+
         const websiteId  = param('id');
         const startAtRaw = param('startAt');
         const endAtRaw   = param('endAt');
         const unitRaw    = param('unit') as UmamiTimeUnit | null;
         const rangeRaw   = param('range');
+        const timezone   = param('timezone');
         const all        = param('all') === 'true';
 
         const range: UmamiTimeRange =
@@ -144,24 +162,26 @@ function umamiApiPlugin(env: Record<string, string>): Plugin {
             ? { startAt: Number(startAtRaw), endAt: Number(endAtRaw), unit: unitRaw ?? 'day' }
             : ((rangeRaw ?? '24h') as UmamiTimeRange);
 
-        const client = createUmamiClient({
-          baseUrl:  env.UMAMI_BASE_URL  ?? 'https://umamilab.ngrok.dev/api',
-          username: env.UMAMI_USER      ?? 'admin',
-          password: env.UMAMI_PASS      ?? 'umami',
-          timezone: env.UMAMI_TIMEZONE  ?? 'America/Sao_Paulo',
-        });
+        // Sem fallback de credencial, igual à produção (ver api/umami.ts).
+        if (!env.UMAMI_BASE_URL || !env.UMAMI_USER || !env.UMAMI_PASS) {
+          return send(500, {
+            error: 'Defina UMAMI_BASE_URL, UMAMI_USER e UMAMI_PASS no .env',
+          });
+        }
 
-        const send = (status: number, body: unknown) => {
-          res.statusCode = status;
-          res.setHeader('Content-Type', 'application/json');
-          res.setHeader('Access-Control-Allow-Origin', '*');
-          res.end(JSON.stringify(body));
-        };
+        const client = createUmamiClient({
+          baseUrl:  env.UMAMI_BASE_URL,
+          username: env.UMAMI_USER,
+          password: env.UMAMI_PASS,
+          timezone: env.UMAMI_TIMEZONE ?? 'America/Sao_Paulo',
+        });
 
         try {
           await client.authenticate();
           const websites = await client.getWebsites();
-          const params   = buildTimeRangeParams(range);
+          // Mesmo contrato do handler de produção (api/umami.ts): o timezone do
+          // cliente manda, para os buckets baterem com os rótulos do gráfico.
+          const params   = { ...buildTimeRangeParams(range), ...(timezone ? { timezone } : {}) };
 
           if (all) {
             if (!websites.length) {

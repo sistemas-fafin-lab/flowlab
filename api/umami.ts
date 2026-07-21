@@ -1,14 +1,22 @@
 // api/umami.ts
-// Vercel Serverless Function (Node.js runtime) — arquivo único, sem imports locais.
+// Vercel Serverless Function (Node.js runtime).
 // Recebe requisições do SPA e as repassa para a instância self-hosted do Umami.
 //
-// Variáveis de ambiente necessárias no painel Vercel (Production + Preview):
+// Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do usuário,
+// que precisa de `canManageIT` — a mesma permissão da rota /it/dashboard no SPA.
+// Ver api/_lib/umamiAuth.ts.
+//
+// Variáveis de ambiente OBRIGATÓRIAS (Production + Preview no painel Vercel,
+// e .env no ambiente local) — sem fallback em código:
 //   UMAMI_BASE_URL   → ex: https://umamilab.ngrok.dev/api
-//   UMAMI_USER       → ex: admin
-//   UMAMI_PASS       → ex: sua-senha
-//   UMAMI_TIMEZONE   → ex: America/Sao_Paulo
+//   UMAMI_USER       → usuário de leitura no Umami
+//   UMAMI_PASS       → senha desse usuário
+//   UMAMI_TIMEZONE   → opcional, default America/Sao_Paulo
+//   SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY → usadas para validar a sessão
 
-// ─── Umami client (inlined from api/_lib/umami.ts para evitar problemas de ESM) ──
+import { authorizeUmamiRequest } from './_lib/umamiAuth.js';
+
+// ─── Umami client (cópia de api/_lib/umami.ts; manter os dois em sincronia) ────
 
 interface UmamiConfig {
   baseUrl: string;
@@ -144,6 +152,7 @@ function buildTimeRangeParams(range: UmamiTimeRange): Omit<UmamiQueryParams, 'ti
 // Tipos mínimos do Vercel para o handler (evita depender de @vercel/node)
 interface VercelRequest {
   query: Record<string, string | string[]>;
+  headers: Record<string, string | string[] | undefined>;
 }
 interface VercelResponse {
   status(code: number): VercelResponse;
@@ -158,7 +167,14 @@ function param(query: VercelRequest['query'], key: string): string | null {
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Sem `Access-Control-Allow-Origin`: o SPA chama esta rota na mesma origem.
+  // Liberar `*` deixava qualquer site ler as métricas de todas as aplicações.
+  res.setHeader('Cache-Control', 'no-store');
+
+  const auth = await authorizeUmamiRequest(req.headers?.authorization);
+  if (!auth.ok) {
+    return res.status(auth.status).json({ error: auth.error });
+  }
 
   const { query } = req;
 
@@ -167,6 +183,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   const endAtRaw   = param(query, 'endAt');
   const unitRaw    = param(query, 'unit') as UmamiTimeUnit | null;
   const rangeRaw   = param(query, 'range');
+  const timezone   = param(query, 'timezone');
   const all        = param(query, 'all') === 'true';
 
   const range: UmamiTimeRange =
@@ -174,18 +191,28 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ? { startAt: Number(startAtRaw), endAt: Number(endAtRaw), unit: unitRaw ?? 'day' }
       : ((rangeRaw ?? '24h') as UmamiTimeRange);
 
+  // Sem fallback: credencial em código vaza no repositório e some do controle de
+  // rotação. Faltando a variável, o endpoint falha em vez de tentar um palpite.
+  const { UMAMI_BASE_URL, UMAMI_USER, UMAMI_PASS } = process.env;
+  if (!UMAMI_BASE_URL || !UMAMI_USER || !UMAMI_PASS) {
+    console.error('[api/umami] UMAMI_BASE_URL, UMAMI_USER e UMAMI_PASS são obrigatórias');
+    return res.status(500).json({ error: 'Integração com o Umami não configurada.' });
+  }
+
   const client = createUmamiClient({
-    baseUrl:  process.env.UMAMI_BASE_URL  ?? 'https://umamilab.ngrok.dev/api',
-    username: process.env.UMAMI_USER      ?? 'admin',
-    password: process.env.UMAMI_PASS      ?? 'umamiLab00421',
-    timezone: process.env.UMAMI_TIMEZONE  ?? 'America/Sao_Paulo',
+    baseUrl:  UMAMI_BASE_URL,
+    username: UMAMI_USER,
+    password: UMAMI_PASS,
+    timezone: process.env.UMAMI_TIMEZONE ?? 'America/Sao_Paulo',
   });
 
   try {
     await client.authenticate();
 
     const websites = await client.getWebsites();
-    const params   = buildTimeRangeParams(range);
+    // O timezone define onde o Umami corta cada bucket. O cliente manda o do
+    // navegador para casar com os rótulos do gráfico; sem ele, cai no env.
+    const params   = { ...buildTimeRangeParams(range), ...(timezone ? { timezone } : {}) };
 
     if (all) {
       if (!websites.length) {
