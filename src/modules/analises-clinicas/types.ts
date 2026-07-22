@@ -22,6 +22,11 @@ export interface AcAgendamento {
   status: AcAgendamentoStatus;
   recebido_em: string;
   updated_at: string;
+  // Auditoria do cancelamento pelo operador (migration 20260722120000). Todos
+  // NULL quando o cancelamento veio do LAB-HUB (receive-cancelamento não preenche).
+  cancelado_em?: string | null; // ISO 8601
+  cancelado_por?: string | null;
+  cancelamento_motivo?: string | null;
 }
 
 export interface AcPosto {

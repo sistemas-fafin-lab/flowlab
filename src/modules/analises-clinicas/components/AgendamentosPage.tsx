@@ -35,7 +35,10 @@ import {
   type PostoDisponivel,
 } from '../hooks/useAgendamentos';
 import { usePostos } from '../hooks/usePostos';
+import { useColetas } from '../hooks/useColetas';
 import { useAuth } from '../../../hooks/useAuth';
+import { useDialog } from '../../../hooks/useDialog';
+import InputDialog from '../../../components/InputDialog';
 import { hasPermission } from '../../../utils/permissions';
 import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento } from '../types';
 
@@ -397,12 +400,15 @@ const DetalheLinha: React.FC<{ icon: LucideIcon; label: string; valor: string }>
 // Abre ao clicar numa linha da lista. Mostra os dados do agendamento e, quando o
 // status permite (recebido → conferência, em_coleta → coleta) e o operador tem
 // permissão, oferece o botão que leva ao modal correspondente no Painel de Coletas.
+// `onCancelar` (opcional) habilita o cancelamento lógico — a página só passa a
+// prop quando o operador tem canDeleteAgendamentos e o status permite cancelar.
 const DetalheAgendamentoModal: React.FC<{
   ag: AcAgendamento;
   canManage: boolean;
   onClose: () => void;
   onIrParaAcao: () => void;
-}> = ({ ag, canManage, onClose, onIrParaAcao }) => {
+  onCancelar?: () => void;
+}> = ({ ag, canManage, onClose, onIrParaAcao, onCancelar }) => {
   const cfg = statusCfg(ag.status);
   const acao = ACAO_STATUS[ag.status];
   const AcaoIcon = acao?.icon;
@@ -467,21 +473,39 @@ const DetalheAgendamentoModal: React.FC<{
               label="Recebido em"
               valor={`${fmtHora(ag.recebido_em)} · ${fmtData(ag.recebido_em)}`}
             />
+            {/* Auditoria do cancelamento: sem autor = veio do LAB-HUB (o
+                receive-cancelamento não preenche as colunas). */}
+            {ag.status === 'cancelado' && (
+              <DetalheLinha icon={XCircle} label="Cancelado por" valor={ag.cancelado_por ?? 'LAB-HUB'} />
+            )}
+            {ag.status === 'cancelado' && ag.cancelamento_motivo && (
+              <DetalheLinha icon={FileText} label="Motivo" valor={ag.cancelamento_motivo} />
+            )}
           </div>
         </div>
 
         {/* Rodapé: fechar + ação contextual (só operador, só status com ação) */}
         <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-700 rounded-b-2xl flex items-center justify-end gap-2">
+          {onCancelar && (
+            <button
+              onClick={onCancelar}
+              title="Cancelar agendamento"
+              className="mr-auto inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 shadow-md shadow-red-500/25 hover:shadow-lg transition-all duration-200"
+            >
+              <XCircle className="w-4 h-4" />
+              Cancelar
+            </button>
+          )}
           <button
             onClick={onClose}
-            className="px-5 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 transition-all duration-200"
+            className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 transition-all duration-200"
           >
             Fechar
           </button>
           {acao && canManage && AcaoIcon && (
             <button
               onClick={onIrParaAcao}
-              className={`inline-flex items-center gap-2 px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r ${acao.classes} shadow-md hover:shadow-lg hover-lift transition-all duration-200`}
+              className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r ${acao.classes} shadow-md hover:shadow-lg hover-lift transition-all duration-200`}
             >
               <AcaoIcon className="w-4 h-4" />
               {acao.label}
@@ -1109,8 +1133,37 @@ const AgendamentosPage: React.FC = () => {
     uploadDocumento,
   } = useAgendamentos(filtros);
   const { postos } = usePostos();
-  const { userProfile } = useAuth();
+  const { user, userProfile } = useAuth();
   const canManage = hasPermission(userProfile?.permissions || [], 'canManageColetas');
+  // Cancelar agendamento tem permissão própria (mais restrita que operar coletas).
+  const canDelete = hasPermission(userProfile?.permissions || [], 'canDeleteAgendamentos');
+  const operadorNome = userProfile?.name || user?.email || 'Sistema';
+  const { cancelarAgendamento } = useColetas();
+  const { inputDialog, showInputDialog, hideInputDialog, handleInputDialogConfirm } = useDialog();
+
+  // Cancelamento lógico pelo drawer. O InputDialog (motivo opcional) é a própria
+  // confirmação: fechar sem confirmar resolve null e nada acontece. A RPC valida
+  // o status; o horário volta a ficar disponível e o LAB-HUB não é notificado.
+  const handleCancelar = async (ag: AcAgendamento) => {
+    const motivo = await showInputDialog(
+      'Cancelar agendamento',
+      `Cancelar o agendamento de ${ag.paciente_nome}? O horário volta a ficar disponível para outros pacientes e o LAB-HUB não é notificado.`,
+      {
+        required: false,
+        confirmText: 'Cancelar agendamento',
+        cancelText: 'Voltar',
+        placeholder: 'Motivo (opcional)',
+      },
+    );
+    if (motivo === null) return; // fechou sem confirmar
+    const erro = await cancelarAgendamento(ag.id, operadorNome, motivo || null);
+    if (erro) {
+      window.alert(`Não foi possível cancelar: ${erro}`);
+      return;
+    }
+    setDetalhe(null);
+    void refetch();
+  };
 
   // Deep-link para o Painel de Coletas: leva o item ao modal do seu status já no
   // dia certo (?data). A rota /coletas exige canManageColetas — por isso o botão de
@@ -1209,8 +1262,27 @@ const AgendamentosPage: React.FC = () => {
           canManage={canManage}
           onClose={() => setDetalhe(null)}
           onIrParaAcao={() => abrirNoColetas(detalhe)}
+          onCancelar={
+            canDelete && ['recebido', 'em_coleta', 'bloqueado'].includes(detalhe.status)
+              ? () => void handleCancelar(detalhe)
+              : undefined
+          }
         />
       )}
+
+      {/* Motivo do cancelamento (z-[60], acima do drawer z-50) */}
+      <InputDialog
+        isOpen={inputDialog.isOpen}
+        title={inputDialog.title}
+        message={inputDialog.message}
+        placeholder={inputDialog.placeholder}
+        confirmText={inputDialog.confirmText}
+        cancelText={inputDialog.cancelText}
+        onConfirm={handleInputDialogConfirm}
+        onCancel={hideInputDialog}
+        required={inputDialog.required}
+      />
+
 
       {/* Cartões-resumo por posto */}
       {postosAtivos.length > 0 && (

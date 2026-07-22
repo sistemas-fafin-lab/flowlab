@@ -23,6 +23,13 @@ interface UseColetasResult {
   ) => Promise<string | null>;
   // Conferências dos agendamentos informados (p/ exibir o motivo dos bloqueados).
   fetchCheckins: (agendamentoIds: string[]) => Promise<AcCheckin[]>;
+  // Cancelamento lógico (status='cancelado'): libera o horário; não avisa o
+  // LAB-HUB. A RPC recusa 'coletado' e já-cancelado. Retorna o erro, ou null.
+  cancelarAgendamento: (
+    agendamentoId: string,
+    canceladoPor: string,
+    motivo: string | null,
+  ) => Promise<string | null>;
 }
 
 // Fluxo de coleta (Fase 6). As mutações rodam nas RPCs transacionais
@@ -58,6 +65,18 @@ export function useColetas(): UseColetasResult {
     [],
   );
 
+  const cancelarAgendamento = useCallback<UseColetasResult['cancelarAgendamento']>(
+    async (agendamentoId, canceladoPor, motivo) => {
+      const { error } = await supabase.rpc('cancelar_agendamento', {
+        p_agendamento_id: agendamentoId,
+        p_cancelado_por: canceladoPor,
+        p_motivo: motivo,
+      });
+      return error ? error.message : null;
+    },
+    [],
+  );
+
   const fetchCheckins = useCallback<UseColetasResult['fetchCheckins']>(async (agendamentoIds) => {
     if (agendamentoIds.length === 0) return [];
     const { data, error } = await supabase
@@ -68,5 +87,5 @@ export function useColetas(): UseColetasResult {
     return (data ?? []) as AcCheckin[];
   }, []);
 
-  return { registrarCheckin, registrarColeta, fetchCheckins };
+  return { registrarCheckin, registrarColeta, fetchCheckins, cancelarAgendamento };
 }
