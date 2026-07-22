@@ -485,8 +485,8 @@ const UserManagement: React.FC = () => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !q ||
-      user.name.toLowerCase().includes(q) ||
-      user.email.toLowerCase().includes(q) ||
+      (user.name || '').toLowerCase().includes(q) ||
+      (user.email || '').toLowerCase().includes(q) ||
       getDepartmentLabel(user.department).toLowerCase().includes(q) ||
       (user.roleName || '').toLowerCase().includes(q);
     const matchesDept = filterDept === 'all' || user.department === filterDept;
