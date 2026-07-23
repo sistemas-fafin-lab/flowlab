@@ -454,6 +454,9 @@ export interface ApoioPipelineResult {
   data_solicitacao?: string | null;
   exames_imagem?: ApoioExameExtraido[];
   exames_para_enviar?: ApoioExameExtraido[];
+  // Exames encontrados no BD Lab (MySQL, backup do sistema) e comparação OCR × BD.
+  exames_bd?: { procedimento: string; codigo: string }[];
+  comparacao_bd?: Record<string, unknown>;
   alvaro_xml_sugerido?: string;
   resumo?: Record<string, unknown>;
   // Bruto do apLIS repassado de volta no rebuild-xml — o SPA não interpreta.

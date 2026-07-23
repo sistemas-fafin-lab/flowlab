@@ -1,11 +1,11 @@
 // api/_lib/apoio/pipeline.ts
 // Orquestração do processamento da requisição médica (port de process_image do
 // envio_alvaro): OCR (Gemini) → enriquecimento pelo catálogo → conferência no
-// apLIS → comparação → XML AOL sugerido. O resultado espelha o contrato do legado
-// (mesmas chaves) para a tela de revisão e para o jsonb salvo em ac_apoio_fila.
-//
-// Diferença do legado: a etapa "BD Lab" (MySQL do apLIS via túnel ngrok) foi
-// descartada — inviável em serverless; a conferência fica por conta da API apLIS.
+// apLIS → conferência no BD Lab (MySQL, backup do sistema — a API apLIS nem
+// sempre traz tudo) → comparações → XML AOL sugerido. O resultado espelha o
+// contrato do legado (mesmas chaves) para a tela de revisão e para o jsonb
+// salvo em ac_apoio_fila. A etapa BD Lab é opcional: pulada sem DB_HOST/DB_USER
+// e tolerante a falha de conexão (túnel fora do ar não derruba o pipeline).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { PipelineLog } from './log.js';
@@ -19,6 +19,7 @@ import {
 import { montarPrompt } from './promptGemini.js';
 import { ocrRequisicao, type ArquivoRequisicao } from './gemini.js';
 import { buscarRequisicaoAplis, type RequisicaoAplis } from './aplis.js';
+import { bdLabConfigurado, buscarExamesBd, type ExameBd } from './bdLab.js';
 import { gerarXmlAlvaro, type DadosImagem } from './xmlAol.js';
 
 export interface ResultadoPipeline {
@@ -34,7 +35,9 @@ export interface ResultadoPipeline {
   data_solicitacao?: unknown;
   exames_imagem?: ExameImagem[];
   exames_aplis?: unknown[];
+  exames_bd?: ExameBd[];
   comparacao?: Record<string, unknown>;
+  comparacao_bd?: Record<string, unknown>;
   exames_para_enviar?: ExameImagem[];
   alvaro_xml_sugerido?: string;
   _aplis_raw?: RequisicaoAplis | null;
@@ -192,7 +195,52 @@ export async function processarRequisicao(
     result.etapas.aplis = { ok: false, aviso: 'Número de requisição não encontrado' };
   }
 
-  // 3. Comparação imagem × apLIS
+  // 3. Conferência no BD Lab (MySQL — backup do sistema do laboratório)
+  log.info('Etapa 3: Consultando exames no BD Lab');
+  let examesBd: ExameBd[] = [];
+  if (!numeroRequisicao) {
+    log.warn('Número de requisição ausente — consulta BD Lab pulada');
+    result.etapas.bd_lab = { ok: false, aviso: 'Número de requisição não encontrado' };
+  } else if (!bdLabConfigurado()) {
+    log.warn('BD Lab não configurado (DB_HOST/DB_USER) — etapa pulada');
+    result.etapas.bd_lab = { ok: false, aviso: 'BD Lab não configurado' };
+  } else {
+    try {
+      examesBd = await buscarExamesBd(numeroRequisicao, log);
+    } catch (err) {
+      log.error(`Erro ao consultar BD Lab: ${String(err)}`);
+      result.etapas.bd_lab = { ok: false, erro: String(err) };
+    }
+  }
+
+  // Comparação OCR × BD (por similaridade de nome, campo `nome` como no apLIS)
+  let comparacaoBd: Record<string, unknown>;
+  if (examesBd.length > 0) {
+    comparacaoBd = compararExames(
+      examesImagem,
+      examesBd.map((ex) => ({ nome: ex.procedimento, codigo: ex.codigo, _bd_raw: ex })),
+      log,
+    );
+    result.etapas.bd_lab = {
+      ok: true,
+      exames_bd: examesBd.length,
+      coincidentes: (comparacaoBd.coincidentes as unknown[]).length,
+      so_na_imagem: (comparacaoBd.so_na_imagem as unknown[]).length,
+      so_no_bd: (comparacaoBd.so_no_aplis as unknown[]).length,
+    };
+  } else {
+    comparacaoBd = {
+      coincidentes: [],
+      so_na_imagem: examesImagem,
+      so_no_aplis: [],
+      divergencia: examesImagem.length > 0,
+    };
+    if (!result.etapas.bd_lab) {
+      result.etapas.bd_lab = { ok: true, exames_bd: 0, aviso: 'Requisição não encontrada no BD' };
+    }
+  }
+
+  // 4. Comparação imagem × apLIS
   const examesAplis = (aplis?.exames ?? []) as Record<string, unknown>[];
   const comparacao = compararExames(examesImagem, examesAplis, log);
   result.etapas.comparacao = {
@@ -207,7 +255,7 @@ export async function processarRequisicao(
   const examesParaEnviar = examesImagem.filter((ex) => ex.codigo_aol_sugerido);
   log.info(`Exames com código AOL para enviar: ${examesParaEnviar.length} de ${examesImagem.length}`);
 
-  // 4. Consolidação do paciente/médico (apLIS tem prioridade sobre a imagem)
+  // 5. Consolidação do paciente/médico (apLIS tem prioridade sobre a imagem)
   const pacienteImagem = (ocrData.paciente ?? {}) as Record<string, unknown>;
   const medicoImagem = (ocrData.medico ?? {}) as Record<string, unknown>;
   const paciente = {
@@ -223,8 +271,8 @@ export async function processarRequisicao(
     crm: aplis?.medico_crm ?? medicoImagem.crm ?? null,
   };
 
-  // 5. XML AOL sugerido
-  log.info('Etapa 3: Gerando XML para o Álvaro');
+  // 6. XML AOL sugerido
+  log.info('Etapa 4: Gerando XML para o Álvaro');
   const dadosImagem: DadosImagem = {
     paciente: pacienteImagem,
     medico: medicoImagem,
@@ -241,7 +289,9 @@ export async function processarRequisicao(
   result.data_solicitacao = aplis?.data_solicitacao ?? ocrData.data_solicitacao ?? null;
   result.exames_imagem = examesImagem;
   result.exames_aplis = examesAplis;
+  result.exames_bd = examesBd;
   result.comparacao = comparacao;
+  result.comparacao_bd = comparacaoBd;
   result.exames_para_enviar = examesParaEnviar;
   result.alvaro_xml_sugerido = xml;
   result._aplis_raw = aplis; // usado pelo rebuild-xml
@@ -252,11 +302,19 @@ export async function processarRequisicao(
     so_na_imagem: (comparacao.so_na_imagem as unknown[]).length,
     so_no_aplis: (comparacao.so_no_aplis as unknown[]).length,
     divergencia: comparacao.divergencia,
+    total_bd: examesBd.length,
+    coincidentes_bd: (comparacaoBd.coincidentes as unknown[]).length,
+    so_na_imagem_bd: (comparacaoBd.so_na_imagem as unknown[]).length,
+    so_no_bd: (comparacaoBd.so_no_aplis as unknown[]).length,
+    divergencia_bd: comparacaoBd.divergencia,
     para_enviar_alvaro: examesParaEnviar.length,
     aplis_consultado: aplis !== null,
+    bd_consultado: examesBd.length > 0,
     fonte_paciente: paciente.fonte,
   };
-  log.ok(`═══ Pipeline concluído — ${examesParaEnviar.length} exame(s) prontos para o Álvaro ═══`);
+  log.ok(
+    `═══ Pipeline concluído — ${examesParaEnviar.length} exame(s) prontos para o Álvaro | BD: ${(comparacaoBd.so_na_imagem as unknown[]).length} só imagem, ${(comparacaoBd.so_no_aplis as unknown[]).length} só BD ═══`,
+  );
   result.log = log.toList();
   return result;
 }
