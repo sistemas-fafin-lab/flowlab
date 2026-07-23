@@ -29,6 +29,9 @@ dist-ssr
 .vercel
 .env*.local
 
+# Artefatos compilados das serverless functions (fonte é .ts; o vercel dev/tsc gera .js)
+api/**/*.js
+
 # design-sync (claude.ai/design)
 .ds-sync/
 ds-bundle/
