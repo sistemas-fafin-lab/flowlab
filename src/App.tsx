@@ -33,7 +33,7 @@ import ITKanbanBoard from './components/IT/ITKanbanBoard';
 import TestKanban from './components/IT/TestKanban';
 import { NotificationAdminPanel } from './components/NotificationAdminPanel';
 import CostControlDashboard from './pages/CostControlDashboard';
-import { AgendamentosPage, PostosPage, PainelColetasPage, TemperaturaEquipamentosPage, CulturasPage, RecoletasPage, LaudosPage, IndicadoresPage } from './modules/analises-clinicas';
+import { AgendamentosPage, PostosPage, PainelColetasPage, TemperaturaEquipamentosPage, CulturasPage, RecoletasPage, LaudosPage, IndicadoresPage, EnvioApoioPage } from './modules/analises-clinicas';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -306,6 +306,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canManageColetas" permissions={userPermissions}>
               <LaudosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/analises-clinicas/envio-apoio"
+          element={
+            <ProtectedRoute permission="canManageColetas" permissions={userPermissions}>
+              <EnvioApoioPage />
             </ProtectedRoute>
           }
         />

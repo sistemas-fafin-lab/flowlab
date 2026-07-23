@@ -359,3 +359,114 @@ export interface AcLaudo {
   atualizado_em: string;  // ISO 8601
   liberado_em: string | null; // ISO 8601 (carimbo ao liberar)
 }
+
+// ─── Envio ao Apoio (Álvaro/DASA) — port do envio_alvaro ────────────────────────
+// Espelham ac_apoio_exames / ac_apoio_fila / ac_apoio_requisicoes
+// (migration 20260723120000). Campos jsonb ficam em snake_case: é o formato que o
+// pipeline gera e que foi migrado do Supabase legado do envio_alvaro.
+
+// Status de um item da fila de envio. 'aguardando'/'enviando' = aba Fila;
+// 'enviado'/'erro' = aba Histórico.
+export type ApoioFilaStatus = 'aguardando' | 'enviando' | 'enviado' | 'erro' | (string & {});
+
+export const STATUS_APOIO_FILA: { key: ApoioFilaStatus; label: string }[] = [
+  { key: 'aguardando', label: 'Aguardando' },
+  { key: 'enviando',   label: 'Enviando' },
+  { key: 'enviado',    label: 'Enviado' },
+  { key: 'erro',       label: 'Erro' },
+];
+
+// Linha do catálogo de exames do apoio (ac_apoio_exames).
+export interface ApoioExameCatalogo {
+  id: number;
+  cod_exame: string;
+  descricao_exame: string;
+  descricao_material: string | null;
+  cod_material: string | null;
+  preco: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Exame extraído da requisição pelo OCR + enriquecido pelo catálogo.
+export interface ApoioExameExtraido {
+  nome_original?: string;
+  nome_normalizado?: string;
+  codigo_aol_sugerido?: string | null;
+  cod_material?: string | null;
+  desc_material?: string | null;
+  nome_pardini?: string | null;
+  material?: string | null;
+  urgente?: boolean;
+  certeza?: number;
+  valor?: string;
+  fonte_codigo?: string;
+}
+
+export interface ApoioPaciente {
+  nome?: string | null;
+  cpf?: string | null;
+  datanasc?: string | null;
+  sexo?: string | null;
+  email?: string | null;
+  fonte?: string;
+}
+
+export interface ApoioMedico {
+  nome?: string | null;
+  crm?: string | null;
+}
+
+// Item de ac_apoio_fila.
+export interface ApoioFilaItem {
+  id: string;
+  status: ApoioFilaStatus;
+  numero_requisicao: string | null;
+  filename: string | null;
+  paciente: ApoioPaciente | null;
+  medico: ApoioMedico | null;
+  exames: ApoioExameExtraido[] | null;
+  xml_envio: string | null;
+  alvaro_response: string | null;
+  erro_mensagem: string | null;
+  resumo: Record<string, unknown> | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Entrada de log do pipeline de OCR (mostrada na revisão).
+export interface ApoioLogEntry {
+  level: string;
+  msg: string;
+  detail?: unknown;
+}
+
+// Resposta do POST /api/analises-clinicas/apoio-process-image.
+export interface ApoioPipelineResult {
+  success: boolean;
+  erro?: string;
+  filename: string;
+  log: ApoioLogEntry[];
+  numero_requisicao?: string | null;
+  paciente?: ApoioPaciente;
+  medico?: ApoioMedico;
+  convenio?: string | null;
+  data_solicitacao?: string | null;
+  exames_imagem?: ApoioExameExtraido[];
+  exames_para_enviar?: ApoioExameExtraido[];
+  alvaro_xml_sugerido?: string;
+  resumo?: Record<string, unknown>;
+  // Bruto do apLIS repassado de volta no rebuild-xml — o SPA não interpreta.
+  _aplis_raw?: unknown;
+}
+
+// Resultado por item do POST /api/analises-clinicas/apoio-transferir.
+export interface ApoioTransferResultado {
+  id: string;
+  ok: boolean;
+  http_status?: number;
+  alvaro_response?: string;
+  erro?: string;
+  requisicoes_salvo?: boolean;
+  requisicoes_erro?: string;
+}

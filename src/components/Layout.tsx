@@ -44,6 +44,7 @@ import {
   Microscope,
   FileCheck2,
   BarChart3,
+  Send,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -459,7 +460,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
-    if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
+    if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-apoio', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -621,6 +622,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Culturas', href: '/analises-clinicas/culturas', icon: Microscope, permission: 'canManageColetas' },
           { name: 'Recoletas', href: '/analises-clinicas/recoletas', icon: RotateCcw, permission: 'canManageColetas' },
           { name: 'Laudos', href: '/analises-clinicas/laudos', icon: FileCheck2, permission: 'canManageColetas' },
+          { name: 'Envio ao Apoio', href: '/analises-clinicas/envio-apoio', icon: Send, permission: 'canManageColetas' },
           { name: 'Temperatura', href: '/analises-clinicas/temperatura', icon: Thermometer, anyOf: ['canViewTemperatura', 'canManageColetas'] },
           { name: 'Indicadores', href: '/analises-clinicas/indicadores', icon: BarChart3, permission: 'canViewAnalisesClinicas' },
           { name: 'Postos de Coleta', href: '/analises-clinicas/postos', icon: MapPin, permission: 'canManageAnalisesClinicas' },

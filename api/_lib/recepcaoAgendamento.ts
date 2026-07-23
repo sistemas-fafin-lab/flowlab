@@ -13,7 +13,7 @@ import { requireEnv } from './labhubIntegration.js';
 import { computarDisponibilidade } from './disponibilidade.js';
 import { describeError } from './errors.js';
 
-interface FlowResult {
+export interface FlowResult {
   status: number;
   payload: Record<string, unknown>;
 }
@@ -45,8 +45,9 @@ export interface CriarAgendamentoRecepcaoBody {
 // ── Autorização ───────────────────────────────────────────────────────────────
 // ATENÇÃO: `token` é o JWT de SESSÃO do operador, não a FLOWLAB_API_KEY. Ver o
 // cabeçalho de api/analises-clinicas/get-documentos.ts. Retorna null se autorizado,
-// ou um FlowResult de erro pronto para devolver.
-async function autorizarOperador(token: string | null): Promise<FlowResult | null> {
+// ou um FlowResult de erro pronto para devolver. Exportada: os handlers do Envio
+// ao Apoio (api/_lib/apoio/) usam a mesma regra (canManageColetas).
+export async function autorizarOperador(token: string | null): Promise<FlowResult | null> {
   if (!token) {
     return { status: 401, payload: { success: false, error: 'Token de autenticação ausente.' } };
   }

@@ -6,6 +6,8 @@
 > Baseado em: `LAB-HUB/docs/ARQUITETURA_ANALISES_CLINICAS.md`, `FLUXO.md`, `ANALISES_CLINICAS.md`.
 > Criado em: Junho/2026 · **Reduzido ao escopo de agendamento em 30/Jun/2026** · **Reexpandido em 30/Jun/2026** para incluir a operação interna (coleta → análise → dashboard); só Resultados e WhatsApp seguem fora.
 >
+> **23/Jul/2026 — Envio ao Apoio (Álvaro/DASA) incorporado ao módulo.** O projeto avulso `envio_alvaro` foi portado para o FlowLab: página `/analises-clinicas/envio-apoio` (OCR da requisição via Gemini → conferência no apLIS → XML AOL → fila de envio → envio ao Álvaro), tabelas `ac_apoio_exames`/`ac_apoio_fila`/`ac_apoio_requisicoes` (migration `20260723120000`), handlers `apoio-*` no dispatcher `api/analises-clinicas/[action].ts` e bucket privado `ac-apoio-requisicoes`. Docs da API AOL em `docs/apoio-alvaro/`. Isso preenche a lacuna do reescopo da Fase 7 (a análise é externa — agora o envio ao apoio é sistematizado).
+>
 > **Última atualização:** 10/Jul/2026 — **Fase 5 (estoque departamental), Fase 6 Etapa A (coletas) e Fase 7 concluídas e no ar.** A **Fase 7 foi reescopada** (ver `docs/PLANO_FASE7_ANALISE.md`, que prevalece): a análise interna com baixa de reagentes foi **descartada** (a análise é externa/apoio); entraram o **recebimento de exames no check-in** e o **acompanhamento manual de culturas**. Falta: **Fase 8 (KPIs)** e **redefinir o gatilho da recoleta** (Fase 6 Etapa B), órfão desde que a análise interna saiu. *(Histórico: 30/Jun/2026 — agendamento + cancelamento cruzado; Fase 4 — `canManageColetas` + cargo `analistaSaude` + backfill.)*
 
 ---

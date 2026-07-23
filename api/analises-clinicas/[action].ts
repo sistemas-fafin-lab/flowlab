@@ -15,6 +15,9 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import apoioProcessImage from '../_lib/handlers/apoio-process-image.js';
+import apoioRebuildXml from '../_lib/handlers/apoio-rebuild-xml.js';
+import apoioTransferir from '../_lib/handlers/apoio-transferir.js';
 import buscarPacientes from '../_lib/handlers/buscar-pacientes.js';
 import criarAgendamentoLabhub from '../_lib/handlers/criar-agendamento-labhub.js';
 import deliverColeta from '../_lib/handlers/deliver-coleta.js';
@@ -25,10 +28,17 @@ import getDocumentos from '../_lib/handlers/get-documentos.js';
 import receiveAgendamento from '../_lib/handlers/receive-agendamento.js';
 import receiveCancelamento from '../_lib/handlers/receive-cancelamento.js';
 
+// apoio-process-image chama Gemini (OCR) + apLIS e passa fácil dos 10s padrão;
+// o teto vale para a function inteira, sem efeito nas actions rápidas.
+export const config = { maxDuration: 60 };
+
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
 // Chave = segmento do path (= nome do antigo arquivo de rota, mantido idêntico).
 const ROTAS: Record<string, Handler> = {
+  'apoio-process-image': apoioProcessImage,
+  'apoio-rebuild-xml': apoioRebuildXml,
+  'apoio-transferir': apoioTransferir,
   'buscar-pacientes': buscarPacientes,
   'criar-agendamento-labhub': criarAgendamentoLabhub,
   'deliver-coleta': deliverColeta,

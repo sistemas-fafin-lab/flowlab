@@ -1,0 +1,3571 @@
+openapi: 3.1.0
+info:
+  title: Webservice AOL
+  version: 0.2.0.16
+  description: |
+    Este Web Service tem por objetivo disponibilizar recursos de integração entre o serviço
+    de apoio laboratorial Alvaro e sistemas LIS (Laboratory Information System) externos,
+    sem a necessidade de utilização direta do AOL.
+
+    Segue o padrão REST, utilizando os métodos HTTP POST, PUT, GET e DELETE para mapear as
+    operações de integração laboratorial — incluindo inclusão e gestão de solicitações,
+    consulta de resultados, rastreabilidade de amostras e exames, e sincronização de status.
+
+    A troca de mensagens utiliza predominantemente XML no corpo das requisições e respostas,
+    com autenticação via Basic Auth. Endpoints de rastreabilidade retornam JSON.
+
+    **Ajustes finos de regra podem ser evoluídos incrementalmente.**
+
+    > Para o catálogo completo de mensagens de retorno do sistema, consulte o endpoint
+    > `GET /catalogoMensagens` na seção **mensagens-retorno**.
+
+    ## Códigos de Resposta
+
+    | Código | Descrição |
+    |--------|-----------|
+    | 200 | Sucesso, todos os dados enviados foram atualizados |
+    | 206 | Valores atualizados parcialmente, alguns com sucesso e outros com falha |
+    | 400 | Informações inválidas, falha ao atualizar todas as informações |
+    | 401 | Credenciais inválidas ou ausentes (Basic Auth) |
+    | 403 | Agente ou entidade não autorizados |
+    | 500 | Falha interna, acionar suporte DASA |
+servers:
+- url: http://webservice.alvaro.com.br
+  description: Produção
+security:
+- basicAuth: []
+tags:
+- name: mensagens-retorno
+  description: Referência completa das mensagens de retorno do sistema.
+- name: solicitacoes
+  description: Fluxo principal de criação e atualização da solicitação.
+- name: resultados
+  description: Consultas e extrações de resultados em diferentes formatos.
+- name: exames
+  description: Inclusão e exclusão de exames.
+- name: status
+  description: Status de exames e visão consolidada.
+- name: materiais
+  description: Materiais aceitos por exame.
+- name: amostras
+  description: Situação da amostra.
+- name: recoleta
+  description: Consulta de notificações de recoleta por período.
+- name: criticas
+  description: Catálogo de críticas e metadados de exames. ⚠️ As críticas apresentadas nesta versão do YAML têm validade até 31/05/2026.
+- name: conectividade-ws
+  description: Saúde e utilitários de integração.
+x-tagGroups:
+- name: 1. Solicitação
+  tags:
+  - solicitacoes
+  - exames
+- name: 2. Resultados
+  tags:
+  - resultados
+  - status
+- name: 3. Apoio
+  tags:
+  - materiais
+  - amostras
+  - recoleta
+  - criticas
+  - conectividade-ws
+paths:
+  /webserviceaol/rest/producao/teste:
+    get:
+      tags:
+      - conectividade-ws
+      summary: 1) Teste de conexão
+      operationId: testeConexao
+      description: |
+        Verifica a conectividade com o Web Service e retorna a versão atual do serviço.
+        Não requer autenticação.
+
+        Exemplo cURL:
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/teste'`
+      security: []
+      responses:
+        '200':
+          description: Serviço disponível. Retorna a versão atual do Web Service.
+          content:
+            text/html:
+              schema:
+                type: string
+              examples:
+                versao:
+                  summary: Versão atual do serviço
+                  value: OK v2026.2.4
+  /webserviceaol/rest/producao:
+    put:
+      tags:
+      - solicitacoes
+      summary: 2) Incluir solicitação (simples, composto, curva, paternidade, cultura, multiplas amostras)
+      operationId: incluirSolicitacao
+      security: []
+      description: |
+        Autenticação: as credenciais são informadas diretamente nos atributos do XML
+        (`idagente` e `senha`), não via header HTTP. Exemplo: `<solicitacoes idagente="194607" senha="71da7e" ...>`.
+
+        Regra de impressão de etiqueta: quando o atributo `nomeSocial` do paciente
+        for informado, ele deve ser priorizado como nome impresso na etiqueta.
+
+        Exemplos cURL:
+
+        **Exame simples:**
+        `curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao' --header 'Content-Type: application/xml' --data '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918"><entidade chave="31fc39645210bb80" codigo="19812"><pacientes><paciente codigolis="PAC-5000" datanasc="1991-01-01" nome="TESTE EXAME SIMPLES" nomeSocial="TESTE NOME SOCIAL" sexo="M" cpf="04056521000" email="paciente@exames.com"/></pacientes><medicos><medico crm="123456789-RJ" nome="Médico Teste"/></medicos><solicitacao codigolis="SOL-5000" codigopaciente="PAC-5000" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" postoDeColeta="POSTO_01"><amostra descricao="Basal" codigoBarras="" material="543"><exame codigo="TSH" dadosadicionais="" urgente="false"/></amostra></solicitacao></entidade></solicitacoes>'`
+
+        **Exame composto:**
+        `curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao' --header 'Content-Type: application/xml' --data '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918"><entidade chave="31fc39645210bb80" codigo="19812"><pacientes><paciente codigolis="PAC-502" datanasc="1991-01-01" nome="TESTE EXAME COMPOSTO" sexo="M" cpf="04056521000" email="paciente@exames.com"/></pacientes><medicos><medico crm="123456789-RJ" nome="Médico Teste"/></medicos><solicitacao codigolis="SOL-502" codigopaciente="PAC-502" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" postoDeColeta="POSTO_01"><amostra descricao="Basal" codigoBarras="" material="1021"><exame codigo="CLEAR1" dadosadicionais="" urgente="false"/></amostra></solicitacao></entidade></solicitacoes>'`
+
+        **Exame de curva:**
+        `curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao' --header 'Content-Type: application/xml' --data '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918"><entidade chave="31fc39645210bb80" codigo="19812"><pacientes><paciente codigolis="PAC-503" datanasc="1991-01-01" nome="TESTE EXAME DE CURVA" sexo="M" cpf="04056521000" email="paciente@exames.com"/></pacientes><medicos><medico crm="123456789-RJ" nome="Médico Teste"/></medicos><solicitacao codigolis="SOL-503" codigopaciente="PAC-503" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" postoDeColeta="POSTO_01"><amostra descricao="Basal" material="543"><exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/></amostra><amostra descricao="30 min" material="543"><exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/></amostra><amostra descricao="60 min" material="543"><exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/></amostra><amostra descricao="90 min" material="543"><exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/></amostra><amostra descricao="120 min" material="543"><exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/></amostra></solicitacao></entidade></solicitacoes>'`
+
+        **Exame de paternidade:**
+        `curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao' --header 'Content-Type: application/xml' --data '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918"><entidade chave="31fc39645210bb80" codigo="19812"><pacientes><paciente codigolis="PAC-504" datanasc="1991-01-01" nome="TESTE EXAME DE PATERNIDADE" sexo="M" cpf="04056521000" email="paciente@exames.com"/></pacientes><medicos><medico crm="123456789-RJ" nome="Médico Teste"/></medicos><solicitacao codigolis="SOL-504" codigopaciente="PAC-504" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" postoDeColeta="POSTO_01"><amostra descricao="" material="5099"><exame codigo="PAT" dadosadicionais="" urgente="false"><exameParticipante nome="Nome Do Filho" sexo="M" tipo="FILHO" datanasc="2026-01-01-03:00" nomeColetador="Nome Do Coletador" nomeJuiz="Nome Do Juiz" nomeIdentificador="NOME DO IDENTIFICADO"/></exame><exame codigo="PAT" dadosadicionais="" urgente="false"><exameParticipante nome="Nome Do Pai" sexo="M" tipo="SUPOSTO PAI" datanasc="1999-01-01-02:00" nomeColetador="Nome Do Coletador" nomeJuiz="Nome Do Juiz" nomeIdentificador="NOME DO IDENTIFICADO"/></exame><exame codigo="PAT" dadosadicionais="" urgente="false"><exameParticipante nome="Nome Da Mae" sexo="F" tipo="MAE" datanasc="2000-01-01-02:00" nomeColetador="Nome Do Coletador" nomeJuiz="Nome Do Juiz" nomeIdentificador="NOME DO IDENTIFICADO"/></exame></amostra></solicitacao></entidade></solicitacoes>'`
+
+        **Exame de cultura:**
+        `curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao' --header 'Content-Type: application/xml' --data '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918"><entidade chave="31fc39645210bb80" codigo="19812"><pacientes><paciente codigolis="PAC-506" datanasc="1991-01-01" nome="TESTE EXAME CULTURA" sexo="M" cpf="04056521000" email="paciente@exames.com"/></pacientes><medicos><medico crm="123456789-RJ" nome="Médico Teste"/></medicos><solicitacao codigolis="SOL-506" codigopaciente="PAC-506" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" postoDeColeta="POSTO_01"><amostra descricao="Basal" material="4956"><exame codigo="CCCT" dadosadicionais="" urgente="false"/></amostra></solicitacao></entidade></solicitacoes>'`
+
+        **Exame com múltiplas amostras:**
+        `curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao' --header 'Content-Type: application/xml' --data '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918"><entidade chave="31fc39645210bb80" codigo="19812"><pacientes><paciente codigolis="PAC-507" datanasc="1991-01-01" nome="TESTE EXAME MULTIPLAS AMOSTRAS" sexo="M" cpf="04056521000" email="paciente@exames.com"/></pacientes><medicos><medico crm="123456789-RJ" nome="Médico Teste"/></medicos><solicitacao codigolis="SOL-507" codigopaciente="PAC-507" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" postoDeColeta=""><amostra descricao="AMOSTRA1" material="1194"><exame codigo="ANAT4" dadosadicionais="" urgente="false"/></amostra><amostra descricao="AMOSTRA2" material="1194"><exame codigo="ANAT4" dadosadicionais="" urgente="false"/></amostra><amostra descricao="AMOSTRA3" material="1194"><exame codigo="ANAT4" dadosadicionais="" urgente="false"/></amostra><amostra descricao="AMOSTRA4" material="54"><exame codigo="ANAT4" dadosadicionais="" urgente="false"/></amostra></solicitacao></entidade></solicitacoes>'`
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SolicitacoesIncluirRequest'
+            examples:
+              solicitacaoExameSimples:
+                summary: Solicitação de exame simples
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                  <solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918">
+                      <entidade chave="31fc39645210bb80" codigo="19812">
+                          <pacientes>
+                              <paciente codigolis="PAC-5000" datanasc="1991-01-01" nome="TESTE EXAME SIMPLES" nomeSocial="TESTE NOME SOCIAL" sexo="M" cpf="04056521000" endereco="R ALICE,9999,LARANJEIRAS,RIO DE JANEIRO" estado="RJ" email="paciente@exames.com"/>
+                          </pacientes>
+                          <medicos>
+                              <medico crm="123456789-RJ" nome="Médico Teste"/>
+                          </medicos>
+                          <solicitacao codigolis="SOL-5000" codigopaciente="PAC-5000" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" medicamentos="DIPIRONA 500 mg" postoDeColeta="POSTO_01">
+                              <amostra descricao="Basal" codigoBarras="" material="543">
+                                  <exame codigo="TSH" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                          </solicitacao>
+                      </entidade>
+                  </solicitacoes>
+              solicitacaoExameComposto:
+                summary: Solicitação de exame composto
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                  <solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918">
+                      <entidade chave="31fc39645210bb80" codigo="19812">
+                          <pacientes>
+                              <paciente codigolis="PAC-502" datanasc="1991-01-01" nome="TESTE EXAME COMPOSTO" sexo="M" cpf="04056521000" endereco="R ALICE,9999,LARANJEIRAS,RIO DE JANEIRO" estado="RJ" email="paciente@exames.com"/>
+                          </pacientes>
+                          <medicos>
+                              <medico crm="123456789-RJ" nome="Médico Teste"/>
+                          </medicos>
+                          <solicitacao codigolis="SOL-502" codigopaciente="PAC-502" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" medicamentos="DIPIRONA 500 mg" postoDeColeta="POSTO_01">
+                              <amostra descricao="Basal" codigoBarras="" material="1021">
+                                  <exame codigo="CLEAR1" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                          </solicitacao>
+                      </entidade>
+                  </solicitacoes>
+              solicitacaoExameCurva:
+                summary: Solicitação de exame de curva
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                  <solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918">
+                      <entidade chave="31fc39645210bb80" codigo="19812">
+                          <pacientes>
+                              <paciente codigolis="PAC-503" datanasc="1991-01-01" nome="TESTE EXAME DE CURVA" sexo="M" cpf="04056521000" endereco="R ALICE,9999,LARANJEIRAS,RIO DE JANEIRO" estado="RJ" email="paciente@exames.com"/>
+                          </pacientes>
+                          <medicos>
+                              <medico crm="123456789-RJ" nome="Médico Teste"/>
+                          </medicos>
+                          <solicitacao codigolis="SOL-503" codigopaciente="PAC-503" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" medicamentos="DIPIRONA 500 mg" postoDeColeta="POSTO_01">
+                              <amostra descricao="Basal" material="543">
+                                  <exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                              <amostra descricao="30 min" material="543">
+                                  <exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                              <amostra descricao="60 min" material="543">
+                                  <exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                              <amostra descricao="90 min" material="543">
+                                  <exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                              <amostra descricao="120 min" material="543">
+                                  <exame codigo="INSULCURVA" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                          </solicitacao>
+                      </entidade>
+                  </solicitacoes>
+              solicitacaoExamePaternidade:
+                summary: Solicitação de exame de paternidade
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                  <solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918">
+                      <entidade chave="31fc39645210bb80" codigo="19812">
+                          <pacientes>
+                              <paciente codigolis="PAC-504" datanasc="1991-01-01" nome="TESTE EXAME DE PATERNIDADE" sexo="M" cpf="04056521000" endereco="R ALICE,9999,LARANJEIRAS,RIO DE JANEIRO" estado="RJ" email="paciente@exames.com"/>
+                          </pacientes>
+                          <medicos>
+                              <medico crm="123456789-RJ" nome="Médico Teste"/>
+                          </medicos>
+                          <solicitacao codigolis="SOL-504" codigopaciente="PAC-504" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" medicamentos="DIPIRONA 500 mg" postoDeColeta="POSTO_01">
+                              <amostra descricao="" material="5099">
+                                  <exame codigo="PAT" dadosadicionais="" urgente="false">
+                                      <exameParticipante nome="Nome Do Filho" sexo="M" tipo="FILHO" datanasc="2026-01-01-03:00" nomeColetador="Nome Do Coletador" nomeJuiz="Nome Do Juiz" nomeIdentificador="NOME DO IDENTIFICADO"/>
+                                  </exame>
+                                  <exame codigo="PAT" dadosadicionais="" urgente="false">
+                                      <exameParticipante nome="Nome Do Pai" sexo="M" tipo="SUPOSTO PAI" datanasc="1999-01-01-02:00" nomeColetador="Nome Do Coletador" nomeJuiz="Nome Do Juiz" nomeIdentificador="NOME DO IDENTIFICADO"/>
+                                  </exame>
+                                  <exame codigo="PAT" dadosadicionais="" urgente="false">
+                                      <exameParticipante nome="Nome Da Mae" sexo="F" tipo="MAE" datanasc="2000-01-01-02:00" nomeColetador="Nome Do Coletador" nomeJuiz="Nome Do Juiz" nomeIdentificador="NOME DO IDENTIFICADO"/>
+                                  </exame>
+                              </amostra>
+                          </solicitacao>
+                      </entidade>
+                  </solicitacoes>
+              solicitacaoExameCultura:
+                summary: Solicitação de exame de cultura
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                  <solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918">
+                      <entidade chave="31fc39645210bb80" codigo="19812">
+                          <pacientes>
+                              <paciente codigolis="PAC-506" datanasc="1991-01-01" nome="TESTE EXAME CULTURA" sexo="M" cpf="04056521000" endereco="R ALICE,9999,LARANJEIRAS,RIO DE JANEIRO" estado="RJ" email="paciente@exames.com"/>
+                          </pacientes>
+                          <medicos>
+                              <medico crm="123456789-RJ" nome="Médico Teste"/>
+                          </medicos>
+                          <solicitacao codigolis="SOL-506" codigopaciente="PAC-506" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" medicamentos="DIPIRONA 500 mg" postoDeColeta="POSTO_01">
+                              <amostra descricao="Basal" material="4956">
+                                  <exame codigo="CCCT" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                          </solicitacao>
+                      </entidade>
+                  </solicitacoes>
+              solicitacaoExameMultiplasAmostras:
+                summary: Solicitação de exame com multiplas amostras
+                value: |
+                  <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                  <solicitacoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e" versao="20170918">
+                      <entidade chave="31fc39645210bb80" codigo="19812">
+                          <pacientes>
+                              <paciente codigolis="PAC-507" datanasc="1991-01-01" nome="TESTE EXAME MULTIPLAS AMOSTRAS" sexo="M" cpf="04056521000" endereco="R ALICE,9999,LARANJEIRAS,RIO DE JANEIRO" estado="RJ" email="paciente@exames.com"/>
+                          </pacientes>
+                          <medicos>
+                              <medico crm="123456789-RJ" nome="Médico Teste"/>
+                          </medicos>
+                          <solicitacao codigolis="SOL-507" codigopaciente="PAC-507" crm="123456789-RJ" data="2026-03-03-03:00" dataColeta="2026-03-03T00:00:00.000-03:00" medicamentos="DIPIRONA 500 mg" postoDeColeta="">
+                              <amostra descricao="AMOSTRA1" material="1194">
+                                  <exame codigo="ANAT4" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                              <amostra descricao="AMOSTRA2" material="1194">
+                                  <exame codigo="ANAT4" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                              <amostra descricao="AMOSTRA3" material="1194">
+                                  <exame codigo="ANAT4" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                              <amostra descricao="AMOSTRA4" material="54">
+                                  <exame codigo="ANAT4" dadosadicionais="" urgente="false"/>
+                              </amostra>
+                          </solicitacao>
+                      </entidade>
+                  </solicitacoes>
+      responses:
+        '200':
+          description: Retorno de inclusão da solicitação
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/XmlAny'
+              examples:
+                respostaSolicitacaoExameSimples:
+                  summary: Response de solicitação de exame simples
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <aol versao="0">
+                        <cadastros tempoProcessamento="14.0">
+                            <pacientes tempoProcessamento="11.0">
+                                <paciente idAlvaro="431788369" idLis="PAC-5000"/>
+                            </pacientes>
+                            <medicos tempoProcessamento="3.0">
+                                <medico crm="123456789-RJ" idAlvaro="4246941"/>
+                            </medicos>
+                        </cadastros>
+                        <solicitacoes tempoProcessamento="355.0">
+                            <solicitacao idLis="SOL-5000" incluido="true" baseBarras="65JJGI" idAlvaro="372106818" tempoProcessamento="0.0">
+                                <amostra codigoBarras="707825473506" descricao="Basal" descricaoAcondicionamento="R" descricaoMaterial="SORO" idAcondicionamento="26" idAmostra="0" idAmostraExecutor="707825473506" idDestino="47" identificacao="" lote="LT0A32058541" material="543" mnemonico="RIO.R.4" sequencia="0" volume="900.0">
+                                    <exame exame="TSH" incluido="true" informacao="Exame(s): TSH - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE NOME SOCIAL"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-5000 - 707825473506"&#xD;
+                    B60,45,0,2,3,6,90,N,"707825473506"&#xD;
+                    A10,145,0,1,1,1,N,"TSH"&#xD;
+                    A10,157,0,1,1,1,N,"SORO-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: 0.9 ml"&#xD;
+                    A300,155,0,2,1,1,R,"RIO.R.4"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372106818"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                            </solicitacao>
+                        </solicitacoes>
+                    </aol>
+                respostaSolicitacaoExameComposto:
+                  summary: Response de solicitação de exame composto
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <aol versao="0">
+                        <cadastros tempoProcessamento="16.0">
+                            <pacientes tempoProcessamento="11.0">
+                                <paciente idAlvaro="431792922" idLis="PAC-502"/>
+                            </pacientes>
+                            <medicos tempoProcessamento="5.0">
+                                <medico crm="123456789-RJ" idAlvaro="4246941"/>
+                            </medicos>
+                        </cadastros>
+                        <solicitacoes tempoProcessamento="547.0">
+                            <solicitacao idLis="SOL-502" incluido="true" baseBarras="65JMK3" idAlvaro="372110835" tempoProcessamento="0.0">
+                                <amostra codigoBarras="704306874555" descricao="Basal" descricaoAcondicionamento="R" descricaoMaterial="URINA 24H" idAcondicionamento="26" idAmostra="0" idAmostraExecutor="704306874555" idDestino="51" identificacao="" lote="LT0A32060556" material="738" mnemonico="SAO.R.1" volume="0.0">
+                                    <exame exame="CLEAR1" incluido="true" informacao="Exame(s): CLEAR1 - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME COMPOSTO"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-502 - 704306874555"&#xD;
+                    B60,45,0,2,3,6,90,N,"704306874555"&#xD;
+                    A10,145,0,1,1,1,N,"CLEAR1"&#xD;
+                    A10,157,0,1,1,1,N,"URINA 24H-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"SAO.R.1"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372110835"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="704306874562" descricao="Basal" descricaoAcondicionamento="R" descricaoMaterial="SORO" idAcondicionamento="26" idAmostra="1" idAmostraExecutor="704306874562" idDestino="51" identificacao="" lote="LT0A32060556" material="543" mnemonico="SAO.R.1" volume="750.0">
+                                    <exame exame="CLEAR1" incluido="true" informacao="Exame(s): CLEAR1 - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME COMPOSTO"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-502 - 704306874562"&#xD;
+                    B60,45,0,2,3,6,90,N,"704306874562"&#xD;
+                    A10,145,0,1,1,1,N,"CLEAR1"&#xD;
+                    A10,157,0,1,1,1,N,"SORO-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: 0.75 ml"&#xD;
+                    A300,155,0,2,1,1,R,"SAO.R.1"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372110835"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                            </solicitacao>
+                        </solicitacoes>
+                    </aol>
+                respostaSolicitacaoExameCurva:
+                  summary: Response de solicitação de exame de curva
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <aol versao="0">
+                        <cadastros tempoProcessamento="16.0">
+                            <pacientes tempoProcessamento="11.0">
+                                <paciente idAlvaro="431798951" idLis="PAC-503"/>
+                            </pacientes>
+                            <medicos tempoProcessamento="5.0">
+                                <medico crm="123456789-RJ" idAlvaro="4246941"/>
+                            </medicos>
+                        </cadastros>
+                        <solicitacoes tempoProcessamento="2385.0">
+                            <solicitacao idLis="SOL-503" incluido="true" baseBarras="65JR1K" idAlvaro="372116648" tempoProcessamento="0.0">
+                                <amostra codigoBarras="707825509823" descricao="Basal" descricaoAcondicionamento="R" descricaoMaterial="SORO" idAcondicionamento="26" idAmostra="0" idAmostraExecutor="707825509823" idDestino="47" identificacao="" lote="LT0A32058541" material="543" mnemonico="RIO.R.4" sequencia="0" volume="730.0">
+                                    <exame exame="INSULCURVA" incluido="true" informacao="Exame(s): INSULCURVA - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME DE CURVA"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-503 - 707825509823"&#xD;
+                    B60,45,0,2,3,6,90,N,"707825509823"&#xD;
+                    A10,145,0,1,1,1,N,"INSULCURVA"&#xD;
+                    A10,157,0,1,1,1,N,"SORO-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: 0.73 ml"&#xD;
+                    A300,155,0,2,1,1,R,"RIO.R.4"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372116648"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="707825509830" descricao="30 min" descricaoAcondicionamento="R" descricaoMaterial="SORO" idAcondicionamento="26" idAmostra="1" idAmostraExecutor="707825509830" idDestino="47" identificacao="" lote="LT0A32058541" material="543" mnemonico="RIO.R.4" sequencia="1" volume="730.0">
+                                    <exame exame="INSULCURVA" incluido="true" informacao="Exame(s): INSULCURVA - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME DE CURVA"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-503 - 707825509830"&#xD;
+                    B60,45,0,2,3,6,90,N,"707825509830"&#xD;
+                    A10,145,0,1,1,1,N,"INSULCURVA"&#xD;
+                    A10,157,0,1,1,1,N,"SORO-30 MIN"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: 0.73 ml"&#xD;
+                    A300,155,0,2,1,1,R,"RIO.R.4"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372116648"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="707825509847" descricao="60 min" descricaoAcondicionamento="R" descricaoMaterial="SORO" idAcondicionamento="26" idAmostra="2" idAmostraExecutor="707825509847" idDestino="47" identificacao="" lote="LT0A32058541" material="543" mnemonico="RIO.R.4" sequencia="2" volume="730.0">
+                                    <exame exame="INSULCURVA" incluido="true" informacao="Exame(s): INSULCURVA - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME DE CURVA"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-503 - 707825509847"&#xD;
+                    B60,45,0,2,3,6,90,N,"707825509847"&#xD;
+                    A10,145,0,1,1,1,N,"INSULCURVA"&#xD;
+                    A10,157,0,1,1,1,N,"SORO-60 MIN"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: 0.73 ml"&#xD;
+                    A300,155,0,2,1,1,R,"RIO.R.4"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372116648"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="707825509854" descricao="90 min" descricaoAcondicionamento="R" descricaoMaterial="SORO" idAcondicionamento="26" idAmostra="3" idAmostraExecutor="707825509854" idDestino="47" identificacao="" lote="LT0A32058541" material="543" mnemonico="RIO.R.4" sequencia="3" volume="730.0">
+                                    <exame exame="INSULCURVA" incluido="true" informacao="Exame(s): INSULCURVA - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME DE CURVA"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-503 - 707825509854"&#xD;
+                    B60,45,0,2,3,6,90,N,"707825509854"&#xD;
+                    A10,145,0,1,1,1,N,"INSULCURVA"&#xD;
+                    A10,157,0,1,1,1,N,"SORO-90 MIN"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: 0.73 ml"&#xD;
+                    A300,155,0,2,1,1,R,"RIO.R.4"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372116648"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="707825509861" descricao="120 min" descricaoAcondicionamento="R" descricaoMaterial="SORO" idAcondicionamento="26" idAmostra="4" idAmostraExecutor="707825509861" idDestino="47" identificacao="" lote="LT0A32058541" material="543" mnemonico="RIO.R.4" sequencia="4" volume="730.0">
+                                    <exame exame="INSULCURVA" incluido="true" informacao="Exame(s): INSULCURVA - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME DE CURVA"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-503 - 707825509861"&#xD;
+                    B60,45,0,2,3,6,90,N,"707825509861"&#xD;
+                    A10,145,0,1,1,1,N,"INSULCURVA"&#xD;
+                    A10,157,0,1,1,1,N,"SORO-120 MIN"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: 0.73 ml"&#xD;
+                    A300,155,0,2,1,1,R,"RIO.R.4"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372116648"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                            </solicitacao>
+                        </solicitacoes>
+                    </aol>
+                respostaSolicitacaoExamePaternidade:
+                  summary: Response de solicitação de exame de paternidade
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <aol versao="0">
+                        <cadastros tempoProcessamento="12.0">
+                            <pacientes tempoProcessamento="8.0">
+                                <paciente idAlvaro="431803865" idLis="PAC-504"/>
+                            </pacientes>
+                            <medicos tempoProcessamento="4.0">
+                                <medico crm="123456789-RJ" idAlvaro="4246941"/>
+                            </medicos>
+                        </cadastros>
+                        <solicitacoes tempoProcessamento="3286.0">
+                            <solicitacao idLis="SOL-504" incluido="true" baseBarras="65JUN7" idAlvaro="372121315" tempoProcessamento="0.0">
+                                <amostra codigoBarras="704306876078" descricao="Basal" descricaoAcondicionamento="A" descricaoMaterial="PAPEL FILTRO - FTA" idAcondicionamento="27" idAmostra="0" idAmostraExecutor="704306876078" idDestino="51" identificacao="NOME DO IDENTIFICADO" lote="LT0A32062341" material="5099" mnemonico="SAO.A.1" sequencia="0" volume="0.0">
+                                    <exame exame="PAT" incluido="true" informacao="Exame(s): PAT - Incluído(s) com sucesso!">
+                                        <exameParticipante datanasc="2026-01-01T00:00:00-03:00" nome="Nome Do Filho" nomeColetador="Nome Do Coletador" nomeIdentificador="NOME DO IDENTIFICADO" nomeJuiz="Nome Do Juiz" sexo="M" tipo="FILHO"/>
+                                    </exame>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"NOME DO FILHO"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-504 - 704306876078"&#xD;
+                    B60,45,0,2,3,6,90,N,"704306876078"&#xD;
+                    A10,145,0,1,1,1,N,"PAT"&#xD;
+                    A10,157,0,1,1,1,N,"PAPEL FILTRO - FTA-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"SAO.A.1"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372121315"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="704306876085" descricao="Basal" descricaoAcondicionamento="A" descricaoMaterial="PAPEL FILTRO - FTA" idAcondicionamento="27" idAmostra="1" idAmostraExecutor="704306876085" idDestino="51" identificacao="NOME DO IDENTIFICADO" lote="LT0A32062341" material="5099" mnemonico="SAO.A.1" sequencia="0" volume="0.0">
+                                    <exame exame="PAT" incluido="true" informacao="Exame(s): PAT - Incluído(s) com sucesso!">
+                                        <exameParticipante datanasc="1999-01-01T00:00:00-02:00" nome="Nome Do Pai" nomeColetador="Nome Do Coletador" nomeIdentificador="NOME DO IDENTIFICADO" nomeJuiz="Nome Do Juiz" sexo="M" tipo="SUPOSTO PAI"/>
+                                    </exame>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"NOME DO PAI"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-504 - 704306876085"&#xD;
+                    B60,45,0,2,3,6,90,N,"704306876085"&#xD;
+                    A10,145,0,1,1,1,N,"PAT"&#xD;
+                    A10,157,0,1,1,1,N,"PAPEL FILTRO - FTA-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"SAO.A.1"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372121315"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="704306876092" descricao="Basal" descricaoAcondicionamento="A" descricaoMaterial="PAPEL FILTRO - FTA" idAcondicionamento="27" idAmostra="2" idAmostraExecutor="704306876092" idDestino="51" identificacao="NOME DO IDENTIFICADO" lote="LT0A32062341" material="5099" mnemonico="SAO.A.1" sequencia="0" volume="0.0">
+                                    <exame exame="PAT" incluido="true" informacao="Exame(s): PAT - Incluído(s) com sucesso!">
+                                        <exameParticipante datanasc="2000-01-01T00:00:00-02:00" nome="Nome Da Mae" nomeColetador="Nome Do Coletador" nomeIdentificador="NOME DO IDENTIFICADO" nomeJuiz="Nome Do Juiz" sexo="F" tipo="MAE"/>
+                                    </exame>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"NOME DA MAE"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-504 - 704306876092"&#xD;
+                    B60,45,0,2,3,6,90,N,"704306876092"&#xD;
+                    A10,145,0,1,1,1,N,"PAT"&#xD;
+                    A10,157,0,1,1,1,N,"PAPEL FILTRO - FTA-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"SAO.A.1"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372121315"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                            </solicitacao>
+                        </solicitacoes>
+                    </aol>
+                respostaSolicitacaoExameCultura:
+                  summary: Response de solicitação de exame de cultura
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <aol versao="0">
+                        <cadastros tempoProcessamento="20.0">
+                            <pacientes tempoProcessamento="16.0">
+                                <paciente idAlvaro="431810394" idLis="PAC-506"/>
+                            </pacientes>
+                            <medicos tempoProcessamento="4.0">
+                                <medico crm="123456789-RJ" idAlvaro="4246941"/>
+                            </medicos>
+                        </cadastros>
+                        <solicitacoes tempoProcessamento="534.0">
+                            <solicitacao idLis="SOL-506" incluido="true" baseBarras="65JZ9Q" idAlvaro="372127310" tempoProcessamento="0.0">
+                                <amostra codigoBarras="707825553888" descricao="Basal" descricaoAcondicionamento="R" descricaoMaterial="URINA TUBO AC. BORIC" idAcondicionamento="26" idAmostra="0" idAmostraExecutor="707825553888" idDestino="47" identificacao="" lote="LT0A32058541" material="4956" mnemonico="RIO.R.4" sequencia="0" volume="0.0">
+                                    <exame exame="CCCT" incluido="true" informacao="Exame(s): CCCT - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME CULTURA"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-506 - 707825553888"&#xD;
+                    B60,45,0,2,3,6,90,N,"707825553888"&#xD;
+                    A10,145,0,1,1,1,N,"CCCT"&#xD;
+                    A10,157,0,1,1,1,N,"URINA TUBO AC. BORIC-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"RIO.R.4"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372127310"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                            </solicitacao>
+                        </solicitacoes>
+                    </aol>
+                respostaSolicitacaoExameMultiplasAmostras:
+                  summary: Response de solicitação de exame com multiplas amostras
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <aol versao="0">
+                        <cadastros tempoProcessamento="12.0">
+                            <pacientes tempoProcessamento="9.0">
+                                <paciente idAlvaro="431829696" idLis="PAC-507"/>
+                            </pacientes>
+                            <medicos tempoProcessamento="3.0">
+                                <medico crm="123456789-RJ" idAlvaro="4246941"/>
+                            </medicos>
+                        </cadastros>
+                        <solicitacoes tempoProcessamento="1172.0">
+                            <solicitacao idLis="SOL-507" incluido="true" baseBarras="65KDKI" idAlvaro="372145842" tempoProcessamento="0.0">
+                                <amostra codigoBarras="704103728839" descricao="AMOSTRA1" descricaoAcondicionamento="A" descricaoMaterial="ANÁTOMO PATOLÓGICO" idAcondicionamento="27" idAmostra="0" idAmostraExecutor="704103728839" idDestino="49" identificacao="" lote="LT0A32066730" material="1194" mnemonico="RIP.A.1" sequencia="0" volume="0.0">
+                                    <exame exame="ANAT4" incluido="true" informacao="Exame(s): ANAT4 - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME MULTIPLAS AMOSTRAS"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-507 - 704103728839"&#xD;
+                    B60,45,0,2,3,6,90,N,"704103728839"&#xD;
+                    A10,145,0,1,1,1,N,"ANAT4"&#xD;
+                    A10,157,0,1,1,1,N,"ANÁTOMO PATOLÓGICO-AMOSTRA1"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"RIP.A.1"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372145842"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="704103728846" descricao="AMOSTRA2" descricaoAcondicionamento="A" descricaoMaterial="ANÁTOMO PATOLÓGICO" idAcondicionamento="27" idAmostra="1" idAmostraExecutor="704103728846" idDestino="49" identificacao="" lote="LT0A32066730" material="1194" mnemonico="RIP.A.1" sequencia="1" volume="0.0">
+                                    <exame exame="ANAT4" incluido="true" informacao="Exame(s): ANAT4 - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME MULTIPLAS AMOSTRAS"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-507 - 704103728846"&#xD;
+                    B60,45,0,2,3,6,90,N,"704103728846"&#xD;
+                    A10,145,0,1,1,1,N,"ANAT4"&#xD;
+                    A10,157,0,1,1,1,N,"ANÁTOMO PATOLÓGICO-AMOSTRA2"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"RIP.A.1"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372145842"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="704103728853" descricao="AMOSTRA3" descricaoAcondicionamento="A" descricaoMaterial="ANÁTOMO PATOLÓGICO" idAcondicionamento="27" idAmostra="2" idAmostraExecutor="704103728853" idDestino="49" identificacao="" lote="LT0A32066730" material="1194" mnemonico="RIP.A.1" sequencia="2" volume="0.0">
+                                    <exame exame="ANAT4" incluido="true" informacao="Exame(s): ANAT4 - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME MULTIPLAS AMOSTRAS"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-507 - 704103728853"&#xD;
+                    B60,45,0,2,3,6,90,N,"704103728853"&#xD;
+                    A10,145,0,1,1,1,N,"ANAT4"&#xD;
+                    A10,157,0,1,1,1,N,"ANÁTOMO PATOLÓGICO-AMOSTRA3"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"RIP.A.1"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372145842"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="704103728860" descricao="AMOSTRA4" descricaoAcondicionamento="A" descricaoMaterial="BIOPSIA DE COLO UTER" idAcondicionamento="27" idAmostra="3" idAmostraExecutor="704103728860" idDestino="49" identificacao="" lote="LT0A32066730" material="54" mnemonico="RIP.A.1" sequencia="3" volume="0.0">
+                                    <exame exame="ANAT4" incluido="true" informacao="Exame(s): ANAT4 - Incluído(s) com sucesso!"/>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME MULTIPLAS AMOSTRAS"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-507 - 704103728860"&#xD;
+                    B60,45,0,2,3,6,90,N,"704103728860"&#xD;
+                    A10,145,0,1,1,1,N,"ANAT4"&#xD;
+                    A10,157,0,1,1,1,N,"BIOPSIA DE COLO UTER-AMOSTRA4"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"RIP.A.1"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372145842"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                            </solicitacao>
+                        </solicitacoes>
+                    </aol>
+        '400':
+          $ref: '#/components/responses/BusinessError'
+    post:
+      tags:
+      - exames
+      summary: 5) Incluir exame em solicitação existente
+      operationId: incluirExame
+      description: |
+        Inclui um ou mais exames em uma solicitação já existente. As credenciais são informadas
+        diretamente nos atributos do XML (`idagente` e `senha`), não via header HTTP.
+
+        Exemplo cURL:
+        `curl --location --request POST 'http://webservice.alvaro.com.br/webserviceaol/rest/producao' --header 'Content-Type: application/xml' --data '<?xml version="1.0" encoding="UTF-8"?><inclusoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e"><entidade codigo="19812"><solicitacao idAlvaro="372099609"><amostra descricao="Basal" material="543" identificacao="" novaAmostra="false"><exame codigoExame="CA"/><exame codigoExame="T4L"/></amostra><amostra descricao="Basal" material="5744" identificacao="" novaAmostra="true"><exame codigoExame="EPF1"/></amostra></solicitacao></entidade></inclusoes>'`
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/InclusoesRequest'
+            examples:
+              inclusaoExamesSolicitacaoExistente:
+                summary: Incluir exame em solicitação existente
+                value: |
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <inclusoes datahora="2026-03-03T08:39:37.402-03:00" idagente="194607" lis="NOME-LIS" operador="NOME-OPERADOR" senha="71da7e">
+                  	<entidade codigo="19812">
+                  		<solicitacao idAlvaro="372099609">
+                              <amostra descricao="Basal" material="543" identificacao="" novaAmostra="false">
+                                  <exame codigoExame="CA"/>
+                                  <exame codigoExame="T4L"/>
+                              </amostra>
+                              <amostra descricao="Basal" material="5744" identificacao="" novaAmostra="true">
+                                  <exame codigoExame="EPF1"/>
+                              </amostra>
+                          </solicitacao>
+                      </entidade>
+                  </inclusoes>
+      responses:
+        '200':
+          description: Retorno de inclusão de exame
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/XmlAny'
+              examples:
+                retornoInclusaoExamesSolicitacaoExistente:
+                  summary: Response de inclusão de exame em solicitação existente
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <inclusoes tempoProcessamento="0.0">
+                        <entidade codigo="19812">
+                            <solicitacao baseBarras="65JDW9" idAlvaro="372099609">
+                                <amostra codigoBarras="707825441321" descricao="Basal" descricaoAcondicionamento="R" descricaoMaterial="SORO" idAcondicionamento="26" idAmostra="0" idAmostraExecutor="707825441321" idDestino="47" identificacao="" incluido="true" lote="LT0A32058541" material="543" mnemonico="RIO.R.4" sequencia="0" volume="900.0">
+                                    <exame incluido="true" informacao="Exame(s): CA - Incluído(s) com sucesso!">
+                                        <exame>CA</exame>
+                                    </exame>
+                                    <exame incluido="true" informacao="Exame(s): T4L - Incluído(s) com sucesso!">
+                                        <exame>T4L</exame>
+                                    </exame>
+                                    <exame incluido="true" informacao="Exame(s): TSH - Incluído(s) com sucesso!">
+                                        <exame>TSH</exame>
+                                    </exame>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME SIMPLES"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-0001000 - 707825441321"&#xD;
+                    B60,45,0,2,3,6,90,N,"707825441321"&#xD;
+                    A10,145,0,1,1,1,N,"CA,T4L,TSH"&#xD;
+                    A10,157,0,1,1,1,N,"SORO-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: 0.9 ml"&#xD;
+                    A300,155,0,2,1,1,R,"RIO.R.4"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372099609"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                                <amostra codigoBarras="707825579338" descricao="Basal" descricaoAcondicionamento="R" descricaoMaterial="FEZES AMOSTRA 1" idAcondicionamento="26" idAmostra="2" idAmostraExecutor="707825579338" idDestino="47" identificacao="" incluido="true" lote="LT0A32056835" material="5744" mnemonico="RIO.R.2" sequencia="1" volume="0.0">
+                                    <exame incluido="true" informacao="Exame(s): EPF1 - Incluído(s) com sucesso!">
+                                        <exame>EPF1</exame>
+                                    </exame>
+                                    <layoutetiqueta>
+                                        <layout>N&#xD;
+                    ZB&#xD;
+                    q400&#xD;
+                    D15&#xD;
+                    A10,0,0,1,1,1,N,"TESTE EXAME SIMPLES"&#xD;
+                    A10,12,0,1,1,1,N,"DN:01/01/1991 COLETA: 03/03 00:00"&#xD;
+                    A10,24,0,1,1,1,N,"SOL-0001000 - 707825579338"&#xD;
+                    B60,45,0,2,3,6,90,N,"707825579338"&#xD;
+                    A10,145,0,1,1,1,N,"EPF1"&#xD;
+                    A10,157,0,1,1,1,N,"FEZES AMOSTRA 1-BASAL"&#xD;
+                    A10,169,0,1,1,1,N,"VOLUME MINIMO: "&#xD;
+                    A300,155,0,2,1,1,R,"RIO.R.2"&#xD;
+                    A380,45,1,2,1,1,R,""&#xD;
+                    A10,135,3,1,1,1,N,"ID: 19812"&#xD;
+                    A22,142,3,1,1,1,N,"372099609"&#xD;
+                    P1&#xD;
+                    </layout>
+                                    </layoutetiqueta>
+                                </amostra>
+                            </solicitacao>
+                        </entidade>
+                    </inclusoes>
+        '400':
+          $ref: '#/components/responses/BusinessError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/solicitacao:
+    put:
+      tags:
+      - solicitacoes
+      summary: 3) Atualizar data de coleta
+      operationId: atualizarDataColetaObservacao
+      description: |
+        Exemplo cURL:
+        `curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/solicitacao' --header 'Content-Type: application/xml' --header 'Authorization: Basic <credenciais-base64>' --data '<?xml version="1.0" encoding="utf-8"?><solicitacoes datahora="2026-03-03T10:54:50.198-03:00"><entidade codigo="19812"><solicitacao idAlvaro="372098991" observacao="" dataColeta="2026-03-05T13:00:00.000-03:00"/></entidade></solicitacoes>'`
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SolicitacoesAtualizarDataColetaObservacaoRequest'
+            examples:
+              atualizarDataColetaEObservacao:
+                summary: Request de atualização da data de coleta e observação
+                value: |
+                  <?xml version="1.0" encoding="utf-8"?>
+                  <solicitacoes datahora="2026-03-03T10:54:50.198-03:00">
+                      <entidade codigo="19812">
+                          <solicitacao idAlvaro="372098991" observacao="Medicamento: ENALAPRIL 10 mg" dataColeta="2026-03-05T13:00:00.000-03:00"/>
+                      </entidade>
+                  </solicitacoes>
+      responses:
+        '200':
+          description: Retorno de atualização da solicitação
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/XmlAny'
+              examples:
+                retornoAtualizacaoDataColetaEObservacao:
+                  summary: Response de atualização da data de coleta e observação
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <solicitacoes datahora="2026-03-03T12:19:10.920-03:00">
+                        <entidade codigo="19812">
+                            <solicitacao idAlvaro="372098991" status="SUCESSO" informacao=""/>
+                        </entidade>
+                    </solicitacoes>
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '400':
+          $ref: '#/components/responses/BusinessError'
+  /webserviceaol/rest/producao/dados-adicionais:
+    put:
+      tags:
+      - solicitacoes
+      summary: 4) Incluir dados adicionais
+      operationId: atualizarDadosAdicionais
+      description: |
+        Exemplo cURL:
+        `curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/dados-adicionais' --header 'Content-Type: application/xml' --header 'Authorization: Basic <credenciais-base64>' --data '<?xml version="1.0" encoding="ISO-8859-1"?><solicitacoes datahora="2026-03-03T10:54:50.198-03:00"><entidade codigo="19812"><solicitacao idAlvaro="372110835"><amostra codigoBarras="704306874555"><exame codigo="CLEAR1"><dadoAdicional dado="VOLUME" valor="2000" /><dadoAdicional dado="ALTURA" valor="180" /><dadoAdicional dado="PESO" valor="85" /></exame></amostra></solicitacao></entidade></solicitacoes>'`
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SolicitacoesAtualizarDadosRequest'
+            examples:
+              complementarSolicitacaoDadosAdicionais:
+                summary: Request de complementar solicitação (dados adicionais)
+                value: |
+                  <?xml version="1.0" encoding="ISO-8859-1"?>
+                  <solicitacoes datahora="2026-03-03T10:54:50.198-03:00">
+                  	<entidade codigo="19812">
+                  		<solicitacao idAlvaro="372110835">
+                  			<amostra codigoBarras="704306874555">
+                  				<exame codigo="CLEAR1">
+                  					<dadoAdicional dado="VOLUME" valor="2000" />
+                  					<dadoAdicional dado="ALTURA" valor="180" />
+                  					<dadoAdicional dado="PESO" valor="85" />
+                  				</exame>
+                  			</amostra>
+                  		</solicitacao>
+                  	</entidade>
+                  </solicitacoes>
+      responses:
+        '200':
+          description: Retorno de atualização
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/XmlAny'
+              examples:
+                retornoComplementarSolicitacaoDadosAdicionais:
+                  summary: Response de complementar solicitação (dados adicionais)
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <solicitacoes datahora="2026-03-03T12:07:45.865-03:00">
+                        <entidade codigo="19812">
+                            <solicitacao idAlvaro="372110835" status="SUCESSO" informacao="">
+                                <amostra codigoBarras="704306874555" status="SUCESSO" informacao="">
+                                    <exame codigo="CLEAR1" status="SUCESSO" informacao="">
+                                        <dadosAdicionais dado="VOLUME" valor="2000" status="SUCESSO" informacao=""/>
+                                        <dadosAdicionais dado="ALTURA" valor="180" status="SUCESSO" informacao=""/>
+                                        <dadosAdicionais dado="PESO" valor="85" status="SUCESSO" informacao=""/>
+                                    </exame>
+                                </amostra>
+                            </solicitacao>
+                        </entidade>
+                    </solicitacoes>
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/v2/{entidade}/{solicitacao}/{codigoBarras}/{codigoExame}:
+    delete:
+      tags:
+      - exames
+      summary: 6) Excluir exame por endpoint
+      operationId: excluirExameV2PorEndpoint
+      description: |
+        Exemplo de chamada (valores utilizados apenas para teste):
+        `DELETE /v2/19812/372099609/707825579338/EPF1`
+
+        Formato do endpoint com os campos que devem ser preenchidos:
+        `DELETE /v2/{entidade}/{solicitacao}/{codigoBarras}/{codigoExame}`
+
+        Onde:
+        - `{entidade}` → código da entidade (ex: 19812)
+        - `{solicitacao}` → ID da solicitação no Alvaro (ex: 372099609)
+        - `{codigoBarras}` → código de barras da amostra (ex: 707825579338)
+        - `{codigoExame}` → código do exame a excluir (ex: EPF1)
+
+        Exemplo cURL:
+        `curl --location --request DELETE 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/19812/372099609/707825579338/EPF1' --header 'Content-Type: application/xml' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='`
+      parameters:
+      - name: entidade
+        in: path
+        required: true
+        schema:
+          type: string
+          examples:
+          - '19812'
+      - name: solicitacao
+        in: path
+        required: true
+        schema:
+          type: string
+          examples:
+          - '372099609'
+      - name: codigoBarras
+        in: path
+        required: true
+        schema:
+          type: string
+          examples:
+          - '707825579338'
+      - name: codigoExame
+        in: path
+        required: true
+        schema:
+          type: string
+          examples:
+          - EPF1
+      responses:
+        '200':
+          description: Retorno de exclusão v2
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/XmlAny'
+              examples:
+                retornoExclusaoExameEndpoint:
+                  summary: Response de exclusão de exame por endpoint
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <solicitacoes datahora="2026-03-03T11:55:02.189-03:00">
+                        <entidade codigo="19812">
+                            <solicitacao idAlvaro="372099609" status="SUCESSO" informacao="">
+                                <amostra codigoBarras="707825579338" status="SUCESSO" informacao="">
+                                    <exame codigo="EPF1" status="SUCESSO" informacao=""/>
+                                </amostra>
+                            </solicitacao>
+                        </entidade>
+                    </solicitacoes>
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/v2:
+    delete:
+      tags:
+      - exames
+      summary: 7) Excluir exame por request body
+      operationId: excluirListaExamesV2
+      description: |
+        Exemplo cURL:
+        `curl --location --request DELETE 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2' --header 'Content-Type: application/xml' --header 'Authorization: Basic <credenciais-base64>' --data '<?xml version="1.0" encoding="ISO-8859-1"?><solicitacoes datahora="2026-03-03T10:54:50.198-03:00"><entidade codigo="19812"><solicitacao idAlvaro="372099609"><amostra codigoBarras="707825441321"><exame codigo="CA"/></amostra></solicitacao></entidade></solicitacoes>'`
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/SolicitacoesExcluirV2Request'
+            examples:
+              exclusaoExameRequestBodyV2:
+                summary: Exclusão de exame por request body (v2)
+                value: |
+                  <?xml version="1.0" encoding="ISO-8859-1"?>
+                  <solicitacoes datahora="2026-03-03T10:54:50.198-03:00">
+                      <entidade codigo="19812">
+                          <solicitacao idAlvaro="372099609">
+                              <amostra codigoBarras="707825441321">
+                                  <exame codigo="CA"/>
+                              </amostra>
+                          </solicitacao>
+                      </entidade>
+                  </solicitacoes>
+      responses:
+        '200':
+          description: Retorno de exclusão de exame por request body
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/XmlAny'
+              examples:
+                retornoExclusaoExameRequestBodyV2:
+                  summary: Response de exclusão de exame por request body (v2)
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+                    <solicitacoes datahora="2026-03-03T12:01:24.462-03:00">
+                        <entidade codigo="19812">
+                            <solicitacao idAlvaro="372099609" status="SUCESSO" informacao="">
+                                <amostra codigoBarras="707825441321" status="SUCESSO" informacao="">
+                                    <exame codigo="CA" status="SUCESSO" informacao=""/>
+                                </amostra>
+                            </solicitacao>
+                        </entidade>
+                    </solicitacoes>
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/v2/resultados:
+    put:
+      tags:
+      - resultados
+      summary: 8) Resultados e seus possíveis parâmetros
+      operationId: listarResultados
+      description: |
+        Busca lista de resultados prontos da ordem de serviço.
+
+        Exemplo cURL (sem parâmetros adicionais):
+        `curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados' --header 'Content-Type: application/xml' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' --data '<?xml version="1.0"?><resultados idagente="194607" lis="Postman" operador="nome-operador" senha="71da7e"><entidade codigo="19812"><solicitacao idAlvaro="372106818"><exame codigo="" /></solicitacao></entidade></resultados>'`
+      parameters:
+      - name: anexoFormato
+        in: query
+        description: Define o formato dos anexos retornados no XML.
+        schema:
+          type: string
+          enum:
+          - PNG
+          - SVG
+        examples:
+          png:
+            summary: Retorna anexos em PNG
+            value: PNG
+          svg:
+            summary: Retorna anexos em SVG
+            value: SVG
+        x-anexoFormatoScenarios:
+          PNG:
+            query: anexoFormato=PNG
+            curl: |
+              curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados?anexoFormato=PNG' --header 'Content-Type: application/xml' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' --data '<?xml version="1.0"?><resultados idagente="194607" lis="Postman" operador="nome-operador" senha="71da7e"><entidade codigo="19812"><solicitacao idAlvaro="372116648"><exame codigo="" /></solicitacao></entidade></resultados>'
+            responseExampleRef: resultadoComAnexoPNG
+          SVG:
+            query: anexoFormato=SVG
+            curl: |
+              curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados?anexoFormato=SVG' --header 'Content-Type: application/xml' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' --data '<?xml version="1.0"?><resultados idagente="194607" lis="Postman" operador="nome-operador" senha="71da7e"><entidade codigo="19812"><solicitacao idAlvaro="372116648"><exame codigo="" /></solicitacao></entidade></resultados>'
+            responseExampleRef: resultadoComAnexoSVG
+      - name: responsavelTecnicoAssinatura
+        in: query
+        schema:
+          type: boolean
+      - name: referenciaResultado
+        in: query
+        description: |
+          Quando `true`, retorna o valor de referência filtrado pelo perfil do paciente (sexo e idade)
+          diretamente em cada linha de resultado.
+
+          O VR filtrado é retornado:
+          - no atributo `referencia` da tag `<resultado>`;
+          - e também dentro do bloco `<valorreferencia><![CDATA[...]]></valorreferencia>` de cada `<resultado>`.
+
+          Adicionalmente, o response inclui um bloco `<valorreferencia>` geral em CDATA dentro do `<exame>`
+          em `<cadastros>`, **sem filtro** de sexo ou idade (todas as faixas de referência disponíveis).
+        schema:
+          type: boolean
+        x-scenarios:
+          referenciaResultadoTrue:
+            query: referenciaResultado=true
+            curl: |
+              curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados?referenciaResultado=true' \
+              --header 'Content-Type: text/html' \
+              --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' \
+              --data '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+              <resultados idagente="194607" senha="71da7e" lis="nome-lis" operador="nome-operador">
+                  <entidade codigo="19812">
+                      <solicitacao idAlvaro="372559358">
+                      </solicitacao>
+                  </entidade>
+              </resultados>'
+            response: |
+              <?xml version="1.0" encoding="UTF-8"?>
+              <resultados datahora="2026-03-07 22:06:39" origem="aol" versao="20101018">
+                  <cadastros>
+                      <pacientes>
+                          <paciente codigo="432272648" codigo_lis="PAC-5000" datanasc="01/01/1991" nome="TESTE HEMOGRAMA" nomeSocial="TESTE NOME SOCIAL" sexo="M"/>
+                      </pacientes>
+                      <materiais>
+                          <material codigo="879" descricao="sangue total EDTA"/>
+                      </materiais>
+                      <exame codigo="HEDTA" descricao="HEMOGRAMA" dataalteracao="29/09/2025 10:18:01">
+                          <linhasresultado>
+                              <linha codigo="15597" descricao="Leucócitos /µL" unidade="/µL"/>
+                              <linha codigo="15646" descricao="Hemoglobina g/dL" unidade="g/dL"/>
+                              <linha codigo="15647" descricao="Hematócrito %" unidade="%"/>
+                              <linha codigo="15653" descricao="Plaquetas /µL" unidade="/µL"/>
+                          </linhasresultado>
+                          <valorreferencia>
+                              <![CDATA[4000 a 10000 /µL
+              13,0 a 17,0 g/dL
+              40,0 a 50,0%
+              150000 a 450000 /µL]]>
+                          </valorreferencia>
+                      </exame>
+                  </cadastros>
+                  <solicitacao codigo="372559358" codigo_aol="" codigo_lis="SOL-5000" dataColeta="2026-03-06 08:00:00" paciente="432272648">
+                      <amostras>
+                          <amostra codigo="0" descricao="Basal" identificacao="" material="879"/>
+                      </amostras>
+                      <exame codigo="HEDTA" observacao="Anisocitose." metodo="Impedância / Colorimetria / Fluorescência / Avaliação Microscópica" normal="S" dataresultado="06/03/2026 13:16:06" responsaveltecnico="Sheila Vasques Leandro Argolo" responsaveltecnicodocumento="CRF-RJ 4469">
+                          <resultado amostra="0" linharesultado="15597" id_lis="" resultado="6610" referencia="4000 a 10000 /µL">
+                              <valorreferencia>
+                                  <![CDATA[4000 a 10000 /µL]]>
+                              </valorreferencia>
+                          </resultado>
+                          <resultado amostra="0" linharesultado="15646" id_lis="" resultado="14,1" referencia="13,0 a 17,0 g/dL">
+                              <valorreferencia>
+                                  <![CDATA[13,0 a 17,0 g/dL]]>
+                              </valorreferencia>
+                          </resultado>
+                          <resultado amostra="0" linharesultado="15647" id_lis="" resultado="44,4" referencia="40,0 a 50,0%">
+                              <valorreferencia>
+                                  <![CDATA[40,0 a 50,0%]]>
+                              </valorreferencia>
+                          </resultado>
+                          <resultado amostra="0" linharesultado="15653" id_lis="" resultado="228000" referencia="150000 a 450000 /µL">
+                              <valorreferencia>
+                                  <![CDATA[150000 a 450000 /µL]]>
+                              </valorreferencia>
+                          </resultado>
+                      </exame>
+                  </solicitacao>
+              </resultados>
+      - name: novaVersaoHemograma
+        in: query
+        description: |
+          Quando `true`, retorna os valores de referência do hemograma em formato estruturado por faixa etária e sexo.
+
+          O VR é retornado no bloco `<valorreferenciahemograma>` dentro do `<exame>` em `<cadastros>`,
+          com múltiplos blocos `<faixaetaria descricao="..." sexo="...">` contendo os intervalos em CDATA.
+          As faixas etárias **não são filtradas** pelo perfil do paciente — todas as faixas disponíveis são retornadas.
+
+          As linhas de resultado (`<resultado>`) **não incluem** o atributo `referencia` nem a tag `<valorreferencia>` quando apenas este parâmetro é utilizado.
+        schema:
+          type: boolean
+        x-scenarios:
+          novaVersaoHemogramaTrue:
+            query: novaVersaoHemograma=true
+            curl: |
+              curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados?novaVersaoHemograma=true' \
+              --header 'Content-Type: text/html' \
+              --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' \
+              --data '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+              <resultados idagente="194607" senha="71da7e" lis="nome-lis" operador="nome-operador">
+                  <entidade codigo="19812">
+                      <solicitacao idAlvaro="372559358">
+                      </solicitacao>
+                  </entidade>
+              </resultados>'
+            response: |
+              <?xml version="1.0" encoding="UTF-8"?>
+              <resultados datahora="2026-03-07 22:14:06" origem="aol" versao="20101018">
+                  <cadastros>
+                      <pacientes>
+                          <paciente codigo="432272648" codigo_lis="PAC-5000" datanasc="01/01/1991" nome="TESTE HEMOGRAMA" nomeSocial="TESTE NOME SOCIAL" sexo="M"/>
+                      </pacientes>
+                      <materiais>
+                          <material codigo="879" descricao="sangue total EDTA"/>
+                      </materiais>
+                      <exame codigo="HEDTA" descricao="HEMOGRAMA" dataalteracao="29/09/2025 10:18:01">
+                          <linhasresultado>
+                              <linha codigo="15597" descricao="Leucócitos /µL" unidade="/µL"/>
+                              <linha codigo="15646" descricao="Hemoglobina g/dL" unidade="g/dL"/>
+                              <linha codigo="15647" descricao="Hematócrito %" unidade="%"/>
+                              <linha codigo="15653" descricao="Plaquetas /µL" unidade="/µL"/>
+                          </linhasresultado>
+                          <valorreferenciahemograma>
+                              <faixaetaria descricao="18 anos a 178 anos" sexo="M">
+                                  <![CDATA[Concentração HCM g/dL: 31,0 a 35,0 g/dL
+              Eritrócitos 10^6/µL: 4,50 a 5,50 10^6/µL
+              HCM pg: 27,0 a 32,0 pg
+              Hematócrito %: 40,0 a 50,0%
+              Hemoglobina g/dL: 13,0 a 17,0 g/dL
+              RDW %: 11,6 a 14,0%
+              VCM fL: 83,0 a 101,0 fL]]>
+                              </faixaetaria>
+                              <faixaetaria descricao="21 anos a 178 anos" sexo="A">
+                                  <![CDATA[Basófilos %: 0,0 a 2,0 %
+              Leucócitos /µL: 4000 a 10000 /µL
+              Linfócitos %: 20,0 a 40,0 %
+              Linfócitos /µL: 1000 a 3000 /µL]]>
+                              </faixaetaria>
+                          </valorreferenciahemograma>
+                      </exame>
+                  </cadastros>
+                  <solicitacao codigo="372559358" codigo_aol="" codigo_lis="SOL-5000" dataColeta="2026-03-06 08:00:00" paciente="432272648">
+                      <amostras>
+                          <amostra codigo="0" descricao="Basal" identificacao="" material="879"/>
+                      </amostras>
+                      <exame codigo="HEDTA" observacao="Anisocitose." metodo="Impedância / Colorimetria / Fluorescência / Avaliação Microscópica" normal="S" dataresultado="06/03/2026 13:16:06" responsaveltecnico="Sheila Vasques Leandro Argolo" responsaveltecnicodocumento="CRF-RJ 4469">
+                          <resultado amostra="0" linharesultado="15597" id_lis="" resultado="6610"/>
+                          <resultado amostra="0" linharesultado="15646" id_lis="" resultado="14,1"/>
+                          <resultado amostra="0" linharesultado="15647" id_lis="" resultado="44,4"/>
+                          <resultado amostra="0" linharesultado="15653" id_lis="" resultado="228000"/>
+                      </exame>
+                  </solicitacao>
+              </resultados>
+      - name: habilitaInformacoesComplementares
+        in: query
+        description: |
+          Habilita o retorno das informações de Valor de Referência (VR) considerando o perfil do paciente.
+          O intervalo de referência é calculado com base em sexo e idade do paciente e é retornado
+          juntamente com o resultado do exame.
+
+          O VR é apresentado:
+          - no atributo `referencia` da linha de resultado;
+          - e também no bloco `CDATA` dentro da tag `valorreferencia`.
+
+          Dessa forma, o consumidor da API pode acessar o intervalo de referência tanto diretamente
+          na linha do resultado quanto no bloco dedicado de valor de referência.
+        schema:
+          type: boolean
+        examples:
+          habilitado:
+            summary: Retorna informações complementares
+            value: true
+        x-scenarios:
+          habilitaInformacoesComplementaresTrue:
+            query: habilitaInformacoesComplementares=true
+            curl: |
+              curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados?habilitaInformacoesComplementares=true' --header 'Content-Type: application/xml' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' --data '<?xml version="1.0"?><resultados idagente="194607" lis="Postman" operador="nome-operador" senha="71da7e"><entidade codigo="19812"><solicitacao idAlvaro="372106818"><exame codigo="" /></solicitacao></entidade></resultados>'
+            responseExampleRef: resultadoComInformacoesComplementares
+      - name: habilitaLocalCNES
+        in: query
+        description: Habilita o bloco `local-CNES` no retorno do resultado.
+        schema:
+          type: boolean
+        examples:
+          habilitado:
+            summary: Retorna local-CNES no resultado
+            value: true
+        x-scenarios:
+          habilitaLocalCNESTrue:
+            query: habilitaLocalCNES=true
+            curl: |
+              curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados?habilitaLocalCNES=true' --header 'Content-Type: application/xml' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' --data '<?xml version="1.0"?><resultados idagente="194607" lis="Postman" operador="nome-operador" senha="71da7e"><entidade codigo="19812"><solicitacao idAlvaro="372106818"><exame codigo="" /></solicitacao></entidade></resultados>'
+            responseExampleRef: resultadoComHabilitaLocalCNES
+      - name: habilitaNotaFixa
+        in: query
+        description: |
+          Quando `true`, habilita o retorno de notas fixas associadas aos exames no atributo `notaFixa`.
+          As notas fixas fornecem informações complementares importantes sobre o exame, como referências
+          bibliográficas, alterações de intervalos de referência e outras observações relevantes.
+
+          Este parâmetro está disponível tanto para consulta de resultados por OS quanto para resultado por lote/período.
+        schema:
+          type: boolean
+        examples:
+          habilitado:
+            summary: Retorna notas fixas nos resultados
+            value: true
+        x-scenarios:
+          habilitaNotaFixaTrueResultadoOS:
+            query: habilitaNotaFixa=true
+            curl: |
+              curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados?habilitaNotaFixa=true' --header 'Content-Type: application/xml' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' --data '<?xml version="1.0" encoding="ISO-8859-1"?><resultados idagente="194607" lis="Postman" operador="teste" senha="71da7e" padrao="AOL"><entidade codigo="19812"><solicitacao idAlvaro="372106818"></solicitacao></entidade></resultados>'
+            requestExampleRef: listarResultadosComHabilitaNotaFixa
+            responseExampleRef: resultadoComHabilitaNotaFixa
+          habilitaNotaFixaTrueResultadoLote:
+            query: habilitaNotaFixa=true
+            curl: |
+              curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v3/resultados/lote/19812/20260303122000/20260303122500?habilitaNotaFixa=true' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='
+            description: Exemplo de uso do parâmetro habilitaNotaFixa para resultado por lote/período
+      - name: exameCNESResponsavelLiberacao
+        in: query
+        schema:
+          type: boolean
+        description: Quando `true`, retorna o CNES por exame e o responsável liberador.
+        examples:
+          habilitado:
+            summary: Retorna CNES por exame e responsável pela liberação
+            value: true
+        x-scenarios:
+          exameCNESResponsavelLiberacaoTrue:
+            query: exameCNESResponsavelLiberacao=true
+            curl: |
+              curl --location --request PUT 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados?exameCNESResponsavelLiberacao=true' --header 'Content-Type: application/xml' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' --data '<?xml version="1.0"?><resultados idagente="194607" lis="Postman" operador="nome-operador" senha="71da7e"><entidade codigo="19812"><solicitacao idAlvaro="372106818"><exame codigo="" /></solicitacao></entidade></resultados>'
+            responseExampleRef: resultadoComExameCNESResponsavelLiberacao
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              $ref: '#/components/schemas/ResultadosRequest'
+            examples:
+              listarResultadosComHabilitaNotaFixa:
+                summary: Request de resultados com habilitaNotaFixa=true
+                value: |
+                  <?xml version="1.0" encoding="ISO-8859-1"?>
+                  <resultados idagente="194607" lis="Postman" operador="teste" senha="71da7e" padrao="AOL">
+                    <entidade codigo="19812">
+                      <solicitacao idAlvaro="372106818">
+                      </solicitacao>
+                    </entidade>
+                  </resultados>
+      responses:
+        '200':
+          description: |
+            Retorno de resultados.
+
+            ---
+
+            ⚠️ **Atenção: interpretação correta do resultado por tipo de exame**
+
+            **Exames simples e compostos**
+            Cada `<resultado>` corresponde a uma única linha de resultado. O atributo `id_lis` pode ser usado pelo LIS como chave de identificação do resultado.
+
+            **Exames de curva, cultura e múltiplas amostras**
+            A linha de resultado (`linharesultado`) **se repete** para cada amostra coletada. Nestes casos, **o `id_lis` não deve ser usado como chave**, pois causará sobrescrita de resultados ou retornará apenas o resultado da primeira linha. A chave correta é a combinação dos atributos `amostra` + `linharesultado`.
+
+            | Tipo de exame | Chave correta para o LIS |
+            |---|---|
+            | Simples / Composto / Paternidade | `id_lis` ou `linharesultado` |
+            | Curva / Cultura / Múltiplas amostras | `amostra` + `linharesultado` |
+
+            **Sobre o atributo `id_lis`**
+            É um apelido alfanumérico definido pelo LIS do cliente e enviado no atributo `idlis` da solicitação (`<exame codigo="TSH" idlis="TSH1"/>`).
+            O AOL devolve esse valor no atributo `id_lis` do resultado (`<resultado id_lis="TSH1" .../>`).
+            Para exames de curva, cultura e múltiplas amostras, mesmo que o cliente faça o mapeamento do `idlis` com o mnemônico Alvaro, **a forma correta de receber estes resultados é pelo atributo `amostra`**, e não pelo `id_lis`.
+
+            **Sobre cultura positiva**
+            Quando o resultado de cultura for positivo, o response incluirá adicionalmente um bloco `<antibiograma>` com os antibióticos testados e suas respectivas resistências.
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/XmlAny'
+              examples:
+                resultadoComAnexoPNG:
+                  summary: Response de resultados com anexo formato PNG
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <resultados datahora="2026-03-03 16:15:20" origem="aol" versao="20101018">
+                        <cadastros>
+                            <pacientes>
+                                <paciente codigo="431798951" codigo_lis="PAC-503" datanasc="01/01/1991" nome="TESTE EXAME DE CURVA" nomeSocial="" sexo="M"/>
+                            </pacientes>
+                            <materiais>
+                                <material codigo="543" descricao="soro"/>
+                            </materiais>
+                            <exame codigo="INSULCURVA" descricao="INSULINA - Curva" dataalteracao="28/01/2026 14:00:22">
+                                <linhasresultado>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                </linhasresultado>
+                                <valorreferencia>
+                                    <![CDATA[INSULINA Basal:
+                    OUTROS	2 a 12 µUI/mL
+                    IDADE>19	2,5 a 13,1	µUI/mL
+                    ]]>
+                                </valorreferencia>
+                            </exame>
+                        </cadastros>
+                        <solicitacao codigo="372116648" codigo_aol="" codigo_lis="SOL-503" dataColeta="2026-03-03 00:00:00" paciente="431798951">
+                            <amostras>
+                                <amostra codigo="0" descricao="Basal" identificacao="" material="543"/>
+                                <amostra codigo="1" descricao="30 min" identificacao="" material="543"/>
+                                <amostra codigo="2" descricao="60 min" identificacao="" material="543"/>
+                                <amostra codigo="3" descricao="90 min" identificacao="" material="543"/>
+                                <amostra codigo="4" descricao="120 min" identificacao="" material="543"/>
+                            </amostras>
+                            <exame codigo="INSULCURVA" observacao="" metodo="Eletroquimioluminescência | Quimioluminescência" normal="S" dataresultado="03/03/2026 12:35:58" responsaveltecnico="Sheila Vasques Leandro Argolo" responsaveltecnicodocumento="CRF-RJ 4469">
+                                <resultado amostra="0" linharesultado="4767" id_lis="" resultado="4,0"/>
+                                <resultado amostra="1" linharesultado="4767" id_lis="" resultado="4,0"/>
+                                <resultado amostra="2" linharesultado="4767" id_lis="" resultado="6,0"/>
+                                <resultado amostra="3" linharesultado="4767" id_lis="" resultado="5,0"/>
+                                <resultado amostra="4" linharesultado="4767" id_lis="" resultado="4,0"/>
+                                <anexos>
+                                    <anexo codigo="1" tipo="IMAGEM" formato="PNG">
+                                        <![CDATA[<BASE64_PNG>]]>
+                                    </anexo>
+                                </anexos>
+                            </exame>
+                        </solicitacao>
+                    </resultados>
+                resultadoComAnexoSVG:
+                  summary: Response de resultados com anexo formato SVG
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <resultados datahora="2026-03-03 16:19:36" origem="aol" versao="20101018">
+                        <cadastros>
+                            <pacientes>
+                                <paciente codigo="431798951" codigo_lis="PAC-503" datanasc="01/01/1991" nome="TESTE EXAME DE CURVA" nomeSocial="" sexo="M"/>
+                            </pacientes>
+                            <materiais>
+                                <material codigo="543" descricao="soro"/>
+                            </materiais>
+                            <exame codigo="INSULCURVA" descricao="INSULINA - Curva" dataalteracao="28/01/2026 14:00:22">
+                                <linhasresultado>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                </linhasresultado>
+                                <valorreferencia>
+                                    <![CDATA[INSULINA Basal:
+                    OUTROS	2 a 12 µUI/mL
+                    IDADE>19	2,5 a 13,1	µUI/mL
+                    ]]>
+                                </valorreferencia>
+                            </exame>
+                        </cadastros>
+                        <solicitacao codigo="372116648" codigo_aol="" codigo_lis="SOL-503" dataColeta="2026-03-03 00:00:00" paciente="431798951">
+                            <amostras>
+                                <amostra codigo="0" descricao="Basal" identificacao="" material="543"/>
+                                <amostra codigo="1" descricao="30 min" identificacao="" material="543"/>
+                                <amostra codigo="2" descricao="60 min" identificacao="" material="543"/>
+                                <amostra codigo="3" descricao="90 min" identificacao="" material="543"/>
+                                <amostra codigo="4" descricao="120 min" identificacao="" material="543"/>
+                            </amostras>
+                            <exame codigo="INSULCURVA" observacao="" metodo="Eletroquimioluminescência | Quimioluminescência" normal="S" dataresultado="03/03/2026 12:35:58" responsaveltecnico="Sheila Vasques Leandro Argolo" responsaveltecnicodocumento="CRF-RJ 4469">
+                                <resultado amostra="0" linharesultado="4767" id_lis="" resultado="4,0"/>
+                                <resultado amostra="1" linharesultado="4767" id_lis="" resultado="4,0"/>
+                                <resultado amostra="2" linharesultado="4767" id_lis="" resultado="6,0"/>
+                                <resultado amostra="3" linharesultado="4767" id_lis="" resultado="5,0"/>
+                                <resultado amostra="4" linharesultado="4767" id_lis="" resultado="4,0"/>
+                                <anexos>
+                                    <anexo codigo="1" tipo="GRAFICO" formato="SVG">
+                                        <![CDATA[<svg xmlns="http://www.w3.org/2000/svg" ...>...</svg>]]>
+                                    </anexo>
+                                </anexos>
+                            </exame>
+                        </solicitacao>
+                    </resultados>
+                resultadoComInformacoesComplementares:
+                  summary: Response com habilitaInformacoesComplementares=true
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <resultados datahora="2026-03-03 16:50:58" origem="aol" versao="20101018">
+                        <cadastros>
+                            <pacientes>
+                                <paciente codigo="431788369" codigo_lis="PAC-5000" datanasc="01/01/1991" nome="TESTE EXAME SIMPLES" nomeSocial="TESTE NOME SOCIAL" sexo="M"/>
+                            </pacientes>
+                            <materiais>
+                                <material codigo="543" descricao="soro"/>
+                            </materiais>
+                            <exame codigo="TSH" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" dataalteracao="27/10/2025 08:56:34">
+                                <linhasresultado>
+                                    <linha codigo="1240" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" unidade="µUI/mL"/>
+                                </linhasresultado>
+                            </exame>
+                        </cadastros>
+                        <solicitacao codigo="372106818" codigo_aol="" codigo_lis="SOL-5000" dataColeta="2026-03-03 00:00:00" paciente="431788369">
+                            <amostras>
+                                <amostra codigo="0" descricao="Basal" identificacao="" material="543"/>
+                            </amostras>
+                            <exame codigo="TSH" observacao="Referência&#xa;Fontes R, Coeli C, Aguiar F, Vaisman M. Reference interval of thyroid stimulating hormone and free thyroxine in a reference population over 60 years old and in very old subjects (over 80 years): comparison to young subjects Thyroid Research 2013;3:12-20.&#xa;Alteração de Intervalo de Referência a partir de 20/10/2025." normal="S" dataresultado="03/03/2026 12:21:57" responsaveltecnico="Sheila Vasques Leandro Argolo" responsaveltecnicodocumento="CRF-RJ 4469">
+                                <resultado amostra="0" linharesultado="1240" id_lis="" resultado="0,40" referencia="0,40 a 4,30	µUI/mL" metodo="Eletroquimioluminescência">
+                                    <valorreferencia>
+                                        <![CDATA[0,40 a 4,30	µUI/mL]]>
+                                    </valorreferencia>
+                                </resultado>
+                            </exame>
+                        </solicitacao>
+                    </resultados>
+                resultadoComHabilitaLocalCNES:
+                  summary: Response com habilitaLocalCNES=true
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <resultados datahora="2026-03-03 16:54:21" origem="aol" versao="20101018">
+                        <cadastros>
+                            <pacientes>
+                                <paciente codigo="431788369" codigo_lis="PAC-5000" datanasc="01/01/1991" nome="TESTE EXAME SIMPLES" nomeSocial="TESTE NOME SOCIAL" sexo="M"/>
+                            </pacientes>
+                            <materiais>
+                                <material codigo="543" descricao="soro"/>
+                            </materiais>
+                            <exame codigo="TSH" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" dataalteracao="27/10/2025 08:56:34">
+                                <linhasresultado>
+                                    <linha codigo="1240" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" unidade="µUI/mL"/>
+                                </linhasresultado>
+                                <valorreferencia>
+                                    <![CDATA[0 - 1m	Inferior a 9,00	µUI/mL
+                    1a - 14a	1,12 a 5,01	µUI/mL
+                    1m - 1a	1,03 a 6,80	µUI/mL
+                    61a - 80a	0,40 a 5,80	µUI/mL
+                    80a+	0,40 a 6,70	µUI/mL
+                    Feminino
+                     14a - 15a	1,12 a 5,01 µUI/mL
+                    Gestantes*
+                    Primeiro Trimestre: 0,10 a 3,60 µUI/mL
+                    Segundo Trimestre: 0,40 a 4,30 µUI/mL
+                    Terceiro Trimestre: 0,40 a 4,30 µUI/mL
+                     15a - 19a	0,68 a 4,09 µUI/mL
+                    Gestantes*
+                    Primeiro Trimestre: 0,10 a 3,60 µUI/mL
+                    Segundo Trimestre: 0,40 a 4,30 µUI/mL
+                    Terceiro Trimestre: 0,40 a 4,30 µUI/mL
+                     19a - 61a	0,40 a 4,30 µUI/mL
+                    Gestantes*
+                    Primeiro Trimestre: 0,10 a 3,60 µUI/mL
+                    Segundo Trimestre: 0,40 a 4,30 µUI/mL
+                    Terceiro Trimestre: 0,40 a 4,30 µUI/mL
+                    Masculino
+                     14a - 15a	1,12 a 5,01	µUI/mL
+                     15a - 19a	0,68 a 4,09	µUI/mL
+                     19a - 61a	0,40 a 4,30	µUI/mL
+                    ]]>
+                                </valorreferencia>
+                            </exame>
+                        </cadastros>
+                        <solicitacao codigo="372106818" codigo_aol="" codigo_lis="SOL-5000" dataColeta="2026-03-03 00:00:00" paciente="431788369">
+                            <amostras>
+                                <amostra codigo="0" descricao="Basal" identificacao="" material="543"/>
+                            </amostras>
+                            <exame codigo="TSH" observacao="Referência&#xa;Fontes R, Coeli C, Aguiar F, Vaisman M. Reference interval of thyroid stimulating hormone and free thyroxine in a reference population over 60 years old and in very old subjects (over 80 years): comparison to young subjects Thyroid Research 2013;3:12-20.&#xa;Alteração de Intervalo de Referência a partir de 20/10/2025." metodo="Eletroquimioluminescência" normal="S" dataresultado="03/03/2026 12:21:57" responsaveltecnico="Sheila Vasques Leandro Argolo" responsaveltecnicodocumento="CRF-RJ 4469">
+                                <resultado amostra="0" linharesultado="1240" id_lis="" resultado="0,40"/>
+                            </exame>
+                            <local-CNES>
+                                <![CDATA[
+                    DASA - Rua Xavier Pinheiro, 439 Quadra 29 - Pq. Duque de Caxias CNES:7402074 - Duque de Caxias, RJ
+                    Hormônio Tireoestimulante Ultrassensível (TSH)
+                    ]]>
+                            </local-CNES>
+                        </solicitacao>
+                    </resultados>
+                resultadoComExameCNESResponsavelLiberacao:
+                  summary: Response com exameCNESResponsavelLiberacao=true
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <resultados datahora="2026-03-03 16:59:07" origem="aol" versao="20101018">
+                        <cadastros>
+                            <pacientes>
+                                <paciente codigo="431788369" codigo_lis="PAC-5000" datanasc="01/01/1991" nome="TESTE EXAME SIMPLES" nomeSocial="TESTE NOME SOCIAL" sexo="M"/>
+                            </pacientes>
+                            <materiais>
+                                <material codigo="543" descricao="soro"/>
+                            </materiais>
+                            <exame codigo="TSH" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" dataalteracao="27/10/2025 08:56:34">
+                                <linhasresultado>
+                                    <linha codigo="1240" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" unidade="µUI/mL"/>
+                                </linhasresultado>
+                                <valorreferencia>
+                                    <![CDATA[0 - 1m	Inferior a 9,00	µUI/mL
+                    1a - 14a	1,12 a 5,01	µUI/mL
+                    1m - 1a	1,03 a 6,80	µUI/mL
+                    61a - 80a	0,40 a 5,80	µUI/mL
+                    80a+	0,40 a 6,70	µUI/mL
+                    Feminino
+                     14a - 15a	1,12 a 5,01 µUI/mL
+                    Gestantes*
+                    Primeiro Trimestre: 0,10 a 3,60 µUI/mL
+                    Segundo Trimestre: 0,40 a 4,30 µUI/mL
+                    Terceiro Trimestre: 0,40 a 4,30 µUI/mL
+                     15a - 19a	0,68 a 4,09 µUI/mL
+                    Gestantes*
+                    Primeiro Trimestre: 0,10 a 3,60 µUI/mL
+                    Segundo Trimestre: 0,40 a 4,30 µUI/mL
+                    Terceiro Trimestre: 0,40 a 4,30 µUI/mL
+                     19a - 61a	0,40 a 4,30 µUI/mL
+                    Gestantes*
+                    Primeiro Trimestre: 0,10 a 3,60 µUI/mL
+                    Segundo Trimestre: 0,40 a 4,30 µUI/mL
+                    Terceiro Trimestre: 0,40 a 4,30 µUI/mL
+                    Masculino
+                     14a - 15a	1,12 a 5,01	µUI/mL
+                     15a - 19a	0,68 a 4,09	µUI/mL
+                     19a - 61a	0,40 a 4,30	µUI/mL
+                    ]]>
+                                </valorreferencia>
+                            </exame>
+                        </cadastros>
+                        <solicitacao codigo="372106818" codigo_aol="" codigo_lis="SOL-5000" dataColeta="2026-03-03 00:00:00" paciente="431788369">
+                            <amostras>
+                                <amostra codigo="0" descricao="Basal" identificacao="" material="543"/>
+                            </amostras>
+                            <exame codigo="TSH" observacao="Referência&#xa;Fontes R, Coeli C, Aguiar F, Vaisman M. Reference interval of thyroid stimulating hormone and free thyroxine in a reference population over 60 years old and in very old subjects (over 80 years): comparison to young subjects Thyroid Research 2013;3:12-20.&#xa;Alteração de Intervalo de Referência a partir de 20/10/2025." metodo="Eletroquimioluminescência" normal="S" dataresultado="03/03/2026 12:21:57" responsaveltecnico="Sheila Vasques Leandro Argolo" responsaveltecnicodocumento="CRF-RJ 4469" cnes="7402074" responsavelliberacao="Juliana Francisco Pereira Vasco CRBIO-RJ 48990">
+                                <resultado amostra="0" linharesultado="1240" id_lis="" resultado="0,40"/>
+                            </exame>
+                        </solicitacao>
+                    </resultados>
+                resultadoComHabilitaNotaFixa:
+                  summary: Response com habilitaNotaFixa=true
+                  value: |
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <resultados datahora="2026-03-06 10:28:29" origem="aol" versao="20101018">
+                        <cadastros>
+                            <pacientes>
+                                <paciente codigo="431788369" codigo_lis="PAC-5000" datanasc="01/01/1991" nome="TESTE EXAME SIMPLES" nomeSocial="TESTE NOME SOCIAL" sexo="M"/>
+                            </pacientes>
+                            <materiais>
+                                <material codigo="543" descricao="soro"/>
+                            </materiais>
+                            <exame codigo="TSH" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" dataalteracao="27/10/2025 08:56:34">
+                                <linhasresultado>
+                                    <linha codigo="1240" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" unidade="µUI/mL"/>
+                                </linhasresultado>
+                                <valorreferencia>
+                                    <![CDATA[0 - 1m	Inferior a 9,00	µUI/mL
+                    1a - 14a	1,12 a 5,01	µUI/mL
+                    1m - 1a	1,03 a 6,80	µUI/mL
+                    61a - 80a	0,40 a 5,80	µUI/mL
+                    80a+	0,40 a 6,70	µUI/mL
+                    Feminino
+                     14a - 15a	1,12 a 5,01 µUI/mL
+                    Gestantes*
+                    Primeiro Trimestre: 0,10 a 3,60 µUI/mL
+                    Segundo Trimestre: 0,40 a 4,30 µUI/mL
+                    Terceiro Trimestre: 0,40 a 4,30 µUI/mL
+                     15a - 19a	0,68 a 4,09 µUI/mL
+                    Gestantes*
+                    Primeiro Trimestre: 0,10 a 3,60 µUI/mL
+                    Segundo Trimestre: 0,40 a 4,30 µUI/mL
+                    Terceiro Trimestre: 0,40 a 4,30 µUI/mL
+                     19a - 61a	0,40 a 4,30 µUI/mL
+                    Gestantes*
+                    Primeiro Trimestre: 0,10 a 3,60 µUI/mL
+                    Segundo Trimestre: 0,40 a 4,30 µUI/mL
+                    Terceiro Trimestre: 0,40 a 4,30 µUI/mL
+                    Masculino
+                     14a - 15a	1,12 a 5,01	µUI/mL
+                     15a - 19a	0,68 a 4,09	µUI/mL
+                     19a - 61a	0,40 a 4,30	µUI/mL
+                    ]]>
+                                </valorreferencia>
+                            </exame>
+                        </cadastros>
+                        <solicitacao codigo="372106818" codigo_aol="" codigo_lis="SOL-5000" dataColeta="2026-03-03 00:00:00" paciente="431788369">
+                            <amostras>
+                                <amostra codigo="0" descricao="Basal" identificacao="" material="543"/>
+                            </amostras>
+                            <exame codigo="TSH" observacao="Alteração de Intervalo de Referência a partir de 20/10/2025." metodo="Eletroquimioluminescência" normal="S" dataresultado="03/03/2026 12:21:57" responsaveltecnico="Sheila Vasques Leandro Argolo" responsaveltecnicodocumento="CRF-RJ 4469" notaFixa="Referência&#xa;Fontes R, Coeli C, Aguiar F, Vaisman M. Reference interval of thyroid stimulating hormone and free thyroxine in a reference population over 60 years old and in very old subjects (over 80 years): comparison to young subjects Thyroid Research 2013;3:12-20.">
+                                <resultado amostra="0" linharesultado="1240" id_lis="" resultado="0,40"/>
+                            </exame>
+                        </solicitacao>
+                    </resultados>
+        '206':
+          $ref: '#/components/responses/PartialSuccess'
+        '400':
+          $ref: '#/components/responses/BusinessError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /webserviceaol/rest/producao/v2/resultados/pdf:
+    get:
+      tags:
+      - resultados
+      summary: 9) Resultado PDF
+      operationId: listarResultadosPdf
+      description: Retorna o binário do PDF do laudo da ordem de serviço informada.
+      parameters:
+      - name: idOrdemServico
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: idEntidade
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: exames
+        in: query
+        required: false
+        description: |
+          Parâmetro não obrigatório para informar os exames que retornarão no laudo PDF.
+          Para buscar mais de um exame, utilizar o caractere vírgula (",") como separador.
+          Exemplo com múltiplos exames: `exames=T3,T4L,CARIB`
+        schema:
+          type: string
+        x-scenarios:
+          porOS:
+            query: idOrdemServico=372106818&idEntidade=19812
+            curl: |
+              curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados/pdf?idOrdemServico=372106818&idEntidade=19812' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='
+          porExame:
+            query: idOrdemServico=372106818&idEntidade=19812&exames=TSH
+            curl: |
+              curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v2/resultados/pdf?idOrdemServico=372106818&idEntidade=19812&exames=TSH' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='
+      - name: logo
+        in: query
+        schema:
+          type: boolean
+          default: true
+      - name: assinatura
+        in: query
+        schema:
+          type: boolean
+          default: true
+      responses:
+        '200':
+          description: Binário do PDF do laudo. O conteúdo retornado é o arquivo PDF em formato binário.
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/v3/resultados/lote/{idEntidade}/{dataInicial}/{dataFinal}:
+    get:
+      tags:
+      - resultados
+      summary: 10) Resultado lote v3
+      operationId: listarResultadosLoteV3
+      description: |
+        Retorna resultados de exames por lote em um período informado.
+
+        Parâmetro `exportado` (query, opcional):
+        - Ausente: devolve resultados exportados e não exportados
+        - `exportado=true`: devolve resultados exportados e não exportados no período informado
+        - `exportado=false`: devolve **apenas** resultados não exportados no período informado
+
+        Exemplo de URLs:
+        `GET http://webservice.alvaro.com.br/webserviceaol/rest/producao/v3/resultados/lote/19812/20260303000000/20260303235959`
+        `GET http://webservice.alvaro.com.br/webserviceaol/rest/producao/v3/resultados/lote/19812/20260303000000/20260303235959?exportado=true`
+        `GET http://webservice.alvaro.com.br/webserviceaol/rest/producao/v3/resultados/lote/19812/20260303000000/20260303235959?exportado=false`
+
+        Exemplo cURL:
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v3/resultados/lote/19812/20260303000000/20260303235959' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='`
+      parameters:
+      - name: idEntidade
+        in: path
+        required: true
+        schema:
+          type: string
+          examples:
+          - '19812'
+        description: Código da entidade.
+      - name: dataInicial
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{14}$
+          examples:
+          - '20260303000000'
+        description: 'Data inicial no formato YYYYMMDDHHmmss (ex: 20260303000000).'
+      - name: dataFinal
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^[0-9]{14}$
+          examples:
+          - '20260303235959'
+        description: 'Data final no formato YYYYMMDDHHmmss (ex: 20260303235959).'
+      - name: exportado
+        in: query
+        required: false
+        schema:
+          type: boolean
+        description: |
+          Filtro por status de exportação. Se ausente, devolve exportados e não exportados. `true` = exportados e não exportados. `false` = apenas não exportados.
+      - name: habilitaLocalCNES
+        in: query
+        required: false
+        schema:
+          type: boolean
+        description: |
+          Quando `true`, habilita o retorno do bloco `local-cnes` no resultado, contendo informações
+          sobre o local de execução do exame com o código CNES (Cadastro Nacional de Estabelecimentos de Saúde).
+
+          Exemplo de URL com parâmetro:
+          `GET http://webservice.alvaro.com.br/webserviceaol/rest/producao/v3/resultados/lote/19812/20260303122000/20260303122500?habilitaLocalCNES=true`
+
+          Exemplo cURL:
+          `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v3/resultados/lote/19812/20260303122000/20260303122500?habilitaLocalCNES=true' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='`
+        examples:
+          habilitado:
+            summary: Retorna local-CNES no resultado por lote
+            value: true
+      responses:
+        '200':
+          description: Resultados por lote v3
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/XmlAny'
+              examples:
+                resultadosLoteV3:
+                  summary: Response de resultados por lote (v3)
+                  value: |
+                    <?xml version="1.0" encoding="ISO-8859-1" standalone="yes"?>
+                    <resultados versao="20101018" origem="aol" datahora="2026-03-05 11:40:26">
+                        <cadastros>
+                            <pacientes>
+                                <paciente codigo="423174996" codigo_lis="PAC-5000" codigo_aol="423174996" datanasc="01/01/1991" nome="TESTE EXAME SIMPLES" sexo="M"/>
+                                <paciente codigo="423179644" codigo_lis="0000639" codigo_aol="423179644" datanasc="14/01/1998" nome="TESTE ALVARO" sexo="M"/>
+                                <paciente codigo="423185578" codigo_lis="PAC-503" codigo_aol="423185578" datanasc="01/01/1991" nome="TESTE EXAME DE CURVA" sexo="M"/>
+                                <paciente codigo="423197021" codigo_lis="PAC-506" codigo_aol="423197021" datanasc="01/01/1991" nome="TESTE EXAME CULTURA" sexo="M"/>
+                            </pacientes>
+                            <materiais>
+                                <material codigo="543" descricao="soro"/>
+                                <material codigo="4956" descricao="Urina Tubo Ac. Borico"/>
+                            </materiais>
+                            <exame codigo="TSH" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" dataalteracao="27/10/2025 08:56:34">
+                                <linhasresultado>
+                                    <linha codigo="1240" descricao="Hormônio Tireoestimulante Ultrassensível (TSH)" unidade="µUI/mL"/>
+                                </linhasresultado>
+                            </exame>
+                            <exame codigo="INSULCURVA" descricao="INSULINA - Curva" dataalteracao="28/01/2026 14:00:23">
+                                <linhasresultado>
+                                    <linha codigo="4767" descricao="INSULINA $$" unidade="µUI/mL"/>
+                                </linhasresultado>
+                            </exame>
+                            <exame codigo="CCCT" descricao="Cultura de Urina Jato Médio com Antibiograma" dataalteracao="01/07/2024 09:16:25">
+                                <linhasresultado>
+                                    <linha codigo="203" descricao="Cultura" unidade=""/>
+                                    <linha codigo="204" descricao="Contagem de colônias" unidade=""/>
+                                </linhasresultado>
+                            </exame>
+                            <exame codigo="TESTL" descricao="Testosterona Livre e Biodisponível" dataalteracao="28/01/2026 15:15:45">
+                                <linhasresultado>
+                                    <linha codigo="1192" descricao="Testosterona Total" unidade="ng/dL"/>
+                                    <linha codigo="22032" descricao="Globulina Ligadora de Hormônios Sexuais (SHBG)" unidade="nmol/L"/>
+                                    <linha codigo="22033" descricao="Testosterona Livre" unidade="ng/dL"/>
+                                    <linha codigo="22034" descricao="Testosterona Biodisponível" unidade="ng/dL"/>
+                                </linhasresultado>
+                            </exame>
+                        </cadastros>
+                        <solicitacao codigo="372106818" codigo_aol="372106818" codigo_lis="SOL-5000" paciente="423174996" data_coleta="03/03/2026 00:00:00">
+                            <amostras>
+                                <amostra codigo="0" identificacao="" descricao="Basal" material="543"/>
+                            </amostras>
+                            <exame codigo="TSH" dataresultado="03/03/2026 12:21:57" metodo="Eletroquimioluminescência" normal="S" responsaveltecnico="Sheila V. Leandro Argolo">
+                                <resultado amostra="0" linharesultado="1240" resultado="0,40" id_lis=""/>
+                            </exame>
+                        </solicitacao>
+                        <solicitacao codigo="372116648" codigo_aol="372116648" codigo_lis="SOL-503" paciente="423185578" data_coleta="03/03/2026 00:00:00">
+                            <amostras>
+                                <amostra codigo="0" identificacao="" descricao="Basal" material="543"/>
+                                <amostra codigo="1" identificacao="" descricao="30 min" material="543"/>
+                                <amostra codigo="2" identificacao="" descricao="60 min" material="543"/>
+                                <amostra codigo="3" identificacao="" descricao="90 min" material="543"/>
+                                <amostra codigo="4" identificacao="" descricao="120 min" material="543"/>
+                            </amostras>
+                            <exame codigo="INSULCURVA" dataresultado="03/03/2026 12:35:58" metodo="Eletroquimioluminescência | Quimioluminescência" normal="S" responsaveltecnico="Sheila V. Leandro Argolo">
+                                <resultado amostra="0" linharesultado="4767" resultado="4,0" id_lis=""/>
+                                <resultado amostra="1" linharesultado="4767" resultado="4,0" id_lis=""/>
+                                <resultado amostra="2" linharesultado="4767" resultado="6,0" id_lis=""/>
+                                <resultado amostra="3" linharesultado="4767" resultado="5,0" id_lis=""/>
+                                <resultado amostra="4" linharesultado="4767" resultado="4,0" id_lis=""/>
+                            </exame>
+                        </solicitacao>
+                        <solicitacao codigo="372110934" codigo_aol="372110934" codigo_lis="0000639" paciente="423179644" data_coleta="03/03/2026 10:28:12">
+                            <amostras>
+                                <amostra codigo="0" identificacao="" descricao="Basal" material="543"/>
+                            </amostras>
+                            <exame codigo="TESTL" dataresultado="03/03/2026 12:18:18" metodo="Cálculo | Eletroquimioluminescência" normal="S" responsaveltecnico="Sheila V. Leandro Argolo">
+                                <resultado amostra="0" linharesultado="1192" resultado="20,0" id_lis=""/>
+                                <resultado amostra="0" linharesultado="22032" resultado="35,0" id_lis=""/>
+                                <resultado amostra="0" linharesultado="22033" resultado="0,34" id_lis=""/>
+                                <resultado amostra="0" linharesultado="22034" resultado="8,1" id_lis=""/>
+                            </exame>
+                        </solicitacao>
+                        <solicitacao codigo="372127310" codigo_aol="372127310" codigo_lis="SOL-506" paciente="423197021" data_coleta="03/03/2026 00:00:00">
+                            <amostras>
+                                <amostra codigo="0" identificacao="" descricao="Basal" material="4956"/>
+                                <amostra codigo="1" descricao="Basal" material="4956"/>
+                            </amostras>
+                            <exame codigo="CCCT" dataresultado="03/03/2026 12:53:45" metodo="Cultura quantitativa cinética e/ou convencional com identificação e antibiograma automatizados" normal="S" responsaveltecnico="Sheila V. Leandro Argolo">
+                                <resultado amostra="1" linharesultado="203" resultado="Enterococcus faecalis" id_lis=""/>
+                                <resultado amostra="1" linharesultado="204" resultado="Igual ou Superior à 100.000 UFC/mL" id_lis=""/>
+                                <antibiograma id_lis="">
+                                    <resultado antibiotico="AMPICILINA" halo="1419" mic="&lt;= 2,00" resistencia="S"/>
+                                    <resultado antibiotico="VANCOMICINA" halo="1509" mic="1,00" resistencia="S"/>
+                                    <resultado antibiotico="LINEZOLIDE" halo="1419" mic="2" resistencia="S"/>
+                                </antibiograma>
+                            </exame>
+                        </solicitacao>
+                    </resultados>
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/v1/orders/{orderId}/exams/status:
+    get:
+      tags:
+      - status
+      summary: 11) Status dos exames por OS
+      operationId: listarStatusExamesOS
+      description: |
+        Exemplo de chamada:
+        `GET /v1/orders/370533270/exams/status?laboratoryId=19816`
+
+        Exemplo cURL:
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v1/orders/370533270/exams/status?laboratoryId=19816' --header 'Authorization: Basic MTkzNzYyOjQzNTNjZA=='`
+      parameters:
+      - name: orderId
+        in: path
+        required: true
+        schema:
+          type: string
+          examples:
+          - '370533270'
+      - name: laboratoryId
+        in: query
+        required: true
+        schema:
+          type: string
+          examples:
+          - '19816'
+      - name: exam
+        in: query
+        style: form
+        explode: true
+        schema:
+          type: array
+          items:
+            type: string
+        description: Pode ser enviado múltiplas vezes
+      responses:
+        '200':
+          description: Status dos exames
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ExamStatus'
+              examples:
+                statusExamesOrdemServico:
+                  summary: Response da solicitação de status dos exames por OS
+                  value:
+                  - barcode: '701769679956'
+                    code: GLICO
+                    status: Exame cancelado
+                    dueDate: null
+                    panic: false
+                    rescheduleDueDate: null
+                  - barcode: '701769679956'
+                    code: GLICO
+                    status: Exame cancelado pela integração
+                    dueDate: null
+                    panic: false
+                    rescheduleDueDate: null
+                  - barcode: '701769638090'
+                    code: TSH
+                    status: Não enviada
+                    dueDate: null
+                    panic: false
+                    rescheduleDueDate: null
+                  - barcode: '707818651362'
+                    code: ALDO
+                    status: Não enviada
+                    dueDate: null
+                    panic: false
+                    rescheduleDueDate: null
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/v1/orders/status/{idEntidade}:
+    get:
+      tags:
+      - status
+      summary: 12) Status consolidado
+      operationId: listarStatusConsolidado
+      description: |
+        Retorna contagem por status (countStatus), lista de orders com suas amostras e exames,
+        cursor para paginação (nextCursor) e flag hasNext. O parâmetro `idEntidade` é passado
+        no path da URL. Se o parâmetro `status` não for informado, a busca será por período
+        entre `dataInicial` e `dataFinal`.
+
+        Exemplo de chamadas:
+        `GET /v1/orders/status/19812?dataInicial=2026-02-01&dataFinal=2026-02-10`
+        `GET /v1/orders/status/19812?dataInicial=2026-02-01&dataFinal=2026-02-10&status=FINALIZADO`
+
+        Exemplo cURL (busca por período):
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v1/orders/status/19812?dataInicial=2026-02-01&dataFinal=2026-02-10' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='`
+
+        Exemplo cURL (busca por status específico):
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v1/orders/status/19812?dataInicial=2026-02-01&dataFinal=2026-02-10&status=FINALIZADO' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='`
+
+        Exemplo cURL (com paginação):
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v1/orders/status/19812?dataInicial=2026-02-01&dataFinal=2026-02-10&nextCursor=MjAyNi0wMi0wM1QxMzo1OTozNy44NDBafDY5ODFmZjQ5YzJiMzI3NjExZWQ5YWY1MA' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='`
+      parameters:
+      - name: idEntidade
+        in: path
+        required: true
+        schema:
+          type: string
+          examples:
+          - '19812'
+        description: Código da entidade.
+      - name: dataInicial
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          examples:
+          - '2026-02-01'
+        description: Data inicial do filtro (YYYY-MM-DD).
+      - name: dataFinal
+        in: query
+        required: true
+        schema:
+          type: string
+          format: date
+          examples:
+          - '2026-02-10'
+        description: Data final do filtro (YYYY-MM-DD).
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+        description: |
+          Filtro opcional por status final (ex: CADASTRADO, EM_EXECUCAO, AMOSTRA_OBTIDA). Se ausente, usa o período informado.
+      - name: nextCursor
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Cursor para paginação. Na primeira busca enviar vazio ou omitir.
+      responses:
+        '200':
+          description: Resultado com contagem por status, dados paginados e cursor.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrdersStatusResponse'
+              examples:
+                statusConsolidado:
+                  summary: Response de status consolidado
+                  value:
+                    countStatus:
+                      AGUARDANDO_RETIRADA: 0
+                      EM_TRANSITO: 0
+                      TRIAGEM: 0
+                      EM_EXECUCAO: 0
+                      EM_LIBERACAO: 0
+                      LAUDO_LIBERADO: 0
+                      COM_PENDENCIA: 0
+                      SOLICITADA_RECOLETA: 0
+                      RECOLETADO: 0
+                      REMARCADO: 0
+                      LAUDO_VISUALIZADO: 0
+                      EXAME_CANCELADO: 0
+                      FINALIZADO: 4
+                      AMOSTRA_DESCARTADA: 0
+                      RECONVOCADO: 0
+                      AMOSTRA_OBTIDA: 0
+                      NAO_LOTEADA_FISICAMENTE: 0
+                      CANCELADO: 6
+                      NAO_RASTREADO: 0
+                      RETIRADA_EXPIRADA: 53
+                      NAO_RECEBIDA: 0
+                      EM_TRANSITO_ENTRE_NTO: 0
+                      CADASTRADO: 0
+                      ATRASADO: 0
+                      ADIANTADO: 0
+                      NAO_ENVIADA: 0
+                      CANCELADO_CLIENTE: 0
+                      PENDENCIA_CRIADA: 0
+                      EMITIDO: 0
+                      PENDENCIA_RESPONDIDA: 0
+                    data:
+                    - orderId: '369460049'
+                      idOsLis: '0000572'
+                      patientName: TESTE APOIO
+                      destinations: NTO RJ Caxias
+                      samples:
+                      - codeSample: '707813638764'
+                        materialId: '856'
+                        material: plasma citratado
+                        lotId: LT0A31560262
+                        exams:
+                        - id: 6981ff494792d20235fac5e6
+                          partition: ALVARO|19812
+                          brand: ALVARO
+                          idLaboratory: '19812'
+                          currentStatus: FINALIZADO
+                          currentStatusDate: '2026-02-03T16:44:32'
+                          idOrder: '369460049'
+                          idOrderMotion: '5738'
+                          codeExamMotion: '5738'
+                          codeExamBrand: COAG4
+                          codeSample: '707813638764'
+                          events:
+                          - date: '2026-02-03T10:59:37'
+                            status: CADASTRADO
+                          - date: '2026-02-03T12:49:09'
+                            status: AMOSTRA_OBTIDA
+                          - date: '2026-02-03T16:44:32'
+                            status: FINALIZADO
+                          idDestination: null
+                          destinationId: '47'
+                          destination: NTO RJ Caxias
+                          lotId: LT0A31560262
+                          patientName: TESTE APOIO
+                          latitude: null
+                          longitude: null
+                          dueDate: null
+                          releaseDate: '2026-02-03T19:44:47'
+                          isFinished: true
+                          materialId: '856'
+                          material: plasma citratado
+                          isDelayed: false
+                          rescheduledDate: null
+                          originalDueDate: null
+                          orderCreatedDate: null
+                          IdOsLis: '0000572'
+                          currentStatusDescription: Laudo liberado
+                    nextCursor: MjAyNi0wMi0wM1QxMzo1OTozNy44NDBafDY5ODFmZjQ5YzJiMzI3NjExZWQ5YWY1MA
+                    hasNext: false
+                statusConsolidadoSemFiltro:
+                  summary: Response sem filtro de status (mostrando todos os status)
+                  value:
+                    countStatus:
+                      AGUARDANDO_RETIRADA: 0
+                      EM_TRANSITO: 0
+                      TRIAGEM: 0
+                      EM_EXECUCAO: 0
+                      EM_LIBERACAO: 0
+                      LAUDO_LIBERADO: 0
+                      COM_PENDENCIA: 0
+                      SOLICITADA_RECOLETA: 0
+                      RECOLETADO: 0
+                      REMARCADO: 0
+                      LAUDO_VISUALIZADO: 0
+                      EXAME_CANCELADO: 0
+                      FINALIZADO: 4
+                      AMOSTRA_DESCARTADA: 0
+                      RECONVOCADO: 0
+                      AMOSTRA_OBTIDA: 0
+                      NAO_LOTEADA_FISICAMENTE: 0
+                      CANCELADO: 6
+                      NAO_RASTREADO: 0
+                      RETIRADA_EXPIRADA: 53
+                      NAO_RECEBIDA: 0
+                      EM_TRANSITO_ENTRE_NTO: 0
+                      CADASTRADO: 0
+                      ATRASADO: 0
+                      ADIANTADO: 0
+                      NAO_ENVIADA: 0
+                      CANCELADO_CLIENTE: 0
+                      PENDENCIA_CRIADA: 0
+                      EMITIDO: 0
+                      PENDENCIA_RESPONDIDA: 0
+                    data:
+                    - orderId: '369601415'
+                      idOsLis: 0100021618
+                      patientName: PACIENTE BASEIT
+                      destinations: NTO RJ Caxias
+                      samples:
+                      - codeSample: '707814283222'
+                        materialId: '738'
+                        material: urina 24h
+                        lotId: LT0A31585643
+                        exams:
+                        - id: 69834e906ff71b1dfa2445a5
+                          partition: ALVARO|19812
+                          brand: ALVARO
+                          idLaboratory: '19812'
+                          currentStatus: RETIRADA_EXPIRADA
+                          currentStatusDate: '2026-02-14T14:45:13'
+                          idOrder: '369601415'
+                          idOrderMotion: '2834'
+                          codeExamMotion: '2834'
+                          codeExamBrand: OXALI
+                          codeSample: '707814283222'
+                          events:
+                          - date: '2026-02-04T10:50:08'
+                            status: CADASTRADO
+                          - date: '2026-02-04T13:08:43'
+                            status: AMOSTRA_OBTIDA
+                          - date: '2026-02-14T14:45:13'
+                            status: RETIRADA_EXPIRADA
+                          idDestination: null
+                          destinationId: '47'
+                          destination: NTO RJ Caxias
+                          lotId: LT0A31585643
+                          patientName: PACIENTE BASEIT
+                          latitude: null
+                          longitude: null
+                          dueDate: null
+                          releaseDate: null
+                          isFinished: null
+                          materialId: '738'
+                          material: urina 24h
+                          isDelayed: false
+                          rescheduledDate: null
+                          originalDueDate: null
+                          orderCreatedDate: null
+                          IdOsLis: 0100021618
+                          currentStatusDescription: Não enviada
+                    - orderId: '370112608'
+                      idOsLis: 0000569
+                      patientName: TESTE ALVARO
+                      destinations: NTO RJ Caxias,NTO SP Alphaville
+                      samples:
+                      - codeSample: '707816700604'
+                        materialId: null
+                        material: null
+                        lotId: LT0A31679796
+                        exams:
+                        - id: 698a1d0fc5a9d861cdc31278
+                          partition: ALVARO|19812
+                          brand: ALVARO
+                          idLaboratory: '19812'
+                          currentStatus: CANCELADO
+                          currentStatusDate: '2026-02-09T14:45:08'
+                          idOrder: '370112608'
+                          idOrderMotion: '970193449861'
+                          codeExamMotion: '3559'
+                          codeExamBrand: T4L
+                          codeSample: '707816700604'
+                          events:
+                          - date: '2026-02-09T14:44:47'
+                            status: AMOSTRA_OBTIDA
+                          - date: '2026-02-09T14:45:08'
+                            status: CANCELADO
+                          idDestination: null
+                          destinationId: null
+                          destination: null
+                          lotId: null
+                          patientName: TESTE ALVARO
+                          latitude: null
+                          longitude: null
+                          dueDate: '2026-02-09T14:17:07'
+                          releaseDate: null
+                          isFinished: null
+                          materialId: null
+                          material: null
+                          isDelayed: false
+                          rescheduledDate: null
+                          originalDueDate: null
+                          orderCreatedDate: null
+                          IdOsLis: null
+                          currentStatusDescription: Exame cancelado
+                    nextCursor: MjAyNi0wMi0wNFQxMzo1MDowOC45NDJafDY5ODM0ZTkwZDhmZjdjN2U3Y2I4YzhkYg
+                    hasNext: true
+        '400':
+          description: Parâmetros inválidos (dataInicial > dataFinal, formato incorreto)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /webserviceaol/rest/producao/v1/notificacao/{idEntidade}:
+    get:
+      tags:
+      - recoleta
+      summary: 13) Recoleta por período
+      operationId: listarRecoletaPorPeriodo
+      description: |
+        Retorna a lista de notificações de recoleta de uma entidade em um intervalo de datas.
+        Os parâmetros `dataInicial` e `dataFinal` devem ser informados no formato
+        `YYYY-MM-DD HH:MM:SS` (URL-encoded: espaço → `%20`, `:` → `%3A`).
+
+        Exemplo cURL:
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v1/notificacao/28447?dataInicial=2026-02-12%2000%3A00%3A00&dataFinal=2026-02-26%2023%3A59%3A59' --header 'Authorization: Basic MTkzODAzOjg1YTZiMA=='`
+      parameters:
+      - name: idEntidade
+        in: path
+        required: true
+        schema:
+          type: string
+          examples:
+          - '28447'
+        description: Código da entidade.
+      - name: dataInicial
+        in: query
+        required: true
+        schema:
+          type: string
+          examples:
+          - '2026-02-12 00:00:00'
+        description: Data e hora inicial do filtro (YYYY-MM-DD HH:MM:SS, URL-encoded).
+      - name: dataFinal
+        in: query
+        required: true
+        schema:
+          type: string
+          examples:
+          - '2026-02-26 23:59:59'
+        description: Data e hora final do filtro (YYYY-MM-DD HH:MM:SS, URL-encoded).
+      responses:
+        '200':
+          description: Lista de notificações de recoleta no período informado.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RecoletaNotificacao'
+              examples:
+                recoletaPorPeriodo:
+                  summary: Response de recoleta por período
+                  value:
+                  - idAlvaro: 370518580
+                    os_lis: '45552462'
+                    motivo: Nova amostra para confirmacao de resultado
+                    data: '2026-02-12'
+                    amostras:
+                    - id: '702707390186'
+                      exames:
+                      - COBRE
+                    tipo: RECOLETA
+                  - idAlvaro: 370518698
+                    os_lis: '45552463'
+                    motivo: Amostra inadequada (Material insuficiente)
+                    data: '2026-02-12'
+                    amostras:
+                    - id: '702707390223'
+                      exames:
+                      - ZN
+                    tipo: RECOLETA
+                  - idAlvaro: 370518990
+                    os_lis: '45552464'
+                    motivo: Nova amostra para confirmacao de resultado
+                    data: '2026-02-12'
+                    amostras:
+                    - id: '702707390254'
+                      exames:
+                      - ZN
+                    tipo: RECOLETA
+        '400':
+          description: Parâmetros inválidos (formato de data incorreto, dataInicial > dataFinal)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          description: Erro interno do servidor
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /webserviceaol/rest/producao/listarMateriais:
+    get:
+      tags:
+      - materiais
+      summary: 14) Listar materiais
+      operationId: listarMateriais
+      description: |
+        Retorna a lista de todos os materiais disponíveis.
+        Autenticação via headers `idagente` e `senha` (não Basic Auth).
+
+        Exemplo cURL:
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/listarMateriais' --header 'idagente: 169396' --header 'senha: 2CACA6' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='`
+      security:
+      - idAgenteHeader: []
+        senhaHeader: []
+      responses:
+        '200':
+          description: Lista de materiais
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ConsultaMaterialRetorno'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/listarMaterial-exame/{codigoExame}:
+    get:
+      tags:
+      - materiais
+      summary: 15) Listar materiais por exame
+      operationId: listarMateriaisPorExame
+      description: |
+        Retorna os materiais disponíveis para um exame específico.
+        Autenticação via headers `idagente` e `senha` (não Basic Auth).
+
+        Exemplo cURL:
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/listarMateriais/TSH' --header 'idagente: 169396' --header 'senha: 2CACA6' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='`
+      security:
+      - idAgenteHeader: []
+        senhaHeader: []
+      parameters:
+      - name: codigoExame
+        in: path
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Lista de materiais por exame
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ConsultaMaterialRetorno'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/situacaoAmostra:
+    get:
+      tags:
+      - amostras
+      summary: 16) Listar situação da amostra
+      operationId: listarSituacaoAmostra
+      description: |
+        Retorna a situação atual de uma amostra pelo código de barras.
+        Autenticação via headers `idagente` e `senha` (não Basic Auth).
+
+        Exemplo cURL:
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/situacaoAmostra/702968003078' --header 'idagente: 169396' --header 'senha: 2CACA6' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ=='`
+      security:
+      - idAgenteHeader: []
+        senhaHeader: []
+      parameters:
+      - name: codigoBarras
+        in: query
+        required: true
+        schema:
+          type: string
+          examples:
+          - '702968003078'
+        description: 'Código de barras da amostra (ex: 702968003078)'
+      responses:
+        '200':
+          description: Situação da amostra
+          content:
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/AmostraSituacaoRetorno'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/criticasAll:
+    get:
+      tags:
+      - criticas
+      summary: 17) Listar críticas dos exames
+      operationId: listarCriticasExames
+      description: |
+        Retorna críticas e metadados dos exames. Autenticação via Basic Auth.
+
+        > ⚠️ **Atenção:** As críticas apresentadas nesta versão do YAML têm validade até **31/05/2026**.
+
+        Exemplo cURL:
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v1/exames/criticas/all' --header 'Content-Type: application/json' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' --data ''`
+      parameters:
+      - name: codigo
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Críticas e metadados de exames
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriticasResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/criticasExame:
+    get:
+      tags:
+      - criticas
+      summary: 18) Listar críticas por exame específico
+      operationId: listarCriticasExame
+      description: |
+        Retorna críticas e metadados de exame específico. Autenticação via Basic Auth.
+
+        > ⚠️ **Atenção:** As críticas apresentadas nesta versão do YAML têm validade até **31/05/2026**.
+
+        Exemplo cURL:
+        `curl --location 'http://webservice.alvaro.com.br/webserviceaol/rest/producao/v1/exames/criticas/all?codigo=tsh' --header 'Content-Type: application/json' --header 'Authorization: Basic MTk0NjA3OjcxZGE3ZQ==' --data ''`
+      parameters:
+      - name: codigo
+        in: query
+        required: true
+        schema:
+          type: string
+          examples:
+          - tsh
+        description: 'Código do exame (ex: tsh)'
+      responses:
+        '200':
+          description: Críticas e metadados do exame específico
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CriticasResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /webserviceaol/rest/producao/catalogoMensagens:
+    get:
+      tags:
+      - mensagens-retorno
+      summary: Catálogo de mensagens de retorno do sistema
+      operationId: catalogoMensagens
+      x-internal: true
+      security: []
+      description: |
+        Referência completa das mensagens de retorno de negócio do WebService AOL Alvaro.
+        Este endpoint é exclusivamente documental e não representa uma rota real do servidor.
+
+        ## Mensagens de Retorno de Negócio
+
+        | Categoria | Mensagem | Descrição |
+        |-----------|----------|-----------|
+        | ACESSO | ID ou Senha incorreta | Dados de autenticação do laboratório estão divergentes da base de dados Álvaro. |
+        | ACESSO | Agente ou Entidade não autorizado a utilizar o WebService | Agente e/ou Entidade não estão liberados para utilizar o webservice. |
+        | ACESSO | Entidade ou Agente inválido | Entidade não liberada para utilizar o serviço. |
+        | ACESSO | Agente e senha são obrigatórios | Agente e/ou senha não informados na requisição. |
+        | ENTIDADE | Entidade não atendida pelo agente | Agente enviado na requisição não confere com o associado na base de dados Álvaro. |
+        | ENTIDADE | Entidade não autorizada à enviar para São Paulo | Entidade não possui permissão para envio de exames para São Paulo. |
+        | ENTIDADE | Entidade inválida | Entidade não localizada na base de dados Álvaro. |
+        | SOLICITACAO | Solicitação não cadastrada | Solicitação não localizada na base de dados Álvaro. |
+        | SOLICITACAO | Solicitação já processada | Solicitação já foi processada em produção. |
+        | SOLICITACAO | Material ou identificação da amostra não encontrado | Não foi encontrado identificador e/ou material na amostra informada. |
+        | SOLICITACAO | OS não inserida | Verifique os campos enviados. |
+        | SOLICITACAO | OS não inserida por duplicidade de exame | Foram enviadas repetições do mesmo exame na solicitação. |
+        | SOLICITACAO | Amostras com tempo duplicado | O sistema não permite envio do mesmo tempo de curva por solicitação. |
+        | EXAME | Exame não existe na solicitação | Exame não localizado na solicitação informada. |
+        | EXAME | Exame excluído com sucesso | O exame foi removido da solicitação. |
+        | EXAME | Exame incluído com sucesso | O exame foi inserido na solicitação. |
+        | EXAME | Exame exclusivo em amostra existente | Não é possível inserir exame exclusivo em uma amostra já existente. |
+        | EXAME | Exame inválido não autorizado | Entidade não tem autorização para envio do exame. |
+        | EXAME | Exame já existente na amostra | O exame informado já está presente na amostra. |
+        | MATERIAL | Material inválido | Material informado não existe na base de dados ou é incompatível com o exame. |
+        | AMOSTRA | Amostra possui exame inválido | Exame informado não existe na base de dados ou é incompatível com material. |
+        | RESULTADO | Ordem de serviço sem resultados | A OS informada ainda não possui resultados disponíveis. |
+        | RESULTADO | OS ou exame não encontrado | Não foi possível localizar a ordem de serviço ou exame informado. |
+        | GERAL | Erro na geração do XML de saída | Falha interna no processamento do sistema. |
+        | GERAL | Erro na validação do XML de entrada | Protocolo XML divergente do esperado. |
+        | GERAL | Não foi possível inserir exame/amostra | Verifique os campos da solicitação. |
+      responses:
+        '200':
+          description: Catálogo de mensagens de retorno (endpoint documental).
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BusinessMessage'
+components:
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+    idAgenteHeader:
+      type: apiKey
+      in: header
+      name: IDAGENTE
+    senhaHeader:
+      type: apiKey
+      in: header
+      name: SENHA
+  responses:
+    Unauthorized:
+      description: 401 — Credenciais inválidas ou ausentes (Basic Auth)
+      content:
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/XmlAny'
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+    BusinessError:
+      description: 400 — Informações inválidas, falha ao atualizar todas as informações
+      content:
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/XmlAny'
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+    PartialSuccess:
+      description: 206 — Valores atualizados parcialmente, alguns com sucesso e outros com falha
+      content:
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/XmlAny'
+    Forbidden:
+      description: 403 — Agente ou entidade não autorizados
+      content:
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/XmlAny'
+    InternalError:
+      description: 500 — Falha interna, acionar suporte DASA
+      content:
+        application/xml:
+          schema:
+            $ref: '#/components/schemas/XmlAny'
+  schemas:
+    BusinessMessage:
+      type: object
+      description: Representa uma mensagem de retorno de negócio do WebService.
+      properties:
+        categoria:
+          type: string
+          description: 'Categoria da mensagem (ex: ACESSO, EXAME, SOLICITACAO).'
+        titulo:
+          type: string
+          description: Título da mensagem retornada pelo servidor.
+        descricao:
+          type: string
+          description: Descrição detalhada do significado da mensagem.
+    XmlAny:
+      type: string
+      description: Payload XML em forma livre.
+    ConsultaMaterialRetorno:
+      type: object
+      xml:
+        name: consultaMaterialRetorno
+      properties:
+        exame:
+          type: array
+          items:
+            type: object
+            xml:
+              name: exame
+            properties:
+              exame:
+                type: string
+                xml:
+                  attribute: true
+              materialPossivel:
+                type: array
+                items:
+                  type: object
+                  xml:
+                    name: materialPossivel
+                  properties:
+                    codigo:
+                      type: integer
+                      xml:
+                        attribute: true
+                    descricao:
+                      type: string
+                      xml:
+                        attribute: true
+    AmostraSituacaoRetorno:
+      type: object
+      xml:
+        name: AmostraSituacaoRetorno
+      properties:
+        amostra:
+          type: string
+          xml:
+            attribute: true
+        dataRecebimento:
+          type: string
+          xml:
+            attribute: true
+        ordemServico:
+          type: string
+          xml:
+            attribute: true
+    SolicitacoesIncluirRequest:
+      type: object
+      xml:
+        name: solicitacoes
+      properties:
+        datahora:
+          type: string
+          xml:
+            attribute: true
+        idagente:
+          type: integer
+          xml:
+            attribute: true
+        lis:
+          type: string
+          xml:
+            attribute: true
+        operador:
+          type: string
+          xml:
+            attribute: true
+        senha:
+          type: string
+          xml:
+            attribute: true
+        versao:
+          type: string
+          xml:
+            attribute: true
+        entidade:
+          type: array
+          items:
+            type: object
+            xml:
+              name: entidade
+            properties:
+              chave:
+                type: string
+                xml:
+                  attribute: true
+              codigo:
+                type: string
+                xml:
+                  attribute: true
+              pacientes:
+                type: object
+                properties:
+                  paciente:
+                    type: array
+                    items:
+                      type: object
+                      xml:
+                        name: paciente
+                      properties:
+                        codigolis:
+                          type: string
+                          xml:
+                            attribute: true
+                        datanasc:
+                          type: string
+                          xml:
+                            attribute: true
+                        nome:
+                          type: string
+                          xml:
+                            attribute: true
+                        nomeSocial:
+                          type: string
+                          xml:
+                            attribute: true
+                          description: Quando informado, este valor deve ser utilizado como nome de impressão na etiqueta (prioritário ao `nome`).
+                        sexo:
+                          type: string
+                          xml:
+                            attribute: true
+                        cpf:
+                          type: string
+                          xml:
+                            attribute: true
+                        email:
+                          type: string
+                          xml:
+                            attribute: true
+              medicos:
+                type: object
+                properties:
+                  medico:
+                    type: array
+                    items:
+                      type: object
+                      xml:
+                        name: medico
+                      properties:
+                        crm:
+                          type: string
+                          xml:
+                            attribute: true
+                        nome:
+                          type: string
+                          xml:
+                            attribute: true
+              solicitacao:
+                type: array
+                items:
+                  type: object
+                  xml:
+                    name: solicitacao
+                  properties:
+                    codigolis:
+                      type: string
+                      xml:
+                        attribute: true
+                    codigopaciente:
+                      type: string
+                      xml:
+                        attribute: true
+                    crm:
+                      type: string
+                      xml:
+                        attribute: true
+                    data:
+                      type: string
+                      xml:
+                        attribute: true
+                    dataColeta:
+                      type: string
+                      xml:
+                        attribute: true
+                    postoDeColeta:
+                      type: string
+                      xml:
+                        attribute: true
+                    amostra:
+                      type: array
+                      items:
+                        type: object
+                        xml:
+                          name: amostra
+                        properties:
+                          descricao:
+                            type: string
+                            xml:
+                              attribute: true
+                          material:
+                            type: integer
+                            xml:
+                              attribute: true
+                          codigoBarras:
+                            type: string
+                            xml:
+                              attribute: true
+                          identificacao:
+                            type: string
+                            xml:
+                              attribute: true
+                          sequencia:
+                            type: integer
+                            xml:
+                              attribute: true
+                          exame:
+                            type: array
+                            items:
+                              type: object
+                              xml:
+                                name: exame
+                              properties:
+                                codigo:
+                                  type: string
+                                  xml:
+                                    attribute: true
+                                dadosadicionais:
+                                  type: string
+                                  xml:
+                                    attribute: true
+                                idlis:
+                                  type: string
+                                  xml:
+                                    attribute: true
+                                urgente:
+                                  type: boolean
+                                  xml:
+                                    attribute: true
+    InclusoesRequest:
+      type: object
+      xml:
+        name: inclusoes
+      properties:
+        datahora:
+          type: string
+          xml:
+            attribute: true
+        idagente:
+          type: integer
+          xml:
+            attribute: true
+        lis:
+          type: string
+          xml:
+            attribute: true
+        operador:
+          type: string
+          xml:
+            attribute: true
+        senha:
+          type: string
+          xml:
+            attribute: true
+        entidade:
+          type: array
+          items:
+            type: object
+            xml:
+              name: entidade
+            properties:
+              codigo:
+                type: integer
+                xml:
+                  attribute: true
+              solicitacao:
+                type: array
+                items:
+                  type: object
+                  xml:
+                    name: solicitacao
+                  properties:
+                    idAlvaro:
+                      type: integer
+                      xml:
+                        attribute: true
+                    postoDeColeta:
+                      type: string
+                      xml:
+                        attribute: true
+                    amostra:
+                      type: array
+                      items:
+                        type: object
+                        xml:
+                          name: amostra
+                        properties:
+                          identificacao:
+                            type: string
+                            xml:
+                              attribute: true
+                          descricao:
+                            type: string
+                            xml:
+                              attribute: true
+                          material:
+                            type: integer
+                            xml:
+                              attribute: true
+                          novaAmostra:
+                            type: boolean
+                            xml:
+                              attribute: true
+                          exame:
+                            type: array
+                            items:
+                              type: object
+                              xml:
+                                name: exame
+                              properties:
+                                codigoExame:
+                                  type: string
+                                  xml:
+                                    attribute: true
+                                dadosadicionais:
+                                  type: string
+                                  xml:
+                                    attribute: true
+                                idlis:
+                                  type: string
+                                  xml:
+                                    attribute: true
+                                urgente:
+                                  type: boolean
+                                  xml:
+                                    attribute: true
+    ExclusoesRequest:
+      type: object
+      xml:
+        name: exclusoes
+      properties:
+        datahora:
+          type: string
+          xml:
+            attribute: true
+        idagente:
+          type: integer
+          xml:
+            attribute: true
+        lis:
+          type: string
+          xml:
+            attribute: true
+        operador:
+          type: string
+          xml:
+            attribute: true
+        senha:
+          type: string
+          xml:
+            attribute: true
+        entidade:
+          type: array
+          items:
+            type: object
+            xml:
+              name: entidade
+            properties:
+              codigo:
+                type: string
+                xml:
+                  attribute: true
+              solicitacao:
+                type: array
+                items:
+                  type: object
+                  xml:
+                    name: solicitacao
+                  properties:
+                    idAlvaro:
+                      type: integer
+                      xml:
+                        attribute: true
+                    exame:
+                      type: array
+                      items:
+                        type: object
+                        xml:
+                          name: exame
+                        properties:
+                          codigoExame:
+                            type: string
+                            xml:
+                              attribute: true
+    SolicitacoesExcluirV2Request:
+      type: object
+      xml:
+        name: solicitacoes
+      properties:
+        datahora:
+          type: string
+          xml:
+            attribute: true
+        entidade:
+          type: array
+          items:
+            type: object
+            xml:
+              name: entidade
+            properties:
+              codigo:
+                type: integer
+                xml:
+                  attribute: true
+              solicitacao:
+                type: array
+                items:
+                  type: object
+                  xml:
+                    name: solicitacao
+                  properties:
+                    idAlvaro:
+                      type: integer
+                      xml:
+                        attribute: true
+                    amostra:
+                      type: array
+                      items:
+                        type: object
+                        xml:
+                          name: amostra
+                        properties:
+                          codigoBarras:
+                            type: string
+                            xml:
+                              attribute: true
+                          exame:
+                            type: array
+                            items:
+                              type: object
+                              xml:
+                                name: exame
+                              properties:
+                                codigo:
+                                  type: string
+                                  xml:
+                                    attribute: true
+    ResultadosRequest:
+      type: object
+      xml:
+        name: resultados
+      properties:
+        idagente:
+          type: integer
+          xml:
+            attribute: true
+        lis:
+          type: string
+          xml:
+            attribute: true
+        operador:
+          type: string
+          xml:
+            attribute: true
+        senha:
+          type: string
+          xml:
+            attribute: true
+        padrao:
+          type: string
+          xml:
+            attribute: true
+        entidade:
+          type: array
+          items:
+            type: object
+            xml:
+              name: entidade
+            properties:
+              codigo:
+                type: integer
+                xml:
+                  attribute: true
+              solicitacao:
+                type: array
+                items:
+                  type: object
+                  xml:
+                    name: solicitacao
+                  properties:
+                    idAlvaro:
+                      type: integer
+                      xml:
+                        attribute: true
+                    exame:
+                      type: array
+                      items:
+                        type: object
+                        xml:
+                          name: exame
+                        properties:
+                          codigo:
+                            type: string
+                            xml:
+                              attribute: true
+    SolicitacoesAtualizarDadosRequest:
+      type: object
+      xml:
+        name: solicitacoes
+      properties:
+        datahora:
+          type: string
+          xml:
+            attribute: true
+        entidade:
+          type: array
+          items:
+            type: object
+            xml:
+              name: entidade
+            properties:
+              codigo:
+                type: string
+                xml:
+                  attribute: true
+              solicitacao:
+                type: array
+                items:
+                  type: object
+                  xml:
+                    name: solicitacao
+                  properties:
+                    idAlvaro:
+                      type: integer
+                      xml:
+                        attribute: true
+                    amostra:
+                      type: array
+                      items:
+                        type: object
+                        xml:
+                          name: amostra
+                        properties:
+                          codigoBarras:
+                            type: string
+                            xml:
+                              attribute: true
+                          exame:
+                            type: array
+                            items:
+                              type: object
+                              xml:
+                                name: exame
+                              properties:
+                                codigo:
+                                  type: string
+                                  xml:
+                                    attribute: true
+                                dadoAdicional:
+                                  type: array
+                                  items:
+                                    type: object
+                                    xml:
+                                      name: dadoAdicional
+                                    properties:
+                                      dado:
+                                        type: string
+                                        xml:
+                                          attribute: true
+                                      valor:
+                                        type: string
+                                        xml:
+                                          attribute: true
+    SolicitacoesAtualizarDataColetaObservacaoRequest:
+      type: object
+      xml:
+        name: solicitacoes
+      properties:
+        datahora:
+          type: string
+          xml:
+            attribute: true
+        entidade:
+          type: array
+          items:
+            type: object
+            xml:
+              name: entidade
+            properties:
+              codigo:
+                type: string
+                xml:
+                  attribute: true
+              solicitacao:
+                type: array
+                items:
+                  type: object
+                  xml:
+                    name: solicitacao
+                  properties:
+                    idAlvaro:
+                      type: integer
+                      xml:
+                        attribute: true
+                    dataColeta:
+                      type: string
+                      xml:
+                        attribute: true
+                    observacao:
+                      type: string
+                      xml:
+                        attribute: true
+    ExamStatus:
+      type: object
+      properties:
+        barcode:
+          type: string
+        code:
+          type: string
+        status:
+          type: string
+        dueDate:
+          type:
+          - string
+          - 'null'
+        panic:
+          type: boolean
+        rescheduleDueDate:
+          type:
+          - string
+          - 'null'
+    OrdersStatusResponse:
+      type: object
+      required:
+      - countStatus
+      - data
+      - hasNext
+      properties:
+        countStatus:
+          type: object
+          additionalProperties:
+            type: integer
+          description: Mapa com contagem por status final (chave = status, valor = quantidade).
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderData'
+        nextCursor:
+          type:
+          - string
+          - 'null'
+          description: Cursor para próxima página. Primeiro chamado omitir/"".
+        hasNext:
+          type: boolean
+          description: Indica se existe próxima página.
+    OrderData:
+      type: object
+      required:
+      - orderId
+      - patientName
+      - samples
+      properties:
+        orderId:
+          type: string
+        idOsLis:
+          type:
+          - string
+          - 'null'
+          description: Id da OS no LIS (pode ser null).
+        patientName:
+          type: string
+        samples:
+          type: array
+          items:
+            $ref: '#/components/schemas/Sample'
+    Sample:
+      type: object
+      required:
+      - codeSample
+      - exams
+      properties:
+        codeSample:
+          type: string
+          description: Código da amostra (barcode).
+        lotId:
+          type:
+          - string
+          - 'null'
+        exams:
+          type: array
+          items:
+            $ref: '#/components/schemas/Exam'
+    Exam:
+      type: object
+      required:
+      - currentStatus
+      - currentStatusDate
+      - codeExamBrand
+      properties:
+        currentStatus:
+          type: string
+          description: 'Status final do exame (ex: AMOSTRA_OBTIDA, CADASTRADO).'
+        currentStatusDate:
+          type: string
+          format: date-time
+        codeExamBrand:
+          type: string
+          description: 'Código do exame/brand (ex: GLICO).'
+        destination:
+          type:
+          - string
+          - 'null'
+    RecoletaAmostra:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Código de barras da amostra.
+          examples:
+          - '702707390186'
+        exames:
+          type: array
+          items:
+            type: string
+          description: Lista de mnemônicos dos exames da amostra.
+    RecoletaNotificacao:
+      type: object
+      properties:
+        idAlvaro:
+          type: integer
+          description: Identificador interno Álvaro da solicitação.
+          examples:
+          - 370518580
+        os_lis:
+          type: string
+          description: Número da OS no sistema LIS.
+          examples:
+          - '45552462'
+        motivo:
+          type: string
+          description: Descrição do motivo da recoleta.
+          examples:
+          - Nova amostra para confirmacao de resultado
+        data:
+          type: string
+          format: date
+          description: Data da notificação (YYYY-MM-DD).
+          examples:
+          - '2026-02-12'
+        amostras:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecoletaAmostra'
+          description: Lista de amostras envolvidas na recoleta.
+        tipo:
+          type: string
+          description: Tipo da notificação.
+          examples:
+          - RECOLETA
+    ErrorResponse:
+      type: object
+      required:
+      - code
+      - message
+      properties:
+        code:
+          type: integer
+        message:
+          type: string
+    Material:
+      type: object
+      properties:
+        code:
+          type: integer
+        description:
+          type: string
+    ExamCritica:
+      type: object
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+        lastChange:
+          type: string
+        materialDefault:
+          $ref: '#/components/schemas/Material'
+        resultLines:
+          type: array
+          items:
+            type: object
+            properties:
+              code:
+                type: integer
+              description:
+                type: string
+              unity:
+                type:
+                - string
+                - 'null'
+        requiredData:
+          type:
+          - string
+          - 'null'
+        referenceValues:
+          type: string
+        possibleMaterials:
+          type: array
+          items:
+            $ref: '#/components/schemas/Material'
+    CriticasResponse:
+      type: object
+      properties:
+        materials:
+          type: array
+          items:
+            $ref: '#/components/schemas/Material'
+        exams:
+          type: array
+          items:
+            $ref: '#/components/schemas/ExamCritica'
+  x-business-messages:
+    ACESSO:
+    - titulo: ID ou Senha incorreta
+      descricao: Dados de autenticação do laboratório estão divergentes da base de dados Álvaro.
+    - titulo: Agente ou Entidade não autorizado a utilizar o WebService
+      descricao: Agente e/ou Entidade não estão liberados para utilizar o webservice.
+    - titulo: Entidade ou Agente inválido
+      descricao: Entidade não liberada para utilizar o serviço.
+    - titulo: Agente e senha são obrigatórios
+      descricao: Agente e/ou senha não informados na requisição.
+    ENTIDADE:
+    - titulo: Entidade não atendida pelo agente
+      descricao: Agente enviado na requisição não confere com o associado na base de dados Álvaro.
+    - titulo: Entidade não autorizada à enviar para São Paulo
+      descricao: Entidade não possui permissão para envio de exames para São Paulo.
+    - titulo: Entidade inválida
+      descricao: Entidade não localizada na base de dados Álvaro.
+    SOLICITACAO:
+    - titulo: Solicitação não cadastrada
+      descricao: Solicitação não localizada na base de dados Álvaro.
+    - titulo: Solicitação já processada
+      descricao: Solicitação já foi processada em produção.
+    - titulo: Material ou identificação da amostra não encontrado
+      descricao: Não foi encontrado identificador e/ou material na amostra informada.
+    - titulo: OS não inserida
+      descricao: Verifique os campos enviados.
+    - titulo: OS não inserida por duplicidade de exame
+      descricao: Foram enviadas repetições do mesmo exame na solicitação.
+    - titulo: Amostras com tempo duplicado
+      descricao: O sistema não permite envio do mesmo tempo de curva por solicitação.
+    EXAME:
+    - titulo: Exame não existe na solicitação
+      descricao: Exame não localizado na solicitação informada.
+    - titulo: Exame excluído com sucesso
+      descricao: O exame foi removido da solicitação.
+    - titulo: Exame incluído com sucesso
+      descricao: O exame foi inserido na solicitação.
+    - titulo: Exame exclusivo em amostra existente
+      descricao: Não é possível inserir exame exclusivo em uma amostra já existente.
+    - titulo: Exame inválido não autorizado
+      descricao: Entidade não tem autorização para envio do exame.
+    - titulo: Exame já existente na amostra
+      descricao: O exame informado já está presente na amostra.
+    MATERIAL:
+    - titulo: Material inválido
+      descricao: Material informado não existe na base de dados ou é incompatível com o exame.
+    AMOSTRA:
+    - titulo: Amostra possui exame inválido
+      descricao: Exame informado não existe na base de dados ou é incompatível com material.
+    RESULTADO:
+    - titulo: Ordem de serviço sem resultados
+      descricao: A OS informada ainda não possui resultados disponíveis.
+    - titulo: OS ou exame não encontrado
+      descricao: Não foi possível localizar a ordem de serviço ou exame informado.
+    GERAL:
+    - titulo: Erro na geração do XML de saída
+      descricao: Falha interna no processamento do sistema.
+    - titulo: Erro na validação do XML de entrada
+      descricao: Protocolo XML divergente do esperado.
+    - titulo: Não foi possível inserir exame/amostra
+      descricao: Verifique os campos da solicitação.
