@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Send,
   RefreshCw,
@@ -8,7 +8,7 @@ import {
   Plus,
   Pencil,
   Trash2,
-  Upload,
+  Image as ImageIcon,
   FileText,
   ScanLine,
   CheckCircle2,
@@ -21,7 +21,9 @@ import {
   BookOpen,
   ListChecks,
   History,
+  CalendarSearch,
 } from 'lucide-react';
+import ApoioImportarAgendamentoModal from './ApoioImportarAgendamentoModal';
 import { useApoioFila } from '../hooks/useApoioFila';
 import { useApoioCatalogo, type CatalogoInput } from '../hooks/useApoioCatalogo';
 import {
@@ -54,6 +56,13 @@ const fmtDataHora = (iso: string) =>
   });
 
 const MAX_ARQUIVOS = 4;
+
+// Busca sem acentos e sem distinção de maiúsculas (mesma técnica do normalizar() do backend).
+const normalizarBusca = (texto: string) =>
+  texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 
 const STATUS_STYLE: Record<string, string> = {
   aguardando:
@@ -161,6 +170,41 @@ const BlocoTexto: React.FC<{ titulo: string; texto: string }> = ({ titulo, texto
           {texto}
         </pre>
       )}
+    </div>
+  );
+};
+
+// ─── Miniatura de arquivo escolhido (imagem ou PDF) ─────────────────────────────
+
+const PreviewArquivo: React.FC<{ arquivo: File; onRemover: () => void }> = ({ arquivo, onRemover }) => {
+  const [url, setUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!arquivo.type.startsWith('image/')) return;
+    const objectUrl = URL.createObjectURL(arquivo);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [arquivo]);
+
+  return (
+    <div className="relative group w-24" onClick={(e) => e.stopPropagation()}>
+      <div className="w-24 h-24 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        {url ? (
+          <img src={url} alt={arquivo.name} className="w-full h-full object-cover" />
+        ) : (
+          <FileText className="w-8 h-8 text-gray-400" />
+        )}
+      </div>
+      <button
+        onClick={onRemover}
+        className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow hover:bg-red-600 transition-colors"
+        title="Remover arquivo"
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+      <div className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 truncate text-center" title={arquivo.name}>
+        {arquivo.name}
+      </div>
     </div>
   );
 };
@@ -372,6 +416,8 @@ const EnvioApoioPage: React.FC = () => {
   // ── Nova requisição ──
   const inputArquivosRef = useRef<HTMLInputElement>(null);
   const [arquivos, setArquivos] = useState<File[]>([]);
+  const [arrastando, setArrastando] = useState(false);
+  const [importarAberto, setImportarAberto] = useState(false);
   const [numeroReq, setNumeroReq] = useState('');
   const [processando, setProcessando] = useState(false);
   const [erroNova, setErroNova] = useState<string | null>(null);
@@ -397,21 +443,30 @@ const EnvioApoioPage: React.FC = () => {
   });
 
   const catalogoFiltrado = useMemo(() => {
-    const q = buscaCatalogo.trim().toLowerCase();
+    const q = normalizarBusca(buscaCatalogo.trim());
     if (!q) return catalogo;
     return catalogo.filter(
       (e) =>
-        e.cod_exame.toLowerCase().includes(q) ||
-        e.descricao_exame.toLowerCase().includes(q) ||
-        (e.descricao_material ?? '').toLowerCase().includes(q),
+        normalizarBusca(e.cod_exame).includes(q) ||
+        normalizarBusca(e.descricao_exame).includes(q) ||
+        normalizarBusca(e.descricao_material ?? '').includes(q),
     );
   }, [catalogo, buscaCatalogo]);
 
   // ── Nova requisição: handlers ──
 
-  const escolherArquivos = (lista: FileList | null) => {
-    if (!lista) return;
-    setArquivos(Array.from(lista).slice(0, MAX_ARQUIVOS));
+  const adicionarArquivos = (novos: File[]) => {
+    const aceitos = novos.filter(
+      (f) => f.type.startsWith('image/') || f.type === 'application/pdf' || /\.pdf$/i.test(f.name),
+    );
+    if (aceitos.length === 0) return;
+    setArquivos((atual) => [...atual, ...aceitos].slice(0, MAX_ARQUIVOS));
+    setResultado(null);
+    setErroNova(null);
+  };
+
+  const removerArquivo = (indice: number) => {
+    setArquivos((atual) => atual.filter((_, i) => i !== indice));
     setResultado(null);
     setErroNova(null);
   };
@@ -603,9 +658,9 @@ const EnvioApoioPage: React.FC = () => {
             <Send className="w-6 h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Envio ao Apoio</h1>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Envio ao Álvaro</h1>
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Requisições para o laboratório de apoio (Álvaro) · OCR + fila de envio
+              Requisições ao laboratório de apoio · OCR + fila de envio
             </p>
           </div>
         </div>
@@ -661,67 +716,129 @@ const EnvioApoioPage: React.FC = () => {
       {/* ── Aba: Nova requisição ── */}
       {aba === 'nova' && (
         <div className="space-y-5">
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-4">
-              Digitalizar requisição médica
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-3 items-end">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Arquivos (foto ou PDF, até {MAX_ARQUIVOS})
-                </label>
-                <input
-                  ref={inputArquivosRef}
-                  type="file"
-                  multiple
-                  accept="image/*,.pdf"
-                  onChange={(e) => escolherArquivos(e.target.files)}
-                  className="block w-full text-sm text-gray-600 dark:text-gray-300 file:mr-3 file:px-4 file:py-2 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-900/30 dark:file:text-blue-300 file:font-medium file:cursor-pointer hover:file:bg-blue-100 transition-colors"
-                />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Imagens da requisição */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200">
+                  Imagens da requisição
+                </h2>
+                <span className="text-[11px] uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                  (até {MAX_ARQUIVOS} imagens)
+                </span>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                  Nº requisição <span className="text-gray-400">(opcional)</span>
-                </label>
-                <input
-                  value={numeroReq}
-                  onChange={(e) => setNumeroReq(e.target.value)}
-                  placeholder="Detectado no OCR se vazio"
-                  className={inputCls}
-                />
+
+              <div
+                onClick={() => inputArquivosRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setArrastando(true);
+                }}
+                onDragLeave={() => setArrastando(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setArrastando(false);
+                  adicionarArquivos(Array.from(e.dataTransfer.files));
+                }}
+                className={`flex-1 min-h-44 rounded-xl border-2 border-dashed flex items-center justify-center p-4 cursor-pointer transition-colors ${
+                  arrastando
+                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                    : 'border-gray-300 dark:border-gray-600 hover:border-blue-400 dark:hover:border-blue-500 bg-gray-50/50 dark:bg-gray-900/30'
+                }`}
+              >
+                {arquivos.length === 0 ? (
+                  <div className="flex flex-col items-center gap-3 text-center px-4">
+                    <ImageIcon className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+                    <span className="text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+                      Arraste ou clique para adicionar a imagem
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex flex-wrap items-start justify-center gap-3">
+                    {arquivos.map((f, i) => (
+                      <PreviewArquivo key={`${f.name}-${i}`} arquivo={f} onRemover={() => removerArquivo(i)} />
+                    ))}
+                    {arquivos.length < MAX_ARQUIVOS && (
+                      <div
+                        className="w-24 h-24 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors"
+                        title="Adicionar mais"
+                      >
+                        <Plus className="w-6 h-6" />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              <p className="mt-3 text-xs text-center text-gray-400 dark:text-gray-500">
+                PNG, JPG, PDF, WEBP — até {MAX_ARQUIVOS} imagens
+              </p>
+
+              <button
+                onClick={() => setImportarAberto(true)}
+                disabled={arquivos.length >= MAX_ARQUIVOS}
+                title="Usar documentos já anexados a um agendamento"
+                className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                <CalendarSearch className="w-4 h-4" />
+                Importar do agendamento
+              </button>
+              <input
+                ref={inputArquivosRef}
+                type="file"
+                multiple
+                accept="image/*,.pdf"
+                onChange={(e) => {
+                  adicionarArquivos(Array.from(e.target.files ?? []));
+                  e.target.value = '';
+                }}
+                className="hidden"
+              />
+            </div>
+
+            {/* Configuração */}
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 flex flex-col">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-2 h-2 rounded-full bg-blue-500 shrink-0" />
+                <h2 className="text-xs font-bold uppercase tracking-wider text-gray-700 dark:text-gray-200">
+                  Configuração
+                </h2>
+              </div>
+
+              <label className="block text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-2">
+                Número da requisição
+              </label>
+              <input
+                value={numeroReq}
+                onChange={(e) => setNumeroReq(e.target.value)}
+                placeholder="ex: 00400"
+                className={inputCls}
+              />
+              <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                Opcional — detectado no OCR se ficar vazio.
+              </p>
+
               <button
                 onClick={() => void processar()}
                 disabled={!canManage || processando || arquivos.length === 0}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50"
+                className="mt-6 w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50"
               >
-                {processando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                {processando ? 'Processando…' : 'Processar'}
+                {processando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
+                {processando ? 'Analisando…' : 'Analisar Requisição'}
               </button>
+
+              {processando && (
+                <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+                  OCR via Gemini + conferência no apLIS — pode levar até um minuto…
+                </p>
+              )}
+              {erroNova && (
+                <div className="mt-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+                  {erroNova}
+                </div>
+              )}
             </div>
-            {arquivos.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {arquivos.map((f) => (
-                  <span
-                    key={f.name}
-                    className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full"
-                  >
-                    <FileText className="w-3.5 h-3.5" />
-                    {f.name}
-                  </span>
-                ))}
-              </div>
-            )}
-            {processando && (
-              <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-                OCR via Gemini + conferência no apLIS — pode levar até um minuto…
-              </p>
-            )}
-            {erroNova && (
-              <div className="mt-3 p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
-                {erroNova}
-              </div>
-            )}
           </div>
 
           {/* Revisão do resultado */}
@@ -742,11 +859,18 @@ const EnvioApoioPage: React.FC = () => {
                   <div className="grid grid-cols-3 gap-3">
                     <div>
                       <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Sexo</label>
-                      <select value={ovSexo} onChange={(e) => setOvSexo(e.target.value)} className={inputCls}>
-                        <option value="">{resultado.paciente?.sexo || '—'}</option>
-                        <option value="M">M</option>
-                        <option value="F">F</option>
-                      </select>
+                      <div className="relative">
+                        <select
+                          value={ovSexo}
+                          onChange={(e) => setOvSexo(e.target.value)}
+                          className={`${inputCls} appearance-none pr-8`}
+                        >
+                          <option value="">{resultado.paciente?.sexo || '—'}</option>
+                          <option value="M">M</option>
+                          <option value="F">F</option>
+                        </select>
+                        <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                      </div>
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Nascimento</label>
@@ -790,6 +914,19 @@ const EnvioApoioPage: React.FC = () => {
                       <span className="text-gray-500 dark:text-gray-400">Conferência apLIS:</span>{' '}
                       {resultado.resumo?.aplis_consultado ? (
                         <span className="text-emerald-600 dark:text-emerald-400 font-medium">encontrada</span>
+                      ) : (
+                        <span className="text-amber-600 dark:text-amber-400 font-medium">não encontrada</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="text-gray-500 dark:text-gray-400">Conferência BD Lab:</span>{' '}
+                      {resultado.resumo?.bd_consultado ? (
+                        <span className="text-emerald-600 dark:text-emerald-400 font-medium">
+                          {String(resultado.resumo?.total_bd ?? 0)} exame(s)
+                          {resultado.resumo?.divergencia_bd ? (
+                            <span className="text-amber-600 dark:text-amber-400"> · divergência com a imagem</span>
+                          ) : null}
+                        </span>
                       ) : (
                         <span className="text-amber-600 dark:text-amber-400 font-medium">não encontrada</span>
                       )}
@@ -1062,6 +1199,16 @@ const EnvioApoioPage: React.FC = () => {
       )}
 
       {/* Modais */}
+      {importarAberto && (
+        <ApoioImportarAgendamentoModal
+          vagas={MAX_ARQUIVOS - arquivos.length}
+          onImportar={(files) => {
+            adicionarArquivos(files);
+            setImportarAberto(false);
+          }}
+          onClose={() => setImportarAberto(false)}
+        />
+      )}
       {detalhe && <DetalheItemModal item={detalhe} onClose={() => setDetalhe(null)} />}
       {catalogoModal.aberto && (
         <CatalogoModal

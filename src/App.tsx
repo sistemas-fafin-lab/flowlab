@@ -310,7 +310,7 @@ const AuthenticatedApp: React.FC = () => {
           }
         />
         <Route
-          path="/analises-clinicas/envio-apoio"
+          path="/analises-clinicas/envio-alvaro"
           element={
             <ProtectedRoute permission="canManageColetas" permissions={userPermissions}>
               <EnvioApoioPage />
