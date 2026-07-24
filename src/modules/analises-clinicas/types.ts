@@ -430,6 +430,11 @@ export interface ApoioFilaItem {
   alvaro_response: string | null;
   erro_mensagem: string | null;
   resumo: Record<string, unknown> | null;
+  // Vínculo com o agendamento de origem (null = requisição digitalizada à mão) e
+  // como o item entrou na fila. 'automatico' = enfileirado pelo pipeline sem revisão
+  // manual — a UI marca com um chip para o operador conferir antes de enviar.
+  agendamento_id: string | null;
+  origem: 'manual' | 'automatico';
   created_at: string;
   updated_at: string;
 }

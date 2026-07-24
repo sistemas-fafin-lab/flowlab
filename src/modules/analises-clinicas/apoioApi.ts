@@ -87,3 +87,20 @@ export async function transferirParaAlvaro(ids: string[]): Promise<ApoioTransfer
   );
   return resposta.resultados ?? [];
 }
+
+// Desfecho do enfileiramento automático de um agendamento (espelha AutoStageResultado
+// do backend). É o mesmo núcleo que roda sozinho ao receber o agendamento.
+export interface AutoStageResultado {
+  ok: boolean;
+  motivo: 'enfileirado' | 'ja_enfileirado' | 'sem_documento' | 'ignorado' | 'nao_encontrado' | 'erro';
+  filaId?: string;
+  erro?: string;
+}
+
+/** Roda o enfileiramento automático (OCR → fila) de UM agendamento — sem envio real. */
+export async function enfileirarAgendamento(agendamentoId: string): Promise<AutoStageResultado> {
+  const resposta = await chamarApoioApi<{ resultado: AutoStageResultado }>('apoio-auto-stage', {
+    agendamentoId,
+  });
+  return resposta.resultado;
+}

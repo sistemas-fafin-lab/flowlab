@@ -15,6 +15,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import apoioAutoStage from '../_lib/handlers/apoio-auto-stage.js';
 import apoioProcessImage from '../_lib/handlers/apoio-process-image.js';
 import apoioRebuildXml from '../_lib/handlers/apoio-rebuild-xml.js';
 import apoioTransferir from '../_lib/handlers/apoio-transferir.js';
@@ -27,6 +28,7 @@ import getDisponibilidade from '../_lib/handlers/get-disponibilidade.js';
 import getDocumentos from '../_lib/handlers/get-documentos.js';
 import receiveAgendamento from '../_lib/handlers/receive-agendamento.js';
 import receiveCancelamento from '../_lib/handlers/receive-cancelamento.js';
+import receiveDocumento from '../_lib/handlers/receive-documento.js';
 
 // apoio-process-image chama Gemini (OCR) + apLIS e passa fácil dos 10s padrão;
 // o teto vale para a function inteira, sem efeito nas actions rápidas.
@@ -36,6 +38,7 @@ type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
 // Chave = segmento do path (= nome do antigo arquivo de rota, mantido idêntico).
 const ROTAS: Record<string, Handler> = {
+  'apoio-auto-stage': apoioAutoStage,
   'apoio-process-image': apoioProcessImage,
   'apoio-rebuild-xml': apoioRebuildXml,
   'apoio-transferir': apoioTransferir,
@@ -48,6 +51,7 @@ const ROTAS: Record<string, Handler> = {
   'get-documentos': getDocumentos,
   'receive-agendamento': receiveAgendamento,
   'receive-cancelamento': receiveCancelamento,
+  'receive-documento': receiveDocumento,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

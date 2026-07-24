@@ -22,14 +22,17 @@ import {
   ListChecks,
   History,
   CalendarSearch,
+  Sparkles,
 } from 'lucide-react';
 import ApoioImportarAgendamentoModal from './ApoioImportarAgendamentoModal';
+import { supabase } from '../../../lib/supabase';
 import { useApoioFila } from '../hooks/useApoioFila';
 import { useApoioCatalogo, type CatalogoInput } from '../hooks/useApoioCatalogo';
 import {
   uploadArquivosRequisicao,
   processarRequisicao,
   regerarXml,
+  enfileirarAgendamento,
 } from '../apoioApi';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
@@ -435,6 +438,13 @@ const EnvioApoioPage: React.FC = () => {
   const [resultadosEnvio, setResultadosEnvio] = useState<ApoioTransferResultado[] | null>(null);
   const [detalhe, setDetalhe] = useState<ApoioFilaItem | null>(null);
 
+  // ── Processar pendentes (varredura de recuperação) ──
+  const [processandoPend, setProcessandoPend] = useState(false);
+  const [progressoPend, setProgressoPend] = useState<{ feito: number; total: number } | null>(null);
+  const [resumoPend, setResumoPend] = useState<
+    { enfileirados: number; jaFila: number; semDoc: number; erros: number } | null
+  >(null);
+
   // ── Catálogo ──
   const [buscaCatalogo, setBuscaCatalogo] = useState('');
   const [catalogoModal, setCatalogoModal] = useState<{ aberto: boolean; item: ApoioExameCatalogo | null }>({
@@ -585,6 +595,52 @@ const EnvioApoioPage: React.FC = () => {
       },
       { type: 'danger', confirmText: 'Enviar' },
     );
+  };
+
+  // Varredura de recuperação: enfileira automaticamente os agendamentos ativos que
+  // têm pedido médico e ainda não caíram na fila (documento que chegou depois da
+  // criação, ou agendamentos anteriores à automação). Um a um, dentro do maxDuration.
+  const processarPendentes = async () => {
+    setProcessandoPend(true);
+    setResumoPend(null);
+    setProgressoPend(null);
+    try {
+      const { data, error } = await supabase
+        .from('ac_agendamentos')
+        .select('id, apoio_status, status, labhub_id')
+        .not('labhub_id', 'is', null) // documentos vivem no LAB-HUB
+        .in('status', ['recebido', 'em_coleta', 'coletado']) // ativos
+        .order('data_hora', { ascending: false })
+        .limit(200);
+      if (error) throw new Error(error.message);
+
+      // Só os que ainda não foram enfileirados/ignorados (o backend também deduplica).
+      const pendentes = (data ?? []).filter(
+        (a) => a.apoio_status == null || ['pendente', 'sem_documento', 'erro'].includes(a.apoio_status),
+      );
+
+      const tally = { enfileirados: 0, jaFila: 0, semDoc: 0, erros: 0 };
+      setProgressoPend({ feito: 0, total: pendentes.length });
+      for (let i = 0; i < pendentes.length; i++) {
+        try {
+          const r = await enfileirarAgendamento(pendentes[i].id);
+          if (r.motivo === 'enfileirado') tally.enfileirados++;
+          else if (r.motivo === 'ja_enfileirado') tally.jaFila++;
+          else if (r.motivo === 'sem_documento') tally.semDoc++;
+          else if (r.motivo === 'erro') tally.erros++;
+        } catch {
+          tally.erros++;
+        }
+        setProgressoPend({ feito: i + 1, total: pendentes.length });
+      }
+      setResumoPend(tally);
+      await filaHook.refetch();
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'Falha ao processar pendentes.');
+    } finally {
+      setProcessandoPend(false);
+      setProgressoPend(null);
+    }
   };
 
   const confirmarExclusao = (item: ApoioFilaItem) => {
@@ -1075,19 +1131,54 @@ const EnvioApoioPage: React.FC = () => {
             </div>
           )}
 
-          <div className="flex items-center justify-between">
+          {resumoPend && (
+            <div className="p-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+              <span className="font-semibold text-gray-700 dark:text-gray-300">Processamento concluído:</span>
+              <span className="text-emerald-600 dark:text-emerald-400">{resumoPend.enfileirados} enfileirado(s)</span>
+              {resumoPend.jaFila > 0 && (
+                <span className="text-gray-500 dark:text-gray-400">{resumoPend.jaFila} já na fila</span>
+              )}
+              {resumoPend.semDoc > 0 && (
+                <span className="text-amber-600 dark:text-amber-400">{resumoPend.semDoc} sem pedido médico</span>
+              )}
+              {resumoPend.erros > 0 && (
+                <span className="text-red-600 dark:text-red-400">{resumoPend.erros} com erro</span>
+              )}
+              <button
+                onClick={() => setResumoPend(null)}
+                className="ml-auto text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                Fechar
+              </button>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-sm text-gray-500 dark:text-gray-400">
               {filaHook.fila.length} item(ns) aguardando envio
             </div>
             {canManage && (
-              <button
-                onClick={confirmarEnvio}
-                disabled={enviando || selFila.size === 0}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-700 shadow-md shadow-blue-500/25 hover:scale-[1.02] transition-all duration-200 disabled:opacity-50"
-              >
-                {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                {enviando ? 'Enviando…' : `Enviar ao Álvaro (${selFila.size})`}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => void processarPendentes()}
+                  disabled={processandoPend || enviando}
+                  title="Enfileirar automaticamente os agendamentos com pedido médico ainda fora da fila"
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors disabled:opacity-50"
+                >
+                  {processandoPend ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                  {processandoPend && progressoPend
+                    ? `Processando ${progressoPend.feito}/${progressoPend.total}…`
+                    : 'Processar pendentes'}
+                </button>
+                <button
+                  onClick={confirmarEnvio}
+                  disabled={enviando || selFila.size === 0}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-700 shadow-md shadow-blue-500/25 hover:scale-[1.02] transition-all duration-200 disabled:opacity-50"
+                >
+                  {enviando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {enviando ? 'Enviando…' : `Enviar ao Álvaro (${selFila.size})`}
+                </button>
+              </div>
             )}
           </div>
 
@@ -1292,7 +1383,20 @@ const TabelaFila: React.FC<{
                 <td className="px-4 py-3 text-sm font-mono text-gray-800 dark:text-gray-200">
                   {item.numero_requisicao || '—'}
                 </td>
-                <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">{item.paciente?.nome || '—'}</td>
+                <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
+                  <span className="inline-flex items-center gap-1.5">
+                    {item.paciente?.nome || '—'}
+                    {item.origem === 'automatico' && (
+                      <span
+                        title="Enfileirado automaticamente a partir do agendamento — confira antes de enviar"
+                        className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-blue-50 text-blue-600 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800"
+                      >
+                        <Sparkles className="w-2.5 h-2.5" />
+                        auto
+                      </span>
+                    )}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-sm tabular-nums text-gray-600 dark:text-gray-400">
                   {item.exames?.length ?? 0}
                 </td>

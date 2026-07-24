@@ -19,7 +19,7 @@ import { describeError } from './errors.js';
 // Espelha DocumentoFlowLab de @lab-hub/shared (packages/shared/src/index.ts:184) e
 // DocumentoCheckin de src/modules/analises-clinicas/types.ts. Os três contratos são
 // sincronizados à mão — não há pacote compartilhado entre os repos.
-interface DocumentoFlowLab {
+export interface DocumentoFlowLab {
   id: string;
   tipo: string;
   nomeArquivo: string;
@@ -44,6 +44,82 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 // Mesmo timeout das outras chamadas ao LAB-HUB (deliver-coleta.ts).
 const LABHUB_TIMEOUT_MS = 10000;
+
+// Resultado da busca de baixo nível no LAB-HUB (sem embrulho de HTTP). Shape único
+// com campos opcionais (não união discriminada) porque o tsconfig do api roda com
+// strict:false — sem strictNullChecks, o narrowing por `ok` não estreitaria a união.
+export interface ResultadoDocumentosLabhub {
+  ok: boolean;
+  documentos?: DocumentoFlowLab[]; // presente quando ok
+  status?: number;                 // presente quando !ok (código HTTP a devolver)
+  erro?: string;                   // presente quando !ok
+}
+
+/**
+ * Resolve o labhub_id do agendamento (id do FlowLab) e busca seus documentos no
+ * LAB-HUB — SEM autorização de sessão. É o núcleo compartilhado por dois chamadores:
+ *   • listarDocumentosCheckin (rota do operador) — autoriza o JWT ANTES de chamar.
+ *   • autoStageAgendamento (backend, service role) — roda como o sistema, sem usuário.
+ *
+ * Por isso a checagem de permissão NÃO vive aqui: quem tem contexto de usuário
+ * (a rota) valida antes; o caminho automático é server-to-server e já é confiável.
+ */
+export async function buscarDocumentosLabhub(
+  supabase: ReturnType<typeof getSupabaseAdminClient>,
+  agendamentoId: string,
+): Promise<ResultadoDocumentosLabhub> {
+  // O parâmetro é o id do FlowLab, NUNCA o labhub_id: a chave do outro sistema é
+  // resolvida aqui, a partir de uma linha que o FlowLab já tem.
+  if (!agendamentoId || !UUID_RE.test(agendamentoId)) {
+    return { ok: false, status: 400, erro: 'Parâmetro inválido: agendamentoId.' };
+  }
+
+  const { data: agendamento, error: agErr } = await supabase
+    .from('ac_agendamentos')
+    .select('labhub_id')
+    .eq('id', agendamentoId)
+    .maybeSingle();
+
+  if (agErr) {
+    console.error('[documentosCheckin] falha ao carregar agendamento:', describeError(agErr));
+    return { ok: false, status: 500, erro: 'Erro interno.' };
+  }
+  if (!agendamento) {
+    return { ok: false, status: 404, erro: 'Agendamento não encontrado.' };
+  }
+  // Agendamento nativo do FlowLab (sem LAB-HUB) não tem documentos de paciente.
+  if (!agendamento.labhub_id) {
+    return { ok: true, documentos: [] };
+  }
+
+  // Header x-api-key (não Authorization): no LAB-HUB, Bearer significa sempre JWT de
+  // paciente — ver apps/api/src/middlewares/apiKey.ts.
+  const url = `${requireEnv('LABHUB_API_URL')}/api/v1/integracao/agendamentos/${agendamento.labhub_id}/documentos`;
+
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      headers: { 'x-api-key': requireEnv('FLOWLAB_API_KEY') },
+      signal: AbortSignal.timeout(LABHUB_TIMEOUT_MS),
+    });
+  } catch (err) {
+    console.error('[documentosCheckin] LAB-HUB não respondeu:', describeError(err));
+    return { ok: false, status: 504, erro: 'O LAB-HUB não respondeu. Tente de novo.' };
+  }
+
+  if (!resp.ok) {
+    const mapeado = mapearErroLabhub(resp);
+    return { ok: false, status: mapeado.status, erro: String(mapeado.payload.error) };
+  }
+
+  const body = (await resp.json().catch(() => null)) as DocumentosFlowLabResponse | null;
+  if (!body || !Array.isArray(body.documentos)) {
+    console.error('[documentosCheckin] resposta do LAB-HUB em formato inesperado');
+    return { ok: false, status: 502, erro: 'Integração com o LAB-HUB indisponível.' };
+  }
+
+  return { ok: true, documentos: body.documentos };
+}
 
 export async function listarDocumentosCheckin(
   token: string | null,
@@ -78,58 +154,14 @@ export async function listarDocumentosCheckin(
     return { status: 403, payload: { success: false, error: 'Sem permissão para ver documentos da coleta.' } };
   }
 
-  // ── 2. Resolução do agendamento ─────────────────────────────────────────────
-  // O parâmetro é o id do FlowLab, NUNCA o labhub_id: o cliente não escolhe a chave
-  // que vai ao LAB-HUB. Ela é resolvida aqui, a partir de uma linha que o FlowLab já
-  // tem. Aceitar labhubId do cliente abriria enumeração de documentos de qualquer
-  // paciente — a checagem de permissão acima não distingue um agendamento do outro.
-  if (!agendamentoId || !UUID_RE.test(agendamentoId)) {
-    return { status: 400, payload: { success: false, error: 'Parâmetro inválido: agendamentoId.' } };
+  // ── 2. Busca (resolução do labhub_id + LAB-HUB), já sem contexto de usuário ──
+  const resultado = await buscarDocumentosLabhub(supabase, agendamentoId ?? '');
+  if (resultado.ok) {
+    // Repassa só os documentos: o navegador não precisa do agendamentoLabhubId, que
+    // é a chave do outro sistema.
+    return { status: 200, payload: { success: true, documentos: resultado.documentos ?? [] } };
   }
-
-  const { data: agendamento, error: agErr } = await supabase
-    .from('ac_agendamentos')
-    .select('labhub_id')
-    .eq('id', agendamentoId)
-    .maybeSingle();
-
-  if (agErr) {
-    console.error('[documentosCheckin] falha ao carregar agendamento:', describeError(agErr));
-    return { status: 500, payload: { success: false, error: 'Erro interno.' } };
-  }
-  if (!agendamento) {
-    return { status: 404, payload: { success: false, error: 'Agendamento não encontrado.' } };
-  }
-
-  // ── 3. Busca no LAB-HUB ─────────────────────────────────────────────────────
-  // Header x-api-key (não Authorization): no LAB-HUB, Bearer significa sempre JWT de
-  // paciente — ver apps/api/src/middlewares/apiKey.ts.
-  const url = `${requireEnv('LABHUB_API_URL')}/api/v1/integracao/agendamentos/${agendamento.labhub_id}/documentos`;
-
-  let resp: Response;
-  try {
-    resp = await fetch(url, {
-      headers: { 'x-api-key': requireEnv('FLOWLAB_API_KEY') },
-      signal: AbortSignal.timeout(LABHUB_TIMEOUT_MS),
-    });
-  } catch (err) {
-    console.error('[documentosCheckin] LAB-HUB não respondeu:', describeError(err));
-    return { status: 504, payload: { success: false, error: 'O LAB-HUB não respondeu. Tente de novo.' } };
-  }
-
-  if (!resp.ok) {
-    return mapearErroLabhub(resp);
-  }
-
-  const body = (await resp.json().catch(() => null)) as DocumentosFlowLabResponse | null;
-  if (!body || !Array.isArray(body.documentos)) {
-    console.error('[documentosCheckin] resposta do LAB-HUB em formato inesperado');
-    return { status: 502, payload: { success: false, error: 'Integração com o LAB-HUB indisponível.' } };
-  }
-
-  // Repassa só os documentos: o navegador não precisa do agendamentoLabhubId, que é
-  // a chave do outro sistema.
-  return { status: 200, payload: { success: true, documentos: body.documentos } };
+  return { status: resultado.status ?? 500, payload: { success: false, error: resultado.erro } };
 }
 
 /**

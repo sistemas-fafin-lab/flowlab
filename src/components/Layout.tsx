@@ -618,11 +618,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         category: 'OPERAÇÕES',
         subItems: [
           { name: 'Agendamentos', href: '/analises-clinicas/agendamentos', icon: CalendarClock, permission: 'canViewAnalisesClinicas' },
+          { name: 'Envio ao Álvaro', href: '/analises-clinicas/envio-alvaro', icon: Send, permission: 'canManageColetas' },
           { name: 'Check-in', href: '/analises-clinicas/coletas', icon: Droplets, permission: 'canManageColetas' },
           { name: 'Culturas', href: '/analises-clinicas/culturas', icon: Microscope, permission: 'canManageColetas' },
           { name: 'Recoletas', href: '/analises-clinicas/recoletas', icon: RotateCcw, permission: 'canManageColetas' },
           { name: 'Laudos', href: '/analises-clinicas/laudos', icon: FileCheck2, permission: 'canManageColetas' },
-          { name: 'Envio ao Álvaro', href: '/analises-clinicas/envio-alvaro', icon: Send, permission: 'canManageColetas' },
           { name: 'Temperatura', href: '/analises-clinicas/temperatura', icon: Thermometer, anyOf: ['canViewTemperatura', 'canManageColetas'] },
           { name: 'Indicadores', href: '/analises-clinicas/indicadores', icon: BarChart3, permission: 'canViewAnalisesClinicas' },
           { name: 'Postos de Coleta', href: '/analises-clinicas/postos', icon: MapPin, permission: 'canManageAnalisesClinicas' },

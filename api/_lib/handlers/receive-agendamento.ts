@@ -11,9 +11,11 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
+import { waitUntil } from '@vercel/functions';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { isFlowlabApiKeyValid } from '../labhubIntegration.js';
 import { describeError } from '../errors.js';
+import { autoStageAgendamento } from '../apoio/autoStage.js';
 
 // Payload enviado pelo LAB-HUB (espelha AgendamentoPayloadFlowLab de @lab-hub/shared).
 interface ReceiveAgendamentoBody {
@@ -81,6 +83,8 @@ export default async function handler(
         local_posto: posto?.nome ?? '',
         data_hora: dataHora,
         status: 'recebido',
+        // Marca para o enfileiramento automático no Envio ao Álvaro (abaixo).
+        apoio_status: 'pendente',
       })
       .select('id')
       .single();
@@ -99,6 +103,20 @@ export default async function handler(
       console.error('[analises-clinicas/receive-agendamento] insert falhou:', error?.message);
       res.status(500).json({ success: false, error: 'Falha ao registrar agendamento' });
       return;
+    }
+
+    // Enfileiramento automático ao Álvaro em segundo plano: baixa o pedido médico
+    // (se já anexado), roda o pipeline e deixa o item na fila 'aguardando'. Corre em
+    // waitUntil para NÃO segurar a resposta ao LAB-HUB — o OCR passa dos 30s e a
+    // integração não pode depender do Gemini. autoStageAgendamento é best-effort
+    // (nunca lança); se o documento ainda não chegou, fica 'sem_documento' e a
+    // varredura de pendentes tenta de novo depois.
+    try {
+      waitUntil(autoStageAgendamento(supabase, criado.id));
+    } catch (bgErr) {
+      // Falha ao apenas AGENDAR o trabalho (ex.: waitUntil indisponível) não pode
+      // derrubar o recebimento do agendamento.
+      console.error('[analises-clinicas/receive-agendamento] waitUntil falhou:', describeError(bgErr));
     }
 
     res.status(201).json({ flowlabId: criado.id });
