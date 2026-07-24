@@ -103,6 +103,7 @@ function wrapResponse(res: http.ServerResponse): VercelLikeResponse {
 const HANDLERS = new Map<string, () => Promise<{ default: (req: VercelLikeRequest, res: VercelLikeResponse) => Promise<void> }>>();
 
 HANDLERS.set('GET /api/umami',      () => import('./umami.js'));
+HANDLERS.set('GET /api/cron/umami-inatividade', () => import('./cron/umami-inatividade.js'));
 HANDLERS.set('POST /api/notifications/email', () => import('./notifications/email.js'));
 HANDLERS.set('POST /api/users/create', () => import('./users/create.js'));
 HANDLERS.set('POST /api/analises-clinicas/deliver-coleta',     () => import('./_lib/handlers/deliver-coleta.js'));
