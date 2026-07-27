@@ -523,13 +523,98 @@ function uploadDocumentoApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
+// ── Dev-only middleware para as actions de Envio ao Apoio (Álvaro) ───────────
+// No Vercel, /api/analises-clinicas/apoio-* cai na rota dinâmica [action].ts. Sob
+// `npm run dev` (vite puro, sem runtime Vercel) esse dispatcher não roda, então o
+// POST não casa com nada e retorna 404. Este plugin emula as quatro actions
+// (process-image, rebuild-xml, transferir, auto-stage) carregando cada handler
+// Vercel via ssrLoadModule e adaptando o req/res cru para o contrato VercelRequest
+// /VercelResponse que os handlers esperam (req.body, res.status().json()).
+function apoioApiPlugin(env: Record<string, string>): Plugin {
+  const APOIO_ACTIONS = new Set([
+    'apoio-process-image', 'apoio-rebuild-xml', 'apoio-transferir', 'apoio-auto-stage',
+  ]);
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'GEMINI_API_KEY', 'GEMINI_MODEL',
+    'APLIS_BASE_URL', 'APLIS_USUARIO', 'APLIS_SENHA', 'APLIS_TOKEN',
+    'AOL_BASE_URL', 'AOL_IDAGENTE', 'AOL_SENHA', 'AOL_CHAVE', 'AOL_ENTIDADE',
+    'LABHUB_API_URL', 'FLOWLAB_API_KEY',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
+  return {
+    name: 'apoio-alvaro-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        const match = url.pathname.match(/^\/api\/analises-clinicas\/([^/]+)$/);
+        const action = match?.[1];
+        if (!action || !APOIO_ACTIONS.has(action) || req.method !== 'POST') return next();
+
+        // Corpo JSON (todas as actions apoio recebem JSON).
+        let body: Record<string, unknown> = {};
+        try {
+          await new Promise<void>((resolve, reject) => {
+            let raw = '';
+            req.on('data', (chunk) => { raw += chunk; });
+            req.on('end', () => {
+              try { body = raw ? JSON.parse(raw) : {}; resolve(); }
+              catch { reject(new Error('JSON inválido')); }
+            });
+            req.on('error', reject);
+          });
+        } catch {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: 'Body inválido' }));
+          return;
+        }
+
+        // Adapta o req/res cru do Node ao contrato Vercel que os handlers usam.
+        const vReq = Object.assign(req, { body, query: { action } });
+        const vRes = Object.assign(res, {
+          status(code: number) { res.statusCode = code; return vRes; },
+          json(payload: unknown) {
+            if (!res.headersSent) res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(payload));
+            return vRes;
+          },
+        });
+
+        try {
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule(`/api/_lib/handlers/${action}.ts`);
+          await mod.default(vReq, vRes);
+        } catch (err) {
+          console.error(`[dev/analises-clinicas/${action}]`, err);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Erro interno' }));
+          }
+        }
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // loadEnv com prefix '' carrega TODAS as vars (inclusive UMAMI_* sem prefixo VITE_)
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env)],
+    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },
