@@ -570,6 +570,26 @@ const DetalheAgendamentoModal: React.FC<{
                     <Plus className="w-3.5 h-3.5" />
                     Adicionar
                   </button>
+                  {podeEnviarDocs && (
+                    <button
+                      type="button"
+                      onClick={() => void handleEnviarDocumentos()}
+                      disabled={enviandoDocs || !docsPendentes}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md hover:shadow-lg transition-all disabled:opacity-60"
+                    >
+                      {enviandoDocs ? (
+                        <>
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          Enviando…
+                        </>
+                      ) : (
+                        <>
+                          <Paperclip className="w-3.5 h-3.5" />
+                          Enviar
+                        </>
+                      )}
+                    </button>
+                  )}
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -730,31 +750,6 @@ const DetalheAgendamentoModal: React.FC<{
             >
               <XCircle className="w-4 h-4" />
               Cancelar
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 transition-all duration-200"
-          >
-            Fechar
-          </button>
-          {podeEnviarDocs && (
-            <button
-              onClick={() => void handleEnviarDocumentos()}
-              disabled={enviandoDocs || !docsPendentes}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60"
-            >
-              {enviandoDocs ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Enviando…
-                </>
-              ) : (
-                <>
-                  <Paperclip className="w-4 h-4" />
-                  Enviar documentos
-                </>
-              )}
             </button>
           )}
           {acao && canManage && AcaoIcon && (
