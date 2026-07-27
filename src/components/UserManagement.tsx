@@ -487,7 +487,7 @@ const UserManagement: React.FC = () => {
       !q ||
       (user.name || '').toLowerCase().includes(q) ||
       (user.email || '').toLowerCase().includes(q) ||
-      getDepartmentLabel(user.department).toLowerCase().includes(q) ||
+      (getDepartmentLabel(user.department) || '').toLowerCase().includes(q) ||
       (user.roleName || '').toLowerCase().includes(q);
     const matchesDept = filterDept === 'all' || user.department === filterDept;
     const matchesRole = filterRole === 'all' || user.role === filterRole;

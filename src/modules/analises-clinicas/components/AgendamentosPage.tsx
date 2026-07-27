@@ -40,7 +40,8 @@ import { useAuth } from '../../../hooks/useAuth';
 import { useDialog } from '../../../hooks/useDialog';
 import InputDialog from '../../../components/InputDialog';
 import { hasPermission } from '../../../utils/permissions';
-import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento } from '../types';
+import { useDocumentosAgendamento } from '../hooks/useDocumentosAgendamento';
+import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento, DocumentoCheckin } from '../types';
 
 // Classe compartilhada de input (foco azul, cor do módulo de agendamentos).
 const inputCls =
@@ -408,23 +409,89 @@ const DetalheAgendamentoModal: React.FC<{
   onClose: () => void;
   onIrParaAcao: () => void;
   onCancelar?: () => void;
-}> = ({ ag, canManage, onClose, onIrParaAcao, onCancelar }) => {
+  onUpload?: (agendamentoFlowlabId: string, file: File, tipo: TipoDocumento) => Promise<string | null>;
+}> = ({ ag, canManage, onClose, onIrParaAcao, onCancelar, onUpload }) => {
   const cfg = statusCfg(ag.status);
   const acao = ACAO_STATUS[ag.status];
   const AcaoIcon = acao?.icon;
   const heroTint = STATUS_HERO[ag.status] ?? STATUS_HERO.cancelado;
+
+  // ── Documentos do LAB-HUB (enviados pelo paciente) ─────────────────────────
+  const {
+    documentos: docsExistentes,
+    loading: docsLoading,
+    error: docsError,
+    expirado: docsExpirado,
+    refetch: refetchDocs,
+  } = useDocumentosAgendamento(ag.id);
+
+  // ── Upload de novos documentos (enviados pelo operador) ────────────────────
+  const [docs, setDocs] = useState<DocItem[]>([]);
+  const [docErro, setDocErro] = useState<string | null>(null);
+  const [enviandoDocs, setEnviandoDocs] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const adicionarArquivos = (files: FileList | null) => {
+    if (!files) return;
+    setDocErro(null);
+    const novos: DocItem[] = [];
+    const rejeitados: string[] = [];
+    for (const file of Array.from(files)) {
+      if (!DOC_MIMES_ACEITOS.includes(file.type)) rejeitados.push(`${file.name} (formato)`);
+      else if (file.size > DOC_MAX_BYTES) rejeitados.push(`${file.name} (>10 MB)`);
+      else novos.push({ id: crypto.randomUUID(), file, tipo: 'outro', status: 'pendente' });
+    }
+    if (novos.length) setDocs((prev) => [...prev, ...novos]);
+    if (rejeitados.length) setDocErro(`Ignorado(s): ${rejeitados.join(', ')}.`);
+  };
+
+  const removerDoc = (id: string) => setDocs((prev) => prev.filter((d) => d.id !== id));
+  const mudarTipoDoc = (id: string, tipo: TipoDocumento) =>
+    setDocs((prev) => prev.map((d) => (d.id === id ? { ...d, tipo } : d)));
+
+  const handleEnviarDocumentos = async () => {
+    if (!onUpload || docs.length === 0) return;
+    setEnviandoDocs(true);
+    setDocErro(null);
+    let algumaFalha = false;
+    for (const d of docs) {
+      if (d.status === 'ok') continue;
+      setDocs((prev) =>
+        prev.map((x) => (x.id === d.id ? { ...x, status: 'enviando', erro: undefined } : x)),
+      );
+      const err = await onUpload(ag.id, d.file, d.tipo);
+      setDocs((prev) =>
+        prev.map((x) =>
+          x.id === d.id ? { ...x, status: err ? 'erro' : 'ok', erro: err ?? undefined } : x,
+        ),
+      );
+      if (err) algumaFalha = true;
+    }
+    setEnviandoDocs(false);
+    if (algumaFalha) {
+      setDocErro('Alguns documentos não foram enviados. Ajuste e tente novamente.');
+    } else {
+      // Limpa a lista após envio bem-sucedido e recarrega os documentos existentes
+      setDocs([]);
+      void refetchDocs();
+    }
+  };
+
+  const docsPendentes = docs.some((d) => d.status !== 'ok');
+  const podeEnviarDocs = onUpload && (docsPendentes || docs.length > 0);
+
   return (
     <div
       className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in"
       onClick={onClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-scale-in"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Hero tingido pelo status: avatar + nome + chip */}
         <div
-          className={`relative bg-gradient-to-br ${heroTint} px-6 pt-6 pb-5 border-b border-gray-100 dark:border-gray-700`}
+          className={`relative bg-gradient-to-br ${heroTint} px-6 pt-6 pb-5 border-b border-gray-100 dark:border-gray-700 shrink-0`}
         >
           <button
             onClick={onClose}
@@ -449,8 +516,8 @@ const DetalheAgendamentoModal: React.FC<{
           </div>
         </div>
 
-        {/* Corpo: callout do status + painel de dados */}
-        <div className="px-6 py-5 space-y-4">
+        {/* Corpo scrollável */}
+        <div className="px-6 py-5 space-y-4 overflow-y-auto">
           <div className="flex items-center gap-2.5 px-3.5 py-3 rounded-xl bg-gray-50 dark:bg-gray-900/40 border border-gray-100 dark:border-gray-700/60">
             <span className={`w-2 h-2 rounded-full ${cfg.dot} animate-pulse-soft shrink-0`} />
             <span className="text-sm text-gray-600 dark:text-gray-300">
@@ -473,8 +540,6 @@ const DetalheAgendamentoModal: React.FC<{
               label="Recebido em"
               valor={`${fmtHora(ag.recebido_em)} · ${fmtData(ag.recebido_em)}`}
             />
-            {/* Auditoria do cancelamento: sem autor = veio do LAB-HUB (o
-                receive-cancelamento não preenche as colunas). */}
             {ag.status === 'cancelado' && (
               <DetalheLinha icon={XCircle} label="Cancelado por" valor={ag.cancelado_por ?? 'LAB-HUB'} />
             )}
@@ -482,10 +547,181 @@ const DetalheAgendamentoModal: React.FC<{
               <DetalheLinha icon={FileText} label="Motivo" valor={ag.cancelamento_motivo} />
             )}
           </div>
+
+          {/* ── Documentos ─────────────────────────────────────────────────────── */}
+          {onUpload && (
+            <div className="space-y-2.5 pt-3 border-t border-gray-100 dark:border-gray-700/60">
+              <div className="flex items-center justify-between">
+                <label className="flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+                  <Paperclip className="w-4 h-4 text-gray-400" />
+                  Documentos
+                </label>
+                <div className="flex items-center gap-1.5">
+                  {docsExistentes.length > 0 && (
+                    <span className="text-xs text-gray-400">
+                      {docsExistentes.length} anexado(s)
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Adicionar
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    multiple
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    className="hidden"
+                    onChange={(e) => {
+                      adicionarArquivos(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              </div>
+
+              <p className="text-xs text-gray-400">
+                Identidade, carteirinha, pedido médico… JPG, PNG, WEBP ou PDF, até 10 MB.
+              </p>
+
+              {docErro && <p className="text-xs text-amber-600 dark:text-amber-400">{docErro}</p>}
+
+              {/* Documentos já existentes (do LAB-HUB) */}
+              {docsLoading && (
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Carregando documentos…
+                </div>
+              )}
+
+              {docsError && !docsLoading && (
+                <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {docsError}
+                  {docsExpirado && (
+                    <button
+                      onClick={() => void refetchDocs()}
+                      className="text-blue-600 hover:underline ml-1"
+                    >
+                      Atualizar
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {docsExistentes.length > 0 && !docsLoading && (
+                <div className="space-y-1.5">
+                  {docsExistentes.map((doc) => {
+                    const isPdf = doc.url?.toLowerCase().endsWith('.pdf');
+                    const DocIcon = isPdf ? FileText : ImageIcon;
+                    return (
+                      <div
+                        key={doc.id}
+                        className="flex items-center gap-3 p-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-900/30"
+                      >
+                        <div className="w-8 h-8 rounded-lg bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                          <DocIcon className="w-4 h-4" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                            {doc.tipo === 'identidade' && 'Identidade'}
+                            {doc.tipo === 'carteirinha' && 'Carteirinha / Guia'}
+                            {doc.tipo === 'pedido_medico' && 'Pedido médico'}
+                            {doc.tipo === 'outro' && 'Outro'}
+                          </div>
+                          <div className="text-xs text-gray-400">
+                            Enviado pelo paciente
+                          </div>
+                        </div>
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-lg text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors shrink-0"
+                        >
+                          Abrir
+                        </a>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Documentos novos sendo enviados pelo operador */}
+              {docs.length > 0 && (
+                <div className="space-y-2">
+                  {docs.map((d) => {
+                    const DocIcon = d.file.type === 'application/pdf' ? FileText : ImageIcon;
+                    return (
+                      <div
+                        key={d.id}
+                        className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50/60 dark:bg-gray-900/30"
+                      >
+                        <div
+                          className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 ${
+                            d.status === 'ok'
+                              ? 'bg-emerald-500 text-white'
+                              : d.status === 'erro'
+                                ? 'bg-rose-500 text-white'
+                                : 'bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-400'
+                          }`}
+                        >
+                          {d.status === 'enviando' ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : d.status === 'ok' ? (
+                            <Check className="w-4 h-4" />
+                          ) : d.status === 'erro' ? (
+                            <AlertTriangle className="w-4 h-4" />
+                          ) : (
+                            <DocIcon className="w-4 h-4" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                            {d.file.name}
+                          </div>
+                          <div className="text-xs text-gray-400 tabular-nums truncate">
+                            {(d.file.size / 1024).toFixed(0)} KB
+                            {d.status === 'erro' && d.erro ? ` · ${d.erro}` : ''}
+                          </div>
+                        </div>
+                        <select
+                          value={d.tipo}
+                          onChange={(e) => mudarTipoDoc(d.id, e.target.value as TipoDocumento)}
+                          disabled={d.status === 'ok' || d.status === 'enviando'}
+                          className="px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-xs text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-60 shrink-0"
+                        >
+                          {TIPO_DOC_OPCOES.map((o) => (
+                            <option key={o.value} value={o.value}>
+                              {o.label}
+                            </option>
+                          ))}
+                        </select>
+                        {d.status !== 'ok' && d.status !== 'enviando' && (
+                          <button
+                            type="button"
+                            onClick={() => removerDoc(d.id)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors shrink-0"
+                            aria-label={`Remover ${d.file.name}`}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Rodapé: fechar + ação contextual (só operador, só status com ação) */}
-        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-700 rounded-b-2xl flex items-center justify-end gap-2">
+        {/* Rodapé */}
+        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/40 border-t border-gray-100 dark:border-gray-700 rounded-b-2xl flex items-center justify-end gap-2 shrink-0">
           {onCancelar && (
             <button
               onClick={onCancelar}
@@ -502,6 +738,25 @@ const DetalheAgendamentoModal: React.FC<{
           >
             Fechar
           </button>
+          {podeEnviarDocs && (
+            <button
+              onClick={() => void handleEnviarDocumentos()}
+              disabled={enviandoDocs || !docsPendentes}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-md hover:shadow-lg transition-all duration-200 disabled:opacity-60"
+            >
+              {enviandoDocs ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Enviando…
+                </>
+              ) : (
+                <>
+                  <Paperclip className="w-4 h-4" />
+                  Enviar documentos
+                </>
+              )}
+            </button>
+          )}
           {acao && canManage && AcaoIcon && (
             <button
               onClick={onIrParaAcao}
@@ -1267,6 +1522,7 @@ const AgendamentosPage: React.FC = () => {
               ? () => void handleCancelar(detalhe)
               : undefined
           }
+          onUpload={uploadDocumento}
         />
       )}
 
