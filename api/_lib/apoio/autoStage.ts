@@ -17,6 +17,16 @@ import { randomUUID } from 'node:crypto';
 const BUCKET = 'ac-apoio-requisicoes';
 const MAX_ARQUIVOS = 4;
 
+// Corrida de propagação: o LAB-HUB às vezes dispara receive-agendamento no MESMO
+// instante em que grava o pedido médico (o pedido vem embutido na criação, não
+// como anexo posterior), então a 1ª busca pode voltar vazia por ~1-2s e o
+// agendamento fica preso em 'sem_documento'. Como o autoStage roda em background
+// (waitUntil, teto de 60s), reconsultamos algumas vezes antes de desistir.
+const BUSCA_PEDIDOS_TENTATIVAS = 3;
+const BUSCA_PEDIDOS_ESPERA_MS = 2000;
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
 // Estágio do enfileiramento (espelha o CHECK de ac_agendamentos.apoio_status).
 type ApoioStatus = 'pendente' | 'enfileirado' | 'sem_documento' | 'erro' | 'ignorado';
 
@@ -31,6 +41,30 @@ export interface AutoStageResultado {
 function importavel(doc: DocumentoFlowLab): boolean {
   const mime = doc.mimeType ?? '';
   return mime.startsWith('image/') || mime === 'application/pdf' || /\.pdf$/i.test(doc.nomeArquivo ?? '');
+}
+
+/**
+ * Busca os pedidos médicos importáveis do agendamento no LAB-HUB, reconsultando
+ * até BUSCA_PEDIDOS_TENTATIVAS vezes enquanto vier vazio — absorve a corrida de
+ * propagação descrita acima. Só a lista vazia é reciclada; um erro de infra do
+ * LAB-HUB (!ok) propaga na hora, como antes.
+ */
+async function buscarPedidosMedicos(
+  supabase: SupabaseClient,
+  agendamentoId: string,
+): Promise<DocumentoFlowLab[]> {
+  for (let tentativa = 1; tentativa <= BUSCA_PEDIDOS_TENTATIVAS; tentativa++) {
+    const docsResp = await buscarDocumentosLabhub(supabase, agendamentoId);
+    if (!docsResp.ok) throw new Error(docsResp.erro ?? 'Falha ao buscar documentos no LAB-HUB.');
+
+    const pedidos = (docsResp.documentos ?? [])
+      .filter((d) => d.tipo === 'pedido_medico' && importavel(d))
+      .slice(0, MAX_ARQUIVOS);
+
+    if (pedidos.length > 0) return pedidos;
+    if (tentativa < BUSCA_PEDIDOS_TENTATIVAS) await sleep(BUSCA_PEDIDOS_ESPERA_MS);
+  }
+  return [];
 }
 
 async function setApoioStatus(
@@ -117,13 +151,8 @@ export async function autoStageAgendamento(
       return { ok: false, motivo: 'ja_enfileirado', filaId: jaExiste.id };
     }
 
-    // ── 3. Pedido(s) médico(s) no LAB-HUB ───────────────────────────────────────
-    const docsResp = await buscarDocumentosLabhub(supabase, agendamentoId);
-    if (!docsResp.ok) throw new Error(docsResp.erro ?? 'Falha ao buscar documentos no LAB-HUB.');
-
-    const pedidos = (docsResp.documentos ?? [])
-      .filter((d) => d.tipo === 'pedido_medico' && importavel(d))
-      .slice(0, MAX_ARQUIVOS);
+    // ── 3. Pedido(s) médico(s) no LAB-HUB (com retry p/ a corrida de propagação) ─
+    const pedidos = await buscarPedidosMedicos(supabase, agendamentoId);
 
     if (pedidos.length === 0) {
       await setApoioStatus(supabase, agendamentoId, 'sem_documento');
