@@ -8,7 +8,7 @@
  *
  * Autorização: header `Authorization: Bearer <access_token>` da sessão do admin.
  *
- * Variáveis de ambiente: ver api/_lib/createUser.ts, email.ts e googleWorkspace.ts.
+ * Variáveis de ambiente: ver api/_lib/createUser.ts e email.ts.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';

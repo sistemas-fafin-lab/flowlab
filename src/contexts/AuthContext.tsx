@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { UserProfile, UserRole } from "../types";
-import { getPermissionsForLegacyRole } from "../utils/permissions";
+import { getPermissionsForLegacyRole, SOLICITANTE_ROLE_ID } from "../utils/permissions";
 
 const normalizeCPF = (cpf: string): string => {
   return cpf.replace(/\D/g, "").trim();
@@ -173,6 +173,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error("CPF inativo. Contate o administrador.");
     }
 
+    // Estar na whitelist não basta: o CPF pode já pertencer a um perfil. Sem esta
+    // checagem a conta nasce no Auth e o INSERT do perfil leva 23505, deixando um
+    // usuário que autentica mas é barrado no login. Precisa ser RPC porque aqui o
+    // cliente ainda é anônimo e a policy de SELECT de user_profiles exige sessão.
+    const { data: cpfEmUso, error: cpfCheckError } = await supabase.rpc(
+      "cpf_ja_cadastrado",
+      { p_cpf: normalizedCPF },
+    );
+
+    if (cpfCheckError) {
+      console.error("Erro ao verificar o CPF:", cpfCheckError);
+      throw new Error("Não foi possível validar o CPF. Tente novamente.");
+    }
+
+    if (cpfEmUso) {
+      throw new Error("CPF já cadastrado. Faça login ou contate o administrador.");
+    }
+
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -185,27 +203,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
 
     if (data.user && !error) {
-      const existingProfiles = await supabase
-        .from("user_profiles")
-        .select("id")
-        .limit(1);
-
-      const defaultRole: UserRole =
-        existingProfiles.data?.length === 0 ? "admin" : "requester";
-
+      // Todo cadastro nasce como Solicitante — role legada 'requester' e o cargo
+      // correspondente. O custom_role_id não pode ficar nulo: sem ele o perfil não
+      // tem permissão nenhuma no RLS (ver SOLICITANTE_ROLE_ID em utils/permissions).
       const { error: insertError } = await supabase
         .from("user_profiles")
         .insert({
           id: data.user.id,
           email,
           name: name || email.split("@")[0],
-          role: defaultRole,
+          role: "requester",
+          custom_role_id: SOLICITANTE_ROLE_ID,
           department,
           cpf: normalizedCPF,
         });
 
+      // Sem perfil a conta autentica mas é recusada no login. Falhar alto é melhor
+      // do que devolver sucesso e deixar a pessoa trancada sem ninguém saber.
       if (insertError) {
         console.error("Erro ao inserir perfil:", insertError);
+        await supabase.auth.signOut({ scope: "local" });
+        throw new Error(
+          "Conta criada, mas o perfil não pôde ser salvo. Contate o administrador.",
+        );
       }
 
       await loadUserProfile(data.user.id);

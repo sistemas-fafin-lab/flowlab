@@ -51,7 +51,13 @@ const ResetPassword: React.FC = () => {
     }
 
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    // Limpa a flag da senha temporária junto: quem chegou aqui pelo "esqueci minha
+    // senha" já está definindo a própria senha, e sem isso o porteiro do App.tsx
+    // pediria a troca de novo na entrada seguinte.
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+      data: { must_change_password: false },
+    });
 
     if (error) {
       setError('Erro ao redefinir a senha. O link pode ter expirado.');

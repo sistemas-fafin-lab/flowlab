@@ -44,6 +44,14 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canCancelQuotation',     label: 'Cancelar Cotação',                 group: 'Cotações' },
 ];
 
+// ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────
+// UUID fixo do cargo de sistema "Solicitante" (seed em 20260409120000_dynamic_roles_system).
+// Todo perfil precisa nascer com um custom_role_id: o fallback por role legada existe
+// só no frontend (getPermissionsForLegacyRole). No banco, current_user_has_permission()
+// olha apenas custom_roles.permissions (ou role = 'admin'), então um perfil sem cargo
+// fica sem permissão nenhuma no RLS.
+export const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
+
 // ─── Fallback: permissões para roles legadas (usado quando custom_role não existe) ─
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ALL_PERMISSION_KEYS.map(p => p.key),

@@ -4,6 +4,7 @@ import { useAuth } from './hooks/useAuth';
 import { DataCacheProvider } from './hooks/useDataCache';
 import { hasPermission } from './utils/permissions';
 import Auth from './components/Auth';
+import ForcePasswordChange from './components/ForcePasswordChange';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
 import ProductList from './components/ProductList';
@@ -70,6 +71,13 @@ const AuthenticatedApp: React.FC = () => {
 
   if (!user) {
     return <Auth />;
+  }
+
+  // Conta criada por admin ainda usando a senha temporária do e-mail: nada do
+  // sistema é montado antes da troca. A própria troca limpa a flag e derruba
+  // esta tela (ver ForcePasswordChange).
+  if (user.user_metadata?.must_change_password === true) {
+    return <ForcePasswordChange />;
   }
 
   const userPermissions = userProfile?.permissions || [];
