@@ -226,8 +226,7 @@ function createUserApiPlugin(env: Record<string, string>): Plugin {
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
     'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
-    'GOOGLE_SA_CLIENT_EMAIL', 'GOOGLE_SA_PRIVATE_KEY', 'GOOGLE_ADMIN_SUBJECT',
-    'GOOGLE_ALIAS_TARGET', 'GOOGLE_ALIAS_DOMAIN', 'SLACK_INVITE_URL',
+    'SLACK_INVITE_URL',
   ];
 
   const ensureProcessEnv = () => {

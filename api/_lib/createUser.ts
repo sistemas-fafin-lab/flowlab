@@ -11,13 +11,11 @@
 //   5. auth.admin.createUser (não afeta a sessão do admin).
 //   6. Grava o profile (UPDATE, ou INSERT se a linha não existir). Se falhar,
 //      desfaz a conta no Auth — perfil incompleto = usuário barrado no login.
-//   7. Cria alias no Google Workspace.
-//   8. Envia e-mail de boas-vindas com senha temporária + alias + link do Slack.
+//   7. Envia e-mail de boas-vindas com senha temporária + link do Slack.
 
 import { randomBytes } from 'node:crypto';
 import { getSupabaseAdminClient } from './supabase.js';
 import { sendTemplatedEmail, isValidEmail } from './email.js';
-import { buildAliasEmail, createUserAlias, isWorkspaceConfigured } from './googleWorkspace.js';
 
 export interface CreateUserInput {
   name: string;
@@ -231,19 +229,7 @@ export async function createUserFlow(
     };
   }
 
-  // ── 7. Alias no Google Workspace (best-effort) ──────────────────────────────
-  const aliasEmail = buildAliasEmail(name);
-  let aliasOk = false;
-  let aliasError: string | undefined;
-  if (aliasEmail && isWorkspaceConfigured()) {
-    const aliasResult = await createUserAlias(aliasEmail);
-    aliasOk = aliasResult.success;
-    aliasError = aliasResult.error;
-  } else {
-    aliasError = 'Google Workspace não configurado no servidor.';
-  }
-
-  // ── 8. E-mail de boas-vindas (best-effort) ──────────────────────────────────
+  // ── 7. E-mail de boas-vindas (best-effort) ──────────────────────────────────
   const emailResult = await sendTemplatedEmail({
     to: email,
     templateSlug: 'welcome_new_user',
@@ -251,14 +237,12 @@ export async function createUserFlow(
       name,
       login_email: email,
       temp_password: tempPassword,
-      workspace_email: aliasOk && aliasEmail ? aliasEmail : '(não provisionado)',
       slack_invite_url: process.env.SLACK_INVITE_URL ?? '',
     },
   });
 
   // Avisos não-fatais (usuário foi criado com sucesso)
   const warnings: string[] = [];
-  if (!aliasOk) warnings.push(`Alias do Workspace não criado: ${aliasError ?? 'erro desconhecido'}`);
   if (!emailResult.success) warnings.push(`E-mail de boas-vindas não enviado: ${emailResult.error ?? 'erro desconhecido'}`);
   if (!process.env.SLACK_INVITE_URL) warnings.push('SLACK_INVITE_URL não configurado — link do Slack ausente no e-mail.');
 
@@ -267,7 +251,6 @@ export async function createUserFlow(
     payload: {
       success: true,
       userId,
-      aliasEmail: aliasOk ? aliasEmail : null,
       emailSent: emailResult.success,
       warnings,
     },

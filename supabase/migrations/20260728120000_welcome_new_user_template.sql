@@ -46,7 +46,7 @@ VALUES (
               <p style="margin:0 0 16px;font-size:15px;">Olá <strong>{{name}}</strong>,</p>
               <p style="margin:0 0 24px;font-size:14px;line-height:1.6;color:#475569;">
                 Seu acesso ao sistema FlowLab foi provisionado. Abaixo estão seus dados de primeiro acesso.
-                Recomendamos alterar a senha temporária após o login.
+                A senha abaixo é temporária: ao entrar, o sistema vai pedir que você defina uma senha só sua.
               </p>
 
               <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:24px;">
@@ -55,10 +55,7 @@ VALUES (
                   <p style="margin:0 0 16px;font-size:15px;font-weight:600;color:#1e293b;">{{login_email}}</p>
 
                   <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;">Senha temporária</p>
-                  <p style="margin:0 0 16px;font-size:15px;font-weight:600;color:#1e293b;font-family:Consolas,monospace;">{{temp_password}}</p>
-
-                  <p style="margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:0.05em;color:#94a3b8;">E-mail corporativo</p>
-                  <p style="margin:0;font-size:15px;font-weight:600;color:#1e293b;">{{workspace_email}}</p>
+                  <p style="margin:0;font-size:15px;font-weight:600;color:#1e293b;font-family:Consolas,monospace;">{{temp_password}}</p>
                 </td></tr>
               </table>
 
