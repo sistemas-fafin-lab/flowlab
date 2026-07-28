@@ -6,11 +6,13 @@
 // Fluxo (ordem importa — a whitelist precede o CPF por causa da FK):
 //   1. Autoriza o chamador (token JWT) → exige canManageUsers (ou role=admin).
 //   2. Valida entradas e CPF.
-//   3. Upsert em user_whitelist.
-//   4. auth.admin.createUser (não afeta a sessão do admin) — trigger cria o profile.
-//   5. UPDATE do profile com cpf/telefone/data_nascimento/cargo.
-//   6. Cria alias no Google Workspace.
-//   7. Envia e-mail de boas-vindas com senha temporária + alias + link do Slack.
+//   3. Recusa se o CPF já pertence a outro perfil (antes de criar qualquer coisa).
+//   4. Upsert em user_whitelist.
+//   5. auth.admin.createUser (não afeta a sessão do admin).
+//   6. Grava o profile (UPDATE, ou INSERT se a linha não existir). Se falhar,
+//      desfaz a conta no Auth — perfil incompleto = usuário barrado no login.
+//   7. Cria alias no Google Workspace.
+//   8. Envia e-mail de boas-vindas com senha temporária + alias + link do Slack.
 
 import { randomBytes } from 'node:crypto';
 import { getSupabaseAdminClient } from './supabase.js';
@@ -20,9 +22,7 @@ import { buildAliasEmail, createUserAlias, isWorkspaceConfigured } from './googl
 export interface CreateUserInput {
   name: string;
   email: string;
-  telefone: string;
   cpf: string;
-  dataNascimento: string; // YYYY-MM-DD
   department: string;
   customRoleId?: string | null;
 }
@@ -31,6 +31,11 @@ export interface CreateUserFlowResult {
   status: number;
   payload: Record<string, unknown>;
 }
+
+// Cargo de sistema "Solicitante" (seed em 20260409120000_dynamic_roles_system).
+// Espelha SOLICITANTE_ROLE_ID de src/utils/permissions.ts — a API tem tsconfig
+// próprio e não importa de src/.
+const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
 
 const normalizeCPF = (v: string): string => v.replace(/\D/g, '').trim();
 
@@ -95,10 +100,8 @@ export async function createUserFlow(
   // ── 2. Validação de entrada ─────────────────────────────────────────────────
   const name = (input.name ?? '').trim();
   const email = (input.email ?? '').trim().toLowerCase();
-  const telefone = (input.telefone ?? '').trim();
-  const dataNascimento = (input.dataNascimento ?? '').trim();
   const department = (input.department ?? '').trim();
-  const customRoleId = input.customRoleId || null;
+  const customRoleId = input.customRoleId || SOLICITANTE_ROLE_ID;
   const normalizedCpf = normalizeCPF(input.cpf ?? '');
 
   if (!name || !email || !department) {
@@ -111,7 +114,33 @@ export async function createUserFlow(
     return { status: 400, payload: { success: false, error: 'CPF inválido.' } };
   }
 
-  // ── 3. Whitelist (antes do CPF, por causa da FK) ────────────────────────────
+  // ── 3. CPF já vinculado a outro perfil? ─────────────────────────────────────
+  // user_profiles.cpf é UNIQUE (20250525130000_user_whitelist.sql). Sem esta
+  // checagem a conta no Auth é criada primeiro e só depois o perfil leva 23505 —
+  // sobrando um usuário que autentica mas é barrado no login por não ter CPF
+  // (AuthContext.tsx:239). Foi assim que nasceram as contas duplicadas.
+  const { data: cpfOwner, error: cpfLookupErr } = await supabase
+    .from('user_profiles')
+    .select('name, email')
+    .eq('cpf', normalizedCpf)
+    .maybeSingle();
+
+  if (cpfLookupErr) {
+    console.error('[createUser] Erro ao verificar o CPF:', cpfLookupErr.message);
+    return { status: 500, payload: { success: false, error: 'Erro ao verificar o CPF.' } };
+  }
+
+  if (cpfOwner) {
+    return {
+      status: 409,
+      payload: {
+        success: false,
+        error: `Este CPF já está vinculado ao usuário ${cpfOwner.name} (${cpfOwner.email}).`,
+      },
+    };
+  }
+
+  // ── 4. Whitelist (antes do CPF, por causa da FK) ────────────────────────────
   const { error: whitelistErr } = await supabase
     .from('user_whitelist')
     .upsert({ cpf: normalizedCpf, name, activity: true }, { onConflict: 'cpf' });
@@ -121,7 +150,7 @@ export async function createUserFlow(
     return { status: 500, payload: { success: false, error: 'Erro ao registrar o CPF na whitelist.' } };
   }
 
-  // ── 4. Cria o usuário no Auth (não afeta a sessão do admin) ──────────────────
+  // ── 5. Cria o usuário no Auth (não afeta a sessão do admin) ──────────────────
   const tempPassword = generateTempPassword();
   const { data: created, error: createErr } = await supabase.auth.admin.createUser({
     email,
@@ -142,16 +171,19 @@ export async function createUserFlow(
 
   const userId = created.user.id;
 
-  // ── 5. Completa o perfil (o trigger já criou a linha base) ──────────────────
+  // ── 6. Grava o perfil ───────────────────────────────────────────────────────
+  // Todo cadastro nasce com role legada 'requester'; o cargo vem do formulário e
+  // nunca fica nulo (cai em Solicitante). Em bancos onde o trigger de criação de
+  // perfil ainda existe a linha já está lá e o UPDATE resolve; onde ele foi
+  // removido (20260721130000) o UPDATE não acha nada e o INSERT abaixo cria.
   const profilePatch: Record<string, unknown> = {
     name,
     department,
     cpf: normalizedCpf,
-    telefone: telefone || null,
-    data_nascimento: dataNascimento || null,
+    role: 'requester',
+    custom_role_id: customRoleId,
     updated_at: new Date().toISOString(),
   };
-  if (customRoleId) profilePatch.custom_role_id = customRoleId;
 
   const { data: updated, error: profileErr } = await supabase
     .from('user_profiles')
@@ -159,27 +191,44 @@ export async function createUserFlow(
     .eq('id', userId)
     .select('id');
 
-  // Fallback: se o trigger não tiver criado a linha, insere-a.
-  if (!profileErr && (!updated || updated.length === 0)) {
+  // UPDATE que não encontra a linha devolve 0 linhas, não erro — então erro aqui é
+  // falha real (o INSERT abaixo falharia igual) e não deve cair no fallback.
+  let profileFailure: string | null = profileErr?.message ?? null;
+
+  if (!profileFailure && (!updated || updated.length === 0)) {
     const { error: insertErr } = await supabase.from('user_profiles').insert({
       id: userId,
       email,
       name,
       role: 'requester',
+      custom_role_id: customRoleId,
       department,
       cpf: normalizedCpf,
-      telefone: telefone || null,
-      data_nascimento: dataNascimento || null,
-      ...(customRoleId ? { custom_role_id: customRoleId } : {}),
     });
-    if (insertErr) {
-      console.error('[createUser] Erro ao inserir perfil (fallback):', insertErr.message);
-    }
-  } else if (profileErr) {
-    console.error('[createUser] Erro ao atualizar perfil:', profileErr.message);
+    profileFailure = insertErr?.message ?? null;
   }
 
-  // ── 6. Alias no Google Workspace (best-effort) ──────────────────────────────
+  // Sem perfil o usuário autentica mas é barrado no login. Em vez de devolver 201
+  // e deixar uma conta órfã, desfaz a criação no Auth (o ON DELETE CASCADE de
+  // user_profiles.id leva junto qualquer linha parcial).
+  if (profileFailure) {
+    console.error('[createUser] Erro ao gravar o perfil:', profileFailure);
+    const { error: rollbackErr } = await supabase.auth.admin.deleteUser(userId);
+    if (rollbackErr) {
+      console.error('[createUser] Falha ao desfazer a conta no Auth:', rollbackErr.message);
+    }
+    return {
+      status: 500,
+      payload: {
+        success: false,
+        error: rollbackErr
+          ? 'Erro ao gravar o perfil e a conta de acesso não pôde ser desfeita. Contate o suporte.'
+          : 'Erro ao gravar o perfil do usuário. Nenhuma conta foi criada — tente novamente.',
+      },
+    };
+  }
+
+  // ── 7. Alias no Google Workspace (best-effort) ──────────────────────────────
   const aliasEmail = buildAliasEmail(name);
   let aliasOk = false;
   let aliasError: string | undefined;
@@ -191,7 +240,7 @@ export async function createUserFlow(
     aliasError = 'Google Workspace não configurado no servidor.';
   }
 
-  // ── 7. E-mail de boas-vindas (best-effort) ──────────────────────────────────
+  // ── 8. E-mail de boas-vindas (best-effort) ──────────────────────────────────
   const emailResult = await sendTemplatedEmail({
     to: email,
     templateSlug: 'welcome_new_user',
