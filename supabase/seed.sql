@@ -10,8 +10,9 @@ INSERT INTO stock_locations (nome, department, is_principal, rastreavel, control
   ('Copa',                   'Copa/Limpeza',       false, false, false),
   ('Biologia Molecular',     'Biologia Molecular', false, true,  true),
   ('Faturamento/Financeiro', 'Faturamento',        false, true,  false),
-  -- Qualidade: estoque central que distribui para os postos (controla consumo, sem posto_id)
-  ('Qualidade',              'Qualidade',          false, true,  true)
+  -- Área técnica: estoque central que distribui para os postos (controla consumo, sem posto_id).
+  -- Acesso ao central + postos é pela permissão canManageStockPostos (custom role), não pelo departamento.
+  ('Área técnica',           'Área técnica',       false, true,  true)
 ON CONFLICT (nome) DO NOTHING;
 
 -- 1b) Um estoque departamental por posto (posto_id preenchido → a tela trata como

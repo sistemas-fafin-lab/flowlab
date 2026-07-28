@@ -84,7 +84,8 @@ export function usePostos(): UsePostosResult {
         .single();
       if (err) return err.message;
       // Cada posto ganha um estoque departamental próprio (local rastreável com
-      // controle de consumo): a Qualidade transfere para ele; o posto consome/vence.
+      // controle de consumo): o estoque central (Área técnica) transfere para
+      // ele; o posto consome/vence.
       if (data) {
         const { error: locErr } = await supabase.from('stock_locations').insert({
           nome: `Posto — ${data.nome}`,

@@ -27,6 +27,14 @@ import { DepartmentLabels, type Department } from '../types';
  * (import_files/flowlab-telas), adaptado ao design system de produção.
  */
 
+// Estoque central que distribui para os postos (clínicas). Antes era o
+// departamento "Qualidade"; hoje é "Área técnica" — quem cuida do estoque das
+// clínicas. É o `department` da linha de stock_locations do central e serve de
+// marcador do setor que transfere para os postos. Quem enxerga o central e os
+// postos é definido pela permissão canManageStockPostos (via cargo), não pelo
+// departamento do usuário.
+const CENTRAL_DEPARTMENT = 'Área técnica';
+
 type Tone = 'blue' | 'green' | 'amber' | 'red';
 
 type StockRow = {
@@ -230,28 +238,34 @@ const EstoqueDepartamental: React.FC = () => {
   // Cada pessoa enxerga apenas o estoque do seu próprio setor. O admin mantém a
   // visão de todos os setores (supervisão). O setor da pessoa é o local com
   // controla_consumo cujo `department` bate com o department do perfil — o perfil
-  // guarda o enum (ex.: QUALIDADE) e o local guarda o rótulo (ex.: Qualidade).
+  // guarda o enum (ex.: AREA_TECNICA) e o local guarda o rótulo (ex.: Área técnica).
   const isAdmin = userProfile?.role === 'admin';
   const userDept = userProfile?.department;
-  // department pode vir como enum ('QUALIDADE') ou como rótulo ('Qualidade');
+  // department pode vir como enum ('AREA_TECNICA') ou como rótulo ('Área técnica');
   // normaliza sempre para o rótulo (formato guardado em stock_locations.department).
   const userDeptLabel = userDept
     ? ((DepartmentLabels as Partial<Record<Department, string>>)[userDept] ?? userDept)
     : undefined;
-  // Qualidade é o estoque central que distribui para os postos: além do próprio
-  // estoque, enxerga o de todos os postos (supervisão + transferência).
-  const isQualidade = userDeptLabel === 'Qualidade';
+  // Distribuidor central: enxerga o estoque central + o de todos os postos e
+  // transfere para eles. Concedido pela permissão canManageStockPostos (via
+  // cargo), independente do departamento do usuário.
+  const canManagePostos = hasPermission(userProfile?.permissions || [], 'canManageStockPostos');
 
   const setores = useMemo(() => {
     const comConsumo = locations.filter(l => l.controlaConsumo && l.rastreavel && l.ativo);
     if (isAdmin) return comConsumo;
-    if (isQualidade) {
-      // Qualidade central + todos os postos (qualquer local ativo com posto_id).
-      return locations.filter(l => l.ativo && (l.department === userDeptLabel || !!l.postoId));
+    if (canManagePostos) {
+      // Estoque central + todos os postos + o próprio setor do usuário (se houver).
+      return locations.filter(l => l.ativo && (
+        l.department === CENTRAL_DEPARTMENT || !!l.postoId ||
+        l.department === userDeptLabel || l.department === userDept
+      ));
     }
-    // Demais setores: apenas o próprio departamento.
-    return comConsumo.filter(l => l.department === userDeptLabel || l.department === userDept);
-  }, [locations, isAdmin, isQualidade, userDept, userDeptLabel]);
+    // Demais: apenas o próprio departamento; o central fica atrás da permissão.
+    return comConsumo.filter(l =>
+      (l.department === userDeptLabel || l.department === userDept) && l.department !== CENTRAL_DEPARTMENT
+    );
+  }, [locations, isAdmin, canManagePostos, userDept, userDeptLabel]);
 
   const [selectedSector, setSelectedSector] = useState('');
   const [baseRows, setBaseRows] = useState<{ productId: string; productName: string; unit: string; code: string; quantity: number; minStock: number }[]>([]);
@@ -454,11 +468,11 @@ const EstoqueDepartamental: React.FC = () => {
   const saldoApos = pendingConsumo ? pendingConsumo.quantity - form.quantity : 0;
 
   // Destinos possíveis para transferência.
-  // Qualidade distribui para os postos → destino = locais com posto_id.
+  // O estoque central (Área técnica) distribui para os postos → destino = locais com posto_id.
   // Demais setores → qualquer local ativo diferente do próprio.
   const destinos = useMemo(() => {
     const sel = locations.find(l => l.id === selectedSector);
-    if (sel?.department === 'Qualidade') {
+    if (sel?.department === CENTRAL_DEPARTMENT) {
       return locations.filter(l => l.ativo && !!l.postoId && l.id !== selectedSector);
     }
     return locations.filter(l => l.ativo && l.id !== selectedSector);
