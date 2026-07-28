@@ -219,6 +219,16 @@ const Auth: React.FC = () => {
         );
       } else if (msg.includes("CPF inativo")) {
         setError("CPF inativo. Entre em contato com o administrador.");
+      } else if (msg.includes("CPF já cadastrado")) {
+        setError(
+          "Este CPF já possui cadastro. Faça login ou contate o administrador.",
+        );
+      } else if (msg.includes("validar o CPF")) {
+        setError("Não foi possível validar o CPF. Tente novamente.");
+      } else if (msg.includes("perfil não pôde ser salvo")) {
+        setError(
+          "Sua conta foi criada, mas o perfil não pôde ser salvo. Contate o administrador.",
+        );
       } else if (msg.includes("CPF inválido")) {
         setError("CPF inválido. Verifique e tente novamente.");
       } else if (msg.includes("Departamento")) {
