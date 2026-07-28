@@ -156,7 +156,10 @@ export async function createUserFlow(
     email,
     password: tempPassword,
     email_confirm: true,
-    user_metadata: { name, department },
+    // must_change_password marca que a senha é temporária: o app tranca a pessoa
+    // numa tela de troca até que ela defina a própria (ver ForcePasswordChange).
+    // Quem se auto-cadastra escolhe a senha na hora e não recebe a flag.
+    user_metadata: { name, department, must_change_password: true },
   });
 
   if (createErr || !created?.user) {
