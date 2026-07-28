@@ -13,14 +13,6 @@ interface NewUserFormProps {
   onCreated: (warnings: string[]) => void;
 }
 
-const formatPhone = (value: string): string => {
-  const d = value.replace(/\D/g, '').slice(0, 11);
-  if (d.length <= 10) {
-    return d.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{4})(\d)/, '$1-$2');
-  }
-  return d.replace(/(\d{2})(\d)/, '($1) $2').replace(/(\d{5})(\d)/, '$1-$2');
-};
-
 const FIELD_BASE =
   'w-full px-4 py-2.5 border rounded-xl focus:ring-2 transition-all duration-200 bg-white dark:bg-gray-900/50 text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400';
 const FIELD_DEFAULT_BORDER =
@@ -30,17 +22,6 @@ const labelClass = 'block text-sm font-medium text-slate-700 dark:text-gray-300 
 
 const isValidEmail = (value: string): boolean => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
 
-// Idade mínima — considera apenas o ano (anoAtual - anoNascimento >= MIN_AGE).
-const MIN_AGE = 15;
-const isValidBirth = (value: string): boolean => {
-  if (!value) return false;
-  const year = parseInt(value.slice(0, 4), 10);
-  if (!year) return false;
-  return new Date().getFullYear() - year >= MIN_AGE;
-};
-// Maior data selecionável: 31/12 do ano (atual - MIN_AGE).
-const maxBirthDate = `${new Date().getFullYear() - MIN_AGE}-12-31`;
-
 // Borda conforme estado de validação (erro tem prioridade sobre válido).
 const borderFor = (error: boolean, valid: boolean): string =>
   error
@@ -48,10 +29,6 @@ const borderFor = (error: boolean, valid: boolean): string =>
     : valid
       ? 'border-emerald-400 dark:border-emerald-500 focus:ring-emerald-500/30 focus:border-emerald-500'
       : FIELD_DEFAULT_BORDER;
-
-// Date com color-scheme (seta/calendário legíveis no dark) + borda por estado.
-const dateClassFor = (error: boolean, valid: boolean): string =>
-  `${FIELD_BASE} cursor-pointer [color-scheme:light] dark:[color-scheme:dark] [&::-webkit-calendar-picker-indicator]:cursor-pointer ${borderFor(error, valid)}`;
 
 interface SelectOption {
   value: string;
@@ -70,8 +47,11 @@ interface CustomSelectProps {
   onSelect: (value: string) => void;
 }
 
-// Dropdown customizado (mesma estilização do seletor de departamento do Auth.tsx):
+// Dropdown customizado (mesma estrutura do seletor de departamento do Auth.tsx):
 // botão + painel animado via AnimatePresence + fechamento ao clicar fora.
+// O botão NÃO leva `text-sm` (ao contrário do Auth.tsx) de propósito: `text-sm`
+// fixa line-height 1.25rem e deixaria o campo 4px mais baixo que os inputs ao
+// lado, que herdam 16px/1.5. Sem ele, botão e input fecham em 46px.
 const CustomSelect: React.FC<CustomSelectProps> = ({
   id,
   value,
@@ -109,7 +89,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
         id={id}
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className={`w-full flex items-center justify-between pl-4 pr-3 py-2.5 border rounded-xl text-sm transition-all duration-200 bg-white dark:bg-gray-900/50 text-left cursor-pointer ${borderState}`}
+        className={`w-full flex items-center justify-between pl-4 pr-3 py-2.5 border rounded-xl transition-all duration-200 bg-white dark:bg-gray-900/50 text-left cursor-pointer ${borderState}`}
       >
         <span className={value ? 'text-slate-800 dark:text-gray-100' : 'text-slate-400 dark:text-gray-500'}>
           {selectedLabel || placeholder}
@@ -160,9 +140,7 @@ const CustomSelect: React.FC<CustomSelectProps> = ({
 const NewUserForm: React.FC<NewUserFormProps> = ({ customRoles, onClose, onCreated }) => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [telefone, setTelefone] = useState('');
   const [cpf, setCpf] = useState('');
-  const [dataNascimento, setDataNascimento] = useState('');
   const [department, setDepartment] = useState('');
   const [customRoleId, setCustomRoleId] = useState('');
   const [loading, setLoading] = useState(false);
@@ -171,19 +149,16 @@ const NewUserForm: React.FC<NewUserFormProps> = ({ customRoles, onClose, onCreat
   const [cpfTouched, setCpfTouched] = useState(false);
   const [deptTouched, setDeptTouched] = useState(false);
   const [roleTouched, setRoleTouched] = useState(false);
-  const [birthTouched, setBirthTouched] = useState(false);
 
   const emailValid = isValidEmail(email);
   const cpfValid = validateCPF(cpf);
   const deptValid = department !== '';
   const roleValid = customRoleId !== '';
-  const birthValid = isValidBirth(dataNascimento);
 
   const emailError = emailTouched && email.length > 0 && !emailValid;
   const cpfError = cpfTouched && cpf.length > 0 && !cpfValid;
   const deptError = deptTouched && !deptValid;
   const roleError = roleTouched && !roleValid;
-  const birthError = birthTouched && !birthValid;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -209,11 +184,6 @@ const NewUserForm: React.FC<NewUserFormProps> = ({ customRoles, onClose, onCreat
       setError('Selecione o cargo/função.');
       return;
     }
-    if (!isValidBirth(dataNascimento)) {
-      setBirthTouched(true);
-      setError(`Data de nascimento inválida — o usuário deve ter no mínimo ${MIN_AGE} anos.`);
-      return;
-    }
 
     setLoading(true);
     try {
@@ -234,9 +204,7 @@ const NewUserForm: React.FC<NewUserFormProps> = ({ customRoles, onClose, onCreat
         body: JSON.stringify({
           name,
           email,
-          telefone,
           cpf,
-          dataNascimento,
           department,
           customRoleId: customRoleId || null,
         }),
@@ -358,18 +326,6 @@ const NewUserForm: React.FC<NewUserFormProps> = ({ customRoles, onClose, onCreat
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="nu-phone" className={labelClass}>Telefone</label>
-              <input
-                id="nu-phone"
-                type="tel"
-                value={telefone}
-                onChange={(e) => setTelefone(formatPhone(e.target.value))}
-                className={inputClass}
-                placeholder="(00) 00000-0000"
-                maxLength={16}
-              />
-            </div>
-            <div>
               <label htmlFor="nu-cpf" className={labelClass}>CPF</label>
               <div className="relative">
                 <input
@@ -393,27 +349,6 @@ const NewUserForm: React.FC<NewUserFormProps> = ({ customRoles, onClose, onCreat
               </div>
               {cpfError && (
                 <p className="mt-1 text-xs text-red-500 dark:text-red-400">CPF inválido.</p>
-              )}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="nu-birth" className={labelClass}>Data de Nascimento</label>
-              <input
-                id="nu-birth"
-                type="date"
-                value={dataNascimento}
-                onChange={(e) => { setDataNascimento(e.target.value); setBirthTouched(true); }}
-                onBlur={() => setBirthTouched(true)}
-                required
-                max={maxBirthDate}
-                className={dateClassFor(birthError, birthTouched && birthValid)}
-              />
-              {birthError && (
-                <p className="mt-1 text-xs text-red-500 dark:text-red-400">
-                  {dataNascimento ? `Deve ter no mínimo ${MIN_AGE} anos.` : 'Informe a data de nascimento.'}
-                </p>
               )}
             </div>
             <div>
