@@ -10,6 +10,8 @@ import {
   CheckCircle2,
   ChevronDown,
   PackagePlus,
+  Search,
+  X,
 } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useNotification } from '../hooks/useNotification';
@@ -63,6 +65,11 @@ const TIPO_OPTS: { value: SaidaTipo; label: string }[] = [
 type SaidaForm = { quantity: number; tipo: SaidaTipo; destinationId: string; notes: string };
 
 const EMPTY_FORM: SaidaForm = { quantity: 0, tipo: 'consumo', destinationId: '', notes: '' };
+
+// Busca tolerante a acento e caixa — mesmo tratamento usado nas telas de
+// Análises Clínicas, para "capsula" achar "Cápsula".
+const normalizarBusca = (texto: string): string =>
+  texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
 
 // dias até a validade (negativo = vencido)
 const daysUntil = (dateStr?: string): number | null => {
@@ -298,6 +305,8 @@ const EstoqueDepartamental: React.FC = () => {
   const [confirming, setConfirming] = useState(false);
   // Filtro do histórico: tudo (padrão), saídas ou entradas.
   const [histFilter, setHistFilter] = useState<'saidas' | 'entradas' | 'tudo'>('tudo');
+  // Busca na tabela de insumos do setor.
+  const [busca, setBusca] = useState('');
   // Modal de entrada direta (recebimento direto no setor).
   const [entradaAberta, setEntradaAberta] = useState(false);
 
@@ -328,6 +337,7 @@ const EstoqueDepartamental: React.FC = () => {
 
   useEffect(() => {
     setPendingConsumo(null);
+    setBusca(''); // outro setor, outra lista — o termo anterior não se aplica
     loadStock(selectedSector);
   }, [selectedSector, loadStock]);
 
@@ -351,6 +361,16 @@ const EstoqueDepartamental: React.FC = () => {
       };
     });
   }, [baseRows, products]);
+
+  // Linhas exibidas na tabela. Os KPIs continuam olhando o setor inteiro — a
+  // busca serve para achar o insumo, não para recortar os indicadores.
+  const rowsVisiveis = useMemo(() => {
+    const termo = normalizarBusca(busca);
+    if (!termo) return stockRows;
+    return stockRows.filter(r =>
+      normalizarBusca(r.productName).includes(termo) || normalizarBusca(r.code).includes(termo)
+    );
+  }, [stockRows, busca]);
 
   // Salva o mínimo por local do insumo em edição e recarrega o estoque do setor.
   const salvarMin = useCallback(async (productId: string) => {
@@ -677,24 +697,54 @@ const EstoqueDepartamental: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             {/* Insumos do subdepartamento */}
             <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Boxes className="w-5 h-5 text-blue-500 flex-shrink-0" />
-                  <div className="min-w-0">
-                    <h2 className="font-semibold text-gray-800 dark:text-gray-100">Insumos do setor</h2>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Saldo em posse, validade e estoque mínimo</p>
+              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Boxes className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <h2 className="font-semibold text-gray-800 dark:text-gray-100">Insumos do setor</h2>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {busca.trim()
+                          ? `${rowsVisiveis.length} de ${stockRows.length} insumos`
+                          : 'Saldo em posse, validade e estoque mínimo'}
+                      </p>
+                    </div>
                   </div>
+                  {/* Entrada direta: item que chegou direto no setor, sem passar pelo estoque central */}
+                  {canAddEntry && selectedSector && (
+                    <button
+                      onClick={() => setEntradaAberta(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-green-500 text-white text-xs font-medium hover:from-emerald-600 hover:to-green-600 transition-all flex-shrink-0"
+                      title="Registrar item recebido direto pelo setor"
+                    >
+                      <PackagePlus className="w-3.5 h-3.5" />
+                      Entrada direta
+                    </button>
+                  )}
                 </div>
-                {/* Entrada direta: item que chegou direto no setor, sem passar pelo estoque central */}
-                {canAddEntry && selectedSector && (
-                  <button
-                    onClick={() => setEntradaAberta(true)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-green-500 text-white text-xs font-medium hover:from-emerald-600 hover:to-green-600 transition-all flex-shrink-0"
-                    title="Registrar item recebido direto pelo setor"
-                  >
-                    <PackagePlus className="w-3.5 h-3.5" />
-                    Entrada direta
-                  </button>
+
+                {/* Busca — só aparece quando o setor tem algo para filtrar */}
+                {!loadingStock && stockRows.length > 0 && (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      placeholder="Buscar insumo por nome ou código…"
+                      className="w-full pl-10 pr-9 py-2 text-sm bg-gray-50/50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                    />
+                    {busca && (
+                      <button
+                        type="button"
+                        onClick={() => setBusca('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                        aria-label="Limpar busca"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -702,6 +752,10 @@ const EstoqueDepartamental: React.FC = () => {
                 <TableRowsSkeleton rows={5} />
               ) : stockRows.length === 0 ? (
                 <div className="p-6 text-gray-500 dark:text-gray-400">Nada em posse do setor no momento.</div>
+              ) : rowsVisiveis.length === 0 ? (
+                <div className="p-6 text-gray-500 dark:text-gray-400">
+                  Nenhum insumo encontrado para “{busca.trim()}”.
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -715,7 +769,7 @@ const EstoqueDepartamental: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {stockRows.map(row => {
+                      {rowsVisiveis.map(row => {
                         const st = rowStatus(row);
                         const dias = daysUntil(row.expirationDate);
                         const low = row.minStock > 0 && row.quantity < row.minStock;
