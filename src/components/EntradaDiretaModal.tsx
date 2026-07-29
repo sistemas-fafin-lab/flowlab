@@ -286,7 +286,9 @@ const EntradaDiretaModal: React.FC<EntradaDiretaModalProps> = ({
                   placeholder="Ex.: Luva de procedimento M"
                   className={INPUT_CLASS}
                 />
-                {nomeDuplicado && (
+                {/* Some ao gravar: `addProduct` atualiza o catálogo antes de o modal
+                    fechar, e o produto recém-criado casaria com o próprio nome digitado. */}
+                {nomeDuplicado && !submitting && (
                   <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
                     Já existe um produto com esse nome. Considere usar “Produto existente”.
                   </p>
