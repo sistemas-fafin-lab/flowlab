@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Package, Save, X } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useAuth } from '../hooks/useAuth';
@@ -7,9 +7,11 @@ import { useLocation } from 'react-router-dom';
 import { supabase} from '../lib/supabase.ts';
 import { useNotification } from '../hooks/useNotification';
 import Notification from './Notification';
+import UnitSelect from './UnitSelect';
+import Select from './Select';
 
 const AddProduct: React.FC = () => {
-  const { addProduct, locations, receiveStock } = useInventory();
+  const { addProduct, locations, receiveStock, products } = useInventory();
   const { userProfile } = useAuth();
   const location = useLocation();
   const prefilledData = location.state?.prefilledData;
@@ -43,6 +45,13 @@ const AddProduct: React.FC = () => {
     fetchSuppliers();
     fetchCategories();
   }, []);
+
+  // Unidades já em uso no catálogo — junto com as padrão, alimentam o select de
+  // unidade e evitam cadastrar "caixa" de novo como "cx" ou "Caixas".
+  const unidadesDoCatalogo = useMemo(
+    () => [...new Set(products.map(p => p.unit).filter(Boolean))],
+    [products]
+  );
 
   const [formData, setFormData] = useState({
     name: '',
@@ -117,6 +126,14 @@ const AddProduct: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // A unidade vem de um dropdown próprio (não é mais um <select required>),
+    // então a validação nativa do formulário não cobre esse campo.
+    if (!formData.unit.trim()) {
+      showError('Selecione a unidade de medida');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -290,20 +307,14 @@ const AddProduct: React.FC = () => {
                 Categoria *
               </label>
               <div className="flex space-x-2">
-                <select
+                <Select
                   id="category"
-                  name="category"
                   value={formData.category}
-                  onChange={handleChange}
-                  required
-                  className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
-                >
-                  {categories.map(category => (
-                    <option key={category} value={category}>
-                      {getCategoryLabel(category)}
-                    </option>
-                  ))}
-                </select>
+                  options={categories.map(category => ({ value: category, label: getCategoryLabel(category) }))}
+                  onChange={(category) => setFormData(prev => ({ ...prev, category }))}
+                  wrapperClass="flex-1"
+                  controlClass="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100"
+                />
                 <button
                   type="button"
                   onClick={() => setShowNewCategoryInput(true)}
@@ -371,15 +382,13 @@ const AddProduct: React.FC = () => {
               <label htmlFor="unit" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Unidade de Medida *
               </label>
-              <input
-                type="text"
+              <UnitSelect
                 id="unit"
-                name="unit"
                 value={formData.unit}
-                onChange={handleChange}
+                onChange={(unit) => setFormData(prev => ({ ...prev, unit }))}
+                units={unidadesDoCatalogo}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
-                placeholder="Ex: caixas, litros, unidades"
+                controlClass="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
               />
             </div>
 

@@ -9,12 +9,16 @@ import {
   History as HistoryIcon,
   CheckCircle2,
   ChevronDown,
+  PackagePlus,
+  Search,
+  X,
 } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useNotification } from '../hooks/useNotification';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission } from '../utils/permissions';
 import { DepartmentLabels, type Department } from '../types';
+import EntradaDiretaModal, { type EntradaDiretaPayload } from './EntradaDiretaModal';
 
 /**
  * Fase 5 (§4.2) — Estoque Departamental.
@@ -62,6 +66,11 @@ type SaidaForm = { quantity: number; tipo: SaidaTipo; destinationId: string; not
 
 const EMPTY_FORM: SaidaForm = { quantity: 0, tipo: 'consumo', destinationId: '', notes: '' };
 
+// Busca tolerante a acento e caixa — mesmo tratamento usado nas telas de
+// Análises Clínicas, para "capsula" achar "Cápsula".
+const normalizarBusca = (texto: string): string =>
+  texto.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+
 // dias até a validade (negativo = vencido)
 const daysUntil = (dateStr?: string): number | null => {
   if (!dateStr) return null;
@@ -70,6 +79,18 @@ const daysUntil = (dateStr?: string): number | null => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   return Math.ceil((target.getTime() - today.getTime()) / 86_400_000);
+};
+
+// `products.code` é UNIQUE NOT NULL, mas a entrada direta não pede código ao
+// usuário — o setor recebe o item sem a codificação do estoque. Gera o próximo
+// DIR-### livre a partir do catálogo em memória.
+const gerarCodigo = (catalogo: { code: string }[]): string => {
+  const usados = new Set(catalogo.map(p => p.code?.trim().toUpperCase()).filter(Boolean));
+  for (let n = 1; n <= 9999; n++) {
+    const code = `DIR-${String(n).padStart(3, '0')}`;
+    if (!usados.has(code)) return code;
+  }
+  return `DIR-${Date.now()}`; // fallback improvável
 };
 
 const CHIP_CLASSES: Record<Tone, string> = {
@@ -228,12 +249,17 @@ const StatCard: React.FC<{
 );
 
 const EstoqueDepartamental: React.FC = () => {
-  const { products, locations, movements, addMovement, fetchLocationStock, updateLocationMinStock, fetchLocations, loading } = useInventory();
+  const {
+    products, locations, movements, addMovement, fetchLocationStock, updateLocationMinStock,
+    fetchLocations, addProduct, updateProduct, receiveStock, loading,
+  } = useInventory();
   const { showSuccess, showError } = useNotification();
   const { userProfile } = useAuth();
 
   // Permissão dedicada para registrar consumo (baixa). Ver acesso = canViewStockDepart (na rota).
   const canConsume = hasPermission(userProfile?.permissions || [], 'canConsumeStockDepart');
+  // Entrada direta: itens que chegam direto no setor, sem passar pelo estoque central.
+  const canAddEntry = hasPermission(userProfile?.permissions || [], 'canAddStockDepart');
 
   // Cada pessoa enxerga apenas o estoque do seu próprio setor. O admin mantém a
   // visão de todos os setores (supervisão). O setor da pessoa é o local com
@@ -279,6 +305,10 @@ const EstoqueDepartamental: React.FC = () => {
   const [confirming, setConfirming] = useState(false);
   // Filtro do histórico: tudo (padrão), saídas ou entradas.
   const [histFilter, setHistFilter] = useState<'saidas' | 'entradas' | 'tudo'>('tudo');
+  // Busca na tabela de insumos do setor.
+  const [busca, setBusca] = useState('');
+  // Modal de entrada direta (recebimento direto no setor).
+  const [entradaAberta, setEntradaAberta] = useState(false);
 
   const loadStock = useCallback(async (sectorId: string) => {
     if (!sectorId) { setBaseRows([]); return; }
@@ -307,6 +337,7 @@ const EstoqueDepartamental: React.FC = () => {
 
   useEffect(() => {
     setPendingConsumo(null);
+    setBusca(''); // outro setor, outra lista — o termo anterior não se aplica
     loadStock(selectedSector);
   }, [selectedSector, loadStock]);
 
@@ -330,6 +361,16 @@ const EstoqueDepartamental: React.FC = () => {
       };
     });
   }, [baseRows, products]);
+
+  // Linhas exibidas na tabela. Os KPIs continuam olhando o setor inteiro — a
+  // busca serve para achar o insumo, não para recortar os indicadores.
+  const rowsVisiveis = useMemo(() => {
+    const termo = normalizarBusca(busca);
+    if (!termo) return stockRows;
+    return stockRows.filter(r =>
+      normalizarBusca(r.productName).includes(termo) || normalizarBusca(r.code).includes(termo)
+    );
+  }, [stockRows, busca]);
 
   // Salva o mínimo por local do insumo em edição e recarrega o estoque do setor.
   const salvarMin = useCallback(async (productId: string) => {
@@ -467,6 +508,83 @@ const EstoqueDepartamental: React.FC = () => {
 
   const saldoApos = pendingConsumo ? pendingConsumo.quantity - form.quantity : 0;
 
+  // ── Entrada direta ────────────────────────────────────────────────────────
+  // Saldo do setor por produto, para o modal mostrar o "de → para".
+  const saldoPorProduto = useMemo(
+    () => Object.fromEntries(baseRows.map(r => [r.productId, r.quantity])),
+    [baseRows]
+  );
+
+  // Registra o recebimento direto no setor: entrada (type:'in') com destino no
+  // local do setor. O trigger update_stock_on_movement credita product_stock e
+  // sync_product_quantity_cache recalcula o total do produto. Se o produto ainda
+  // não existe no catálogo, cadastra antes (quantity nasce 0; o saldo vem do movimento).
+  const confirmEntradaDireta = useCallback(async (payload: EntradaDiretaPayload) => {
+    if (!canAddEntry) { showError('Você não tem permissão para registrar entrada'); return; }
+    if (!selectedSector) { showError('Selecione um setor'); return; }
+    const authorizedBy = userProfile?.name?.trim() || userProfile?.email;
+    if (!authorizedBy) { showError('Não foi possível identificar o usuário logado'); return; }
+
+    try {
+      let productId = payload.productId;
+      let productName = products.find(p => p.id === productId)?.name ?? '';
+
+      if (payload.mode === 'novo' && payload.novoProduto) {
+        const novo = payload.novoProduto;
+        const newId = await addProduct({
+          name: novo.name,
+          code: gerarCodigo(products), // products.code é UNIQUE NOT NULL
+          category: novo.category as 'general' | 'technical',
+          quantity: 0, // o saldo entra pelo movimento, não direto no produto
+          unit: novo.unit,
+          supplier: '',
+          batch: '',
+          entryDate: new Date().toISOString().split('T')[0],
+          expirationDate: payload.expirationDate,
+          location: sectorName, // rótulo legado = setor que recebeu
+          minStock: 0,
+          status: 'active',
+          unitPrice: payload.unitPrice,
+          totalValue: 0,
+          invoiceNumber: '',
+          isWithholding: false,
+          supplierId: '',
+          supplierName: '',
+        });
+        if (!newId) throw new Error('Falha ao cadastrar o produto');
+        productId = newId;
+        productName = novo.name;
+      } else if (payload.atualizarCadastro && productId && payload.expirationDate) {
+        // A validade é do cadastro (global). Só sobrescreve com opt-in explícito.
+        await updateProduct(productId, { expirationDate: payload.expirationDate });
+      }
+
+      if (!productId) throw new Error('Produto não identificado');
+
+      const notes = [
+        `Entrada direta no setor ${sectorName}`,
+        payload.expirationDate
+          ? `Validade ${new Date(payload.expirationDate).toLocaleDateString('pt-BR')}`
+          : null,
+        payload.origem || null,
+      ].filter(Boolean).join(' · ');
+
+      await receiveStock(productId, selectedSector, payload.quantity, {
+        productName,
+        unitPrice: payload.unitPrice,
+        authorizedBy,
+        notes,
+      });
+
+      showSuccess(`Entrada registrada: ${payload.quantity} de ${productName} em ${sectorName}`);
+      setEntradaAberta(false);
+      await loadStock(selectedSector);
+    } catch (e) {
+      console.error(e);
+      showError('Erro ao registrar a entrada', 'Tente novamente.');
+    }
+  }, [canAddEntry, selectedSector, sectorName, userProfile, products, addProduct, updateProduct, receiveStock, loadStock, showSuccess, showError]);
+
   // Destinos possíveis para transferência.
   // O estoque central (Área técnica) distribui para os postos → destino = locais com posto_id.
   // Demais setores → qualquer local ativo diferente do próprio.
@@ -579,18 +697,65 @@ const EstoqueDepartamental: React.FC = () => {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
             {/* Insumos do subdepartamento */}
             <div className="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center gap-2">
-                <Boxes className="w-5 h-5 text-blue-500" />
-                <div>
-                  <h2 className="font-semibold text-gray-800 dark:text-gray-100">Insumos do setor</h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Saldo em posse, validade e estoque mínimo</p>
+              <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 space-y-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Boxes className="w-5 h-5 text-blue-500 flex-shrink-0" />
+                    <div className="min-w-0">
+                      <h2 className="font-semibold text-gray-800 dark:text-gray-100">Insumos do setor</h2>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {busca.trim()
+                          ? `${rowsVisiveis.length} de ${stockRows.length} insumos`
+                          : 'Saldo em posse, validade e estoque mínimo'}
+                      </p>
+                    </div>
+                  </div>
+                  {/* Entrada direta: item que chegou direto no setor, sem passar pelo estoque central */}
+                  {canAddEntry && selectedSector && (
+                    <button
+                      onClick={() => setEntradaAberta(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-500 to-green-500 text-white text-xs font-medium hover:from-emerald-600 hover:to-green-600 transition-all flex-shrink-0"
+                      title="Registrar item recebido direto pelo setor"
+                    >
+                      <PackagePlus className="w-3.5 h-3.5" />
+                      Entrada direta
+                    </button>
+                  )}
                 </div>
+
+                {/* Busca — só aparece quando o setor tem algo para filtrar */}
+                {!loadingStock && stockRows.length > 0 && (
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={busca}
+                      onChange={(e) => setBusca(e.target.value)}
+                      placeholder="Buscar insumo por nome ou código…"
+                      className="w-full pl-10 pr-9 py-2 text-sm bg-gray-50/50 dark:bg-gray-700/40 border border-gray-200 dark:border-gray-600 rounded-xl text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all"
+                    />
+                    {busca && (
+                      <button
+                        type="button"
+                        onClick={() => setBusca('')}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors"
+                        aria-label="Limpar busca"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
 
               {loadingStock ? (
                 <TableRowsSkeleton rows={5} />
               ) : stockRows.length === 0 ? (
                 <div className="p-6 text-gray-500 dark:text-gray-400">Nada em posse do setor no momento.</div>
+              ) : rowsVisiveis.length === 0 ? (
+                <div className="p-6 text-gray-500 dark:text-gray-400">
+                  Nenhum insumo encontrado para “{busca.trim()}”.
+                </div>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -604,7 +769,7 @@ const EstoqueDepartamental: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                      {stockRows.map(row => {
+                      {rowsVisiveis.map(row => {
                         const st = rowStatus(row);
                         const dias = daysUntil(row.expirationDate);
                         const low = row.minStock > 0 && row.quantity < row.minStock;
@@ -757,6 +922,16 @@ const EstoqueDepartamental: React.FC = () => {
           </div>
         </>
       )}
+
+      {/* Modal de entrada direta (recebimento direto no setor) */}
+      <EntradaDiretaModal
+        isOpen={entradaAberta}
+        onClose={() => setEntradaAberta(false)}
+        sectorName={sectorName}
+        products={products}
+        saldoPorProduto={saldoPorProduto}
+        onConfirm={confirmEntradaDireta}
+      />
 
       {/* Modal de registro/confirmação do consumo */}
       {pendingConsumo && (

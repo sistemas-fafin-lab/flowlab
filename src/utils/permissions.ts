@@ -14,6 +14,7 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canViewStockDepart', label: 'Visualizar Estoque Departamental', group: 'Estoque Departamental' },
   { key: 'canConsumeStockDepart', label: 'Registrar Consumo do Setor', group: 'Estoque Departamental' },
   { key: 'canManageStockPostos', label: 'Gerenciar Estoque dos Postos', group: 'Estoque Departamental' },
+  { key: 'canAddStockDepart', label: 'Registrar Entrada Direta no Setor', group: 'Estoque Departamental' },
   { key: 'canViewRequests', label: 'Visualizar Solicitações', group: 'Solicitações' },
   { key: 'canAddRequests', label: 'Criar Solicitações', group: 'Solicitações' },
   { key: 'canApproveRequests', label: 'Aprovar Solicitações', group: 'Solicitações' },
