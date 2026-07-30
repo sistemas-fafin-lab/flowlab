@@ -96,7 +96,7 @@ The application uses a **bounded context** approach with isolated modules:
 
 ### UI/UX Patterns
 
-**Design System** (documented in `docs/GUIA_IDENTIDADE_VISUAL.md`):
+**Design System** (documented in `docs/DESIGN_SYSTEM_FLOWLAB.md`):
 - **Primary Colors**: Blue 500-900, Indigo 500-800 gradients
 - **Components**: TailwindCSS with custom classes in `src/index.css`
 - **Animations**: Custom keyframes (fade-in, scale-in, shimmer, blob)
@@ -238,7 +238,7 @@ const statusConfig = {
 
 ## Documentation
 
-- `docs/Resumo-Sistema-Inventario.md` - System overview and features
-- `docs/GUIA_IDENTIDADE_VISUAL.md` - Complete design system documentation
-- `docs/CONFIGURAR_STORAGE_REQUESTS.md` - Storage bucket setup guide
-- `docs/CONTROLE_PERIODOS_SOLICITACOES.md` - Request period control implementation guide
+- `docs/architecture/Resumo-Sistema-Inventario.md` - System overview and features
+- `docs/DESIGN_SYSTEM_FLOWLAB.md` - Complete design system documentation
+- `docs/plans/CONFIGURAR_STORAGE_REQUESTS.md` - Storage bucket setup guide
+- `docs/guides/CONTROLE_PERIODOS_SOLICITACOES.md` - Request period control implementation guide

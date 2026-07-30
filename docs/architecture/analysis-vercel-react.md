@@ -2,7 +2,7 @@
 
 > Análise realizada em 25/05/2026.
 > Base de código: React 18.3 + TypeScript 5.6 + Vite + Tailwind + Supabase.
-> Referência de regras: [Vercel React Best Practices SKILL](../.agents/skills/vercel-react-best-practices/SKILL.md)
+> Referência de regras: [Vercel React Best Practices SKILL](../../.agents/skills/vercel-react-best-practices/SKILL.md)
 
 ---
 
@@ -150,7 +150,7 @@ useEffect(() => {
 | `UserManagement`               | `UserManagement.tsx`                       |
 | `NotificationAdminPanel`       | `NotificationAdminPanel.tsx`               |
 | `RequestPeriodConfig`          | `RequestPeriodConfig.tsx`                  |
-| `Auth` (standalone)            | `auth-standalone/Auth.tsx`                 |
+| `Auth` (standalone)            | `standalone-modules/auth-standalone/Auth.tsx` |
 | `Auth` (main)                  | `components/Auth.tsx`                      |
 | `ITRequestManagement`          | `IT/ITRequestManagement.tsx`               |
 | `ITKanbanBoard`                | `IT/ITKanbanBoard.tsx`                     |

@@ -4,7 +4,7 @@
 > real do código no FlowLab (branch `feat/coleta-status-callback`).
 > **Legenda:** ✅ Feito · 🚧 Parcial · ⬜ A fazer · ℹ️ Informativo (não é desenvolvimento)
 >
-> Referência técnica: `docs/PLANO_FLOWLAB_ANALISES_CLINICAS.md` (plano mestre) e planos das Fases 5–8.
+> Referência técnica: `docs/plans/analises-clinicas/PLANO_FLOWLAB_ANALISES_CLINICAS.md` (plano mestre) e planos das Fases 5–8.
 
 ---
 

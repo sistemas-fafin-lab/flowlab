@@ -1,7 +1,7 @@
 # Fase 6 — Coleta (conferência de recepção + baixa de insumos)
 
 > **Status:** 🚧 planejado — Etapa A (conferência de recepção + coleta + baixa de insumos). Recoletas adiadas (Etapa B, quando o conceito estiver claro).
-> **Plano mestre:** `docs/PLANO_FLOWLAB_ANALISES_CLINICAS.md` (Fase 6)
+> **Plano mestre:** `docs/plans/analises-clinicas/PLANO_FLOWLAB_ANALISES_CLINICAS.md` (Fase 6)
 > **Depende de:** Fase 4 ✅ (permissão `canManageColetas`) + Fase 5 (multi-local: `product_stock`, trigger novo, estoque por posto). **Habilita:** Fase 7 (análise) e Fase 8 (KPIs de coleta/recoleta).
 
 ## 1. Objetivo

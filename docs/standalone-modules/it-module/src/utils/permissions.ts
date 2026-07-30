@@ -10,11 +10,6 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canDeleteProducts', label: 'Excluir Produtos', group: 'Produtos' },
   { key: 'canViewMovements', label: 'Visualizar Movimentações', group: 'Movimentações' },
   { key: 'canAddMovements', label: 'Adicionar Movimentações', group: 'Movimentações' },
-  // ── Estoque Departamental (Fase 5) ───────────────────────────────────────────
-  { key: 'canViewStockDepart', label: 'Visualizar Estoque Departamental', group: 'Estoque Departamental' },
-  { key: 'canConsumeStockDepart', label: 'Registrar Consumo do Setor', group: 'Estoque Departamental' },
-  { key: 'canManageStockPostos', label: 'Gerenciar Estoque dos Postos', group: 'Estoque Departamental' },
-  { key: 'canAddStockDepart', label: 'Registrar Entrada Direta no Setor', group: 'Estoque Departamental' },
   { key: 'canViewRequests', label: 'Visualizar Solicitações', group: 'Solicitações' },
   { key: 'canAddRequests', label: 'Criar Solicitações', group: 'Solicitações' },
   { key: 'canApproveRequests', label: 'Aprovar Solicitações', group: 'Solicitações' },
@@ -32,8 +27,6 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canViewAnalisesClinicas', label: 'Visualizar Análises Clínicas', group: 'Análises Clínicas' },
   { key: 'canManageAnalisesClinicas', label: 'Gerenciar Postos e Horários', group: 'Análises Clínicas' },
   { key: 'canManageColetas', label: 'Gerenciar Coletas e Análises', group: 'Análises Clínicas' },
-  { key: 'canDeleteAgendamentos', label: 'Cancelar Agendamentos', group: 'Análises Clínicas' },
-  { key: 'canViewTemperatura', label: 'Visualizar Temperaturas (só leitura)', group: 'Análises Clínicas' },
   // ── Cotações (granular) ────────────────────────────────────────────────────
   { key: 'canViewQuotations',      label: 'Visualizar Cotações',              group: 'Cotações' },
   { key: 'canCreateQuotations',    label: 'Criar Cotações',                   group: 'Cotações' },
@@ -43,18 +36,7 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canSubmitForApproval',   label: 'Submeter Cotação para Aprovação',  group: 'Cotações' },
   { key: 'canConvertQuotation',    label: 'Converter Cotação em Pedido',      group: 'Cotações' },
   { key: 'canCancelQuotation',     label: 'Cancelar Cotação',                 group: 'Cotações' },
-  // ── Sistemas Externos (não é um módulo do FlowLab — apenas usa este
-  //    ecossistema de autenticação/permissões para controlar acesso) ─────────
-  { key: 'canUseWhatsapp', label: 'Usar WhatsApp', group: 'Sistemas Externos' },
 ];
-
-// ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────
-// UUID fixo do cargo de sistema "Solicitante" (seed em 20260409120000_dynamic_roles_system).
-// Todo perfil precisa nascer com um custom_role_id: o fallback por role legada existe
-// só no frontend (getPermissionsForLegacyRole). No banco, current_user_has_permission()
-// olha apenas custom_roles.permissions (ou role = 'admin'), então um perfil sem cargo
-// fica sem permissão nenhuma no RLS.
-export const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
 
 // ─── Fallback: permissões para roles legadas (usado quando custom_role não existe) ─
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {

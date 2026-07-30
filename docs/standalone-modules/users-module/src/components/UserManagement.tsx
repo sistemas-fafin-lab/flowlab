@@ -42,7 +42,6 @@ const GROUP_COLORS: Record<string, {
   'Monitoramento':  { dot: 'bg-orange-500',  activePill: 'bg-orange-100 dark:bg-orange-900/40 border-orange-300 dark:border-orange-700',  activeText: 'text-orange-700 dark:text-orange-300',  groupHeader: 'text-orange-600 dark:text-orange-400',  groupBg: 'border-l-2 border-orange-300 dark:border-orange-700 pl-3' },
   'Administração':  { dot: 'bg-rose-500',    activePill: 'bg-rose-100 dark:bg-rose-900/40 border-rose-300 dark:border-rose-700',      activeText: 'text-rose-700 dark:text-rose-300',      groupHeader: 'text-rose-600 dark:text-rose-400',      groupBg: 'border-l-2 border-rose-300 dark:border-rose-700 pl-3' },
   'Tecnologia':     { dot: 'bg-violet-500',  activePill: 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700',  activeText: 'text-violet-700 dark:text-violet-300',  groupHeader: 'text-violet-600 dark:text-violet-400',  groupBg: 'border-l-2 border-violet-300 dark:border-violet-700 pl-3' },
-  'Sistemas Externos': { dot: 'bg-slate-500', activePill: 'bg-slate-100 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700', activeText: 'text-slate-700 dark:text-slate-300', groupHeader: 'text-slate-600 dark:text-slate-400', groupBg: 'border-l-2 border-slate-300 dark:border-slate-700 pl-3' },
 };
 
 const UserManagement: React.FC = () => {
@@ -486,9 +485,9 @@ const UserManagement: React.FC = () => {
     const q = searchQuery.toLowerCase();
     const matchesSearch =
       !q ||
-      (user.name || '').toLowerCase().includes(q) ||
-      (user.email || '').toLowerCase().includes(q) ||
-      (getDepartmentLabel(user.department) || '').toLowerCase().includes(q) ||
+      user.name.toLowerCase().includes(q) ||
+      user.email.toLowerCase().includes(q) ||
+      getDepartmentLabel(user.department).toLowerCase().includes(q) ||
       (user.roleName || '').toLowerCase().includes(q);
     const matchesDept = filterDept === 'all' || user.department === filterDept;
     const matchesRole = filterRole === 'all' || user.role === filterRole;

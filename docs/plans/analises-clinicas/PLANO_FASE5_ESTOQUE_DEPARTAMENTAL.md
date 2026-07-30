@@ -1,7 +1,7 @@
 # Fase 5 — Estoque Departamental (multi-local)
 
 > **Status:** 🚧 em implementação — Parte A (aditiva **aplicada**; cutover pronto p/ ir com a Parte B) + Parte B (recebimento, baixa com local, retirada transfer/out, tela Consumo do Setor, dropdowns, **saldo por local no produto** ✅ e **aviso de destino não-rastreável** ✅). `controla_consumo` decidido: **Biologia Molecular** (migration `20260701140000_..._biomol.sql`); comparação de `department` na retirada normalizada código↔rótulo (`processRetirada`). Descartado: UI de transferência avulsa (não há transferência fora de solicitação). Testes de trigger (§10.4) **✅ executados no ambiente test (cutover+biomol aplicados): 9/9 cenários passaram, sem resíduo**. **Falta:** deploy em produção (cutover + biomol + frontend da Parte B, juntos).
-> **Plano mestre:** `docs/PLANO_FLOWLAB_ANALISES_CLINICAS.md` (Fase 5)
+> **Plano mestre:** `docs/plans/analises-clinicas/PLANO_FLOWLAB_ANALISES_CLINICAS.md` (Fase 5)
 > **Depende de:** Fase 4 ✅ (permissões). **Habilita:** Fase 6 (coleta dá baixa em estoque).
 
 ## 1. Objetivo

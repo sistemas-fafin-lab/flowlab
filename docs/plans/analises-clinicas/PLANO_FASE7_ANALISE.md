@@ -1,7 +1,7 @@
 # Fase 7A — Recebimento de exames + Acompanhamento de Culturas
 
 > **Status:** ✅ **Implementada (2026-07-10).** O desenho anterior desta fase — *análise central com baixa de reagentes* — foi **descartado** depois que o cliente esclareceu a operação real (§0). **Camada de dados** ✅ (migrations `20260709130000` / `131000` / `132000`, + `20260710120000` renomeando a etapa final) e **camada visual** ✅ (check-in estendido + página Culturas + rota/nav), tudo aplicado ao banco de test.
-> **Plano mestre:** `docs/PLANO_FLOWLAB_ANALISES_CLINICAS.md` — ⚠️ ainda descreve o desenho antigo (análise/reagentes/laudo interno). **Para a Fase 7A, este documento prevalece.**
+> **Plano mestre:** `docs/plans/analises-clinicas/PLANO_FLOWLAB_ANALISES_CLINICAS.md` — ⚠️ ainda descreve o desenho antigo (análise/reagentes/laudo interno). **Para a Fase 7A, este documento prevalece.**
 > **Depende de:** Fase 6 ✅ (conferência de recepção + o passo pós-conferência). Fase 5 só é tocada pela **baixa de insumo opcional** (§4). **Não** depende de análise interna — a análise é feita **fora** (laboratório de apoio).
 
 ---

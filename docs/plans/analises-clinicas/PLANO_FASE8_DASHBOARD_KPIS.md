@@ -1,7 +1,7 @@
 # Fase 8 — Dashboard / Indicadores (KPIs) de Análises Clínicas
 
 > **Status:** 🔜 **A fazer** (nenhum código ainda). Última fase do escopo de operação interna.
-> **Plano mestre:** `docs/PLANO_FLOWLAB_ANALISES_CLINICAS.md` (§Fase 8). Este documento detalha e **prevalece** para a Fase 8.
+> **Plano mestre:** `docs/plans/analises-clinicas/PLANO_FLOWLAB_ANALISES_CLINICAS.md` (§Fase 8). Este documento detalha e **prevalece** para a Fase 8.
 > **Depende de:** Fases 5–7 ✅ (as tabelas que geram dado já existem e estão no ar): `ac_agendamentos`, `ac_checkins`, `ac_coletas`, `ac_agendamento_exames`, `ac_culturas`, `ac_temperaturas`, `ac_equipamentos`.
 > **Criado em:** 10/Jul/2026.
 

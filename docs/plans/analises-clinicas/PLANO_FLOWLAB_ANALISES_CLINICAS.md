@@ -8,7 +8,7 @@
 >
 > **23/Jul/2026 — Envio ao Álvaro (apoio DASA) incorporado ao módulo.** O projeto avulso `envio_alvaro` foi portado para o FlowLab: página `/analises-clinicas/envio-alvaro` (OCR da requisição via Gemini → conferência no apLIS → XML AOL → fila de envio → envio ao Álvaro), tabelas `ac_apoio_exames`/`ac_apoio_fila`/`ac_apoio_requisicoes` (migration `20260723120000`), handlers `apoio-*` no dispatcher `api/analises-clinicas/[action].ts` e bucket privado `ac-apoio-requisicoes`. Docs da API AOL em `docs/apoio-alvaro/`. Isso preenche a lacuna do reescopo da Fase 7 (a análise é externa — agora o envio ao apoio é sistematizado).
 >
-> **Última atualização:** 10/Jul/2026 — **Fase 5 (estoque departamental), Fase 6 Etapa A (coletas) e Fase 7 concluídas e no ar.** A **Fase 7 foi reescopada** (ver `docs/PLANO_FASE7_ANALISE.md`, que prevalece): a análise interna com baixa de reagentes foi **descartada** (a análise é externa/apoio); entraram o **recebimento de exames no check-in** e o **acompanhamento manual de culturas**. Falta: **Fase 8 (KPIs)** e **redefinir o gatilho da recoleta** (Fase 6 Etapa B), órfão desde que a análise interna saiu. *(Histórico: 30/Jun/2026 — agendamento + cancelamento cruzado; Fase 4 — `canManageColetas` + cargo `analistaSaude` + backfill.)*
+> **Última atualização:** 10/Jul/2026 — **Fase 5 (estoque departamental), Fase 6 Etapa A (coletas) e Fase 7 concluídas e no ar.** A **Fase 7 foi reescopada** (ver `docs/plans/analises-clinicas/PLANO_FASE7_ANALISE.md`, que prevalece): a análise interna com baixa de reagentes foi **descartada** (a análise é externa/apoio); entraram o **recebimento de exames no check-in** e o **acompanhamento manual de culturas**. Falta: **Fase 8 (KPIs)** e **redefinir o gatilho da recoleta** (Fase 6 Etapa B), órfão desde que a análise interna saiu. *(Histórico: 30/Jun/2026 — agendamento + cancelamento cruzado; Fase 4 — `canManageColetas` + cargo `analistaSaude` + backfill.)*
 
 ---
 
@@ -268,7 +268,7 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 > Próximo passo após o agendamento e **porta de entrada dos dados** a jusante. A notificação `ac_recoleta` fica fora (WhatsApp fora de escopo).
 
 ### Fase 7 — Recebimento de exames / cultura / temperatura ✅ (reescopada)
-> **Reescopada em 09/Jul/2026** (ver `docs/PLANO_FASE7_ANALISE.md`, que **prevalece**). O cliente esclareceu a operação real: **o médico coleta e a análise é externa** (laboratório de apoio) — o FlowLab **não** analisa nem dá baixa de reagentes de análise. Etapas independentes:
+> **Reescopada em 09/Jul/2026** (ver `docs/plans/analises-clinicas/PLANO_FASE7_ANALISE.md`, que **prevalece**). O cliente esclareceu a operação real: **o médico coleta e a análise é externa** (laboratório de apoio) — o FlowLab **não** analisa nem dá baixa de reagentes de análise. Etapas independentes:
 
 **Etapa A — Recebimento de exames + culturas ✅ (substitui a antiga "Análise"):**
 - [x] Catálogo `ac_exames` (seed 529 exames, 8 culturas) + `ac_agendamento_exames` + `ac_cultura_etapas` + `ac_culturas` — migrations `20260709130000`/`131000`; rename da etapa final "Pronta p/ laudo" → "Laudo concluído" em `20260710120000`
