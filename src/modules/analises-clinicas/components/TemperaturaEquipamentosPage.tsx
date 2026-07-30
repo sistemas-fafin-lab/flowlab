@@ -12,6 +12,8 @@ import {
   XCircle,
   Clock,
   Gauge,
+  History,
+  MessageSquare,
 } from 'lucide-react';
 import { useTemperaturas } from '../hooks/useTemperaturas';
 import { useAuth } from '../../../hooks/useAuth';
@@ -27,6 +29,16 @@ const fmtDateTime = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+// No histórico as leituras podem ser antigas — ali o ano importa.
+const fmtDateTimeFull = (iso: string) =>
+  new Date(iso).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -103,6 +115,168 @@ const Sparkline: React.FC<{ readings: AcTemperatura[]; cor: string }> = ({ readi
       />
       <circle cx={lastX} cy={lastY} r="2.5" fill={cor} />
     </svg>
+  );
+};
+
+// Gráfico do histórico: série + faixa aceitável sombreada. O viewBox é esticado
+// até a largura do modal (preserveAspectRatio="none"), então tudo que precisa
+// manter a forma — traço e pontos — usa vector-effect e ponta arredondada; um
+// <circle> viraria elipse nessa deformação.
+const HistoricoChart: React.FC<{
+  readings: AcTemperatura[];
+  equipamento: AcEquipamento;
+  cor: string;
+}> = ({ readings, equipamento, cor }) => {
+  const [hover, setHover] = useState<number | null>(null);
+  const W = 600;
+  const H = 150;
+  const PX = 14;
+  const PY = 18;
+  const temps = readings.map((r) => r.temperatura);
+  // A escala sempre engloba a faixa aceitável, senão a banda sai do desenho.
+  const lo0 = Math.min(...temps, equipamento.temp_min);
+  const hi0 = Math.max(...temps, equipamento.temp_max);
+  const folga = (hi0 - lo0) * 0.12 || 1; // série constante e dentro da faixa
+  const lo = lo0 - folga;
+  const hi = hi0 + folga;
+  const y = (t: number) => PY + (H - PY * 2) * (1 - (t - lo) / (hi - lo));
+  const x = (i: number) => PX + ((W - PX * 2) * i) / (readings.length - 1);
+  const pts = readings.map((r, i): [number, number] => [x(i), y(r.temperatura)]);
+  const line = pts.map(([px, py], i) => `${i === 0 ? 'M' : 'L'}${px.toFixed(1)},${py.toFixed(1)}`).join(' ');
+  const yMax = y(equipamento.temp_max);
+  const yMin = y(equipamento.temp_min);
+  const chip =
+    'absolute right-2 -translate-y-1/2 px-1 rounded text-[10px] font-medium tabular-nums text-emerald-600 dark:text-emerald-400 bg-white/85 dark:bg-gray-800/85';
+
+  // Ponto mais próximo do cursor no eixo X — o mouse não precisa acertar o ponto.
+  const aoMover = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    if (!rect.width) return;
+    const px = ((e.clientX - rect.left) / rect.width) * W;
+    let melhor = 0;
+    for (let i = 1; i < pts.length; i++) {
+      if (Math.abs(pts[i][0] - px) < Math.abs(pts[melhor][0] - px)) melhor = i;
+    }
+    setHover(melhor);
+  };
+
+  const alvo = hover !== null ? readings[hover] : null;
+  const hx = hover !== null ? (pts[hover][0] / W) * 100 : 0;
+  const hy = hover !== null ? (pts[hover][1] / H) * 100 : 0;
+
+  return (
+    <div className="relative">
+      <div
+        onMouseMove={aoMover}
+        onMouseLeave={() => setHover(null)}
+        className="relative h-36 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40 overflow-hidden cursor-crosshair"
+      >
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="absolute inset-0 w-full h-full"
+          preserveAspectRatio="none"
+          aria-hidden="true"
+        >
+          <rect x="0" y={yMax} width={W} height={Math.max(yMin - yMax, 0)} fill="#10b981" fillOpacity="0.1" />
+          {[yMax, yMin].map((yy) => (
+            <path
+              key={yy}
+              d={`M0,${yy} L${W},${yy}`}
+              stroke="#10b981"
+              strokeOpacity="0.5"
+              strokeWidth="1"
+              strokeDasharray="5 5"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {hover !== null && (
+            <path
+              d={`M${pts[hover][0].toFixed(1)},0 L${pts[hover][0].toFixed(1)},${H}`}
+              stroke="currentColor"
+              className="text-gray-400"
+              strokeOpacity="0.5"
+              strokeWidth="1"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+          <path
+            d={line}
+            fill="none"
+            stroke={cor}
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          {/* Ponto = segmento de comprimento zero com ponta redonda: fica circular
+              mesmo com o eixo X esticado. */}
+          {pts.map(([px, py], i) => (
+            <path
+              key={readings[i].id}
+              d={`M${px.toFixed(1)},${py.toFixed(1)} L${px.toFixed(1)},${py.toFixed(1)}`}
+              stroke={readings[i].fora_faixa ? COR_SITUACAO.fora : cor}
+              strokeWidth="6"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {hover !== null && (
+            <path
+              d={`M${pts[hover][0].toFixed(1)},${pts[hover][1].toFixed(1)} L${pts[hover][0].toFixed(1)},${pts[hover][1].toFixed(1)}`}
+              stroke={readings[hover].fora_faixa ? COR_SITUACAO.fora : cor}
+              strokeWidth="12"
+              strokeOpacity="0.3"
+              strokeLinecap="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          )}
+        </svg>
+        <span className={chip} style={{ top: `${(yMax / H) * 100}%` }}>
+          {fmtTemp(equipamento.temp_max)}
+        </span>
+        <span className={chip} style={{ top: `${(yMin / H) * 100}%` }}>
+          {fmtTemp(equipamento.temp_min)}
+        </span>
+      </div>
+      <div className="flex justify-between px-1 pt-1 text-[10px] text-gray-400">
+        <span>{fmtDateTime(readings[0].registrado_em)}</span>
+        <span>{fmtDateTime(readings[readings.length - 1].registrado_em)}</span>
+      </div>
+
+      {/* Balão fora da caixa do gráfico, que tem overflow-hidden pelos cantos
+          arredondados. Nas bordas ele ancora pela lateral em vez do centro,
+          senão sairia da largura do modal. */}
+      {alvo && (
+        <div
+          className="absolute z-10 pointer-events-none px-2.5 py-1.5 rounded-lg shadow-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 max-w-[15rem]"
+          style={{
+            left: `${hx}%`,
+            top: `${hy}%`,
+            transform: `translate(${hx < 20 ? '0' : hx > 80 ? '-100%' : '-50%'}, ${
+              hy > 40 ? 'calc(-100% - 10px)' : '10px'
+            })`,
+          }}
+        >
+          <p
+            className={`text-sm font-bold tabular-nums ${
+              alvo.fora_faixa ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-100'
+            }`}
+          >
+            {fmtTemp(alvo.temperatura)}
+            {alvo.fora_faixa && <span className="ml-1.5 text-[10px] font-medium">fora da faixa</span>}
+          </p>
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            {fmtDateTimeFull(alvo.registrado_em)}
+          </p>
+          <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">{alvo.registrado_por}</p>
+          {alvo.observacao?.trim() && (
+            <p className="mt-1 pt-1 border-t border-gray-100 dark:border-gray-700 text-[10px] text-gray-600 dark:text-gray-300 break-words">
+              {alvo.observacao}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 
@@ -432,23 +606,28 @@ const LeituraModal: React.FC<{
             ) : (
               <ul className="space-y-1.5">
                 {historico.map((t) => (
-                  <li
-                    key={t.id}
-                    className="flex items-center justify-between gap-2 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-900/50 text-sm"
-                  >
-                    <span className="flex items-center gap-2">
-                      <span className={`font-semibold ${t.fora_faixa ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-200'}`}>
-                        {fmtTemp(t.temperatura)}
-                      </span>
-                      {t.fora_faixa && (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
-                          Fora
+                  <li key={t.id} className="px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-900/50 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex items-center gap-2">
+                        <span className={`font-semibold ${t.fora_faixa ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-200'}`}>
+                          {fmtTemp(t.temperatura)}
                         </span>
-                      )}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {fmtDateTime(t.registrado_em)} · {t.registrado_por}
-                    </span>
+                        {t.fora_faixa && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                            Fora
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {fmtDateTime(t.registrado_em)} · {t.registrado_por}
+                      </span>
+                    </div>
+                    {t.observacao?.trim() && (
+                      <p className="mt-1 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                        <span className="break-words">{t.observacao}</span>
+                      </p>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -487,6 +666,220 @@ const LeituraModal: React.FC<{
               >
                 Registrar
               </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Modal de histórico (somente leitura) ──────────────────────────────────────
+const PAGINA_HISTORICO = 50;
+
+const HistoricoModal: React.FC<{
+  equipamento: AcEquipamento;
+  onClose: () => void;
+  fetchTemperaturas: ReturnType<typeof useTemperaturas>['fetchTemperaturas'];
+}> = ({ equipamento, onClose, fetchTemperaturas }) => {
+  const [leituras, setLeituras] = useState<AcTemperatura[]>([]);
+  const [limite, setLimite] = useState(PAGINA_HISTORICO);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [soFora, setSoFora] = useState(false);
+
+  useEffect(() => {
+    // `vivo` descarta a resposta de um limite antigo que chegue fora de ordem.
+    let vivo = true;
+    setCarregando(true);
+    setErro(null);
+    void (async () => {
+      try {
+        const dados = await fetchTemperaturas(equipamento.id, limite);
+        if (vivo) setLeituras(dados);
+      } catch (e) {
+        if (vivo) setErro(e instanceof Error ? e.message : 'Não foi possível carregar o histórico.');
+      } finally {
+        if (vivo) setCarregando(false);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [equipamento.id, limite, fetchTemperaturas]);
+
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [onClose]);
+
+  const visiveis = soFora ? leituras.filter((l) => l.fora_faixa) : leituras;
+  const nFora = leituras.filter((l) => l.fora_faixa).length;
+  // Estatísticas da janela carregada — não do histórico inteiro.
+  const temps = leituras.map((l) => l.temperatura);
+  const minLido = temps.length ? Math.min(...temps) : null;
+  const maxLido = temps.length ? Math.max(...temps) : null;
+  const media = temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : null;
+  // A lista vem do mais novo para o mais antigo; o gráfico precisa do inverso.
+  const serie = [...leituras].reverse();
+  const podeCarregarMais = leituras.length >= limite;
+  // A cor do gráfico segue a situação da leitura mais recente (leituras[0]).
+  const situacaoAtual = classificar(equipamento, leituras[0]);
+  const corSerie = COR_SITUACAO[situacaoAtual === 'sem' ? 'normal' : situacaoAtual];
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-bold text-gray-900 dark:text-gray-100 truncate">{equipamento.nome}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {tipoLabel(equipamento.tipo)} · faixa {fmtTemp(equipamento.temp_min)} a {fmtTemp(equipamento.temp_max)}
+              {equipamento.localizacao ? ` · ${equipamento.localizacao}` : ''}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 flex-shrink-0">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        {/* Só a lista rola: o resumo e o gráfico ficam fixos e o modal não muda
+            de altura conforme chegam mais leituras. */}
+        <div className="px-6 py-5 flex-1 min-h-0 flex flex-col gap-4 overflow-hidden">
+          {erro && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">
+              {erro}
+            </div>
+          )}
+
+          {carregando && leituras.length === 0 ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-4 border-blue-600 border-t-transparent" />
+            </div>
+          ) : leituras.length === 0 ? (
+            <div className="py-12 text-center">
+              <Clock className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+              <p className="text-sm text-gray-500 dark:text-gray-400">Nenhuma leitura registrada para este equipamento.</p>
+            </div>
+          ) : (
+            <>
+              {/* Resumo da janela carregada */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 flex-shrink-0">
+                {[
+                  { label: 'Leituras', valor: String(leituras.length), tom: 'text-gray-900 dark:text-gray-100' },
+                  {
+                    label: 'Fora da faixa',
+                    valor: String(nFora),
+                    tom: nFora > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-gray-100',
+                  },
+                  { label: 'Média', valor: media !== null ? fmtTemp(media) : '—', tom: 'text-gray-900 dark:text-gray-100' },
+                  {
+                    label: 'Mín / Máx',
+                    valor: minLido !== null && maxLido !== null ? `${fmtTemp(minLido)} / ${fmtTemp(maxLido)}` : '—',
+                    tom: 'text-gray-900 dark:text-gray-100',
+                  },
+                ].map((s) => (
+                  <div key={s.label} className="px-3 py-2 rounded-xl bg-gray-50 dark:bg-gray-900/50">
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400">{s.label}</p>
+                    <p className={`text-sm font-bold tabular-nums truncate ${s.tom}`}>{s.valor}</p>
+                  </div>
+                ))}
+              </div>
+
+              {serie.length >= 2 && (
+                <HistoricoChart readings={serie} equipamento={equipamento} cor={corSerie} />
+              )}
+
+              <div className="flex-1 min-h-0 flex flex-col">
+                <div className="flex items-center justify-between gap-2 mb-2 flex-shrink-0">
+                  <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                    Leituras <span className="font-normal text-gray-400">(mais recentes primeiro)</span>
+                  </h4>
+                  {nFora > 0 && (
+                    <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={soFora}
+                        onChange={(e) => setSoFora(e.target.checked)}
+                        className="w-3.5 h-3.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      Só fora da faixa
+                    </label>
+                  )}
+                </div>
+
+                {visiveis.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4 text-center">Nenhuma leitura fora da faixa nesta janela.</p>
+                ) : (
+                  <ul className="flex-1 min-h-0 max-h-72 overflow-y-auto space-y-1.5 pr-1">
+                    {visiveis.map((t) => (
+                      <li
+                        key={t.id}
+                        className={`px-3 py-2.5 rounded-xl border ${
+                          t.fora_faixa
+                            ? 'border-red-200 dark:border-red-900/50 bg-red-50/50 dark:bg-red-900/10'
+                            : 'border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40'
+                        }`}
+                      >
+                        {/* temperatura · observação · quando/quem — a observação
+                            ocupa a folga do meio e quebra linha quando é longa. */}
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="flex items-center gap-2 flex-shrink-0">
+                            <span
+                              className={`text-base font-bold tabular-nums ${
+                                t.fora_faixa ? 'text-red-600 dark:text-red-400' : 'text-gray-800 dark:text-gray-200'
+                              }`}
+                            >
+                              {fmtTemp(t.temperatura)}
+                            </span>
+                            {t.fora_faixa && (
+                              <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                                <XCircle className="w-3 h-3" />
+                                Fora
+                              </span>
+                            )}
+                          </span>
+                          {t.observacao?.trim() && (
+                            <span
+                              title={t.observacao ?? undefined}
+                              className="flex-1 min-w-0 flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-300"
+                            >
+                              <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+                              {/* Uma linha só; o texto inteiro fica no title, que o
+                                  navegador mostra no hover. Tooltip próprio seria
+                                  recortado pelo overflow da lista. */}
+                              <span className="truncate">{t.observacao}</span>
+                            </span>
+                          )}
+                          <span className="text-xs text-gray-400 text-right flex-shrink-0">
+                            {fmtDateTimeFull(t.registrado_em)}
+                            <span className="block text-gray-400">{t.registrado_por}</span>
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {podeCarregarMais && (
+                  <button
+                    onClick={() => setLimite((v) => v + PAGINA_HISTORICO)}
+                    disabled={carregando}
+                    className="mt-3 flex-shrink-0 w-full px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
+                  >
+                    {carregando ? 'Carregando…' : 'Carregar mais'}
+                  </button>
+                )}
+              </div>
             </>
           )}
         </div>
@@ -595,6 +988,7 @@ const TemperaturaEquipamentosPage: React.FC = () => {
     equipamento: null,
   });
   const [leituraEquip, setLeituraEquip] = useState<AcEquipamento | null>(null);
+  const [historicoEquip, setHistoricoEquip] = useState<AcEquipamento | null>(null);
 
   const recarregarSeries = useCallback(async () => {
     try {
@@ -735,7 +1129,8 @@ const TemperaturaEquipamentosPage: React.FC = () => {
             return (
               <div
                 key={eq.id}
-                className={`p-5 rounded-2xl border bg-white dark:bg-gray-800 flex flex-col transition-opacity ${
+                onClick={() => setHistoricoEquip(eq)}
+                className={`p-5 rounded-2xl border bg-white dark:bg-gray-800 flex flex-col transition-all cursor-pointer hover:shadow-lg hover:-translate-y-0.5 ${
                   eq.ativo && situacao === 'fora'
                     ? 'border-red-300 dark:border-red-800'
                     : eq.ativo && situacao === 'limite'
@@ -821,25 +1216,40 @@ const TemperaturaEquipamentosPage: React.FC = () => {
                   )}
                 </div>
 
-                {canManage && (
-                  <div className="flex items-center gap-2">
+                {/* O card inteiro abre o histórico; os botões daqui param a propagação
+                    para não abrirem o modal junto com a própria ação. */}
+                <div className="flex items-end justify-between gap-2" onClick={(e) => e.stopPropagation()}>
+                  {/* Os dois botões de texto empilhados; `items-stretch` iguala a
+                      largura pelo mais largo ("Registrar leitura"). */}
+                  <div className="flex flex-col items-stretch gap-2 min-w-0">
                     <button
-                      onClick={() => setLeituraEquip(eq)}
-                      disabled={!eq.ativo}
-                      title={!eq.ativo ? 'Equipamento inativo — reative para registrar leituras' : undefined}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-50 dark:disabled:hover:bg-blue-900/20"
-                    >
-                      <Thermometer className="w-4 h-4" />
-                      Registrar leitura
-                    </button>
-                    <button
-                      onClick={() => setEquipModal({ open: true, equipamento: eq })}
+                      onClick={() => setHistoricoEquip(eq)}
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                     >
-                      <Pencil className="w-4 h-4" />
-                      Editar
+                      <History className="w-4 h-4 flex-shrink-0" />
+                      Histórico
                     </button>
-                    <div className="ml-auto flex items-center gap-1">
+                    {canManage && (
+                      <button
+                        onClick={() => setLeituraEquip(eq)}
+                        disabled={!eq.ativo}
+                        title={!eq.ativo ? 'Equipamento inativo — reative para registrar leituras' : undefined}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-blue-50 dark:disabled:hover:bg-blue-900/20"
+                      >
+                        <Thermometer className="w-4 h-4 flex-shrink-0" />
+                        Registrar leitura
+                      </button>
+                    )}
+                  </div>
+                  {canManage && (
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        onClick={() => setEquipModal({ open: true, equipamento: eq })}
+                        className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        title="Editar equipamento"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => void updateEquipamento(eq.id, { ativo: !eq.ativo })}
                         className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
@@ -855,8 +1265,8 @@ const TemperaturaEquipamentosPage: React.FC = () => {
                         <Trash2 className="w-4 h-4" />
                       </button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             );
           })}
@@ -870,6 +1280,14 @@ const TemperaturaEquipamentosPage: React.FC = () => {
           onSave={(input) =>
             equipModal.equipamento ? updateEquipamento(equipModal.equipamento.id, input) : createEquipamento(input)
           }
+        />
+      )}
+
+      {historicoEquip && (
+        <HistoricoModal
+          equipamento={historicoEquip}
+          onClose={() => setHistoricoEquip(null)}
+          fetchTemperaturas={fetchTemperaturas}
         />
       )}
 
