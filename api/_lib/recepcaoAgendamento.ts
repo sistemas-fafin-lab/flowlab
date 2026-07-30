@@ -42,37 +42,74 @@ export interface CriarAgendamentoRecepcaoBody {
   dataHora?: string;
 }
 
+// Corpo aceito pela correção de identidade (espelha CorrigirIdentidadePayload,
+// menos `autorizadoPor`: esse NÃO vem do cliente, sai da sessão — ver abaixo).
+export interface CorrigirIdentidadeBody {
+  pacienteId?: string;
+  cpf?: string;
+  dataNascimento?: string;
+  motivo?: string;
+  documentoConferido?: string;
+}
+
+// Quem está do outro lado da sessão — vira `autorizadoPor` na trilha do LAB-HUB.
+interface OperadorAutorizado {
+  id: string;
+  nome: string;
+  email: string;
+}
+
 // ── Autorização ───────────────────────────────────────────────────────────────
 // ATENÇÃO: `token` é o JWT de SESSÃO do operador, não a FLOWLAB_API_KEY. Ver o
-// cabeçalho de api/analises-clinicas/get-documentos.ts. Retorna null se autorizado,
-// ou um FlowResult de erro pronto para devolver. Exportada: os handlers do Envio
-// ao Apoio (api/_lib/apoio/) usam a mesma regra (canManageColetas).
-export async function autorizarOperador(token: string | null): Promise<FlowResult | null> {
+// cabeçalho de api/analises-clinicas/get-documentos.ts.
+//
+// `permissoes` é anyOf: basta uma das keys (admin passa sempre). A correção de
+// identidade usa uma key própria, então a busca de pacientes — que ela precisa —
+// aceita as duas.
+async function identificarOperador(
+  token: string | null,
+  permissoes: string[],
+  acao: string,
+): Promise<{ erro: FlowResult } | { operador: OperadorAutorizado }> {
   if (!token) {
-    return { status: 401, payload: { success: false, error: 'Token de autenticação ausente.' } };
+    return { erro: { status: 401, payload: { success: false, error: 'Token de autenticação ausente.' } } };
   }
   const supabase = getSupabaseAdminClient();
 
   const { data: caller, error: callerErr } = await supabase.auth.getUser(token);
   if (callerErr || !caller?.user) {
-    return { status: 401, payload: { success: false, error: 'Sessão inválida ou expirada.' } };
+    return { erro: { status: 401, payload: { success: false, error: 'Sessão inválida ou expirada.' } } };
   }
 
   const { data: callerProfile } = await supabase
     .from('user_profiles')
-    .select('role, custom_roles(permissions)')
+    .select('name, email, role, custom_roles(permissions)')
     .eq('id', caller.user.id)
     .single();
 
   const callerPermissions: string[] =
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
   const authorized =
-    callerProfile?.role === 'admin' || callerPermissions.includes('canManageColetas');
+    callerProfile?.role === 'admin' || permissoes.some((p) => callerPermissions.includes(p));
 
   if (!authorized) {
-    return { status: 403, payload: { success: false, error: 'Sem permissão para criar agendamentos.' } };
+    return { erro: { status: 403, payload: { success: false, error: `Sem permissão para ${acao}.` } } };
   }
-  return null;
+
+  return {
+    operador: {
+      id: caller.user.id,
+      nome: (callerProfile?.name as string | undefined)?.trim() || 'Operador sem nome',
+      email: (callerProfile?.email as string | undefined) ?? caller.user.email ?? '',
+    },
+  };
+}
+
+// Fachada histórica: só o veredito, sem a identidade. Exportada — os handlers do
+// Envio ao Apoio (api/_lib/apoio/) usam a mesma regra (canManageColetas).
+export async function autorizarOperador(token: string | null): Promise<FlowResult | null> {
+  const r = await identificarOperador(token, ['canManageColetas'], 'criar agendamentos');
+  return 'erro' in r ? r.erro : null;
 }
 
 // ── Disponibilidade para o operador ─────────────────────────────────────────────
@@ -93,12 +130,19 @@ export async function disponibilidadeOperador(token: string | null): Promise<Flo
 }
 
 // ── GET /integracao/pacientes/buscar ────────────────────────────────────────────
+// Aceita canManageColetas OU canCorrigirIdentidade: a tela de correção de
+// identidade precisa do mesmo typeahead para achar o paciente, e quem só corrige
+// identidade não faz check-in.
 export async function buscarPacientesRecepcao(
   token: string | null,
   q: string | undefined,
 ): Promise<FlowResult> {
-  const erroAuth = await autorizarOperador(token);
-  if (erroAuth) return erroAuth;
+  const auth = await identificarOperador(
+    token,
+    ['canManageColetas', 'canCorrigirIdentidade'],
+    'buscar pacientes',
+  );
+  if ('erro' in auth) return auth.erro;
 
   const termo = (q ?? '').trim();
   if (termo.length < 2) {
@@ -193,6 +237,114 @@ export async function criarAgendamentoRecepcao(
   }
 
   return { status: 201, payload: { success: true, ...criado } };
+}
+
+// ── POST /integracao/pacientes/:pacienteId/correcao-identidade ──────────────────
+//
+// Corrige CPF/data de nascimento de um paciente que JÁ vinculou conta no LAB-HUB.
+// Depois do claim os dois campos são imutáveis lá (trigger de 20260730120000); a
+// RPC chamada por esta rota é a única saída, e ela exige e registra a autorização.
+//
+// Por que a operação é da recepção e não do portal: nenhum dado que o sistema
+// guarda prova que o CPF novo pertence a quem pede — CPF antigo, nascimento,
+// e-mail, telefone e até código por SMS são todos coisas que o dono da conta já
+// tem. Quem prova é o operador olhando o documento físico.
+//
+// `autorizadoPor` sai da SESSÃO, nunca do corpo da requisição: é trilha de
+// auditoria permanente e append-only no LAB-HUB, e um campo de trilha que o
+// chamador escolhe não vale como trilha.
+export async function corrigirIdentidadePaciente(
+  token: string | null,
+  body: CorrigirIdentidadeBody,
+): Promise<FlowResult> {
+  const auth = await identificarOperador(
+    token,
+    ['canCorrigirIdentidade'],
+    'corrigir identidade de paciente',
+  );
+  if ('erro' in auth) return auth.erro;
+
+  // Validação mínima local (o LAB-HUB revalida tudo com zod, inclusive os dígitos
+  // verificadores do CPF). Evita ida à rede quando o form nem está completo.
+  const pacienteId = (body.pacienteId ?? '').trim();
+  const cpf = (body.cpf ?? '').replace(/\D/g, '');
+  const dataNascimento = (body.dataNascimento ?? '').trim();
+  const motivo = (body.motivo ?? '').trim();
+  const documentoConferido = (body.documentoConferido ?? '').trim();
+
+  if (!pacienteId) {
+    return { status: 400, payload: { success: false, error: 'Selecione o paciente.' } };
+  }
+  if (cpf.length !== 11) {
+    return { status: 400, payload: { success: false, error: 'Informe o CPF completo.' } };
+  }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dataNascimento)) {
+    return { status: 400, payload: { success: false, error: 'Informe a data de nascimento.' } };
+  }
+  if (motivo.length < 5) {
+    return { status: 400, payload: { success: false, error: 'Descreva o motivo da correção.' } };
+  }
+  if (!documentoConferido) {
+    return { status: 400, payload: { success: false, error: 'Informe o documento conferido.' } };
+  }
+
+  // O LAB-HUB limita `autorizadoPor` a 120 caracteres.
+  const autorizadoPor = `${auth.operador.nome}${auth.operador.email ? ` <${auth.operador.email}>` : ''}`.slice(0, 120);
+
+  const url = `${requireEnv('LABHUB_API_URL')}/api/v1/integracao/pacientes/${encodeURIComponent(pacienteId)}/correcao-identidade`;
+
+  let resp: Response;
+  try {
+    resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': requireEnv('FLOWLAB_API_KEY'),
+      },
+      body: JSON.stringify({ cpf, dataNascimento, motivo, autorizadoPor, documentoConferido }),
+      signal: AbortSignal.timeout(LABHUB_TIMEOUT_MS),
+    });
+  } catch (err) {
+    console.error('[recepcaoAgendamento/correcao] LAB-HUB não respondeu:', describeError(err));
+    return { status: 504, payload: { success: false, error: 'O LAB-HUB não respondeu. Tente de novo.' } };
+  }
+
+  if (!resp.ok) {
+    // 400/404/409 são recusas que o operador precisa ler na íntegra — a RPC
+    // classifica por SQLSTATE e a mensagem diz o que houve ("nada a corrigir",
+    // "paciente sem conta vinculada", CPF já pertencente a outro cadastro (409),
+    // que é caso de FUSÃO e não de correção). Os demais são falha nossa/infra.
+    if (resp.status === 400 || resp.status === 404 || resp.status === 409) {
+      const errBody = (await resp.json().catch(() => null)) as
+        | { message?: string; error?: string }
+        | null;
+      const msg =
+        errBody?.message || errBody?.error || 'Não foi possível corrigir. Revise os dados.';
+      return { status: resp.status, payload: { success: false, error: msg } };
+    }
+    return mapearErroLabhub(resp);
+  }
+
+  const corrigido = (await resp.json().catch(() => null)) as Record<string, unknown> | null;
+  if (!corrigido || typeof corrigido.correcaoId !== 'string') {
+    console.error('[recepcaoAgendamento/correcao] resposta do LAB-HUB em formato inesperado');
+    return { status: 502, payload: { success: false, error: 'Integração com o LAB-HUB indisponível.' } };
+  }
+
+  // Eco operacional. A trilha permanente é a do LAB-HUB (`correcoes_identidade`);
+  // aqui não vai CPF nenhum — nem o antigo, nem o novo.
+  console.info(
+    '[recepcaoAgendamento/correcao] identidade corrigida',
+    JSON.stringify({
+      correcaoId: corrigido.correcaoId,
+      pacienteId,
+      operadorId: auth.operador.id,
+      documentoConferido,
+      laudosInvalidados: corrigido.laudosInvalidados,
+    }),
+  );
+
+  return { status: 200, payload: { success: true, ...corrigido } };
 }
 
 /**
