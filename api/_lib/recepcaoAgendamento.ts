@@ -312,8 +312,12 @@ export async function corrigirIdentidadePaciente(
   if (!resp.ok) {
     // 400/404/409 são recusas que o operador precisa ler na íntegra — a RPC
     // classifica por SQLSTATE e a mensagem diz o que houve ("nada a corrigir",
-    // "paciente sem conta vinculada", CPF já pertencente a outro cadastro (409),
-    // que é caso de FUSÃO e não de correção). Os demais são falha nossa/infra.
+    // CPF já pertencente a outro cadastro (409), que é caso de FUSÃO e não de
+    // correção). Os demais são falha nossa/infra.
+    //
+    // Paciente SEM conta vinculada já não é recusa desde 31/07/2026: a RPC
+    // recusava e mandava "corrija direto no cadastro", lugar que não existe em
+    // lado nenhum. Hoje corrige pelo mesmo caminho, com a mesma trilha.
     if (resp.status === 400 || resp.status === 404 || resp.status === 409) {
       const errBody = (await resp.json().catch(() => null)) as
         | { message?: string; error?: string }
