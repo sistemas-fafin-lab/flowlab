@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Search, Filter, Package, AlertTriangle, Calendar, Edit, Trash2, X, Save, Plus, Minus, ArrowUpDown, Download, Upload, ChevronDown, CheckCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Search, Filter, Package, AlertTriangle, Calendar, Edit, Trash2, X, Save, Plus, Minus, ArrowUpDown, Download, Upload, ChevronDown, CheckCircle, Warehouse } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { Product, ProductStock } from '../types';
 import { ProductListSkeleton } from './PageLoadingSkeleton';
@@ -14,9 +14,11 @@ import ConfirmDialog from './ConfirmDialog';
 import InputDialog from './InputDialog';
 import AddStockModal from './AddStockModal';
 
+// Departamento dos locais do almoxarifado central ("Estoque" e "Depósito").
+const CENTRAL_STOCK_DEPARTMENT = 'Estoque';
 
 const ProductList: React.FC = () => {
-  const { products, updateProduct, addMovement, suppliers, deleteProduct, setProducts, fetchProducts, addProductChangeLog, loading, locations, receiveStock, fetchProductStock } = useInventory();
+  const { products, updateProduct, addMovement, suppliers, deleteProduct, setProducts, fetchProducts, addProductChangeLog, loading, locations, receiveStock, fetchProductStock, fetchStockByLocations } = useInventory();
   const { userProfile } = useAuth();
   const navigate = useNavigate();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
@@ -26,9 +28,15 @@ const ProductList: React.FC = () => {
   const [categoryFilter, setCategoryFilter] = useState<'all' | 'general' | 'technical'>('all');
   const [categories, setCategories] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'low-stock' | 'expired'>('all');
+  // Escopo do saldo exibido: 'all' = total do produto (todos os locais);
+  // 'central' = só o que está no almoxarifado (Estoque + Depósito).
+  const [stockScope, setStockScope] = useState<'all' | 'central'>('all');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [editFormData, setEditFormData] = useState<Product | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Ajuste de inventário pelo modal de edição: saldos do produto + local do ajuste
+  const [editStockRows, setEditStockRows] = useState<ProductStock[]>([]);
+  const [adjustLocationId, setAdjustLocationId] = useState('');
 
   // ── Dropdown de Categoria ──────────────────────────────────────────────────
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
@@ -92,6 +100,32 @@ const ProductList: React.FC = () => {
     document.addEventListener('mousedown', onDown);
     return () => document.removeEventListener('mousedown', onDown);
   }, [expandedProductId]);
+
+  // ── Filtro "Estoque/Depósito" ──────────────────────────────────────────────
+  // O almoxarifado é o departamento 'Estoque' (locais "Estoque" e "Depósito");
+  // os demais locais são setoriais/postos. Fallback: o local principal.
+  const centralLocationIds = useMemo(() => {
+    const central = locations.filter(l => l.department === CENTRAL_STOCK_DEPARTMENT || l.isPrincipal);
+    return central.map(l => l.id);
+  }, [locations]);
+
+  const [centralStock, setCentralStock] = useState<Record<string, number>>({});
+  const [loadingCentralStock, setLoadingCentralStock] = useState(false);
+
+  useEffect(() => {
+    if (stockScope !== 'central' || centralLocationIds.length === 0) return;
+    let cancelled = false;
+    setLoadingCentralStock(true);
+    fetchStockByLocations(centralLocationIds)
+      .then(totals => { if (!cancelled) setCentralStock(totals); })
+      .catch(() => { if (!cancelled) setCentralStock({}); })
+      .finally(() => { if (!cancelled) setLoadingCentralStock(false); });
+    return () => { cancelled = true; };
+  }, [stockScope, centralLocationIds, fetchStockByLocations, products]);
+
+  // Quantidade a exibir no card conforme o escopo selecionado.
+  const getDisplayQuantity = (product: Product) =>
+    stockScope === 'central' ? (centralStock[product.id] ?? 0) : product.quantity;
 
   useEffect(() => {
     const fetchCategories = async () => {
@@ -166,10 +200,34 @@ const ProductList: React.FC = () => {
     }).format(value);
   };
 
-  const handleEditClick = (product: Product) => {
+  // Locais que aceitam saldo. Não-rastreáveis (ex.: Copa) ficam de fora: o trigger
+  // ignora o crédito neles e o ajuste voltaria a divergir do cache.
+  const trackableLocations = useMemo(() => locations.filter(l => l.rastreavel), [locations]);
+
+  // Local padrão do ajuste: onde o produto tem mais saldo; senão o principal.
+  const pickDefaultLocationId = (rows: ProductStock[]) => {
+    const withStock = [...rows].filter(r => r.quantity > 0).sort((a, b) => b.quantity - a.quantity);
+    return withStock[0]?.locationId
+      ?? locations.find(l => l.isPrincipal)?.id
+      ?? trackableLocations[0]?.id
+      ?? '';
+  };
+
+  const handleEditClick = async (product: Product) => {
     const currentProduct = products.find(p => p.id === product.id) || product;
     setEditingProduct(currentProduct);
     setEditFormData({ ...currentProduct });
+
+    // Editar a quantidade vira um ajuste de inventário (movimento), então já
+    // carrega os saldos por local e escolhe o local com mais saldo como padrão.
+    try {
+      const rows = await fetchProductStock(currentProduct.id);
+      setEditStockRows(rows);
+      setAdjustLocationId(pickDefaultLocationId(rows));
+    } catch {
+      setEditStockRows([]);
+      setAdjustLocationId(pickDefaultLocationId([]));
+    }
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -193,6 +251,8 @@ const ProductList: React.FC = () => {
   const handleCloseModal = () => {
     setEditingProduct(null);
     setEditFormData(null);
+    setEditStockRows([]);
+    setAdjustLocationId('');
   };
 
   const handleFormChange = (
@@ -287,6 +347,27 @@ const handleSaveChanges = async () => {
     return;
   }
 
+  // §6.1: quantity é cache derivado de product_stock. Uma correção de contagem
+  // vira movimento de ajuste no local escolhido — nunca escrita direta no cache,
+  // que seria sobrescrita pelo trigger na próxima entrada/saída.
+  const adjustDelta = editFormData.quantity - editingProduct.quantity;
+
+  if (adjustDelta !== 0) {
+    if (!adjustLocationId) {
+      showError('Selecione o local do ajuste', 'A correção de quantidade precisa de um local de estoque.');
+      return;
+    }
+    const saldoNoLocal = editStockRows.find(r => r.locationId === adjustLocationId)?.quantity ?? 0;
+    if (adjustDelta < 0 && Math.abs(adjustDelta) > saldoNoLocal) {
+      const nomeLocal = locations.find(l => l.id === adjustLocationId)?.nome ?? 'local';
+      showError(
+        'Saldo insuficiente no local',
+        `${nomeLocal} tem ${saldoNoLocal} ${editingProduct.unit}. Não dá para baixar ${Math.abs(adjustDelta)} — escolha outro local ou divida o ajuste.`
+      );
+      return;
+    }
+  }
+
   const reason = await showInputDialog(
     'Motivo da Alteração',
     'Digite o motivo da alteração:',
@@ -323,14 +404,42 @@ const handleSaveChanges = async () => {
       fieldChanges: changes
     });
 
-    await updateProduct(editingProduct.id, editFormData);
+    // Ajuste primeiro (pode falhar por saldo); o trigger recalcula products.quantity.
+    if (adjustDelta !== 0) {
+      const nomeLocal = locations.find(l => l.id === adjustLocationId)?.nome ?? 'local';
+      const qtd = Math.abs(adjustDelta);
+      await addMovement({
+        productId: editingProduct.id,
+        productName: editingProduct.name,
+        type: adjustDelta > 0 ? 'in' : 'out',
+        reason: 'other',
+        quantity: qtd,
+        date: now.toISOString().split('T')[0],
+        toLocationId: adjustDelta > 0 ? adjustLocationId : undefined,
+        fromLocationId: adjustDelta < 0 ? adjustLocationId : undefined,
+        authorizedBy: changedBy,
+        notes: `Ajuste de inventário em ${nomeLocal}: ${editingProduct.quantity} → ${editFormData.quantity} ${editingProduct.unit} · ${reason}`,
+        unitPrice: editFormData.unitPrice,
+        totalValue: qtd * editFormData.unitPrice,
+      });
+    }
+
+    // quantity fica de fora: quem manda nela é o product_stock (via trigger).
+    const fieldsToUpdate: Partial<Product> = { ...editFormData };
+    delete fieldsToUpdate.quantity;
+    await updateProduct(editingProduct.id, fieldsToUpdate);
     await fetchProducts();
 
-    showSuccess('Produto atualizado com sucesso!');
+    showSuccess(
+      adjustDelta !== 0
+        ? `Produto atualizado! Ajuste de ${adjustDelta > 0 ? '+' : '−'}${Math.abs(adjustDelta)} ${editingProduct.unit} registrado.`
+        : 'Produto atualizado com sucesso!'
+    );
     handleCloseModal();
   } catch (error) {
     console.error('Erro ao atualizar produto:', error);
-    showError('Erro ao atualizar produto', 'Tente novamente.');
+    const msg = error instanceof Error ? error.message : '';
+    showError('Erro ao atualizar produto', msg.includes('saldo') ? msg : 'Tente novamente.');
   } finally {
     setIsSubmitting(false);
   }
@@ -765,6 +874,22 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                 </button>
               );
             })}
+            {/* Escopo do saldo: total do produto × só almoxarifado (Estoque + Depósito) */}
+            <button
+              onClick={() => setStockScope(s => (s === 'central' ? 'all' : 'central'))}
+              disabled={centralLocationIds.length === 0}
+              title="Mostrar apenas a quantidade que está no Estoque e no Depósito"
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold border transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
+                stockScope === 'central'
+                  ? 'bg-blue-500 text-white border-transparent shadow-lg shadow-blue-500/25'
+                  : 'bg-white/60 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 border-slate-200/60 dark:border-slate-700/60 hover:border-slate-300 dark:hover:border-slate-600 hover:text-slate-700 dark:hover:text-slate-200'
+              }`}
+            >
+              <Warehouse className="w-3.5 h-3.5" />
+              Estoque/Depósito
+              {stockScope === 'central' && <CheckCircle className="w-3.5 h-3.5" />}
+            </button>
+
             <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">
               <span className="font-semibold text-slate-600 dark:text-slate-300">{filteredProducts.length}</span> produto(s)
             </span>
@@ -775,11 +900,15 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         {/* ── Grade de Produtos (Premium Glassmorphism) ────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
           {filteredProducts.map((product, index) => {
+            const displayQuantity = getDisplayQuantity(product);
             const stockPct = Math.min(
-              (product.quantity / ((product.minStock || 0) * 2 || 1)) * 100,
+              (displayQuantity / ((product.minStock || 0) * 2 || 1)) * 100,
               100
             );
-            const isLow = product.quantity <= (product.minStock || 0);
+            const isLow = displayQuantity <= (product.minStock || 0);
+            const displayTotalValue = stockScope === 'central'
+              ? displayQuantity * product.unitPrice
+              : product.totalValue;
 
             return (
               <div
@@ -821,13 +950,18 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                   {/* Quantidade em destaque + barra de progresso de estoque */}
                   <div className="mb-4">
                     <div className="flex items-center justify-between mb-1.5">
-                      <div className="flex items-baseline gap-1.5">
+                      <div className="flex items-baseline gap-1.5 min-w-0">
                         <span className={`text-2xl font-bold leading-none transition-colors ${
                           isLow ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-slate-100'
                         }`}>
-                          {product.quantity}
+                          {stockScope === 'central' && loadingCentralStock ? '—' : displayQuantity}
                         </span>
                         <span className="text-sm font-normal text-slate-400">{product.unit}</span>
+                        {stockScope === 'central' && (
+                          <span className="text-[10px] font-semibold text-blue-500 dark:text-blue-400 truncate" title="Saldo apenas em Estoque e Depósito">
+                            no Estoque/Depósito
+                          </span>
+                        )}
                       </div>
                       <div className="flex items-center gap-1.5">
                         {isLow && (
@@ -862,7 +996,7 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Valor Total</p>
-                      <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{formatCurrency(product.totalValue)}</p>
+                      <p className="text-sm font-bold text-blue-600 dark:text-blue-400">{formatCurrency(displayTotalValue)}</p>
                     </div>
                     <div>
                       <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wide mb-0.5">Lote</p>
@@ -1200,7 +1334,47 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
                     min="0"
                     className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                   />
+                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                    Alterar aqui registra um ajuste de inventário.
+                  </p>
                 </div>
+
+                {/* Ajuste de inventário — só aparece quando a contagem muda */}
+                {editFormData.quantity !== editingProduct.quantity && (
+                  <div className="md:col-span-2 p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
+                      <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
+                        Ajuste de inventário: {editingProduct.quantity} → {editFormData.quantity} {editingProduct.unit}
+                        {' '}({editFormData.quantity > editingProduct.quantity ? '+' : '−'}
+                        {Math.abs(editFormData.quantity - editingProduct.quantity)})
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Local do ajuste *
+                      </label>
+                      <select
+                        value={adjustLocationId}
+                        onChange={(e) => setAdjustLocationId(e.target.value)}
+                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                      >
+                        <option value="">Selecione o local…</option>
+                        {trackableLocations.map(l => (
+                          <option key={l.id} value={l.id}>
+                            {l.nome} — saldo {editStockRows.find(r => r.locationId === l.id)?.quantity ?? 0} {editingProduct.unit}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <p className="text-xs text-amber-700/80 dark:text-amber-400/80">
+                      A diferença será registrada como movimentação neste local, mantendo o saldo por
+                      local e o histórico coerentes. O motivo que você informar ao salvar vai junto.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

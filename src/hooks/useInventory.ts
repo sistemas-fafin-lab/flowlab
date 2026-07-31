@@ -586,6 +586,33 @@ export const useInventory = () => {
     }));
   };
 
+  // Saldo agregado de um conjunto de locais, por produto (ex: Estoque + Depósito).
+  // Pagina em blocos de 1000 porque o PostgREST corta a resposta nesse limite.
+  const fetchStockByLocations = useCallback(async (
+    locationIds: string[],
+  ): Promise<Record<string, number>> => {
+    const totals: Record<string, number> = {};
+    if (locationIds.length === 0) return totals;
+
+    const PAGE = 1000;
+    for (let from = 0; ; from += PAGE) {
+      const { data, error } = await supabase
+        .from('product_stock')
+        .select('product_id, quantity')
+        .in('location_id', locationIds)
+        .range(from, from + PAGE - 1);
+
+      if (error) throw error;
+
+      for (const r of data || []) {
+        totals[r.product_id] = (totals[r.product_id] ?? 0) + (r.quantity ?? 0);
+      }
+      if (!data || data.length < PAGE) break;
+    }
+
+    return totals;
+  }, []);
+
   // Estoque de um local (o que o setor recebeu e ainda não usou), com dados do produto.
   // Inclui `minStock` por local (product_stock.min_stock). Mostra também insumo zerado que
   // tenha mínimo definido (quantity 0 + min > 0) — é o pior caso de "abaixo do mínimo".
@@ -1065,6 +1092,7 @@ export const useInventory = () => {
     error,
     fetchLocations,
     fetchProductStock,
+    fetchStockByLocations,
     fetchLocationStock,
     updateLocationMinStock,
     receiveStock,
