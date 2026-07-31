@@ -20,6 +20,7 @@ import apoioProcessImage from '../_lib/handlers/apoio-process-image.js';
 import apoioRebuildXml from '../_lib/handlers/apoio-rebuild-xml.js';
 import apoioTransferir from '../_lib/handlers/apoio-transferir.js';
 import buscarPacientes from '../_lib/handlers/buscar-pacientes.js';
+import corrigirIdentidade from '../_lib/handlers/corrigir-identidade.js';
 import criarAgendamentoLabhub from '../_lib/handlers/criar-agendamento-labhub.js';
 import deliverColeta from '../_lib/handlers/deliver-coleta.js';
 import deliverResultado from '../_lib/handlers/deliver-resultado.js';
@@ -43,6 +44,7 @@ const ROTAS: Record<string, Handler> = {
   'apoio-rebuild-xml': apoioRebuildXml,
   'apoio-transferir': apoioTransferir,
   'buscar-pacientes': buscarPacientes,
+  'corrigir-identidade': corrigirIdentidade,
   'criar-agendamento-labhub': criarAgendamentoLabhub,
   'deliver-coleta': deliverColeta,
   'deliver-resultado': deliverResultado,

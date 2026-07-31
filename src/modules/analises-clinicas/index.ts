@@ -8,6 +8,7 @@ export { default as RecoletasPage } from './components/RecoletasPage';
 export { default as LaudosPage } from './components/LaudosPage';
 export { default as IndicadoresPage } from './components/IndicadoresPage';
 export { default as EnvioApoioPage } from './components/EnvioApoioPage';
+export { default as CorrecaoIdentidadePage } from './components/CorrecaoIdentidadePage';
 export { useAgendamentos } from './hooks/useAgendamentos';
 export { usePostos } from './hooks/usePostos';
 export { useColetas } from './hooks/useColetas';
@@ -19,6 +20,7 @@ export { useAcIndicadores } from './hooks/useAcIndicadores';
 export { useDocumentosAgendamento } from './hooks/useDocumentosAgendamento';
 export { useApoioFila } from './hooks/useApoioFila';
 export { useApoioCatalogo } from './hooks/useApoioCatalogo';
+export { useCorrecaoIdentidade } from './hooks/useCorrecaoIdentidade';
 export {
   CHECKLIST_RECEPCAO,
   TIPOS_NO_CHECKLIST,

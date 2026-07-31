@@ -340,10 +340,12 @@ function documentosApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
-// ── Dev-only middleware para o agendamento manual da recepção ────────────────
-// Duas rotas contra o LAB-HUB (proxy autenticado por JWT do operador):
+// ── Dev-only middleware para as rotas da recepção contra o LAB-HUB ───────────
+// Proxies autenticados por JWT do operador:
+//   GET  /api/analises-clinicas/disponibilidade-operador
 //   GET  /api/analises-clinicas/buscar-pacientes?q=   (typeahead)
 //   POST /api/analises-clinicas/criar-agendamento-labhub
+//   POST /api/analises-clinicas/corrigir-identidade   (CPF/nascimento do paciente)
 // Sem este plugin, `npm run dev` (vite puro) cai no fallback do SPA e devolve
 // index.html, quebrando o .json() do hook.
 function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
@@ -373,12 +375,16 @@ function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
           url.pathname === '/api/analises-clinicas/buscar-pacientes' && req.method === 'GET';
         const isCriar =
           url.pathname === '/api/analises-clinicas/criar-agendamento-labhub' && req.method === 'POST';
-        if (!isDisp && !isBuscar && !isCriar) return next();
+        const isCorrigir =
+          url.pathname === '/api/analises-clinicas/corrigir-identidade' && req.method === 'POST';
+        if (!isDisp && !isBuscar && !isCriar && !isCorrigir) return next();
 
         const send = (status: number, body: unknown) => {
           res.statusCode = status;
           res.setHeader('Content-Type', 'application/json');
-          if (isBuscar) res.setHeader('Cache-Control', 'no-store');
+          // Ambas carregam dado pessoal de paciente (a correção devolve o CPF
+          // anterior mascarado).
+          if (isBuscar || isCorrigir) res.setHeader('Cache-Control', 'no-store');
           res.end(JSON.stringify(body));
         };
 
@@ -402,7 +408,7 @@ function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
             return send(status, payload);
           }
 
-          // POST criar — lê o corpo JSON.
+          // POSTs (criar / corrigir) — leem o corpo JSON.
           let body: Record<string, unknown> = {};
           try {
             await new Promise<void>((resolve, reject) => {
@@ -418,7 +424,9 @@ function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
             return send(400, { success: false, error: 'Body inválido' });
           }
 
-          const { status, payload } = await mod.criarAgendamentoRecepcao(token, body);
+          const { status, payload } = isCorrigir
+            ? await mod.corrigirIdentidadePaciente(token, body)
+            : await mod.criarAgendamentoRecepcao(token, body);
           send(status, payload);
         } catch (err) {
           console.error('[dev/analises-clinicas/recepcao-agendamento]', err);

@@ -17,6 +17,7 @@ import {
   ChevronRight,
   Users,
   Shield,
+  ShieldAlert,
   Building2,
   Calculator,
   DollarSign,
@@ -460,7 +461,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
-    if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos'].includes(path)) return ['Análises Clínicas'];
+    if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -614,7 +615,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         name: 'Análises Clínicas',
         href: '/analises-clinicas/agendamentos',
         icon: Stethoscope,
-        anyOf: ['canViewAnalisesClinicas', 'canManageColetas', 'canManageAnalisesClinicas', 'canViewTemperatura'],
+        anyOf: ['canViewAnalisesClinicas', 'canManageColetas', 'canManageAnalisesClinicas', 'canViewTemperatura', 'canCorrigirIdentidade'],
         category: 'OPERAÇÕES',
         subItems: [
           { name: 'Agendamentos', href: '/analises-clinicas/agendamentos', icon: CalendarClock, permission: 'canViewAnalisesClinicas' },
@@ -626,6 +627,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Temperatura', href: '/analises-clinicas/temperatura', icon: Thermometer, anyOf: ['canViewTemperatura', 'canManageColetas'] },
           { name: 'Indicadores', href: '/analises-clinicas/indicadores', icon: BarChart3, permission: 'canViewAnalisesClinicas' },
           { name: 'Postos de Coleta', href: '/analises-clinicas/postos', icon: MapPin, permission: 'canManageAnalisesClinicas' },
+          { name: 'Correção de Identidade', href: '/analises-clinicas/correcao-identidade', icon: ShieldAlert, permission: 'canCorrigirIdentidade' },
         ],
       },
       {
