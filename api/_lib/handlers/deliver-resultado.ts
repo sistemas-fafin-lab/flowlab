@@ -22,6 +22,11 @@ import { describeError } from '../errors.js';
 // Espelha ResultadoWebhookPayload de @lab-hub/shared / resultadoWebhookSchema.
 interface ResultadoWebhookPayload {
   agendamentoLabhubId: string;
+  // `ac_resultados.id` — id estável DESTE resultado. É o que dá ao LAB-HUB uma
+  // identidade opaca para deduplicar: sem ele, lá a chave é (agendamento,
+  // exame_nome), e um resultado corrigido do mesmo exame colide com o anterior,
+  // recebe 200 e é marcado como entregue aqui embaixo — descartado em silêncio.
+  exameFlowlabId: string;
   exameNome: string;
   categoria?: string;
   resumo?: string;
@@ -85,6 +90,7 @@ export default async function handler(
     // LAB-HUB usa .optional(), que NÃO aceita null).
     const payload: ResultadoWebhookPayload = {
       agendamentoLabhubId,
+      exameFlowlabId: resultado.id,
       exameNome: resultado.exame_nome,
       paineis: Array.isArray(resultado.paineis) ? resultado.paineis : [],
       liberadoEm: new Date(resultado.liberado_em).toISOString(),
