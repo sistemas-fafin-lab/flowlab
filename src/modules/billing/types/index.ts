@@ -271,58 +271,93 @@ export interface RecebimentoAgrupado {
 }
 
 // ============================================================================
-// INTERFACES PARA RESPOSTA DA API APLIS (Mock)
+// LOTES DE FATURAMENTO (aba Faturas)
 // ============================================================================
+// Contrato de GET /api/faturamento/lotes e GET /api/faturamento/lote-detalhe, que
+// consultam o MySQL de backup do laboratório ao vivo — nada disso é persistido no
+// Supabase. Espelha api/_lib/faturamento/bdLab.ts (fonte da verdade); sincronizado à
+// mão, porque o SPA e as functions não compartilham pacote de tipos.
+//
+// A normalização acontece no servidor: `valor` chega número (o MySQL manda DECIMAL
+// como string) e as datas chegam ISO YYYY-MM-DD, formatadas pelo próprio banco para
+// não trocarem de dia entre o fuso do Vercel (UTC) e o da máquina de dev.
 
-export interface AplisOperadoraResponse {
-  id: string;
-  name: string;
-  cnpj: string;
-  paymentTermDays: number;
-}
+/** Tabela de código STLOT ("Status de Lote") do apLIS. */
+export const STLOT_LABELS: Record<number, string> = {
+  1: 'Em Processamento',
+  2: 'Conciliação',
+  3: 'Faturado',
+  4: 'Recebido',
+  5: 'Cancelado',
+  6: 'Exportado TOTVS',
+  7: 'Recebido - parcial',
+  8: 'Prejuízo',
+};
 
-export interface AplisNotaResponse {
-  id: string;
-  operadoraId: string;
-  invoiceNumber: string;
-  issueDate: string;
-  dueDate: string;
-  totalValue: number;
-  competence: string;
-  status: string;
-}
-
-export interface AplisLoteResponse {
-  id: string;
-  operadoraId: string;
-  batchCode: string;
-  creationDate: string;
-  sendDate?: string;
-  status: string;
-  totalValue: number;
-  requisitionCount: number;
-}
-
-export interface AplisRequisicaoResponse {
-  id: string;
-  batchId?: string;
-  guideNumber: string;
-  creationDate: string;
-  executionDate?: string;
-  value: number;
-  status: string;
-  patientName?: string;
-  procedureCode?: string;
-  procedureDescription?: string;
-}
-
-export interface AplisSyncResponse {
-  success: boolean;
-  timestamp: string;
-  data: {
-    operadoras?: AplisOperadoraResponse[];
-    notas?: AplisNotaResponse[];
-    lotes?: AplisLoteResponse[];
-    requisicoes?: AplisRequisicaoResponse[];
+export interface LoteFaturamento {
+  idLote: number;
+  status: number;
+  statusLabel: string;
+  dtaCriacao: string | null;
+  dtaFechamento: string | null;
+  dtaEnvio: string | null;
+  dtaCancelamento: string | null;
+  protocolo: string | null;
+  nfeNumero: string | null;
+  nfeCodigoVerificacao: string | null;
+  numeroRPS: number | null;
+  /** Vencimento da NF/RPS do lote. */
+  dtaVencimento: string | null;
+  prestador: string | null;
+  valor: number;
+  qtdRequisicoes: number;
+  fontePagadora: {
+    nome: string | null;
+    razaoSocial: string | null;
+    cpfCnpj: string | null;
   };
+}
+
+/** Item cobrado de uma requisição. A descrição vem da tabela de preço do convênio. */
+export interface ProcedimentoRequisicao {
+  codigo: string | null;
+  descricao: string | null;
+  quantidade: number;
+  valorUnitario: number;
+  valor: number;
+  numGuia: string | null;
+  motivoGlosa: string | null;
+}
+
+/** Requisição dentro de um lote, com os procedimentos que ela levou para a cobrança. */
+export interface RequisicaoLote {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  dtaSolicitacao: string | null;
+  dtaFinalizacao: string | null;
+  numGuiaConvenio: string | null;
+  paciente: string | null;
+  valor: number;
+  procedimentos: ProcedimentoRequisicao[];
+}
+
+export interface LotesFiltros {
+  /** YYYY-MM-DD */
+  periodoIni: string;
+  periodoFim: string;
+  pagina?: number;
+  tamanho?: number;
+  /** Código STLOT. */
+  statusLote?: number;
+  /** Termo de busca textual (paciente, fonte pagadora, código da requisição, guia, lote). */
+  busca?: string;
+}
+
+export interface LotesMeta {
+  pagina: number;
+  tamanho: number;
+  qtdPaginas: number;
+  registros: number;
+  /** Data do lote mais recente que existe no backup — o banco é réplica e atrasa ~1 dia. */
+  dadoAte: string | null;
 }

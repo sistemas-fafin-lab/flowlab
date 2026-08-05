@@ -606,7 +606,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         permission: 'canViewBilling',
         category: 'OPERAÇÕES',
         subItems: [
-          { name: 'Faturas / Notas', href: '/faturamento/faturas', icon: FileText, permission: 'canViewBilling' },
+          { name: 'Faturas', href: '/faturamento/faturas', icon: FileText, permission: 'canViewBilling' },
           { name: 'Contas a Receber', href: '/faturamento/recebimentos', icon: DollarSign, permission: 'canViewBilling' },
           { name: 'Glosas e Recursos', href: '/faturamento/glosas', icon: AlertCircle, permission: 'canViewBilling' },
         ],

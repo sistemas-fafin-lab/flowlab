@@ -615,13 +615,75 @@ function apoioApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
+// Espelho de dev das rotas de /api/faturamento/*. Diferente do apoioApiPlugin em dois
+// pontos: são GETs (a entrada vem da query string, não do corpo) e o handler só precisa
+// das credenciais do apLIS + Supabase.
+function faturamentoApiPlugin(env: Record<string, string>): Plugin {
+  const FATURAMENTO_ACTIONS = new Set(['lotes', 'lote-detalhe']);
+  // DB_* é o MySQL de backup do laboratório: a fonte da aba Faturas (antes era o apLIS).
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
+  return {
+    name: 'faturamento-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        const match = url.pathname.match(/^\/api\/faturamento\/([^/]+)$/);
+        const action = match?.[1];
+        if (!action || !FATURAMENTO_ACTIONS.has(action)) return next();
+
+        // Adapta o req/res cru do Node ao contrato Vercel que os handlers usam.
+        // `action` entra no query junto dos filtros, como faz a rota dinâmica.
+        const query: Record<string, string> = { action };
+        for (const [chave, valor] of url.searchParams) query[chave] = valor;
+
+        const vReq = Object.assign(req, { body: {}, query });
+        const vRes = Object.assign(res, {
+          status(code: number) { res.statusCode = code; return vRes; },
+          json(payload: unknown) {
+            if (!res.headersSent) res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(payload));
+            return vRes;
+          },
+        });
+
+        try {
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule(`/api/_lib/handlers/faturamento-${action}.ts`);
+          await mod.default(vReq, vRes);
+        } catch (err) {
+          console.error(`[dev/faturamento/${action}]`, err);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Erro interno' }));
+          }
+        }
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // loadEnv com prefix '' carrega TODAS as vars (inclusive UMAMI_* sem prefixo VITE_)
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env)],
+    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },

@@ -1,89 +1,178 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   FileText,
   DollarSign,
+  Layers,
+  ClipboardList,
   AlertCircle,
-  TrendingUp,
-  TrendingDown,
-  Calendar,
   RefreshCw,
   Building2,
   ChevronRight,
-  Clock,
-  CheckCircle,
-  XCircle,
-  Filter
+  ChevronDown,
+  ChevronLeft,
+  Filter,
+  Search
 } from 'lucide-react';
-import { useBilling } from '../../../hooks/useBilling';
-import { Nota, NotaStatus, BillingMetrics } from '../../billing/types';
+import { useFaturamentoLotes } from '../hooks/useFaturamentoLotes';
+import { STLOT_LABELS, LoteFaturamento, RequisicaoLote } from '../../billing/types';
+import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 
 // ============================================================================
 // COMPONENTE: FaturasDashboard
-// Painel principal do módulo de faturamento
+// Aba Faturamento → Faturas. Lista os lotes de faturamento lidos do MySQL de backup
+// do laboratório (/api/faturamento/lotes); expandir um lote mostra as requisições que
+// o compõem, cada uma com seus procedimentos cobrados (/api/faturamento/lote-detalhe).
+// Nada vem do Supabase.
+//
+// A fonte era a API do apLIS, que só devolve os procedimentos somados por lote, sem
+// nenhuma referência às requisições — daí a troca para o banco.
 // ============================================================================
 
+type PeriodoPreset = 'mes' | 30 | 90 | 'custom';
+
+const TAMANHOS_PAGINA = [25, 50, 100, 200];
+
+// Cores por código STLOT (ver STLOT_LABELS). Agrupadas por significado financeiro:
+// em andamento (azul/amarelo), dinheiro entrou (verde), encerrado sem receita
+// (cinza/vermelho).
+const STATUS_CORES: Record<number, string> = {
+  1: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+  2: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
+  3: 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300',
+  4: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+  5: 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300',
+  6: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+  7: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
+  8: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+};
+
+const formatCurrency = (valor: number): string =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
+
+// As datas já chegam ISO (YYYY-MM-DD) normalizadas pelo servidor.
+const formatData = (iso: string | null): string =>
+  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('pt-BR') : '—';
+
+const dayKey = (d: Date): string =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const StatusBadge: React.FC<{ lote: LoteFaturamento }> = ({ lote }) => (
+  <span
+    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
+      STATUS_CORES[lote.status] ?? 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300'
+    }`}
+  >
+    {lote.statusLabel}
+  </span>
+);
+
 const FaturasDashboard: React.FC = () => {
-  const {
-    loading,
-    error,
-    notas,
-    operadoras,
-    metrics,
-    fetchNotas,
-    fetchOperadoras,
-    fetchMetrics,
-    fetchSyncLogs,
-    formatCurrency,
-    clearError
-  } = useBilling();
+  const [preset, setPreset] = useState<PeriodoPreset>('mes');
+  const [customIni, setCustomIni] = useState('');
+  const [customFim, setCustomFim] = useState('');
+  const [filtroStatus, setFiltroStatus] = useState<number | 0>(0);
+  const [pagina, setPagina] = useState(1);
+  const [tamanho, setTamanho] = useState(50);
+  const [busca, setBusca] = useState('');
+  const [buscaDebounced, setBuscaDebounced] = useState('');
+  const buscaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const [filtroStatus, setFiltroStatus] = useState<NotaStatus | 'todas'>('todas');
-  const [filtroOperadora, setFiltroOperadora] = useState<string>('todas');
-  const [lastSync, setLastSync] = useState<string | null>(null);
-
-  // Carregar dados iniciais
   useEffect(() => {
-    const loadData = async () => {
-      await Promise.all([
-        fetchOperadoras(),
-        fetchNotas(),
-        fetchMetrics()
-      ]);
-      
-      // Buscar última sincronização
-      const logs = await fetchSyncLogs(1);
-      if (logs.length > 0) {
-        setLastSync(new Date(logs[0].started_at).toLocaleString('pt-BR'));
-      }
+    if (buscaTimer.current) clearTimeout(buscaTimer.current);
+    buscaTimer.current = setTimeout(() => {
+      setBuscaDebounced(busca.trim());
+    }, 350);
+    return () => {
+      if (buscaTimer.current) clearTimeout(buscaTimer.current);
     };
-    loadData();
-  }, [fetchNotas, fetchOperadoras, fetchMetrics, fetchSyncLogs]);
+  }, [busca]);
 
-  // Aplicar filtros
+  // Intervalo efetivo (preset OU datas personalizadas) → limites ISO p/ o hook.
+  // Memoizado: os limites ficam fixos até o preset/datas mudarem, evitando refetch
+  // em loop (o hook depende dessas strings).
+  const range = useMemo(() => {
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+
+    if (preset === 'custom' && customIni && customFim) {
+      let ini = customIni;
+      let fim = customFim;
+      if (ini > fim) [ini, fim] = [fim, ini];
+      return { periodoIni: ini, periodoFim: fim };
+    }
+
+    if (preset === 'mes') {
+      const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+      return { periodoIni: dayKey(primeiro), periodoFim: dayKey(hoje) };
+    }
+
+    const n = typeof preset === 'number' ? preset : 30;
+    const inicio = new Date(hoje);
+    inicio.setDate(hoje.getDate() - (n - 1));
+    return { periodoIni: dayKey(inicio), periodoFim: dayKey(hoje) };
+  }, [preset, customIni, customFim]);
+
+  const { lotes, meta, loading, error, refetch, buscarRequisicoes } = useFaturamentoLotes({
+    periodoIni: range.periodoIni,
+    periodoFim: range.periodoFim,
+    pagina,
+    tamanho,
+    statusLote: filtroStatus || undefined,
+    busca: buscaDebounced || undefined,
+  });
+
+  // Trocar período/status/tamanho volta para a primeira página: a página 7 de um
+  // filtro raramente existe no outro, e a consulta devolveria lista vazia.
   useEffect(() => {
-    const filters: { status?: NotaStatus; operadora_id?: string } = {};
-    if (filtroStatus !== 'todas') filters.status = filtroStatus;
-    if (filtroOperadora !== 'todas') filters.operadora_id = filtroOperadora;
-    fetchNotas(filters);
-  }, [filtroStatus, filtroOperadora, fetchNotas]);
+    setPagina(1);
+  }, [range.periodoIni, range.periodoFim, filtroStatus, tamanho, buscaDebounced]);
 
-  // Status badge helper
-  const getStatusBadge = (status: NotaStatus) => {
-    const styles: Record<NotaStatus, { bg: string; text: string; icon: React.ReactNode }> = {
-      aberta: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-700 dark:text-blue-300', icon: <Clock size={14} /> },
-      parcialmente_recebida: { bg: 'bg-yellow-100 dark:bg-yellow-900/30', text: 'text-yellow-700 dark:text-yellow-300', icon: <TrendingUp size={14} /> },
-      recebida: { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-700 dark:text-green-300', icon: <CheckCircle size={14} /> },
-      glosada: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-700 dark:text-red-300', icon: <XCircle size={14} /> },
-      cancelada: { bg: 'bg-gray-100 dark:bg-gray-900/30', text: 'text-gray-700 dark:text-gray-300', icon: <XCircle size={14} /> }
-    };
-    const { bg, text, icon } = styles[status];
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${bg} ${text}`}>
-        {icon}
-        {status.replace('_', ' ')}
-      </span>
-    );
+  // Requisições são carregadas sob demanda: um lote pode ter dezenas, cada uma com
+  // vários procedimentos.
+  const [expandido, setExpandido] = useState<number | null>(null);
+  const [requisicoes, setRequisicoes] = useState<Record<number, RequisicaoLote[]>>({});
+  const [carregandoDet, setCarregandoDet] = useState<number | null>(null);
+  const [erroDet, setErroDet] = useState<Record<number, string>>({});
+
+  const alternarLote = useCallback(async (idLote: number) => {
+    if (expandido === idLote) {
+      setExpandido(null);
+      return;
+    }
+    setExpandido(idLote);
+    if (requisicoes[idLote]) return;
+
+    setCarregandoDet(idLote);
+    setErroDet((e) => ({ ...e, [idLote]: '' }));
+    try {
+      const itens = await buscarRequisicoes(idLote);
+      setRequisicoes((r) => ({ ...r, [idLote]: itens }));
+    } catch (err) {
+      setErroDet((e) => ({
+        ...e,
+        [idLote]: err instanceof Error ? err.message : 'Não foi possível carregar as requisições.',
+      }));
+    } finally {
+      setCarregandoDet(null);
+    }
+  }, [expandido, requisicoes, buscarRequisicoes]);
+
+  const ativarCustom = () => {
+    if (!customIni || !customFim) {
+      setCustomIni(range.periodoIni);
+      setCustomFim(range.periodoFim);
+    }
+    setPreset('custom');
   };
+
+  // Totais da PÁGINA — somar o período inteiro exigiria agregar milhares de lotes a
+  // cada troca de filtro. Rotulado como tal na UI para não virar "total do mês".
+  const totaisPagina = useMemo(() => ({
+    valor: lotes.reduce((soma, l) => soma + l.valor, 0),
+    requisicoes: lotes.reduce((soma, l) => soma + l.qtdRequisicoes, 0),
+  }), [lotes]);
+
+  const qtdPaginas = meta?.qtdPaginas ?? 0;
 
   return (
     <div className="space-y-6">
@@ -95,248 +184,384 @@ const FaturasDashboard: React.FC = () => {
             Gestão de Faturamento
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Espelho financeiro sincronizado com APLIS
+            Lotes, requisições e procedimentos lidos do banco do laboratório
+            {meta?.dadoAte && ` · dados até ${formatData(meta.dadoAte)}`}
           </p>
         </div>
-        
-        {lastSync && (
-          <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
-            <RefreshCw size={14} />
-            <span>Última sync: {lastSync}</span>
-          </div>
-        )}
+
+        <button
+          onClick={() => void refetch()}
+          disabled={loading}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg text-sm font-medium transition-colors"
+        >
+          <RefreshCw size={16} className={loading ? 'animate-spin' : undefined} />
+          Atualizar
+        </button>
       </div>
 
       {/* Error Alert */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
           <div className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
+            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
             <p className="text-red-700 dark:text-red-300">{error}</p>
-            <button onClick={clearError} className="ml-auto text-red-600 hover:text-red-800">×</button>
           </div>
         </div>
       )}
 
-      {/* Métricas Cards */}
-      {metrics && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {/* Total a Receber */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total a Receber</p>
-                <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
-                  {formatCurrency(metrics.valorTotalAReceber)}
-                </p>
-              </div>
-              <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                <DollarSign className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-center text-sm">
-              <span className="text-gray-500 dark:text-gray-400">
-                {metrics.totalNotasAbertas} notas abertas
-              </span>
-            </div>
-          </div>
-
-          {/* Recebido no Mês */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Recebido este Mês</p>
-                <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-                  {formatCurrency(metrics.valorRecebidoMes)}
-                </p>
-              </div>
-              <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-green-600 dark:text-green-400" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-center text-sm">
-              <span className="text-gray-500 dark:text-gray-400">
-                {metrics.notasPorStatus.recebidas} notas recebidas
-              </span>
-            </div>
-          </div>
-
-          {/* Glosado */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Glosado</p>
-                <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-                  {formatCurrency(metrics.valorGlosadoMes)}
-                </p>
-              </div>
-              <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                <TrendingDown className="h-6 w-6 text-red-600 dark:text-red-400" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-center text-sm">
-              <span className="text-red-500 dark:text-red-400">
-                Taxa: {metrics.taxaGlosa.toFixed(1)}%
-              </span>
-            </div>
-          </div>
-
-          {/* Glosas Pendentes */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Glosas Pendentes</p>
-                <p className="text-2xl font-bold text-orange-600 dark:text-orange-400 mt-1">
-                  {metrics.glosasPendentes + metrics.glosasEmRecurso}
-                </p>
-              </div>
-              <div className="p-3 bg-orange-100 dark:bg-orange-900/30 rounded-lg">
-                <AlertCircle className="h-6 w-6 text-orange-600 dark:text-orange-400" />
-              </div>
-            </div>
-            <div className="mt-3 flex items-center text-sm">
-              <span className="text-orange-500 dark:text-orange-400">
-                {metrics.glosasEmRecurso} em recurso
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Previsão de Recebimento */}
-      {metrics && (
+      {/* Resumo da consulta */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-blue-600" />
-            Previsão de Recebimento
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">Próximos 30 dias</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
-                {formatCurrency(metrics.previsaoRecebimento.proximo30dias)}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Lotes no período</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                {meta?.registros ?? 0}
               </p>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">30 a 60 dias</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
-                {formatCurrency(metrics.previsaoRecebimento.proximo60dias)}
-              </p>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-              <p className="text-sm text-gray-500 dark:text-gray-400">60 a 90 dias</p>
-              <p className="text-xl font-bold text-gray-900 dark:text-white mt-1">
-                {formatCurrency(metrics.previsaoRecebimento.proximo90dias)}
-              </p>
+            <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <Layers className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
           </div>
+          <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+            {formatData(range.periodoIni)} a {formatData(range.periodoFim)}
+          </div>
         </div>
-      )}
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Valor desta página</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                {formatCurrency(totaisPagina.valor)}
+              </p>
+            </div>
+            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />
+            </div>
+          </div>
+          <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+            Soma dos {lotes.length} lotes exibidos
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Requisições</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
+                {totaisPagina.requisicoes}
+              </p>
+            </div>
+            <div className="p-3 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
+              <ClipboardList className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
+            </div>
+          </div>
+          <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
+            nos {lotes.length} lotes desta página
+          </div>
+        </div>
+      </div>
 
       {/* Filtros */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex flex-wrap items-center gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2">
             <Filter size={16} className="text-gray-500" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtros:</span>
           </div>
-          
-          <select
-            value={filtroStatus}
-            onChange={(e) => setFiltroStatus(e.target.value as NotaStatus | 'todas')}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <option value="todas">Todos os Status</option>
-            <option value="aberta">Aberta</option>
-            <option value="parcialmente_recebida">Parcialmente Recebida</option>
-            <option value="recebida">Recebida</option>
-            <option value="glosada">Glosada</option>
-          </select>
+
+          <div className="flex flex-wrap gap-1">
+            {([['mes', 'Mês atual'], [30, 'Últimos 30 dias'], [90, 'Últimos 90 dias']] as const).map(
+              ([valor, rotulo]) => (
+                <button
+                  key={String(valor)}
+                  onClick={() => setPreset(valor)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    preset === valor
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
+                >
+                  {rotulo}
+                </button>
+              ),
+            )}
+            <button
+              onClick={ativarCustom}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                preset === 'custom'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Personalizado
+            </button>
+          </div>
+
+          {preset === 'custom' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={customIni}
+                onChange={(e) => setCustomIni(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+              <span className="text-gray-500 text-sm">até</span>
+              <input
+                type="date"
+                value={customFim}
+                onChange={(e) => setCustomFim(e.target.value)}
+                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              />
+            </div>
+          )}
 
           <select
-            value={filtroOperadora}
-            onChange={(e) => setFiltroOperadora(e.target.value)}
+            value={filtroStatus}
+            onChange={(e) => setFiltroStatus(Number(e.target.value))}
             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
           >
-            <option value="todas">Todas Operadoras</option>
-            {operadoras.map((op) => (
-              <option key={op.id_operadora} value={op.id_operadora}>
-                {op.nome}
-              </option>
+            <option value={0}>Todos os Status</option>
+            {Object.entries(STLOT_LABELS).map(([codigo, rotulo]) => (
+              <option key={codigo} value={codigo}>{rotulo}</option>
             ))}
           </select>
+
+          <div className="relative flex-1 min-w-[200px] max-w-md">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por paciente, fonte, lote, guia..."
+              className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
+            />
+          </div>
         </div>
       </div>
 
-      {/* Lista de Notas */}
+      {/* Lista de Lotes */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Notas Fiscais / Faturas
+            Lotes de Faturamento
           </h3>
         </div>
-        
+
         {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <RefreshCw className="h-8 w-8 text-blue-600 animate-spin" />
-          </div>
-        ) : notas.length === 0 ? (
+          <LoadingSpinner message="Consultando o banco do laboratório..." />
+        ) : lotes.length === 0 ? (
           <div className="text-center py-12">
             <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">Nenhuma nota encontrada</p>
+            <p className="text-gray-500 dark:text-gray-400">
+              Nenhum lote encontrado no período selecionado
+            </p>
           </div>
         ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {notas.map((nota) => (
-              <div
-                key={nota.id_nota}
-                className="px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold text-gray-900 dark:text-white">
-                        {nota.numero_nota}
-                      </span>
-                      {getStatusBadge(nota.status)}
-                    </div>
-                    
-                    <div className="mt-2 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <Building2 size={14} />
-                        {nota.operadora?.nome || 'Operadora não identificada'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar size={14} />
-                        {new Date(nota.data_emissao).toLocaleDateString('pt-BR')}
-                      </span>
-                      {nota.competencia && (
-                        <span>Comp: {nota.competencia}</span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-gray-900 dark:text-white">
-                      {formatCurrency(nota.valor_total)}
-                    </p>
-                    {nota.valor_recebido > 0 && (
-                      <p className="text-sm text-green-600 dark:text-green-400">
-                        Recebido: {formatCurrency(nota.valor_recebido)}
-                      </p>
-                    )}
-                    {nota.valor_glosado > 0 && (
-                      <p className="text-sm text-red-600 dark:text-red-400">
-                        Glosado: {formatCurrency(nota.valor_glosado)}
-                      </p>
-                    )}
-                  </div>
-
-                  <ChevronRight className="h-5 w-5 text-gray-400 ml-4" />
-                </div>
+          <>
+            {/* Paginação — acima da tabela para ficar visível sem rolar a lista. */}
+            <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>Por página:</span>
+                <select
+                  value={tamanho}
+                  onChange={(e) => setTamanho(Number(e.target.value))}
+                  className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                >
+                  {TAMANHOS_PAGINA.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                </select>
               </div>
-            ))}
-          </div>
+
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  Página {pagina} de {Math.max(qtdPaginas, 1)}
+                </span>
+                <button
+                  onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                  disabled={pagina <= 1 || loading}
+                  className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  <ChevronLeft size={16} />
+                  Anterior
+                </button>
+                <button
+                  onClick={() => setPagina((p) => p + 1)}
+                  disabled={pagina >= qtdPaginas || loading}
+                  className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  Próxima
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-700/50">
+                  <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    <th className="px-5 py-3 w-8" />
+                    <th className="px-3 py-3">Lote</th>
+                    <th className="px-3 py-3">Fonte Pagadora</th>
+                    <th className="px-3 py-3">Criação</th>
+                    <th className="px-3 py-3">Fechamento</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3 text-right">Requisições</th>
+                    <th className="px-3 py-3">NF / RPS</th>
+                    <th className="px-5 py-3 text-right">Valor</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {lotes.map((lote) => (
+                    <React.Fragment key={lote.idLote}>
+                      <tr
+                        onClick={() => void alternarLote(lote.idLote)}
+                        className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
+                      >
+                        <td className="px-5 py-4 text-gray-400">
+                          {expandido === lote.idLote
+                            ? <ChevronDown size={16} />
+                            : <ChevronRight size={16} />}
+                        </td>
+                        <td className="px-3 py-4 font-semibold text-gray-900 dark:text-white whitespace-nowrap">
+                          {lote.idLote}
+                        </td>
+                        <td className="px-3 py-4 text-gray-700 dark:text-gray-300">
+                          <span className="flex items-center gap-1">
+                            <Building2 size={14} className="text-gray-400 shrink-0" />
+                            <span title={lote.fontePagadora.razaoSocial ?? undefined}>
+                              {lote.fontePagadora.nome ?? 'Não identificada'}
+                            </span>
+                          </span>
+                        </td>
+                        <td className="px-3 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                          {formatData(lote.dtaCriacao)}
+                        </td>
+                        <td className="px-3 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                          {formatData(lote.dtaFechamento)}
+                        </td>
+                        <td className="px-3 py-4">
+                          <StatusBadge lote={lote} />
+                        </td>
+                        <td className="px-3 py-4 text-right text-gray-700 dark:text-gray-300 tabular-nums">
+                          {lote.qtdRequisicoes}
+                        </td>
+                        <td className="px-3 py-4 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                          {lote.nfeNumero
+                            ? `${lote.nfeNumero}${lote.numeroRPS ? ` / ${lote.numeroRPS}` : ''}`
+                            : '—'}
+                        </td>
+                        <td className="px-5 py-4 text-right font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                          {formatCurrency(lote.valor)}
+                        </td>
+                      </tr>
+
+                      {expandido === lote.idLote && (
+                        <tr className="bg-gray-50 dark:bg-gray-700/30">
+                          <td colSpan={9} className="px-5 py-4">
+                            {carregandoDet === lote.idLote ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
+                                <RefreshCw size={14} className="animate-spin" />
+                                Carregando requisições...
+                              </p>
+                            ) : erroDet[lote.idLote] ? (
+                              <p className="text-sm text-red-600 dark:text-red-400">
+                                {erroDet[lote.idLote]}
+                              </p>
+                            ) : (requisicoes[lote.idLote]?.length ?? 0) === 0 ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Nenhuma requisição cobrada neste lote.
+                              </p>
+                            ) : (
+                              <div className="space-y-3">
+                                <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                                  {requisicoes[lote.idLote].length} requisiç
+                                  {requisicoes[lote.idLote].length === 1 ? 'ão' : 'ões'} neste lote
+                                </p>
+
+                                {requisicoes[lote.idLote].map((req) => (
+                                  <div
+                                    key={req.idRequisicao}
+                                    className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+                                  >
+                                    {/* Cabeçalho da requisição */}
+                                    <div className="px-3 py-2 bg-gray-50 dark:bg-gray-700/50 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+                                      <span className="font-mono text-sm font-semibold text-gray-900 dark:text-white">
+                                        {req.codRequisicao ?? `#${req.idRequisicao}`}
+                                      </span>
+                                      <span className="text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-[12rem]">
+                                        {req.paciente ?? 'Paciente não identificado'}
+                                      </span>
+                                      {req.numGuiaConvenio && (
+                                        <span className="text-xs text-gray-500 dark:text-gray-400">
+                                          Guia {req.numGuiaConvenio}
+                                        </span>
+                                      )}
+                                      <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                                        {formatData(req.dtaSolicitacao)}
+                                      </span>
+                                      <span className="text-sm font-bold text-gray-900 dark:text-white whitespace-nowrap">
+                                        {formatCurrency(req.valor)}
+                                      </span>
+                                    </div>
+
+                                    {/* Procedimentos cobrados da requisição */}
+                                    <div className="divide-y divide-gray-100 dark:divide-gray-700/50">
+                                      {req.procedimentos.map((proc, i) => (
+                                        <div
+                                          key={`${req.idRequisicao}-${proc.codigo ?? 'sem-codigo'}-${i}`}
+                                          className="px-3 py-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm"
+                                        >
+                                          <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0 w-20">
+                                            {proc.codigo ?? '—'}
+                                          </span>
+                                          <span className="text-gray-700 dark:text-gray-300 flex-1 min-w-[12rem]">
+                                            {proc.descricao ?? 'Procedimento sem descrição na tabela de preço'}
+                                          </span>
+                                          {proc.motivoGlosa && (
+                                            <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
+                                              Glosa: {proc.motivoGlosa}
+                                            </span>
+                                          )}
+                                          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
+                                            {proc.quantidade}x {formatCurrency(proc.valorUnitario)}
+                                          </span>
+                                          <span className="font-medium text-gray-900 dark:text-white whitespace-nowrap tabular-nums w-24 text-right">
+                                            {formatCurrency(proc.valor)}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {(lote.protocolo || lote.nfeCodigoVerificacao || lote.dtaVencimento) && (
+                              <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 flex flex-wrap gap-x-4">
+                                {lote.protocolo && (
+                                  <span>Protocolo: <span className="font-mono">{lote.protocolo}</span></span>
+                                )}
+                                {lote.nfeCodigoVerificacao && (
+                                  <span>
+                                    Verificação da NF: <span className="font-mono">{lote.nfeCodigoVerificacao}</span>
+                                  </span>
+                                )}
+                                {lote.dtaVencimento && <span>Vencimento: {formatData(lote.dtaVencimento)}</span>}
+                              </p>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+          </>
         )}
       </div>
     </div>
