@@ -8,10 +8,7 @@ import {
   AlertTriangle,
   Building2,
   FileText,
-  Download,
   Filter,
-  ArrowUpRight,
-  ArrowDownRight,
   Banknote
 } from 'lucide-react';
 import { useBilling } from '../../../hooks/useBilling';
