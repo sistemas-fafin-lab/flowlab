@@ -291,6 +291,52 @@ const UserManagement: React.FC = () => {
 
     try {
       if (editingUser) {
+        // O e-mail vive em auth.users (login) e em user_profiles (exibição e
+        // destino das notificações). A RPC troca os dois no mesmo commit — vale na
+        // hora, sem e-mail de confirmação. Precisa vir antes do update abaixo, que
+        // falharia deixando o login já apontando para o endereço novo.
+        const novoEmail = formData.email.trim().toLowerCase();
+        const emailAlterado = novoEmail !== editingUser.email.trim().toLowerCase();
+        if (emailAlterado) {
+          const confirmado = window.confirm(
+            `Alterar o e-mail de login de ${editingUser.email} para ${novoEmail}?\n\n` +
+            'A troca vale imediatamente: o acesso pelo endereço antigo deixa de funcionar. A senha não muda.'
+          );
+          if (!confirmado) {
+            setIsSubmitting(false);
+            return;
+          }
+
+          const { error: emailError } = await supabase.rpc('change_user_email', {
+            p_user_id: editingUser.id,
+            p_new_email: novoEmail,
+          });
+
+          // As mensagens do RAISE EXCEPTION já são escritas para o usuário final.
+          if (emailError) {
+            showError(emailError.message || 'Erro ao alterar o e-mail.');
+            setIsSubmitting(false);
+            return;
+          }
+
+          // Avisa no endereço novo — sem isso a pessoa só descobre a troca quando o
+          // login falha. Best-effort: a troca já está commitada, uma falha de SMTP
+          // não pode derrubar a operação.
+          void fetch('/api/notifications/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: novoEmail,
+              templateSlug: 'user_email_changed',
+              variables: {
+                name: formData.name,
+                old_email: editingUser.email,
+                new_email: novoEmail,
+              },
+            }),
+          }).catch((err) => console.warn('[UserManagement] Aviso de troca de e-mail não enviado:', err));
+        }
+
         // Update existing user
         const { error } = await supabase
           .from('user_profiles')
@@ -327,7 +373,15 @@ const UserManagement: React.FC = () => {
           // Don't fail the whole operation, just log
         }
 
-        showSuccess('Usuário atualizado com sucesso!');
+        if (emailAlterado && editingUser.id === userProfile?.id) {
+          // A sessão atual continua válida (o UUID não mudou), mas o e-mail no JWT
+          // em memória é o antigo até o próximo refresh.
+          showSuccess(`Usuário atualizado! Você alterou o próprio e-mail — refaça o login com ${novoEmail}.`);
+        } else if (emailAlterado) {
+          showSuccess(`Usuário atualizado! O login agora é ${novoEmail}.`);
+        } else {
+          showSuccess('Usuário atualizado com sucesso!');
+        }
       } else {
         // For new users, we would need to handle auth.users creation
         // This is typically done through Supabase Auth API
@@ -732,10 +786,14 @@ const UserManagement: React.FC = () => {
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 required
-                disabled={!!editingUser} // Não permitir editar email de usuários existentes
                 className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 dark:disabled:bg-gray-600 transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
                 placeholder="email@empresa.com"
               />
+              {editingUser && (
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  Este é o e-mail de login. Alterá-lo vale imediatamente e derruba o acesso pelo endereço antigo; a senha não muda.
+                </p>
+              )}
             </div>
 
             <div>
