@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
-import { getSlaStatus, ITPriority, ITStatusLike, ITKanbanColumnLike, SlaStatus } from '../utils/itSla';
+import { getSlaStatus, ITPriority, SlaContext, SlaStatus } from '../utils/itSla';
 
 const TICK_INTERVAL_MS = 60_000;
 
 export function useSlaStatus(
   createdAt: string,
   priority: ITPriority,
-  options?: { status?: ITStatusLike | null; kanbanStatus?: ITKanbanColumnLike | null }
+  options?: Omit<SlaContext, 'now'>
 ): SlaStatus {
   const [, forceTick] = useState(0);
 

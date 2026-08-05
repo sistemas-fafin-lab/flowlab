@@ -122,6 +122,10 @@ const ITRequestManagement: React.FC = () => {
     userProfile?.roleName === 'Desenvolvedor' ||
     hasPermission(userPermissions, 'canManageIT');
 
+  // Prazo (SLA) é controle interno da TI: quem vê é só quem tem a permissão
+  // 'Gerenciar TI' no custom_role — sem atalho pelo nome do cargo.
+  const canViewSla = hasPermission(userPermissions, 'canManageIT');
+
   // ─── State ──────────────────────────────────────────────────────────────────
   const [requests, setRequests] = useState<ITRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -923,15 +927,18 @@ const ITRequestManagement: React.FC = () => {
                   {statusConf.label}
                 </span>
 
-                {/* SLA badge */}
-                <SLABadge
-                  createdAt={req.created_at}
-                  priority={req.priority}
-                  status={req.status}
-                  kanbanStatus={req.kanban_status}
-                  variant="pill"
-                  size="list"
-                />
+                {/* SLA badge — controle interno da TI, escondido do solicitante */}
+                {canViewSla && (
+                  <SLABadge
+                    createdAt={req.created_at}
+                    priority={req.priority}
+                    status={req.status}
+                    kanbanStatus={req.kanban_status}
+                    kanbanHidden={req.kanban_hidden}
+                    variant="pill"
+                    size="list"
+                  />
+                )}
 
                 {/* Date */}
                 <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 tabular-nums whitespace-nowrap">
@@ -1063,15 +1070,18 @@ const ITRequestManagement: React.FC = () => {
                             <span className={`w-1.5 h-1.5 rounded-full ${modalPrioConf.dot}`} />
                             {modalPrioConf.label}
                           </span>
-                          {/* SLA badge */}
-                          <SLABadge
-                            createdAt={selectedRequest.created_at}
-                            priority={selectedRequest.priority}
-                            status={selectedRequest.status}
-                            kanbanStatus={selectedRequest.kanban_status}
-                            variant="pill"
-                            size="header"
-                          />
+                          {/* SLA badge — controle interno da TI, escondido do solicitante */}
+                          {canViewSla && (
+                            <SLABadge
+                              createdAt={selectedRequest.created_at}
+                              priority={selectedRequest.priority}
+                              status={selectedRequest.status}
+                              kanbanStatus={selectedRequest.kanban_status}
+                              kanbanHidden={selectedRequest.kanban_hidden}
+                              variant="pill"
+                              size="header"
+                            />
+                          )}
                         </div>
                         <h3 className="text-base font-bold text-slate-900 dark:text-white mt-0.5 truncate">{selectedRequest.title}</h3>
                       </div>
@@ -1114,7 +1124,8 @@ const ITRequestManagement: React.FC = () => {
                     {activeTab === 'details' ? (
                       <div className="p-6 space-y-6">
                         {/* Meta row */}
-                        <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+                        {/* 5ª célula (Prazo/SLA) só existe para a TI — sem ela a linha volta a 4 colunas */}
+                        <div className={`grid grid-cols-2 gap-4 ${canViewSla ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
                           <div className="bg-slate-50 dark:bg-slate-800/60 rounded-2xl p-4">
                             <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">Tipo</p>
                             <p className={`text-sm font-semibold ${modalTypeConf.color}`}>{modalTypeConf.label}</p>
@@ -1139,13 +1150,16 @@ const ITRequestManagement: React.FC = () => {
                               {new Date(selectedRequest.created_at).toLocaleDateString('pt-BR')}
                             </p>
                           </div>
-                          <SLABadge
-                            createdAt={selectedRequest.created_at}
-                            priority={selectedRequest.priority}
-                            status={selectedRequest.status}
-                            kanbanStatus={selectedRequest.kanban_status}
-                            variant="cell"
-                          />
+                          {canViewSla && (
+                            <SLABadge
+                              createdAt={selectedRequest.created_at}
+                              priority={selectedRequest.priority}
+                              status={selectedRequest.status}
+                              kanbanStatus={selectedRequest.kanban_status}
+                              kanbanHidden={selectedRequest.kanban_hidden}
+                              variant="cell"
+                            />
+                          )}
                         </div>
 
                         {/* Description */}

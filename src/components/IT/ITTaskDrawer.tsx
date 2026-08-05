@@ -1389,14 +1389,16 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                   )}
                 </AttributeRow>
 
-                {/* SLA calculado automaticamente pela prioridade (somente leitura) */}
-                <AttributeRow label="Prazo (SLA)">
+                {/* SLA de primeiro atendimento, calculado pela prioridade (somente
+                    leitura). Card no board = atendimento já iniciado. */}
+                <AttributeRow label="Prazo para iniciar (SLA)">
                   <SLABadge
                     variant="row"
                     createdAt={task.created_at}
                     priority={task.priority}
                     status={task.status}
                     kanbanStatus={task.kanban_status}
+                    kanbanHidden={false}
                   />
                 </AttributeRow>
 

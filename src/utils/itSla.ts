@@ -1,4 +1,7 @@
-// ─── SLA de resolução das solicitações de TI, calculado a partir da prioridade ─
+// ─── SLA de primeiro atendimento das solicitações de TI ───────────────────────
+// O relógio corre da abertura do chamado até a TI *começar* a tratar dele — não
+// até resolver. Conta como começado o que vier primeiro: o chamado virar card no
+// kanban (kanban_hidden = false) ou o status sair de 'Pendente'.
 
 export type ITPriority = 'low' | 'medium' | 'high' | 'critical';
 export type ITStatusLike = 'pending' | 'in_progress' | 'resolved' | 'cancelled';
@@ -11,21 +14,32 @@ export const SLA_HOURS_BY_PRIORITY: Record<ITPriority, number> = {
   critical: 48,
 };
 
-export function getSlaDeadline(createdAt: string, priority: ITPriority): Date {
+// Instante-limite para a TI começar a atender o chamado.
+export function getSlaStartDeadline(createdAt: string, priority: ITPriority): Date {
   const hours = SLA_HOURS_BY_PRIORITY[priority] ?? SLA_HOURS_BY_PRIORITY.medium;
   return new Date(new Date(createdAt).getTime() + hours * 60 * 60 * 1000);
 }
 
-export type SlaUrgency = 'ok' | 'warning' | 'overdue' | 'concluded';
+export type SlaUrgency = 'ok' | 'warning' | 'overdue' | 'started' | 'concluded';
 
 export interface SlaStatus {
   urgency: SlaUrgency;
   isOverdue: boolean;
+  /** false depois que o atendimento começou: o contador parou e o badge some. */
+  isRunning: boolean;
   label: string;
   deadline: Date;
   badgeClass: string;
   textClass: string;
   dotClass: string;
+}
+
+export interface SlaContext {
+  status?: ITStatusLike | null;
+  kanbanStatus?: ITKanbanColumnLike | null;
+  /** false = já promovido ao kanban, ou seja, a TI pegou o chamado. */
+  kanbanHidden?: boolean | null;
+  now?: Date;
 }
 
 const URGENCY_STYLES: Record<SlaUrgency, { badge: string; text: string; dot: string }> = {
@@ -43,6 +57,11 @@ const URGENCY_STYLES: Record<SlaUrgency, { badge: string; text: string; dot: str
     badge: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
     text: 'text-red-600 dark:text-red-400',
     dot: 'bg-red-500',
+  },
+  started: {
+    badge: 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400',
+    text: 'text-slate-500 dark:text-slate-400',
+    dot: 'bg-slate-400',
   },
   concluded: {
     badge: 'bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400',
@@ -64,23 +83,38 @@ function formatDuration(ms: number): string {
   return `${minutes}m`;
 }
 
+function isConcluded(ctx?: SlaContext): boolean {
+  return ctx?.status === 'resolved' || ctx?.status === 'cancelled' || ctx?.kanbanStatus === 'done';
+}
+
+// A TI já colocou a mão no chamado? Qualquer um dos sinais basta — o kanban e o
+// status são atualizados por caminhos diferentes na tela de solicitações.
+function hasStarted(ctx?: SlaContext): boolean {
+  if (ctx?.status && ctx.status !== 'pending') return true;
+  if (ctx?.kanbanHidden === false) return true;
+  if (ctx?.kanbanStatus && ctx.kanbanStatus !== 'backlog') return true;
+  return false;
+}
+
 export function getSlaStatus(
   createdAt: string,
   priority: ITPriority,
-  opts?: { status?: ITStatusLike | null; kanbanStatus?: ITKanbanColumnLike | null; now?: Date }
+  opts?: SlaContext
 ): SlaStatus {
   const created = new Date(createdAt);
-  const deadline = getSlaDeadline(createdAt, priority);
-  const isConcluded =
-    opts?.status === 'resolved' || opts?.status === 'cancelled' || opts?.kanbanStatus === 'done';
+  const deadline = getSlaStartDeadline(createdAt, priority);
 
-  if (isConcluded) {
+  // Sem registro de quando o atendimento começou, o contador apenas para: não dá
+  // para dizer em retrospecto se o início respeitou o prazo.
+  if (isConcluded(opts) || hasStarted(opts)) {
+    const urgency: SlaUrgency = isConcluded(opts) ? 'concluded' : 'started';
     return {
-      urgency: 'concluded',
+      urgency,
       isOverdue: false,
-      label: 'Concluído',
+      isRunning: false,
+      label: urgency === 'concluded' ? 'Concluído' : 'Em atendimento',
       deadline,
-      ...toClasses('concluded'),
+      ...toClasses(urgency),
     };
   }
 
@@ -92,7 +126,8 @@ export function getSlaStatus(
     return {
       urgency: 'overdue',
       isOverdue: true,
-      label: `Vencido há ${formatDuration(-remainingMs)}`,
+      isRunning: true,
+      label: `Início atrasado há ${formatDuration(-remainingMs)}`,
       deadline,
       ...toClasses('overdue'),
     };
@@ -104,7 +139,8 @@ export function getSlaStatus(
   return {
     urgency,
     isOverdue: false,
-    label: `Vence em ${formatDuration(remainingMs)}`,
+    isRunning: true,
+    label: `Iniciar em ${formatDuration(remainingMs)}`,
     deadline,
     ...toClasses(urgency),
   };
