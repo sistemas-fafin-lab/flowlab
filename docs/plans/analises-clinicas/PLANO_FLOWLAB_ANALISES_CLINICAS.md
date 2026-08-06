@@ -178,6 +178,8 @@ A `PostosPage` (`/analises-clinicas/postos`, permissão `canManageAnalisesClinic
 > Não há mais geração/materialização de slots: o `get-disponibilidade` calcula a agenda dos próximos N dias (env `DISPONIBILIDADE_DIAS`, default 60) a partir da base + exceções, no fuso de Brasília (`AGENDA_TZ_OFFSET`, default `-03:00`).
 > Isto destrava o `SchedulePage` real do LAB-HUB: com postos e horários de verdade, a disponibilidade vira dado de produção.
 
+> **Janela retroativa (só operador).** O paciente nunca recebe horário vencido, mas a recepção lança agendamentos de forma assíncrona — o atendimento de ontem, da semana passada, ou de hoje de manhã entra no sistema depois. Por isso a mesma grade sai com os últimos `AGENDA_RETROATIVO_DIAS` dias (default 30, ou seja um mês) em dois pontos, e só neles: `disponibilidade-operador` (JWT do operador, alimenta o modal "Criar agendamento") e `get-disponibilidade?retroativo=1` (usado pelo LAB-HUB apenas em `POST /integracao/agendamentos`, para validar o slot escolhido pela recepção). Continuam valendo grade, feriados e ocupação — o que muda é só o piso da janela.
+
 ---
 
 ## Permissões e Rotas (a adicionar)

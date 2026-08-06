@@ -16,6 +16,11 @@
  *
  * Autorização: header `Authorization: Bearer <FLOWLAB_API_KEY>` (server-to-server).
  *
+ * Query `?retroativo=1` — inclui também os últimos AGENDA_RETROATIVO_DIAS dias.
+ * Só a criação de agendamento PELA RECEPÇÃO usa essa variante (o LAB-HUB valida o
+ * slot escolhido contra esta lista); o SchedulePage do paciente chama sem o
+ * parâmetro e continua vendo apenas o futuro.
+ *
  * Formato de retorno (espelha PostoDisponivel de @lab-hub/shared):
  *   [{ id, nome, endereco, slots: string[] /* ISO 8601 *\/ }]
  *
@@ -26,7 +31,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { computarDisponibilidade } from '../disponibilidade.js';
+import { computarDisponibilidade, diasRetroativosOperador } from '../disponibilidade.js';
 import { isFlowlabApiKeyValid } from '../labhubIntegration.js';
 import { describeError } from '../errors.js';
 
@@ -45,8 +50,13 @@ export default async function handler(
     return;
   }
 
+  const bruto = req.query.retroativo;
+  const retroativo = (Array.isArray(bruto) ? bruto[0] : bruto) === '1';
+
   try {
-    const resposta = await computarDisponibilidade();
+    const resposta = await computarDisponibilidade(
+      retroativo ? { retroativoDias: diasRetroativosOperador() } : {},
+    );
     res.status(200).json(resposta);
   } catch (err) {
     console.error('[analises-clinicas/get-disponibilidade] erro:', describeError(err));

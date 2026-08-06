@@ -178,6 +178,8 @@ export interface AcAgendamentoExame {
   exame_id: string;
   exame_nome: string; // snapshot
   is_cultura: boolean;
+  concluido: boolean; // marcado a exame na tela de Laudos (20260806130000)
+  concluido_em: string | null;
   created_at: string;
 }
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarClock,
+  Clock,
   MapPin,
   Phone,
   RefreshCw,
@@ -126,7 +127,7 @@ const nascimentoValido = (s: string): boolean => {
   return ano >= 1900 && dt <= hoje;
 };
 
-// Hoje em YYYY-MM-DD local — teto do seletor de nascimento.
+// Hoje em YYYY-MM-DD local — teto do seletor de nascimento e piso do "retroativo".
 const hojeISO = (): string => new Date().toLocaleDateString('en-CA');
 
 // Data de nascimento (YYYY-MM-DD) → dd/mm/aaaa. Sem new Date() de propósito:
@@ -136,9 +137,17 @@ const fmtNasc = (d: string): string => {
   return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
 };
 
-// Rótulo da opção de data no seletor de slots (chave YYYY-MM-DD local).
-// Ex.: "seg., 21/07". Meia-noite local evita o recuo de fuso.
-const fmtDataOpcao = (dateKey: string): string =>
+// Como chamar um dia JÁ PASSADO escolhido no calendário (chave YYYY-MM-DD local).
+// O calendário mostra "05/08" e só; quem lança agendamento retroativo precisa
+// enxergar de imediato que aquele dia ficou para trás. null = hoje ou futuro.
+const rotuloDiaPassado = (dateKey: string): string | null => {
+  if (dateKey >= hojeISO()) return null;
+  const ontem = new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA');
+  return dateKey === ontem ? 'ontem' : 'retroativo';
+};
+
+// Data (YYYY-MM-DD) → "seg., 05/08". Meia-noite local evita o recuo de fuso.
+const fmtDiaSemana = (dateKey: string): string =>
   new Date(`${dateKey}T00:00:00`).toLocaleDateString('pt-BR', {
     weekday: 'short',
     day: '2-digit',
@@ -853,6 +862,18 @@ const NovoAgendamentoModal: React.FC<{
   }, [slotsDoPosto]);
   const datas = useMemo(() => [...porData.keys()].sort(), [porData]);
   const horariosDaData = dataSel ? porData.get(dataSel) ?? [] : [];
+  // Limites do calendário: primeiro e último dia COM horário livre. O calendário
+  // aceita qualquer dia dentro deles (inclusive um sem grade, tipo domingo) — é o
+  // aviso de "sem horários" que resolve esse caso, não o `min`/`max`.
+  const dataMin = datas[0] ?? '';
+  const dataMax = datas[datas.length - 1] ?? '';
+  // A grade do operador chega com uma janela retroativa (AGENDA_RETROATIVO_DIAS):
+  // o registro é assíncrono e o atendimento lançado costuma já ter acontecido.
+  const temRetroativo = useMemo(() => datas.some((d) => d < hojeISO()), [datas]);
+  const diaPassado = dataSel ? rotuloDiaPassado(dataSel) : null;
+  const slotRetroativo = Boolean(slotSel) && new Date(slotSel).getTime() < Date.now();
+  // Dia dentro da janela, mas sem nada livre: fechado (domingo/feriado) ou lotado.
+  const diaSemHorario = Boolean(dataSel) && !carregandoDisp && horariosDaData.length === 0;
 
   // Trocar de posto invalida a data/horário escolhidos (a grade é outra).
   useEffect(() => {
@@ -1188,32 +1209,26 @@ const NovoAgendamentoModal: React.FC<{
             </select>
           </div>
 
-          {/* Data e horário — apenas slots reais da grade do posto */}
+          {/* Data (calendário) e horário — os horários são os slots reais da grade */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
-              <select
+              <input
+                type="date"
                 value={dataSel}
                 onChange={(e) => setDataSel(e.target.value)}
+                min={dataMin}
+                max={dataMax}
                 disabled={!postoSel || carregandoDisp}
-                className={`${inputCls} disabled:opacity-60`}
-              >
-                <option value="">
-                  {!postoSel ? 'Escolha o posto' : carregandoDisp ? 'Carregando…' : 'Selecione…'}
-                </option>
-                {datas.map((k) => (
-                  <option key={k} value={k}>
-                    {fmtDataOpcao(k)}
-                  </option>
-                ))}
-              </select>
+                className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark] disabled:opacity-60`}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Horário</label>
               <select
                 value={slotSel}
                 onChange={(e) => setSlotSel(e.target.value)}
-                disabled={!dataSel}
+                disabled={!dataSel || horariosDaData.length === 0}
                 className={`${inputCls} tabular-nums disabled:opacity-60`}
               >
                 <option value="">Selecione…</option>
@@ -1225,10 +1240,38 @@ const NovoAgendamentoModal: React.FC<{
               </select>
             </div>
           </div>
-          {postoSel && !carregandoDisp && datas.length === 0 && (
+          {!postoSel ? (
+            <p className="-mt-2 text-xs text-gray-400 dark:text-gray-500">
+              Escolha o posto para liberar o calendário.
+            </p>
+          ) : carregandoDisp ? (
+            <p className="-mt-2 text-xs text-gray-400 dark:text-gray-500">Carregando a agenda…</p>
+          ) : datas.length === 0 ? (
             <p className="-mt-2 text-xs text-amber-600 dark:text-amber-400">
               Sem horários disponíveis para este posto. Ajuste a agenda do posto ou escolha outro.
             </p>
+          ) : diaSemHorario ? (
+            <p className="-mt-2 text-xs text-amber-600 dark:text-amber-400">
+              {fmtDiaSemana(dataSel)} não tem horário livre — o posto não abre nesse dia ou a
+              agenda já está cheia.
+            </p>
+          ) : slotRetroativo ? (
+            <p className="-mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              Lançamento retroativo — {fmtData(slotSel)} às {fmtHora(slotSel)} já passou.
+            </p>
+          ) : diaPassado ? (
+            <p className="-mt-2 flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              Lançamento retroativo — {fmtDiaSemana(dataSel)} ({diaPassado}). Escolha o horário.
+            </p>
+          ) : (
+            temRetroativo && (
+              <p className="-mt-2 text-xs text-gray-400 dark:text-gray-500">
+                O calendário abre em {fmtDiaSemana(dataMin)} — dias já passados servem para
+                registrar atendimentos feitos fora do sistema.
+              </p>
+            )
           )}
           </fieldset>
 

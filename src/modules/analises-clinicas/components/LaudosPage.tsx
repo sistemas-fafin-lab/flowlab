@@ -4,13 +4,15 @@ import {
   RefreshCw,
   Clock,
   MapPin,
-  Pencil,
   Plus,
   Search,
   Loader2,
   Trash2,
   X,
   Check,
+  CheckCircle2,
+  Circle,
+  FlaskConical,
   FileCheck2,
   AlertCircle,
   ClipboardCheck,
@@ -85,58 +87,136 @@ const ProgressoExames: React.FC<{ concluidos: number; total: number }> = ({ conc
   );
 };
 
-// ─── Modal de edição (status / exames / nota) ───────────────────────────────────
+// ─── Modal do laudo: exames + status + nota (clique no card) ────────────────────
+// Já foram dois modais (um só de exames, outro só de edição). Com a marcação exame
+// a exame, quase tudo que o "Editar" oferecia passou a ser consequência da lista —
+// manter duas telas obrigava a fechar uma para mexer na outra.
+interface ExameRow {
+  id: string;
+  exame_nome: string;
+  is_cultura: boolean;
+  concluido: boolean;
+}
+
 const LaudoModal: React.FC<{
   laudo: AcLaudo;
-  onClose: () => void;
+  paciente: string;
+  podeEditar: boolean;
+  onClose: (houveMudanca: boolean) => void;
   onSave: (patch: LaudoPatch) => Promise<string | null>;
-}> = ({ laudo, onClose, onSave }) => {
+}> = ({ laudo, paciente, podeEditar, onClose, onSave }) => {
+  const [exames, setExames] = useState<ExameRow[] | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+  const [marcando, setMarcando] = useState<string | null>(null);
+  const [mudou, setMudou] = useState(false);
+
   const [status, setStatus] = useState<LaudoStatus>(laudo.status);
+  const [nota, setNota] = useState(laudo.nota ?? '');
   const [examesConcluidos, setExamesConcluidos] = useState<string>(String(laudo.exames_concluidos));
   const [examesTotal, setExamesTotal] = useState<string>(String(laudo.exames_total));
-  const [nota, setNota] = useState(laudo.nota ?? '');
-  const [saving, setSaving] = useState(false);
-  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+
+  // Os exames vivem em ac_agendamento_exames (preenchida no recebimento). Carregar
+  // aqui, sob demanda, evita puxar os exames de TODOS os laudos na listagem — e
+  // com isso o teto de 1000 linhas do PostgREST, que cortaria exames em silêncio.
+  useEffect(() => {
+    let ativo = true;
+    void (async () => {
+      const { data, error } = await supabase
+        .from('ac_agendamento_exames')
+        .select('id, exame_nome, is_cultura, concluido')
+        // created_at empata (a RPC insere todos na mesma transação); o nome
+        // desempata para a lista não dançar a cada abertura.
+        .order('created_at', { ascending: true })
+        .order('exame_nome', { ascending: true })
+        .eq('agendamento_id', laudo.agendamento_id);
+      if (!ativo) return;
+      if (error) {
+        setErro(error.message);
+        setExames([]);
+        return;
+      }
+      setExames((data ?? []) as ExameRow[]);
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, [laudo.agendamento_id]);
+
+  const temExames = (exames?.length ?? 0) > 0;
+
+  // Marca/desmarca um exame, na hora — é uma linha independente, e segurar isso
+  // até o "Salvar" só criaria um estado intermediário para o operador perder.
+  // ac_laudos.exames_concluidos NÃO é escrito aqui: um trigger no banco reconta a
+  // coluna a partir das linhas marcadas (migration 20260806130000). Assim o número
+  // do card não depende de duas escritas do cliente darem certo — e não há como
+  // ficar "4 de 5" com 3 marcados.
+  const alternar = async (ex: ExameRow) => {
+    if (!podeEditar || marcando) return;
+    const novo = !ex.concluido;
+    setMarcando(ex.id);
+    setErro(null);
+    const { error } = await supabase
+      .from('ac_agendamento_exames')
+      .update({ concluido: novo, concluido_em: novo ? new Date().toISOString() : null })
+      .eq('id', ex.id);
+    setMarcando(null);
+    if (error) {
+      setErro(error.message);
+      return;
+    }
+    setExames((atual) => (atual ?? []).map((e) => (e.id === ex.id ? { ...e, concluido: novo } : e)));
+    setMudou(true);
+  };
 
   const handleSave = async () => {
     setErro(null);
     const concl = Number(examesConcluidos);
     const total = Number(examesTotal);
-    if (Number.isNaN(concl) || concl < 0) {
-      setErro('Informe um número válido de exames concluídos.');
-      return;
+    // Os campos numéricos só existem quando NÃO há exames marcáveis; com exames,
+    // quem manda é o trigger e o número nem é reenviado.
+    if (!temExames) {
+      if (Number.isNaN(concl) || concl < 0) {
+        setErro('Informe um número válido de exames concluídos.');
+        return;
+      }
+      if (Number.isNaN(total) || total < 0) {
+        setErro('Informe um número válido de exames total.');
+        return;
+      }
+      if (concl > total) {
+        setErro('Exames concluídos não pode ser maior que o total.');
+        return;
+      }
     }
-    if (Number.isNaN(total) || total < 0) {
-      setErro('Informe um número válido de exames total.');
-      return;
-    }
-    if (concl > total) {
-      setErro('Exames concluídos não pode ser maior que o total.');
-      return;
-    }
-    setSaving(true);
+    setSalvando(true);
     const msg = await onSave({
       status,
-      examesConcluidos: concl,
-      examesTotal: total,
       nota: nota.trim(),
+      ...(temExames ? {} : { examesConcluidos: concl, examesTotal: total }),
     });
-    setSaving(false);
+    setSalvando(false);
     if (msg) setErro(msg);
-    else onClose();
+    else onClose(false); // onSave já recarrega a lista
   };
+
+  // O progresso sai da lista local — o laudo em memória fica desatualizado assim
+  // que o operador marca o primeiro exame, e só é recarregado ao fechar.
+  const concluidos = (exames ?? []).filter((e) => e.concluido).length;
+  const divergente = temExames && (exames?.length ?? 0) !== laudo.exames_total;
+  const alterouCampos = status !== laudo.status || nota.trim() !== (laudo.nota ?? '');
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col">
         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <h3 className="font-bold text-gray-900 dark:text-gray-100 truncate">Editar laudo</h3>
+            <h3 className="font-bold text-gray-900 dark:text-gray-100 truncate">{paciente || 'Paciente —'}</h3>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Agendamento · {laudo.agendamento_id.slice(0, 8)}…
             </p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+          <button onClick={() => onClose(mudou)} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
@@ -147,9 +227,131 @@ const LaudoModal: React.FC<{
               {erro}
             </div>
           )}
+
+          <ProgressoExames
+            concluidos={temExames ? concluidos : laudo.exames_concluidos}
+            total={temExames ? (exames?.length ?? 0) : laudo.exames_total}
+          />
+
+          {exames === null ? (
+            <p className="inline-flex items-center gap-1.5 text-xs text-gray-400 px-1">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando exames…
+            </p>
+          ) : exames.length === 0 ? (
+            // Sem exame no check-in não há o que marcar: o laudo volta a ser
+            // acompanhado pelos dois números, digitados à mão.
+            <div className="space-y-3">
+              <div className="py-6 text-center">
+                <FlaskConical className="w-8 h-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+                <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum exame registrado no check-in.</p>
+                <p className="text-xs text-gray-400 mt-1">Acompanhe pela contagem abaixo.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                    Exames concluídos
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={examesConcluidos}
+                    onChange={(e) => setExamesConcluidos(e.target.value)}
+                    disabled={!podeEditar}
+                    className={`${inputCls} disabled:opacity-60`}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Exames total</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={examesTotal}
+                    onChange={(e) => setExamesTotal(e.target.value)}
+                    disabled={!podeEditar}
+                    className={`${inputCls} disabled:opacity-60`}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <ul className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 overflow-hidden">
+              {exames.map((e) => (
+                <li key={e.id}>
+                  <button
+                    type="button"
+                    onClick={() => void alternar(e)}
+                    disabled={!podeEditar || marcando !== null}
+                    aria-pressed={e.concluido}
+                    title={
+                      podeEditar
+                        ? e.concluido
+                          ? 'Marcar como pendente'
+                          : 'Marcar como concluído'
+                        : 'Sem permissão para alterar'
+                    }
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
+                      e.concluido ? 'bg-emerald-50/60 dark:bg-emerald-900/10' : ''
+                    } ${
+                      podeEditar
+                        ? 'hover:bg-gray-50 dark:hover:bg-gray-700/40 disabled:opacity-60'
+                        : 'cursor-default'
+                    }`}
+                  >
+                    {marcando === e.id ? (
+                      <Loader2 className="w-4 h-4 text-gray-400 shrink-0 animate-spin" />
+                    ) : e.concluido ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                    ) : (
+                      <Circle className="w-4 h-4 text-gray-300 dark:text-gray-600 shrink-0" />
+                    )}
+                    <span
+                      className={`text-sm flex-1 truncate ${
+                        e.concluido ? 'text-gray-700 dark:text-gray-200' : 'text-gray-500 dark:text-gray-400'
+                      }`}
+                      title={e.exame_nome}
+                    >
+                      {e.exame_nome}
+                    </span>
+                    {e.is_cultura && (
+                      <span className="shrink-0 inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-md bg-purple-50 text-purple-700 dark:bg-purple-900/20 dark:text-purple-300">
+                        <FlaskConical className="w-3 h-3" /> cultura
+                      </span>
+                    )}
+                    <span
+                      className={`shrink-0 text-[10px] font-medium ${
+                        e.concluido ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'
+                      }`}
+                    >
+                      {e.concluido ? 'Concluído' : 'Pendente'}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+
+          {divergente && (
+            <p className="text-xs text-amber-600 dark:text-amber-400">
+              O total gravado no laudo ({laudo.exames_total}) não bate com os {exames?.length} exame
+              {exames?.length !== 1 ? 's' : ''} do check-in.
+            </p>
+          )}
+
+          {temExames && podeEditar && (
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              Clique num exame para alternar entre concluído e pendente — isso é salvo na hora e a
+              contagem do laudo se ajusta sozinha.
+            </p>
+          )}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
-            <select value={status} onChange={(e) => setStatus(e.target.value as LaudoStatus)} className={inputCls}>
+            <select
+              value={status}
+              onChange={(e) => setStatus(e.target.value as LaudoStatus)}
+              disabled={!podeEditar}
+              className={`${inputCls} disabled:opacity-60`}
+            >
               {STATUS_LAUDO.map((s) => (
                 <option key={s.key} value={s.key}>
                   {s.label}
@@ -157,28 +359,7 @@ const LaudoModal: React.FC<{
               ))}
             </select>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Exames concluídos</label>
-              <input
-                type="number"
-                min={0}
-                value={examesConcluidos}
-                onChange={(e) => setExamesConcluidos(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Exames total</label>
-              <input
-                type="number"
-                min={0}
-                value={examesTotal}
-                onChange={(e) => setExamesTotal(e.target.value)}
-                className={inputCls}
-              />
-            </div>
-          </div>
+
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Nota <span className="text-gray-400">(opcional)</span>
@@ -188,25 +369,29 @@ const LaudoModal: React.FC<{
               onChange={(e) => setNota(e.target.value)}
               rows={2}
               placeholder="Observação…"
-              className={`${inputCls} resize-none`}
+              disabled={!podeEditar}
+              className={`${inputCls} resize-none disabled:opacity-60`}
             />
           </div>
         </div>
 
         <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl flex justify-end gap-2">
           <button
-            onClick={onClose}
+            onClick={() => onClose(mudou)}
             className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100"
           >
-            Cancelar
+            Fechar
           </button>
-          <button
-            onClick={() => void handleSave()}
-            disabled={saving}
-            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
-          >
-            {saving ? 'Salvando…' : 'Salvar'}
-          </button>
+          {podeEditar && (
+            <button
+              onClick={() => void handleSave()}
+              disabled={salvando || (!alterouCampos && temExames)}
+              title={!alterouCampos && temExames ? 'Nada alterado — as marcações já foram salvas' : undefined}
+              className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 disabled:hover:scale-100"
+            >
+              {salvando ? 'Salvando…' : 'Salvar'}
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -478,7 +663,7 @@ const LaudosPage: React.FC = () => {
 
   const [postoSel, setPostoSel] = useState<string>('');
   const [busca, setBusca] = useState<string>('');
-  const [editando, setEditando] = useState<AcLaudo | null>(null);
+  const [aberto, setAberto] = useState<AcLaudo | null>(null);
   const [criando, setCriando] = useState(false);
 
   // Agendamentos presentes nos laudos para filtro.
@@ -638,7 +823,17 @@ const LaudosPage: React.FC = () => {
             return (
               <div
                 key={l.id}
-                className="p-5 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col"
+                role="button"
+                tabIndex={0}
+                onClick={() => setAberto(l)}
+                onKeyDown={(ev) => {
+                  if (ev.key === 'Enter' || ev.key === ' ') {
+                    ev.preventDefault();
+                    setAberto(l);
+                  }
+                }}
+                title="Abrir laudo"
+                className="p-5 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col text-left cursor-pointer hover:border-violet-300 dark:hover:border-violet-700 hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-all"
               >
                 {/* Paciente + status */}
                 <div className="flex items-start justify-between gap-2 mb-2">
@@ -688,19 +883,18 @@ const LaudosPage: React.FC = () => {
                   )}
                 </div>
 
-                {/* Ações */}
+                {/* Ações — abrir/editar é o clique no próprio card */}
                 {canManage && (
-                  <div className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center justify-between gap-2 pt-3 border-t border-gray-100 dark:border-gray-700">
+                    <span className="inline-flex items-center gap-1.5 text-sm font-medium text-violet-600 dark:text-violet-400">
+                      <ClipboardCheck className="w-4 h-4" />
+                      Ver exames
+                    </span>
                     <button
-                      onClick={() => setEditando(l)}
-                      title="Editar laudo"
-                      className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-700 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    >
-                      <Pencil className="w-4 h-4" />
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(l)}
+                      onClick={(ev) => {
+                        ev.stopPropagation();
+                        handleDelete(l);
+                      }}
                       title="Remover laudo"
                       aria-label="Remover laudo"
                       className="p-1.5 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors shrink-0"
@@ -715,8 +909,19 @@ const LaudosPage: React.FC = () => {
         </div>
       )}
 
-      {editando && (
-        <LaudoModal laudo={editando} onClose={() => setEditando(null)} onSave={(patch) => updateLaudo(editando.id, patch)} />
+      {aberto && (
+        <LaudoModal
+          laudo={aberto}
+          paciente={agendamentos.find((a) => a.id === aberto.agendamento_id)?.paciente_nome ?? ''}
+          podeEditar={canManage}
+          onSave={(patch) => updateLaudo(aberto.id, patch)}
+          onClose={(houveMudanca) => {
+            setAberto(null);
+            // Quem recontou exames_concluidos foi o trigger, no banco — o laudo em
+            // memória está desatualizado. Só recarrega se algo foi realmente marcado.
+            if (houveMudanca) void refetch();
+          }}
+        />
       )}
 
       {criando && <NovoLaudoModal onClose={() => setCriando(false)} onCreate={createLaudo} />}

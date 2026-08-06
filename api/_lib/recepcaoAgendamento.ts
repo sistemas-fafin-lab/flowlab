@@ -10,7 +10,7 @@
 
 import { getSupabaseAdminClient } from './supabase.js';
 import { requireEnv } from './labhubIntegration.js';
-import { computarDisponibilidade } from './disponibilidade.js';
+import { computarDisponibilidade, diasRetroativosOperador } from './disponibilidade.js';
 import { describeError } from './errors.js';
 
 export interface FlowResult {
@@ -116,12 +116,16 @@ export async function autorizarOperador(token: string | null): Promise<FlowResul
 // Mesma grade que o paciente vê (get-disponibilidade), mas autorizada pelo JWT do
 // operador — o SPA não pode portar a FLOWLAB_API_KEY. É dado 100% do FlowLab
 // (ac_postos/ac_agendamentos), então NÃO há ida ao LAB-HUB aqui.
+//
+// A diferença de conteúdo é a janela retroativa (AGENDA_RETROATIVO_DIAS): o
+// operador lança o que já aconteceu — ontem, ou hoje de manhã —, coisa que o
+// paciente nunca pode fazer.
 export async function disponibilidadeOperador(token: string | null): Promise<FlowResult> {
   const erroAuth = await autorizarOperador(token);
   if (erroAuth) return erroAuth;
 
   try {
-    const postos = await computarDisponibilidade();
+    const postos = await computarDisponibilidade({ retroativoDias: diasRetroativosOperador() });
     return { status: 200, payload: { success: true, postos } };
   } catch (err) {
     console.error('[recepcaoAgendamento/disponibilidade] erro:', describeError(err));
