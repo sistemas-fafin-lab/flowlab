@@ -121,6 +121,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       pagina,
       tamanho: tamanho ?? TAMANHO_PADRAO,
       busca: primeiro(q.busca)?.trim() || undefined,
+      ignorarCache: primeiro(q.semCache) === '1',
     });
 
     if ('erro' in resultado) {

@@ -39,3 +39,6 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 tsconfig.tsbuildinfo
+
+# Script local de emissão de JWT de sessão para testar rotas /api protegidas
+.gen-token.mjs

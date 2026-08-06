@@ -114,6 +114,9 @@ export interface ListarLotesParams {
   /** Termo de busca textual: procura em paciente, fonte pagadora, código da requisição,
    *  número da guia e IdLote. Ignora acentuação e maiúsculas/minúsculas. */
   busca?: string;
+  /** Ignora o cache em memória e o regrava. É o que o botão "Atualizar" da tela usa —
+   *  sem isto ele devolveria a mesma resposta durante os 3 min de TTL. */
+  ignorarCache?: boolean;
 }
 
 // Discriminado pela PRESENÇA de `erro` (idiom de recepcaoAgendamento.ts): o tsconfig
@@ -193,6 +196,40 @@ const dataIso = texto;
 
 /** Tipos que o `execute` do mysql2 aceita como bind — só isto entra nas consultas. */
 type ParametroSql = string | number;
+
+// Cache em memória das consultas. Em Vercel Serverless a instância sobrevive entre
+// requisições enquanto está quente; o TTL evita servir dado velho demais (o backup
+// atrasa ~1 dia, então 3 min é seguro). As buscas com termo textual têm TTL mais curto
+// porque o operador espera resposta imediata ao digitar.
+interface EntradaCache<T> { resultado: T; ts: number; }
+const cacheLotes = new Map<string, EntradaCache<ListarLotesResultado>>();
+const cacheDetalhe = new Map<string, EntradaCache<DetalharLoteResultado>>();
+const TTL_PADRAO = 3 * 60_000; // 3 min
+const TTL_BUSCA = 60_000;      // 1 min quando há termo de busca
+const MAX_ENTRADAS = 128;
+
+function chaveListar(params: ListarLotesParams): string {
+  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}`;
+}
+
+function doCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, resultado: T): void {
+  if (cache.size >= MAX_ENTRADAS) {
+    const primeira = cache.keys().next().value;
+    if (primeira !== undefined) cache.delete(primeira);
+  }
+  cache.set(chave, { resultado, ts: Date.now() });
+}
+
+function daCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, temBusca: boolean): T | null {
+  const entrada = cache.get(chave);
+  if (!entrada) return null;
+  const ttl = temBusca ? TTL_BUSCA : TTL_PADRAO;
+  if (Date.now() - entrada.ts > ttl) {
+    cache.delete(chave);
+    return null;
+  }
+  return entrada.resultado;
+}
 
 /**
  * Cláusula WHERE + parâmetros comuns à listagem e à contagem.
@@ -304,6 +341,14 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
   const tamanho = params.tamanho ?? TAMANHO_PADRAO;
   const { where, valores } = filtroLotes(params);
 
+  // `ignorarCache` não entra em chaveListar de propósito: a releitura tem que
+  // sobrescrever a MESMA entrada, senão o "Atualizar" gravaria numa chave paralela e a
+  // navegação normal continuaria vendo o dado velho.
+  const chave = chaveListar(params);
+  const temBusca = Boolean(params.busca?.trim());
+  const cacheHit = params.ignorarCache ? null : daCache(cacheLotes, chave, temBusca);
+  if (cacheHit) return cacheHit;
+
   return comConexao('listarLotes', async (conn) => {
     // Diferente do apLIS, que saturava o total em 2000: aqui a contagem é exata.
     const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
@@ -342,6 +387,9 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
         dadoAte: dataIso(recente[0]?.mx),
       },
     };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheLotes, chave, resultado);
+    return resultado;
   });
 }
 
@@ -372,7 +420,14 @@ const SQL_DETALHE = `
    ORDER BY r.CodRequisicao, tp.Codigo`;
 
 /** Requisições de um lote, cada uma com seus procedimentos cobrados. */
-export async function detalharLote(idLote: number): Promise<DetalharLoteResultado> {
+export async function detalharLote(
+  idLote: number,
+  ignorarCache = false,
+): Promise<DetalharLoteResultado> {
+  const chave = `detalhe|${idLote}`;
+  const cacheHit = ignorarCache ? null : daCache(cacheDetalhe, chave, false);
+  if (cacheHit) return cacheHit;
+
   return comConexao('detalharLote', async (conn) => {
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(SQL_DETALHE, [idLote]);
 
@@ -411,5 +466,8 @@ export async function detalharLote(idLote: number): Promise<DetalharLoteResultad
     }
 
     return { requisicoes: [...porRequisicao.values()] };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheDetalhe, chave, resultado);
+    return resultado;
   });
 }

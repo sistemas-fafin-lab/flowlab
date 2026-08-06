@@ -48,7 +48,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const resultado = await detalharLote(idLote);
+    // semCache=1: releitura forçada pelo botão "Atualizar" da tela, que precisa furar
+    // o cache em memória do servidor (TTL 3 min) além do cache de sessão do SPA.
+    const resultado = await detalharLote(idLote, primeiro(q.semCache) === '1');
     if ('erro' in resultado) {
       res.status(resultado.erro.status).json({ success: false, error: resultado.erro.mensagem });
       return;
