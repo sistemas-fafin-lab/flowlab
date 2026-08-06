@@ -134,18 +134,11 @@ const FaturasDashboard: React.FC = () => {
   const [carregandoDet, setCarregandoDet] = useState<number | null>(null);
   const [erroDet, setErroDet] = useState<Record<number, string>>({});
 
-  const alternarLote = useCallback(async (idLote: number) => {
-    if (expandido === idLote) {
-      setExpandido(null);
-      return;
-    }
-    setExpandido(idLote);
-    if (requisicoes[idLote]) return;
-
+  const carregarDetalhe = useCallback(async (idLote: number, force = false) => {
     setCarregandoDet(idLote);
     setErroDet((e) => ({ ...e, [idLote]: '' }));
     try {
-      const itens = await buscarRequisicoes(idLote);
+      const itens = await buscarRequisicoes(idLote, force);
       setRequisicoes((r) => ({ ...r, [idLote]: itens }));
     } catch (err) {
       setErroDet((e) => ({
@@ -153,9 +146,29 @@ const FaturasDashboard: React.FC = () => {
         [idLote]: err instanceof Error ? err.message : 'Não foi possível carregar as requisições.',
       }));
     } finally {
-      setCarregandoDet(null);
+      setCarregandoDet((atual) => (atual === idLote ? null : atual));
     }
-  }, [expandido, requisicoes, buscarRequisicoes]);
+  }, [buscarRequisicoes]);
+
+  const alternarLote = useCallback((idLote: number) => {
+    if (expandido === idLote) {
+      setExpandido(null);
+      return;
+    }
+    setExpandido(idLote);
+    if (!requisicoes[idLote]) void carregarDetalhe(idLote);
+  }, [expandido, requisicoes, carregarDetalhe]);
+
+  // O "Atualizar" tem que descartar TUDO que está em tela: sem limpar este mapa, o
+  // early-return de alternarLote continuaria servindo as requisições antigas mesmo
+  // depois de a listagem ser relida, e o lote aberto nunca recarregaria sozinho.
+  const atualizar = useCallback(async () => {
+    const aberto = expandido;
+    setRequisicoes({});
+    setErroDet({});
+    await refetch(true);
+    if (aberto !== null) void carregarDetalhe(aberto, true);
+  }, [expandido, refetch, carregarDetalhe]);
 
   const ativarCustom = () => {
     if (!customIni || !customFim) {
@@ -190,7 +203,7 @@ const FaturasDashboard: React.FC = () => {
         </div>
 
         <button
-          onClick={() => void refetch(true)}
+          onClick={() => void atualizar()}
           disabled={loading}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white rounded-lg text-sm font-medium transition-colors"
         >
@@ -417,7 +430,7 @@ const FaturasDashboard: React.FC = () => {
                   {lotes.map((lote) => (
                     <React.Fragment key={lote.idLote}>
                       <tr
-                        onClick={() => void alternarLote(lote.idLote)}
+                        onClick={() => alternarLote(lote.idLote)}
                         className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer"
                       >
                         <td className="px-5 py-4 text-gray-400">

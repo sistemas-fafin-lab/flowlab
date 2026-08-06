@@ -36,6 +36,8 @@ const CONNECT_TIMEOUT_MS = 8_000;
 
 export const MAX_TAMANHO = 200;
 export const TAMANHO_PADRAO = 50;
+/** Teto do termo de busca: ele vira 7 predicados LIKE, não faz sentido aceitar texto longo. */
+export const MAX_BUSCA = 100;
 
 // Tabela de código STLOT ("Status de Lote") do apLIS, lida de tabelacodigoitem.
 // `fatlote.Status` guarda só o número.
@@ -231,6 +233,21 @@ function daCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, temBusca
   return entrada.resultado;
 }
 
+// O termo de busca é sempre bind (`?`), então não há injeção — mas `%` e `_` digitados
+// pelo operador continuariam valendo como curinga do LIKE: buscar "%" traria todos os
+// lotes e "_" casaria qualquer caractere. O escape usa `!` em vez de `\` para não
+// depender do sql_mode do servidor (com NO_BACKSLASH_ESCAPES ligado, `\` é literal).
+const ESCAPE_BUSCA = '!';
+
+function escaparLike(termo: string): string {
+  return termo.replace(/[!%_]/g, (c) => `${ESCAPE_BUSCA}${c}`);
+}
+
+/** Predicado LIKE de busca sobre `expressao`, ignorando acento e caixa. Consome um `?`. */
+function like(expressao: string): string {
+  return `${expressao} COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', ?, '%') ESCAPE '${ESCAPE_BUSCA}'`;
+}
+
 /**
  * Cláusula WHERE + parâmetros comuns à listagem e à contagem.
  * `periodoFim` é inclusivo: `< periodoFim + 1 dia` pega o dia inteiro sem depender de
@@ -254,18 +271,32 @@ function filtroLotes(params: ListarLotesParams): { where: string; valores: Param
     valores.push(params.statusLote);
   }
   if (params.busca !== undefined && params.busca.trim() !== '') {
-    const termo = params.busca.trim();
+    const termo = escaparLike(params.busca.trim().slice(0, MAX_BUSCA));
     const likeBusca: string[] = [];
-    // lote e fonte pagadora — a fonte usa EXISTS para funcionar também na COUNT(*) que
+    const adiciona = (sql: string): void => {
+      likeBusca.push(sql);
+      valores.push(termo);
+    };
+
+    // Lote e fonte pagadora — a fonte usa EXISTS para funcionar também na COUNT(*), que
     // não tem os LEFT JOINs da listagem.
-    likeBusca.push('CAST(l.IdLote AS CHAR) COLLATE utf8mb4_unicode_ci LIKE CONCAT(\'%\', ?, \'%\')');      valores.push(termo);
-    likeBusca.push('EXISTS (SELECT 1 FROM fatinstituicao fp WHERE fp.IdInstituicao = l.IdFontePagadora AND fp.NomFantasia COLLATE utf8mb4_unicode_ci LIKE CONCAT(\'%\', ?, \'%\'))');  valores.push(termo);
-    likeBusca.push('EXISTS (SELECT 1 FROM fatinstituicao fp WHERE fp.IdInstituicao = l.IdFontePagadora AND fp.RazaoSocial COLLATE utf8mb4_unicode_ci LIKE CONCAT(\'%\', ?, \'%\'))'); valores.push(termo);
-    // paciente, código da requisição, guia do convênio
-    likeBusca.push('EXISTS (SELECT 1 FROM requisicao r WHERE r.Lote = l.IdLote AND r.CodRequisicao COLLATE utf8mb4_unicode_ci LIKE CONCAT(\'%\', ?, \'%\'))');      valores.push(termo);
-    likeBusca.push('EXISTS (SELECT 1 FROM requisicao r WHERE r.Lote = l.IdLote AND r.NumGuiaConvenio COLLATE utf8mb4_unicode_ci LIKE CONCAT(\'%\', ?, \'%\'))');    valores.push(termo);
-    likeBusca.push('EXISTS (SELECT 1 FROM requisicao r JOIN paciente p ON p.CodPaciente = r.CodPaciente WHERE r.Lote = l.IdLote AND p.NomPaciente COLLATE utf8mb4_unicode_ci LIKE CONCAT(\'%\', ?, \'%\'))'); valores.push(termo);
-    likeBusca.push('EXISTS (SELECT 1 FROM requisicao r JOIN fatrequisicaoautorizacao fra ON fra.IdRequisicao = r.IdRequisicao WHERE r.Lote = l.IdLote AND fra.NumGuia COLLATE utf8mb4_unicode_ci LIKE CONCAT(\'%\', ?, \'%\'))'); valores.push(termo);
+    adiciona(like('CAST(l.IdLote AS CHAR)'));
+    adiciona(`EXISTS (SELECT 1 FROM fatinstituicao fp
+                       WHERE fp.IdInstituicao = l.IdFontePagadora AND ${like('fp.NomFantasia')})`);
+    adiciona(`EXISTS (SELECT 1 FROM fatinstituicao fp
+                       WHERE fp.IdInstituicao = l.IdFontePagadora AND ${like('fp.RazaoSocial')})`);
+    // Paciente, código da requisição e guia — todos entram pelo índice de requisicao.Lote,
+    // então o LIKE com curinga à esquerda só varre as requisições daquele lote.
+    adiciona(`EXISTS (SELECT 1 FROM requisicao r
+                       WHERE r.Lote = l.IdLote AND ${like('r.CodRequisicao')})`);
+    adiciona(`EXISTS (SELECT 1 FROM requisicao r
+                       WHERE r.Lote = l.IdLote AND ${like('r.NumGuiaConvenio')})`);
+    adiciona(`EXISTS (SELECT 1 FROM requisicao r
+                       JOIN paciente p ON p.CodPaciente = r.CodPaciente
+                       WHERE r.Lote = l.IdLote AND ${like('p.NomPaciente')})`);
+    adiciona(`EXISTS (SELECT 1 FROM requisicao r
+                       JOIN fatrequisicaoautorizacao fra ON fra.IdRequisicao = r.IdRequisicao
+                       WHERE r.Lote = l.IdLote AND ${like('fra.NumGuia')})`);
     condicoes.push(`(${likeBusca.join(' OR ')})`);
   }
   return { where: condicoes.join(' AND '), valores };
@@ -400,8 +431,15 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
 // O caminho do código do procedimento é
 // fatrequisicaoprocedimento → fatconvenioprocedimento → fattabelaprocedimento, ou
 // seja, a descrição vem da tabela de preço do convênio daquela requisição.
-// `fatrequisicaoautorizacao` entra por IdRequisicaoProcedimento para trazer o número
-// da guia autorizada de cada item.
+//
+// A guia autorizada vem por SUBCONSULTA, não por JOIN: em
+// fatrequisicaoautorizacao o IdRequisicaoProcedimento é índice não-único e nulável
+// (schema-backup-banco.csv), ou seja, o banco permite N autorizações por procedimento.
+// Com LEFT JOIN cada autorização extra duplicaria a linha e o `req.valor` somaria o
+// mesmo ValorLiquido duas vezes — a requisição apareceria valendo mais do que vale.
+// O COALESCE ainda cobre o outro lado da mesma coluna: quando a autorização é da
+// requisição inteira (IdRequisicaoProcedimento NULL) o JOIN por procedimento não
+// achava nada e a guia sumia da tela mesmo existindo no banco.
 const SQL_DETALHE = `
   SELECT r.IdRequisicao, r.CodRequisicao,
          DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
@@ -409,13 +447,25 @@ const SQL_DETALHE = `
          r.NumGuiaConvenio, p.NomPaciente,
          tp.Codigo, tp.Descricao,
          frp.Quantidade, frp.ValorUnitario, frp.ValorLiquido,
-         frp.DesMotivoGlosa, fra.NumGuia
+         frp.DesMotivoGlosa,
+         COALESCE(
+           (SELECT fra.NumGuia FROM fatrequisicaoautorizacao fra
+             WHERE fra.IdRequisicaoProcedimento = frp.IdRequisicaoProcedimento
+               AND COALESCE(fra.NumGuia, '') <> ''
+             ORDER BY fra.DtaAutorizacao DESC, fra.IdRequisicaoAutorizacao DESC
+             LIMIT 1),
+           (SELECT fra.NumGuia FROM fatrequisicaoautorizacao fra
+             WHERE fra.IdRequisicao = r.IdRequisicao
+               AND fra.IdRequisicaoProcedimento IS NULL
+               AND COALESCE(fra.NumGuia, '') <> ''
+             ORDER BY fra.DtaAutorizacao DESC, fra.IdRequisicaoAutorizacao DESC
+             LIMIT 1)
+         ) AS NumGuia
     FROM requisicao r
     LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
     JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
     LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
     LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
-    LEFT JOIN fatrequisicaoautorizacao fra ON fra.IdRequisicaoProcedimento = frp.IdRequisicaoProcedimento
    WHERE r.Lote = ?
    ORDER BY r.CodRequisicao, tp.Codigo`;
 

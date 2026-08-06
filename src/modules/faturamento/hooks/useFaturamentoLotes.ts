@@ -65,8 +65,11 @@ interface UseFaturamentoLotesResult {
   loading: boolean;
   error: string | null;
   refetch: (force?: boolean) => Promise<void>;
-  /** Requisições do lote com seus procedimentos, sob demanda ao expandir a linha. */
-  buscarRequisicoes: (idLote: number) => Promise<RequisicaoLote[]>;
+  /**
+   * Requisições do lote com seus procedimentos, sob demanda ao expandir a linha.
+   * `force` fura o cache de sessão e o do servidor — é o caminho do "Atualizar".
+   */
+  buscarRequisicoes: (idLote: number, force?: boolean) => Promise<RequisicaoLote[]>;
 }
 
 export function useFaturamentoLotes(filtros: LotesFiltros): UseFaturamentoLotesResult {
@@ -140,13 +143,18 @@ export function useFaturamentoLotes(filtros: LotesFiltros): UseFaturamentoLotesR
 
   // Rota separada: o detalhe é uma consulta por lote (dezenas de linhas), caro demais
   // para vir junto da listagem.
-  const buscarRequisicoes = useCallback(async (idLote: number): Promise<RequisicaoLote[]> => {
-    if (cacheDetalheSessao.has(idLote)) return cacheDetalheSessao.get(idLote)!;
+  const buscarRequisicoes = useCallback(async (
+    idLote: number,
+    force = false,
+  ): Promise<RequisicaoLote[]> => {
+    if (!force && cacheDetalheSessao.has(idLote)) return cacheDetalheSessao.get(idLote)!;
 
-    const body = await consultar<RespostaDetalhe>(
-      'lote-detalhe',
-      new URLSearchParams({ idLote: String(idLote) }),
-    );
+    const params = new URLSearchParams({ idLote: String(idLote) });
+    // Sem isto a releitura pararia no cache do servidor (TTL 3 min) e o "Atualizar"
+    // devolveria as mesmas requisições que a tela já tem.
+    if (force) params.set('semCache', '1');
+
+    const body = await consultar<RespostaDetalhe>('lote-detalhe', params);
     const reqs = body.requisicoes ?? [];
     cacheDetalheSessao.set(idLote, reqs);
     return reqs;

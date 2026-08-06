@@ -26,7 +26,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { listarLotes, MAX_TAMANHO, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
+import { listarLotes, MAX_BUSCA, MAX_TAMANHO, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -120,7 +120,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       statusLote,
       pagina,
       tamanho: tamanho ?? TAMANHO_PADRAO,
-      busca: primeiro(q.busca)?.trim() || undefined,
+      // Corta em vez de recusar: o operador colando um texto grande no campo de busca
+      // não é erro dele, e o termo vira 7 predicados LIKE lá embaixo.
+      busca: primeiro(q.busca)?.trim().slice(0, MAX_BUSCA) || undefined,
       ignorarCache: primeiro(q.semCache) === '1',
     });
 
