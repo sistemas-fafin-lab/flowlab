@@ -51,7 +51,11 @@ const inputCls =
   'w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-500';
 
 // ─── Stepper da trilha (desenha a partir de ac_cultura_etapas) ──────────────────
-const Stepper: React.FC<{ etapas: AcCulturaEtapa[]; atual: number }> = ({ etapas, atual }) => (
+const Stepper: React.FC<{
+  etapas: AcCulturaEtapa[];
+  atual: number;
+  onStepClick?: (ordem: number) => void;
+}> = ({ etapas, atual, onStepClick }) => (
   <div className="flex items-center gap-1">
     {etapas.map((et, i) => (
       <React.Fragment key={et.id}>
@@ -64,13 +68,14 @@ const Stepper: React.FC<{ etapas: AcCulturaEtapa[]; atual: number }> = ({ etapas
         )}
         <div
           title={et.nome}
+          onClick={onStepClick ? () => onStepClick(et.ordem) : undefined}
           className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0 ${
             et.ordem === atual
               ? 'bg-violet-600 text-white ring-2 ring-violet-200 dark:ring-violet-900/60'
               : et.ordem < atual
                 ? 'bg-violet-400 text-white'
                 : 'bg-gray-200 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
-          }`}
+          } ${onStepClick ? 'cursor-pointer hover:ring-2 hover:ring-violet-300 dark:hover:ring-violet-700 transition-shadow' : ''}`}
         >
           {et.ordem < atual ? <Check className="w-3 h-3" /> : et.ordem}
         </div>
@@ -681,7 +686,11 @@ const CulturasPage: React.FC = () => {
 
                 {/* Stepper */}
                 <div className="mb-2">
-                  <Stepper etapas={etapas} atual={c.etapa_ordem} />
+                  <Stepper
+                    etapas={etapas}
+                    atual={c.etapa_ordem}
+                    onStepClick={(ordem) => void updateCultura(c.id, { etapaOrdem: ordem })}
+                  />
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
                   Etapa {c.etapa_ordem}
