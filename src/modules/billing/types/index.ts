@@ -338,3 +338,21 @@ export interface OperadoraResumo {
   id: string;
   nome: string;
 }
+
+/** Tela dona do formato de filtro salvo numa `ViewSalva` — ver comentário de
+ *  `fat_views_salvas.tela` na migration 20260810160000. */
+export type ViewSalvaTela = 'dashboard' | 'titulos' | 'glosas';
+
+/** Um conjunto de filtros salvo pelo usuário para reaplicar depois.
+ *
+ *  `filtros` é o que a própria tela gravou (`DashboardReceberFiltros`,
+ *  `TitulosFiltros`, ...) — o banco nunca olha dentro dele, então o tipo aqui
+ *  fica genérico e cada tela informa o parâmetro concreto ao usar o hook. */
+export interface ViewSalva<TFiltros = Record<string, unknown>> {
+  id: string;
+  tela: ViewSalvaTela;
+  nome: string;
+  filtros: TFiltros;
+  criadoEm: string;
+  atualizadoEm: string;
+}
