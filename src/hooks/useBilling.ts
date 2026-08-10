@@ -312,34 +312,11 @@ export const useBilling = () => {
 
       if (updateError) throw updateError;
 
-      // Se glosa foi revertida, atualizar recebimento
-      if (update.status === 'revertida') {
-        const { data: glosaData } = await supabase
-          .from('glosas')
-          .select('recebimento_id, valor')
-          .eq('id_glosa', glosaId)
-          .single();
-
-        if (glosaData?.recebimento_id) {
-          // Buscar recebimento e atualizar valor recebido
-          const { data: recebData } = await supabase
-            .from('recebimentos')
-            .select('valor_recebido')
-            .eq('id_receb', glosaData.recebimento_id)
-            .single();
-
-          if (recebData) {
-            await supabase
-              .from('recebimentos')
-              .update({
-                valor_recebido: (recebData.valor_recebido || 0) + glosaData.valor,
-                status: 'recebido'
-              })
-              .eq('id_receb', glosaData.recebimento_id);
-          }
-        }
-      }
-
+      // A trigger do banco (update_nota_valores) já recalcula o título a partir
+      // desta própria linha de glosas quando o status muda: 'revertida' tira o
+      // valor do glosado e devolve o saldo a cobrável. Somar aqui em
+      // recebimentos.valor_recebido contaria o valor duas vezes, na direção
+      // errada — foi removido por isso (achado 1.1 da revisão).
       await fetchGlosas();
       return { success: true };
     } catch (err) {

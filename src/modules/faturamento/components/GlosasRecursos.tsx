@@ -15,6 +15,8 @@ import {
   User
 } from 'lucide-react';
 import { useBilling } from '../../../hooks/useBilling';
+import { useAuth } from '../../../hooks/useAuth';
+import { hasPermission } from '../../../utils/permissions';
 import { Glosa, GlosaStatus, GlosaRecursoInput } from '../../billing/types';
 
 // ============================================================================
@@ -32,6 +34,12 @@ const GlosasRecursos: React.FC = () => {
     formatCurrency,
     clearError
   } = useBilling();
+
+  const { userProfile } = useAuth();
+  // A RLS nova (20260807120000) exige canManageBilling para UPDATE em glosas; sem
+  // ela o clique não dá erro, só não afeta linha nenhuma. Esconder as ações de
+  // escrita de quem só tem canViewBilling evita esse clique fantasma (achado 4.6).
+  const podeEditar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
 
   const [filtroStatus, setFiltroStatus] = useState<GlosaStatus | 'todas'>('todas');
   const [showRecursoModal, setShowRecursoModal] = useState(false);
@@ -342,7 +350,8 @@ const GlosasRecursos: React.FC = () => {
                     )}
                   </div>
 
-                  {/* Ações */}
+                  {/* Ações — só para quem pode gravar (canManageBilling); ver podeEditar acima */}
+                  {podeEditar && (
                   <div className="flex items-center gap-2">
                     {glosa.status === 'aberta' && (
                       <button
@@ -353,7 +362,7 @@ const GlosasRecursos: React.FC = () => {
                         Iniciar Recurso
                       </button>
                     )}
-                    
+
                     {glosa.status === 'em_recurso' && (
                       <>
                         <button
@@ -373,6 +382,7 @@ const GlosasRecursos: React.FC = () => {
                       </>
                     )}
                   </div>
+                  )}
                 </div>
               </div>
             ))}
