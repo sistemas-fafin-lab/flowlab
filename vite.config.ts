@@ -352,6 +352,7 @@ function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
     'LABHUB_API_URL', 'FLOWLAB_API_KEY',
+    'DISPONIBILIDADE_DIAS', 'AGENDA_RETROATIVO_DIAS', 'AGENDA_TZ_OFFSET',
   ];
 
   const ensureProcessEnv = () => {
@@ -384,7 +385,7 @@ function recepcaoAgendamentoApiPlugin(env: Record<string, string>): Plugin {
           res.setHeader('Content-Type', 'application/json');
           // Ambas carregam dado pessoal de paciente (a correção devolve o CPF
           // anterior mascarado).
-          if (isBuscar || isCorrigir) res.setHeader('Cache-Control', 'no-store');
+          if (isDisp || isBuscar || isCorrigir) res.setHeader('Cache-Control', 'no-store');
           res.end(JSON.stringify(body));
         };
 

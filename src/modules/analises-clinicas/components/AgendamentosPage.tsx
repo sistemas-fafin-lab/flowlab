@@ -42,7 +42,7 @@ import { useDialog } from '../../../hooks/useDialog';
 import InputDialog from '../../../components/InputDialog';
 import { hasPermission } from '../../../utils/permissions';
 import { useDocumentosAgendamento } from '../hooks/useDocumentosAgendamento';
-import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento, DocumentoCheckin } from '../types';
+import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento } from '../types';
 
 // Classe compartilhada de input (foco azul, cor do módulo de agendamentos).
 const inputCls =
@@ -972,6 +972,22 @@ const NovoAgendamentoModal: React.FC<{
 
     setSaving(true);
 
+    // A agenda pode mudar enquanto o modal fica aberto. Revalida contra a lista
+    // atual antes de enviar para o LAB-HUB, que também faz essa checagem.
+    if (!agCriado) {
+      setCarregandoDisp(true);
+      const disponibilidadeAtualizada = await onDisponibilidade();
+      setCarregandoDisp(false);
+      const postoAtualizado = disponibilidadeAtualizada.find(({ id }) => id === postoSel);
+      if (!postoAtualizado?.slots.includes(slotSel)) {
+        setDisponibilidade(disponibilidadeAtualizada);
+        setDataSel('');
+        setSlotSel('');
+        setSaving(false);
+        return setErro('Esse horário não está mais disponível. A agenda foi atualizada; escolha outro.');
+      }
+    }
+
     // 1) Cria o agendamento — uma única vez. `agCriado` impede recriar num retry.
     let flowlabId = agCriadoId;
     if (!agCriado) {
@@ -989,8 +1005,17 @@ const NovoAgendamentoModal: React.FC<{
             },
       );
       if ('erro' in resultado) {
+        if (resultado.erro.toLowerCase().includes('horário indisponível')) {
+          const disponibilidadeAtualizada = await onDisponibilidade();
+          setDisponibilidade(disponibilidadeAtualizada);
+          setDataSel('');
+          setSlotSel('');
+          setErro('Esse horário não está mais disponível. A agenda foi atualizada; escolha outro.');
+        } else {
+          setErro(resultado.erro);
+        }
         setSaving(false);
-        return setErro(resultado.erro);
+        return;
       }
       setAgCriado(true);
       flowlabId = resultado.criado.flowlabId;

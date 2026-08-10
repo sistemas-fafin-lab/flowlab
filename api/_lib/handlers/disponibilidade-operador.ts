@@ -25,6 +25,8 @@ export default async function handler(
     return;
   }
 
+  res.setHeader('Cache-Control', 'no-store, max-age=0');
+
   const authHeader = req.headers.authorization ?? '';
   const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
 

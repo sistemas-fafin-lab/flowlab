@@ -145,6 +145,7 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
     try {
       const res = await fetch('/api/analises-clinicas/disponibilidade-operador', {
         headers: { Authorization: `Bearer ${token}` },
+        cache: 'no-store',
       });
       const body: { success?: boolean; postos?: PostoDisponivel[] } =
         await res.json().catch(() => ({}));
