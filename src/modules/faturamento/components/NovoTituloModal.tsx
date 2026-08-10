@@ -72,7 +72,9 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
   }, [periodoIni, periodoFim, buscaDebounced]);
 
   // Fecha zerando tudo: reabrir com a seleção anterior faria o operador criar um
-  // título com lotes que ele já esqueceu ter marcado.
+  // título com lotes que ele já esqueceu ter marcado. Período e emissão também
+  // voltam ao default — senão o modal reabre num período antigo sem nenhuma
+  // seleção visível para explicar por quê.
   const fechar = useCallback(() => {
     setSelecionados(new Map());
     setNumeroNota('');
@@ -80,6 +82,9 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
     setDataVencimento('');
     setObservacoes('');
     setErroForm(null);
+    setPeriodoIni(inicioDoMes());
+    setPeriodoFim(hojeIso());
+    setDataEmissao(hojeIso());
     onFechar();
   }, [onFechar]);
 
@@ -137,9 +142,16 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
   // Um título cobra uma operadora só. Avisar aqui evita o 400 da rota depois de
   // o operador ter preenchido o formulário inteiro — e agora enxerga TODOS os
   // marcados, inclusive os que saíram da página visível.
-  const fontes = new Set(marcados.map((lote) => lote.fontePagadora.id ?? 0));
+  //
+  // Fonte pagadora sem id (apLIS não identificou) usa uma chave própria por
+  // lote em vez de colapsar em 0: dois lotes "sem fonte" não são necessariamente
+  // da mesma operadora, e assumir que são deixaria passar uma mistura real.
+  const fontes = new Set(
+    marcados.map((lote) => lote.fontePagadora.id ?? `sem-fonte-${lote.idLote}`),
+  );
   const misturouFontes = fontes.size > 1;
   const qtdPaginas = meta?.qtdPaginas ?? 0;
+  const lotesSemEnvio = lotes.filter((lote) => !lote.dtaEnvio).length;
 
   const submeter = async (evento: React.FormEvent) => {
     evento.preventDefault();
@@ -282,7 +294,16 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
                           {lote.fontePagadora.nome ?? lote.fontePagadora.razaoSocial ?? '—'}
                         </td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400 tabular-nums">
-                          {formatData(lote.dtaEnvio)}
+                          {lote.dtaEnvio ? (
+                            formatData(lote.dtaEnvio)
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"
+                              title="Lote ainda não foi enviado à operadora: o título nasce sem vencimento e fica de fora do aging até alguém preencher."
+                            >
+                              <AlertTriangle className="w-3.5 h-3.5" /> sem envio
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-right text-gray-600 dark:text-gray-300 tabular-nums">
                           {lote.qtdRequisicoes}
@@ -300,7 +321,12 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
 
           {!carregando && !erroLista && lotes.length > 0 && (
             <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-              <span>{meta?.registros ?? lotes.length} lote{(meta?.registros ?? lotes.length) === 1 ? '' : 's'} no período</span>
+              <span>
+                {meta?.registros ?? lotes.length} lote{(meta?.registros ?? lotes.length) === 1 ? '' : 's'} no período
+                {!!meta?.filtrados && (
+                  <> · {meta.filtrados} ocultado{meta.filtrados === 1 ? '' : 's'} nesta página (já com título)</>
+                )}
+              </span>
               <div className="flex items-center gap-2">
                 <span>Página {pagina} de {Math.max(qtdPaginas, 1)}</span>
                 <button
@@ -320,6 +346,13 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
                   Próxima <ChevronRight className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
+          )}
+
+          {!carregando && !erroLista && lotesSemEnvio > 0 && (
+            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              {lotesSemEnvio} lote{lotesSemEnvio === 1 ? '' : 's'} nesta página ainda não {lotesSemEnvio === 1 ? 'foi enviado' : 'foram enviados'} à operadora — se selecionado, o título nasce sem vencimento.
             </div>
           )}
 

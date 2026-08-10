@@ -27,8 +27,76 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { listarLotes, MAX_BUSCA, MAX_TAMANHO, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
+import type { LoteFaturamento } from '../faturamento/bdLab.js';
+import { getSupabaseAdminClient } from '../supabase.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Lote da resposta, acrescido do título de contas a receber que já o cobra. */
+interface LoteComTitulo extends LoteFaturamento {
+  tituloId: string | null;
+  tituloNumero: string | null;
+}
+
+/**
+ * Anota em cada lote o título que já o cobra, consultando o Supabase.
+ *
+ * Roda FORA do bloco cacheado do bdLab de propósito: o cache guarda o retrato do
+ * MySQL, que muda uma vez por dia, enquanto o vínculo com o título muda no
+ * instante em que alguém cria um. Se o enriquecimento entrasse no cache, um lote
+ * recém-faturado continuaria aparecendo como disponível por até 3 minutos — e o
+ * operador tentaria faturá-lo de novo.
+ *
+ * Título cancelado não conta: o lote volta a estar disponível.
+ *
+ * Falha aqui não derruba a listagem — a aba Faturas funciona sem essa coluna, e
+ * a duplicidade real continua barrada pela RPC.
+ */
+async function anotarTitulos(lotes: LoteFaturamento[]): Promise<LoteComTitulo[]> {
+  const semTitulo = (lote: LoteFaturamento): LoteComTitulo =>
+    ({ ...lote, tituloId: null, tituloNumero: null });
+
+  if (lotes.length === 0) return [];
+
+  try {
+    const supabase = getSupabaseAdminClient();
+    const aplisIds = lotes.map((l) => String(l.idLote));
+
+    const { data: linhasLote, error: erroLote } = await supabase
+      .from('lotes')
+      .select('id_lote, aplis_id')
+      .in('aplis_id', aplisIds);
+    if (erroLote || !linhasLote || linhasLote.length === 0) return lotes.map(semTitulo);
+
+    const aplisPorId = new Map<string, string>();
+    for (const linha of linhasLote) aplisPorId.set(linha.id_lote as string, linha.aplis_id as string);
+
+    const { data: vinculos, error: erroVinculo } = await supabase
+      .from('nota_lote')
+      .select('id_lote, notas(id_nota, numero_nota, status)')
+      .in('id_lote', [...aplisPorId.keys()]);
+    if (erroVinculo || !vinculos) return lotes.map(semTitulo);
+
+    const tituloPorAplis = new Map<string, { id: string; numero: string }>();
+    for (const vinculo of vinculos) {
+      const nota = vinculo.notas as unknown as
+        { id_nota: string; numero_nota: string; status: string } | null;
+      if (!nota || nota.status === 'cancelada') continue;
+      const aplis = aplisPorId.get(vinculo.id_lote as string);
+      if (aplis) tituloPorAplis.set(aplis, { id: nota.id_nota, numero: nota.numero_nota });
+    }
+
+    return lotes.map((lote) => {
+      const titulo = tituloPorAplis.get(String(lote.idLote));
+      return titulo
+        ? { ...lote, tituloId: titulo.id, tituloNumero: titulo.numero }
+        : semTitulo(lote);
+    });
+  } catch (err) {
+    console.error('[faturamento/lotes] enriquecimento de títulos:', describeError(err));
+    return lotes.map(semTitulo);
+  }
+}
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
   if (Array.isArray(valor)) return valor[0];
@@ -131,12 +199,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    const anotados = await anotarTitulos(resultado.lotes);
+    // Filtro do modal de criação de título. Aplicado DEPOIS da paginação, então
+    // recorta a página em vez de reduzir o total: `meta.registros`/`qtdPaginas`
+    // continuam descrevendo a consulta ao apLIS (o que a aba Faturas mostra), não
+    // o que sobrou aqui. `meta.filtrados` expõe quantos itens desta página caíram
+    // no filtro, para o modal não anunciar mais lotes utilizáveis do que existem —
+    // filtrar antes de paginar exigiria excluir os aplis_id já faturados dentro da
+    // própria consulta ao MySQL, o que colide com o cache de 3min do bdLab.
+    const somenteSemTitulo = primeiro(q.somenteSemTitulo) === '1';
+    const lotes = somenteSemTitulo
+      ? anotados.filter((lote) => lote.tituloId === null)
+      : anotados;
+    const filtrados = anotados.length - lotes.length;
+
     // Dado financeiro: não deixa ficar em cache de navegador nem de proxy.
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
       success: true,
-      meta: resultado.meta,
-      lotes: resultado.lotes,
+      meta: { ...resultado.meta, filtrados: somenteSemTitulo ? filtrados : 0 },
+      lotes,
     });
   } catch (err) {
     console.error('[faturamento/lotes] erro:', describeError(err));

@@ -70,11 +70,25 @@ export interface LoteFaturamento {
   valor: number;
   qtdRequisicoes: number;
   fontePagadora: {
+    /** `fatinstituicao.IdInstituicao` — vira `operadoras.aplis_id` no título. */
+    id: number | null;
     nome: string | null;
     razaoSocial: string | null;
     cpfCnpj: string | null;
   };
 }
+
+/** Fonte pagadora do apLIS, espelhada em `operadoras`. */
+export interface FontePagadora {
+  id: number;
+  nome: string | null;
+  razaoSocial: string | null;
+  cpfCnpj: string | null;
+}
+
+export type FontesPagadorasResultado =
+  | { fontes: FontePagadora[] }
+  | { erro: { status: number; mensagem: string } };
 
 export interface ProcedimentoRequisicao {
   codigo: string | null;
@@ -104,12 +118,18 @@ export interface LotesMeta {
   registros: number;
   /** Data do lote mais recente que existe no backup — mede o atraso da réplica. */
   dadoAte: string | null;
+  /** Só quando somenteSemTitulo=1: quantos lotes desta página foram ocultados por
+   *  já ter título. `registros`/`qtdPaginas` continuam contando SEM esse filtro. */
+  filtrados?: number;
 }
 
 export interface ListarLotesParams {
   periodoIni?: string;
   periodoFim?: string;
   idLote?: number;
+  /** Vários lotes de uma vez, pelo IdLote do apLIS. Usado pela criação de título,
+   *  que precisa do snapshot de N lotes sem abrir N conexões. Ignora o período. */
+  idsLote?: number[];
   statusLote?: number;
   pagina?: number;
   tamanho?: number;
@@ -211,7 +231,7 @@ const TTL_BUSCA = 60_000;      // 1 min quando há termo de busca
 const MAX_ENTRADAS = 128;
 
 function chaveListar(params: ListarLotesParams): string {
-  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}`;
+  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${(params.idsLote ?? []).join('.')}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}`;
 }
 
 function doCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, resultado: T): void {
@@ -257,7 +277,12 @@ function filtroLotes(params: ListarLotesParams): { where: string; valores: Param
   const condicoes: string[] = [];
   const valores: ParametroSql[] = [];
 
-  if (params.idLote !== undefined) {
+  if (params.idsLote !== undefined && params.idsLote.length > 0) {
+    // Math.trunc porque estes entram como bind mas alimentam um IN construído aqui.
+    const ids = params.idsLote.map((n) => Math.trunc(n));
+    condicoes.push(`l.IdLote IN (${ids.map(() => '?').join(', ')})`);
+    valores.push(...ids);
+  } else if (params.idLote !== undefined) {
     condicoes.push('l.IdLote = ?');
     valores.push(params.idLote);
   } else {
@@ -313,7 +338,7 @@ function filtroLotes(params: ListarLotesParams): { where: string; valores: Param
 // fatrequisicaoprocedimento (2 em 4.598 em julho/2026); elas valem R$ 0 na cobrança, e
 // contá-las faria o lote 6193 anunciar "1 requisição" e abrir vazio.
 const SQL_LISTA = `
-  SELECT l.IdLote, l.Status,
+  SELECT l.IdLote, l.Status, l.IdFontePagadora,
          DATE_FORMAT(l.DtaCriacao,      '%Y-%m-%d') AS DtaCriacao,
          DATE_FORMAT(l.DtaFechamento,   '%Y-%m-%d') AS DtaFechamento,
          DATE_FORMAT(l.DtaEnvio,        '%Y-%m-%d') AS DtaEnvio,
@@ -359,11 +384,41 @@ function normalizarLote(linha: mysql.RowDataPacket): LoteFaturamento {
     valor: numero(linha.Valor),
     qtdRequisicoes: numero(linha.QtdRequisicoes),
     fontePagadora: {
+      id: inteiroOuNulo(linha.IdFontePagadora),
       nome: texto(linha.NomFantasia),
       razaoSocial: texto(linha.RazaoSocial),
       cpfCnpj: texto(linha.CNPJ),
     },
   };
+}
+
+/**
+ * Fontes pagadoras ativas, para espelhar em `operadoras`.
+ *
+ * `FontePagadora = 1` separa convênios de laboratórios de apoio e do próprio
+ * prestador, que dividem a mesma tabela `fatinstituicao`.
+ *
+ * Sem cache: roda só no botão de sincronizar, e servir um dado de 3 minutos
+ * atrás seria justamente o que o operador está tentando evitar ao clicar.
+ */
+export async function listarFontesPagadoras(): Promise<FontesPagadorasResultado> {
+  return comConexao('listarFontesPagadoras', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT IdInstituicao, NomFantasia, RazaoSocial, CNPJ
+         FROM fatinstituicao
+        WHERE FontePagadora = 1 AND COALESCE(Inativo, 0) = 0
+        ORDER BY NomFantasia`,
+      [],
+    );
+    return {
+      fontes: linhas.map((linha) => ({
+        id: numero(linha.IdInstituicao),
+        nome: texto(linha.NomFantasia),
+        razaoSocial: texto(linha.RazaoSocial),
+        cpfCnpj: texto(linha.CNPJ),
+      })),
+    };
+  });
 }
 
 /** Lista os lotes de faturamento paginados, já normalizados. */
@@ -468,6 +523,69 @@ const SQL_DETALHE = `
     LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
    WHERE r.Lote = ?
    ORDER BY r.CodRequisicao, tp.Codigo`;
+
+export type DetalharVariosResultado =
+  | { porLote: Record<number, RequisicaoLote[]> }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Mesmo detalhe de `detalharLote`, para vários lotes numa conexão só.
+ *
+ * A criação de um título precisa das guias de todos os lotes selecionados; com
+ * `detalharLote` num laço seriam N conexões ao túnel, cada uma pagando o
+ * handshake. Aqui é uma consulta só.
+ *
+ * Não usa nem grava o cache: o snapshot do título tem que ser o estado do banco
+ * agora, não o de até 3 minutos atrás.
+ */
+export async function detalharVariosLotes(idsLote: number[]): Promise<DetalharVariosResultado> {
+  const ids = idsLote.map((n) => Math.trunc(n));
+  if (ids.length === 0) return { porLote: {} };
+
+  return comConexao('detalharVariosLotes', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      SQL_DETALHE.replace('WHERE r.Lote = ?', `WHERE r.Lote IN (${ids.map(() => '?').join(', ')})`)
+        .replace('SELECT r.IdRequisicao,', 'SELECT r.Lote, r.IdRequisicao,'),
+      ids,
+    );
+
+    const porLote: Record<number, RequisicaoLote[]> = {};
+    const porRequisicao = new Map<number, RequisicaoLote>();
+    for (const linha of linhas) {
+      const idLote = numero(linha.Lote);
+      const idRequisicao = numero(linha.IdRequisicao);
+      let req = porRequisicao.get(idRequisicao);
+      if (!req) {
+        req = {
+          idRequisicao,
+          codRequisicao: texto(linha.CodRequisicao),
+          dtaSolicitacao: dataIso(linha.DtaSolicitacao),
+          dtaFinalizacao: dataIso(linha.DtaFinalizacao),
+          numGuiaConvenio: texto(linha.NumGuiaConvenio),
+          paciente: texto(linha.NomPaciente),
+          valor: 0,
+          procedimentos: [],
+        };
+        porRequisicao.set(idRequisicao, req);
+        (porLote[idLote] ??= []).push(req);
+      }
+
+      const valor = numero(linha.ValorLiquido);
+      req.valor = Math.round((req.valor + valor) * 100) / 100;
+      req.procedimentos.push({
+        codigo: texto(linha.Codigo),
+        descricao: texto(linha.Descricao),
+        quantidade: numero(linha.Quantidade),
+        valorUnitario: numero(linha.ValorUnitario),
+        valor,
+        numGuia: texto(linha.NumGuia),
+        motivoGlosa: texto(linha.DesMotivoGlosa),
+      });
+    }
+
+    return { porLote };
+  });
+}
 
 /** Requisições de um lote, cada uma com seus procedimentos cobrados. */
 export async function detalharLote(

@@ -615,11 +615,13 @@ function apoioApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
-// Espelho de dev das rotas de /api/faturamento/*. Diferente do apoioApiPlugin em dois
-// pontos: são GETs (a entrada vem da query string, não do corpo) e o handler só precisa
-// das credenciais do apLIS + Supabase.
+// Espelho de dev das rotas de /api/faturamento/*. As de leitura recebem a entrada pela
+// query string; as de escrita (titulo-criar, operadoras-sync) recebem JSON no corpo,
+// como no apoioApiPlugin. O handler só precisa das credenciais do apLIS + Supabase.
 function faturamentoApiPlugin(env: Record<string, string>): Plugin {
-  const FATURAMENTO_ACTIONS = new Set(['lotes', 'lote-detalhe']);
+  const FATURAMENTO_ACTIONS = new Set([
+    'lotes', 'lote-detalhe', 'titulo-criar', 'operadoras-sync',
+  ]);
   // DB_* é o MySQL de backup do laboratório: a fonte da aba Faturas (antes era o apLIS).
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
@@ -645,12 +647,35 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
         const action = match?.[1];
         if (!action || !FATURAMENTO_ACTIONS.has(action)) return next();
 
+        // Corpo JSON nas rotas de escrita. Sem isto o handler receberia `{}` e
+        // recusaria toda criação de título por "parâmetro inválido" — só em dev,
+        // porque na Vercel o parsing do body é automático.
+        let body: Record<string, unknown> = {};
+        if (req.method === 'POST') {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              let raw = '';
+              req.on('data', (chunk) => { raw += chunk; });
+              req.on('end', () => {
+                try { body = raw ? JSON.parse(raw) : {}; resolve(); }
+                catch { reject(new Error('JSON inválido')); }
+              });
+              req.on('error', reject);
+            });
+          } catch {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: 'Body inválido' }));
+            return;
+          }
+        }
+
         // Adapta o req/res cru do Node ao contrato Vercel que os handlers usam.
         // `action` entra no query junto dos filtros, como faz a rota dinâmica.
         const query: Record<string, string> = { action };
         for (const [chave, valor] of url.searchParams) query[chave] = valor;
 
-        const vReq = Object.assign(req, { body: {}, query });
+        const vReq = Object.assign(req, { body, query });
         const vRes = Object.assign(res, {
           status(code: number) { res.statusCode = code; return vRes; },
           json(payload: unknown) {

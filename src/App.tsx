@@ -24,7 +24,7 @@ import { MessagingProviderSettings } from './modules/messaging';
 import PaymentRequestManagement from './components/PaymentRequestManagement';
 import RequestHub from './components/RequestHub';
 import { MaintenanceRequestManagement } from './components/MaintenanceRequest';
-import { FaturasDashboard, RecebimentosList, GlosasRecursos } from './modules/faturamento';
+import { FaturasDashboard, ContasReceberPage, GlosasRecursos } from './modules/faturamento';
 import ITHubDashboard from './components/IT/ITHubDashboard';
 import { useParams } from 'react-router-dom';
 import ITProjectDashboard from './components/IT/ITProjectDashboard';
@@ -248,7 +248,7 @@ const AuthenticatedApp: React.FC = () => {
           path="/faturamento/recebimentos"
           element={
             <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
-              <RecebimentosList />
+              <ContasReceberPage />
             </ProtectedRoute>
           }
         />

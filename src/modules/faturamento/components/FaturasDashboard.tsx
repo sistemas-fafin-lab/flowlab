@@ -16,6 +16,9 @@ import {
 import { useFaturamentoLotes } from '../hooks/useFaturamentoLotes';
 import { STLOT_LABELS, LoteFaturamento, RequisicaoLote } from '../../billing/types';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
+// Cópias locais destas duas viraram utilitário do módulo quando Contas a Receber
+// passou a precisar das mesmas regras (inclusive o T00:00:00 do fuso).
+import { formatCurrency, formatData } from '../utils/formato';
 
 // ============================================================================
 // COMPONENTE: FaturasDashboard
@@ -46,12 +49,6 @@ const STATUS_CORES: Record<number, string> = {
   8: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
 };
 
-const formatCurrency = (valor: number): string =>
-  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(valor);
-
-// As datas já chegam ISO (YYYY-MM-DD) normalizadas pelo servidor.
-const formatData = (iso: string | null): string =>
-  iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('pt-BR') : '—';
 
 const dayKey = (d: Date): string =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -440,6 +437,14 @@ const FaturasDashboard: React.FC = () => {
                         </td>
                         <td className="px-3 py-4 font-semibold text-gray-900 dark:text-white whitespace-nowrap">
                           {lote.idLote}
+                          {lote.tituloId && (
+                            <span
+                              title={`Já está no título ${lote.tituloNumero ?? lote.tituloId}`}
+                              className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 whitespace-nowrap"
+                            >
+                              título {lote.tituloNumero ?? lote.tituloId}
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-4 text-gray-700 dark:text-gray-300">
                           <span className="flex items-center gap-1">

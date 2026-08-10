@@ -114,6 +114,8 @@ HANDLERS.set('POST /api/analises-clinicas/receive-agendamento', () => import('./
 HANDLERS.set('POST /api/analises-clinicas/receive-cancelamento', () => import('./_lib/handlers/receive-cancelamento.js'));
 HANDLERS.set('GET /api/faturamento/lotes',                     () => import('./_lib/handlers/faturamento-lotes.js'));
 HANDLERS.set('GET /api/faturamento/lote-detalhe',              () => import('./_lib/handlers/faturamento-lote-detalhe.js'));
+HANDLERS.set('POST /api/faturamento/titulo-criar',             () => import('./_lib/handlers/faturamento-titulo-criar.js'));
+HANDLERS.set('POST /api/faturamento/operadoras-sync',          () => import('./_lib/handlers/faturamento-operadoras-sync.js'));
 
 async function parseBody(req: http.IncomingMessage): Promise<unknown> {
   if (!req.headers['content-type']?.includes('application/json')) return undefined;

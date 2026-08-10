@@ -18,8 +18,21 @@ export interface FalhaAutorizacao {
   payload: Record<string, unknown>;
 }
 
-/** Devolve `null` quando o operador pode consultar faturamento; a falha a devolver, senão. */
-export async function autorizarFaturamento(token: string | null): Promise<FalhaAutorizacao | null> {
+/** Permissão exigida pela rota. `canManageBilling` é o nível de escrita. */
+export type PermissaoFaturamento = 'canViewBilling' | 'canManageBilling';
+
+/**
+ * Devolve `null` quando o operador tem `permissao`; a falha a devolver, senão.
+ *
+ * Espelha a RLS instalada em 20260807120000: leitura aceita qualquer uma das duas
+ * permissões (quem registra baixa evidentemente pode ver o título), escrita exige
+ * `canManageBilling`. Se as duas regras divergissem, a rota autorizaria uma
+ * chamada que o banco recusaria depois — erro 500 no lugar de um 403 claro.
+ */
+export async function autorizarFaturamento(
+  token: string | null,
+  permissao: PermissaoFaturamento = 'canViewBilling',
+): Promise<FalhaAutorizacao | null> {
   if (!token) {
     return { status: 401, payload: { success: false, error: 'Token de autenticação ausente.' } };
   }
@@ -38,11 +51,21 @@ export async function autorizarFaturamento(token: string | null): Promise<FalhaA
 
   const callerPermissions: string[] =
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
+  const aceitas: string[] =
+    permissao === 'canViewBilling' ? ['canViewBilling', 'canManageBilling'] : ['canManageBilling'];
   const authorized =
-    callerProfile?.role === 'admin' || callerPermissions.includes('canViewBilling');
+    callerProfile?.role === 'admin' || aceitas.some((p) => callerPermissions.includes(p));
 
   if (!authorized) {
-    return { status: 403, payload: { success: false, error: 'Sem permissão para consultar faturamento.' } };
+    return {
+      status: 403,
+      payload: {
+        success: false,
+        error: permissao === 'canManageBilling'
+          ? 'Sem permissão para gerenciar contas a receber.'
+          : 'Sem permissão para consultar faturamento.',
+      },
+    };
   }
   return null;
 }

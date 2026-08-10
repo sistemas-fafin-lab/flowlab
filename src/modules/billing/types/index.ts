@@ -242,27 +242,6 @@ export interface GlosaRecursoInput {
 // INTERFACES PARA MÉTRICAS / DASHBOARD
 // ============================================================================
 
-export interface BillingMetrics {
-  totalNotasAbertas: number;
-  valorTotalAReceber: number;
-  valorRecebidoMes: number;
-  valorGlosadoMes: number;
-  taxaGlosa: number; // Percentual
-  notasPorStatus: {
-    abertas: number;
-    parcialmente_recebidas: number;
-    recebidas: number;
-    glosadas: number;
-  };
-  previsaoRecebimento: {
-    proximo30dias: number;
-    proximo60dias: number;
-    proximo90dias: number;
-  };
-  glosasPendentes: number;
-  glosasEmRecurso: number;
-}
-
 export interface RecebimentoAgrupado {
   periodo: '30dias' | '60dias' | '90dias' | 'vencido';
   quantidade: number;
@@ -312,10 +291,16 @@ export interface LoteFaturamento {
   valor: number;
   qtdRequisicoes: number;
   fontePagadora: {
+    /** `fatinstituicao.IdInstituicao` — vira `operadoras.aplis_id` no título. */
+    id: number | null;
     nome: string | null;
     razaoSocial: string | null;
     cpfCnpj: string | null;
   };
+  /** Título de contas a receber que já cobra este lote; null = disponível.
+   *  Preenchido pelo servidor fora do cache do apLIS (ver faturamento-lotes.ts). */
+  tituloId?: string | null;
+  tituloNumero?: string | null;
 }
 
 /** Item cobrado de uma requisição. A descrição vem da tabela de preço do convênio. */
@@ -351,6 +336,9 @@ export interface LotesFiltros {
   statusLote?: number;
   /** Termo de busca textual (paciente, fonte pagadora, código da requisição, guia, lote). */
   busca?: string;
+  /** Esconde os lotes que já pertencem a um título ativo. Usado pelo modal de
+   *  criação; recorta a página, não o total (ver o handler). */
+  somenteSemTitulo?: boolean;
 }
 
 export interface LotesMeta {
@@ -360,4 +348,192 @@ export interface LotesMeta {
   registros: number;
   /** Data do lote mais recente que existe no backup — o banco é réplica e atrasa ~1 dia. */
   dadoAte: string | null;
+  /** Só quando somenteSemTitulo=1: quantos lotes desta página foram ocultados por
+   *  já ter título. `registros`/`qtdPaginas` continuam contando SEM esse filtro. */
+  filtrados?: number;
+}
+
+// ============================================================================
+// CONTAS A RECEBER (aba Faturamento → Contas a Receber)
+// ============================================================================
+// Um TÍTULO (`notas`) é o agrupamento manual de N lotes do apLIS cobrado de uma
+// operadora. Sobre ele são registradas baixas parciais (`recebimentos`) e glosas.
+//
+// Os lotes e as guias ficam CONGELADOS no título no instante da criação: o MySQL
+// de backup continua se atualizando, e um título já emitido não pode mudar de
+// valor sozinho.
+
+export type TituloStatus =
+  | 'aberta'
+  | 'parcialmente_recebida'
+  | 'recebida'
+  | 'liquidada'
+  | 'glosada'
+  | 'cancelada';
+
+/** Guia congelada dentro de um lote do título. Base do rateio de baixa e glosa. */
+export interface TituloGuia {
+  id: string;
+  numeroGuia: string;
+  dataExecucao: string | null;
+  valor: number;
+  pacienteNome: string | null;
+  procedimentoDescricao: string | null;
+}
+
+/** Lote do apLIS congelado no título. */
+export interface TituloLote {
+  id: string;
+  aplisId: string | null;
+  codigoLote: string;
+  statusLabel: string | null;
+  dataEnvio: string | null;
+  valorTotal: number;
+  qtdRequisicoes: number;
+  guias?: TituloGuia[];
+}
+
+export interface TituloReceber {
+  id: string;
+  numeroNota: string;
+  operadoraId: string;
+  operadoraNome: string | null;
+  dataEmissao: string;
+  dataVencimento: string | null;
+  competencia: string | null;
+  valorTotal: number;
+  valorRecebido: number;
+  valorGlosado: number;
+  /** Derivada no banco: total - recebido - glosado. */
+  valorSaldo: number;
+  status: TituloStatus;
+  observacoes: string | null;
+  /** Dias corridos de atraso; negativo = ainda a vencer, null = sem vencimento. */
+  diasAtraso: number | null;
+  lotes: TituloLote[];
+}
+
+export interface TitulosFiltros {
+  /** YYYY-MM-DD, sobre a data de emissão. */
+  desde: string;
+  ate: string;
+  status?: TituloStatus | '';
+  operadoraId?: string;
+  /** Número da nota (busca parcial). */
+  busca?: string;
+  pagina?: number;
+  tamanho?: number;
+}
+
+/** Glosa lançada junto de uma baixa. Nome distinto do `GlosaInput` legado, que
+ *  espelha as colunas cruas da tabela e é consumido por useBilling. */
+export interface GlosaLancamentoInput {
+  valor: number;
+  motivo: string;
+  codigoGlosa?: string | null;
+  status?: 'aberta' | 'em_recurso' | 'revertida' | 'definitiva';
+  /** Guia a que a glosa se refere, quando o operador detalhou o rateio. */
+  requisicaoId?: string | null;
+  loteId?: string | null;
+}
+
+export interface BaixaInput {
+  notaId: string;
+  valorRecebido: number;
+  /** YYYY-MM-DD */
+  dataRecebimento: string;
+  bancoNome?: string | null;
+  bancoConta?: string | null;
+  formaRecebimento?: string | null;
+  observacoes?: string | null;
+  glosas: GlosaLancamentoInput[];
+}
+
+/** Filtros do painel de Contas a Receber.
+ *
+ *  Os três recortes aceitam vários valores: dentro de um campo valem como OR,
+ *  entre campos como AND. Lista vazia = campo sem filtro. */
+export interface DashboardReceberFiltros {
+  /** YYYY-MM-DD, sobre a data de emissão do título. */
+  desde: string;
+  ate: string;
+  operadoraIds: string[];
+  /** Códigos de lote no apLIS (ou aplis_id), cada um em busca parcial. */
+  lotes: string[];
+  /** Números de nota fiscal, cada um em busca parcial. */
+  notas: string[];
+}
+
+/** Contrato de `fat_dashboard_receber`. Tudo já agregado no banco.
+ *
+ *  Os quatro valores de `kpis` saem do mesmo conjunto de títulos — os emitidos
+ *  no período — e por isso fecham entre si: `acatado` é a parte de `glosado`
+ *  já assumida como perda (glosa definitiva), e não uma quinta grandeza. */
+export interface DashboardReceber {
+  kpis: {
+    faturado: number;
+    recebido: number;
+    glosado: number;
+    /** Glosa definitiva: o pedaço do glosado que não será mais recorrido. */
+    acatado: number;
+    qtdTitulos: number;
+    /** Dias que a regra contratual da operadora promete, do envio ao pagamento. */
+    prazoPrevistoDias: number | null;
+    /** Dias medidos: envio do lote → primeiro recebimento do título. */
+    prazoMedioDias: number | null;
+    /** O mesmo prazo, ponderado pelo valor recebido. */
+    prazoPonderadoDias: number | null;
+    /** Títulos que tinham envio e recebimento — a base dos dois prazos acima. */
+    prazoBaseTitulos: number;
+  };
+  aging: {
+    a_vencer: number;
+    d1_30: number;
+    d31_60: number;
+    d61_90: number;
+    d90_mais: number;
+  };
+  porOperadora: {
+    operadoraId: string;
+    nome: string;
+    saldo: number;
+    /** Carteira inteira da operadora (todo título não cancelado), sem recorte de
+     *  período — diferente de `kpis.qtdTitulos`, que é só os emitidos no período. */
+    qtdTitulos: number;
+    faturado: number;
+    glosado: number;
+    percentualGlosa: number;
+  }[];
+  previsaoOperadoras: PrevisaoOperadora[];
+  serieMensal: {
+    competencia: string;
+    faturado: number;
+    recebido: number;
+    glosado: number;
+  }[];
+}
+
+/** Prazo prometido × prazo praticado por uma operadora, no período filtrado.
+ *
+ *  Os três prazos são NULL quando não há base: título sem data de envio do lote
+ *  ou ainda sem nenhum recebimento. `base` diz sobre quantos títulos os prazos
+ *  realizados foram medidos — sem ele, "sem histórico" e "pagou no dia" ficariam
+ *  indistinguíveis na tela. */
+export interface PrevisaoOperadora {
+  operadoraId: string;
+  nome: string;
+  /** A regra do contrato como está escrita, ou null quando não cadastrada. */
+  regra: string | null;
+  /** Títulos da operadora emitidos no período. */
+  qtdTitulos: number;
+  prazoPrevisto: number | null;
+  prazoMedio: number | null;
+  prazoPonderado: number | null;
+  base: number;
+}
+
+/** Operadora do seletor de filtros. */
+export interface OperadoraResumo {
+  id: string;
+  nome: string;
 }

@@ -233,6 +233,7 @@ export interface RolePermissions {
   canManageQuotations: boolean;
   canConfigureRequestPeriods: boolean;
   canViewBilling: boolean;
+  canManageBilling: boolean;
   canManageRoles: boolean;
 }
 

@@ -26,7 +26,7 @@ interface Props {
   onRegistrar: (dados: BaixaInput) => Promise<string | null>;
   onLancarGlosas: (notaId: string, glosas: GlosaLancamentoInput[]) => Promise<string | null>;
   /** Guias congeladas de um lote, para o rateio por guia. */
-  buscarGuias: (loteId: string) => Promise<TituloGuia[] | undefined>;
+  buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
 }
 
 interface LinhaGlosa extends GlosaLancamentoInput {
@@ -82,7 +82,7 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
     setCarregandoGuias(true);
     try {
       const listas = await Promise.all(titulo.lotes.map((lote) => buscarGuias(lote.id)));
-      setGuias(listas.flatMap((lista) => lista ?? []));
+      setGuias(listas.flat());
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível carregar as guias.');
     } finally {
