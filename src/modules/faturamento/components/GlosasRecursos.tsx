@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   AlertCircle,
   RefreshCw,
@@ -14,9 +14,10 @@ import {
   MessageSquare,
   User
 } from 'lucide-react';
-import { useBilling } from '../../../hooks/useBilling';
+import { useGlosas } from '../hooks/useGlosas';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
+import { formatCurrency } from '../utils/formato';
 import { Glosa, GlosaStatus, GlosaRecursoInput } from '../../billing/types';
 
 // ============================================================================
@@ -25,16 +26,6 @@ import { Glosa, GlosaStatus, GlosaRecursoInput } from '../../billing/types';
 // ============================================================================
 
 const GlosasRecursos: React.FC = () => {
-  const {
-    loading,
-    error,
-    glosas,
-    fetchGlosas,
-    updateGlosaStatus,
-    formatCurrency,
-    clearError
-  } = useBilling();
-
   const { userProfile } = useAuth();
   // A RLS nova (20260807120000) exige canManageBilling para UPDATE em glosas; sem
   // ela o clique não dá erro, só não afeta linha nenhuma. Esconder as ações de
@@ -42,22 +33,21 @@ const GlosasRecursos: React.FC = () => {
   const podeEditar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
 
   const [filtroStatus, setFiltroStatus] = useState<GlosaStatus | 'todas'>('todas');
+  const {
+    loading,
+    error,
+    glosas,
+    refetch,
+    atualizarStatusGlosa,
+    limparErro
+  } = useGlosas({ status: filtroStatus !== 'todas' ? filtroStatus : undefined });
+
   const [showRecursoModal, setShowRecursoModal] = useState(false);
   const [selectedGlosa, setSelectedGlosa] = useState<Glosa | null>(null);
   const [recursoForm, setRecursoForm] = useState<GlosaRecursoInput>({
     status: 'em_recurso',
     responsavel: ''
   });
-
-  // Carregar dados iniciais
-  useEffect(() => {
-    loadGlosas();
-  }, [filtroStatus]);
-
-  const loadGlosas = async () => {
-    const filters = filtroStatus !== 'todas' ? { status: filtroStatus } : undefined;
-    await fetchGlosas(filters);
-  };
 
   // Status badge helper
   const getStatusBadge = (status: GlosaStatus) => {
@@ -117,31 +107,28 @@ const GlosasRecursos: React.FC = () => {
 
   const handleMarcarRevertida = async (glosa: Glosa) => {
     if (!confirm('Confirma que esta glosa foi REVERTIDA pela operadora?')) return;
-    
-    await updateGlosaStatus(glosa.id_glosa, {
+
+    await atualizarStatusGlosa(glosa.id_glosa, {
       status: 'revertida',
       resultado_recurso: 'Glosa revertida - valor será creditado'
     });
-    loadGlosas();
   };
 
   const handleMarcarDefinitiva = async (glosa: Glosa) => {
     if (!confirm('Confirma que esta glosa é DEFINITIVA e não será revertida?')) return;
-    
-    await updateGlosaStatus(glosa.id_glosa, {
+
+    await atualizarStatusGlosa(glosa.id_glosa, {
       status: 'definitiva',
       resultado_recurso: 'Recurso negado - glosa mantida'
     });
-    loadGlosas();
   };
 
   const handleSalvarRecurso = async () => {
     if (!selectedGlosa) return;
-    
-    await updateGlosaStatus(selectedGlosa.id_glosa, recursoForm);
+
+    await atualizarStatusGlosa(selectedGlosa.id_glosa, recursoForm);
     setShowRecursoModal(false);
     setSelectedGlosa(null);
-    loadGlosas();
   };
 
   return (
@@ -159,7 +146,7 @@ const GlosasRecursos: React.FC = () => {
         </div>
 
         <button
-          onClick={loadGlosas}
+          onClick={refetch}
           disabled={loading}
           className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
         >
@@ -174,7 +161,7 @@ const GlosasRecursos: React.FC = () => {
           <div className="flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
             <p className="text-red-700 dark:text-red-300">{error}</p>
-            <button onClick={clearError} className="ml-auto text-red-600 hover:text-red-800">×</button>
+            <button onClick={limparErro} className="ml-auto text-red-600 hover:text-red-800">×</button>
           </div>
         </div>
       )}

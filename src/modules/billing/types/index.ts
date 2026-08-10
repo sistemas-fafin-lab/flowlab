@@ -7,246 +7,47 @@
 // ENUMS / TIPOS LITERAIS
 // ============================================================================
 
-export type OperadoraStatus = 'ativa' | 'inativa';
-
-export type LoteStatus = 'aberto' | 'enviado' | 'processado' | 'fechado';
-
-export type RequisicaoStatus = 'pendente' | 'em_lote' | 'faturada' | 'paga' | 'glosada';
-
-export type NotaStatus = 'aberta' | 'parcialmente_recebida' | 'recebida' | 'glosada' | 'cancelada';
-
-export type RecebimentoStatus = 'previsto' | 'recebido' | 'parcial' | 'cancelado';
-
 export type GlosaStatus = 'aberta' | 'em_recurso' | 'revertida' | 'definitiva';
-
-export type SyncType = 'operadoras' | 'notas' | 'lotes' | 'requisicoes' | 'full';
-
-export type SyncStatus = 'running' | 'success' | 'error' | 'partial';
 
 // ============================================================================
 // INTERFACES PRINCIPAIS
 // ============================================================================
 
 /**
- * Operadora de plano de saúde / Convênio
- * Sincronizado do sistema APLIS
- */
-export interface Operadora {
-  id_operadora: string;
-  nome: string;
-  cnpj?: string;
-  prazo_pagamento_dias: number;
-  contato_email?: string;
-  contato_telefone?: string;
-  aplis_id?: string;
-  created_at: string;
-  updated_at: string;
-}
-
-/**
- * Lote de faturamento - agrupa requisições para envio à operadora
- * Sincronizado do sistema APLIS
- */
-export interface Lote {
-  id_lote: string;
-  operadora_id: string;
-  codigo_lote: string;
-  data_criacao: string;
-  data_envio?: string;
-  status: LoteStatus;
-  valor_total: number;
-  qtd_requisicoes: number;
-  aplis_id?: string;
-  created_at: string;
-  updated_at: string;
-  // Relacionamentos (join)
-  operadora?: Operadora;
-  requisicoes?: Requisicao[];
-}
-
-/**
- * Requisição / Guia de procedimento médico
- * Sincronizado do sistema APLIS
- */
-export interface Requisicao {
-  id_requisicao: string;
-  lote_id?: string;
-  numero_guia: string;
-  data_criacao: string;
-  data_execucao?: string;
-  valor: number;
-  status: RequisicaoStatus;
-  paciente_nome?: string;
-  procedimento_codigo?: string;
-  procedimento_descricao?: string;
-  aplis_id?: string;
-  created_at: string;
-  updated_at: string;
-  // Relacionamentos (join)
-  lote?: Lote;
-}
-
-/**
- * Nota Fiscal / Fatura emitida para operadora
- * Sincronizado do sistema APLIS
- */
-export interface Nota {
-  id_nota: string;
-  operadora_id: string;
-  numero_nota: string;
-  data_emissao: string;
-  data_vencimento?: string;
-  valor_total: number;
-  valor_recebido: number;
-  valor_glosado: number;
-  status: NotaStatus;
-  competencia?: string;
-  observacoes?: string;
-  aplis_id?: string;
-  created_at: string;
-  updated_at: string;
-  // Relacionamentos (join)
-  operadora?: Operadora;
-  lotes?: Lote[];
-  recebimentos?: Recebimento[];
-  glosas?: Glosa[];
-}
-
-/**
- * Tabela associativa Nota-Lote (N:N)
- */
-export interface NotaLote {
-  id_nota: string;
-  id_lote: string;
-  created_at: string;
-}
-
-/**
- * Recebimento / Conta a Receber
- * Gerenciado localmente (não sincronizado do APLIS)
- */
-export interface Recebimento {
-  id_receb: string;
-  nota_id?: string;
-  lote_id?: string;
-  data_prevista: string;
-  data_receb?: string;
-  valor_previsto: number;
-  valor_recebido: number;
-  status: RecebimentoStatus;
-  banco_nome?: string;
-  banco_conta?: string;
-  comprovante_url?: string;
-  observacoes?: string;
-  registrado_por?: string;
-  created_at: string;
-  updated_at: string;
-  // Relacionamentos (join)
-  nota?: Nota;
-  lote?: Lote;
-  glosas?: Glosa[];
-}
-
-/**
- * Glosa - valor não pago pela operadora
- * Gerenciado localmente (não sincronizado do APLIS)
+ * Glosa - valor não pago pela operadora, lançada contra um título (`notas`).
+ * `recebimento_id` é nullable: glosa avulsa (lançada antes de qualquer baixa)
+ * não tem baixa associada.
  */
 export interface Glosa {
   id_glosa: string;
-  recebimento_id: string;
-  nota_id?: string;
-  requisicao_id?: string;
+  recebimento_id: string | null;
+  nota_id: string | null;
+  requisicao_id: string | null;
+  lote_id: string | null;
   valor: number;
   motivo: string;
-  codigo_glosa?: string;
+  codigo_glosa: string | null;
   status: GlosaStatus;
   recurso: boolean;
-  data_recurso?: string;
-  resultado_recurso?: string;
-  responsavel?: string;
+  data_recurso: string | null;
+  resultado_recurso: string | null;
+  responsavel: string | null;
   created_at: string;
   updated_at: string;
-  // Relacionamentos (join)
-  recebimento?: Recebimento;
-  nota?: Nota;
-  requisicao?: Requisicao;
-}
-
-/**
- * Log de sincronização com APLIS
- */
-export interface BillingSyncLog {
-  id: string;
-  sync_type: SyncType;
-  started_at: string;
-  finished_at?: string;
-  status: SyncStatus;
-  records_processed: number;
-  records_created: number;
-  records_updated: number;
-  records_failed: number;
-  error_message?: string;
-  details?: Record<string, unknown>;
+  // Relacionamentos (join) — só os campos que a tela de Glosas e Recursos usa.
+  nota: { numero_nota: string } | null;
+  recebimento: { nota: { numero_nota: string; operadora: { nome: string } | null } | null } | null;
 }
 
 // ============================================================================
 // INTERFACES PARA FORMULÁRIOS / INPUT
 // ============================================================================
 
-export interface OperadoraInput {
-  nome: string;
-  cnpj?: string;
-  prazo_pagamento_dias?: number;
-  contato_email?: string;
-  contato_telefone?: string;
-}
-
-export interface RecebimentoInput {
-  nota_id?: string;
-  lote_id?: string;
-  data_prevista: string;
-  valor_previsto: number;
-  data_receb?: string;
-  valor_recebido?: number;
-  banco_nome?: string;
-  banco_conta?: string;
-  observacoes?: string;
-}
-
-export interface RecebimentoBaixaInput {
-  data_receb: string;
-  valor_recebido: number;
-  banco_nome?: string;
-  banco_conta?: string;
-  comprovante_url?: string;
-  observacoes?: string;
-}
-
-export interface GlosaInput {
-  recebimento_id: string;
-  nota_id?: string;
-  requisicao_id?: string;
-  valor: number;
-  motivo: string;
-  codigo_glosa?: string;
-}
-
 export interface GlosaRecursoInput {
   status: GlosaStatus;
   data_recurso?: string;
   resultado_recurso?: string;
   responsavel?: string;
-}
-
-// ============================================================================
-// INTERFACES PARA MÉTRICAS / DASHBOARD
-// ============================================================================
-
-export interface RecebimentoAgrupado {
-  periodo: '30dias' | '60dias' | '90dias' | 'vencido';
-  quantidade: number;
-  valorTotal: number;
-  recebimentos: Recebimento[];
 }
 
 // ============================================================================
@@ -425,8 +226,8 @@ export interface TitulosFiltros {
   tamanho?: number;
 }
 
-/** Glosa lançada junto de uma baixa. Nome distinto do `GlosaInput` legado, que
- *  espelha as colunas cruas da tabela e é consumido por useBilling. */
+/** Glosa lançada junto de uma baixa, no formato que `fat_registrar_baixa` espera
+ *  (camelCase, não as colunas cruas de `Glosa`). */
 export interface GlosaLancamentoInput {
   valor: number;
   motivo: string;

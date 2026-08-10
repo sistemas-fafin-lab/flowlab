@@ -12,9 +12,9 @@ import type {
 //
 // Não lê o Supabase: os dados vêm do MySQL de backup do laboratório, cujas credenciais
 // são server-side, então a consulta passa pela function, que valida o JWT da sessão +
-// canViewBilling. Por isso também não usamos o useBilling — aquele hook compartilha um
-// único par loading/error entre todas as operações do módulo, o que faz uma busca de
-// faturas piscar o spinner das outras abas.
+// canViewBilling. Por isso é um hook à parte de useContasReceber/useGlosas — cada um
+// com seu próprio par loading/error, para uma busca de faturas não piscar o spinner
+// das outras abas.
 
 // Token da sessão do operador; a rota /api valida este JWT + canViewBilling.
 async function getToken(): Promise<string | null> {
