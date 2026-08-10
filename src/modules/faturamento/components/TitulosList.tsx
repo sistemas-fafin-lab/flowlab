@@ -18,6 +18,7 @@ import type {
 } from '../../billing/types';
 import { formatCompetencia, formatCurrency, formatData } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
+import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 
 // Lista de títulos a receber, com linha expansível: título → lotes → guias.
 // As guias só são buscadas quando o operador abre o lote — são dezenas por lote e
@@ -152,6 +153,24 @@ const TitulosList: React.FC<Props> = ({
     [total, filtros.tamanho],
   );
 
+  // Paginação não é um recorte a salvar numa view — só o que define QUAIS
+  // títulos aparecem, não EM QUE PÁGINA. Aplicar uma view sempre volta pra 1.
+  const filtrosSalvaveis = useMemo(
+    () => ({
+      desde: filtros.desde,
+      ate: filtros.ate,
+      status: filtros.status,
+      operadoraId: filtros.operadoraId,
+      busca: filtros.busca,
+    }),
+    [filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, filtros.busca],
+  );
+
+  const aplicarView = (view: typeof filtrosSalvaveis) => {
+    setBusca(view.busca);
+    onFiltrar({ ...view, pagina: 1 });
+  };
+
   return (
     <div className="space-y-4">
       {/* ── Filtros ──────────────────────────────────────────────────────── */}
@@ -210,6 +229,7 @@ const TitulosList: React.FC<Props> = ({
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
           />
         </div>
+        <ViewsSalvasMenu tela="titulos" filtros={filtrosSalvaveis} onAplicar={aplicarView} />
         <button
           type="button"
           onClick={onAtualizar}

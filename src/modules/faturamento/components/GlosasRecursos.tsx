@@ -19,6 +19,11 @@ import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { formatCurrency } from '../utils/formato';
 import { Glosa, GlosaStatus, GlosaRecursoInput } from '../../billing/types';
+import { ViewsSalvasMenu } from './ViewsSalvasMenu';
+
+interface GlosasFiltros {
+  status: GlosaStatus | 'todas';
+}
 
 // ============================================================================
 // COMPONENTE: GlosasRecursos
@@ -256,6 +261,12 @@ const GlosasRecursos: React.FC = () => {
             <option value="revertida">Revertidas</option>
             <option value="definitiva">Definitivas</option>
           </select>
+
+          <ViewsSalvasMenu<GlosasFiltros>
+            tela="glosas"
+            filtros={{ status: filtroStatus }}
+            onAplicar={(view) => setFiltroStatus(view.status)}
+          />
         </div>
       </div>
 
