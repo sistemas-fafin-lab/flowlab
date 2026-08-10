@@ -34,6 +34,7 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canManageAnalisesClinicas', label: 'Gerenciar Postos e Horários', group: 'Análises Clínicas' },
   { key: 'canManageColetas', label: 'Gerenciar Coletas e Análises', group: 'Análises Clínicas' },
   { key: 'canDeleteAgendamentos', label: 'Cancelar Agendamentos', group: 'Análises Clínicas' },
+  { key: 'canEditarAgendamentos', label: 'Editar Agendamentos', group: 'Análises Clínicas' },
   { key: 'canCorrigirIdentidade', label: 'Corrigir Identidade de Paciente', group: 'Análises Clínicas' },
   { key: 'canViewTemperatura', label: 'Visualizar Temperaturas (só leitura)', group: 'Análises Clínicas' },
   // ── Cotações (granular) ────────────────────────────────────────────────────

@@ -27,6 +27,10 @@ export interface AcAgendamento {
   cancelado_em?: string | null; // ISO 8601
   cancelado_por?: string | null;
   cancelamento_motivo?: string | null;
+  // Auditoria da edição pelo operador (migration 20260810150000). NULL = nunca
+  // editado desde o recebimento.
+  editado_em?: string | null; // ISO 8601
+  editado_por?: string | null;
 }
 
 export interface AcPosto {

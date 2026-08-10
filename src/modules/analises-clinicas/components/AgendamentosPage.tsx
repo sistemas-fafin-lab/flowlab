@@ -25,6 +25,7 @@ import {
   Image as ImageIcon,
   Trash2,
   AlertTriangle,
+  Pencil,
   type LucideIcon,
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -418,8 +419,9 @@ const DetalheAgendamentoModal: React.FC<{
   onClose: () => void;
   onIrParaAcao: () => void;
   onCancelar?: () => void;
+  onEditar?: () => void;
   onUpload?: (agendamentoFlowlabId: string, file: File, tipo: TipoDocumento) => Promise<string | null>;
-}> = ({ ag, canManage, onClose, onIrParaAcao, onCancelar, onUpload }) => {
+}> = ({ ag, canManage, onClose, onIrParaAcao, onCancelar, onEditar, onUpload }) => {
   const cfg = statusCfg(ag.status);
   const acao = ACAO_STATUS[ag.status];
   const AcaoIcon = acao?.icon;
@@ -759,6 +761,16 @@ const DetalheAgendamentoModal: React.FC<{
             >
               <XCircle className="w-4 h-4" />
               Cancelar
+            </button>
+          )}
+          {onEditar && (
+            <button
+              onClick={onEditar}
+              title="Editar agendamento"
+              className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-gray-700 dark:text-gray-200 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 ${onCancelar ? '' : 'mr-auto'}`}
+            >
+              <Pencil className="w-4 h-4" />
+              Editar
             </button>
           )}
           {acao && canManage && AcaoIcon && (
@@ -1426,6 +1438,269 @@ const NovoAgendamentoModal: React.FC<{
   );
 };
 
+// ─── Modal de edição de agendamento ─────────────────────────────────────────────
+// Edição LOCAL (posto/data-hora/telefone) — RPC editar_agendamento não notifica o
+// LAB-HUB (mesmo racional do cancelamento). Só chamado quando o status é
+// 'recebido' (guard no botão do drawer + na RPC).
+const EditarAgendamentoModal: React.FC<{
+  ag: AcAgendamento;
+  postos: AcPosto[]; // apenas ativos
+  onClose: () => void;
+  onSave: (dados: { dataHora: string; postoId: string; telefone: string | null }) => Promise<string | null>;
+  onDisponibilidade: () => Promise<PostoDisponivel[]>;
+}> = ({ ag, postos, onClose, onSave, onDisponibilidade }) => {
+  const [telefone, setTelefone] = useState(ag.paciente_telefone ? maskTelefone(ag.paciente_telefone) : '');
+  const [postoSel, setPostoSel] = useState(ag.posto_id ?? '');
+  const [disponibilidade, setDisponibilidade] = useState<PostoDisponivel[]>([]);
+  const [carregandoDisp, setCarregandoDisp] = useState(true);
+  const [dataSel, setDataSel] = useState(() => new Date(ag.data_hora).toLocaleDateString('en-CA'));
+  const [slotSel, setSlotSel] = useState(ag.data_hora);
+  const [saving, setSaving] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  // Carrega a disponibilidade real (mesma grade da criação) ao abrir o modal.
+  useEffect(() => {
+    let vivo = true;
+    setCarregandoDisp(true);
+    void onDisponibilidade().then((d) => {
+      if (!vivo) return;
+      setDisponibilidade(d);
+      setCarregandoDisp(false);
+    });
+    return () => { vivo = false; };
+  }, [onDisponibilidade]);
+
+  // Opções do <select> de posto: os ativos + o posto atual do agendamento, caso
+  // ele tenha sido desativado depois do agendamento (senão o <select> mostra em
+  // branco mesmo com postoSel apontando pra um id válido).
+  const opcoesPosto = useMemo(() => {
+    const base = postos.map((p) => ({ id: p.id, nome: p.nome }));
+    if (ag.posto_id && !base.some((p) => p.id === ag.posto_id)) {
+      base.push({ id: ag.posto_id, nome: `${ag.local_posto || 'Posto'} (inativo)` });
+    }
+    return base;
+  }, [postos, ag.posto_id, ag.local_posto]);
+
+  // Slots do posto escolhido — inclui o horário atual do agendamento mesmo que a
+  // disponibilidade o marque como ocupado (é ele mesmo quem ocupa o horário).
+  const slotsDoPosto = useMemo(() => {
+    const base = disponibilidade.find((d) => d.id === postoSel)?.slots ?? [];
+    if (postoSel === ag.posto_id && !base.includes(ag.data_hora)) {
+      return [...base, ag.data_hora].sort();
+    }
+    return base;
+  }, [disponibilidade, postoSel, ag.posto_id, ag.data_hora]);
+
+  const porData = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const iso of slotsDoPosto) {
+      const k = new Date(iso).toLocaleDateString('en-CA'); // YYYY-MM-DD local
+      const arr = m.get(k);
+      if (arr) arr.push(iso);
+      else m.set(k, [iso]);
+    }
+    return m;
+  }, [slotsDoPosto]);
+  const datas = useMemo(() => [...porData.keys()].sort(), [porData]);
+  const horariosDaData = dataSel ? porData.get(dataSel) ?? [] : [];
+  const dataMin = datas[0] ?? '';
+  const dataMax = datas[datas.length - 1] ?? '';
+  const diaSemHorario = Boolean(dataSel) && !carregandoDisp && horariosDaData.length === 0;
+
+  // Trocar de posto/data invalida a seleção seguinte — mas NÃO na primeira
+  // renderização, que já nasce preenchida com o horário atual do agendamento.
+  const primeiroPosto = useRef(true);
+  useEffect(() => {
+    if (primeiroPosto.current) {
+      primeiroPosto.current = false;
+      return;
+    }
+    setDataSel('');
+    setSlotSel('');
+  }, [postoSel]);
+  const primeiraData = useRef(true);
+  useEffect(() => {
+    if (primeiraData.current) {
+      primeiraData.current = false;
+      return;
+    }
+    setSlotSel('');
+  }, [dataSel]);
+
+  const telErro = telefone.length > 0 && !telefoneValido(telefone);
+  const telValid = telefone.length > 0 && telefoneValido(telefone);
+
+  const handleSave = async () => {
+    setErro(null);
+    if (telefone.trim() && !telefoneValido(telefone)) {
+      return setErro('Telefone inválido — inclua o DDD.');
+    }
+    if (!postoSel) return setErro('Selecione o posto.');
+    if (!slotSel) return setErro('Selecione a data e o horário.');
+
+    setSaving(true);
+
+    // A agenda pode mudar enquanto o modal fica aberto. Revalida contra a lista
+    // atual antes de salvar — a menos que nada tenha mudado (o próprio horário
+    // continua "ocupado" pelo agendamento que está sendo editado).
+    const mudouSlot = postoSel !== ag.posto_id || slotSel !== ag.data_hora;
+    if (mudouSlot) {
+      setCarregandoDisp(true);
+      const disponibilidadeAtualizada = await onDisponibilidade();
+      setCarregandoDisp(false);
+      const postoAtualizado = disponibilidadeAtualizada.find(({ id }) => id === postoSel);
+      if (!postoAtualizado?.slots.includes(slotSel)) {
+        setDisponibilidade(disponibilidadeAtualizada);
+        setSlotSel('');
+        setSaving(false);
+        return setErro('Esse horário não está mais disponível. A agenda foi atualizada; escolha outro.');
+      }
+    }
+
+    const telefoneDigitos = soDigitos(telefone) || null;
+    const erroSalvar = await onSave({ dataHora: slotSel, postoId: postoSel, telefone: telefoneDigitos });
+    setSaving(false);
+    if (erroSalvar) {
+      setErro(
+        erroSalvar.toLowerCase().includes('horário já ocupado')
+          ? 'Esse horário já está ocupado por outro agendamento. Escolha outro.'
+          : erroSalvar,
+      );
+      return;
+    }
+    onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col animate-scale-in"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="font-bold text-gray-900 dark:text-gray-100">Editar agendamento</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{ag.paciente_nome}</p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 overflow-y-auto space-y-4">
+          {erro && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm whitespace-pre-line">
+              {erro}
+            </div>
+          )}
+
+          <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-xs">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+            A edição é local — o LAB-HUB não é notificado da mudança de posto/horário.
+          </div>
+
+          {/* Telefone (opcional) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Telefone <span className="text-gray-400">(opcional)</span>
+            </label>
+            <div className="relative flex items-center">
+              <input
+                value={telefone}
+                onChange={(e) => setTelefone(maskTelefone(e.target.value))}
+                placeholder="(00) 00000-0000"
+                inputMode="tel"
+                className={`${fieldCls(telErro, telValid)} pr-10`}
+              />
+              {telValid && <Check className="absolute right-3 w-4 h-4 text-emerald-500" />}
+            </div>
+          </div>
+
+          {/* Posto (obrigatório) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Posto</label>
+            <select value={postoSel} onChange={(e) => setPostoSel(e.target.value)} className={inputCls}>
+              <option value="">Selecione…</option>
+              {opcoesPosto.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Data (calendário) e horário — os horários são os slots reais da grade */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data</label>
+              <input
+                type="date"
+                value={dataSel}
+                onChange={(e) => setDataSel(e.target.value)}
+                min={dataMin}
+                max={dataMax}
+                disabled={!postoSel || carregandoDisp}
+                className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark] disabled:opacity-60`}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Horário</label>
+              <select
+                value={slotSel}
+                onChange={(e) => setSlotSel(e.target.value)}
+                disabled={!dataSel || horariosDaData.length === 0}
+                className={`${inputCls} tabular-nums disabled:opacity-60`}
+              >
+                <option value="">Selecione…</option>
+                {horariosDaData.map((iso) => (
+                  <option key={iso} value={iso}>
+                    {fmtHora(iso)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          {!postoSel ? (
+            <p className="-mt-2 text-xs text-gray-400 dark:text-gray-500">
+              Escolha o posto para liberar o calendário.
+            </p>
+          ) : carregandoDisp ? (
+            <p className="-mt-2 text-xs text-gray-400 dark:text-gray-500">Carregando a agenda…</p>
+          ) : datas.length === 0 ? (
+            <p className="-mt-2 text-xs text-amber-600 dark:text-amber-400">
+              Sem horários disponíveis para este posto. Ajuste a agenda do posto ou escolha outro.
+            </p>
+          ) : diaSemHorario ? (
+            <p className="-mt-2 text-xs text-amber-600 dark:text-amber-400">
+              {fmtDiaSemana(dataSel)} não tem horário livre — o posto não abre nesse dia ou a
+              agenda já está cheia.
+            </p>
+          ) : null}
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 dark:border-gray-700 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 rounded-xl border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={() => void handleSave()}
+            disabled={saving}
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-600 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+          >
+            {saving ? 'Salvando…' : 'Salvar alterações'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Página ───────────────────────────────────────────────────────────────────
 const AgendamentosPage: React.FC = () => {
   const [postoSel, setPostoSel] = useState<string>(''); // ac_postos.id — '' = todos
@@ -1435,6 +1710,7 @@ const AgendamentosPage: React.FC = () => {
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
   const [mostrarNovo, setMostrarNovo] = useState(false);
   const [detalhe, setDetalhe] = useState<AcAgendamento | null>(null);
+  const [editando, setEditando] = useState<AcAgendamento | null>(null);
   const navigate = useNavigate();
 
   // O posto é filtrado no cliente para que os cartões-resumo sempre reflitam o
@@ -1453,11 +1729,30 @@ const AgendamentosPage: React.FC = () => {
   const { postos } = usePostos();
   const { user, userProfile } = useAuth();
   const canManage = hasPermission(userProfile?.permissions || [], 'canManageColetas');
-  // Cancelar agendamento tem permissão própria (mais restrita que operar coletas).
+  // Cancelar e editar agendamento têm permissões próprias (mais restritas que
+  // operar coletas).
   const canDelete = hasPermission(userProfile?.permissions || [], 'canDeleteAgendamentos');
+  const canEditar = hasPermission(userProfile?.permissions || [], 'canEditarAgendamentos');
   const operadorNome = userProfile?.name || user?.email || 'Sistema';
-  const { cancelarAgendamento } = useColetas();
+  const { cancelarAgendamento, editarAgendamento } = useColetas();
   const { inputDialog, showInputDialog, hideInputDialog, handleInputDialogConfirm } = useDialog();
+
+  // Edição local (posto/data-hora/telefone) pelo drawer. A RPC só aceita status
+  // 'recebido' e recusa horário já ocupado por outro agendamento ativo.
+  const handleSalvarEdicao = async (dados: {
+    dataHora: string;
+    postoId: string;
+    telefone: string | null;
+  }) => {
+    if (!editando) return 'Agendamento não encontrado.';
+    const erro = await editarAgendamento(editando.id, dados, operadorNome);
+    if (!erro) {
+      setDetalhe(null);
+      setEditando(null);
+      void refetch();
+    }
+    return erro;
+  };
 
   // Cancelamento lógico pelo drawer. O InputDialog (motivo opcional) é a própria
   // confirmação: fechar sem confirmar resolve null e nada acontece. A RPC valida
@@ -1585,7 +1880,20 @@ const AgendamentosPage: React.FC = () => {
               ? () => void handleCancelar(detalhe)
               : undefined
           }
+          onEditar={
+            canEditar && detalhe.status === 'recebido' ? () => setEditando(detalhe) : undefined
+          }
           onUpload={uploadDocumento}
+        />
+      )}
+
+      {editando && (
+        <EditarAgendamentoModal
+          ag={editando}
+          postos={postosAtivos}
+          onClose={() => setEditando(null)}
+          onSave={handleSalvarEdicao}
+          onDisponibilidade={buscarDisponibilidade}
         />
       )}
 

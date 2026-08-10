@@ -30,6 +30,14 @@ interface UseColetasResult {
     canceladoPor: string,
     motivo: string | null,
   ) => Promise<string | null>;
+  // Edição local (posto/data-hora/telefone): não avisa o LAB-HUB. A RPC só
+  // aceita agendamento 'recebido' e recusa horário já ocupado por outro
+  // agendamento ativo. Retorna a mensagem de erro, ou null em sucesso.
+  editarAgendamento: (
+    agendamentoId: string,
+    dados: { dataHora: string; postoId: string; telefone: string | null },
+    editadoPor: string,
+  ) => Promise<string | null>;
 }
 
 // Fluxo de coleta (Fase 6). As mutações rodam nas RPCs transacionais
@@ -87,5 +95,19 @@ export function useColetas(): UseColetasResult {
     return (data ?? []) as AcCheckin[];
   }, []);
 
-  return { registrarCheckin, registrarColeta, fetchCheckins, cancelarAgendamento };
+  const editarAgendamento = useCallback<UseColetasResult['editarAgendamento']>(
+    async (agendamentoId, dados, editadoPor) => {
+      const { error } = await supabase.rpc('editar_agendamento', {
+        p_agendamento_id: agendamentoId,
+        p_data_hora: dados.dataHora,
+        p_posto_id: dados.postoId,
+        p_telefone: dados.telefone,
+        p_editado_por: editadoPor,
+      });
+      return error ? error.message : null;
+    },
+    [],
+  );
+
+  return { registrarCheckin, registrarColeta, fetchCheckins, cancelarAgendamento, editarAgendamento };
 }
