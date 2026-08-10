@@ -133,6 +133,13 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
       setErro('Informe ao menos uma glosa.');
       return;
     }
+    // Checado ANTES do "recebido <= 0 && sem glosa" de propósito: aquele guard só
+    // barra quando não há nenhuma glosa, então um valor negativo digitado por
+    // engano passava disfarçado assim que a linha de glosa era adicionada.
+    if (modo === 'baixa' && recebido < 0) {
+      setErro('Valor recebido não pode ser negativo.');
+      return;
+    }
     if (modo === 'baixa' && recebido <= 0 && glosas.length === 0) {
       setErro('Informe um valor recebido ou ao menos uma glosa.');
       return;
