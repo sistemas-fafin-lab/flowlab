@@ -4,6 +4,7 @@ import { Check, ChevronDown, Filter, Search, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { formatData } from '../utils/formato';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
+import DatePicker from '../../../components/DatePicker';
 import type { DashboardReceberFiltros, OperadoraResumo } from '../../billing/types';
 
 // Filtros do painel de Contas a Receber: uma barra enxuta que abre um modal.
@@ -513,20 +514,18 @@ const ModalFiltros: React.FC<ModalProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs text-slate-500 dark:text-slate-400">
                 De
-                <input
-                  type="date"
+                <DatePicker
                   value={rascunho.desde}
-                  onChange={(e) => alterar({ desde: e.target.value })}
-                  className={`mt-1 ${CAMPO}`}
+                  onChange={(v) => alterar({ desde: v })}
+                  controlClass={`mt-1 ${CAMPO}`}
                 />
               </label>
               <label className="text-xs text-slate-500 dark:text-slate-400">
                 Até
-                <input
-                  type="date"
+                <DatePicker
                   value={rascunho.ate}
-                  onChange={(e) => alterar({ ate: e.target.value })}
-                  className={`mt-1 ${CAMPO}`}
+                  onChange={(v) => alterar({ ate: v })}
+                  controlClass={`mt-1 ${CAMPO}`}
                 />
               </label>
             </div>
