@@ -83,6 +83,30 @@ const HistoricoGlosasLegado: React.FC = () => {
 
   const qtdPaginas = meta?.qtdPaginas ?? 0;
 
+  const paginacao = (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-gray-500 dark:text-gray-400">
+        Página {pagina} de {Math.max(qtdPaginas, 1)}
+      </span>
+      <button
+        onClick={() => setPagina((p) => Math.max(1, p - 1))}
+        disabled={pagina <= 1 || loading}
+        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        <ChevronLeft size={16} />
+        Anterior
+      </button>
+      <button
+        onClick={() => setPagina((p) => p + 1)}
+        disabled={pagina >= qtdPaginas || loading}
+        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        Próxima
+        <ChevronRight size={16} />
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       {error && (
@@ -139,7 +163,7 @@ const HistoricoGlosasLegado: React.FC = () => {
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por paciente, requisição, guia..."
+              placeholder="Buscar por paciente, requisição, guia, procedimento, motivo, fonte pagadora..."
               className="w-full pl-9 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500"
             />
           </div>
@@ -161,11 +185,14 @@ const HistoricoGlosasLegado: React.FC = () => {
           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
             Glosas do legado ({meta?.registros ?? 0})
           </h3>
-          {meta?.dadoAte && (
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              dados até {formatData(meta.dadoAte)}
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {meta?.dadoAte && (
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                dados até {formatData(meta.dadoAte)}
+              </span>
+            )}
+            {glosas.length > 0 && paginacao}
+          </div>
         </div>
 
         {loading ? (
@@ -185,6 +212,7 @@ const HistoricoGlosasLegado: React.FC = () => {
                   <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                     <th className="px-4 py-3">Requisição</th>
                     <th className="px-3 py-3">Paciente</th>
+                    <th className="px-3 py-3">Fonte Pagadora</th>
                     <th className="px-3 py-3">Data</th>
                     <th className="px-3 py-3">Procedimento</th>
                     <th className="px-3 py-3">Motivo</th>
@@ -205,6 +233,9 @@ const HistoricoGlosasLegado: React.FC = () => {
                       </td>
                       <td className="px-3 py-3 text-gray-700 dark:text-gray-300">
                         {g.paciente ?? '—'}
+                      </td>
+                      <td className="px-3 py-3 text-gray-700 dark:text-gray-300">
+                        {g.fontePagadora.nome ?? 'Não identificada'}
                       </td>
                       <td className="px-3 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         {formatData(g.dtaSolicitacao)}
@@ -233,28 +264,8 @@ const HistoricoGlosasLegado: React.FC = () => {
               </table>
             </div>
 
-            <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
-              <span className="text-sm text-gray-500 dark:text-gray-400">
-                Página {pagina} de {Math.max(qtdPaginas, 1)}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPagina((p) => Math.max(1, p - 1))}
-                  disabled={pagina <= 1 || loading}
-                  className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft size={16} />
-                  Anterior
-                </button>
-                <button
-                  onClick={() => setPagina((p) => p + 1)}
-                  disabled={pagina >= qtdPaginas || loading}
-                  className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Próxima
-                  <ChevronRight size={16} />
-                </button>
-              </div>
+            <div className="px-5 py-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
+              {paginacao}
             </div>
           </>
         )}

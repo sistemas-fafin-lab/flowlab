@@ -246,7 +246,7 @@ const TitulosList: React.FC<Props> = ({
             type="text"
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Número da nota…"
+            placeholder="Buscar por nota, operadora, competência, observações…"
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
           />
         </div>

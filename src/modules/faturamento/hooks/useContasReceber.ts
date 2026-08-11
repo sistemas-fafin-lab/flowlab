@@ -161,9 +161,26 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
 
       if (status) query = query.eq('status', status);
       if (operadoraId) query = query.eq('operadora_id', operadoraId);
-      // `%` e `_` do operador viram curinga do LIKE; escapa antes de compor.
       if (busca?.trim()) {
-        query = query.ilike('numero_nota', `%${busca.trim().replace(/[%_]/g, '\\$&')}%`);
+        const termo = busca.trim();
+        // `%` e `_` do operador viram curinga do LIKE; escapa antes de compor.
+        // Aspas duplas escapam vírgula/parênteses do termo dentro do or() do PostgREST.
+        const termoLike = termo.replace(/[%_]/g, '\\$&').replace(/"/g, '\\"');
+        const condicoes = [
+          `numero_nota.ilike."%${termoLike}%"`,
+          `competencia.ilike."%${termoLike}%"`,
+          `observacoes.ilike."%${termoLike}%"`,
+        ];
+        // Nome da operadora não dá pra filtrar direto no embed aninhado do or() —
+        // resolve os ids pela lista já carregada (mesma origem do dropdown) e
+        // inclui como operadora_id.in.(...).
+        const idsOperadora = operadoras
+          .filter((o) => o.nome.toLowerCase().includes(termo.toLowerCase()))
+          .map((o) => o.id);
+        if (idsOperadora.length > 0) {
+          condicoes.push(`operadora_id.in.(${idsOperadora.join(',')})`);
+        }
+        query = query.or(condicoes.join(','));
       }
 
       const { data, count, error: erro } = await query;
@@ -180,7 +197,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [desde, ate, status, operadoraId, busca, pagina, tamanho]);
+  }, [desde, ate, status, operadoraId, busca, pagina, tamanho, operadoras]);
 
   useEffect(() => {
     void refetch();

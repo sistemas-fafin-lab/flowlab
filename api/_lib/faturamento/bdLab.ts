@@ -710,8 +710,21 @@ function filtroGlosasLegado(
   }
   if (params.busca !== undefined && params.busca.trim() !== '') {
     const termo = escaparLike(params.busca.trim().slice(0, MAX_BUSCA));
-    const likeBusca = [like('p.NomPaciente'), like('r.CodRequisicao'), like('r.NumGuiaConvenio')];
-    valores.push(termo, termo, termo);
+    // Mesmas colunas exibidas na tabela do Histórico — fonte pagadora, procedimento e
+    // motivo entram aqui porque cp/tp/fmg/fi já são LEFT JOIN 1:1 (ver comentário acima
+    // da função), tanto na listagem quanto na contagem.
+    const likeBusca = [
+      like('p.NomPaciente'),
+      like('r.CodRequisicao'),
+      like('r.NumGuiaConvenio'),
+      like('fi.NomFantasia'),
+      like('fi.RazaoSocial'),
+      like('tp.Codigo'),
+      like('tp.Descricao'),
+      like('fmg.Descricao'),
+      like('frp.DesMotivoGlosa'),
+    ];
+    valores.push(...likeBusca.map(() => termo));
     condicoes.push(`(${likeBusca.join(' OR ')})`);
   }
 
@@ -783,6 +796,10 @@ export async function listarGlosasLegado(
          FROM requisicao r
          JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
          LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
+         LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
+         LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
+         LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = frp.IdMotivoGlosa
+         LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = r.IdFontePagadora
         WHERE ${where}`,
       valores,
     );
@@ -902,8 +919,11 @@ function filtroRecursosLegado(
       likeBusca.push(sql);
       valores.push(termo);
     };
+    adiciona(like('CAST(lr.IdLoteRecurso AS CHAR)'));
     adiciona(like('lr.Protocolo'));
     adiciona(like('lr.ProtocoloRecursado'));
+    adiciona(like('fi.NomFantasia'));
+    adiciona(like('fi.RazaoSocial'));
     adiciona(`EXISTS (SELECT 1 FROM fatloterecursoprocedimento lrpb
                        WHERE lrpb.IdLoteRecurso = lr.IdLoteRecurso AND ${like('lrpb.NumGuia')})`);
     condicoes.push(`(${likeBusca.join(' OR ')})`);
@@ -969,7 +989,10 @@ export async function listarRecursosLegado(
 
   return comConexao('listarRecursosLegado', async (conn) => {
     const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT COUNT(*) AS n FROM fatloterecurso lr WHERE ${where}`,
+      `SELECT COUNT(*) AS n
+         FROM fatloterecurso lr
+         LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = lr.IdFontePagadora
+        WHERE ${where}`,
       valores,
     );
     const registros = numero(contagem[0]?.n);
