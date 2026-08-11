@@ -83,9 +83,15 @@ CREATE POLICY "fat_views_salvas_insert_own" ON public.fat_views_salvas
 
 CREATE POLICY "fat_views_salvas_update_own" ON public.fat_views_salvas
   FOR UPDATE TO authenticated
-  USING (usuario_id = auth.uid())
-  WITH CHECK (usuario_id = auth.uid());
+  USING (usuario_id = auth.uid()
+     AND (public.current_user_has_permission('canViewBilling')
+       OR public.current_user_has_permission('canManageBilling')))
+  WITH CHECK (usuario_id = auth.uid()
+     AND (public.current_user_has_permission('canViewBilling')
+       OR public.current_user_has_permission('canManageBilling')));
 
 CREATE POLICY "fat_views_salvas_delete_own" ON public.fat_views_salvas
   FOR DELETE TO authenticated
-  USING (usuario_id = auth.uid());
+  USING (usuario_id = auth.uid()
+     AND (public.current_user_has_permission('canViewBilling')
+       OR public.current_user_has_permission('canManageBilling')));
