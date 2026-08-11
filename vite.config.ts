@@ -622,6 +622,7 @@ function apoioApiPlugin(env: Record<string, string>): Plugin {
 function faturamentoApiPlugin(env: Record<string, string>): Plugin {
   const FATURAMENTO_ACTIONS = new Set([
     'lotes', 'lote-detalhe', 'titulo-criar', 'operadoras-sync',
+    'glosas-legado', 'recursos-legado',
   ]);
   // DB_* é o MySQL de backup do laboratório: a fonte da aba Faturas (antes era o apLIS).
   const SERVER_ENV_KEYS = [
