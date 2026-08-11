@@ -446,3 +446,17 @@ export interface RecursosLegadoFiltros {
   pagina?: number;
   tamanho?: number;
 }
+
+/** Metadados de um documento digitalizado de requisicaoimagem — contrato de
+ *  GET /api/faturamento/imagens-legado. Os bytes vêm à parte, sob demanda, por
+ *  GET /api/faturamento/imagem-legado-arquivo. */
+export interface ImagemRequisicaoLegado {
+  id: number;
+  nomeArquivo: string;
+  extensao: string | null;
+  tipo: number | null;
+  /** Data em que o arquivo foi digitalizado — null enquanto `disponivel` é false. */
+  data: string | null;
+  /** false quando a linha existe no apLIS mas ainda não foi digitalizada. */
+  disponivel: boolean;
+}

@@ -5,12 +5,14 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Image as ImageIcon,
   RefreshCw,
   Search,
 } from 'lucide-react';
 import { useRecursosLegado } from '../hooks/useRecursosLegado';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ProcedimentoRecursoLegado } from '../../billing/types';
+import ImagensRequisicaoLegadoModal from './ImagensRequisicaoLegadoModal';
 import { formatCurrency, formatData } from '../utils/formato';
 
 // Aba "Histórico (apLIS)" → sub-aba Recursos: lotes de recurso (fatloterecurso) já
@@ -54,6 +56,7 @@ const HistoricoRecursosLegado: React.FC = () => {
   const [procedimentos, setProcedimentos] = useState<Record<number, ProcedimentoRecursoLegado[]>>({});
   const [carregandoDet, setCarregandoDet] = useState<number | null>(null);
   const [erroDet, setErroDet] = useState<Record<number, string>>({});
+  const [imagensDe, setImagensDe] = useState<number | null>(null);
 
   const carregarDetalhe = useCallback(async (idLoteRecurso: number) => {
     setCarregandoDet(idLoteRecurso);
@@ -255,8 +258,15 @@ const HistoricoRecursosLegado: React.FC = () => {
                                     className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2"
                                   >
                                     <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-                                      <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
+                                      <span className="font-mono text-xs text-gray-500 dark:text-gray-400 inline-flex items-center gap-1.5">
                                         Requisição #{proc.idRequisicao}
+                                        <button
+                                          onClick={() => setImagensDe(proc.idRequisicao)}
+                                          title="Ver imagens da requisição"
+                                          className="p-1 rounded text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                                        >
+                                          <ImageIcon size={14} />
+                                        </button>
                                       </span>
                                       {proc.numGuia && (
                                         <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -296,6 +306,10 @@ const HistoricoRecursosLegado: React.FC = () => {
           </>
         )}
       </div>
+
+      {imagensDe != null && (
+        <ImagensRequisicaoLegadoModal idRequisicao={imagensDe} onClose={() => setImagensDe(null)} />
+      )}
     </div>
   );
 };

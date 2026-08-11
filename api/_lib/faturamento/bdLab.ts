@@ -1065,3 +1065,88 @@ export async function detalharRecursoLegado(
     return resultado;
   });
 }
+
+// --- Imagens da requisição (requisicaoimagem) — usado pelo botão "Ver imagens" nos
+// dois históricos acima (glosas tem IdRequisicao na própria linha; recursos só no
+// procedimento, ao expandir). Levantamento no banco: ~1,09M linhas, mas só ~1,4% tem
+// o blob (`Img`) preenchido — o resto nunca foi digitalizado no apLIS. `DtaImg` fica
+// nulo até a digitalização acontecer, o que pode levar alguns dias mesmo para
+// requisições já antigas; a réplica em si atrasa ~1 dia (nota do topo do arquivo).
+// Por isso a lista sempre devolve todas as linhas (mesmo sem imagem ainda), com
+// `disponivel` indicando se o arquivo já pode ser baixado.
+
+export interface ImagemRequisicaoLegado {
+  id: number;
+  nomeArquivo: string;
+  extensao: string | null;
+  tipo: number | null;
+  /** Data em que o arquivo foi digitalizado/anexado — null enquanto `disponivel` é false. */
+  data: string | null;
+  disponivel: boolean;
+}
+
+export type ListarImagensRequisicaoLegadoResultado =
+  | { imagens: ImagemRequisicaoLegado[] }
+  | { erro: { status: number; mensagem: string } };
+
+const SQL_LISTA_IMAGENS_REQUISICAO = `
+  SELECT IdRequisicaoImagem, NomArquivo, ExtArquivo, Tipo,
+         DATE_FORMAT(DtaImg, '%Y-%m-%d') AS DtaImg,
+         (Img IS NOT NULL) AS Disponivel
+    FROM requisicaoimagem
+   WHERE IdRequisicao = ? AND Inativo = 0
+   ORDER BY IdRequisicaoImagem`;
+
+/** Só metadados — sem o blob, que pode ser grande e só é buscado ao abrir a imagem. */
+export async function listarImagensRequisicaoLegado(
+  idRequisicao: number,
+): Promise<ListarImagensRequisicaoLegadoResultado> {
+  return comConexao('listarImagensRequisicaoLegado', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(SQL_LISTA_IMAGENS_REQUISICAO, [idRequisicao]);
+    const imagens: ImagemRequisicaoLegado[] = linhas.map((linha) => ({
+      id: numero(linha.IdRequisicaoImagem),
+      nomeArquivo: texto(linha.NomArquivo) ?? `imagem-${numero(linha.IdRequisicaoImagem)}`,
+      extensao: texto(linha.ExtArquivo),
+      tipo: inteiroOuNulo(linha.Tipo),
+      data: dataIso(linha.DtaImg),
+      disponivel: Boolean(linha.Disponivel),
+    }));
+    return { imagens };
+  });
+}
+
+export interface ArquivoImagemRequisicaoLegado {
+  bytes: Buffer;
+  extensao: string | null;
+  nomeArquivo: string;
+}
+
+export type BuscarImagemRequisicaoLegadoResultado =
+  | { arquivo: ArquivoImagemRequisicaoLegado | null }
+  | { erro: { status: number; mensagem: string } };
+
+const SQL_ARQUIVO_IMAGEM_REQUISICAO = `
+  SELECT Img, ExtArquivo, NomArquivo
+    FROM requisicaoimagem
+   WHERE IdRequisicaoImagem = ? AND Inativo = 0`;
+
+/** `arquivo: null` quando a linha existe mas ainda não foi digitalizada (Img nulo)
+ *  ou quando o id não existe/está inativo. */
+export async function buscarImagemRequisicaoLegado(
+  idRequisicaoImagem: number,
+): Promise<BuscarImagemRequisicaoLegadoResultado> {
+  return comConexao('buscarImagemRequisicaoLegado', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(SQL_ARQUIVO_IMAGEM_REQUISICAO, [
+      idRequisicaoImagem,
+    ]);
+    const linha = linhas[0];
+    if (!linha || linha.Img == null) return { arquivo: null };
+    return {
+      arquivo: {
+        bytes: linha.Img as Buffer,
+        extensao: texto(linha.ExtArquivo),
+        nomeArquivo: texto(linha.NomArquivo) ?? `imagem-${idRequisicaoImagem}`,
+      },
+    };
+  });
+}

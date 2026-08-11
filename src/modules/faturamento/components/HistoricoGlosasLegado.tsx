@@ -4,12 +4,14 @@ import {
   ChevronLeft,
   ChevronRight,
   FileText,
+  Image as ImageIcon,
   RefreshCw,
   Search,
 } from 'lucide-react';
 import { useGlosasLegado } from '../hooks/useGlosasLegado';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import DatePicker from '../../../components/DatePicker';
+import ImagensRequisicaoLegadoModal from './ImagensRequisicaoLegadoModal';
 import { formatCurrency, formatData } from '../utils/formato';
 
 // Aba "Histórico (apLIS)" → sub-aba Glosas: leitura ao vivo do MySQL de backup do
@@ -32,6 +34,7 @@ const HistoricoGlosasLegado: React.FC = () => {
   const [busca, setBusca] = useState('');
   const [buscaDebounced, setBuscaDebounced] = useState('');
   const [pagina, setPagina] = useState(1);
+  const [imagensDe, setImagensDe] = useState<number | null>(null);
   const tamanho = 50;
 
   useEffect(() => {
@@ -226,7 +229,16 @@ const HistoricoGlosasLegado: React.FC = () => {
                       className="hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
                     >
                       <td className="px-4 py-3 font-mono text-xs text-gray-900 dark:text-white whitespace-nowrap">
-                        {g.codRequisicao ?? `#${g.idRequisicao}`}
+                        <div className="flex items-center gap-1.5">
+                          {g.codRequisicao ?? `#${g.idRequisicao}`}
+                          <button
+                            onClick={() => setImagensDe(g.idRequisicao)}
+                            title="Ver imagens da requisição"
+                            className="p-1 rounded text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            <ImageIcon size={14} />
+                          </button>
+                        </div>
                         {g.numGuiaConvenio && (
                           <div className="text-gray-400 dark:text-gray-500">Guia {g.numGuiaConvenio}</div>
                         )}
@@ -270,6 +282,10 @@ const HistoricoGlosasLegado: React.FC = () => {
           </>
         )}
       </div>
+
+      {imagensDe != null && (
+        <ImagensRequisicaoLegadoModal idRequisicao={imagensDe} onClose={() => setImagensDe(null)} />
+      )}
     </div>
   );
 };
