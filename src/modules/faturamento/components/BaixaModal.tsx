@@ -13,7 +13,10 @@ import { formatCurrency, hojeIso } from '../utils/formato';
 // o aging perseguiria essa diferença para sempre.
 
 const FORMAS = ['TED', 'PIX', 'Boleto', 'Depósito', 'Cheque', 'Outro'];
-const FORMAS_OPCOES = FORMAS.map((forma) => ({ value: forma, label: forma }));
+const FORMAS_OPCOES = [
+  { value: '', label: '—' },
+  ...FORMAS.map((forma) => ({ value: forma, label: forma })),
+];
 const STATUS_GLOSA_OPCOES = [
   { value: 'aberta', label: 'Aberta' },
   { value: 'em_recurso', label: 'Em recurso' },
