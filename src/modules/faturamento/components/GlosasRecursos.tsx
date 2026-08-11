@@ -12,7 +12,8 @@ import {
   ArrowRight,
   Undo2,
   MessageSquare,
-  User
+  User,
+  History
 } from 'lucide-react';
 import { useGlosas } from '../hooks/useGlosas';
 import { useAuth } from '../../../hooks/useAuth';
@@ -22,6 +23,8 @@ import { Glosa, GlosaStatus, GlosaRecursoInput } from '../../billing/types';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
+import HistoricoGlosasLegado from './HistoricoGlosasLegado';
+import HistoricoRecursosLegado from './HistoricoRecursosLegado';
 
 interface GlosasFiltros {
   status: GlosaStatus | 'todas';
@@ -50,6 +53,13 @@ const GlosasRecursos: React.FC = () => {
   // ela o clique não dá erro, só não afeta linha nenhuma. Esconder as ações de
   // escrita de quem só tem canViewBilling evita esse clique fantasma (achado 4.6).
   const podeEditar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
+
+  // Abas: "Nativas" é a tabela `glosas` (comportamento existente, sem mudança) e
+  // "Histórico (apLIS)" lê ao vivo o MySQL de backup do laboratório — sub-abas
+  // porque glosas e lotes de recurso são seções próprias (decisão do design doc),
+  // não uma lista mesclada.
+  const [abaPrincipal, setAbaPrincipal] = useState<'nativas' | 'legado'>('nativas');
+  const [abaLegado, setAbaLegado] = useState<'glosas' | 'recursos'>('glosas');
 
   const [filtroStatus, setFiltroStatus] = useState<GlosaStatus | 'todas'>('todas');
   const {
@@ -164,16 +174,78 @@ const GlosasRecursos: React.FC = () => {
           </p>
         </div>
 
+        {abaPrincipal === 'nativas' && (
+          <button
+            onClick={refetch}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            Atualizar
+          </button>
+        )}
+      </div>
+
+      {/* Abas */}
+      <div className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700">
         <button
-          onClick={refetch}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          onClick={() => setAbaPrincipal('nativas')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            abaPrincipal === 'nativas'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+          }`}
         >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          <AlertCircle size={16} />
+          Nativas
+        </button>
+        <button
+          onClick={() => setAbaPrincipal('legado')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            abaPrincipal === 'legado'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+          }`}
+        >
+          <History size={16} />
+          Histórico (apLIS)
         </button>
       </div>
 
+      {abaPrincipal === 'legado' ? (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Consulta somente leitura ao banco do laboratório — não é possível iniciar
+            recurso nem alterar status a partir daqui.
+          </p>
+
+          <div className="flex flex-wrap gap-1">
+            <button
+              onClick={() => setAbaLegado('glosas')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                abaLegado === 'glosas'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Glosas
+            </button>
+            <button
+              onClick={() => setAbaLegado('recursos')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                abaLegado === 'recursos'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Recursos
+            </button>
+          </div>
+
+          {abaLegado === 'glosas' ? <HistoricoGlosasLegado /> : <HistoricoRecursosLegado />}
+        </div>
+      ) : (
+      <>
       {/* Error Alert */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -478,6 +550,8 @@ const GlosasRecursos: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

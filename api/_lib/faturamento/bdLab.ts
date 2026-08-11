@@ -639,3 +639,406 @@ export async function detalharLote(
     return resultado;
   });
 }
+
+// ============================================================================
+// GLOSAS E RECURSOS — histórico do legado (aba "Histórico (apLIS)")
+// ============================================================================
+// Leitura ao vivo, mesmo padrão acima: nada é persistido no Supabase.
+// Fonte da glosa: fatrequisicaoprocedimento.IdMotivoGlosa (não
+// fatdemonstrativoguiaprocedimento — decisão registrada no design doc, a glosa
+// lançada só na conciliação do demonstrativo de pagamento não aparece aqui).
+// Ver docs/plans/faturamento/glosas-recursos-legado-design.md.
+
+export interface GlosaRequisicaoLegado {
+  idRequisicaoProcedimento: number;
+  idRequisicao: number;
+  codRequisicao: string | null;
+  numGuiaConvenio: string | null;
+  paciente: string | null;
+  dtaSolicitacao: string | null;
+  procedimentoCodigo: string | null;
+  procedimentoDescricao: string | null;
+  valor: number;
+  idMotivoGlosa: number | null;
+  /** Código oficial do catálogo `fatmotivoglosa` (ex.: código ANS). */
+  motivoCodigo: number | null;
+  /** Descrição do catálogo — complementar a `desMotivoGlosa`, não redundante:
+   *  ver achado da seção 2 do design doc. */
+  motivoDescricao: string | null;
+  /** Texto lançado na própria requisição, geralmente mais operacional/específico. */
+  desMotivoGlosa: string | null;
+  fontePagadora: { id: number | null; nome: string | null };
+}
+
+export interface ListarGlosasLegadoParams {
+  periodoIni: string;
+  periodoFim: string;
+  fontePagadoraId?: number;
+  pagina?: number;
+  tamanho?: number;
+  busca?: string;
+  ignorarCache?: boolean;
+}
+
+export type ListarGlosasLegadoResultado =
+  | { glosas: GlosaRequisicaoLegado[]; meta: LotesMeta }
+  | { erro: { status: number; mensagem: string } };
+
+const cacheGlosasLegado = new Map<string, EntradaCache<ListarGlosasLegadoResultado>>();
+
+function chaveGlosasLegado(params: ListarGlosasLegadoParams): string {
+  return `glosasLegado|${params.periodoIni}|${params.periodoFim}|${params.fontePagadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}`;
+}
+
+/** Mesmo raciocínio de `filtroLotes`: sem EXISTS aqui porque paciente/fonte pagadora
+ *  já entram por LEFT JOIN 1:1 (um CodPaciente/IdFontePagadora só casa uma linha),
+ *  diferente de fatlote onde a busca precisa varrer requisições por fora. */
+function filtroGlosasLegado(
+  params: ListarGlosasLegadoParams,
+): { where: string; valores: ParametroSql[] } {
+  const condicoes: string[] = ['frp.IdMotivoGlosa IS NOT NULL'];
+  const valores: ParametroSql[] = [];
+
+  condicoes.push('r.DtaSolicitacao >= ?');
+  valores.push(`${params.periodoIni} 00:00:00`);
+  condicoes.push('r.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 DAY)');
+  valores.push(`${params.periodoFim} 00:00:00`);
+
+  if (params.fontePagadoraId !== undefined) {
+    condicoes.push('r.IdFontePagadora = ?');
+    valores.push(params.fontePagadoraId);
+  }
+  if (params.busca !== undefined && params.busca.trim() !== '') {
+    const termo = escaparLike(params.busca.trim().slice(0, MAX_BUSCA));
+    const likeBusca = [like('p.NomPaciente'), like('r.CodRequisicao'), like('r.NumGuiaConvenio')];
+    valores.push(termo, termo, termo);
+    condicoes.push(`(${likeBusca.join(' OR ')})`);
+  }
+
+  return { where: condicoes.join(' AND '), valores };
+}
+
+const SQL_LISTA_GLOSAS_LEGADO = `
+  SELECT frp.IdRequisicaoProcedimento, r.IdRequisicao, r.CodRequisicao,
+         r.NumGuiaConvenio, p.NomPaciente,
+         DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
+         tp.Codigo AS ProcCodigo, tp.Descricao AS ProcDescricao,
+         frp.ValorLiquido,
+         frp.IdMotivoGlosa, frp.DesMotivoGlosa,
+         fmg.Codigo AS MotivoCodigo, fmg.Descricao AS MotivoDescricao,
+         r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial
+    FROM requisicao r
+    JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+    LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
+    LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
+    LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
+    LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = frp.IdMotivoGlosa
+    LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = r.IdFontePagadora
+   WHERE %WHERE%
+   ORDER BY r.DtaSolicitacao DESC, frp.IdRequisicaoProcedimento DESC
+   LIMIT %LIMIT% OFFSET %OFFSET%`;
+
+function normalizarGlosaLegado(linha: mysql.RowDataPacket): GlosaRequisicaoLegado {
+  return {
+    idRequisicaoProcedimento: numero(linha.IdRequisicaoProcedimento),
+    idRequisicao: numero(linha.IdRequisicao),
+    codRequisicao: texto(linha.CodRequisicao),
+    numGuiaConvenio: texto(linha.NumGuiaConvenio),
+    paciente: texto(linha.NomPaciente),
+    dtaSolicitacao: dataIso(linha.DtaSolicitacao),
+    procedimentoCodigo: texto(linha.ProcCodigo),
+    procedimentoDescricao: texto(linha.ProcDescricao),
+    valor: numero(linha.ValorLiquido),
+    idMotivoGlosa: inteiroOuNulo(linha.IdMotivoGlosa),
+    motivoCodigo: inteiroOuNulo(linha.MotivoCodigo),
+    motivoDescricao: texto(linha.MotivoDescricao),
+    desMotivoGlosa: texto(linha.DesMotivoGlosa),
+    fontePagadora: {
+      id: inteiroOuNulo(linha.IdFontePagadora),
+      nome: texto(linha.NomFantasia) ?? texto(linha.RazaoSocial),
+    },
+  };
+}
+
+/**
+ * Glosas do legado (fatrequisicaoprocedimento com IdMotivoGlosa preenchido),
+ * paginadas por período. Período obrigatório: sem ele a consulta varreria as
+ * 23 mil linhas com motivo de glosa preenchido (ver risco 3 do design doc).
+ */
+export async function listarGlosasLegado(
+  params: ListarGlosasLegadoParams,
+): Promise<ListarGlosasLegadoResultado> {
+  const pagina = params.pagina ?? 1;
+  const tamanho = params.tamanho ?? TAMANHO_PADRAO;
+  const { where, valores } = filtroGlosasLegado(params);
+
+  const chave = chaveGlosasLegado(params);
+  const temBusca = Boolean(params.busca?.trim());
+  const cacheHit = params.ignorarCache ? null : daCache(cacheGlosasLegado, chave, temBusca);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('listarGlosasLegado', async (conn) => {
+    const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS n
+         FROM requisicao r
+         JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+         LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
+        WHERE ${where}`,
+      valores,
+    );
+    const registros = numero(contagem[0]?.n);
+
+    const limite = Math.trunc(tamanho);
+    const deslocamento = Math.trunc((pagina - 1) * tamanho);
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      SQL_LISTA_GLOSAS_LEGADO
+        .replace('%WHERE%', where)
+        .replace('%LIMIT%', String(limite))
+        .replace('%OFFSET%', String(deslocamento)),
+      valores,
+    );
+
+    const [recente] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT DATE_FORMAT(MAX(DtaSolicitacao), '%Y-%m-%d') AS mx FROM requisicao`,
+      [],
+    );
+
+    return {
+      glosas: linhas.map(normalizarGlosaLegado),
+      meta: {
+        pagina,
+        tamanho,
+        qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
+        registros,
+        dadoAte: dataIso(recente[0]?.mx),
+      },
+    };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheGlosasLegado, chave, resultado);
+    return resultado;
+  });
+}
+
+// --- Lotes de recurso (fatloterecurso) — seção própria, sem período obrigatório ---
+
+export interface ProcedimentoRecursoLegado {
+  idProcedimento: number;
+  idRequisicao: number;
+  numGuia: string | null;
+  valorRecurso: number;
+  idMotivoGlosa: number | null;
+  motivoDescricao: string | null;
+  justificativa: string | null;
+}
+
+/**
+ * `statusLabel` não deriva do código cru: não há tabela de label conhecida para
+ * `fatloterecurso.Status` (risco 1 do design doc). Deriva das colunas de data.
+ */
+function statusLabelRecurso(linha: mysql.RowDataPacket): string {
+  if (texto(linha.DtaCancelamento)) return 'Cancelado';
+  if (texto(linha.DtaFinalizacao)) return 'Finalizado';
+  if (texto(linha.DtaEnvio)) return 'Enviado';
+  return 'Criado';
+}
+
+export interface LoteRecursoLegado {
+  idLoteRecurso: number;
+  status: number;
+  statusLabel: string;
+  dtaCriacao: string | null;
+  dtaEnvio: string | null;
+  dtaFinalizacao: string | null;
+  dtaCancelamento: string | null;
+  protocolo: string | null;
+  protocoloRecursado: string | null;
+  fontePagadora: { id: number | null; nome: string | null };
+  valorTotal: number;
+  qtdProcedimentos: number;
+}
+
+export interface ListarRecursosLegadoParams {
+  status?: number;
+  fontePagadoraId?: number;
+  busca?: string;
+  pagina?: number;
+  tamanho?: number;
+  ignorarCache?: boolean;
+}
+
+export type ListarRecursosLegadoResultado =
+  | { recursos: LoteRecursoLegado[]; meta: LotesMeta }
+  | { erro: { status: number; mensagem: string } };
+
+export type DetalharRecursoLegadoResultado =
+  | { procedimentos: ProcedimentoRecursoLegado[] }
+  | { erro: { status: number; mensagem: string } };
+
+const cacheRecursosLegado = new Map<string, EntradaCache<ListarRecursosLegadoResultado>>();
+const cacheDetalheRecurso = new Map<string, EntradaCache<DetalharRecursoLegadoResultado>>();
+
+function chaveRecursosLegado(params: ListarRecursosLegadoParams): string {
+  return `recursosLegado|${params.status ?? ''}|${params.fontePagadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}`;
+}
+
+function filtroRecursosLegado(
+  params: ListarRecursosLegadoParams,
+): { where: string; valores: ParametroSql[] } {
+  const condicoes: string[] = ['1=1'];
+  const valores: ParametroSql[] = [];
+
+  if (params.status !== undefined) {
+    condicoes.push('lr.Status = ?');
+    valores.push(params.status);
+  }
+  if (params.fontePagadoraId !== undefined) {
+    condicoes.push('lr.IdFontePagadora = ?');
+    valores.push(params.fontePagadoraId);
+  }
+  if (params.busca !== undefined && params.busca.trim() !== '') {
+    const termo = escaparLike(params.busca.trim().slice(0, MAX_BUSCA));
+    const likeBusca: string[] = [];
+    const adiciona = (sql: string): void => {
+      likeBusca.push(sql);
+      valores.push(termo);
+    };
+    adiciona(like('lr.Protocolo'));
+    adiciona(like('lr.ProtocoloRecursado'));
+    adiciona(`EXISTS (SELECT 1 FROM fatloterecursoprocedimento lrpb
+                       WHERE lrpb.IdLoteRecurso = lr.IdLoteRecurso AND ${like('lrpb.NumGuia')})`);
+    condicoes.push(`(${likeBusca.join(' OR ')})`);
+  }
+
+  return { where: condicoes.join(' AND '), valores };
+}
+
+const SQL_LISTA_RECURSOS_LEGADO = `
+  SELECT lr.IdLoteRecurso, lr.Status,
+         DATE_FORMAT(lr.DtaCriacao,      '%Y-%m-%d') AS DtaCriacao,
+         DATE_FORMAT(lr.DtaEnvio,        '%Y-%m-%d') AS DtaEnvio,
+         DATE_FORMAT(lr.DtaFinalizacao,  '%Y-%m-%d') AS DtaFinalizacao,
+         DATE_FORMAT(lr.DtaCancelamento, '%Y-%m-%d') AS DtaCancelamento,
+         lr.Protocolo, lr.ProtocoloRecursado,
+         lr.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial,
+         (SELECT COUNT(*) FROM fatloterecursoprocedimento lrp
+           WHERE lrp.IdLoteRecurso = lr.IdLoteRecurso) AS QtdProcedimentos,
+         (SELECT COALESCE(SUM(lrp.VlrRecurso), 0) FROM fatloterecursoprocedimento lrp
+           WHERE lrp.IdLoteRecurso = lr.IdLoteRecurso) AS ValorTotal
+    FROM fatloterecurso lr
+    LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = lr.IdFontePagadora
+   WHERE %WHERE%
+   ORDER BY lr.DtaCriacao DESC, lr.IdLoteRecurso DESC
+   LIMIT %LIMIT% OFFSET %OFFSET%`;
+
+function normalizarRecursoLegado(linha: mysql.RowDataPacket): LoteRecursoLegado {
+  const status = inteiroOuNulo(linha.Status) ?? 0;
+  return {
+    idLoteRecurso: numero(linha.IdLoteRecurso),
+    status,
+    statusLabel: statusLabelRecurso(linha),
+    dtaCriacao: dataIso(linha.DtaCriacao),
+    dtaEnvio: dataIso(linha.DtaEnvio),
+    dtaFinalizacao: dataIso(linha.DtaFinalizacao),
+    dtaCancelamento: dataIso(linha.DtaCancelamento),
+    protocolo: texto(linha.Protocolo),
+    protocoloRecursado: texto(linha.ProtocoloRecursado),
+    fontePagadora: {
+      id: inteiroOuNulo(linha.IdFontePagadora),
+      nome: texto(linha.NomFantasia) ?? texto(linha.RazaoSocial),
+    },
+    valorTotal: numero(linha.ValorTotal),
+    qtdProcedimentos: numero(linha.QtdProcedimentos),
+  };
+}
+
+/**
+ * Lotes de recurso (fatloterecurso). Só 425 linhas no total (levantamento do
+ * design doc) — não precisa de período obrigatório como as glosas.
+ */
+export async function listarRecursosLegado(
+  params: ListarRecursosLegadoParams,
+): Promise<ListarRecursosLegadoResultado> {
+  const pagina = params.pagina ?? 1;
+  const tamanho = params.tamanho ?? TAMANHO_PADRAO;
+  const { where, valores } = filtroRecursosLegado(params);
+
+  const chave = chaveRecursosLegado(params);
+  const temBusca = Boolean(params.busca?.trim());
+  const cacheHit = params.ignorarCache ? null : daCache(cacheRecursosLegado, chave, temBusca);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('listarRecursosLegado', async (conn) => {
+    const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS n FROM fatloterecurso lr WHERE ${where}`,
+      valores,
+    );
+    const registros = numero(contagem[0]?.n);
+
+    const limite = Math.trunc(tamanho);
+    const deslocamento = Math.trunc((pagina - 1) * tamanho);
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      SQL_LISTA_RECURSOS_LEGADO
+        .replace('%WHERE%', where)
+        .replace('%LIMIT%', String(limite))
+        .replace('%OFFSET%', String(deslocamento)),
+      valores,
+    );
+
+    const [recente] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT DATE_FORMAT(MAX(DtaCriacao), '%Y-%m-%d') AS mx FROM fatloterecurso`,
+      [],
+    );
+
+    return {
+      recursos: linhas.map(normalizarRecursoLegado),
+      meta: {
+        pagina,
+        tamanho,
+        qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
+        registros,
+        dadoAte: dataIso(recente[0]?.mx),
+      },
+    };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheRecursosLegado, chave, resultado);
+    return resultado;
+  });
+}
+
+const SQL_DETALHE_RECURSO = `
+  SELECT lrp.IdProcedimento, lrp.IdRequisicao, lrp.NumGuia, lrp.VlrRecurso,
+         lrp.IdMotivoGlosa, fmg.Descricao AS MotivoDescricao, lrp.Justificativa
+    FROM fatloterecursoprocedimento lrp
+    LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = lrp.IdMotivoGlosa
+   WHERE lrp.IdLoteRecurso = ?
+   ORDER BY lrp.IdProcedimento`;
+
+/** Procedimentos de um lote de recurso, sob demanda ao expandir a linha —
+ *  mesmo padrão de `detalharLote`. */
+export async function detalharRecursoLegado(
+  idLoteRecurso: number,
+  ignorarCache = false,
+): Promise<DetalharRecursoLegadoResultado> {
+  const chave = `detalheRecurso|${idLoteRecurso}`;
+  const cacheHit = ignorarCache ? null : daCache(cacheDetalheRecurso, chave, false);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('detalharRecursoLegado', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(SQL_DETALHE_RECURSO, [idLoteRecurso]);
+
+    const procedimentos: ProcedimentoRecursoLegado[] = linhas.map((linha) => ({
+      idProcedimento: numero(linha.IdProcedimento),
+      idRequisicao: numero(linha.IdRequisicao),
+      numGuia: texto(linha.NumGuia),
+      valorRecurso: numero(linha.VlrRecurso),
+      idMotivoGlosa: inteiroOuNulo(linha.IdMotivoGlosa),
+      motivoDescricao: texto(linha.MotivoDescricao),
+      justificativa: texto(linha.Justificativa),
+    }));
+
+    return { procedimentos };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheDetalheRecurso, chave, resultado);
+    return resultado;
+  });
+}
