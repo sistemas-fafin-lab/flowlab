@@ -574,7 +574,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
                       return (
                         <tr
                           key={linha.operadoraId}
-                          className="border-b border-slate-100/70 dark:border-slate-700/50 last:border-0"
+                          className="border-b border-slate-100/70 dark:border-slate-700/50 last:border-0 hover:bg-slate-50/70 dark:hover:bg-slate-800/40 transition-colors"
                         >
                           <td className="px-2 py-2 text-slate-800 dark:text-slate-100">{linha.nome}</td>
                           <td className="px-2 py-2 text-slate-500 dark:text-slate-400">
