@@ -185,7 +185,7 @@ const Select: React.FC<SelectProps> = ({
           id={listId}
           role="listbox"
           aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
-          className={`absolute left-0 right-0 z-50 max-h-[260px] overflow-y-auto py-1 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40 ${
+          className={`absolute left-0 z-50 min-w-full w-max max-w-[min(24rem,90vw)] max-h-[260px] overflow-y-auto py-1 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40 ${
             dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
           }`}
         >

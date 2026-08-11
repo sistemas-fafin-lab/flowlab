@@ -16,6 +16,8 @@ import {
 import { useFaturamentoLotes } from '../hooks/useFaturamentoLotes';
 import { STLOT_LABELS, LoteFaturamento, RequisicaoLote } from '../../billing/types';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
+import Select from '../../../components/Select';
+import DatePicker from '../../../components/DatePicker';
 // Cópias locais destas duas viraram utilitário do módulo quando Contas a Receber
 // passou a precisar das mesmas regras (inclusive o T00:00:00 do fuso).
 import { formatCurrency, formatData } from '../utils/formato';
@@ -34,6 +36,15 @@ import { formatCurrency, formatData } from '../utils/formato';
 type PeriodoPreset = 'mes' | 30 | 90 | 'custom';
 
 const TAMANHOS_PAGINA = [25, 50, 100, 200];
+const TAMANHOS_PAGINA_OPCOES = TAMANHOS_PAGINA.map((n) => ({ value: String(n), label: String(n) }));
+
+const STATUS_FILTRO_OPCOES = [
+  { value: '0', label: 'Todos os Status' },
+  ...Object.entries(STLOT_LABELS).map(([codigo, rotulo]) => ({ value: codigo, label: rotulo })),
+];
+
+const CAMPO_FILTRO =
+  'px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white';
 
 // Cores por código STLOT (ver STLOT_LABELS). Agrupadas por significado financeiro:
 // em andamento (azul/amarelo), dinheiro entrou (verde), encerrado sem receita
@@ -311,32 +322,18 @@ const FaturasDashboard: React.FC = () => {
 
           {preset === 'custom' && (
             <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={customIni}
-                onChange={(e) => setCustomIni(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
+              <DatePicker value={customIni} onChange={setCustomIni} controlClass={CAMPO_FILTRO} />
               <span className="text-gray-500 text-sm">até</span>
-              <input
-                type="date"
-                value={customFim}
-                onChange={(e) => setCustomFim(e.target.value)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-              />
+              <DatePicker value={customFim} onChange={setCustomFim} controlClass={CAMPO_FILTRO} />
             </div>
           )}
 
-          <select
-            value={filtroStatus}
-            onChange={(e) => setFiltroStatus(Number(e.target.value))}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <option value={0}>Todos os Status</option>
-            {Object.entries(STLOT_LABELS).map(([codigo, rotulo]) => (
-              <option key={codigo} value={codigo}>{rotulo}</option>
-            ))}
-          </select>
+          <Select
+            value={String(filtroStatus)}
+            onChange={(v) => setFiltroStatus(Number(v))}
+            options={STATUS_FILTRO_OPCOES}
+            controlClass={`${CAMPO_FILTRO} min-w-[180px]`}
+          />
 
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -374,15 +371,12 @@ const FaturasDashboard: React.FC = () => {
             <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
                 <span>Por página:</span>
-                <select
-                  value={tamanho}
-                  onChange={(e) => setTamanho(Number(e.target.value))}
-                  className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                >
-                  {TAMANHOS_PAGINA.map((n) => (
-                    <option key={n} value={n}>{n}</option>
-                  ))}
-                </select>
+                <Select
+                  value={String(tamanho)}
+                  onChange={(v) => setTamanho(Number(v))}
+                  options={TAMANHOS_PAGINA_OPCOES}
+                  controlClass="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                />
               </div>
 
               <div className="flex items-center gap-3">

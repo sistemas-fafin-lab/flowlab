@@ -12,13 +12,35 @@ import {
   ArrowRight,
   Undo2,
   MessageSquare,
-  User
+  User,
+  History
 } from 'lucide-react';
 import { useGlosas } from '../hooks/useGlosas';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { formatCurrency } from '../utils/formato';
 import { Glosa, GlosaStatus, GlosaRecursoInput } from '../../billing/types';
+import { ViewsSalvasMenu } from './ViewsSalvasMenu';
+import Select from '../../../components/Select';
+import DatePicker from '../../../components/DatePicker';
+import HistoricoGlosasLegado from './HistoricoGlosasLegado';
+import HistoricoRecursosLegado from './HistoricoRecursosLegado';
+
+interface GlosasFiltros {
+  status: GlosaStatus | 'todas';
+}
+
+const STATUS_FILTRO_OPCOES = [
+  { value: 'todas', label: 'Todos os Status' },
+  { value: 'aberta', label: 'Abertas' },
+  { value: 'em_recurso', label: 'Em Recurso' },
+  { value: 'revertida', label: 'Revertidas' },
+  { value: 'definitiva', label: 'Definitivas' },
+];
+const STATUS_FILTRO_VALIDOS = new Set(STATUS_FILTRO_OPCOES.map((o) => o.value));
+
+const CAMPO_MODAL =
+  'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
 
 // ============================================================================
 // COMPONENTE: GlosasRecursos
@@ -31,6 +53,13 @@ const GlosasRecursos: React.FC = () => {
   // ela o clique não dá erro, só não afeta linha nenhuma. Esconder as ações de
   // escrita de quem só tem canViewBilling evita esse clique fantasma (achado 4.6).
   const podeEditar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
+
+  // Abas: "Nativas" é a tabela `glosas` (comportamento existente, sem mudança) e
+  // "Histórico (apLIS)" lê ao vivo o MySQL de backup do laboratório — sub-abas
+  // porque glosas e lotes de recurso são seções próprias (decisão do design doc),
+  // não uma lista mesclada.
+  const [abaPrincipal, setAbaPrincipal] = useState<'nativas' | 'legado'>('nativas');
+  const [abaLegado, setAbaLegado] = useState<'glosas' | 'recursos'>('glosas');
 
   const [filtroStatus, setFiltroStatus] = useState<GlosaStatus | 'todas'>('todas');
   const {
@@ -145,16 +174,78 @@ const GlosasRecursos: React.FC = () => {
           </p>
         </div>
 
+        {abaPrincipal === 'nativas' && (
+          <button
+            onClick={refetch}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            Atualizar
+          </button>
+        )}
+      </div>
+
+      {/* Abas */}
+      <div className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700">
         <button
-          onClick={refetch}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
+          onClick={() => setAbaPrincipal('nativas')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            abaPrincipal === 'nativas'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+          }`}
         >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Atualizar
+          <AlertCircle size={16} />
+          Nativas
+        </button>
+        <button
+          onClick={() => setAbaPrincipal('legado')}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            abaPrincipal === 'legado'
+              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+          }`}
+        >
+          <History size={16} />
+          Histórico (apLIS)
         </button>
       </div>
 
+      {abaPrincipal === 'legado' ? (
+        <div className="space-y-4">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            Consulta somente leitura ao banco do laboratório — não é possível iniciar
+            recurso nem alterar status a partir daqui.
+          </p>
+
+          <div className="flex flex-wrap gap-1">
+            <button
+              onClick={() => setAbaLegado('glosas')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                abaLegado === 'glosas'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Glosas
+            </button>
+            <button
+              onClick={() => setAbaLegado('recursos')}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                abaLegado === 'recursos'
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+              }`}
+            >
+              Recursos
+            </button>
+          </div>
+
+          {abaLegado === 'glosas' ? <HistoricoGlosasLegado /> : <HistoricoRecursosLegado />}
+        </div>
+      ) : (
+      <>
       {/* Error Alert */}
       {error && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
@@ -245,17 +336,21 @@ const GlosasRecursos: React.FC = () => {
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtrar por:</span>
           </div>
           
-          <select
+          <Select
             value={filtroStatus}
-            onChange={(e) => setFiltroStatus(e.target.value as GlosaStatus | 'todas')}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <option value="todas">Todos os Status</option>
-            <option value="aberta">Abertas</option>
-            <option value="em_recurso">Em Recurso</option>
-            <option value="revertida">Revertidas</option>
-            <option value="definitiva">Definitivas</option>
-          </select>
+            onChange={(v) => setFiltroStatus(v as GlosaStatus | 'todas')}
+            options={STATUS_FILTRO_OPCOES}
+            controlClass="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[180px]"
+          />
+
+          <ViewsSalvasMenu<GlosasFiltros>
+            tela="glosas"
+            filtros={{ status: filtroStatus }}
+            // Uma view salva num formato antigo/inválido não pode passar um
+            // status fora do union direto pro Supabase — o filtro falharia
+            // calado, com a lista zerando sem explicar por quê.
+            onAplicar={(view) => setFiltroStatus(STATUS_FILTRO_VALIDOS.has(view.status) ? view.status : 'todas')}
+          />
         </div>
       </div>
 
@@ -403,11 +498,10 @@ const GlosasRecursos: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Data do Recurso
                   </label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={recursoForm.data_recurso || ''}
-                    onChange={(e) => setRecursoForm({ ...recursoForm, data_recurso: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    onChange={(v) => setRecursoForm({ ...recursoForm, data_recurso: v })}
+                    controlClass={CAMPO_MODAL}
                   />
                 </div>
 
@@ -456,6 +550,8 @@ const GlosasRecursos: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );

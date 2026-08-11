@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, Plus, Trash2, X } from 'lucide-react';
+import Select from '../../../components/Select';
+import DatePicker from '../../../components/DatePicker';
 import type { BaixaInput, GlosaLancamentoInput, TituloGuia, TituloReceber } from '../../billing/types';
 import { formatCurrency, hojeIso } from '../utils/formato';
 
@@ -11,6 +13,20 @@ import { formatCurrency, hojeIso } from '../utils/formato';
 // o aging perseguiria essa diferença para sempre.
 
 const FORMAS = ['TED', 'PIX', 'Boleto', 'Depósito', 'Cheque', 'Outro'];
+const FORMAS_OPCOES = [
+  { value: '', label: '—' },
+  ...FORMAS.map((forma) => ({ value: forma, label: forma })),
+];
+const STATUS_GLOSA_OPCOES = [
+  { value: 'aberta', label: 'Aberta' },
+  { value: 'em_recurso', label: 'Em recurso' },
+  { value: 'definitiva', label: 'Definitiva' },
+];
+
+const CAMPO =
+  'mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
+const CAMPO_GRID =
+  'w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 
 interface Props {
   titulo: TituloReceber | null;
@@ -226,11 +242,10 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Data
-              <input
-                type="date"
+              <DatePicker
                 value={dataRecebimento}
-                onChange={(e) => setDataRecebimento(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
+                onChange={setDataRecebimento}
+                controlClass={CAMPO}
               />
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
@@ -244,16 +259,13 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Forma
-              <select
+              <Select
                 value={formaRecebimento}
-                onChange={(e) => setFormaRecebimento(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
-              >
-                <option value="">—</option>
-                {FORMAS.map((forma) => (
-                  <option key={forma} value={forma}>{forma}</option>
-                ))}
-              </select>
+                onChange={setFormaRecebimento}
+                options={FORMAS_OPCOES}
+                placeholder="—"
+                controlClass={CAMPO}
+              />
             </label>
           </div>
           )}
@@ -357,29 +369,27 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
                       className="sm:col-span-4 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
                     />
                     {detalharPorGuia && (
-                      <select
+                      <Select
                         value={glosa.requisicaoId ?? ''}
-                        onChange={(e) => atualizar(glosa.chave, 'requisicaoId', e.target.value || null)}
-                        className="sm:col-span-3 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
-                      >
-                        <option value="">Sem guia específica</option>
-                        {guias.map((guia) => (
-                          <option key={guia.id} value={guia.id}>
-                            {guia.numeroGuia} · {formatCurrency(guia.valor)}
-                            {guia.pacienteNome ? ` · ${guia.pacienteNome}` : ''}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(v) => atualizar(glosa.chave, 'requisicaoId', v || null)}
+                        options={[
+                          { value: '', label: 'Sem guia específica' },
+                          ...guias.map((guia) => ({
+                            value: guia.id,
+                            label: `${guia.numeroGuia} · ${formatCurrency(guia.valor)}${guia.pacienteNome ? ` · ${guia.pacienteNome}` : ''}`,
+                          })),
+                        ]}
+                        controlClass={CAMPO_GRID}
+                        wrapperClass="sm:col-span-3"
+                      />
                     )}
-                    <select
+                    <Select
                       value={glosa.status ?? 'aberta'}
-                      onChange={(e) => atualizar(glosa.chave, 'status', e.target.value)}
-                      className={`${detalharPorGuia ? 'sm:col-span-2' : 'sm:col-span-5'} px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100`}
-                    >
-                      <option value="aberta">Aberta</option>
-                      <option value="em_recurso">Em recurso</option>
-                      <option value="definitiva">Definitiva</option>
-                    </select>
+                      onChange={(v) => atualizar(glosa.chave, 'status', v)}
+                      options={STATUS_GLOSA_OPCOES}
+                      controlClass={CAMPO_GRID}
+                      wrapperClass={detalharPorGuia ? 'sm:col-span-2' : 'sm:col-span-5'}
+                    />
                     <button
                       type="button"
                       onClick={() => setGlosas((atual) => atual.filter((l) => l.chave !== glosa.chave))}

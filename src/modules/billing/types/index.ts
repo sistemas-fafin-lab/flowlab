@@ -338,3 +338,103 @@ export interface OperadoraResumo {
   id: string;
   nome: string;
 }
+
+/** Tela dona do formato de filtro salvo numa `ViewSalva` — ver comentário de
+ *  `fat_views_salvas.tela` na migration 20260810160000. */
+export type ViewSalvaTela = 'dashboard' | 'titulos' | 'glosas';
+
+/** Um conjunto de filtros salvo pelo usuário para reaplicar depois.
+ *
+ *  `filtros` é o que a própria tela gravou (`DashboardReceberFiltros`,
+ *  `TitulosFiltros`, ...) — o banco nunca olha dentro dele, então o tipo aqui
+ *  fica genérico e cada tela informa o parâmetro concreto ao usar o hook. */
+export interface ViewSalva<TFiltros = Record<string, unknown>> {
+  id: string;
+  tela: ViewSalvaTela;
+  nome: string;
+  filtros: TFiltros;
+  criadoEm: string;
+  atualizadoEm: string;
+}
+
+// ============================================================================
+// GLOSAS E RECURSOS — HISTÓRICO DO LEGADO (aba "Histórico (apLIS)")
+// ============================================================================
+// Contrato de GET /api/faturamento/glosas-legado e GET /api/faturamento/recursos-legado,
+// que leem ao vivo o MySQL de backup do laboratório — nada é persistido no Supabase.
+// Só consulta/histórico nesta entrega, sem ação de "adotar" para a tabela `glosas`
+// nativa. Espelha api/_lib/faturamento/bdLab.ts; sincronizado à mão, mesmo motivo de
+// LoteFaturamento/RequisicaoLote acima.
+//
+// Ver docs/plans/faturamento/glosas-recursos-legado-design.md.
+
+/** Glosa lançada em fatrequisicaoprocedimento.IdMotivoGlosa — não a de
+ *  fatdemonstrativoguiaprocedimento (fonte alternativa não escolhida). */
+export interface GlosaRequisicaoLegado {
+  idRequisicaoProcedimento: number;
+  idRequisicao: number;
+  codRequisicao: string | null;
+  numGuiaConvenio: string | null;
+  paciente: string | null;
+  dtaSolicitacao: string | null;
+  procedimentoCodigo: string | null;
+  procedimentoDescricao: string | null;
+  valor: number;
+  idMotivoGlosa: number | null;
+  /** Código oficial do catálogo `fatmotivoglosa` (ex.: código ANS). */
+  motivoCodigo: number | null;
+  /** Descrição do catálogo — complementar ao texto operacional `desMotivoGlosa`,
+   *  não redundante (os dois textos divergem no legado). */
+  motivoDescricao: string | null;
+  /** Texto lançado na própria requisição. */
+  desMotivoGlosa: string | null;
+  fontePagadora: { id: number | null; nome: string | null };
+}
+
+export interface GlosasLegadoFiltros {
+  /** YYYY-MM-DD — obrigatório: sem período a consulta varreria ~23 mil linhas. */
+  periodoIni: string;
+  periodoFim: string;
+  fontePagadoraId?: number;
+  pagina?: number;
+  tamanho?: number;
+  busca?: string;
+}
+
+/** Lote de recurso (fatloterecurso) já protocolado no legado. */
+export interface LoteRecursoLegado {
+  idLoteRecurso: number;
+  /** Código cru de fatloterecurso.Status — sem tabela de label conhecida. */
+  status: number;
+  /** Derivado das colunas de data (Criado/Enviado/Finalizado/Cancelado), não do
+   *  código cru — ver comentário em bdLab.ts. */
+  statusLabel: string;
+  dtaCriacao: string | null;
+  dtaEnvio: string | null;
+  dtaFinalizacao: string | null;
+  dtaCancelamento: string | null;
+  protocolo: string | null;
+  protocoloRecursado: string | null;
+  fontePagadora: { id: number | null; nome: string | null };
+  valorTotal: number;
+  qtdProcedimentos: number;
+}
+
+/** Procedimento dentro de um lote de recurso, carregado sob demanda ao expandir a linha. */
+export interface ProcedimentoRecursoLegado {
+  idProcedimento: number;
+  idRequisicao: number;
+  numGuia: string | null;
+  valorRecurso: number;
+  idMotivoGlosa: number | null;
+  motivoDescricao: string | null;
+  justificativa: string | null;
+}
+
+export interface RecursosLegadoFiltros {
+  status?: number;
+  fontePagadoraId?: number;
+  busca?: string;
+  pagina?: number;
+  tamanho?: number;
+}

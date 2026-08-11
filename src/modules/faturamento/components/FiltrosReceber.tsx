@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Filter, Search, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { formatData } from '../utils/formato';
+import { ViewsSalvasMenu } from './ViewsSalvasMenu';
+import DatePicker from '../../../components/DatePicker';
 import type { DashboardReceberFiltros, OperadoraResumo } from '../../billing/types';
 
 // Filtros do painel de Contas a Receber: uma barra enxuta que abre um modal.
@@ -512,20 +514,18 @@ const ModalFiltros: React.FC<ModalProps> = ({
             <div className="grid grid-cols-2 gap-3">
               <label className="text-xs text-slate-500 dark:text-slate-400">
                 De
-                <input
-                  type="date"
+                <DatePicker
                   value={rascunho.desde}
-                  onChange={(e) => alterar({ desde: e.target.value })}
-                  className={`mt-1 ${CAMPO}`}
+                  onChange={(v) => alterar({ desde: v })}
+                  controlClass={`mt-1 ${CAMPO}`}
                 />
               </label>
               <label className="text-xs text-slate-500 dark:text-slate-400">
                 Até
-                <input
-                  type="date"
+                <DatePicker
                   value={rascunho.ate}
-                  onChange={(e) => alterar({ ate: e.target.value })}
-                  className={`mt-1 ${CAMPO}`}
+                  onChange={(v) => alterar({ ate: v })}
+                  controlClass={`mt-1 ${CAMPO}`}
                 />
               </label>
             </div>
@@ -653,6 +653,15 @@ const FiltrosReceber: React.FC<Props> = ({ filtros, onFiltrar, onLimpar, padrao,
             <span className="px-1.5 rounded-md bg-white/25 text-xs tabular-nums">{recortes}</span>
           )}
         </button>
+
+        {/* Mescla com `padrao` antes de aplicar: uma view salva num formato mais
+            antigo (sem `lotes`/`notas`, por exemplo) não pode chegar com campo
+            faltando em quem lê `filtros.operadoraIds.length` sem checar. */}
+        <ViewsSalvasMenu
+          tela="dashboard"
+          filtros={filtros}
+          onAplicar={(view) => onFiltrar({ ...padrao, ...view })}
+        />
 
         {/* Com o modal fechado a barra ainda diz sobre o que os números falam. */}
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400 min-w-0">
