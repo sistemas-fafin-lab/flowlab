@@ -6,11 +6,29 @@ import type { ViewSalvaTela } from '../../billing/types';
 // Dropdown de views salvas, compartilhado pelas telas do módulo (Dashboard,
 // Títulos, Glosas/Recursos) — cada uma passa seu próprio formato de filtro
 // como TFiltros. Aplicar é imediato ao clicar; salvar é a única ação que pede
-// confirmação (dar um nome). Sem portal: nas três telas o botão já fica fora
-// de qualquer ancestral com overflow que o recortaria.
+// confirmação (dar um nome). Sem portal, mas com a mesma lógica de "abrir para
+// cima" do Select/DatePicker: no Dashboard o botão fica logo abaixo do card de
+// KPIs, e sem isso o painel abria por baixo, cortado pelo fim da tela.
 
 const CAMPO =
   'w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 text-sm text-gray-900 dark:text-gray-100';
+
+const PANEL_MAX_PX = 320;
+
+// Mesma lógica do Select/DatePicker: encontra o ancestral que corta o painel
+// (corpo do modal, por exemplo) para decidir se ele abre para cima.
+const limitesDoContainer = (el: HTMLElement | null): { top: number; bottom: number } => {
+  let node = el?.parentElement ?? null;
+  while (node) {
+    const { overflowY } = getComputedStyle(node);
+    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
+      const rect = node.getBoundingClientRect();
+      return { top: rect.top, bottom: rect.bottom };
+    }
+    node = node.parentElement;
+  }
+  return { top: 0, bottom: window.innerHeight };
+};
 
 interface Props<TFiltros> {
   tela: ViewSalvaTela;
@@ -26,11 +44,13 @@ export function ViewsSalvasMenu<TFiltros extends object>({
 }: Props<TFiltros>): React.ReactElement {
   const { views, loading, salvar, excluir } = useViewsSalvas<TFiltros>(tela);
   const [aberto, setAberto] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const [modoSalvar, setModoSalvar] = useState(false);
   const [nome, setNome] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!aberto) return;
@@ -43,6 +63,17 @@ export function ViewsSalvasMenu<TFiltros extends object>({
     document.addEventListener('mousedown', aoClicarFora);
     return () => document.removeEventListener('mousedown', aoClicarFora);
   }, [aberto]);
+
+  const abrir = () => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const limites = limitesDoContainer(triggerRef.current);
+      const espacoAbaixo = Math.min(window.innerHeight, limites.bottom) - rect.bottom;
+      const espacoAcima = rect.top - Math.max(0, limites.top);
+      setDropUp(espacoAbaixo < PANEL_MAX_PX && espacoAcima > espacoAbaixo);
+    }
+    setAberto(true);
+  };
 
   const aplicar = (filtrosDaView: TFiltros) => {
     onAplicar(filtrosDaView);
@@ -72,7 +103,8 @@ export function ViewsSalvasMenu<TFiltros extends object>({
     <div ref={wrapperRef} className="relative">
       <button
         type="button"
-        onClick={() => setAberto((v) => !v)}
+        ref={triggerRef}
+        onClick={() => (aberto ? setAberto(false) : abrir())}
         aria-haspopup="menu"
         aria-expanded={aberto}
         className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-sm font-medium border border-gray-200 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-slate-700 transition-colors"
@@ -85,7 +117,11 @@ export function ViewsSalvasMenu<TFiltros extends object>({
       </button>
 
       {aberto && (
-        <div className="absolute left-0 z-[60] mt-2 w-72 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl shadow-black/10 dark:shadow-black/40 overflow-hidden">
+        <div
+          className={`absolute left-0 z-[60] w-72 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl shadow-black/10 dark:shadow-black/40 overflow-hidden ${
+            dropUp ? 'bottom-full mb-2' : 'top-full mt-2'
+          }`}
+        >
           <div className="max-h-[220px] overflow-y-auto py-1">
             {loading ? (
               <p className="px-3 py-3 text-sm text-gray-400 text-center">Carregando…</p>

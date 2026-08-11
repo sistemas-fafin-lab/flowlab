@@ -225,6 +225,7 @@ const TitulosList: React.FC<Props> = ({
             onChange={(v) => onFiltrar({ status: v as TituloStatus | '', pagina: 1 })}
             options={STATUS_OPCOES}
             controlClass={CAMPO}
+            wrapperClass="min-w-[160px]"
           />
         </label>
         <label className="text-xs text-gray-500 dark:text-gray-400">
@@ -237,10 +238,10 @@ const TitulosList: React.FC<Props> = ({
               ...operadoras.map((operadora) => ({ value: operadora.id, label: operadora.nome })),
             ]}
             controlClass={CAMPO}
-            wrapperClass="max-w-[220px]"
+            wrapperClass="min-w-[220px] max-w-[280px]"
           />
         </label>
-        <div className="relative flex-1 min-w-[180px]">
+        <div className="relative w-48">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
