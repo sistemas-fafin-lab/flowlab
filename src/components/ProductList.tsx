@@ -632,46 +632,99 @@ const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         return date.toISOString().split("T")[0];
       };
 
-      // Mapeia para o formato do banco
+      // Mapeia para o formato do banco. quantity fica de fora do insert: nasce
+      // derivada (0) e o recebimento inicial é feito via receiveStock logo abaixo,
+      // igual ao cadastro manual (AddProduct) — senão products.quantity fica
+      // dessincronizado de product_stock (§6.1) e o produto some do filtro
+      // Estoque/Depósito, que lê só product_stock. A quantidade pretendida de
+      // cada linha fica guardada aqui por código, pra aplicar depois do insert.
+      const initialQuantityByCode = new Map<string, number>();
+
       const productsToInsert = normalizedData
         .filter((item: any) => !existingCodes.includes(item.code))
-        .map((item: any) => ({
-          name: item.name,
-          code: item.code,
-          category: item.category,
-          quantity: Number(item.quantity),
-          unit: item.unit || null,
-          supplier: item.supplier || null,
-          batch: item.batch || null,
-          entry_date:
-            typeof item.entry_date === "number"
-              ? excelDateToISO(item.entry_date)
-              : item.entry_date || null,
-          expiration_date:
-            typeof item.expiration_date === "number"
-              ? excelDateToISO(item.expiration_date)
-              : item.expiration_date || null,
-          location: item.location || null,
-          min_stock: item.minstock != null ? Number(item.minstock) : 0,
-          unit_price: item.unitprice != null ? Number(item.unitprice) : 0,
-          invoicenumber: item.invoicenumber || null,
-          iswithholding:
-            item.iswithholding === true ||
-            (typeof item.iswithholding === "string" &&
-              item.iswithholding.toLowerCase() === "sim"),
-          supplier_name: item.supplier_name || null,
-        }));
+        .map((item: any) => {
+          initialQuantityByCode.set(item.code, Number(item.quantity));
+          return {
+            name: item.name,
+            code: item.code,
+            category: item.category,
+            quantity: 0,
+            unit: item.unit || null,
+            supplier: item.supplier || null,
+            batch: item.batch || null,
+            entry_date:
+              typeof item.entry_date === "number"
+                ? excelDateToISO(item.entry_date)
+                : item.entry_date || null,
+            expiration_date:
+              typeof item.expiration_date === "number"
+                ? excelDateToISO(item.expiration_date)
+                : item.expiration_date || null,
+            location: item.location || null,
+            min_stock: item.minstock != null ? Number(item.minstock) : 0,
+            unit_price: item.unitprice != null ? Number(item.unitprice) : 0,
+            invoicenumber: item.invoicenumber || null,
+            iswithholding:
+              item.iswithholding === true ||
+              (typeof item.iswithholding === "string" &&
+                item.iswithholding.toLowerCase() === "sim"),
+            supplier_name: item.supplier_name || null,
+          };
+        });
 
-      // Envia para o Supabase
-      const { error } = await supabase.from("products").insert(productsToInsert);
+      // Envia para o Supabase (quantity sempre 0 no insert)
+      const { data: insertedProducts, error } = await supabase
+        .from("products")
+        .insert(productsToInsert)
+        .select("id, code");
 
       if (error) {
         console.error("Erro ao importar:", error);
         showError("Erro ao importar produtos.");
-      } else {
-        showSuccess("Importação concluída com sucesso!");
-        window.location.reload();
+        return;
       }
+
+      // Recebimento inicial via movimentação (type: 'in') no estoque principal,
+      // para cada produto importado com quantidade > 0. Erros são coletados por
+      // produto em vez de propagados: o insert em "products" já foi confirmado,
+      // então uma falha aqui não pode virar unhandled rejection silenciosa (este
+      // onload roda fora do try/catch síncrono lá em cima).
+      const principal = locations.find((l) => l.isPrincipal);
+      const failedStockCodes: string[] = [];
+      if (principal) {
+        const authorizedBy = userProfile?.name?.trim() || userProfile?.email || "Sistema";
+        for (const item of productsToInsert) {
+          const initialQuantity = initialQuantityByCode.get(item.code) ?? 0;
+          if (initialQuantity <= 0) continue;
+          const inserted = insertedProducts?.find((p) => p.code === item.code);
+          if (!inserted) continue;
+          try {
+            await receiveStock(inserted.id, principal.id, initialQuantity, {
+              productName: item.name,
+              unitPrice: item.unit_price,
+              authorizedBy,
+              notes: "Entrada inicial de importação em massa (planilha)",
+            });
+          } catch (stockErr) {
+            console.error(`Erro ao dar entrada de estoque para ${item.code}:`, stockErr);
+            failedStockCodes.push(item.code);
+          }
+        }
+      }
+
+      if (failedStockCodes.length > 0) {
+        // Não recarrega a página aqui: o reload logo abaixo apagaria a notificação
+        // antes do usuário conseguir ler quais códigos precisam de correção manual.
+        await fetchProducts();
+        showError(
+          "Produtos importados, mas alguns ficaram sem estoque inicial.",
+          `Corrija manualmente pela tela de Produtos: ${failedStockCodes.join(", ")}`
+        );
+        return;
+      }
+
+      showSuccess("Importação concluída com sucesso!");
+      window.location.reload();
     };
 
     reader.readAsBinaryString(file);
