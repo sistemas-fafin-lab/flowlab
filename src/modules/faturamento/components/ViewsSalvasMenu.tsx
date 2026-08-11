@@ -1,4 +1,5 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Bookmark, Plus, Trash2 } from 'lucide-react';
 import { useViewsSalvas } from '../hooks/useViewsSalvas';
 import type { ViewSalvaTela } from '../../billing/types';
@@ -6,29 +7,19 @@ import type { ViewSalvaTela } from '../../billing/types';
 // Dropdown de views salvas, compartilhado pelas telas do módulo (Dashboard,
 // Títulos, Glosas/Recursos) — cada uma passa seu próprio formato de filtro
 // como TFiltros. Aplicar é imediato ao clicar; salvar é a única ação que pede
-// confirmação (dar um nome). Sem portal, mas com a mesma lógica de "abrir para
-// cima" do Select/DatePicker: no Dashboard o botão fica logo abaixo do card de
-// KPIs, e sem isso o painel abria por baixo, cortado pelo fim da tela.
+// confirmação (dar um nome).
+//
+// No Dashboard o botão vive dentro de um painel "vidro" (backdrop-blur), que
+// cria seu próprio contexto de empilhamento — um painel position:absolute
+// preso ali dentro sempre pinta atrás da seção de KPIs seguinte, não importa o
+// z-index. Por isso, como os outros menus soltos deste módulo (ver
+// FiltrosReceber.tsx), este vai num portal para o body com position:fixed.
 
 const CAMPO =
   'w-full px-3 py-2 rounded-xl border border-gray-200 dark:border-slate-600 bg-white/70 dark:bg-slate-800/70 text-sm text-gray-900 dark:text-gray-100';
 
+const PANEL_WIDTH_PX = 288; // w-72
 const PANEL_MAX_PX = 320;
-
-// Mesma lógica do Select/DatePicker: encontra o ancestral que corta o painel
-// (corpo do modal, por exemplo) para decidir se ele abre para cima.
-const limitesDoContainer = (el: HTMLElement | null): { top: number; bottom: number } => {
-  let node = el?.parentElement ?? null;
-  while (node) {
-    const { overflowY } = getComputedStyle(node);
-    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
-      const rect = node.getBoundingClientRect();
-      return { top: rect.top, bottom: rect.bottom };
-    }
-    node = node.parentElement;
-  }
-  return { top: 0, bottom: window.innerHeight };
-};
 
 interface Props<TFiltros> {
   tela: ViewSalvaTela;
@@ -44,18 +35,20 @@ export function ViewsSalvasMenu<TFiltros extends object>({
 }: Props<TFiltros>): React.ReactElement {
   const { views, loading, salvar, excluir } = useViewsSalvas<TFiltros>(tela);
   const [aberto, setAberto] = useState(false);
-  const [dropUp, setDropUp] = useState(false);
+  const [posicao, setPosicao] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const [modoSalvar, setModoSalvar] = useState(false);
   const [nome, setNome] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const painelRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!aberto) return;
     const aoClicarFora = (e: MouseEvent) => {
-      if (wrapperRef.current?.contains(e.target as Node)) return;
+      const alvo = e.target as Node;
+      if (wrapperRef.current?.contains(alvo) || painelRef.current?.contains(alvo)) return;
       setAberto(false);
       setModoSalvar(false);
       setErro(null);
@@ -64,16 +57,34 @@ export function ViewsSalvasMenu<TFiltros extends object>({
     return () => document.removeEventListener('mousedown', aoClicarFora);
   }, [aberto]);
 
-  const abrir = () => {
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) {
-      const limites = limitesDoContainer(triggerRef.current);
-      const espacoAbaixo = Math.min(window.innerHeight, limites.bottom) - rect.bottom;
-      const espacoAcima = rect.top - Math.max(0, limites.top);
-      setDropUp(espacoAbaixo < PANEL_MAX_PX && espacoAcima > espacoAbaixo);
-    }
-    setAberto(true);
-  };
+  // Painel foge para um portal (ver comentário acima), então precisa da própria
+  // posição em vez de herdar a do wrapper. Fecha ao rolar a página porque um
+  // position:fixed não acompanha esse scroll sozinho.
+  useLayoutEffect(() => {
+    if (!aberto || !triggerRef.current) return;
+    const atualizarPosicao = () => {
+      const rect = triggerRef.current!.getBoundingClientRect();
+      const espacoAbaixo = window.innerHeight - rect.bottom;
+      const espacoAcima = rect.top;
+      const abrirParaCima = espacoAbaixo < PANEL_MAX_PX && espacoAcima > espacoAbaixo;
+      setPosicao(
+        abrirParaCima
+          ? { bottom: window.innerHeight - rect.top + 8, left: rect.left }
+          : { top: rect.bottom + 8, left: rect.left },
+      );
+    };
+    atualizarPosicao();
+
+    const fechar = () => setAberto(false);
+    window.addEventListener('scroll', fechar, true);
+    window.addEventListener('resize', atualizarPosicao);
+    return () => {
+      window.removeEventListener('scroll', fechar, true);
+      window.removeEventListener('resize', atualizarPosicao);
+    };
+  }, [aberto]);
+
+  const abrir = () => setAberto(true);
 
   const aplicar = (filtrosDaView: TFiltros) => {
     onAplicar(filtrosDaView);
@@ -116,11 +127,12 @@ export function ViewsSalvasMenu<TFiltros extends object>({
         )}
       </button>
 
-      {aberto && (
+      {aberto && posicao &&
+        createPortal(
         <div
-          className={`absolute left-0 z-[60] w-72 rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl shadow-black/10 dark:shadow-black/40 overflow-hidden ${
-            dropUp ? 'bottom-full mb-2' : 'top-full mt-2'
-          }`}
+          ref={painelRef}
+          style={{ position: 'fixed', top: posicao.top, bottom: posicao.bottom, left: posicao.left, width: PANEL_WIDTH_PX }}
+          className="z-[60] rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 shadow-xl shadow-black/10 dark:shadow-black/40 overflow-hidden"
         >
           <div className="max-h-[220px] overflow-y-auto py-1">
             {loading ? (
@@ -204,7 +216,8 @@ export function ViewsSalvasMenu<TFiltros extends object>({
               </button>
             )}
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
