@@ -25,6 +25,7 @@ const VAZIO: DashboardReceber = {
   porOperadora: [],
   previsaoOperadoras: [],
   serieMensal: [],
+  porMotivo: [],
 };
 
 /** Separador das listas nas deps do efeito. Caractere de controle porque código

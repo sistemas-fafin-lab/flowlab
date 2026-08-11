@@ -312,6 +312,14 @@ export interface DashboardReceber {
     recebido: number;
     glosado: number;
   }[];
+  /** Top 8 motivos de glosa por valor, no período filtrado. `motivo` é texto
+   *  livre normalizado no banco (lower/btrim) — o rótulo é o primeiro texto
+   *  lançado daquele grupo, não um valor canônico. */
+  porMotivo: {
+    motivo: string;
+    valor: number;
+    quantidade: number;
+  }[];
 }
 
 /** Prazo prometido × prazo praticado por uma operadora, no período filtrado.

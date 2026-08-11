@@ -54,12 +54,12 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 const GRID_BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480 };
 const GRID_COLS = { lg: 12, md: 10, sm: 6, xs: 2 };
 const GRID_ROW_HEIGHT = 50;
-// v2: as alturas padrão dos dois blocos de KPI foram corrigidas (a v1 reservava
-// quase o dobro do que os cards ocupam). Um layout salvo guarda as alturas
-// antigas, então a versão do storage sobe junto — senão a correção não chegaria
-// a quem já abriu a tela.
-const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v2';
-const LAYOUTS_ANTIGOS = ['flowLab_contas_receber_layout_v1'];
+// v3: novo widget "Principais motivos de glosa". Um layout salvo na v2 não tem
+// a chave 'motivos-glosa', e o react-grid-layout autoposiciona chaves ausentes
+// com um tamanho mínimo — a versão do storage sobe para que todo mundo receba
+// o widget já no tamanho pensado no DEFAULT_LAYOUTS, e não um card espremido.
+const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v3';
+const LAYOUTS_ANTIGOS = ['flowLab_contas_receber_layout_v1', 'flowLab_contas_receber_layout_v2'];
 
 // Aging: a cor intensifica com o atraso. Sequencial, não categórica — a ordem dos
 // buckets É a informação.
@@ -90,6 +90,7 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'saldo-operadoras', x: 6, y: 6, w: 6, h: 7, minW: 3, minH: 4 },
     { i: 'previsao', x: 0, y: 13, w: 12, h: 8, minW: 4, minH: 4 },
     { i: 'serie', x: 0, y: 21, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'motivos-glosa', x: 0, y: 29, w: 12, h: 8, minW: 3, minH: 4 },
   ],
   md: [
     { i: 'kpis-valor', x: 0, y: 0, w: 10, h: 3 },
@@ -98,6 +99,7 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'saldo-operadoras', x: 5, y: 6, w: 5, h: 7 },
     { i: 'previsao', x: 0, y: 13, w: 10, h: 8 },
     { i: 'serie', x: 0, y: 21, w: 10, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 29, w: 10, h: 8 },
   ],
   sm: [
     // 2 colunas: os quatro cards de valor viram duas linhas.
@@ -107,6 +109,7 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'saldo-operadoras', x: 0, y: 15, w: 6, h: 7 },
     { i: 'previsao', x: 0, y: 22, w: 6, h: 8 },
     { i: 'serie', x: 0, y: 30, w: 6, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 38, w: 6, h: 8 },
   ],
   xs: [
     // Empilhado: quatro linhas de card e três, respectivamente.
@@ -116,6 +119,7 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'saldo-operadoras', x: 0, y: 21, w: 2, h: 7 },
     { i: 'previsao', x: 0, y: 28, w: 2, h: 8 },
     { i: 'serie', x: 0, y: 36, w: 2, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 44, w: 2, h: 8 },
   ],
 };
 
@@ -635,6 +639,43 @@ const ContasReceberDashboard: React.FC<Props> = ({
               </ResponsiveContainer>
             ) : (
               <VazioGrafico icon={<TrendingUp className="w-6 h-6" />} texto="Nenhum título emitido no período." />
+            )}
+          </Widget>
+        </div>
+
+        <div key="motivos-glosa" className="group">
+          <Widget titulo="Principais motivos de glosa" sub="8 maiores por valor, no período filtrado">
+            {data.porMotivo.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart
+                  data={data.porMotivo}
+                  layout="vertical"
+                  margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
+                  <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={eixoMoeda} />
+                  <YAxis
+                    type="category"
+                    dataKey="motivo"
+                    tick={axisTick}
+                    axisLine={false}
+                    tickLine={false}
+                    width={160}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    itemStyle={tooltipItem}
+                    labelStyle={tooltipLabel}
+                    formatter={(valor: number, _nome, item) => [
+                      `${formatCurrency(valor)} · ${item.payload.quantidade} glosa${item.payload.quantidade === 1 ? '' : 's'}`,
+                      'Valor glosado',
+                    ]}
+                  />
+                  <Bar dataKey="valor" fill={COR_GLOSADO} radius={[0, 6, 6, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <VazioGrafico icon={<Scissors className="w-6 h-6" />} texto="Nenhuma glosa no período." />
             )}
           </Widget>
         </div>
