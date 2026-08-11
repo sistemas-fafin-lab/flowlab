@@ -11,7 +11,7 @@ praticamente entregue, e as decisões abaixo fecham o escopo das outras duas.
 |---|---|---|
 | 1 | Dashboard (KPIs, filtros, previsão de pagamento) | ✅ já implementado — sem pendência funcional |
 | 2 | View de Faturamento (filtros salvos) | ✅ implementado em 10/08/2026 (`ef40dda`, `8d27c87`, `58b9f2e`, `eb83ade`) |
-| 3 | Polimento de design system | 🟡 a fazer — escopo mapeado abaixo |
+| 3 | Polimento de design system | ✅ implementado em 11/08/2026 |
 
 ---
 
@@ -115,7 +115,22 @@ posição/tamanho de card, não filtros, e não usa banco.
 
 ---
 
-## 3. Polimento de design system — a construir
+## 3. Polimento de design system — ✅ implementado
+
+**Implementado em 9 commits** (`1012e90` DatePicker novo; `6ba6ab4`
+BaixaModal; `b7b6ed3` NovoTituloModal; `cdc8f48` GlosasRecursos;
+`2edb4cf` TitulosList; `b92ebe6` FiltrosReceber; `730049b`
+FaturasDashboard legado; `5007337` ajuste cirúrgico no
+ContasReceberDashboard), cada um com `tsc --noEmit` e `eslint`
+limpos nos arquivos tocados.
+
+Todos os pontos mapeados na tabela abaixo foram substituídos por
+`Select`/`DatePicker`. Não testado num navegador de verdade (mesma
+limitação do item 2 — sem ferramenta de browser nem credenciais no
+ambiente de implementação); vale um teste manual clicando em cada
+tela antes de considerar fechado de vez.
+
+### Escopo original
 
 Pedido original: usar o módulo de TI como referência, evitar controles
 nativos do browser (`<select>`, `<input type="date">`, listas simples),
