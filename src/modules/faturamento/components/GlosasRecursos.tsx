@@ -20,10 +20,23 @@ import { hasPermission } from '../../../utils/permissions';
 import { formatCurrency } from '../utils/formato';
 import { Glosa, GlosaStatus, GlosaRecursoInput } from '../../billing/types';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
+import Select from '../../../components/Select';
+import DatePicker from '../../../components/DatePicker';
 
 interface GlosasFiltros {
   status: GlosaStatus | 'todas';
 }
+
+const STATUS_FILTRO_OPCOES = [
+  { value: 'todas', label: 'Todos os Status' },
+  { value: 'aberta', label: 'Abertas' },
+  { value: 'em_recurso', label: 'Em Recurso' },
+  { value: 'revertida', label: 'Revertidas' },
+  { value: 'definitiva', label: 'Definitivas' },
+];
+
+const CAMPO_MODAL =
+  'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
 
 // ============================================================================
 // COMPONENTE: GlosasRecursos
@@ -250,17 +263,12 @@ const GlosasRecursos: React.FC = () => {
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtrar por:</span>
           </div>
           
-          <select
+          <Select
             value={filtroStatus}
-            onChange={(e) => setFiltroStatus(e.target.value as GlosaStatus | 'todas')}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-          >
-            <option value="todas">Todos os Status</option>
-            <option value="aberta">Abertas</option>
-            <option value="em_recurso">Em Recurso</option>
-            <option value="revertida">Revertidas</option>
-            <option value="definitiva">Definitivas</option>
-          </select>
+            onChange={(v) => setFiltroStatus(v as GlosaStatus | 'todas')}
+            options={STATUS_FILTRO_OPCOES}
+            controlClass="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[180px]"
+          />
 
           <ViewsSalvasMenu<GlosasFiltros>
             tela="glosas"
@@ -414,11 +422,10 @@ const GlosasRecursos: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                     Data do Recurso
                   </label>
-                  <input
-                    type="date"
+                  <DatePicker
                     value={recursoForm.data_recurso || ''}
-                    onChange={(e) => setRecursoForm({ ...recursoForm, data_recurso: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                    onChange={(v) => setRecursoForm({ ...recursoForm, data_recurso: v })}
+                    controlClass={CAMPO_MODAL}
                   />
                 </div>
 
