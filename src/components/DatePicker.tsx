@@ -152,6 +152,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
             abrir();
           } else if (open && e.key === 'Escape') {
             e.preventDefault();
+            e.stopPropagation();
             setOpen(false);
           }
         }}
