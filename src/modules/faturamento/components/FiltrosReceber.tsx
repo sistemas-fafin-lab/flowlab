@@ -654,7 +654,14 @@ const FiltrosReceber: React.FC<Props> = ({ filtros, onFiltrar, onLimpar, padrao,
           )}
         </button>
 
-        <ViewsSalvasMenu tela="dashboard" filtros={filtros} onAplicar={onFiltrar} />
+        {/* Mescla com `padrao` antes de aplicar: uma view salva num formato mais
+            antigo (sem `lotes`/`notas`, por exemplo) não pode chegar com campo
+            faltando em quem lê `filtros.operadoraIds.length` sem checar. */}
+        <ViewsSalvasMenu
+          tela="dashboard"
+          filtros={filtros}
+          onAplicar={(view) => onFiltrar({ ...padrao, ...view })}
+        />
 
         {/* Com o modal fechado a barra ainda diz sobre o que os números falam. */}
         <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400 min-w-0">

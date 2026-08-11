@@ -167,20 +167,35 @@ const TitulosList: React.FC<Props> = ({
 
   // Paginação não é um recorte a salvar numa view — só o que define QUAIS
   // títulos aparecem, não EM QUE PÁGINA. Aplicar uma view sempre volta pra 1.
+  //
+  // `busca` (estado local) e não `filtros.busca`: o segundo só chega depois do
+  // debounce, então salvar uma view logo após digitar guardaria o texto de
+  // busca anterior.
   const filtrosSalvaveis = useMemo(
     () => ({
       desde: filtros.desde,
       ate: filtros.ate,
       status: filtros.status,
       operadoraId: filtros.operadoraId,
-      busca: filtros.busca,
+      busca,
     }),
-    [filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, filtros.busca],
+    [filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca],
   );
 
+  // Cai no filtro atual campo a campo: uma view salva num formato mais antigo
+  // (sem `busca`, por exemplo) não pode chegar com `undefined` no `setBusca` —
+  // o debounce logo abaixo faz `.trim()` nele a cada tecla.
   const aplicarView = (view: typeof filtrosSalvaveis) => {
-    setBusca(view.busca);
-    onFiltrar({ ...view, pagina: 1 });
+    const novaBusca = view.busca ?? '';
+    setBusca(novaBusca);
+    onFiltrar({
+      desde: view.desde ?? filtros.desde,
+      ate: view.ate ?? filtros.ate,
+      status: view.status ?? filtros.status,
+      operadoraId: view.operadoraId ?? filtros.operadoraId,
+      busca: novaBusca,
+      pagina: 1,
+    });
   };
 
   return (

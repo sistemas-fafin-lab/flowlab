@@ -34,6 +34,7 @@ const STATUS_FILTRO_OPCOES = [
   { value: 'revertida', label: 'Revertidas' },
   { value: 'definitiva', label: 'Definitivas' },
 ];
+const STATUS_FILTRO_VALIDOS = new Set(STATUS_FILTRO_OPCOES.map((o) => o.value));
 
 const CAMPO_MODAL =
   'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
@@ -273,7 +274,10 @@ const GlosasRecursos: React.FC = () => {
           <ViewsSalvasMenu<GlosasFiltros>
             tela="glosas"
             filtros={{ status: filtroStatus }}
-            onAplicar={(view) => setFiltroStatus(view.status)}
+            // Uma view salva num formato antigo/inválido não pode passar um
+            // status fora do union direto pro Supabase — o filtro falharia
+            // calado, com a lista zerando sem explicar por quê.
+            onAplicar={(view) => setFiltroStatus(STATUS_FILTRO_VALIDOS.has(view.status) ? view.status : 'todas')}
           />
         </div>
       </div>
