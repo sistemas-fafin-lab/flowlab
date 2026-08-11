@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Building2, ChevronLeft, ChevronRight, Loader2, Search, X } from 'lucide-react';
+import DatePicker from '../../../components/DatePicker';
 import { supabase } from '../../../lib/supabase';
 import type { LotesMeta, LoteFaturamento } from '../../billing/types';
 import { formatCurrency, formatData, hojeIso } from '../utils/formato';
@@ -18,6 +19,10 @@ import { formatCurrency, formatData, hojeIso } from '../utils/formato';
 // (submeter) leem sempre a mesma lista — antes divergiam (achado 4.1).
 
 const TAMANHO_PAGINA = 50;
+
+const CAMPO =
+  'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
+const CAMPO_FULL = `${CAMPO} w-full`;
 
 interface Props {
   aberto: boolean;
@@ -212,21 +217,11 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-xs text-gray-500 dark:text-gray-400">
               De
-              <input
-                type="date"
-                value={periodoIni}
-                onChange={(e) => setPeriodoIni(e.target.value)}
-                className="mt-1 block px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
-              />
+              <DatePicker value={periodoIni} onChange={setPeriodoIni} controlClass={CAMPO} />
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Até
-              <input
-                type="date"
-                value={periodoFim}
-                onChange={(e) => setPeriodoFim(e.target.value)}
-                className="mt-1 block px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
-              />
+              <DatePicker value={periodoFim} onChange={setPeriodoFim} controlClass={CAMPO} />
             </label>
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -385,12 +380,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Emissão
-              <input
-                type="date"
-                value={dataEmissao}
-                onChange={(e) => setDataEmissao(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
-              />
+              <DatePicker value={dataEmissao} onChange={setDataEmissao} controlClass={CAMPO_FULL} />
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Competência
@@ -403,12 +393,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Vencimento
-              <input
-                type="date"
-                value={dataVencimento}
-                onChange={(e) => setDataVencimento(e.target.value)}
-                className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
-              />
+              <DatePicker value={dataVencimento} onChange={setDataVencimento} controlClass={CAMPO_FULL} allowClear />
               {/* Em branco = o servidor resolve pelo RPS do lote ou pelo prazo da
                   operadora; explicar isso evita que o operador chute uma data. */}
               <span className="mt-1 block text-[11px] text-gray-400">
