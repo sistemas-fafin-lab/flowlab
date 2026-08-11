@@ -19,6 +19,8 @@ import type {
 import { formatCompetencia, formatCurrency, formatData } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
+import Select from '../../../components/Select';
+import DatePicker from '../../../components/DatePicker';
 
 // Lista de títulos a receber, com linha expansível: título → lotes → guias.
 // As guias só são buscadas quando o operador abre o lote — são dezenas por lote e
@@ -35,6 +37,16 @@ const STATUS_ROTULOS: Record<TituloStatus, string> = {
 
 // Agrupadas por significado financeiro, como o STATUS_CORES da aba Faturas:
 // pendente (azul/amarelo), dinheiro entrou (verde), encerrado (cinza/vermelho).
+const STATUS_OPCOES = [
+  { value: '', label: 'Todos' },
+  ...(Object.keys(STATUS_ROTULOS) as TituloStatus[]).map((status) => ({
+    value: status,
+    label: STATUS_ROTULOS[status],
+  })),
+];
+
+const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
+
 const STATUS_CORES: Record<TituloStatus, string> = {
   aberta: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
   parcialmente_recebida: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
@@ -177,47 +189,41 @@ const TitulosList: React.FC<Props> = ({
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-gray-500 dark:text-gray-400">
           Emissão de
-          <input
-            type="date"
+          <DatePicker
             value={filtros.desde}
-            onChange={(e) => onFiltrar({ desde: e.target.value, pagina: 1 })}
-            className="mt-1 block px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
+            onChange={(v) => onFiltrar({ desde: v, pagina: 1 })}
+            controlClass={CAMPO}
           />
         </label>
         <label className="text-xs text-gray-500 dark:text-gray-400">
           até
-          <input
-            type="date"
+          <DatePicker
             value={filtros.ate}
-            onChange={(e) => onFiltrar({ ate: e.target.value, pagina: 1 })}
-            className="mt-1 block px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
+            onChange={(v) => onFiltrar({ ate: v, pagina: 1 })}
+            controlClass={CAMPO}
           />
         </label>
         <label className="text-xs text-gray-500 dark:text-gray-400">
           Status
-          <select
+          <Select
             value={filtros.status}
-            onChange={(e) => onFiltrar({ status: e.target.value as TituloStatus | '', pagina: 1 })}
-            className="mt-1 block px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
-          >
-            <option value="">Todos</option>
-            {(Object.keys(STATUS_ROTULOS) as TituloStatus[]).map((status) => (
-              <option key={status} value={status}>{STATUS_ROTULOS[status]}</option>
-            ))}
-          </select>
+            onChange={(v) => onFiltrar({ status: v as TituloStatus | '', pagina: 1 })}
+            options={STATUS_OPCOES}
+            controlClass={CAMPO}
+          />
         </label>
         <label className="text-xs text-gray-500 dark:text-gray-400">
           Operadora
-          <select
+          <Select
             value={filtros.operadoraId}
-            onChange={(e) => onFiltrar({ operadoraId: e.target.value, pagina: 1 })}
-            className="mt-1 block px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100 max-w-[220px]"
-          >
-            <option value="">Todas</option>
-            {operadoras.map((operadora) => (
-              <option key={operadora.id} value={operadora.id}>{operadora.nome}</option>
-            ))}
-          </select>
+            onChange={(v) => onFiltrar({ operadoraId: v, pagina: 1 })}
+            options={[
+              { value: '', label: 'Todas' },
+              ...operadoras.map((operadora) => ({ value: operadora.id, label: operadora.nome })),
+            ]}
+            controlClass={CAMPO}
+            wrapperClass="max-w-[220px]"
+          />
         </label>
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
