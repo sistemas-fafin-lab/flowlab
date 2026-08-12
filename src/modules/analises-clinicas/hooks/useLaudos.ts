@@ -30,6 +30,28 @@ interface UseLaudosResult {
 
 const num = (v: unknown): number => (typeof v === 'number' ? v : Number(v));
 
+// Laudos liberados somem da tela 1 mês após a liberação — aguarda_liberacao e
+// laudo_parcial_liberado continuam aparecendo indefinidamente, pois ainda
+// dependem de ação.
+const cutoffLiberacaoIso = (): string => {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return d.toISOString();
+};
+
+// Fila: pendentes/parciais primeiro (mais recentes no topo), liberados por
+// último — entre os liberados, o liberado mais recentemente fica mais perto
+// do topo do grupo.
+const ordenarFila = (rows: AcLaudo[]): AcLaudo[] =>
+  [...rows].sort((a, b) => {
+    const aLiberado = a.status === 'laudo_completo_liberado';
+    const bLiberado = b.status === 'laudo_completo_liberado';
+    if (aLiberado !== bLiberado) return aLiberado ? 1 : -1;
+    const aData = aLiberado ? (a.liberado_em ?? a.criado_em) : a.criado_em;
+    const bData = bLiberado ? (b.liberado_em ?? b.criado_em) : b.criado_em;
+    return new Date(bData).getTime() - new Date(aData).getTime();
+  });
+
 const mapLaudo = (r: Record<string, unknown>): AcLaudo => ({
   id: r.id as string,
   agendamento_id: r.agendamento_id as string,
@@ -71,6 +93,8 @@ export function useLaudos(): UseLaudosResult {
     const { data: lRows, error: lErr } = await supabase
       .from('ac_laudos')
       .select('*')
+      // Liberados com mais de 1 mês somem da tela; os demais status ficam sempre visíveis.
+      .or(`status.neq.laudo_completo_liberado,liberado_em.gte.${cutoffLiberacaoIso()}`)
       .order('criado_em', { ascending: false });
 
     if (lErr) {
@@ -81,7 +105,7 @@ export function useLaudos(): UseLaudosResult {
       return;
     }
 
-    const parsedLaudos = (lRows ?? []).map(mapLaudo);
+    const parsedLaudos = ordenarFila((lRows ?? []).map(mapLaudo));
     setLaudos(parsedLaudos);
 
     // Carrega os agendamentos vinculados para exibir snapshots.
