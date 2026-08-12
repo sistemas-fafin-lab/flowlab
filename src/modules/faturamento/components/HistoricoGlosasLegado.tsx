@@ -13,19 +13,15 @@ import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import DatePicker from '../../../components/DatePicker';
 import ImagensRequisicaoLegadoModal from './ImagensRequisicaoLegadoModal';
 import { formatCurrency, formatData } from '../utils/formato';
+import { janelaDoPreset, PeriodoPreset } from '../utils/periodo';
 
 // Aba "Histórico (apLIS)" → sub-aba Glosas: leitura ao vivo do MySQL de backup do
 // laboratório (fatrequisicaoprocedimento.IdMotivoGlosa), sem persistência no
 // Supabase e sem ação de escrita — só consulta/histórico nesta entrega.
 // Ver docs/plans/faturamento/glosas-recursos-legado-design.md.
 
-type PeriodoPreset = 'mes' | 30 | 90 | 'custom';
-
 const CAMPO_FILTRO =
   'px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white';
-
-const dayKey = (d: Date): string =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const HistoricoGlosasLegado: React.FC = () => {
   const [preset, setPreset] = useState<PeriodoPreset>('mes');
@@ -42,27 +38,10 @@ const HistoricoGlosasLegado: React.FC = () => {
     return () => clearTimeout(t);
   }, [busca]);
 
-  const range = useMemo(() => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
-    if (preset === 'custom' && customIni && customFim) {
-      let ini = customIni;
-      let fim = customFim;
-      if (ini > fim) [ini, fim] = [fim, ini];
-      return { periodoIni: ini, periodoFim: fim };
-    }
-
-    if (preset === 'mes') {
-      const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      return { periodoIni: dayKey(primeiro), periodoFim: dayKey(hoje) };
-    }
-
-    const n = typeof preset === 'number' ? preset : 30;
-    const inicio = new Date(hoje);
-    inicio.setDate(hoje.getDate() - (n - 1));
-    return { periodoIni: dayKey(inicio), periodoFim: dayKey(hoje) };
-  }, [preset, customIni, customFim]);
+  const range = useMemo(
+    () => janelaDoPreset(preset, new Date(), { ini: customIni, fim: customFim }),
+    [preset, customIni, customFim],
+  );
 
   const { glosas, meta, loading, error, refetch } = useGlosasLegado({
     periodoIni: range.periodoIni,

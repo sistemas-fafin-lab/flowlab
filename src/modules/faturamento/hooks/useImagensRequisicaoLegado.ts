@@ -1,16 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { supabase } from '../../../lib/supabase';
 import type { ImagemRequisicaoLegado } from '../../billing/types';
+import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
 // Lista + bytes das imagens de uma requisição do legado (requisicaoimagem), aberto
 // pelo botão "Ver imagens" dos históricos de Glosas e Recursos. Rota própria de
 // propósito: metadados (lista) e bytes (arquivo) são endpoints separados — o blob
 // pode pesar alguns MB e só o item que o operador está olhando precisa descer.
-
-async function getToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token ?? null;
-}
+//
+// A busca de metadados usa o mesmo esqueleto getToken+fetch dos outros hooks
+// legado (./legado/api); a busca de bytes não, porque a resposta é um blob, não JSON.
 
 interface RespostaImagens {
   success?: boolean;
@@ -57,16 +55,11 @@ export function useImagensRequisicaoLegado(
 
     (async () => {
       try {
-        const token = await getToken();
-        if (!token) throw new Error('Sessão expirada. Faça login novamente.');
-
-        const res = await fetch(`/api/faturamento/imagens-legado?idRequisicao=${idRequisicao}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const body = (await res.json().catch(() => ({}))) as RespostaImagens;
-        if (!res.ok || !body.success) {
-          throw new Error(body.error || 'Não foi possível consultar as imagens da requisição.');
-        }
+        const body = await chamarLegadoApi<RespostaImagens>(
+          'imagens-legado',
+          new URLSearchParams({ idRequisicao: String(idRequisicao) }),
+          'Não foi possível consultar as imagens da requisição.',
+        );
         if (!cancelado) setImagens(body.imagens ?? []);
       } catch (err) {
         if (!cancelado) {
@@ -87,7 +80,7 @@ export function useImagensRequisicaoLegado(
     const emCache = urlsRef.current.get(id);
     if (emCache) return emCache;
 
-    const token = await getToken();
+    const token = await getTokenLegado();
     if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
     const res = await fetch(`/api/faturamento/imagem-legado-arquivo?id=${id}`, {

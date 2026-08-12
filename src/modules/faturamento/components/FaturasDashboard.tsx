@@ -21,6 +21,7 @@ import DatePicker from '../../../components/DatePicker';
 // Cópias locais destas duas viraram utilitário do módulo quando Contas a Receber
 // passou a precisar das mesmas regras (inclusive o T00:00:00 do fuso).
 import { formatCurrency, formatData } from '../utils/formato';
+import { janelaDoPreset, PeriodoPreset } from '../utils/periodo';
 
 // ============================================================================
 // COMPONENTE: FaturasDashboard
@@ -32,8 +33,6 @@ import { formatCurrency, formatData } from '../utils/formato';
 // A fonte era a API do apLIS, que só devolve os procedimentos somados por lote, sem
 // nenhuma referência às requisições — daí a troca para o banco.
 // ============================================================================
-
-type PeriodoPreset = 'mes' | 30 | 90 | 'custom';
 
 const TAMANHOS_PAGINA = [25, 50, 100, 200];
 const TAMANHOS_PAGINA_OPCOES = TAMANHOS_PAGINA.map((n) => ({ value: String(n), label: String(n) }));
@@ -60,9 +59,6 @@ const STATUS_CORES: Record<number, string> = {
   8: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
 };
 
-
-const dayKey = (d: Date): string =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const StatusBadge: React.FC<{ lote: LoteFaturamento }> = ({ lote }) => (
   <span
@@ -98,27 +94,10 @@ const FaturasDashboard: React.FC = () => {
   // Intervalo efetivo (preset OU datas personalizadas) → limites ISO p/ o hook.
   // Memoizado: os limites ficam fixos até o preset/datas mudarem, evitando refetch
   // em loop (o hook depende dessas strings).
-  const range = useMemo(() => {
-    const hoje = new Date();
-    hoje.setHours(0, 0, 0, 0);
-
-    if (preset === 'custom' && customIni && customFim) {
-      let ini = customIni;
-      let fim = customFim;
-      if (ini > fim) [ini, fim] = [fim, ini];
-      return { periodoIni: ini, periodoFim: fim };
-    }
-
-    if (preset === 'mes') {
-      const primeiro = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      return { periodoIni: dayKey(primeiro), periodoFim: dayKey(hoje) };
-    }
-
-    const n = typeof preset === 'number' ? preset : 30;
-    const inicio = new Date(hoje);
-    inicio.setDate(hoje.getDate() - (n - 1));
-    return { periodoIni: dayKey(inicio), periodoFim: dayKey(hoje) };
-  }, [preset, customIni, customFim]);
+  const range = useMemo(
+    () => janelaDoPreset(preset, new Date(), { ini: customIni, fim: customFim }),
+    [preset, customIni, customFim],
+  );
 
   const { lotes, meta, loading, error, refetch, buscarRequisicoes } = useFaturamentoLotes({
     periodoIni: range.periodoIni,
