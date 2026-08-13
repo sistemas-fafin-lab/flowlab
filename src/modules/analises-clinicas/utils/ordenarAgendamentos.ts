@@ -15,5 +15,5 @@ export const ordenarAgendamentosParaLista = (agendamentos: AcAgendamento[]): AcA
     const prioridade = prioridadeNaLista(a) - prioridadeNaLista(b);
     if (prioridade !== 0) return prioridade;
 
-    return new Date(b.data_hora).getTime() - new Date(a.data_hora).getTime();
+    return new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime();
   });

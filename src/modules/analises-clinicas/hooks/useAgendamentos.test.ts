@@ -36,21 +36,21 @@ describe('ordenarAgendamentosPorData', () => {
 });
 
 describe('ordenarAgendamentosParaLista', () => {
-  it('prioriza os não coletados e ordena cada grupo pelos mais recentes', () => {
+  it('prioriza os não coletados e ordena cada grupo pelo próximo horário', () => {
     const agendamentos = [
-      agendamento('coletado-recente', '2026-08-20T09:00:00.000Z', 'coletado'),
-      agendamento('pendente-antigo', '2026-08-10T09:00:00.000Z', 'recebido'),
-      agendamento('bloqueado', '2026-08-12T09:00:00.000Z', 'bloqueado'),
-      agendamento('pendente-recente', '2026-08-15T09:00:00.000Z', 'em_coleta'),
-      agendamento('cancelado', '2026-08-18T09:00:00.000Z', 'cancelado'),
+      agendamento('coletado-distante', '2026-08-20T09:00:00.000Z', 'coletado'),
+      agendamento('pendente-proximo', '2026-08-14T09:00:00.000Z', 'recebido'),
+      agendamento('bloqueado', '2026-08-16T09:00:00.000Z', 'bloqueado'),
+      agendamento('pendente-distante', '2026-08-18T09:00:00.000Z', 'em_coleta'),
+      agendamento('cancelado', '2026-08-17T09:00:00.000Z', 'cancelado'),
     ];
 
     expect(ordenarAgendamentosParaLista(agendamentos).map((item) => item.id)).toEqual([
-      'pendente-recente',
+      'pendente-proximo',
       'bloqueado',
-      'pendente-antigo',
-      'coletado-recente',
+      'pendente-distante',
       'cancelado',
+      'coletado-distante',
     ]);
   });
 
