@@ -220,6 +220,14 @@ CulturasPage / LaudosPage / RecoletasPage
 
 **Força: 🟡 Worth exploring**
 
+> ✅ **Resolvido em `d7685af`** ("refactor(analises-clinicas): extrair domain
+> de datas/status e unificar adapter das APIs"), junto do Candidato 3 da
+> segunda rodada. `api.ts` agora concentra `getToken`, `chamarAcClinicasApi`
+> (ex-`chamarApoioApi`, promovido a interface oficial do módulo) e um único
+> `buscarPacientes`; `useAgendamentos`, `useCorrecaoIdentidade`,
+> `useDocumentosAgendamento` e `apoioApi` passaram a usá-los, com suíte
+> vitest cobrindo o contrato de erro.
+
 **Arquivos:**
 - `src/modules/analises-clinicas/hooks/useAgendamentos.ts:74-77, 121-139`
 - `src/modules/analises-clinicas/hooks/useCorrecaoIdentidade.ts:51-54, 61-79`

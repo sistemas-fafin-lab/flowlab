@@ -21,9 +21,12 @@ Os candidatos abaixo cobrem o estado atual.
 
 > ✅ **Candidato 2 e Candidato 4 foram resolvidos** em `d63e091`/`45a0fe4`
 > (commits posteriores a esta revisão); Candidato 1 já estava em `39697a1`.
-> Resta o Candidato 3 — e vale fazer junto o Candidato C da primeira rodada
-> (unificar `chamarApoioApi` nos hooks de agendamento/correção), que toca a
-> mesma pasta.
+> **Candidato 3 e o Candidato C da primeira rodada foram resolvidos** em
+> `d7685af` ("refactor(analises-clinicas): extrair domain de datas/status e
+> unificar adapter das APIs"): `domain/datas.ts` + `domain/status.ts` com
+> suíte vitest, retroativo fora da JSX, `*_STATUS_KEY` amarrando os enums,
+> e `api.ts` com `getToken`/`chamarAcClinicasApi`/`buscarPacientes` únicos.
+> A pauta das duas rodadas zerou.
 
 ---
 
@@ -141,6 +144,17 @@ useViewsSalvas                             useViewsSalvas
 
 **Força: 🔴 Strong** · carried over — piorou desde a primeira rodada (era o Candidato B)
 
+> ✅ **Resolvido em `d7685af`** ("refactor(analises-clinicas): extrair domain
+> de datas/status e unificar adapter das APIs"), commit posterior a esta
+> revisão. `domain/datas.ts` concentra `hojeISO`, `dataKeyDeIso`,
+> `parseDataLocal`, `janelaDoDia`, `fmtDiaSemana`, `rotuloDiaPassado`,
+> `temDataRetroativa` e `ehSlotRetroativo` (puras, com "agora" injetável);
+> `domain/status.ts` traz `rotuloStatus`; `*_STATUS_KEY` em `types.ts` amarra
+> `STATUS_*` e os comparadores das páginas à mesma fonte. As 3 cópias de
+> `hojeISO`, as 4 janelas de data, os 3 `statusLabel` e os literais soltos da
+> LaudosPage deixaram de existir; a regra de retroativo saiu da JSX para o
+> domínio, com suíte vitest.
+
 **Arquivos:**
 - `src/modules/analises-clinicas/components/AgendamentosPage.tsx` (2053 linhas, era 1745)
 - `src/modules/analises-clinicas/hooks/useAgendamentos.ts` (253 linhas — CRUD raso)
@@ -246,9 +260,5 @@ backup MySQL.
 **Candidato 2 e Candidato 4 foram fechados** em `d63e091`/`45a0fe4` — com
 eles, a pauta do `faturamento` desta rodada zerou.
 
-O que resta é o **Candidato 3** (regras de agendamento): o maior leverage de
-longo prazo — é o módulo que mais cresce — mas pede uma rodada de
-`/codebase-design` antes, porque oito telas de 800+ linhas dependem da forma
-escolhida para `domain/`. Junto dele, o Candidato C da primeira rodada
-(`getToken`/`buscarPacientes` duplicados e o adapter `chamarApoioApi` não
-adotado) pode ser feito como sub-tarefa, já que toca os mesmos hooks.
+**Candidato 3 e o Candidato C da primeira rodada foram fechados** em
+`d7685af` — com eles, a pauta das duas rodadas zerou.
