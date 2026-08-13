@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { AcAgendamento, TipoDocumento } from '../types';
+import { ordenarAgendamentosPorData } from '../utils/ordenarAgendamentos';
 
 export interface AgendamentosFiltros {
   postoId?: string; // ac_postos.id
@@ -107,7 +108,7 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
       setError(err.message);
       setAgendamentos([]);
     } else {
-      setAgendamentos((rows ?? []) as AcAgendamento[]);
+      setAgendamentos(ordenarAgendamentosPorData((rows ?? []) as AcAgendamento[]));
     }
     setLoading(false);
   }, [postoId, data]);
