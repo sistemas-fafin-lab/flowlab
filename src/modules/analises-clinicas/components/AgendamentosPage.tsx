@@ -44,6 +44,7 @@ import InputDialog from '../../../components/InputDialog';
 import { hasPermission } from '../../../utils/permissions';
 import { useDocumentosAgendamento } from '../hooks/useDocumentosAgendamento';
 import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento } from '../types';
+import { ordenarAgendamentosParaLista } from '../utils/ordenarAgendamentos';
 
 // Classe compartilhada de input (foco azul, cor do módulo de agendamentos).
 const inputCls =
@@ -203,6 +204,13 @@ const STATUS: Record<string, StatusCfg> = {
     chip: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/60',
     dot: 'bg-amber-500',
     avatar: 'from-amber-400 to-orange-500',
+  },
+  bloqueado: {
+    label: 'Bloqueado',
+    icon: AlertTriangle,
+    chip: 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800/60',
+    dot: 'bg-rose-500',
+    avatar: 'from-rose-400 to-red-600',
   },
   coletado: {
     label: 'Coletado',
@@ -1804,7 +1812,7 @@ const AgendamentosPage: React.FC = () => {
   const lista = useMemo(() => {
     const q = norm(busca).replace(/\s+/g, ''); // normalizado e sem espaços p/ subsequência
     const qDigitos = busca.replace(/\D/g, ''); // busca por telefone ignora máscara
-    return agendamentos.filter((a) => {
+    const filtrados = agendamentos.filter((a) => {
       if (postoSel && a.posto_id !== postoSel) return false;
       if (statusSel && a.status !== statusSel) return false;
       if (busca.trim()) {
@@ -1815,6 +1823,8 @@ const AgendamentosPage: React.FC = () => {
       }
       return true;
     });
+
+    return ordenarAgendamentosParaLista(filtrados);
   }, [agendamentos, postoSel, statusSel, busca]);
 
   const temFiltro = Boolean(postoSel || data || busca.trim() || statusSel);
