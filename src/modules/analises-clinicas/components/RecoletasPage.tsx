@@ -194,8 +194,9 @@ const RecoletaModal: React.FC<{
           <button
             onClick={() => void handleSave()}
             disabled={saving}
-            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 shadow-lg shadow-amber-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 shadow-lg shadow-amber-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 inline-flex items-center gap-2"
           >
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
@@ -502,8 +503,9 @@ const NovaRecoletaModal: React.FC<{
           <button
             onClick={() => void handleSave()}
             disabled={saving}
-            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 shadow-lg shadow-amber-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 shadow-lg shadow-amber-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 inline-flex items-center gap-2"
           >
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {saving ? 'Registrando…' : 'Registrar recoleta'}
           </button>
         </div>

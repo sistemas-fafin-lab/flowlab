@@ -388,8 +388,9 @@ const LaudoModal: React.FC<{
               onClick={() => void handleSave()}
               disabled={salvando || (!alterouCampos && temExames)}
               title={!alterouCampos && temExames ? 'Nada alterado — as marcações já foram salvas' : undefined}
-              className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 disabled:hover:scale-100"
+              className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 disabled:hover:scale-100 inline-flex items-center gap-2"
             >
+              {salvando && <Loader2 className="w-4 h-4 animate-spin" />}
               {salvando ? 'Salvando…' : 'Salvar'}
             </button>
           )}
@@ -645,8 +646,9 @@ const NovoLaudoModal: React.FC<{
           <button
             onClick={() => void handleSave()}
             disabled={saving}
-            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 inline-flex items-center gap-2"
           >
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {saving ? 'Criando…' : 'Criar laudo'}
           </button>
         </div>

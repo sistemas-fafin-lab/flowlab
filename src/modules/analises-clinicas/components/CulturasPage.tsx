@@ -229,8 +229,9 @@ const CulturaModal: React.FC<{
           <button
             onClick={() => void handleSave()}
             disabled={saving}
-            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 inline-flex items-center gap-2"
           >
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
@@ -485,8 +486,9 @@ const NovaCulturaModal: React.FC<{
           <button
             onClick={() => void handleSave()}
             disabled={saving}
-            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 inline-flex items-center gap-2"
           >
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {saving ? 'Criando…' : 'Criar cultura'}
           </button>
         </div>

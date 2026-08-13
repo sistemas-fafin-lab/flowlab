@@ -14,6 +14,7 @@ import {
   Gauge,
   History,
   MessageSquare,
+  Loader2,
 } from 'lucide-react';
 import { useTemperaturas } from '../hooks/useTemperaturas';
 import { useAuth } from '../../../hooks/useAuth';
@@ -392,8 +393,9 @@ const EquipamentoModal: React.FC<{
           <button
             onClick={() => void handleSave()}
             disabled={saving}
-            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 inline-flex items-center gap-2"
           >
+            {saving && <Loader2 className="w-4 h-4 animate-spin" />}
             {saving ? 'Salvando…' : 'Salvar'}
           </button>
         </div>
@@ -651,8 +653,9 @@ const LeituraModal: React.FC<{
               <button
                 onClick={() => void handleConfirmar()}
                 disabled={salvando}
-                className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60"
+                className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 inline-flex items-center gap-2"
               >
+                {salvando && <Loader2 className="w-4 h-4 animate-spin" />}
                 {salvando ? 'Registrando…' : 'Confirmar registro'}
               </button>
             </>

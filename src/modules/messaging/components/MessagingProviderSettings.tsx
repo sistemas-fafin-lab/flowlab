@@ -22,7 +22,8 @@ import {
   Phone,
   Globe,
   Eye,
-  EyeOff
+  EyeOff,
+  Loader2
 } from 'lucide-react';
 
 interface ProviderFormData {
@@ -682,8 +683,9 @@ export const MessagingProviderSettings: React.FC = () => {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 inline-flex items-center gap-2"
                 >
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   {saving ? 'Salvando...' : editingProvider ? 'Salvar' : 'Criar Provedor'}
                 </button>
               </div>
