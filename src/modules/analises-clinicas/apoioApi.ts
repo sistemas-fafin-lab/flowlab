@@ -5,6 +5,7 @@
 // 'ac-apoio-requisicoes' — a API recebe só os paths.
 
 import { supabase } from '../../lib/supabase';
+import { chamarAcClinicasApi } from './api';
 import type {
   ApoioExameExtraido,
   ApoioLogEntry,
@@ -13,23 +14,6 @@ import type {
 } from './types';
 
 export const BUCKET_APOIO_REQUISICOES = 'ac-apoio-requisicoes';
-
-async function chamarApoioApi<T>(action: string, body: Record<string, unknown>): Promise<T> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  if (!token) throw new Error('Sessão expirada. Faça login novamente.');
-
-  const res = await fetch(`/api/analises-clinicas/${action}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify(body),
-  });
-  const payload = (await res.json().catch(() => ({}))) as T & { success?: boolean; error?: string; erro?: string };
-  if (!res.ok || payload.success === false) {
-    throw new Error(payload.error || payload.erro || `Falha na chamada ${action} (HTTP ${res.status}).`);
-  }
-  return payload;
-}
 
 /** Sobe os arquivos da requisição para o bucket privado; retorna os paths. */
 export async function uploadArquivosRequisicao(files: File[]): Promise<string[]> {
@@ -53,7 +37,7 @@ export function processarRequisicao(
   paths: string[],
   numeroRequisicao: string | null,
 ): Promise<ApoioPipelineResult> {
-  return chamarApoioApi<ApoioPipelineResult>('apoio-process-image', {
+  return chamarAcClinicasApi<ApoioPipelineResult>('apoio-process-image', {
     paths,
     numero_requisicao: numeroRequisicao ?? undefined,
   });
@@ -72,7 +56,7 @@ export function regerarXml(
   examesSelecionados: ApoioExameExtraido[],
   overrides: Record<string, string>,
 ): Promise<RebuildXmlResposta> {
-  return chamarApoioApi<RebuildXmlResposta>('apoio-rebuild-xml', {
+  return chamarAcClinicasApi<RebuildXmlResposta>('apoio-rebuild-xml', {
     raw_result: rawResult,
     exames_selecionados: examesSelecionados,
     overrides,
@@ -81,7 +65,7 @@ export function regerarXml(
 
 /** Envia itens da fila ao Álvaro (cria OS reais no apoio!). */
 export async function transferirParaAlvaro(ids: string[]): Promise<ApoioTransferResultado[]> {
-  const resposta = await chamarApoioApi<{ resultados: ApoioTransferResultado[] }>(
+  const resposta = await chamarAcClinicasApi<{ resultados: ApoioTransferResultado[] }>(
     'apoio-transferir',
     { ids },
   );
@@ -99,7 +83,7 @@ export interface AutoStageResultado {
 
 /** Roda o enfileiramento automático (OCR → fila) de UM agendamento — sem envio real. */
 export async function enfileirarAgendamento(agendamentoId: string): Promise<AutoStageResultado> {
-  const resposta = await chamarApoioApi<{ resultado: AutoStageResultado }>('apoio-auto-stage', {
+  const resposta = await chamarAcClinicasApi<{ resultado: AutoStageResultado }>('apoio-auto-stage', {
     agendamentoId,
   });
   return resposta.resultado;

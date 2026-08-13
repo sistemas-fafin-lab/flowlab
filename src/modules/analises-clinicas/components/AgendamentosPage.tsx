@@ -45,6 +45,14 @@ import { hasPermission } from '../../../utils/permissions';
 import { useDocumentosAgendamento } from '../hooks/useDocumentosAgendamento';
 import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento } from '../types';
 import { ordenarAgendamentosParaLista } from '../utils/ordenarAgendamentos';
+import {
+  dataKeyDeIso,
+  ehSlotRetroativo,
+  fmtDiaSemana,
+  hojeISO,
+  rotuloDiaPassado,
+  temDataRetroativa,
+} from '../domain/datas';
 
 // Classe compartilhada de input (foco azul, cor do módulo de agendamentos).
 const inputCls =
@@ -129,32 +137,12 @@ const nascimentoValido = (s: string): boolean => {
   return ano >= 1900 && dt <= hoje;
 };
 
-// Hoje em YYYY-MM-DD local — teto do seletor de nascimento e piso do "retroativo".
-const hojeISO = (): string => new Date().toLocaleDateString('en-CA');
-
 // Data de nascimento (YYYY-MM-DD) → dd/mm/aaaa. Sem new Date() de propósito:
 // data pura não tem fuso e new Date('YYYY-MM-DD') recuaria um dia em fusos oeste.
 const fmtNasc = (d: string): string => {
   const p = d.split('-');
   return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
 };
-
-// Como chamar um dia JÁ PASSADO escolhido no calendário (chave YYYY-MM-DD local).
-// O calendário mostra "05/08" e só; quem lança agendamento retroativo precisa
-// enxergar de imediato que aquele dia ficou para trás. null = hoje ou futuro.
-const rotuloDiaPassado = (dateKey: string): string | null => {
-  if (dateKey >= hojeISO()) return null;
-  const ontem = new Date(Date.now() - 86_400_000).toLocaleDateString('en-CA');
-  return dateKey === ontem ? 'ontem' : 'retroativo';
-};
-
-// Data (YYYY-MM-DD) → "seg., 05/08". Meia-noite local evita o recuo de fuso.
-const fmtDiaSemana = (dateKey: string): string =>
-  new Date(`${dateKey}T00:00:00`).toLocaleDateString('pt-BR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-  });
 
 // Normaliza p/ busca: remove acentos e caixa (ex.: "João" → "joao").
 const norm = (s: string): string =>
@@ -873,7 +861,7 @@ const NovoAgendamentoModal: React.FC<{
   const porData = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const iso of slotsDoPosto) {
-      const k = new Date(iso).toLocaleDateString('en-CA'); // YYYY-MM-DD local
+      const k = dataKeyDeIso(iso); // YYYY-MM-DD local
       const arr = m.get(k);
       if (arr) arr.push(iso);
       else m.set(k, [iso]);
@@ -889,9 +877,9 @@ const NovoAgendamentoModal: React.FC<{
   const dataMax = datas[datas.length - 1] ?? '';
   // A grade do operador chega com uma janela retroativa (AGENDA_RETROATIVO_DIAS):
   // o registro é assíncrono e o atendimento lançado costuma já ter acontecido.
-  const temRetroativo = useMemo(() => datas.some((d) => d < hojeISO()), [datas]);
+  const temRetroativo = useMemo(() => temDataRetroativa(datas), [datas]);
   const diaPassado = dataSel ? rotuloDiaPassado(dataSel) : null;
-  const slotRetroativo = Boolean(slotSel) && new Date(slotSel).getTime() < Date.now();
+  const slotRetroativo = ehSlotRetroativo(slotSel);
   // Dia dentro da janela, mas sem nada livre: fechado (domingo/feriado) ou lotado.
   const diaSemHorario = Boolean(dataSel) && !carregandoDisp && horariosDaData.length === 0;
 
@@ -1461,7 +1449,7 @@ const EditarAgendamentoModal: React.FC<{
   const [postoSel, setPostoSel] = useState(ag.posto_id ?? '');
   const [disponibilidade, setDisponibilidade] = useState<PostoDisponivel[]>([]);
   const [carregandoDisp, setCarregandoDisp] = useState(true);
-  const [dataSel, setDataSel] = useState(() => new Date(ag.data_hora).toLocaleDateString('en-CA'));
+  const [dataSel, setDataSel] = useState(() => dataKeyDeIso(ag.data_hora));
   const [slotSel, setSlotSel] = useState(ag.data_hora);
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -1502,7 +1490,7 @@ const EditarAgendamentoModal: React.FC<{
   const porData = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const iso of slotsDoPosto) {
-      const k = new Date(iso).toLocaleDateString('en-CA'); // YYYY-MM-DD local
+      const k = dataKeyDeIso(iso); // YYYY-MM-DD local
       const arr = m.get(k);
       if (arr) arr.push(iso);
       else m.set(k, [iso]);
@@ -1790,7 +1778,7 @@ const AgendamentosPage: React.FC = () => {
   // dia certo (?data). A rota /coletas exige canManageColetas — por isso o botão de
   // ação no drawer só aparece quando canManage é true.
   const abrirNoColetas = (ag: AcAgendamento) => {
-    const dataKey = new Date(ag.data_hora).toLocaleDateString('en-CA'); // YYYY-MM-DD local
+    const dataKey = dataKeyDeIso(ag.data_hora); // YYYY-MM-DD local
     navigate(`/analises-clinicas/coletas?open=${ag.id}&data=${dataKey}`);
   };
 

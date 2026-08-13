@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { supabase } from '../../../lib/supabase';
 import type { DocumentoCheckin } from '../types';
+import { getToken } from '../api';
 
 interface UseDocumentosAgendamentoResult {
   documentos: DocumentoCheckin[];
@@ -37,8 +37,7 @@ export function useDocumentosAgendamento(agendamentoId: string): UseDocumentosAg
     setExpirado(false);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = await getToken();
       if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
       const res = await fetch(

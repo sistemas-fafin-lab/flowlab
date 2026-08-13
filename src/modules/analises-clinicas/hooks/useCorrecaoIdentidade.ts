@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
-import { supabase } from '../../../lib/supabase';
-import type { PacienteBuscaItem } from './useAgendamentos';
+import { buscarPacientes, chamarAcClinicasApi } from '../api';
+import type { PacienteBuscaItem } from '../api';
 
 /**
  * Correção de CPF / data de nascimento de paciente do LAB-HUB.
@@ -48,71 +48,36 @@ interface UseCorrecaoIdentidadeResult {
   salvando: boolean;
 }
 
-async function getToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token ?? null;
-}
-
 export function useCorrecaoIdentidade(): UseCorrecaoIdentidadeResult {
   const [salvando, setSalvando] = useState(false);
 
-  // Silenciosa: em erro/sessão expirada devolve lista vazia — o operador vê
-  // "nenhum paciente encontrado" e tenta outro termo.
-  const buscarPacientes = useCallback(async (q: string): Promise<PacienteBuscaItem[]> => {
-    const termo = q.trim();
-    if (termo.length < 2) return [];
-    const token = await getToken();
-    if (!token) return [];
-
-    try {
-      const res = await fetch(
-        `/api/analises-clinicas/buscar-pacientes?q=${encodeURIComponent(termo)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      const body: { success?: boolean; pacientes?: PacienteBuscaItem[] } =
-        await res.json().catch(() => ({}));
-      if (!res.ok || !body.success) return [];
-      return body.pacientes ?? [];
-    } catch {
-      return [];
-    }
-  }, []);
-
   const corrigir = useCallback(
     async (input: CorrecaoIdentidadeInput) => {
-      const token = await getToken();
-      if (!token) return { erro: 'Sessão expirada. Faça login novamente.' };
-
       setSalvando(true);
-      let res: Response;
       try {
-        res = await fetch('/api/analises-clinicas/corrigir-identidade', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify(input),
-        });
-      } catch {
+        const body = await chamarAcClinicasApi<
+          Partial<CorrecaoIdentidadeResultado> & { error?: string }
+        >('corrigir-identidade', input, 'Não foi possível corrigir a identidade.');
+        if (!body.correcaoId) {
+          return { erro: body.error || 'Não foi possível corrigir a identidade.' };
+        }
+        return {
+          resultado: {
+            correcaoId: body.correcaoId,
+            pacienteId: body.pacienteId ?? input.pacienteId,
+            cpfAnteriorMascarado: body.cpfAnteriorMascarado ?? '—',
+            laudosInvalidados: body.laudosInvalidados ?? 0,
+            corrigidoEm: body.corrigidoEm ?? new Date().toISOString(),
+          },
+        };
+      } catch (err) {
+        if (err instanceof TypeError) {
+          return { erro: 'Falha de conexão. Tente novamente.' };
+        }
+        return { erro: err instanceof Error ? err.message : 'Não foi possível corrigir a identidade.' };
+      } finally {
         setSalvando(false);
-        return { erro: 'Falha de conexão. Tente novamente.' };
       }
-
-      const body: { success?: boolean; error?: string } & Partial<CorrecaoIdentidadeResultado> =
-        await res.json().catch(() => ({}));
-      setSalvando(false);
-
-      if (!res.ok || !body.success || !body.correcaoId) {
-        return { erro: body.error || 'Não foi possível corrigir a identidade.' };
-      }
-
-      return {
-        resultado: {
-          correcaoId: body.correcaoId,
-          pacienteId: body.pacienteId ?? input.pacienteId,
-          cpfAnteriorMascarado: body.cpfAnteriorMascarado ?? '—',
-          laudosInvalidados: body.laudosInvalidados ?? 0,
-          corrigidoEm: body.corrigidoEm ?? new Date().toISOString(),
-        },
-      };
     },
     [],
   );

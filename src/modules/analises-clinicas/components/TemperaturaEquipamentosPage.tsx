@@ -22,8 +22,9 @@ import { useDialog } from '../../../hooks/useDialog';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import type { AcEquipamento, AcTemperatura, EquipamentoTipo } from '../types';
 import { TIPOS_EQUIPAMENTO } from '../types';
+import { rotuloStatus } from '../domain/status';
 
-const tipoLabel = (t: EquipamentoTipo) => TIPOS_EQUIPAMENTO.find((x) => x.key === t)?.label ?? t;
+const tipoLabel = (t: EquipamentoTipo) => rotuloStatus(TIPOS_EQUIPAMENTO, t);
 
 const fmtDateTime = (iso: string) =>
   new Date(iso).toLocaleString('pt-BR', {

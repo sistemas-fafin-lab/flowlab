@@ -25,7 +25,8 @@ import { hasPermission } from '../../../utils/permissions';
 import { useDialog } from '../../../hooks/useDialog';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import type { AcCultura, AcCulturaEtapa, CulturaStatus } from '../types';
-import { STATUS_CULTURA } from '../types';
+import { STATUS_CULTURA, CULTURA_STATUS_KEY } from '../types';
+import { rotuloStatus } from '../domain/status';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmtData = (iso: string) =>
@@ -33,17 +34,18 @@ const fmtData = (iso: string) =>
 
 const diasDecorridos = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 
-const atrasada = (c: AcCultura) => c.status === 'em_andamento' && diasDecorridos(c.iniciada_em) > c.prazo_dias;
+const atrasada = (c: AcCultura) =>
+  c.status === CULTURA_STATUS_KEY.EM_ANDAMENTO && diasDecorridos(c.iniciada_em) > c.prazo_dias;
 
-const statusLabel = (s: CulturaStatus) => STATUS_CULTURA.find((x) => x.key === s)?.label ?? s;
+const statusLabel = (s: CulturaStatus) => rotuloStatus(STATUS_CULTURA, s);
 
 // Cor do badge por status: em andamento = neutro; positivada = alerta (patógeno); concluída = fechado.
 const STATUS_STYLE: Record<string, string> = {
-  em_andamento:
+  [CULTURA_STATUS_KEY.EM_ANDAMENTO]:
     'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800',
-  positiva:
+  [CULTURA_STATUS_KEY.POSITIVA]:
     'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-900/20 dark:text-rose-300 dark:border-rose-800',
-  pronta_laudo:
+  [CULTURA_STATUS_KEY.PRONTA_LAUDO]:
     'bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-800',
 };
 
@@ -667,7 +669,7 @@ const CulturasPage: React.FC = () => {
                   </div>
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${
-                      STATUS_STYLE[c.status] ?? STATUS_STYLE.em_andamento
+                      STATUS_STYLE[c.status] ?? STATUS_STYLE[CULTURA_STATUS_KEY.EM_ANDAMENTO]
                     }`}
                   >
                     {statusLabel(c.status)}

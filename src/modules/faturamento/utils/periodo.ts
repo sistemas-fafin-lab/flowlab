@@ -3,15 +3,16 @@
 // (periodoIni/periodoFim) — a mesma regra estava duplicada em FaturasDashboard.tsx
 // e HistoricoGlosasLegado.tsx.
 
+import { dayKey } from '../../../utils/datas';
+
+export { dayKey };
+
 export type PeriodoPreset = 'mes' | 30 | 90 | 'custom';
 
 export interface JanelaPeriodo {
   periodoIni: string;
   periodoFim: string;
 }
-
-export const dayKey = (d: Date): string =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 export function janelaDoPreset(
   preset: PeriodoPreset,

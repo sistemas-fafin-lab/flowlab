@@ -2,19 +2,15 @@ import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type { AcAgendamento, TipoDocumento } from '../types';
 import { ordenarAgendamentosPorData } from '../utils/ordenarAgendamentos';
+import { janelaDoDia } from '../domain/datas';
+import { buscarPacientes, chamarAcClinicasApi, getToken } from '../api';
+import type { PacienteBuscaItem } from '../api';
+
+export type { PacienteBuscaItem } from '../api';
 
 export interface AgendamentosFiltros {
   postoId?: string; // ac_postos.id
   data?: string; // YYYY-MM-DD (filtra pelo dia local)
-}
-
-// Paciente devolvido pelo typeahead da recepção (espelha PacienteBuscaItem do
-// LAB-HUB). O CPF vem MASCARADO — só o suficiente p/ o operador confirmar a pessoa.
-export interface PacienteBuscaItem {
-  id: string;
-  nome: string;
-  cpfMascarado: string;
-  dataNascimento: string; // YYYY-MM-DD
 }
 
 // Disponibilidade de um posto (mesma grade que o paciente vê). `slots` são
@@ -72,10 +68,8 @@ interface UseAgendamentosResult {
 
 // Token da sessão do operador para as chamadas às funções serverless (proxy do
 // LAB-HUB). As rotas /api validam este JWT + canManageColetas.
-async function getToken(): Promise<string | null> {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token ?? null;
-}
+// (getToken vive em ../api — compartilhado com useCorrecaoIdentidade e
+// useDocumentosAgendamento.)
 
 // Lista os agendamentos recebidos do LAB-HUB (tabela ac_agendamentos).
 // Leitura direta via supabase-js: a RLS já libera SELECT p/ usuários autenticados.
@@ -98,8 +92,7 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
     if (postoId) query = query.eq('posto_id', postoId);
     if (data) {
       // Janela do dia escolhido (horário local do navegador → ISO p/ comparar timestamptz).
-      const inicio = new Date(`${data}T00:00:00`);
-      const fim = new Date(`${data}T23:59:59.999`);
+      const { inicio, fim } = janelaDoDia(data);
       query = query.gte('data_hora', inicio.toISOString()).lte('data_hora', fim.toISOString());
     }
 
@@ -117,27 +110,8 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
     void refetch();
   }, [refetch]);
 
-  // Busca pacientes no LAB-HUB (typeahead). Silenciosa: em erro/sessão expirada
-  // devolve lista vazia — o operador ainda pode cadastrar um paciente novo.
-  const buscarPacientes: UseAgendamentosResult['buscarPacientes'] = useCallback(async (q) => {
-    const termo = q.trim();
-    if (termo.length < 2) return [];
-    const token = await getToken();
-    if (!token) return [];
-
-    try {
-      const res = await fetch(
-        `/api/analises-clinicas/buscar-pacientes?q=${encodeURIComponent(termo)}`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-      const body: { success?: boolean; pacientes?: PacienteBuscaItem[] } =
-        await res.json().catch(() => ({}));
-      if (!res.ok || !body.success) return [];
-      return body.pacientes ?? [];
-    } catch {
-      return [];
-    }
-  }, []);
+  // Busca pacientes no LAB-HUB (typeahead). Implementação única em ../api.
+  const buscarPacientesTypeahead: UseAgendamentosResult['buscarPacientes'] = buscarPacientes;
 
   // Disponibilidade dos postos (grade real) para o seletor de horário do modal.
   const buscarDisponibilidade: UseAgendamentosResult['buscarDisponibilidade'] = useCallback(async () => {
@@ -169,15 +143,13 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
         return { erro: 'Selecione um paciente ou informe nome, CPF e data de nascimento.' };
       }
 
-      const token = await getToken();
-      if (!token) return { erro: 'Sessão expirada. Faça login novamente.' };
-
-      let res: Response;
       try {
-        res = await fetch('/api/analises-clinicas/criar-agendamento-labhub', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
+        const body = await chamarAcClinicasApi<{
+          flowlabId?: string;
+          agendamentoLabhubId?: string;
+        }>(
+          'criar-agendamento-labhub',
+          {
             ...(input.pacienteId ? { pacienteId: input.pacienteId } : {}),
             ...(input.nome ? { nome: input.nome.trim() } : {}),
             ...(input.cpf ? { cpf: input.cpf.trim() } : {}),
@@ -185,26 +157,19 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
             ...(input.telefone?.trim() ? { telefone: input.telefone.trim() } : {}),
             postoFlowlabId: input.postoId,
             dataHora: input.dataHora,
-          }),
-        });
-      } catch {
-        return { erro: 'Não foi possível criar o agendamento. Verifique a conexão.' };
+          },
+          'Não foi possível criar o agendamento.',
+        );
+        await refetch();
+        return {
+          criado: { flowlabId: body.flowlabId ?? null, labhubId: body.agendamentoLabhubId ?? '' },
+        };
+      } catch (err) {
+        if (err instanceof TypeError) {
+          return { erro: 'Não foi possível criar o agendamento. Verifique a conexão.' };
+        }
+        return { erro: err instanceof Error ? err.message : 'Não foi possível criar o agendamento.' };
       }
-
-      const body: {
-        success?: boolean;
-        error?: string;
-        flowlabId?: string;
-        agendamentoLabhubId?: string;
-      } = await res.json().catch(() => ({}));
-      if (!res.ok || !body.success) {
-        return { erro: body.error || 'Não foi possível criar o agendamento.' };
-      }
-
-      await refetch();
-      return {
-        criado: { flowlabId: body.flowlabId ?? null, labhubId: body.agendamentoLabhubId ?? '' },
-      };
     },
     [refetch],
   );
@@ -246,7 +211,7 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
     loading,
     error,
     refetch,
-    buscarPacientes,
+    buscarPacientes: buscarPacientesTypeahead,
     buscarDisponibilidade,
     criarAgendamentoManual,
     uploadDocumento,

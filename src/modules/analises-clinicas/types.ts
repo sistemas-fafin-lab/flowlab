@@ -198,17 +198,21 @@ export interface AcCulturaEtapa {
 
 // Status/desfecho de uma cultura. Lista fixa (badge); tolera novos valores.
 // `sem_crescimento` foi removido do fluxo; o `string & {}` ainda tolera linhas legadas.
+export const CULTURA_STATUS_KEY = {
+  EM_ANDAMENTO: 'em_andamento',
+  POSITIVA: 'positiva',
+  PRONTA_LAUDO: 'pronta_laudo',
+} as const;
+
 export type CulturaStatus =
-  | 'em_andamento'
-  | 'positiva'
-  | 'pronta_laudo'
+  | (typeof CULTURA_STATUS_KEY)[keyof typeof CULTURA_STATUS_KEY]
   | (string & {});
 
 // Lista FIXA dos status (fonte do badge e do select da página).
 export const STATUS_CULTURA: { key: CulturaStatus; label: string }[] = [
-  { key: 'em_andamento', label: 'Em andamento' },
-  { key: 'positiva',     label: 'Positivada' },
-  { key: 'pronta_laudo', label: 'Concluída' },
+  { key: CULTURA_STATUS_KEY.EM_ANDAMENTO, label: 'Em andamento' },
+  { key: CULTURA_STATUS_KEY.POSITIVA,     label: 'Positivada' },
+  { key: CULTURA_STATUS_KEY.PRONTA_LAUDO, label: 'Concluída' },
 ];
 
 // Cultura acompanhada manualmente (espelha ac_culturas).
@@ -233,17 +237,21 @@ export interface AcCultura {
 // ─── Fase 6 (Etapa B) — Recoletas ───────────────────────────────────────────────
 
 // Status de uma recoleta. Lista fixa (badge/select); tolera valores futuros.
+export const RECOLETA_STATUS_KEY = {
+  PENDENTE: 'pendente',
+  CONCLUIDA: 'concluida',
+  CANCELADA: 'cancelada',
+} as const;
+
 export type RecoletaStatus =
-  | 'pendente'
-  | 'concluida'
-  | 'cancelada'
+  | (typeof RECOLETA_STATUS_KEY)[keyof typeof RECOLETA_STATUS_KEY]
   | (string & {});
 
 // Lista FIXA dos status (fonte do badge e do select da página).
 export const STATUS_RECOLETA: { key: RecoletaStatus; label: string }[] = [
-  { key: 'pendente',  label: 'Pendente' },
-  { key: 'concluida', label: 'Concluída' },
-  { key: 'cancelada', label: 'Cancelada' },
+  { key: RECOLETA_STATUS_KEY.PENDENTE,  label: 'Pendente' },
+  { key: RECOLETA_STATUS_KEY.CONCLUIDA, label: 'Concluída' },
+  { key: RECOLETA_STATUS_KEY.CANCELADA, label: 'Cancelada' },
 ];
 
 // Motivo da recoleta (espelha o CHECK de ac_recoletas.motivo).
@@ -339,17 +347,24 @@ export interface AcTemperatura {
 // ─── Fase 8 — Laudos ────────────────────────────────────────────────────────────
 
 // Status de um laudo. Lista fixa (badge/select); tolera valores futuros.
+// As chaves ficam em LAUDO_STATUS_KEY: quem compara status por literal usa a
+// constante, não a string solta — renomear aqui atualiza STATUS_LAUDO e os
+// comparadores (ex.: KPIs da LaudosPage) ao mesmo tempo.
+export const LAUDO_STATUS_KEY = {
+  AGUARDA_LIBERACAO: 'aguarda_liberacao',
+  PARCIAL_LIBERADO: 'laudo_parcial_liberado',
+  COMPLETO_LIBERADO: 'laudo_completo_liberado',
+} as const;
+
 export type LaudoStatus =
-  | 'aguarda_liberacao'
-  | 'laudo_parcial_liberado'
-  | 'laudo_completo_liberado'
+  | (typeof LAUDO_STATUS_KEY)[keyof typeof LAUDO_STATUS_KEY]
   | (string & {});
 
 // Lista FIXA dos status (fonte do badge e do select da página).
 export const STATUS_LAUDO: { key: LaudoStatus; label: string }[] = [
-  { key: 'aguarda_liberacao',      label: 'Aguarda liberação' },
-  { key: 'laudo_parcial_liberado', label: 'Laudo parcial liberado' },
-  { key: 'laudo_completo_liberado',label: 'Laudo completo liberado' },
+  { key: LAUDO_STATUS_KEY.AGUARDA_LIBERACAO, label: 'Aguarda liberação' },
+  { key: LAUDO_STATUS_KEY.PARCIAL_LIBERADO,  label: 'Laudo parcial liberado' },
+  { key: LAUDO_STATUS_KEY.COMPLETO_LIBERADO, label: 'Laudo completo liberado' },
 ];
 
 // Laudo vinculado a um agendamento (1:1) — espelha ac_laudos.

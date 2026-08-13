@@ -16,6 +16,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { normalizeCPF, formatCPF, validateCPF } from '../../../utils/cpf';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import { hojeISO } from '../domain/datas';
 
 /**
  * Correção de identidade do paciente (CPF / data de nascimento).
@@ -60,9 +61,6 @@ const nascimentoValido = (s: string): boolean => {
   hoje.setHours(0, 0, 0, 0);
   return ano >= 1900 && dt <= hoje;
 };
-
-// Hoje em YYYY-MM-DD local — teto do seletor de nascimento.
-const hojeISO = (): string => new Date().toLocaleDateString('en-CA');
 
 // Data pura (YYYY-MM-DD) → dd/mm/aaaa. Sem new Date() de propósito: data pura não
 // tem fuso e new Date('YYYY-MM-DD') recuaria um dia em fusos oeste.

@@ -17,13 +17,7 @@ import { usePostos, type AgendaInput } from '../hooks/usePostos';
 import { useDialog } from '../../../hooks/useDialog';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import type { AcDiaExcecao, AcPosto } from '../types';
-
-const fmtData = (d: string) =>
-  new Date(`${d}T00:00:00`).toLocaleDateString('pt-BR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-  });
+import { fmtDiaSemana } from '../domain/datas';
 
 // Dias da semana (0=dom … 6=sáb) — fonte dos toggles e do resumo da grade.
 const DIAS_SEMANA: { n: number; label: string }[] = [
@@ -380,7 +374,7 @@ const AgendaModal: React.FC<{
                         className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg bg-gray-50 dark:bg-gray-900/50"
                       >
                         <span className="text-sm font-medium text-gray-800 dark:text-gray-200 capitalize">
-                          {fmtData(ex.data)}
+                          {fmtDiaSemana(ex.data)}
                         </span>
                         <button
                           onClick={() => void handleRemoverData(ex.id)}

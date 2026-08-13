@@ -24,7 +24,8 @@ import { hasPermission } from '../../../utils/permissions';
 import { useDialog } from '../../../hooks/useDialog';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import type { AcRecoleta, RecoletaStatus, RecoletaMotivo } from '../types';
-import { STATUS_RECOLETA, MOTIVOS_RECOLETA } from '../types';
+import { STATUS_RECOLETA, RECOLETA_STATUS_KEY, MOTIVOS_RECOLETA } from '../types';
+import { rotuloStatus } from '../domain/status';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmtData = (iso: string) =>
@@ -33,18 +34,19 @@ const fmtData = (iso: string) =>
 const diasDecorridos = (iso: string) => Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000);
 
 // Atrasada = ainda pendente e já passou do prazo p/ a nova coleta.
-const atrasada = (r: AcRecoleta) => r.status === 'pendente' && diasDecorridos(r.solicitada_em) > r.prazo_dias;
+const atrasada = (r: AcRecoleta) =>
+  r.status === RECOLETA_STATUS_KEY.PENDENTE && diasDecorridos(r.solicitada_em) > r.prazo_dias;
 
-const statusLabel = (s: RecoletaStatus) => STATUS_RECOLETA.find((x) => x.key === s)?.label ?? s;
-const motivoLabel = (m: RecoletaMotivo) => MOTIVOS_RECOLETA.find((x) => x.key === m)?.label ?? m;
+const statusLabel = (s: RecoletaStatus) => rotuloStatus(STATUS_RECOLETA, s);
+const motivoLabel = (m: RecoletaMotivo) => rotuloStatus(MOTIVOS_RECOLETA, m);
 
 // Cor do badge por status: pendente = atenção; concluída = fechado ok; cancelada = neutro.
 const STATUS_STYLE: Record<string, string> = {
-  pendente:
+  [RECOLETA_STATUS_KEY.PENDENTE]:
     'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800',
-  concluida:
+  [RECOLETA_STATUS_KEY.CONCLUIDA]:
     'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-300 dark:border-emerald-800',
-  cancelada:
+  [RECOLETA_STATUS_KEY.CANCELADA]:
     'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700',
 };
 
@@ -696,7 +698,7 @@ const RecoletasPage: React.FC = () => {
                   </div>
                   <span
                     className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border shrink-0 ${
-                      STATUS_STYLE[r.status] ?? STATUS_STYLE.pendente
+                      STATUS_STYLE[r.status] ?? STATUS_STYLE[RECOLETA_STATUS_KEY.PENDENTE]
                     }`}
                   >
                     {statusLabel(r.status)}

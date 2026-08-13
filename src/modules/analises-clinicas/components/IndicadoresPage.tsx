@@ -38,10 +38,9 @@ import {
 import { useAcIndicadores } from '../hooks/useAcIndicadores';
 import { useTheme } from '../../../hooks/useTheme';
 import { CHECKLIST_RECEPCAO } from '../types';
+import { dayKey, parseDataLocal } from '../domain/datas';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-const dayKey = (d: Date) =>
-  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const dayLabel = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
 const diasDesde = (iso: string) => (Date.now() - new Date(iso).getTime()) / 86_400_000;
 const diasAte = (iso: string) => Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
@@ -174,8 +173,8 @@ const IndicadoresPage: React.FC = () => {
     fimHoje.setHours(23, 59, 59, 999);
 
     if (preset === 'custom' && customIni && customFim) {
-      let ini = new Date(`${customIni}T00:00:00`);
-      let fim = new Date(`${customFim}T00:00:00`);
+      let ini = parseDataLocal(customIni);
+      let fim = parseDataLocal(customFim);
       if (Number.isNaN(ini.getTime()) || Number.isNaN(fim.getTime())) {
         return { desdeISO: hoje.toISOString(), ateISO: fimHoje.toISOString(), inicio: new Date(hoje), dias: 1 };
       }

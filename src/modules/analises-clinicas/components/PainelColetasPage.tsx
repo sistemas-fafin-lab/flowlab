@@ -42,6 +42,7 @@ import {
   type ChecklistItemKey,
   type DocumentoCheckin,
 } from '../types';
+import { hojeISO } from '../domain/datas';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmtHora = (iso: string) =>
@@ -49,9 +50,6 @@ const fmtHora = (iso: string) =>
 
 const fmtData = (iso: string) =>
   new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-
-// Data de hoje em YYYY-MM-DD no fuso local (en-CA usa o formato ISO).
-const hojeISO = () => new Date().toLocaleDateString('en-CA');
 
 const fmtTelefone = (tel: string): string => {
   let d = tel.replace(/\D/g, '');
