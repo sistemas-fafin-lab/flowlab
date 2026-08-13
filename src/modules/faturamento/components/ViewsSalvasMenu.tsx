@@ -2,12 +2,13 @@ import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Bookmark, Plus, Trash2 } from 'lucide-react';
 import { useViewsSalvas } from '../hooks/useViewsSalvas';
-import type { ViewSalvaTela } from '../../billing/types';
+import type { ViewSalvaTela } from '../types';
 
 // Dropdown de views salvas, compartilhado pelas telas do módulo (Dashboard,
 // Títulos, Glosas/Recursos) — cada uma passa seu próprio formato de filtro
-// como TFiltros. Aplicar é imediato ao clicar; salvar é a única ação que pede
-// confirmação (dar um nome).
+// como TFiltros e o sanitizador que valida o JSONB da view antes de aplicar.
+// Aplicar é imediato ao clicar; salvar é a única ação que pede confirmação
+// (dar um nome).
 //
 // No Dashboard o botão vive dentro de um painel "vidro" (backdrop-blur), que
 // cria seu próprio contexto de empilhamento — um painel position:absolute
@@ -25,15 +26,18 @@ interface Props<TFiltros> {
   tela: ViewSalvaTela;
   /** O recorte atual da tela — só os campos que fazem sentido salvar (sem paginação). */
   filtros: TFiltros;
+  /** Valida o JSONB da view; o hook o aplica a cada linha antes de devolvê-la. */
+  sanitizar: (filtros: unknown) => TFiltros;
   onAplicar: (filtros: TFiltros) => void;
 }
 
 export function ViewsSalvasMenu<TFiltros extends object>({
   tela,
   filtros,
+  sanitizar,
   onAplicar,
 }: Props<TFiltros>): React.ReactElement {
-  const { views, loading, salvar, excluir } = useViewsSalvas<TFiltros>(tela);
+  const { views, loading, salvar, excluir } = useViewsSalvas<TFiltros>(tela, sanitizar);
   const [aberto, setAberto] = useState(false);
   const [posicao, setPosicao] = useState<{ top?: number; bottom?: number; left: number } | null>(null);
   const [modoSalvar, setModoSalvar] = useState(false);

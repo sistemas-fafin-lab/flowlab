@@ -19,16 +19,13 @@ import { useGlosas } from '../hooks/useGlosas';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { formatCurrency } from '../utils/formato';
-import { Glosa, GlosaStatus, GlosaRecursoInput } from '../../billing/types';
+import { sanitizarFiltrosGlosas } from '../utils/viewsSalvas';
+import type { Glosa, GlosaStatus, GlosaRecursoInput, GlosasViewFiltros } from '../types';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
 import HistoricoGlosasLegado from './HistoricoGlosasLegado';
 import HistoricoRecursosLegado from './HistoricoRecursosLegado';
-
-interface GlosasFiltros {
-  status: GlosaStatus | 'todas';
-}
 
 const STATUS_FILTRO_OPCOES = [
   { value: 'todas', label: 'Todos os Status' },
@@ -37,7 +34,6 @@ const STATUS_FILTRO_OPCOES = [
   { value: 'revertida', label: 'Revertidas' },
   { value: 'definitiva', label: 'Definitivas' },
 ];
-const STATUS_FILTRO_VALIDOS = new Set(STATUS_FILTRO_OPCOES.map((o) => o.value));
 
 const CAMPO_MODAL =
   'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
@@ -343,13 +339,14 @@ const GlosasRecursos: React.FC = () => {
             controlClass="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[180px]"
           />
 
-          <ViewsSalvasMenu<GlosasFiltros>
+          <ViewsSalvasMenu<GlosasViewFiltros>
             tela="glosas"
             filtros={{ status: filtroStatus }}
-            // Uma view salva num formato antigo/inválido não pode passar um
-            // status fora do union direto pro Supabase — o filtro falharia
-            // calado, com a lista zerando sem explicar por quê.
-            onAplicar={(view) => setFiltroStatus(STATUS_FILTRO_VALIDOS.has(view.status) ? view.status : 'todas')}
+            // A garantia de formato mora no sanitizador (utils/viewsSalvas.ts):
+            // status fora do union vira "todas" antes de chegar aqui, então o
+            // filtro nunca vai quebrado para o Supabase.
+            sanitizar={sanitizarFiltrosGlosas}
+            onAplicar={(view) => setFiltroStatus(view.status)}
           />
         </div>
       </div>

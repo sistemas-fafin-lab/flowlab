@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import type { ViewSalva, ViewSalvaTela } from '../../billing/types';
+import type { ViewSalva, ViewSalvaTela } from '../types';
 
 // Views de filtros salvas por usuário, por tela (dashboard/titulos/glosas).
 //
@@ -11,6 +11,12 @@ import type { ViewSalva, ViewSalvaTela } from '../../billing/types';
 // `salvar` é upsert por (usuario_id, tela, nome): salvar de novo com o mesmo
 // nome sobrescreve os filtros da view existente em vez de barrar com erro de
 // unicidade — é o comportamento esperado de "salvar view".
+//
+// `filtros` é um JSONB que o banco nunca olha: uma view salva em formato
+// antigo ou corrompido voltaria crua para o chamador. Cada tela passa o seu
+// `sanitizar` (utils/viewsSalvas.ts) e o hook o aplica a cada linha antes de
+// devolvê-la — nenhum consumidor recebe filtro com campo faltando ou valor
+// fora do union (o crash de 3b971eb não pode mais ressuscitar numa tela nova).
 
 // Formato cru devolvido pelo PostgREST.
 interface LinhaViewSalva {
@@ -22,12 +28,15 @@ interface LinhaViewSalva {
   updated_at: string;
 }
 
-function normalizar<TFiltros>(linha: LinhaViewSalva): ViewSalva<TFiltros> {
+function normalizar<TFiltros>(
+  linha: LinhaViewSalva,
+  sanitizar: (filtros: unknown) => TFiltros,
+): ViewSalva<TFiltros> {
   return {
     id: linha.id,
     tela: linha.tela,
     nome: linha.nome,
-    filtros: linha.filtros as TFiltros,
+    filtros: sanitizar(linha.filtros),
     criadoEm: linha.criado_em,
     atualizadoEm: linha.updated_at,
   };
@@ -52,8 +61,9 @@ interface UseViewsSalvasResult<TFiltros> {
   excluir: (id: string) => Promise<string | null>;
 }
 
-export function useViewsSalvas<TFiltros = Record<string, unknown>>(
+export function useViewsSalvas<TFiltros>(
   tela: ViewSalvaTela,
+  sanitizar: (filtros: unknown) => TFiltros,
 ): UseViewsSalvasResult<TFiltros> {
   const [views, setViews] = useState<ViewSalva<TFiltros>[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +71,10 @@ export function useViewsSalvas<TFiltros = Record<string, unknown>>(
 
   // Descarta respostas de buscas antigas, mesma guarda de useContasReceber.
   const buscaAtual = useRef(0);
+  // `sanitizar` chega como lambda inline dos chamadores; o ref evita que uma
+  // identidade nova a cada render dispare refetch em loop.
+  const sanitizarRef = useRef(sanitizar);
+  sanitizarRef.current = sanitizar;
 
   const refetch = useCallback(async () => {
     const reqId = ++buscaAtual.current;
@@ -75,7 +89,7 @@ export function useViewsSalvas<TFiltros = Record<string, unknown>>(
       if (reqId !== buscaAtual.current) return;
       if (erro) throw new Error(erro.message);
 
-      setViews((data as unknown as LinhaViewSalva[] ?? []).map((l) => normalizar<TFiltros>(l)));
+      setViews((data as unknown as LinhaViewSalva[] ?? []).map((l) => normalizar<TFiltros>(l, sanitizarRef.current)));
     } catch (err) {
       if (reqId !== buscaAtual.current) return;
       setError(err instanceof Error ? err.message : 'Não foi possível carregar as views salvas.');
@@ -83,7 +97,7 @@ export function useViewsSalvas<TFiltros = Record<string, unknown>>(
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [tela]);
+  }, [tela, sanitizarRef]);
 
   useEffect(() => {
     void refetch();

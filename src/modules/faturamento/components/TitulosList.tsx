@@ -15,8 +15,10 @@ import type {
   TituloGuia,
   TituloReceber,
   TituloStatus,
-} from '../../billing/types';
+  TitulosViewFiltros,
+} from '../types';
 import { formatCompetencia, formatCurrency, formatData } from '../utils/formato';
+import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
@@ -171,7 +173,7 @@ const TitulosList: React.FC<Props> = ({
   // `busca` (estado local) e não `filtros.busca`: o segundo só chega depois do
   // debounce, então salvar uma view logo após digitar guardaria o texto de
   // busca anterior.
-  const filtrosSalvaveis = useMemo(
+  const filtrosSalvaveis = useMemo<TitulosViewFiltros>(
     () => ({
       desde: filtros.desde,
       ate: filtros.ate,
@@ -182,20 +184,12 @@ const TitulosList: React.FC<Props> = ({
     [filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca],
   );
 
-  // Cai no filtro atual campo a campo: uma view salva num formato mais antigo
-  // (sem `busca`, por exemplo) não pode chegar com `undefined` no `setBusca` —
-  // o debounce logo abaixo faz `.trim()` nele a cada tecla.
-  const aplicarView = (view: typeof filtrosSalvaveis) => {
-    const novaBusca = view.busca ?? '';
-    setBusca(novaBusca);
-    onFiltrar({
-      desde: view.desde ?? filtros.desde,
-      ate: view.ate ?? filtros.ate,
-      status: view.status ?? filtros.status,
-      operadoraId: view.operadoraId ?? filtros.operadoraId,
-      busca: novaBusca,
-      pagina: 1,
-    });
+  // A garantia de formato mora no sanitizador (utils/viewsSalvas.ts): a view
+  // chega completa, com `busca` sempre string — sem os fallbacks campo a campo
+  // que uma view em formato antigo exigia aqui.
+  const aplicarView = (view: TitulosViewFiltros) => {
+    setBusca(view.busca);
+    onFiltrar({ ...view, pagina: 1 });
   };
 
   return (
@@ -250,7 +244,12 @@ const TitulosList: React.FC<Props> = ({
             className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
           />
         </div>
-        <ViewsSalvasMenu tela="titulos" filtros={filtrosSalvaveis} onAplicar={aplicarView} />
+        <ViewsSalvasMenu
+          tela="titulos"
+          filtros={filtrosSalvaveis}
+          sanitizar={(cru) => sanitizarFiltrosTitulos(cru, filtrosSalvaveis)}
+          onAplicar={aplicarView}
+        />
         <button
           type="button"
           onClick={onAtualizar}

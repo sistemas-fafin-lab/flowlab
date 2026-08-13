@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom';
 import { Check, ChevronDown, Filter, Search, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import { formatData } from '../utils/formato';
+import { sanitizarFiltrosPainel } from '../utils/viewsSalvas';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import DatePicker from '../../../components/DatePicker';
-import type { DashboardReceberFiltros, OperadoraResumo } from '../../billing/types';
+import type { DashboardReceberFiltros, OperadoraResumo } from '../types';
 
 // Filtros do painel de Contas a Receber: uma barra enxuta que abre um modal.
 //
@@ -654,13 +655,14 @@ const FiltrosReceber: React.FC<Props> = ({ filtros, onFiltrar, onLimpar, padrao,
           )}
         </button>
 
-        {/* Mescla com `padrao` antes de aplicar: uma view salva num formato mais
-            antigo (sem `lotes`/`notas`, por exemplo) não pode chegar com campo
-            faltando em quem lê `filtros.operadoraIds.length` sem checar. */}
+        {/* A garantia de formato mora no sanitizador (utils/viewsSalvas.ts):
+            o hook devolve a view mesclada com `padrao`, nunca com campo
+            faltando para quem lê `filtros.operadoraIds.length` sem checar. */}
         <ViewsSalvasMenu
           tela="dashboard"
           filtros={filtros}
-          onAplicar={(view) => onFiltrar({ ...padrao, ...view })}
+          sanitizar={(cru) => sanitizarFiltrosPainel(cru, padrao)}
+          onAplicar={onFiltrar}
         />
 
         {/* Com o modal fechado a barra ainda diz sobre o que os números falam. */}
