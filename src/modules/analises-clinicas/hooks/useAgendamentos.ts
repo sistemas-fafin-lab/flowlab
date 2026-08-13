@@ -143,8 +143,9 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
         return { erro: 'Selecione um paciente ou informe nome, CPF e data de nascimento.' };
       }
 
+      let body: { flowlabId?: string; agendamentoLabhubId?: string };
       try {
-        const body = await chamarAcClinicasApi<{
+        body = await chamarAcClinicasApi<{
           flowlabId?: string;
           agendamentoLabhubId?: string;
         }>(
@@ -160,16 +161,23 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
           },
           'Não foi possível criar o agendamento.',
         );
-        await refetch();
-        return {
-          criado: { flowlabId: body.flowlabId ?? null, labhubId: body.agendamentoLabhubId ?? '' },
-        };
       } catch (err) {
         if (err instanceof TypeError) {
           return { erro: 'Não foi possível criar o agendamento. Verifique a conexão.' };
         }
         return { erro: err instanceof Error ? err.message : 'Não foi possível criar o agendamento.' };
       }
+
+      // O agendamento já foi criado no LAB-HUB neste ponto: uma falha ao recarregar a
+      // lista local não pode ser reportada como falha de criação.
+      try {
+        await refetch();
+      } catch {
+        // ignora — a lista será atualizada na próxima navegação/refresh
+      }
+      return {
+        criado: { flowlabId: body.flowlabId ?? null, labhubId: body.agendamentoLabhubId ?? '' },
+      };
     },
     [refetch],
   );
