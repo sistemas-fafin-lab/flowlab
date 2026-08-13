@@ -25,7 +25,7 @@
  *   [{ id, nome, endereco, slots: string[] /* ISO 8601 *\/ }]
  *
  * Variáveis de ambiente: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, FLOWLAB_API_KEY.
- *   DISPONIBILIDADE_DIAS (default 120) — janela de dias gerada.
+ *   DISPONIBILIDADE_DIAS (default 365) — janela de dias gerada.
  *   AGENDA_TZ_OFFSET (default '-03:00') — fuso em que "08:00" é interpretado
  *   (Brasília; o servidor roda em UTC). Brasil não usa horário de verão desde 2019.
  */
