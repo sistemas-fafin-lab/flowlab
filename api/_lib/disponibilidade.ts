@@ -87,7 +87,7 @@ export function diasRetroativosOperador(): number {
  * ac_agendamentos; cancelar libera o horário).
  *
  * Variáveis de ambiente:
- *   DISPONIBILIDADE_DIAS (default 60) — janela de dias futuros gerada.
+ *   DISPONIBILIDADE_DIAS (default 90) — janela de dias futuros gerada.
  *   AGENDA_RETROATIVO_DIAS (default 30) — teto da janela retroativa do operador.
  *   AGENDA_TZ_OFFSET (default '-03:00') — fuso em que "08:00" é interpretado
  *   (Brasília; o servidor roda em UTC). Brasil não usa horário de verão desde 2019.
@@ -98,7 +98,7 @@ export async function computarDisponibilidade(
   const supabase = getSupabaseAdminClient();
 
   const retroDias = Math.max(0, Math.trunc(opcoes.retroativoDias ?? 0));
-  const diasJanela = Math.max(1, Number(process.env.DISPONIBILIDADE_DIAS) || 60);
+  const diasJanela = Math.max(1, Number(process.env.DISPONIBILIDADE_DIAS) || 90);
   const tzOffset = process.env.AGENDA_TZ_OFFSET || '-03:00';
   // Offset 'AHH:MM' → minutos (para descobrir a data/dia-da-semana local de Brasília).
   const m = /^([+-])(\d{2}):(\d{2})$/.exec(tzOffset);
