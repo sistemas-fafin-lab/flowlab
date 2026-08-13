@@ -9,7 +9,7 @@ import type {
   TituloReceber,
   TitulosFiltros,
   TituloLote,
-} from '../../billing/types';
+} from '../types';
 
 // Títulos a receber, suas baixas e glosas.
 //

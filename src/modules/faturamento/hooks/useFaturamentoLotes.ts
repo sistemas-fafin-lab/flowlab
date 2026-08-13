@@ -4,7 +4,7 @@ import type {
   LotesFiltros,
   LotesMeta,
   RequisicaoLote,
-} from '../../billing/types';
+} from '../types';
 import { buscarDetalheLegadoComCache } from './legado/api';
 import { useLegadoListagem } from './legado/useLegadoListagem';
 

@@ -11,7 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { useImagensRequisicaoLegado } from '../hooks/useImagensRequisicaoLegado';
-import type { ImagemRequisicaoLegado } from '../../billing/types';
+import type { ImagemRequisicaoLegado } from '../types';
 import { formatData } from '../utils/formato';
 
 // Visualizador das imagens/documentos digitalizados de uma requisição no legado

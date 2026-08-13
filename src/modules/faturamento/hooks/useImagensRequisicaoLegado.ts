@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { ImagemRequisicaoLegado } from '../../billing/types';
+import type { ImagemRequisicaoLegado } from '../types';
 import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
 // Lista + bytes das imagens de uma requisição do legado (requisicaoimagem), aberto

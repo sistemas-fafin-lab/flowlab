@@ -4,7 +4,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
 import { useContasReceber } from '../hooks/useContasReceber';
-import type { DashboardReceberFiltros, TituloReceber, TituloStatus } from '../../billing/types';
+import type { DashboardReceberFiltros, TituloReceber, TituloStatus } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
 import NovoTituloModal from './NovoTituloModal';

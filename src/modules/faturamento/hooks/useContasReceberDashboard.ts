@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import type { DashboardReceber, DashboardReceberFiltros } from '../../billing/types';
+import type { DashboardReceber, DashboardReceberFiltros } from '../types';
 
 // Uma chamada só a `fat_dashboard_receber`, no molde de useITProjectDashboard.
 //

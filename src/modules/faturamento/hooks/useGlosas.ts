@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import type { Glosa, GlosaRecursoInput, GlosaStatus } from '../../billing/types';
+import type { Glosa, GlosaRecursoInput, GlosaStatus } from '../types';
 
 // Glosas lançadas contra os títulos a receber.
 //

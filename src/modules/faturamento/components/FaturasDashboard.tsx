@@ -14,7 +14,7 @@ import {
   Search
 } from 'lucide-react';
 import { useFaturamentoLotes } from '../hooks/useFaturamentoLotes';
-import { STLOT_LABELS, LoteFaturamento, RequisicaoLote } from '../../billing/types';
+import { STLOT_LABELS, LoteFaturamento, RequisicaoLote } from '../types';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';

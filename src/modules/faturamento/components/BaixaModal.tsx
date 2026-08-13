@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Loader2, Plus, Trash2, X } from 'lucide-react';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
-import type { BaixaInput, GlosaLancamentoInput, TituloGuia, TituloReceber } from '../../billing/types';
+import type { BaixaInput, GlosaLancamentoInput, TituloGuia, TituloReceber } from '../types';
 import { formatCurrency, hojeIso } from '../utils/formato';
 
 // Registro de uma baixa sobre um título, com as glosas que explicam a diferença

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Building2, ChevronLeft, ChevronRight, Loader2, Search, X } from 'lucide-react';
 import DatePicker from '../../../components/DatePicker';
 import { supabase } from '../../../lib/supabase';
-import type { LotesMeta, LoteFaturamento } from '../../billing/types';
+import type { LotesMeta, LoteFaturamento } from '../types';
 import { formatCurrency, formatData, hojeIso } from '../utils/formato';
 
 // Modal de criação de título: o operador escolhe lotes do apLIS ainda não

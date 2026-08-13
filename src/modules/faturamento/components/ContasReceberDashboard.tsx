@@ -39,7 +39,7 @@ import { useContasReceberDashboard } from '../hooks/useContasReceberDashboard';
 import { formatCompetencia, formatCurrency } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import FiltrosReceber from './FiltrosReceber';
-import type { DashboardReceberFiltros, OperadoraResumo } from '../../billing/types';
+import type { DashboardReceberFiltros, OperadoraResumo } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
 // RPC fat_dashboard_receber — nada é recalculado aqui.

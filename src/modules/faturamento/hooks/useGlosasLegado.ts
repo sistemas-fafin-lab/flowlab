@@ -1,4 +1,4 @@
-import type { GlosaRequisicaoLegado, GlosasLegadoFiltros, LotesMeta } from '../../billing/types';
+import type { GlosaRequisicaoLegado, GlosasLegadoFiltros, LotesMeta } from '../types';
 import { useLegadoListagem } from './legado/useLegadoListagem';
 
 // Lista as glosas do legado (fatrequisicaoprocedimento.IdMotivoGlosa) pela rota

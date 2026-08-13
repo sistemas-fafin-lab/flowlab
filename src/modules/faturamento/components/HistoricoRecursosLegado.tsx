@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useRecursosLegado } from '../hooks/useRecursosLegado';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
-import { ProcedimentoRecursoLegado } from '../../billing/types';
+import { ProcedimentoRecursoLegado } from '../types';
 import ImagensRequisicaoLegadoModal from './ImagensRequisicaoLegadoModal';
 import { formatCurrency, formatData } from '../utils/formato';
 
