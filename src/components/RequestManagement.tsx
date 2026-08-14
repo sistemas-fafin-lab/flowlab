@@ -516,6 +516,7 @@ useEffect(() => {
             body: JSON.stringify({
               requesterName: userProfile?.name || '',
               requestDate,
+              reason: newRequest.reason,
               items: outOfStockItems,
             }),
           }).catch((err) => {

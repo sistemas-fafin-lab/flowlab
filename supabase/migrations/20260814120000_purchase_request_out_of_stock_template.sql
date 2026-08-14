@@ -3,9 +3,9 @@
 -- (purchase_request_out_of_stock)
 -- Enviado por api/notifications/purchase-out-of-stock quando uma solicitação
 -- de compra (SC) inclui produto não cadastrado no estoque.
--- Variáveis: {{requester_name}}, {{request_date}}, {{items_list}}
---   {{items_list}} recebe os <li> já renderizados em código (renderTemplate só
---   faz substituição simples de {{var}}).
+-- Variáveis: {{requester_name}}, {{request_date}}, {{reason}}, {{items_list}}
+--   {{reason}} e {{items_list}} recebem HTML já renderizado em código
+--   (renderTemplate só faz substituição simples de {{var}}).
 -- ============================================================
 
 INSERT INTO public.notification_templates (slug, name, subject_template, body_html)
@@ -84,6 +84,20 @@ VALUES (
               <p style="margin:0 0 28px 0;font-size:15px;color:#6b7280;font-family:''Segoe UI'',Arial,sans-serif;line-height:1.6;">
                 <strong>{{requester_name}}</strong> criou uma solicitação de compra (SC) incluindo produto(s) não cadastrado(s) no estoque. Veja abaixo o que foi pedido:
               </p>
+
+              <!-- Justificativa -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:24px;">
+                <tr>
+                  <td style="background-color:#f9fafb;border-radius:8px;padding:16px 20px;">
+                    <p style="margin:0 0 6px 0;font-size:11px;font-weight:600;color:#6b7280;letter-spacing:1px;text-transform:uppercase;font-family:''Segoe UI'',Arial,sans-serif;">
+                      Justificativa
+                    </p>
+                    <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;font-family:''Segoe UI'',Arial,sans-serif;">
+                      {{reason}}
+                    </p>
+                  </td>
+                </tr>
+              </table>
 
               <!-- Caixa de destaque com a lista -->
               <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:32px;">

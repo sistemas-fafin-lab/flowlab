@@ -29,6 +29,7 @@ interface OutOfStockItem {
 interface RequestBody {
   requesterName: string;
   requestDate: string;
+  reason: string;
   items: OutOfStockItem[];
 }
 
@@ -39,6 +40,18 @@ function buildItemsListHtml(items: OutOfStockItem[]): string {
         `<li style="margin:0 0 8px 0;"><strong style="color:#1a1a2e;">${escapeHtml(item.productName)}</strong><br /><span style="font-size:13px;color:#6b7280;">Quantidade solicitada: ${item.quantity}</span></li>`,
     )
     .join('');
+}
+
+/**
+ * Mesma sintaxe leve usada em RequestManagement.tsx (renderFormattedText):
+ * **negrito**, *itálico* e quebra de linha. Aplicada sobre o texto já
+ * escapado, para preservar a formatação sem reabrir injeção de HTML.
+ */
+function buildReasonHtml(reason: string): string {
+  return escapeHtml(reason)
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br />');
 }
 
 function isValidItem(item: unknown): item is OutOfStockItem {
@@ -69,12 +82,19 @@ export default async function handler(
     return;
   }
 
-  const { requesterName, requestDate, items } = (req.body ?? {}) as Partial<RequestBody>;
+  const { requesterName, requestDate, reason, items } = (req.body ?? {}) as Partial<RequestBody>;
 
-  if (!requesterName || !requestDate || !Array.isArray(items) || items.length === 0 || !items.every(isValidItem)) {
+  if (
+    !requesterName ||
+    !requestDate ||
+    !reason?.trim() ||
+    !Array.isArray(items) ||
+    items.length === 0 ||
+    !items.every(isValidItem)
+  ) {
     res.status(400).json({
       success: false,
-      error: 'Campos obrigatórios ausentes ou inválidos: requesterName, requestDate, items (não vazio)',
+      error: 'Campos obrigatórios ausentes ou inválidos: requesterName, requestDate, reason, items (não vazio)',
     });
     return;
   }
@@ -87,6 +107,7 @@ export default async function handler(
     variables: {
       requester_name: escapeHtml(requesterName),
       request_date: requestDateBR,
+      reason: buildReasonHtml(reason),
       items_list: buildItemsListHtml(items),
     },
   });
