@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, DollarSign, Calendar, Package, Building2, ChevronDown, Plus, Trash2, Check, Search, CreditCard } from 'lucide-react';
-import { Quotation, InvitedSupplier, SubmitProposalInput, PaymentMethod, PaymentMethodLabels, paymentMethodHasDueDays } from '../types';
+import { Quotation, InvitedSupplier, SubmitProposalInput, PaymentMethod, PaymentMethodLabels, paymentMethodHasDueDays, SupplierProposal } from '../types';
 import { Supplier } from '../../../types';
 import SupplierFormModal from '../../../components/SupplierFormModal';
 import { mergeSuppliers } from '../utils/mergeSuppliers';
@@ -18,8 +18,10 @@ interface AddProposalModalProps {
   quotation: Quotation;
   suppliers: InvitedSupplier[];
   allSuppliers?: SupplierOption[];
+  editingProposal?: SupplierProposal;
   onClose: () => void;
   onSubmit: (data: SubmitProposalInput) => Promise<void>;
+  onUpdate?: (proposalId: string, data: SubmitProposalInput) => Promise<void>;
   onSupplierCreated?: (supplier: Supplier) => void | Promise<void>;
 }
 
@@ -52,25 +54,31 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
   quotation,
   suppliers,
   allSuppliers,
+  editingProposal,
   onClose,
   onSubmit,
+  onUpdate,
   onSupplierCreated,
 }) => {
-  const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [selectedSupplierId, setSelectedSupplierId] = useState(editingProposal?.supplierId || '');
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [extraSuppliers, setExtraSuppliers] = useState<SupplierOption[]>([]);
-  const [proposalNotes, setProposalNotes] = useState('');
-  const [validUntil, setValidUntil] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
-  const [boletoDueDays, setBoletoDueDays] = useState<number>(30);
+  const [proposalNotes, setProposalNotes] = useState(editingProposal?.notes || '');
+  const [validUntil, setValidUntil] = useState(editingProposal?.validUntil || '');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>(editingProposal?.paymentMethod || 'pix');
+  const [boletoDueDays, setBoletoDueDays] = useState<number>(editingProposal?.boletoDueDays ?? 30);
   const [itemProposals, setItemProposals] = useState<ItemProposal[]>(
-    quotation.items.map(item => ({
-      itemId: item.id,
-      unitPriceStr: item.estimatedUnitPrice ? String(item.estimatedUnitPrice) : '',
-      unitPrice: item.estimatedUnitPrice || 0,
-      deliveryDays: 7,
-      notes: '',
-    }))
+    quotation.items.map(item => {
+      const existing = editingProposal?.items.find(pi => pi.quotationItemId === item.id);
+      const deliveryMatch = existing?.deliveryTime?.match(/(\d+)/);
+      return {
+        itemId: item.id,
+        unitPriceStr: existing ? String(existing.unitPrice) : (item.estimatedUnitPrice ? String(item.estimatedUnitPrice) : ''),
+        unitPrice: existing ? existing.unitPrice : (item.estimatedUnitPrice || 0),
+        deliveryDays: deliveryMatch ? parseInt(deliveryMatch[1]) : 7,
+        notes: existing?.notes || '',
+      };
+    })
   );
   const [loading, setLoading] = useState(false);
 
@@ -90,7 +98,14 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
       });
     });
   }, [quotation.items]);
-  const [additionalCosts, setAdditionalCosts] = useState<AdditionalCost[]>([]);
+  const [additionalCosts, setAdditionalCosts] = useState<AdditionalCost[]>(
+    (editingProposal?.additionalCosts || []).map(c => ({
+      id: crypto.randomUUID(),
+      label: c.label,
+      valueStr: String(c.value),
+      value: c.value,
+    }))
+  );
   const [supplierDropdownOpen, setSupplierDropdownOpen] = useState(false);
   const [supplierSearch, setSupplierSearch] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -221,7 +236,11 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
           : undefined,
       };
 
-      await onSubmit(proposalData);
+      if (editingProposal) {
+        await onUpdate?.(editingProposal.id, proposalData);
+      } else {
+        await onSubmit(proposalData);
+      }
       onClose();
     } catch (error) {
       console.error('Error submitting proposal:', error);
@@ -239,7 +258,9 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Adicionar Proposta</h2>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+              {editingProposal ? 'Editar Proposta' : 'Adicionar Proposta'}
+            </h2>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{quotation.title}</p>
           </div>
           <button
@@ -254,6 +275,21 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
         <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Supplier Selection */}
+            {editingProposal ? (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Fornecedor
+                </label>
+                <div className="w-full flex items-center gap-3 px-4 py-3 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700/50">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center flex-shrink-0">
+                    <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {editingProposal.supplierName}
+                  </span>
+                </div>
+              </div>
+            ) : (
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -392,6 +428,7 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
                 </div>
               )}
             </div>
+            )}
 
             {selectedSupplierId && (
               <>
@@ -661,11 +698,11 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={loading || !selectedSupplierId || supplierOptions.length === 0}
+              disabled={loading || !selectedSupplierId || (!editingProposal && supplierOptions.length === 0)}
               className="flex-1 px-4 py-2.5 bg-blue-600 text-white font-medium rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               <DollarSign className="w-4 h-4" />
-              {loading ? 'Salvando...' : 'Salvar Proposta'}
+              {loading ? 'Salvando...' : editingProposal ? 'Salvar Alterações' : 'Salvar Proposta'}
             </button>
           </div>
         </form>

@@ -23,13 +23,14 @@ import {
   Maximize2,
   Minimize2,
 } from 'lucide-react';
-import { Quotation, QuotationStatusColors, QuotationStatusLabels, QuotationPermissions, SubmitProposalInput, QuotationItem } from '../types';
+import { Quotation, QuotationStatusColors, QuotationStatusLabels, QuotationPermissions, SubmitProposalInput, QuotationItem, SupplierProposal } from '../types';
 import { Supplier } from '../../../types';
 import { StatusStepper } from './StatusStepper';
 import { ProposalComparison } from './ProposalComparison';
 import { ApprovalTimeline } from './ApprovalTimeline';
 import { AuditLogTimeline } from './AuditLogTimeline';
 import { AddProposalModal } from './AddProposalModal';
+import { ProposalDetailModal } from './ProposalDetailModal';
 import { generateQuotationPDF } from '../utils/generateQuotationPDF';
 
 interface SupplierOption {
@@ -52,6 +53,7 @@ interface QuotationDrawerProps {
   onConvertToPurchase?: () => void;
   onCancel?: (reason: string) => void;
   onSubmitProposal?: (quotationId: string, data: SubmitProposalInput) => Promise<void>;
+  onUpdateProposal?: (quotationId: string, proposalId: string, data: SubmitProposalInput) => Promise<void>;
   onAdvanceToReview?: () => void;
   onAddItem?: (quotationId: string, item: Omit<QuotationItem, 'id' | 'quotationId' | 'createdAt' | 'updatedAt'>) => Promise<QuotationItem>;
   onRemoveItem?: (quotationId: string, itemId: string) => Promise<void>;
@@ -90,6 +92,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onConvertToPurchase,
   onCancel,
   onSubmitProposal,
+  onUpdateProposal,
   onAdvanceToReview,
   onAddItem,
   onRemoveItem,
@@ -102,6 +105,8 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   const [cancelReason, setCancelReason] = React.useState('');
   const [showActionsMenu, setShowActionsMenu] = React.useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
+  const [editingProposal, setEditingProposal] = useState<SupplierProposal | null>(null);
+  const [viewingProposal, setViewingProposal] = useState<SupplierProposal | null>(null);
   const [showAddItemForm, setShowAddItemForm] = useState(false);
   const [itemProductSearch, setItemProductSearch] = useState('');
   const [isProductDropdownOpen, setIsProductDropdownOpen] = useState(false);
@@ -430,6 +435,18 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                         {formatCurrency(quotation.selectedTotalAmount)}
                       </p>
                     )}
+                    {quotation.selectedProposalId && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const proposal = quotation.proposals.find(p => p.id === quotation.selectedProposalId);
+                          if (proposal) setViewingProposal(proposal);
+                        }}
+                        className="mt-3 text-xs font-semibold text-emerald-700 dark:text-emerald-300 hover:text-emerald-800 dark:hover:text-emerald-200 underline underline-offset-2"
+                      >
+                        Ver detalhes da proposta
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -614,6 +631,9 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                     quotation={quotation}
                     onSelectWinner={onSelectWinner}
                     canSelect={permissions.canSelectWinner && ['under_review', 'waiting_responses'].includes(quotation.status)}
+                    canEdit={canAddProposal}
+                    onEditProposal={(proposal) => setEditingProposal(proposal)}
+                    onViewProposal={(proposal) => setViewingProposal(proposal)}
                   />
                 ) : (
                   <div className="text-center py-12 text-slate-500 dark:text-slate-400">
@@ -746,18 +766,34 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
         </div>
       )}
 
-      {/* Add Proposal Modal */}
-      {showProposalModal && quotation && onSubmitProposal && (
+      {/* Add/Edit Proposal Modal */}
+      {(showProposalModal || editingProposal) && quotation && onSubmitProposal && (
         <AddProposalModal
-          isOpen={showProposalModal}
+          isOpen={showProposalModal || !!editingProposal}
           quotation={quotation}
           suppliers={quotation.invitedSuppliers}
           allSuppliers={allSuppliers}
-          onClose={() => setShowProposalModal(false)}
+          editingProposal={editingProposal || undefined}
+          onClose={() => {
+            setShowProposalModal(false);
+            setEditingProposal(null);
+          }}
           onSubmit={async (data) => {
             await onSubmitProposal(quotation.id, data);
           }}
+          onUpdate={onUpdateProposal ? async (proposalId, data) => {
+            await onUpdateProposal(quotation.id, proposalId, data);
+          } : undefined}
           onSupplierCreated={onSupplierCreated}
+        />
+      )}
+
+      {/* View Proposal Modal */}
+      {viewingProposal && (
+        <ProposalDetailModal
+          isOpen={!!viewingProposal}
+          proposal={viewingProposal}
+          onClose={() => setViewingProposal(null)}
         />
       )}
     </>,

@@ -7,7 +7,9 @@ import {
   Check,
   Clock,
   Crown,
+  Eye,
   Filter,
+  Pencil,
   SortAsc,
   SortDesc,
   Star,
@@ -19,6 +21,9 @@ interface ProposalComparisonProps {
   quotation: Quotation;
   onSelectWinner?: (proposalId: string) => void;
   canSelect?: boolean;
+  canEdit?: boolean;
+  onEditProposal?: (proposal: SupplierProposal) => void;
+  onViewProposal?: (proposal: SupplierProposal) => void;
 }
 
 const formatCurrency = (value: number) => {
@@ -39,6 +44,9 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
   quotation,
   onSelectWinner,
   canSelect = false,
+  canEdit = false,
+  onEditProposal,
+  onViewProposal,
 }) => {
   const [sortField, setSortField] = useState<SortField>('totalAmount');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
@@ -330,6 +338,32 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                             )}
                             {supplier.isBestOverall && !isSelected && (
                               <Crown className="w-3.5 h-3.5 text-amber-500" />
+                            )}
+                            {onViewProposal && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const proposal = quotation.proposals.find(p => p.id === supplier.proposalId);
+                                  if (proposal) onViewProposal(proposal);
+                                }}
+                                title="Ver detalhes da proposta"
+                                className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            {canEdit && !isSelected && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const proposal = quotation.proposals.find(p => p.id === supplier.proposalId);
+                                  if (proposal) onEditProposal?.(proposal);
+                                }}
+                                title="Editar proposta"
+                                className="p-1 text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
                             )}
                           </div>
                           {supplier.paymentTerms && (

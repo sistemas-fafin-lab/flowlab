@@ -44,6 +44,12 @@ const generateQuotationCode = (): string => {
   return `COT-${year}${month}-${random}`;
 };
 
+// Parse a delivery-time string (e.g. "0 dias", "5 dias") into days, defaulting to 7 only when unparseable
+const parseDeliveryDays = (deliveryTime?: string): number => {
+  const parsed = parseInt(deliveryTime?.replace(/\D/g, '') || '', 10);
+  return Number.isNaN(parsed) ? 7 : parsed;
+};
+
 // Get required approval level based on amount
 const getRequiredApprovalLevel = (amount: number): ApprovalLevel => {
   for (const threshold of APPROVAL_THRESHOLDS) {
@@ -163,7 +169,10 @@ export const useQuotation = () => {
             };
           }),
           totalAmount: p.total_amount,
+          additionalCosts: p.additional_costs || undefined,
           deliveryTime: p.average_delivery_days ? `${p.average_delivery_days} dias` : '7 dias',
+          paymentMethod: p.payment_method || undefined,
+          boletoDueDays: p.boleto_due_days ?? undefined,
           validUntil: p.valid_until,
           notes: p.notes,
           submittedAt: p.submitted_at,
@@ -1086,9 +1095,9 @@ export const useQuotation = () => {
 
     // Persist proposal to database
     try {
-      const maxDeliveryDays = Math.max(
-        ...input.items.map(i => parseInt(i.deliveryTime?.replace(/\D/g, '') || '7') || 7)
-      );
+      const maxDeliveryDays = input.items.length > 0
+        ? Math.max(...input.items.map(i => parseDeliveryDays(i.deliveryTime)))
+        : 0;
       const { error: proposalError } = await supabase
         .from('quotation_proposals')
         .insert({
@@ -1097,9 +1106,12 @@ export const useQuotation = () => {
           supplier_id: input.supplierId,
           supplier_name: supplier.supplierName,
           total_amount: totalAmount,
+          additional_costs: input.additionalCosts ?? [],
           average_delivery_days: maxDeliveryDays,
           notes: input.notes || null,
           valid_until: input.validUntil || null,
+          payment_method: input.paymentMethod || null,
+          boleto_due_days: input.boletoDueDays ?? null,
           status: 'submitted',
           submitted_at: proposal.submittedAt,
           is_winner: false,
@@ -1153,7 +1165,7 @@ export const useQuotation = () => {
               quotation_item_id: item.quotationItemId,
               unit_price: item.unitPrice,
               total_price: item.totalPrice,
-              delivery_days: parseInt(item.deliveryTime?.replace(/\D/g, '') || '7') || 7,
+              delivery_days: parseDeliveryDays(item.deliveryTime),
               notes: item.notes || null,
             }))
           );
@@ -1205,6 +1217,156 @@ export const useQuotation = () => {
 
     return proposal;
   }, [quotations, suppliers, addAuditLog]);
+
+  const updateProposal = useCallback(async (proposalId: string, input: SubmitProposalInput): Promise<SupplierProposal> => {
+    const quotation = quotations.find(q => q.id === input.quotationId);
+    if (!quotation) throw new Error('Cotação não encontrada');
+
+    const existing = quotation.proposals.find(p => p.id === proposalId);
+    if (!existing) throw new Error('Proposta não encontrada');
+
+    if (!['draft', 'sent_to_suppliers', 'waiting_responses'].includes(quotation.status)) {
+      throw new Error('Não é possível editar proposta neste status');
+    }
+
+    let proposalItems: ProposalItem[] = input.items.map(item => {
+      const quotationItem = quotation.items.find(qi => qi.id === item.quotationItemId);
+      return {
+        id: crypto.randomUUID(),
+        proposalId,
+        quotationItemId: item.quotationItemId,
+        productName: quotationItem?.productName || '',
+        quantity: quotationItem?.quantity || 0,
+        unitPrice: item.unitPrice,
+        totalPrice: item.unitPrice * (quotationItem?.quantity || 0),
+        deliveryTime: item.deliveryTime,
+        brand: item.brand,
+        notes: item.notes,
+      };
+    });
+
+    const itemsTotal = proposalItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const additionalTotal = (input.additionalCosts ?? []).reduce((sum, c) => sum + c.value, 0);
+    const totalAmount = itemsTotal + additionalTotal;
+    const maxDeliveryDays = input.items.length > 0
+      ? Math.max(...input.items.map(i => parseDeliveryDays(i.deliveryTime)))
+      : 0;
+
+    try {
+      // Materialize any legacy synthetic items (id ends with '_legacy_item') into real DB rows,
+      // same as submitProposal, so editing a proposal referencing one doesn't violate the FK below.
+      const legacyItems = proposalItems.filter(item => item.quotationItemId.endsWith('_legacy_item'));
+      if (legacyItems.length > 0) {
+        const legacyIdMap: Record<string, string> = {};
+        for (const legacyItem of legacyItems) {
+          const newId = crypto.randomUUID();
+          legacyIdMap[legacyItem.quotationItemId] = newId;
+          const sourceItem = quotation.items.find(qi => qi.id === legacyItem.quotationItemId);
+          await supabase.from('quotation_items').insert({
+            id: newId,
+            quotation_id: input.quotationId,
+            product_name: sourceItem?.productName || '',
+            ...(sourceItem?.productId ? { product_id: sourceItem.productId } : {}),
+            quantity: sourceItem?.quantity || 1,
+            unit: sourceItem?.unit || 'un',
+          });
+        }
+        proposalItems = proposalItems.map(item =>
+          legacyIdMap[item.quotationItemId]
+            ? { ...item, quotationItemId: legacyIdMap[item.quotationItemId] }
+            : item
+        );
+        setQuotations(prev => prev.map(q => {
+          if (q.id !== input.quotationId) return q;
+          return {
+            ...q,
+            items: q.items.map(qi => (legacyIdMap[qi.id] ? { ...qi, id: legacyIdMap[qi.id] } : qi)),
+          };
+        }));
+      }
+
+      const { error: proposalError } = await supabase
+        .from('quotation_proposals')
+        .update({
+          total_amount: totalAmount,
+          additional_costs: input.additionalCosts ?? [],
+          average_delivery_days: maxDeliveryDays,
+          notes: input.notes || null,
+          valid_until: input.validUntil || null,
+          payment_method: input.paymentMethod || null,
+          boleto_due_days: input.boletoDueDays ?? null,
+        })
+        .eq('id', proposalId);
+
+      if (proposalError) {
+        throw new Error('Erro ao atualizar proposta');
+      }
+
+      const { error: deleteError } = await supabase
+        .from('quotation_proposal_items')
+        .delete()
+        .eq('proposal_id', proposalId);
+      if (deleteError) {
+        throw new Error('Erro ao limpar itens antigos da proposta');
+      }
+
+      if (proposalItems.length > 0) {
+        const { error: itemsError } = await supabase
+          .from('quotation_proposal_items')
+          .insert(
+            proposalItems.map(item => ({
+              id: item.id,
+              proposal_id: proposalId,
+              quotation_item_id: item.quotationItemId,
+              unit_price: item.unitPrice,
+              total_price: item.totalPrice,
+              delivery_days: parseDeliveryDays(item.deliveryTime),
+              notes: item.notes || null,
+            }))
+          );
+        if (itemsError) {
+          throw new Error('Erro ao inserir itens atualizados da proposta');
+        }
+      }
+    } catch (dbErr) {
+      console.error('Error persisting proposal update to DB:', dbErr);
+      throw dbErr instanceof Error ? dbErr : new Error('Erro ao atualizar proposta');
+    }
+
+    const updatedProposal: SupplierProposal = {
+      ...existing,
+      items: proposalItems,
+      totalAmount,
+      additionalCosts: input.additionalCosts,
+      deliveryTime: input.deliveryTime,
+      paymentTerms: input.paymentTerms ?? existing.paymentTerms,
+      paymentMethod: input.paymentMethod,
+      boletoDueDays: input.boletoDueDays,
+      validUntil: input.validUntil,
+      notes: input.notes,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setQuotations(prev => prev.map(q => {
+      if (q.id !== input.quotationId) return q;
+      return {
+        ...q,
+        proposals: q.proposals.map(p => (p.id === proposalId ? updatedProposal : p)),
+        updatedAt: new Date().toISOString(),
+      };
+    }));
+
+    await addAuditLog(input.quotationId, 'updated', {
+      note: 'Proposta editada',
+      totalAmount,
+    }, {
+      supplierId: input.supplierId,
+      supplierName: existing.supplierName,
+      amount: totalAmount,
+    });
+
+    return updatedProposal;
+  }, [quotations, addAuditLog]);
 
   // Advance directly to under_review (manual flow - skip API sending)
   const advanceToReview = useCallback(async (quotationId: string): Promise<void> => {
@@ -1657,6 +1819,7 @@ export const useQuotation = () => {
     // Workflow
     sendToSuppliers,
     submitProposal,
+    updateProposal,
     selectWinner,
     advanceToReview,
     revertStatus,

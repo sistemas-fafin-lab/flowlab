@@ -9,6 +9,7 @@ export { StatusStepper } from './StatusStepper';
 // Creation & Editing
 export { CreateQuotationModal } from './CreateQuotationModal';
 export { AddProposalModal } from './AddProposalModal';
+export { ProposalDetailModal } from './ProposalDetailModal';
 export { PurchaseOrderModal } from './PurchaseOrderModal';
 
 // Domain-specific Components

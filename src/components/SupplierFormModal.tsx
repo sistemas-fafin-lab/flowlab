@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { Supplier } from '../types';
-import { formatCpfCnpj } from '../utils/paymentUtils';
+import { formatCpfCnpj, validateCpfCnpj } from '../utils/paymentUtils';
 
 interface SupplierFormModalProps {
   isOpen: boolean;
@@ -49,7 +49,7 @@ const validateField = (field: ValidatedField, data: SupplierFormData): string | 
     case 'name':
       return data.name.trim() ? undefined : 'Informe o nome da empresa.';
     case 'cnpj':
-      return data.cnpj.replace(/\D/g, '').length === 14 ? undefined : 'CNPJ deve ter 14 dígitos.';
+      return validateCpfCnpj(data.cnpj) ? undefined : 'Informe um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.';
     case 'email':
       return EMAIL_REGEX.test(data.email.trim()) ? undefined : 'Informe um email válido.';
     case 'phone': {
@@ -59,9 +59,15 @@ const validateField = (field: ValidatedField, data: SupplierFormData): string | 
   }
 };
 
-const validateAll = (data: SupplierFormData): Partial<Record<ValidatedField, string>> => {
+const validateAll = (
+  data: SupplierFormData,
+  original: Pick<SupplierFormData, ValidatedField> | null
+): Partial<Record<ValidatedField, string>> => {
   const errors: Partial<Record<ValidatedField, string>> = {};
   (['name', 'cnpj', 'email', 'phone'] as ValidatedField[]).forEach(field => {
+    // Skip fields left untouched from an existing supplier — don't block saving an
+    // unrelated change (e.g. deactivating) because of pre-existing invalid data.
+    if (original && data[field] === original[field]) return;
     const message = validateField(field, data);
     if (message) errors[field] = message;
   });
@@ -79,25 +85,31 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<ValidatedField, string>>>({});
+  // Snapshot of the validated fields as loaded from an existing supplier, so editing an
+  // unrelated field doesn't get blocked by legacy data that predates this validation.
+  const [originalValues, setOriginalValues] = useState<Pick<SupplierFormData, ValidatedField> | null>(null);
 
   useEffect(() => {
     if (!isOpen) return;
     setError(null);
     setFieldErrors({});
-    setFormData(
-      editingSupplier
-        ? {
-            name: editingSupplier.name,
-            cnpj: editingSupplier.cnpj.replace(/\D/g, ''),
-            email: editingSupplier.email,
-            phone: editingSupplier.phone.replace(/\D/g, ''),
-            address: editingSupplier.address || '',
-            contactPerson: editingSupplier.contactPerson || '',
-            products: editingSupplier.products || [],
-            status: editingSupplier.status,
-          }
-        : emptyFormData
-    );
+    if (editingSupplier) {
+      const loaded: SupplierFormData = {
+        name: editingSupplier.name,
+        cnpj: editingSupplier.cnpj.replace(/\D/g, ''),
+        email: editingSupplier.email,
+        phone: editingSupplier.phone.replace(/\D/g, ''),
+        address: editingSupplier.address || '',
+        contactPerson: editingSupplier.contactPerson || '',
+        products: editingSupplier.products || [],
+        status: editingSupplier.status,
+      };
+      setFormData(loaded);
+      setOriginalValues({ name: loaded.name, cnpj: loaded.cnpj, email: loaded.email, phone: loaded.phone });
+    } else {
+      setFormData(emptyFormData);
+      setOriginalValues(null);
+    }
   }, [isOpen, editingSupplier]);
 
   const handleFieldBlur = (field: ValidatedField) => {
@@ -108,7 +120,7 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
     e.preventDefault();
     setError(null);
 
-    const errors = validateAll(formData);
+    const errors = validateAll(formData, originalValues);
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
@@ -173,14 +185,14 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">CNPJ *</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">CNPJ/CPF *</label>
               <input
                 type="text"
                 inputMode="numeric"
                 value={formatCpfCnpj(formData.cnpj)}
                 onChange={(e) => setFormData(prev => ({ ...prev, cnpj: e.target.value.replace(/\D/g, '').slice(0, 14) }))}
                 onBlur={() => handleFieldBlur('cnpj')}
-                placeholder="00.000.000/0000-00"
+                placeholder="00.000.000/0000-00 ou 000.000.000-00"
                 required
                 className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 ${
                   fieldErrors.cnpj

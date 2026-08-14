@@ -91,6 +91,7 @@ export const QuotationManagementPage: React.FC = () => {
     createQuotation,
     sendToSuppliers,
     submitProposal,
+    updateProposal,
     selectWinner,
     submitForApproval,
     approveQuotation,
@@ -751,6 +752,10 @@ export const QuotationManagementPage: React.FC = () => {
           }}
           onSubmitProposal={async (quotationId, data) => {
             await submitProposal({ ...data, quotationId });
+            await handleRefreshAfterAction();
+          }}
+          onUpdateProposal={async (quotationId, proposalId, data) => {
+            await updateProposal(proposalId, { ...data, quotationId });
             await handleRefreshAfterAction();
           }}
           onAdvanceToReview={async () => {
