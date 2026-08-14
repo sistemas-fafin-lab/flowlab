@@ -27,6 +27,7 @@ import {
   type UmamiWebsite,
 } from '../_lib/umami.js';
 import { sendTemplatedEmail } from '../_lib/email.js';
+import { escapeHtml } from '../_lib/html.js';
 
 const INACTIVITY_DAYS = 7;
 const CLASSIFY_DAYS = 90;
@@ -54,12 +55,6 @@ interface Evaluation {
 function statValue(stat: number | { value: number } | undefined): number {
   if (stat === undefined || stat === null) return 0;
   return typeof stat === 'object' ? stat.value : stat;
-}
-
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) =>
-    ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c] as string),
-  );
 }
 
 async function evaluateSite(
