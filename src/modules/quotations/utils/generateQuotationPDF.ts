@@ -134,7 +134,7 @@ export function generateQuotationPDF(quotation: Quotation) {
       addField('Prazo de Resposta', formatDate(quotation.responseDeadline), col1X, yPos, colWidth);
     }
     if (quotation.deliveryDeadline) {
-      addField('Prazo de Entrega', formatDate(quotation.deliveryDeadline), col2X, yPos, colWidth);
+      addField('Prazo de Entrega / Fornecimento', formatDate(quotation.deliveryDeadline), col2X, yPos, colWidth);
     }
     yPos += 14;
   }

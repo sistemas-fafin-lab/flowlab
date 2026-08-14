@@ -428,7 +428,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Prazo de Entrega
+                    Prazo de Entrega / Fornecimento
                   </label>
                   <input
                     type="date"
