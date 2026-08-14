@@ -3,9 +3,11 @@
 -- (purchase_request_out_of_stock)
 -- Enviado por api/notifications/purchase-out-of-stock quando uma solicitação
 -- de compra (SC) inclui produto não cadastrado no estoque.
--- Variáveis: {{requester_name}}, {{request_date}}, {{reason}}, {{items_list}}
+-- Variáveis: {{requester_name}}, {{request_date}}, {{reason}}, {{items_list}},
+-- {{action_url}}
 --   {{reason}} e {{items_list}} recebem HTML já renderizado em código
---   (renderTemplate só faz substituição simples de {{var}}).
+--   (renderTemplate só faz substituição simples de {{var}}). {{action_url}} é
+--   fixo (hub de solicitações), gerado no servidor — nunca vem do client.
 -- ============================================================
 
 INSERT INTO public.notification_templates (slug, name, subject_template, body_html)
@@ -112,6 +114,36 @@ VALUES (
                   </td>
                 </tr>
               </table>
+
+              <!-- CTA Button -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="border-collapse:collapse;">
+                <tr>
+                  <td align="center" style="border-radius:8px;background-color:#f59e0b;">
+                    <!--[if mso]>
+                    <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word"
+                      href="{{action_url}}" style="height:48px;v-text-anchor:middle;width:220px;" arcsize="17%"
+                      fill="true" fillcolor="#f59e0b" strokecolor="#f59e0b">
+                      <w:anchorlock/>
+                      <center style="color:#ffffff;font-family:Segoe UI,Arial,sans-serif;font-size:15px;font-weight:600;">
+                        Ver Solicitações
+                      </center>
+                    </v:roundrect>
+                    <![endif]-->
+                    <!--[if !mso]><!-->
+                    <a href="{{action_url}}"
+                       style="display:inline-block;padding:14px 32px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:8px;background-color:#f59e0b;font-family:''Segoe UI'',Arial,sans-serif;letter-spacing:0.3px;mso-hide:all;">
+                      Ver Solicitações &#8594;
+                    </a>
+                    <!--<![endif]-->
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Nota -->
+              <p style="margin:28px 0 0 0;font-size:12px;color:#9ca3af;font-family:''Segoe UI'',Arial,sans-serif;line-height:1.5;">
+                Se o botão não funcionar, copie e cole o link abaixo no seu navegador:<br />
+                <a href="{{action_url}}" style="color:#b45309;text-decoration:none;word-break:break-all;">{{action_url}}</a>
+              </p>
 
             </td>
           </tr>

@@ -21,6 +21,11 @@ import { escapeHtml } from '../_lib/html.js';
 
 const TEMPLATE_SLUG = 'purchase_request_out_of_stock';
 
+// Mesma lógica de src/utils/appUrl.ts, mas server-side: o botão do email
+// sempre aponta para o hub de solicitações, não é um dado do client.
+const APP_BASE_URL = (process.env.VITE_APP_URL || 'https://flow-lab.vercel.app').replace(/\/+$/, '');
+const PURCHASE_REQUESTS_URL = `${APP_BASE_URL}/requests/purchases`;
+
 interface OutOfStockItem {
   productName: string;
   quantity: number;
@@ -109,6 +114,7 @@ export default async function handler(
       request_date: requestDateBR,
       reason: buildReasonHtml(reason),
       items_list: buildItemsListHtml(items),
+      action_url: PURCHASE_REQUESTS_URL,
     },
   });
 
