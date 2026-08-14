@@ -14,11 +14,12 @@ import {
   AlertTriangle,
   ClipboardList,
 } from 'lucide-react';
-import { Department, DepartmentLabels, Supplier } from '../../../types';
+import { Department, DepartmentLabels, Request, Supplier } from '../../../types';
 import { CreateQuotationInput, QuotationItem } from '../types';
 import { useInventory } from '../../../hooks/useInventory';
 import SupplierFormModal from '../../../components/SupplierFormModal';
 import { mergeSuppliers } from '../utils/mergeSuppliers';
+import RequestImportDetailsModal, { buildRequestImportDetails } from './RequestImportDetailsModal';
 
 interface CreateQuotationModalProps {
   isOpen: boolean;
@@ -67,6 +68,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   const [step, setStep] = useState<'info' | 'items' | 'suppliers' | 'review'>(linkedRequest ? 'suppliers' : 'info');
   const [showRequestPicker, setShowRequestPicker] = useState(false);
   const [requestSearchTerm, setRequestSearchTerm] = useState('');
+  const [requestDetails, setRequestDetails] = useState<Request | null>(null);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [extraSuppliers, setExtraSuppliers] = useState<{ id: string; name: string; email: string }[]>([]);
   
@@ -500,7 +502,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                         <button
                           key={request.id}
                           type="button"
-                          onClick={() => handleImportFromRequest(request)}
+                          onClick={() => setRequestDetails(request)}
                           className="w-full text-left p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all"
                         >
                           <div className="flex items-center justify-between">
@@ -955,6 +957,17 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
         isOpen={showSupplierForm}
         onClose={() => setShowSupplierForm(false)}
         onSaved={handleSupplierCreated}
+      />
+    )}
+    {requestDetails && (
+      <RequestImportDetailsModal
+        isOpen={!!requestDetails}
+        data={buildRequestImportDetails(requestDetails)}
+        onClose={() => setRequestDetails(null)}
+        onImport={() => {
+          handleImportFromRequest(requestDetails);
+          setRequestDetails(null);
+        }}
       />
     )}
     </>,

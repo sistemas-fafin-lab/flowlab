@@ -1,6 +1,6 @@
 # Modal de detalhes da solicitação ao importar em "Nova Cotação"
 
-Status: ready-for-agent
+Status: done
 
 ## Onde
 

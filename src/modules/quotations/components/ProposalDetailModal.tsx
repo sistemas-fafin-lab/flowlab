@@ -10,6 +10,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { SupplierProposal, PaymentMethodLabels, paymentMethodHasDueDays, ProposalStatusLabels, ProposalStatusColors } from '../types';
+import { formatDate } from '../utils/formatDate';
 
 interface ProposalDetailModalProps {
   isOpen: boolean;
@@ -22,15 +23,6 @@ const formatCurrency = (value: number) => {
     style: 'currency',
     currency: 'BRL',
   }).format(value);
-};
-
-const formatDate = (date?: string) => {
-  if (!date) return '—';
-  return new Date(date).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
 };
 
 export const ProposalDetailModal: React.FC<ProposalDetailModalProps> = ({ isOpen, proposal, onClose }) => {
