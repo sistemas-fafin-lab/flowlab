@@ -1,6 +1,6 @@
 # Prazo de pagamento também para PIX na proposta
 
-Status: ready-for-agent
+Status: done
 
 ## Onde
 

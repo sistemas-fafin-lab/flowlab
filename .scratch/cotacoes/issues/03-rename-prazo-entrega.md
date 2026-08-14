@@ -1,6 +1,6 @@
 # Renomear "Prazo de Entrega" (campo geral da cotação) para "Prazo de Entrega / Fornecimento"
 
-Status: ready-for-agent
+Status: done
 
 ## Onde
 
