@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, DollarSign, Calendar, Package, Building2, ChevronDown, Plus, Trash2, Check, Search, CreditCard } from 'lucide-react';
-import { Quotation, InvitedSupplier, SubmitProposalInput, PaymentMethod, PaymentMethodLabels } from '../types';
+import { Quotation, InvitedSupplier, SubmitProposalInput, PaymentMethod, PaymentMethodLabels, paymentMethodHasDueDays } from '../types';
 import { Supplier } from '../../../types';
 import SupplierFormModal from '../../../components/SupplierFormModal';
 import { mergeSuppliers } from '../utils/mergeSuppliers';
@@ -215,7 +215,7 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
         notes: proposalNotes || undefined,
         validUntil: validUntil || undefined,
         paymentMethod,
-        boletoDueDays: paymentMethod === 'boleto' ? boletoDueDays : undefined,
+        boletoDueDays: paymentMethodHasDueDays(paymentMethod) ? boletoDueDays : undefined,
         additionalCosts: additionalCosts.length > 0
           ? additionalCosts.map(c => ({ label: c.label, value: c.value }))
           : undefined,
@@ -532,10 +532,10 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
                       </button>
                     ))}
                   </div>
-                  {paymentMethod === 'boleto' && (
+                  {paymentMethodHasDueDays(paymentMethod) && (
                     <div className="mt-3">
                       <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">
-                        Prazo do Boleto (dias)
+                        Prazo para Pagamento (dias)
                       </label>
                       <div className="relative max-w-xs">
                         <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />

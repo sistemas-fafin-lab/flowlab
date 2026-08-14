@@ -49,6 +49,10 @@ export const PaymentMethodLabels: Record<PaymentMethod, string> = {
   boleto: 'Boleto Bancário',
 };
 
+export function paymentMethodHasDueDays(method: PaymentMethod | undefined): boolean {
+  return method === 'boleto' || method === 'pix';
+}
+
 // ============================================
 // PROPOSAL STATUS
 // ============================================

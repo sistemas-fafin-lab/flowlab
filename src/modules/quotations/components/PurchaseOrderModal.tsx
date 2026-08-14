@@ -3,7 +3,7 @@ import ReactDOM from 'react-dom';
 import { X, Download, CheckCircle, FileText, Building2, Package, Calendar, CreditCard } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { Quotation, PaymentMethodLabels } from '../types';
+import { Quotation, PaymentMethodLabels, paymentMethodHasDueDays } from '../types';
 
 interface PurchaseOrderModalProps {
   isOpen: boolean;
@@ -94,7 +94,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       doc.setFont('helvetica', 'bold');
       doc.text('Pagamento:', col2, infoY + 7);
       doc.setFont('helvetica', 'normal');
-      const paymentText = pm === 'boleto' && winnerProposal.boletoDueDays
+      const paymentText = paymentMethodHasDueDays(pm) && winnerProposal.boletoDueDays
         ? `${pmLabel} — ${winnerProposal.boletoDueDays} dias`
         : pmLabel;
       doc.text(paymentText, col2 + 22, infoY + 7);
@@ -259,7 +259,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
                   <p className="text-xs text-slate-500 dark:text-slate-400">Forma de Pagamento</p>
                   <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                     {PaymentMethodLabels[winnerProposal.paymentMethod]}
-                    {winnerProposal.paymentMethod === 'boleto' && winnerProposal.boletoDueDays
+                    {paymentMethodHasDueDays(winnerProposal.paymentMethod) && winnerProposal.boletoDueDays
                       ? ` — ${winnerProposal.boletoDueDays} dias`
                       : ''}
                   </p>
