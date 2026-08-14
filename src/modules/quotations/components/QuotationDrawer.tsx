@@ -24,6 +24,7 @@ import {
   Minimize2,
 } from 'lucide-react';
 import { Quotation, QuotationStatusColors, QuotationStatusLabels, QuotationPermissions, SubmitProposalInput, QuotationItem } from '../types';
+import { Supplier } from '../../../types';
 import { StatusStepper } from './StatusStepper';
 import { ProposalComparison } from './ProposalComparison';
 import { ApprovalTimeline } from './ApprovalTimeline';
@@ -56,6 +57,7 @@ interface QuotationDrawerProps {
   onRemoveItem?: (quotationId: string, itemId: string) => Promise<void>;
   allSuppliers?: SupplierOption[];
   products?: { id: string; name: string; code: string; unit?: string; category?: string; unitPrice?: number }[];
+  onSupplierCreated?: (supplier: Supplier) => void | Promise<void>;
 }
 
 const formatCurrency = (value: number) => {
@@ -93,6 +95,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onRemoveItem,
   allSuppliers,
   products,
+  onSupplierCreated,
 }) => {
   const [activeTab, setActiveTab] = React.useState<Tab>('overview');
   const [showCancelModal, setShowCancelModal] = React.useState(false);
@@ -754,6 +757,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
           onSubmit={async (data) => {
             await onSubmitProposal(quotation.id, data);
           }}
+          onSupplierCreated={onSupplierCreated}
         />
       )}
     </>,

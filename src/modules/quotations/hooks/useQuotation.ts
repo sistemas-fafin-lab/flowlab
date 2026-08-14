@@ -1673,5 +1673,6 @@ export const useQuotation = () => {
     
     // Refresh
     refresh: fetchQuotations,
+    refreshSuppliers: fetchSuppliers,
   };
 };

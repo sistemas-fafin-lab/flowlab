@@ -2,6 +2,9 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { X, DollarSign, Calendar, Package, Building2, ChevronDown, Plus, Trash2, Check, Search, CreditCard } from 'lucide-react';
 import { Quotation, InvitedSupplier, SubmitProposalInput, PaymentMethod, PaymentMethodLabels } from '../types';
+import { Supplier } from '../../../types';
+import SupplierFormModal from '../../../components/SupplierFormModal';
+import { mergeSuppliers } from '../utils/mergeSuppliers';
 
 interface SupplierOption {
   id: string;
@@ -17,6 +20,7 @@ interface AddProposalModalProps {
   allSuppliers?: SupplierOption[];
   onClose: () => void;
   onSubmit: (data: SubmitProposalInput) => Promise<void>;
+  onSupplierCreated?: (supplier: Supplier) => void | Promise<void>;
 }
 
 interface ItemProposal {
@@ -50,8 +54,11 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
   allSuppliers,
   onClose,
   onSubmit,
+  onSupplierCreated,
 }) => {
   const [selectedSupplierId, setSelectedSupplierId] = useState('');
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [extraSuppliers, setExtraSuppliers] = useState<SupplierOption[]>([]);
   const [proposalNotes, setProposalNotes] = useState('');
   const [validUntil, setValidUntil] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('pix');
@@ -103,17 +110,26 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
       }
     });
     
-    // Add non-invited suppliers from allSuppliers (manual flow)
-    if (allSuppliers) {
-      allSuppliers.forEach(s => {
-        if (!invitedIds.has(s.id) && !alreadyProposed.has(s.id)) {
-          options.push({ id: s.id, name: s.name, isInvited: false });
-        }
-      });
-    }
-    
+    // Add non-invited suppliers from allSuppliers (manual flow), plus any just created in this session
+    const combinedAllSuppliers = mergeSuppliers(allSuppliers || [], extraSuppliers);
+    combinedAllSuppliers.forEach(s => {
+      if (!invitedIds.has(s.id) && !alreadyProposed.has(s.id)) {
+        options.push({ id: s.id, name: s.name, isInvited: false });
+      }
+    });
+
     return options;
   })();
+
+  const handleSupplierCreated = async (supplier: Supplier) => {
+    setShowSupplierForm(false);
+    // Wait for the parent's supplier list (what submitProposal reads to resolve a
+    // not-yet-invited supplierId) to include this supplier before selecting it, so a
+    // fast submit right after creation doesn't race a stale supplier lookup.
+    await onSupplierCreated?.(supplier);
+    setExtraSuppliers(prev => [...prev, { id: supplier.id, name: supplier.name, email: supplier.email, phone: supplier.phone }]);
+    setSelectedSupplierId(supplier.id);
+  };
 
   useEffect(() => {
     if (!supplierDropdownOpen) {
@@ -217,6 +233,7 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
   if (!isOpen) return null;
 
   return ReactDOM.createPortal(
+    <>
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-[60]">
       <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full min-h-[600px] max-h-[90vh] flex flex-col">
         {/* Header */}
@@ -238,9 +255,19 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             {/* Supplier Selection */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Fornecedor *
-              </label>
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Fornecedor *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setShowSupplierForm(true)}
+                  className="flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium transition-colors"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Novo fornecedor
+                </button>
+              </div>
               {supplierOptions.length === 0 ? (
                 <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl p-4 text-sm text-amber-800 dark:text-amber-300">
                   Todos os fornecedores disponíveis já enviaram propostas.
@@ -643,7 +670,15 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
           </div>
         </form>
       </div>
-    </div>,
+    </div>
+    {showSupplierForm && (
+      <SupplierFormModal
+        isOpen={showSupplierForm}
+        onClose={() => setShowSupplierForm(false)}
+        onSaved={handleSupplierCreated}
+      />
+    )}
+    </>,
     document.body
   );
 };

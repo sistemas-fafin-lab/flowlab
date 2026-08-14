@@ -239,6 +239,33 @@ export const useInventory = () => {
     setCache(CACHE_KEYS.requests, formattedRequests);
   };
 
+  const mapSupplierRow = (supplier: {
+    id: string;
+    name: string;
+    cnpj: string;
+    email: string;
+    phone: string;
+    address?: string;
+    contactperson?: string;
+    contact_person?: string;
+    products?: string[];
+    status: 'active' | 'inactive';
+    created_at: string;
+    updated_at: string;
+  }): Supplier => ({
+    id: supplier.id,
+    name: supplier.name,
+    cnpj: supplier.cnpj,
+    email: supplier.email,
+    phone: supplier.phone,
+    address: supplier.address,
+    contactPerson: supplier.contactperson || supplier.contact_person,
+    products: supplier.products,
+    status: supplier.status,
+    createdAt: supplier.created_at,
+    updatedAt: supplier.updated_at
+  });
+
   const fetchSuppliers = async () => {
     const { data, error } = await supabase
       .from('suppliers')
@@ -252,19 +279,7 @@ export const useInventory = () => {
       index === self.findIndex((s) => s.id === supplier.id)
     );
 
-    const formattedSuppliers: Supplier[] = uniqueData.map(supplier => ({
-      id: supplier.id,
-      name: supplier.name,
-      cnpj: supplier.cnpj,
-      email: supplier.email,
-      phone: supplier.phone,
-      address: supplier.address,
-      contactPerson: supplier.contactperson || supplier.contact_person,
-      products: supplier.products,
-      status: supplier.status,
-      createdAt: supplier.created_at,
-      updatedAt: supplier.updated_at
-    }));
+    const formattedSuppliers: Supplier[] = uniqueData.map(mapSupplierRow);
 
     setSuppliers(formattedSuppliers);
     setCache(CACHE_KEYS.suppliers, formattedSuppliers);
@@ -784,9 +799,9 @@ export const useInventory = () => {
   };
 
   // Supplier functions
-  const addSupplier = async (supplier: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>) => {
+  const addSupplier = async (supplier: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier> => {
     try {
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('suppliers')
         .insert({
           name: supplier.name,
@@ -797,11 +812,14 @@ export const useInventory = () => {
           contact_person: supplier.contactPerson,
           products: supplier.products,
           status: supplier.status
-        });
+        })
+        .select()
+        .single();
 
       if (error) throw error;
 
       await fetchSuppliers();
+      return mapSupplierRow(data);
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to add supplier');
     }

@@ -14,15 +14,18 @@ import {
   AlertTriangle,
   ClipboardList,
 } from 'lucide-react';
-import { Department, DepartmentLabels } from '../../../types';
+import { Department, DepartmentLabels, Supplier } from '../../../types';
 import { CreateQuotationInput, QuotationItem } from '../types';
 import { useInventory } from '../../../hooks/useInventory';
+import SupplierFormModal from '../../../components/SupplierFormModal';
+import { mergeSuppliers } from '../utils/mergeSuppliers';
 
 interface CreateQuotationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (data: CreateQuotationInput) => Promise<void>;
   suppliers: { id: string; name: string; email: string }[];
+  onSupplierCreated?: (supplier: Supplier) => void | Promise<void>;
   linkedRequest?: {
     id: string;
     code: string;
@@ -56,6 +59,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   onClose,
   onSubmit,
   suppliers,
+  onSupplierCreated,
   linkedRequest,
 }) => {
   const { products, requests } = useInventory();
@@ -63,6 +67,8 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   const [step, setStep] = useState<'info' | 'items' | 'suppliers' | 'review'>(linkedRequest ? 'suppliers' : 'info');
   const [showRequestPicker, setShowRequestPicker] = useState(false);
   const [requestSearchTerm, setRequestSearchTerm] = useState('');
+  const [showSupplierForm, setShowSupplierForm] = useState(false);
+  const [extraSuppliers, setExtraSuppliers] = useState<{ id: string; name: string; email: string }[]>([]);
   
   // Form state
   const [title, setTitle] = useState(linkedRequest ? `Cotação - ${linkedRequest.code}` : '');
@@ -99,10 +105,22 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   const [selectedSuppliers, setSelectedSuppliers] = useState<string[]>([]);
   const [supplierSearch, setSupplierSearch] = useState('');
 
-  const filteredSuppliers = suppliers.filter(
+  const allSuppliers = mergeSuppliers(suppliers, extraSuppliers);
+
+  const filteredSuppliers = allSuppliers.filter(
     s => s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
          s.email.toLowerCase().includes(supplierSearch.toLowerCase())
   );
+
+  const handleSupplierCreated = async (supplier: Supplier) => {
+    setShowSupplierForm(false);
+    // Wait for the parent's supplier list (the source useQuotation reads from when
+    // invitedSuppliers/proposals are built) to include this supplier before selecting
+    // it, so a fast submit right after creation doesn't race a stale supplier lookup.
+    await onSupplierCreated?.(supplier);
+    setExtraSuppliers(prev => [...prev, { id: supplier.id, name: supplier.name, email: supplier.email }]);
+    setSelectedSuppliers(prev => [...prev, supplier.id]);
+  };
 
   // Filter products based on search and category
   const filteredProducts = products.filter(product => {
@@ -265,6 +283,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   const currentStepIndex = steps.indexOf(step as any);
 
   return ReactDOM.createPortal(
+    <>
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white dark:bg-gray-800 rounded-2xl max-w-2xl w-full max-h-[90vh] flex flex-col">
         {/* Header */}
@@ -705,20 +724,28 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                 </div>
               </div>
 
-              <div>
+              <div className="flex gap-2">
                 <input
                   type="text"
                   value={supplierSearch}
                   onChange={(e) => setSupplierSearch(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+                  className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
                   placeholder="Buscar fornecedores..."
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowSupplierForm(true)}
+                  className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-blue-600 dark:text-blue-400 border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                >
+                  <Plus className="w-4 h-4" />
+                  Novo fornecedor
+                </button>
               </div>
 
               {selectedSuppliers.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   {selectedSuppliers.map(id => {
-                    const supplier = suppliers.find(s => s.id === id);
+                    const supplier = allSuppliers.find(s => s.id === id);
                     return supplier ? (
                       <span
                         key={id}
@@ -839,7 +866,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
                 </h3>
                 <div className="flex flex-wrap gap-2">
                   {selectedSuppliers.map(id => {
-                    const supplier = suppliers.find(s => s.id === id);
+                    const supplier = allSuppliers.find(s => s.id === id);
                     return supplier ? (
                       <span key={id} className="px-2 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-sm text-gray-900 dark:text-gray-100 rounded-lg">
                         {supplier.name}
@@ -922,7 +949,15 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
           </div>
         </div>
       </div>
-    </div>,
+    </div>
+    {showSupplierForm && (
+      <SupplierFormModal
+        isOpen={showSupplierForm}
+        onClose={() => setShowSupplierForm(false)}
+        onSaved={handleSupplierCreated}
+      />
+    )}
+    </>,
     document.body
   );
 };

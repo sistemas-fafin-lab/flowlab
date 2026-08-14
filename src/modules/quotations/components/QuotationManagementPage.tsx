@@ -87,6 +87,7 @@ export const QuotationManagementPage: React.FC = () => {
     metrics,
     getPermissions,
     refresh,
+    refreshSuppliers,
     createQuotation,
     sendToSuppliers,
     submitProposal,
@@ -152,6 +153,10 @@ export const QuotationManagementPage: React.FC = () => {
   const handleRefreshAfterAction = async () => {
     await refresh();
     // selectedQuotation is synced automatically via useEffect above
+  };
+
+  const handleSupplierCreated = async () => {
+    await refreshSuppliers();
   };
 
   // Filter handlers
@@ -701,6 +706,7 @@ export const QuotationManagementPage: React.FC = () => {
           onClose={() => setShowCreateModal(false)}
           onSubmit={handleCreateQuotation}
           suppliers={suppliers}
+          onSupplierCreated={handleSupplierCreated}
         />
       )}
 
@@ -766,6 +772,7 @@ export const QuotationManagementPage: React.FC = () => {
           }}
           allSuppliers={suppliers}
           products={products.map(p => ({ id: p.id, name: p.name, code: p.code, unit: p.unit, category: p.category, unitPrice: p.unitPrice }))}
+          onSupplierCreated={handleSupplierCreated}
         />
       )}
 

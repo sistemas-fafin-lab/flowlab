@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Building2, Plus, Edit, Trash2, X, Save, Phone, Mail, MapPin, User } from 'lucide-react';
+import { Building2, Plus, Edit, Trash2, Phone, Mail, MapPin, User } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useNotification } from '../hooks/useNotification';
 import { useDialog } from '../hooks/useDialog';
@@ -7,81 +7,28 @@ import { Supplier } from '../types';
 import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
 import InputDialog from './InputDialog';
+import SupplierFormModal from './SupplierFormModal';
 import { SupplierManagementSkeleton } from './PageLoadingSkeleton';
 
 const SupplierManagement: React.FC = () => {
-  const { suppliers, addSupplier, updateSupplier, deleteSupplier, loading } = useInventory();
+  const { suppliers, deleteSupplier, loading } = useInventory();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog } = useDialog();
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<Supplier | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [formData, setFormData] = useState({
-    name: '',
-    cnpj: '',
-    email: '',
-    phone: '',
-    address: '',
-    contactPerson: '',
-    products: [] as string[],
-    status: 'active' as 'active' | 'inactive'
-  });
-
-  const resetForm = () => {
-    setFormData({
-      name: '',
-      cnpj: '',
-      email: '',
-      phone: '',
-      address: '',
-      contactPerson: '',
-      products: [],
-      status: 'active'
-    });
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      if (editingSupplier) {
-        await updateSupplier(editingSupplier.id, formData);
-        showSuccess('Fornecedor atualizado com sucesso!');
-      } else {
-        await addSupplier(formData);
-        showSuccess('Fornecedor adicionado com sucesso!');
-      }
-
-      resetForm();
-      setShowAddForm(false);
-      setEditingSupplier(null);
-    } catch (error) {
-      console.error('Erro ao salvar fornecedor:', error);
-      showError('Erro ao salvar fornecedor. Tente novamente.');
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleSaved = (supplier: Supplier) => {
+    showSuccess(editingSupplier ? `Fornecedor ${supplier.name} atualizado com sucesso!` : `Fornecedor ${supplier.name} adicionado com sucesso!`);
+    setShowAddForm(false);
+    setEditingSupplier(null);
   };
 
   const handleEdit = (supplier: Supplier) => {
-    setFormData({
-      name: supplier.name,
-      cnpj: supplier.cnpj,
-      email: supplier.email,
-      phone: supplier.phone,
-      address: supplier.address || '',
-      contactPerson: supplier.contactPerson || '',
-      products: supplier.products || [],
-      status: supplier.status
-    });
     setEditingSupplier(supplier);
     setShowAddForm(true);
   };
 
   const handleCancel = () => {
-    resetForm();
     setShowAddForm(false);
     setEditingSupplier(null);
   };
@@ -141,128 +88,13 @@ const SupplierManagement: React.FC = () => {
         </button>
       </div>
 
-      {/* Add/Edit Form */}
       {showAddForm && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-100 dark:border-gray-700 p-6 animate-scale-in">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-              {editingSupplier ? 'Editar Fornecedor' : 'Novo Fornecedor'}
-            </h3>
-            <button onClick={handleCancel} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200">
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Nome da Empresa *</label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">CNPJ *</label>
-              <input
-                type="text"
-                value={formData.cnpj}
-                onChange={(e) => setFormData(prev => ({ ...prev, cnpj: e.target.value }))}
-                required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Email *</label>
-              <input
-                type="email"
-                value={formData.email}
-                onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Telefone *</label>
-              <input
-                type="text"
-                value={formData.phone}
-                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Pessoa de Contato</label>
-              <input
-                type="text"
-                value={formData.contactPerson}
-                onChange={(e) => setFormData(prev => ({ ...prev, contactPerson: e.target.value }))}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
-              <select
-                value={formData.status}
-                onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.value as 'active' | 'inactive' }))}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 cursor-pointer"
-              >
-                <option value="active">Ativo</option>
-                <option value="inactive">Inativo</option>
-              </select>
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Endereço</label>
-              <input
-                type="text"
-                value={formData.address}
-                onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
-              />
-            </div>
-
-            <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Produtos Oferecidos</label>
-              <input
-                type="text"
-                value={formData.products.join(', ')}
-                onChange={(e) =>
-                  setFormData(prev => ({
-                    ...prev,
-                    products: e.target.value.split(',').map(p => p.trim()).filter(Boolean)
-                  }))
-                }
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
-              />
-            </div>
-
-            <div className="md:col-span-2 flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={handleCancel}
-                className="px-4 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 disabled:opacity-50 transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
-              >
-                {isSubmitting ? 'Salvando...' : editingSupplier ? 'Atualizar' : 'Salvar'}
-              </button>
-            </div>
-          </form>
-        </div>
+        <SupplierFormModal
+          isOpen={showAddForm}
+          onClose={handleCancel}
+          onSaved={handleSaved}
+          editingSupplier={editingSupplier}
+        />
       )}
 
       {/* Lista de Fornecedores */}
