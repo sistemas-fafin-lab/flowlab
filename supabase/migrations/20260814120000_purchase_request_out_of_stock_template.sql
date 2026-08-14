@@ -85,22 +85,8 @@ VALUES (
                 <strong>{{requester_name}}</strong> criou uma solicitação de compra (SC) incluindo produto(s) não cadastrado(s) no estoque. Veja abaixo o que foi pedido:
               </p>
 
-              <!-- Justificativa -->
-              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:24px;">
-                <tr>
-                  <td style="background-color:#f9fafb;border-radius:8px;padding:16px 20px;">
-                    <p style="margin:0 0 6px 0;font-size:11px;font-weight:600;color:#6b7280;letter-spacing:1px;text-transform:uppercase;font-family:''Segoe UI'',Arial,sans-serif;">
-                      Justificativa
-                    </p>
-                    <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;font-family:''Segoe UI'',Arial,sans-serif;">
-                      {{reason}}
-                    </p>
-                  </td>
-                </tr>
-              </table>
-
               <!-- Caixa de destaque com a lista -->
-              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:32px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:24px;">
                 <tr>
                   <td style="background-color:#fffbeb;border-left:4px solid #f59e0b;border-radius:0 8px 8px 0;padding:20px 24px;">
                     <p style="margin:0 0 12px 0;font-size:11px;font-weight:600;color:#f59e0b;letter-spacing:1px;text-transform:uppercase;font-family:''Segoe UI'',Arial,sans-serif;">
@@ -109,6 +95,20 @@ VALUES (
                     <ul style="margin:0;padding-left:18px;font-size:15px;color:#374151;line-height:1.6;font-family:''Segoe UI'',Arial,sans-serif;">
                       {{items_list}}
                     </ul>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Justificativa -->
+              <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse;margin-bottom:32px;">
+                <tr>
+                  <td style="background-color:#f9fafb;border-radius:8px;padding:16px 20px;">
+                    <p style="margin:0 0 6px 0;font-size:11px;font-weight:600;color:#6b7280;letter-spacing:1px;text-transform:uppercase;font-family:''Segoe UI'',Arial,sans-serif;">
+                      Justificativa
+                    </p>
+                    <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;font-family:''Segoe UI'',Arial,sans-serif;">
+                      {{reason}}
+                    </p>
                   </td>
                 </tr>
               </table>
