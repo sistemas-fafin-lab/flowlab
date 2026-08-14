@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { X } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { Supplier } from '../types';
+import { formatCpfCnpj } from '../utils/paymentUtils';
 
 interface SupplierFormModalProps {
   isOpen: boolean;
@@ -22,6 +23,8 @@ interface SupplierFormData {
   status: 'active' | 'inactive';
 }
 
+type ValidatedField = 'name' | 'cnpj' | 'email' | 'phone';
+
 const emptyFormData: SupplierFormData = {
   name: '',
   cnpj: '',
@@ -31,6 +34,38 @@ const emptyFormData: SupplierFormData = {
   contactPerson: '',
   products: [],
   status: 'active',
+};
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const formatPhoneDisplay = (digits: string): string => {
+  if (digits.length === 11) return digits.replace(/^(\d{2})(\d{5})(\d{4})$/, '($1) $2-$3');
+  if (digits.length === 10) return digits.replace(/^(\d{2})(\d{4})(\d{4})$/, '($1) $2-$3');
+  return digits;
+};
+
+const validateField = (field: ValidatedField, data: SupplierFormData): string | undefined => {
+  switch (field) {
+    case 'name':
+      return data.name.trim() ? undefined : 'Informe o nome da empresa.';
+    case 'cnpj':
+      return data.cnpj.replace(/\D/g, '').length === 14 ? undefined : 'CNPJ deve ter 14 dígitos.';
+    case 'email':
+      return EMAIL_REGEX.test(data.email.trim()) ? undefined : 'Informe um email válido.';
+    case 'phone': {
+      const digits = data.phone.replace(/\D/g, '').length;
+      return digits === 10 || digits === 11 ? undefined : 'Telefone deve ter 10 ou 11 dígitos (DDD + número).';
+    }
+  }
+};
+
+const validateAll = (data: SupplierFormData): Partial<Record<ValidatedField, string>> => {
+  const errors: Partial<Record<ValidatedField, string>> = {};
+  (['name', 'cnpj', 'email', 'phone'] as ValidatedField[]).forEach(field => {
+    const message = validateField(field, data);
+    if (message) errors[field] = message;
+  });
+  return errors;
 };
 
 const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
@@ -43,17 +78,19 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
   const [formData, setFormData] = useState<SupplierFormData>(emptyFormData);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<ValidatedField, string>>>({});
 
   useEffect(() => {
     if (!isOpen) return;
     setError(null);
+    setFieldErrors({});
     setFormData(
       editingSupplier
         ? {
             name: editingSupplier.name,
-            cnpj: editingSupplier.cnpj,
+            cnpj: editingSupplier.cnpj.replace(/\D/g, ''),
             email: editingSupplier.email,
-            phone: editingSupplier.phone,
+            phone: editingSupplier.phone.replace(/\D/g, ''),
             address: editingSupplier.address || '',
             contactPerson: editingSupplier.contactPerson || '',
             products: editingSupplier.products || [],
@@ -63,11 +100,19 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
     );
   }, [isOpen, editingSupplier]);
 
+  const handleFieldBlur = (field: ValidatedField) => {
+    setFieldErrors(prev => ({ ...prev, [field]: validateField(field, formData) }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
     setError(null);
 
+    const errors = validateAll(formData);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    setIsSubmitting(true);
     try {
       if (editingSupplier) {
         await updateSupplier(editingSupplier.id, formData);
@@ -116,20 +161,34 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                onBlur={() => handleFieldBlur('name')}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 ${
+                  fieldErrors.name
+                    ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
+                    : 'border-gray-200 dark:border-gray-600 focus:ring-blue-500 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
               />
+              {fieldErrors.name && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.name}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">CNPJ *</label>
               <input
                 type="text"
-                value={formData.cnpj}
-                onChange={(e) => setFormData(prev => ({ ...prev, cnpj: e.target.value }))}
+                inputMode="numeric"
+                value={formatCpfCnpj(formData.cnpj)}
+                onChange={(e) => setFormData(prev => ({ ...prev, cnpj: e.target.value.replace(/\D/g, '').slice(0, 14) }))}
+                onBlur={() => handleFieldBlur('cnpj')}
+                placeholder="00.000.000/0000-00"
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 ${
+                  fieldErrors.cnpj
+                    ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
+                    : 'border-gray-200 dark:border-gray-600 focus:ring-blue-500 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
               />
+              {fieldErrors.cnpj && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.cnpj}</p>}
             </div>
 
             <div>
@@ -138,20 +197,34 @@ const SupplierFormModal: React.FC<SupplierFormModalProps> = ({
                 type="email"
                 value={formData.email}
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                onBlur={() => handleFieldBlur('email')}
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 ${
+                  fieldErrors.email
+                    ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
+                    : 'border-gray-200 dark:border-gray-600 focus:ring-blue-500 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
               />
+              {fieldErrors.email && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.email}</p>}
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Telefone *</label>
               <input
                 type="text"
-                value={formData.phone}
-                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
+                inputMode="numeric"
+                value={formatPhoneDisplay(formData.phone)}
+                onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value.replace(/\D/g, '').slice(0, 11) }))}
+                onBlur={() => handleFieldBlur('phone')}
+                placeholder="(00) 00000-0000"
                 required
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                className={`w-full px-4 py-2.5 border rounded-xl focus:ring-2 focus:border-transparent transition-all duration-200 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 ${
+                  fieldErrors.phone
+                    ? 'border-red-400 dark:border-red-600 focus:ring-red-500'
+                    : 'border-gray-200 dark:border-gray-600 focus:ring-blue-500 hover:border-gray-300 dark:hover:border-gray-500'
+                }`}
               />
+              {fieldErrors.phone && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{fieldErrors.phone}</p>}
             </div>
 
             <div>
