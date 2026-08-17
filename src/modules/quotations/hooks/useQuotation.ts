@@ -20,10 +20,8 @@ import {
   ApprovalLevel,
   APPROVAL_THRESHOLDS,
   QuotationActionType,
-  QuotationTypeLabels,
 } from '../types';
-import { formatCurrency } from '../../../utils/paymentUtils';
-import { APP_BASE_URL } from '../../../utils/appUrl';
+import { buildQuotationApprovalNotifications } from '../notifications';
 import {
   canTransition,
   validateTransition,
@@ -1557,25 +1555,13 @@ export const useQuotation = () => {
       if (approversError) {
         console.error('Error fetching approvers for quotation approval notification:', approversError);
       } else {
-        const variables = {
-          quotation_code: quotation.code,
-          quotation_title: quotation.title,
-          quotation_type_label: QuotationTypeLabels[quotation.quotationType],
-          requester_name: quotation.createdByName,
-          total_amount: formatCurrency(amount),
-          action_url: `${APP_BASE_URL}/quotations`,
-        };
+        const notifications = buildQuotationApprovalNotifications(quotation, approvers || []);
 
-        for (const approver of approvers || []) {
-          if (!approver.user_email) continue;
+        for (const notification of notifications) {
           fetch('/api/notifications/email', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: approver.user_email,
-              templateSlug: 'quotation_awaiting_approval',
-              variables,
-            }),
+            body: JSON.stringify(notification),
           }).catch((err) => {
             console.warn('Error sending quotation approval notification:', err);
           });
