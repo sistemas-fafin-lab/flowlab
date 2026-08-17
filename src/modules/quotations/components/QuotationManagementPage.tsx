@@ -777,8 +777,8 @@ export const QuotationManagementPage: React.FC = () => {
             await submitForApproval(selectedQuotation.id);
             await handleRefreshAfterAction();
           }}
-          onApprove={async (comment, signature) => {
-            await approveQuotation(selectedQuotation.id, comment, signature);
+          onApprove={async (comment) => {
+            await approveQuotation(selectedQuotation.id, comment);
             await handleRefreshAfterAction();
           }}
           onReject={async (comment) => {

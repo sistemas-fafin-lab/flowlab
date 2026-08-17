@@ -51,7 +51,7 @@ interface QuotationDrawerProps {
   onSendToSuppliers?: () => void;
   onSelectWinner?: (proposalId: string) => void;
   onSubmitForApproval?: () => void;
-  onApprove?: (comment: string | undefined, signature: string) => void;
+  onApprove?: (comment?: string) => void;
   onReject?: (comment: string) => void;
   onConvertToPurchase?: () => void;
   onCancel?: (reason: string) => void;

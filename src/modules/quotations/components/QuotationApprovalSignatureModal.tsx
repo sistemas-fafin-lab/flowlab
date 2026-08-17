@@ -1,15 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, ShieldCheck, Loader2, CheckCircle2 } from 'lucide-react';
-import { useNotification } from '../../../hooks/useNotification';
-import SignatureCanvasField, { SignatureCanvasFieldHandle } from '../../../components/SignatureCanvasField';
+import { X, Check, Fingerprint, Loader2, CheckCircle2 } from 'lucide-react';
 
 interface QuotationApprovalSignatureModalProps {
   quotationCode: string;
   quotationTitle: string;
   approverName: string;
   comment?: string;
-  onConfirm: (signature: string) => Promise<void>;
+  onConfirm: () => Promise<void>;
   onClose: () => void;
 }
 
@@ -23,8 +21,6 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
   onConfirm,
   onClose,
 }) => {
-  const { showError } = useNotification();
-  const sigCanvasRef = useRef<SignatureCanvasFieldHandle>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingComplete, setProcessingComplete] = useState(false);
 
@@ -38,17 +34,10 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
   }, []);
 
   const handleConfirm = async () => {
-    if (sigCanvasRef.current?.isEmpty()) {
-      showError('A assinatura é obrigatória para aprovar.');
-      return;
-    }
-
     const now = Date.now();
     if (now - lastSubmitTimeRef.current < SUBMIT_COOLDOWN_MS) {
-      showError('Aguarde alguns segundos antes de tentar novamente.');
       return;
     }
-
     if (isSubmittingRef.current || isProcessing) {
       return;
     }
@@ -58,13 +47,12 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
       lastSubmitTimeRef.current = now;
       setIsProcessing(true);
 
-      const signatureData = sigCanvasRef.current?.toDataURL() || '';
-      await onConfirm(signatureData);
+      await onConfirm();
 
       setProcessingComplete(true);
       setTimeout(() => onClose(), 1500);
     } catch (error) {
-      console.error('Erro ao confirmar aprovação assinada:', error);
+      console.error('Erro ao confirmar aprovação:', error);
       isSubmittingRef.current = false;
       setIsProcessing(false);
     }
@@ -78,10 +66,10 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mr-3">
-                <ShieldCheck className="w-5 h-5 text-white" />
+                <Fingerprint className="w-5 h-5 text-white" />
               </div>
               <div>
-                <h3 className="text-lg font-bold">Assinar Aprovação</h3>
+                <h3 className="text-lg font-bold">Confirmar Aprovação</h3>
                 <p className="text-sm text-white/80">{quotationCode}</p>
               </div>
             </div>
@@ -121,11 +109,16 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
               </div>
             </div>
           ) : (
-            <SignatureCanvasField
-              ref={sigCanvasRef}
-              label="Assinatura do aprovador *"
-              disabled={isProcessing}
-            />
+            <div className="p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl">
+              <div className="flex items-start gap-2.5">
+                <Fingerprint className="w-4 h-4 text-blue-600 dark:text-blue-400 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-800 dark:text-blue-300">
+                  Ao confirmar, uma assinatura eletrônica (código de verificação) será gerada
+                  vinculando esta aprovação a você, ao valor e ao instante da decisão. Ela fica
+                  registrada no histórico da cotação e impressa no PDF da Ordem de Compra.
+                </p>
+              </div>
+            </div>
           )}
         </div>
 

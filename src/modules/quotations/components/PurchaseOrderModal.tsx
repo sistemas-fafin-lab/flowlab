@@ -188,36 +188,40 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
     }
 
     // ── Signature area ──
-    const signatureImage = approvedEntry?.signatureImage;
+    const signatureHash = approvedEntry?.signatureHash;
+    const verificationCode = signatureHash ? `${signatureHash.slice(0, 24)}…` : '—';
     const sigY = doc.internal.pageSize.getHeight() - 50;
 
-    if (signatureImage) {
-      // Traço real da assinatura, capturado no momento da aprovação
-      try {
-        doc.addImage(signatureImage, 'PNG', margin, sigY - 22, 60, 18, undefined, 'FAST');
-      } catch (err) {
-        console.error('Erro ao inserir assinatura no PDF:', err);
-      }
-    }
-
-    doc.setDrawColor(150, 150, 150);
-    doc.setLineDashPattern([2, 2], 0);
-    doc.line(margin, sigY, margin + 70, sigY);
-    doc.line(pageW / 2 + 5, sigY, pageW / 2 + 75, sigY);
-    doc.setLineDashPattern([], 0);
-
-    // Nome do aprovador como legenda logo abaixo da linha
-    // (a assinatura desenhada, quando houver, fica impressa acima da linha)
+    // Aprovador: assinatura eletrônica (código de verificação), sem linha física
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9.5);
     doc.setTextColor(30, 30, 30);
-    doc.text(approverName, margin, sigY + 5);
+    doc.text(approverName, margin, sigY - 8);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('Aprovado eletronicamente', margin, sigY - 3);
+
+    doc.setFont('courier', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(90, 90, 90);
+    doc.text(`Código de verificação: ${verificationCode}`, margin, sigY + 2);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 30, 30);
+    doc.text(`Data: ${approvalDateLabel}`, margin, sigY + 7);
+
+    // Fornecedor: continua com linha física de assinatura
+    doc.setDrawColor(150, 150, 150);
+    doc.setLineDashPattern([2, 2], 0);
+    doc.line(pageW / 2 + 5, sigY, pageW / 2 + 75, sigY);
+    doc.setLineDashPattern([], 0);
 
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
-    doc.text('Aprovador Responsável', margin, sigY + 10);
+    doc.setTextColor(30, 30, 30);
     doc.text('Fornecedor / Confirmação', pageW / 2 + 5, sigY + 5);
-    doc.text(`Data: ${approvalDateLabel}`, margin, sigY + 15);
     doc.text(`Data: ___/___/______`, pageW / 2 + 5, sigY + 10);
 
     // ── Footer ──

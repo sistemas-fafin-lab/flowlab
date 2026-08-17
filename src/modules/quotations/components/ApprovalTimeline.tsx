@@ -1,19 +1,17 @@
 import React from 'react';
-import { Check, X, Clock, AlertTriangle, ChevronRight, User, Shield, PenLine } from 'lucide-react';
+import { Check, X, Clock, AlertTriangle, ChevronRight, User, Shield, Fingerprint } from 'lucide-react';
 import {
   Quotation,
-  QuotationApproval,
   ApprovalLevel,
   APPROVAL_THRESHOLDS,
 } from '../types';
 import { useAuth } from '../../../hooks/useAuth';
 import QuotationApprovalSignatureModal from './QuotationApprovalSignatureModal';
-import ApprovalSignatureViewModal from './ApprovalSignatureViewModal';
 
 interface ApprovalTimelineProps {
   quotation: Quotation;
   currentUserApprovalLimit: number;
-  onApprove?: (comment: string | undefined, signature: string) => void | Promise<void>;
+  onApprove?: (comment?: string) => void | Promise<void>;
   onReject?: (comment: string) => void;
 }
 
@@ -63,15 +61,14 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
   const [approveComment, setApproveComment] = React.useState('');
   const [showRejectForm, setShowRejectForm] = React.useState(false);
   const [showSignatureModal, setShowSignatureModal] = React.useState(false);
-  const [viewingSignature, setViewingSignature] = React.useState<QuotationApproval | null>(null);
 
   const amount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
   const isWithinLimit = amount <= currentUserApprovalLimit;
   const canApprove = quotation.status === 'awaiting_approval' && isWithinLimit;
   const canReject = quotation.status === 'awaiting_approval';
 
-  const handleConfirmSignedApproval = async (signature: string) => {
-    await onApprove?.(approveComment || undefined, signature);
+  const handleConfirmSignedApproval = async () => {
+    await onApprove?.(approveComment || undefined);
     setShowSignatureModal(false);
   };
 
@@ -173,16 +170,20 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
                       <span className="text-xs text-slate-500 dark:text-slate-400">
                         {formatDate(approval.approvedAt || approval.rejectedAt || approval.createdAt)}
                       </span>
-                      {approval.status === 'approved' && approval.signatureImage && (
-                        <button
-                          type="button"
-                          onClick={() => setViewingSignature(approval)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
-                        >
-                          <PenLine className="w-3 h-3" />
-                          Ver assinatura
-                        </button>
-                      )}
+                    </div>
+                  )}
+
+                  {/* Signature hash */}
+                  {approval?.status === 'approved' && approval.signatureHash && (
+                    <div
+                      className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400"
+                      title={approval.signatureHash}
+                    >
+                      <Fingerprint className="w-3 h-3 flex-shrink-0" />
+                      <span>Assinatura eletrônica:</span>
+                      <code className="font-mono text-slate-600 dark:text-slate-300">
+                        {approval.signatureHash.slice(0, 16)}…
+                      </code>
                     </div>
                   )}
 
@@ -300,15 +301,6 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
           comment={approveComment || undefined}
           onConfirm={handleConfirmSignedApproval}
           onClose={() => setShowSignatureModal(false)}
-        />
-      )}
-
-      {viewingSignature?.signatureImage && (
-        <ApprovalSignatureViewModal
-          approverName={viewingSignature.approverName || 'Aprovador'}
-          approvedAt={viewingSignature.approvedAt}
-          signature={viewingSignature.signatureImage}
-          onClose={() => setViewingSignature(null)}
         />
       )}
     </div>

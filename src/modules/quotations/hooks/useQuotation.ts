@@ -22,6 +22,7 @@ import {
   QuotationActionType,
 } from '../types';
 import { buildQuotationApprovalNotifications } from '../notifications';
+import { generateApprovalHash } from '../utils/generateApprovalHash';
 import {
   canTransition,
   validateTransition,
@@ -229,7 +230,7 @@ export const useQuotation = () => {
             approvedAt: a.approved_at,
             rejectedAt: a.rejected_at,
             createdAt: a.created_at,
-            signatureImage: a.signature_image,
+            signatureHash: a.signature_hash,
           })),
         department: q.department || 'ESTOQUE',
         costCenter: q.cost_center,
@@ -1589,9 +1590,8 @@ export const useQuotation = () => {
     }
   }, [quotations, addAuditLog]);
 
-  const approveQuotation = useCallback(async (quotationId: string, comment?: string, signatureImage?: string): Promise<void> => {
+  const approveQuotation = useCallback(async (quotationId: string, comment?: string): Promise<void> => {
     if (!user || !userProfile) throw new Error('Usuário não autenticado');
-    if (!signatureImage) throw new Error('A assinatura é obrigatória para aprovar');
 
     const quotation = quotations.find(q => q.id === quotationId);
     if (!quotation) throw new Error('Cotação não encontrada');
@@ -1613,6 +1613,13 @@ export const useQuotation = () => {
 
     const now = new Date().toISOString();
     const approvalAmount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
+    const signatureHash = await generateApprovalHash({
+      quotationId,
+      approverId: user.id,
+      approverName: userProfile.name,
+      amount: approvalAmount,
+      timestamp: now,
+    });
 
     const { data: insertedApproval, error: approvalError } = await supabase
       .from('quotation_approvals')
@@ -1626,7 +1633,7 @@ export const useQuotation = () => {
         max_amount: approvalAmount,
         comment,
         approved_at: now,
-        signature_image: signatureImage,
+        signature_hash: signatureHash,
       })
       .select()
       .single();
@@ -1648,7 +1655,7 @@ export const useQuotation = () => {
       comment,
       approvedAt: now,
       createdAt: insertedApproval.created_at,
-      signatureImage,
+      signatureHash,
     };
 
     setQuotations(prev => prev.map(q => {
