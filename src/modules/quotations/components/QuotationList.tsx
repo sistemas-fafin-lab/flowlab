@@ -21,6 +21,7 @@ import {
   QuotationSort,
   QuotationSortField,
 } from '../types';
+import { getQuotationAmount } from '../utils/getQuotationAmount';
 
 interface QuotationListProps {
   quotations: Quotation[];
@@ -237,7 +238,7 @@ export const QuotationList: React.FC<QuotationListProps> = ({
                   <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs sm:text-sm text-gray-500">
                     <span className="flex items-center gap-1">
                       <DollarSign className="w-3.5 h-3.5" />
-                      {formatCurrency(quotation.finalTotalAmount ?? quotation.estimatedTotalAmount)}
+                      {formatCurrency(getQuotationAmount(quotation))}
                     </span>
                     <span className="flex items-center gap-1">
                       <FileText className="w-3.5 h-3.5" />

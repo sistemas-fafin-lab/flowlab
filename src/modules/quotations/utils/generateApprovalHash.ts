@@ -16,6 +16,14 @@ export interface ApprovalHashInput {
 // microssegundos). Sem normalizar, recalcular o hash a partir do que foi
 // persistido nunca bateria com o hash gravado no momento da aprovação.
 export async function generateApprovalHash(input: ApprovalHashInput): Promise<string> {
+  // crypto.subtle só existe em contexto seguro (HTTPS ou localhost); num
+  // deploy self-hosted acessado por HTTP puro na rede local ele é undefined,
+  // e sem essa checagem o erro que aparece é um TypeError opaco de "reading
+  // 'digest' of undefined".
+  if (!crypto?.subtle) {
+    throw new Error('Geração da assinatura eletrônica requer conexão segura (HTTPS).');
+  }
+
   const canonical = [
     input.quotationId,
     input.approverId,

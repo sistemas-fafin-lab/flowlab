@@ -1,6 +1,7 @@
 import { Quotation, QuotationItem, QuotationTypeLabels } from './types';
 import { formatCurrency } from '../../utils/paymentUtils';
 import { APP_BASE_URL } from '../../utils/appUrl';
+import { getQuotationAmount } from './utils/getQuotationAmount';
 
 export interface ApproverWithEmail {
   user_email: string | null;
@@ -37,7 +38,7 @@ export function buildQuotationApprovalNotifications(
   > & { items: Pick<QuotationItem, 'productName' | 'quantity' | 'unit'>[] },
   approvers: ApproverWithEmail[],
 ): EmailNotificationRequest[] {
-  const amount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
+  const amount = getQuotationAmount(quotation);
   const variables = {
     quotation_code: escapeHtml(quotation.code),
     quotation_title: escapeHtml(quotation.title),

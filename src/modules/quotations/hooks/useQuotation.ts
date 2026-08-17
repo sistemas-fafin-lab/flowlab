@@ -23,6 +23,7 @@ import {
 } from '../types';
 import { buildQuotationApprovalNotifications } from '../notifications';
 import { generateApprovalHash } from '../utils/generateApprovalHash';
+import { getQuotationAmount } from '../utils/getQuotationAmount';
 import {
   canTransition,
   validateTransition,
@@ -557,7 +558,7 @@ export const useQuotation = () => {
     }
 
     const status = quotation.status;
-    const quotationAmount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
+    const quotationAmount = getQuotationAmount(quotation);
     
     return {
       canView,
@@ -1542,7 +1543,7 @@ export const useQuotation = () => {
       quotationId,
       level: quotation.requiredApprovalLevel,
       status: 'pending',
-      amount: quotation.finalTotalAmount ?? quotation.estimatedTotalAmount,
+      amount: getQuotationAmount(quotation),
       createdAt: new Date().toISOString(),
     };
 
@@ -1561,7 +1562,7 @@ export const useQuotation = () => {
 
     await addAuditLog(quotationId, 'submitted_for_approval', {
       level: quotation.requiredApprovalLevel,
-      amount: quotation.finalTotalAmount ?? quotation.estimatedTotalAmount,
+      amount: getQuotationAmount(quotation),
     }, {
       previousStatus: quotation.status,
       newStatus: 'awaiting_approval',
@@ -1570,7 +1571,7 @@ export const useQuotation = () => {
     // Notificar por email todo gestor com alçada suficiente para o valor da
     // cotação — melhor esforço, uma falha aqui não pode reverter a submissão.
     try {
-      const amount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
+      const amount = getQuotationAmount(quotation);
       const { data: approvers, error: approversError } = await supabase
         .from('user_approval_limits_with_details')
         .select('user_email')
@@ -1610,7 +1611,7 @@ export const useQuotation = () => {
   ): Promise<void> => {
     if (!user || !userProfile) throw new Error('Usuário não autenticado');
 
-    const approvalAmount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
+    const approvalAmount = getQuotationAmount(quotation);
 
     const { data: insertedApproval, error: approvalError } = await supabase
       .rpc('quotation_record_decision', {
@@ -1629,7 +1630,11 @@ export const useQuotation = () => {
 
     if (approvalError) {
       console.error(`Error persisting quotation ${decision}:`, approvalError);
-      throw new Error(decision === 'approved' ? 'Erro ao registrar aprovação' : 'Erro ao registrar rejeição');
+      // quotation_record_decision devolve mensagens específicas (alçada
+      // excedida, status mudou enquanto o modal estava aberto, valor
+      // desatualizado) — repassar em vez de trocar por um texto genérico,
+      // senão o usuário nunca sabe por que a aprovação foi recusada.
+      throw new Error(approvalError.message || (decision === 'approved' ? 'Erro ao registrar aprovação' : 'Erro ao registrar rejeição'));
     }
 
     const newApproval: QuotationApproval = {
@@ -1673,7 +1678,7 @@ export const useQuotation = () => {
     }
 
     const now = new Date().toISOString();
-    const approvalAmount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
+    const approvalAmount = getQuotationAmount(quotation);
     const signatureHash = await generateApprovalHash({
       quotationId,
       approverId: user.id,
@@ -1687,7 +1692,7 @@ export const useQuotation = () => {
     await addAuditLog(quotationId, 'approved', { comment }, {
       previousStatus: 'awaiting_approval',
       newStatus: 'approved',
-      amount: quotation.finalTotalAmount,
+      amount: approvalAmount,
     });
   }, [quotations, user, userProfile, getPermissions, addAuditLog, applyQuotationDecision]);
 
@@ -1727,14 +1732,35 @@ export const useQuotation = () => {
       updates.final_total_amount = null;
     }
 
-    const { error: dbError } = await supabase
-      .from('quotations')
-      .update(updates)
-      .eq('id', quotationId);
+    // Reverter uma cotação aprovada volta o status para awaiting_approval,
+    // mas sem isso o registro de aprovação do nível (nome, hash) continuava
+    // valendo — a timeline mostrava o nível como aprovado com os botões de
+    // decisão ativos ao mesmo tempo, e uma reaprovação sobrescreveria a
+    // assinatura anterior sem deixar rastro (quotation_record_decision faz
+    // upsert por nível). Os dois passos (apagar o registro + voltar o
+    // status) vão na RPC quotation_revert_from_approved, que roda os dois
+    // numa transação única — sem isso, um UPDATE falhando depois do DELETE
+    // deixaria a cotação aprovada sem registro de assinatura.
+    if (quotation.status === 'approved') {
+      const { error: revertError } = await supabase.rpc('quotation_revert_from_approved', {
+        p_quotation_id: quotationId,
+        p_level: quotation.requiredApprovalLevel,
+      });
 
-    if (dbError) {
-      console.error('Error reverting quotation status:', dbError);
-      throw new Error('Erro ao retornar etapa da cotação');
+      if (revertError) {
+        console.error('Error reverting approved quotation:', revertError);
+        throw new Error(revertError.message || 'Erro ao retornar etapa da cotação');
+      }
+    } else {
+      const { error: dbError } = await supabase
+        .from('quotations')
+        .update(updates)
+        .eq('id', quotationId);
+
+      if (dbError) {
+        console.error('Error reverting quotation status:', dbError);
+        throw new Error('Erro ao retornar etapa da cotação');
+      }
     }
 
     // If reverting from awaiting_approval, reset proposal statuses back to submitted
@@ -1762,6 +1788,9 @@ export const useQuotation = () => {
         updated.selectedTotalAmount = undefined;
         updated.finalTotalAmount = undefined;
         updated.proposals = q.proposals.map(p => ({ ...p, status: 'submitted' as const, selectedAt: undefined }));
+      }
+      if (quotation.status === 'approved') {
+        updated.approvals = q.approvals.filter(a => a.level !== quotation.requiredApprovalLevel);
       }
       return updated;
     }));

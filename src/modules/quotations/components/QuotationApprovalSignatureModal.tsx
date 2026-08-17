@@ -1,6 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, Fingerprint, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { useAsyncGuard } from '../hooks/useAsyncGuard';
 
 interface QuotationApprovalSignatureModalProps {
   quotationCode: string;
@@ -19,31 +20,18 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
   onConfirm,
   onClose,
 }) => {
-  const [isProcessing, setIsProcessing] = useState(false);
   const [processingComplete, setProcessingComplete] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Guarda síncrona contra duplo clique: isProcessing só reflete o estado
-  // depois que o React processa o setState, então dois cliques na mesma
-  // tarefa ainda veriam isProcessing=false. isSubmittingRef é atualizado na
-  // hora.
-  const isSubmittingRef = useRef(false);
-
-  useEffect(() => {
-    return () => {
-      isSubmittingRef.current = false;
-    };
-  }, []);
+  const { isBusy: isProcessing, begin, reset } = useAsyncGuard();
 
   const handleConfirm = async () => {
-    if (isSubmittingRef.current || isProcessing) {
+    if (!begin()) {
       return;
     }
 
     try {
-      isSubmittingRef.current = true;
       setErrorMessage(null);
-      setIsProcessing(true);
 
       await onConfirm();
 
@@ -52,8 +40,7 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
     } catch (error) {
       console.error('Erro ao confirmar aprovação:', error);
       setErrorMessage(error instanceof Error ? error.message : 'Erro ao confirmar aprovação.');
-      isSubmittingRef.current = false;
-      setIsProcessing(false);
+      reset();
     }
   };
 

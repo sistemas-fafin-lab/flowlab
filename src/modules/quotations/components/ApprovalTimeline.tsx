@@ -7,6 +7,8 @@ import {
 } from '../types';
 import { useAuth } from '../../../hooks/useAuth';
 import QuotationApprovalSignatureModal from './QuotationApprovalSignatureModal';
+import { getQuotationAmount } from '../utils/getQuotationAmount';
+import { useAsyncGuard } from '../hooks/useAsyncGuard';
 
 interface ApprovalTimelineProps {
   quotation: Quotation;
@@ -61,10 +63,10 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
   const [approveComment, setApproveComment] = React.useState('');
   const [showRejectForm, setShowRejectForm] = React.useState(false);
   const [showSignatureModal, setShowSignatureModal] = React.useState(false);
-  const [isRejecting, setIsRejecting] = React.useState(false);
   const [rejectError, setRejectError] = React.useState<string | null>(null);
+  const { isBusy: isRejecting, begin: beginReject, reset: resetReject } = useAsyncGuard();
 
-  const amount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
+  const amount = getQuotationAmount(quotation);
   const isWithinLimit = amount <= currentUserApprovalLimit;
   // onApprove/onReject só vêm preenchidos quando o QuotationDrawer já checou
   // permissions.canApprove/canReject — checar status e alçada aqui de novo,
@@ -81,16 +83,21 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
   };
 
   const handleConfirmReject = async () => {
-    if (isRejecting || !rejectComment.trim()) return;
+    // O comentário precisa ser checado ANTES do begin(): começar o guard e
+    // devolver cedo deixaria o botão preso em "Rejeitando..." sem motivo.
+    if (!rejectComment.trim() || !beginReject()) return;
 
     try {
-      setIsRejecting(true);
       setRejectError(null);
       await onReject?.(rejectComment);
     } catch (error) {
       console.error('Erro ao rejeitar cotação:', error);
       setRejectError(error instanceof Error ? error.message : 'Erro ao rejeitar cotação.');
-      setIsRejecting(false);
+    } finally {
+      // Reseta nos dois caminhos: no erro, libera o retry; no sucesso, evita
+      // que a cotação volte para awaiting_approval (revert) com o botão de
+      // rejeitar preso em "Rejeitando..." para sempre.
+      resetReject();
     }
   };
 
