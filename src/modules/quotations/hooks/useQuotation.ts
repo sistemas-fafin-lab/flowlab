@@ -37,6 +37,13 @@ import {
   getPreviousStatus,
 } from '../workflow/stateMachine';
 
+// Retorno de quotation_record_decision(), que persiste no mesmo statement o
+// registro em quotation_approvals (não tipado em database.types.ts).
+type QuotationDecisionRow = {
+  id: string;
+  created_at: string;
+};
+
 // Generate unique quotation code
 const generateQuotationCode = (): string => {
   const date = new Date();
@@ -1601,16 +1608,6 @@ export const useQuotation = () => {
       throw new Error('Você não tem permissão para aprovar esta cotação');
     }
 
-    const { error: dbError } = await supabase
-      .from('quotations')
-      .update({ status: 'approved' })
-      .eq('id', quotationId);
-
-    if (dbError) {
-      console.error('Error approving quotation:', dbError);
-      throw new Error('Erro ao aprovar cotação');
-    }
-
     const now = new Date().toISOString();
     const approvalAmount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
     const signatureHash = await generateApprovalHash({
@@ -1622,21 +1619,19 @@ export const useQuotation = () => {
     });
 
     const { data: insertedApproval, error: approvalError } = await supabase
-      .from('quotation_approvals')
-      .insert({
-        quotation_id: quotationId,
-        level: quotation.requiredApprovalLevel,
-        approver_id: user.id,
-        approver_name: userProfile.name,
-        approver_role: userProfile.role,
-        status: 'approved',
-        max_amount: approvalAmount,
-        comment,
-        approved_at: now,
-        signature_hash: signatureHash,
+      .rpc('quotation_record_decision', {
+        p_quotation_id: quotationId,
+        p_decision: 'approved',
+        p_level: quotation.requiredApprovalLevel,
+        p_approver_id: user.id,
+        p_approver_name: userProfile.name,
+        p_approver_role: userProfile.role,
+        p_max_amount: approvalAmount,
+        p_comment: comment ?? null,
+        p_decided_at: now,
+        p_signature_hash: signatureHash,
       })
-      .select()
-      .single();
+      .single<QuotationDecisionRow>();
 
     if (approvalError) {
       console.error('Error persisting quotation approval:', approvalError);
@@ -1687,34 +1682,23 @@ export const useQuotation = () => {
       throw new Error('Cotação não pode ser rejeitada neste status');
     }
 
-    const { error: dbError } = await supabase
-      .from('quotations')
-      .update({ status: 'rejected' })
-      .eq('id', quotationId);
-
-    if (dbError) {
-      console.error('Error rejecting quotation:', dbError);
-      throw new Error('Erro ao rejeitar cotação');
-    }
-
     const now = new Date().toISOString();
     const approvalAmount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
 
     const { data: insertedApproval, error: approvalError } = await supabase
-      .from('quotation_approvals')
-      .insert({
-        quotation_id: quotationId,
-        level: quotation.requiredApprovalLevel,
-        approver_id: user.id,
-        approver_name: userProfile.name,
-        approver_role: userProfile.role,
-        status: 'rejected',
-        max_amount: approvalAmount,
-        comment,
-        rejected_at: now,
+      .rpc('quotation_record_decision', {
+        p_quotation_id: quotationId,
+        p_decision: 'rejected',
+        p_level: quotation.requiredApprovalLevel,
+        p_approver_id: user.id,
+        p_approver_name: userProfile.name,
+        p_approver_role: userProfile.role,
+        p_max_amount: approvalAmount,
+        p_comment: comment,
+        p_decided_at: now,
+        p_signature_hash: null,
       })
-      .select()
-      .single();
+      .single<QuotationDecisionRow>();
 
     if (approvalError) {
       console.error('Error persisting quotation rejection:', approvalError);
