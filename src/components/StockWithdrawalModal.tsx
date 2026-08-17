@@ -1,9 +1,9 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import SignatureCanvas from 'react-signature-canvas';
 import { X, Check, Package, AlertTriangle, Loader2, CheckCircle2, XCircle, Info } from 'lucide-react';
 import { useNotification } from '../hooks/useNotification';
 import { RequestItem, Product } from '../types';
+import SignatureCanvasField, { SignatureCanvasFieldHandle } from './SignatureCanvasField';
 
 interface WithdrawalItem extends RequestItem {
   currentStock: number;
@@ -42,7 +42,7 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
   onClose,
 }) => {
   const { showError } = useNotification();
-  const sigCanvasRef = useRef<SignatureCanvas>(null);
+  const sigCanvasRef = useRef<SignatureCanvasFieldHandle>(null);
   const [receiverName, setReceiverName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingComplete, setProcessingComplete] = useState(false);
@@ -341,29 +341,11 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
               </div>
 
               {/* Área de assinatura */}
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                  Assinatura do recebedor *
-                </label>
-                <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl overflow-hidden bg-white dark:bg-gray-100">
-                  <SignatureCanvas
-                    ref={sigCanvasRef}
-                    penColor="black"
-                    canvasProps={{
-                      className: 'w-full h-40 cursor-crosshair',
-                      style: { touchAction: 'none' }
-                    }}
-                  />
-                </div>
-                <button
-                  type="button"
-                  onClick={() => sigCanvasRef.current?.clear()}
-                  disabled={isProcessing}
-                  className="mt-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Limpar assinatura
-                </button>
-              </div>
+              <SignatureCanvasField
+                ref={sigCanvasRef}
+                label="Assinatura do recebedor *"
+                disabled={isProcessing}
+              />
             </>
           )}
         </div>

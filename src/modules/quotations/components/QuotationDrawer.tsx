@@ -32,6 +32,7 @@ import { ApprovalTimeline } from './ApprovalTimeline';
 import { AuditLogTimeline } from './AuditLogTimeline';
 import { AddProposalModal } from './AddProposalModal';
 import { ProposalDetailModal } from './ProposalDetailModal';
+import { PurchaseOrderModal } from './PurchaseOrderModal';
 import { generateQuotationPDF } from '../utils/generateQuotationPDF';
 
 interface SupplierOption {
@@ -49,7 +50,7 @@ interface QuotationDrawerProps {
   onSendToSuppliers?: () => void;
   onSelectWinner?: (proposalId: string) => void;
   onSubmitForApproval?: () => void;
-  onApprove?: (comment?: string) => void;
+  onApprove?: (comment: string | undefined, signature: string) => void;
   onReject?: (comment: string) => void;
   onConvertToPurchase?: () => void;
   onCancel?: (reason: string) => void;
@@ -120,6 +121,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   const [cancelReason, setCancelReason] = React.useState('');
   const [showActionsMenu, setShowActionsMenu] = React.useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
+  const [showPurchaseOrderModal, setShowPurchaseOrderModal] = useState(false);
   const [editingProposal, setEditingProposal] = useState<SupplierProposal | null>(null);
   const [viewingProposal, setViewingProposal] = useState<SupplierProposal | null>(null);
   const [showAddItemForm, setShowAddItemForm] = useState(false);
@@ -674,7 +676,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                     </div>
                   </div>
                 )}
-                {canAddProposal && (
+                {canAddProposal && canShowComparison && (
                   <div className="flex justify-end">
                     <button
                       onClick={() => setShowProposalModal(true)}
@@ -771,6 +773,15 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                 >
                   <ShoppingCart className="w-4 h-4" />
                   Converter em Pedido
+                </button>
+              )}
+              {quotation.status === 'converted_to_purchase' && quotation.purchaseOrderCode && (
+                <button
+                  onClick={() => setShowPurchaseOrderModal(true)}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold text-sm rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
+                >
+                  <FileDown className="w-4 h-4" />
+                  Baixar PDF da Ordem de Compra
                 </button>
               )}
             </div>
@@ -877,6 +888,16 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
           isOpen={!!viewingProposal}
           proposal={viewingProposal}
           onClose={() => setViewingProposal(null)}
+        />
+      )}
+
+      {/* Purchase Order PDF Modal (re-download after conversion) */}
+      {showPurchaseOrderModal && quotation.purchaseOrderCode && (
+        <PurchaseOrderModal
+          isOpen={showPurchaseOrderModal}
+          quotation={quotation}
+          purchaseOrderCode={quotation.purchaseOrderCode}
+          onClose={() => setShowPurchaseOrderModal(false)}
         />
       )}
     </>,

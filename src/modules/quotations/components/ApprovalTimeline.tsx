@@ -1,16 +1,19 @@
 import React from 'react';
-import { Check, X, Clock, AlertTriangle, ChevronRight, User, Shield } from 'lucide-react';
+import { Check, X, Clock, AlertTriangle, ChevronRight, User, Shield, PenLine } from 'lucide-react';
 import {
   Quotation,
   QuotationApproval,
   ApprovalLevel,
   APPROVAL_THRESHOLDS,
 } from '../types';
+import { useAuth } from '../../../hooks/useAuth';
+import QuotationApprovalSignatureModal from './QuotationApprovalSignatureModal';
+import ApprovalSignatureViewModal from './ApprovalSignatureViewModal';
 
 interface ApprovalTimelineProps {
   quotation: Quotation;
   currentUserApprovalLimit: number;
-  onApprove?: (comment?: string) => void;
+  onApprove?: (comment: string | undefined, signature: string) => void | Promise<void>;
   onReject?: (comment: string) => void;
 }
 
@@ -55,14 +58,22 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
   onApprove,
   onReject,
 }) => {
+  const { userProfile } = useAuth();
   const [rejectComment, setRejectComment] = React.useState('');
   const [approveComment, setApproveComment] = React.useState('');
   const [showRejectForm, setShowRejectForm] = React.useState(false);
+  const [showSignatureModal, setShowSignatureModal] = React.useState(false);
+  const [viewingSignature, setViewingSignature] = React.useState<QuotationApproval | null>(null);
 
   const amount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
   const isWithinLimit = amount <= currentUserApprovalLimit;
   const canApprove = quotation.status === 'awaiting_approval' && isWithinLimit;
   const canReject = quotation.status === 'awaiting_approval';
+
+  const handleConfirmSignedApproval = async (signature: string) => {
+    await onApprove?.(approveComment || undefined, signature);
+    setShowSignatureModal(false);
+  };
 
   return (
     <div className="space-y-4">
@@ -155,13 +166,23 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
 
                   {/* Approver Info */}
                   {approval?.approverId && (
-                    <div className="mt-2.5 flex items-center gap-2 text-sm">
+                    <div className="mt-2.5 flex items-center gap-2 text-sm flex-wrap">
                       <User className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
                       <span className="text-slate-700 dark:text-slate-300 font-medium">{approval.approverName}</span>
                       <span className="text-slate-300 dark:text-slate-600">•</span>
                       <span className="text-xs text-slate-500 dark:text-slate-400">
                         {formatDate(approval.approvedAt || approval.rejectedAt || approval.createdAt)}
                       </span>
+                      {approval.status === 'approved' && approval.signatureImage && (
+                        <button
+                          type="button"
+                          onClick={() => setViewingSignature(approval)}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+                        >
+                          <PenLine className="w-3 h-3" />
+                          Ver assinatura
+                        </button>
+                      )}
                     </div>
                   )}
 
@@ -198,7 +219,7 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
               <div className="flex flex-col sm:flex-row gap-2.5">
                 {canApprove && (
                   <button
-                    onClick={() => onApprove?.(approveComment || undefined)}
+                    onClick={() => setShowSignatureModal(true)}
                     className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold text-sm rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
                   >
                     <Check className="w-4 h-4" />
@@ -269,6 +290,26 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
           </div>
           <span className="text-sm font-semibold text-red-700 dark:text-red-300">Cotação rejeitada</span>
         </div>
+      )}
+
+      {showSignatureModal && (
+        <QuotationApprovalSignatureModal
+          quotationCode={quotation.code}
+          quotationTitle={quotation.title}
+          approverName={userProfile?.name || 'Aprovador'}
+          comment={approveComment || undefined}
+          onConfirm={handleConfirmSignedApproval}
+          onClose={() => setShowSignatureModal(false)}
+        />
+      )}
+
+      {viewingSignature?.signatureImage && (
+        <ApprovalSignatureViewModal
+          approverName={viewingSignature.approverName || 'Aprovador'}
+          approvedAt={viewingSignature.approvedAt}
+          signature={viewingSignature.signatureImage}
+          onClose={() => setViewingSignature(null)}
+        />
       )}
     </div>
   );

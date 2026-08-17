@@ -97,7 +97,8 @@ export const useQuotation = () => {
           quotation_items (*),
           quotation_invited_suppliers (*),
           quotation_proposals (*, quotation_proposal_items (*)),
-          quotation_audit_logs (*)
+          quotation_audit_logs (*),
+          quotation_approvals (*)
         `)
         .order('created_at', { ascending: false });
 
@@ -213,7 +214,23 @@ export const useQuotation = () => {
         finalTotalAmount: q.selected_price || q.final_total_amount,
         requiredApprovalLevel: getRequiredApprovalLevel(q.estimated_total || q.final_total_amount || q.selected_price || 0),
         currentApprovalLevel: undefined,
-        approvals: [],
+        approvals: (q.quotation_approvals || [])
+          .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .map((a: any): QuotationApproval => ({
+            id: a.id,
+            quotationId: q.id,
+            level: a.level,
+            status: a.status,
+            approverId: a.approver_id,
+            approverName: a.approver_name,
+            approverRole: a.approver_role,
+            amount: a.max_amount,
+            comment: a.comment,
+            approvedAt: a.approved_at,
+            rejectedAt: a.rejected_at,
+            createdAt: a.created_at,
+            signatureImage: a.signature_image,
+          })),
         department: q.department || 'ESTOQUE',
         costCenter: q.cost_center,
         justification: q.justification,
@@ -238,7 +255,7 @@ export const useQuotation = () => {
         updatedAt: q.updated_at,
         purchaseOrderId: q.purchase_order_id,
         purchaseOrderCode: q.purchase_order_code,
-        convertedAt: q.converted_at,
+        convertedAt: q.converted_to_purchase_at,
         }; // end return
       }); // end .map
 
@@ -1572,8 +1589,9 @@ export const useQuotation = () => {
     }
   }, [quotations, addAuditLog]);
 
-  const approveQuotation = useCallback(async (quotationId: string, comment?: string): Promise<void> => {
+  const approveQuotation = useCallback(async (quotationId: string, comment?: string, signatureImage?: string): Promise<void> => {
     if (!user || !userProfile) throw new Error('Usuário não autenticado');
+    if (!signatureImage) throw new Error('A assinatura é obrigatória para aprovar');
 
     const quotation = quotations.find(q => q.id === quotationId);
     if (!quotation) throw new Error('Cotação não encontrada');
@@ -1594,20 +1612,51 @@ export const useQuotation = () => {
     }
 
     const now = new Date().toISOString();
+    const approvalAmount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
+
+    const { data: insertedApproval, error: approvalError } = await supabase
+      .from('quotation_approvals')
+      .insert({
+        quotation_id: quotationId,
+        level: quotation.requiredApprovalLevel,
+        approver_id: user.id,
+        approver_name: userProfile.name,
+        approver_role: userProfile.role,
+        status: 'approved',
+        max_amount: approvalAmount,
+        comment,
+        approved_at: now,
+        signature_image: signatureImage,
+      })
+      .select()
+      .single();
+
+    if (approvalError) {
+      console.error('Error persisting quotation approval:', approvalError);
+      throw new Error('Erro ao registrar aprovação');
+    }
+
+    const newApproval: QuotationApproval = {
+      id: insertedApproval.id,
+      quotationId,
+      level: quotation.requiredApprovalLevel,
+      status: 'approved',
+      approverId: user.id,
+      approverName: userProfile.name,
+      approverRole: userProfile.role,
+      amount: approvalAmount,
+      comment,
+      approvedAt: now,
+      createdAt: insertedApproval.created_at,
+      signatureImage,
+    };
+
     setQuotations(prev => prev.map(q => {
       if (q.id === quotationId) {
         return {
           ...q,
           status: 'approved',
-          approvals: q.approvals.map(a => ({
-            ...a,
-            status: 'approved',
-            approverId: user.id,
-            approverName: userProfile.name,
-            approverRole: userProfile.role,
-            comment,
-            approvedAt: now,
-          })),
+          approvals: [...q.approvals.filter(a => a.level !== quotation.requiredApprovalLevel), newApproval],
           updatedAt: now,
         };
       }
@@ -1642,20 +1691,49 @@ export const useQuotation = () => {
     }
 
     const now = new Date().toISOString();
+    const approvalAmount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
+
+    const { data: insertedApproval, error: approvalError } = await supabase
+      .from('quotation_approvals')
+      .insert({
+        quotation_id: quotationId,
+        level: quotation.requiredApprovalLevel,
+        approver_id: user.id,
+        approver_name: userProfile.name,
+        approver_role: userProfile.role,
+        status: 'rejected',
+        max_amount: approvalAmount,
+        comment,
+        rejected_at: now,
+      })
+      .select()
+      .single();
+
+    if (approvalError) {
+      console.error('Error persisting quotation rejection:', approvalError);
+      throw new Error('Erro ao registrar rejeição');
+    }
+
+    const newApproval: QuotationApproval = {
+      id: insertedApproval.id,
+      quotationId,
+      level: quotation.requiredApprovalLevel,
+      status: 'rejected',
+      approverId: user.id,
+      approverName: userProfile.name,
+      approverRole: userProfile.role,
+      amount: approvalAmount,
+      comment,
+      rejectedAt: now,
+      createdAt: insertedApproval.created_at,
+    };
+
     setQuotations(prev => prev.map(q => {
       if (q.id === quotationId) {
         return {
           ...q,
           status: 'rejected',
-          approvals: q.approvals.map(a => ({
-            ...a,
-            status: 'rejected',
-            approverId: user.id,
-            approverName: userProfile.name,
-            approverRole: userProfile.role,
-            comment,
-            rejectedAt: now,
-          })),
+          approvals: [...q.approvals.filter(a => a.level !== quotation.requiredApprovalLevel), newApproval],
           updatedAt: now,
         };
       }
@@ -1785,6 +1863,7 @@ export const useQuotation = () => {
       .update({
         status: 'converted_to_purchase',
         purchase_order_id: purchaseOrderId,
+        purchase_order_code: purchaseOrderCode,
         converted_to_purchase_at: now,
       })
       .eq('id', quotationId);

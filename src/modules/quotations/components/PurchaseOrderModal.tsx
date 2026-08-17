@@ -32,6 +32,9 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
   const winnerProposal = quotation.proposals.find(p => p.id === quotation.selectedProposalId);
   const issueDate = quotation.convertedAt || new Date().toISOString();
+  const approvedEntry = [...quotation.approvals].reverse().find(a => a.status === 'approved');
+  const approverName = approvedEntry?.approverName || '—';
+  const approvalDateLabel = approvedEntry?.approvedAt ? formatDate(approvedEntry.approvedAt) : '—';
 
   const generatePDF = () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
@@ -185,19 +188,37 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
     }
 
     // ── Signature area ──
+    const signatureImage = approvedEntry?.signatureImage;
     const sigY = doc.internal.pageSize.getHeight() - 50;
+
+    if (signatureImage) {
+      // Traço real da assinatura, capturado no momento da aprovação
+      try {
+        doc.addImage(signatureImage, 'PNG', margin, sigY - 22, 60, 18, undefined, 'FAST');
+      } catch (err) {
+        console.error('Erro ao inserir assinatura no PDF:', err);
+      }
+    }
+
     doc.setDrawColor(150, 150, 150);
     doc.setLineDashPattern([2, 2], 0);
     doc.line(margin, sigY, margin + 70, sigY);
     doc.line(pageW / 2 + 5, sigY, pageW / 2 + 75, sigY);
     doc.setLineDashPattern([], 0);
 
+    // Nome do aprovador como legenda logo abaixo da linha
+    // (a assinatura desenhada, quando houver, fica impressa acima da linha)
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(30, 30, 30);
+    doc.text(approverName, margin, sigY + 5);
+
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
-    doc.text('Solicitante / Autorizado por', margin, sigY + 5);
+    doc.text('Aprovador Responsável', margin, sigY + 10);
     doc.text('Fornecedor / Confirmação', pageW / 2 + 5, sigY + 5);
-    doc.text(`Data: ___/___/______`, margin, sigY + 12);
-    doc.text(`Data: ___/___/______`, pageW / 2 + 5, sigY + 12);
+    doc.text(`Data: ${approvalDateLabel}`, margin, sigY + 15);
+    doc.text(`Data: ___/___/______`, pageW / 2 + 5, sigY + 10);
 
     // ── Footer ──
     const footerY = doc.internal.pageSize.getHeight() - 10;

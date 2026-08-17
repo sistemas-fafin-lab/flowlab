@@ -274,6 +274,7 @@ export interface QuotationApproval {
   approvedAt?: string;
   rejectedAt?: string;
   createdAt: string;
+  signatureImage?: string;
 }
 
 // ============================================
