@@ -122,80 +122,6 @@ function emailApiPlugin(env: Record<string, string>): Plugin {
     },
   };
 }
-// ── Dev-only middleware para POST /api/notifications/purchase-out-of-stock ───
-// Alerta de SC com produto sem estoque (RequestManagement.tsx). Carrega o
-// handler Vercel via ssrLoadModule e adapta req/res ao contrato que ele espera,
-// como apoioApiPlugin/faturamentoApiPlugin — evita duplicar a lógica de envio
-// (e o escape de HTML) como o emailApiPlugin acima faz.
-function purchaseOutOfStockApiPlugin(env: Record<string, string>): Plugin {
-  const SERVER_ENV_KEYS = [
-    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
-    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
-    'PURCHASE_ALERT_TO',
-  ];
-
-  const ensureProcessEnv = () => {
-    for (const k of SERVER_ENV_KEYS) {
-      if (env[k] && !process.env[k]) process.env[k] = env[k];
-    }
-    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
-    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
-      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
-    }
-  };
-
-  return {
-    name: 'purchase-out-of-stock-dev-api',
-    configureServer(server) {
-      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
-        if (req.url !== '/api/notifications/purchase-out-of-stock' || req.method !== 'POST') return next();
-
-        let body: Record<string, unknown> = {};
-        try {
-          await new Promise<void>((resolve, reject) => {
-            let raw = '';
-            req.on('data', (chunk) => { raw += chunk; });
-            req.on('end', () => {
-              try { body = raw ? JSON.parse(raw) : {}; resolve(); }
-              catch { reject(new Error('JSON inválido')); }
-            });
-            req.on('error', reject);
-          });
-        } catch {
-          res.statusCode = 400;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify({ success: false, error: 'Body inválido' }));
-          return;
-        }
-
-        // Adapta o req/res cru do Node ao contrato Vercel que o handler usa.
-        const vReq = Object.assign(req, { body });
-        const vRes = Object.assign(res, {
-          status(code: number) { res.statusCode = code; return vRes; },
-          json(payload: unknown) {
-            if (!res.headersSent) res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify(payload));
-            return vRes;
-          },
-        });
-
-        try {
-          ensureProcessEnv();
-          const mod = await server.ssrLoadModule('/api/notifications/purchase-out-of-stock.ts');
-          await mod.default(vReq, vRes);
-        } catch (err) {
-          console.error('[dev/notifications/purchase-out-of-stock]', err);
-          if (!res.headersSent) {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'application/json');
-            res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Erro interno' }));
-          }
-        }
-      });
-    },
-  };
-}
-
 // ── Dev-only middleware that emula /api/umami sem precisar do vercel dev ──────
 function umamiApiPlugin(env: Record<string, string>): Plugin {
   return {
@@ -784,7 +710,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), emailApiPlugin(env), purchaseOutOfStockApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env)],
+    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },

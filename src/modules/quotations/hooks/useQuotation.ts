@@ -20,7 +20,10 @@ import {
   ApprovalLevel,
   APPROVAL_THRESHOLDS,
   QuotationActionType,
+  QuotationTypeLabels,
 } from '../types';
+import { formatCurrency } from '../../../utils/paymentUtils';
+import { APP_BASE_URL } from '../../../utils/appUrl';
 import {
   canTransition,
   validateTransition,
@@ -1540,6 +1543,47 @@ export const useQuotation = () => {
       previousStatus: quotation.status,
       newStatus: 'awaiting_approval',
     });
+
+    // Notificar por email todo gestor com alçada suficiente para o valor da
+    // cotação — melhor esforço, uma falha aqui não pode reverter a submissão.
+    try {
+      const amount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
+      const { data: approvers, error: approversError } = await supabase
+        .from('user_approval_limits_with_details')
+        .select('user_email')
+        .eq('can_approve', true)
+        .gte('effective_max_amount', amount);
+
+      if (approversError) {
+        console.error('Error fetching approvers for quotation approval notification:', approversError);
+      } else {
+        const variables = {
+          quotation_code: quotation.code,
+          quotation_title: quotation.title,
+          quotation_type_label: QuotationTypeLabels[quotation.quotationType],
+          requester_name: quotation.createdByName,
+          total_amount: formatCurrency(amount),
+          action_url: `${APP_BASE_URL}/quotations`,
+        };
+
+        for (const approver of approvers || []) {
+          if (!approver.user_email) continue;
+          fetch('/api/notifications/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: approver.user_email,
+              templateSlug: 'quotation_awaiting_approval',
+              variables,
+            }),
+          }).catch((err) => {
+            console.warn('Error sending quotation approval notification:', err);
+          });
+        }
+      }
+    } catch (notifyErr) {
+      console.error('Error notifying approvers of quotation awaiting approval:', notifyErr);
+    }
   }, [quotations, addAuditLog]);
 
   const approveQuotation = useCallback(async (quotationId: string, comment?: string): Promise<void> => {

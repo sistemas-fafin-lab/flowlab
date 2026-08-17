@@ -7,7 +7,6 @@ import { useNotification } from '../hooks/useNotification';
 import { useDialog } from '../hooks/useDialog';
 import { DEPARTMENTS } from '../utils/permissions';
 import { Request, RequestItem, Product, DepartmentLabels } from '../types';
-import { getOutOfStockItems } from '../utils/purchaseOutOfStock';
 import { useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import Notification from './Notification';
@@ -505,25 +504,6 @@ useEffect(() => {
         supplierName: newRequest.supplierId ? suppliers.find(s => s.id === newRequest.supplierId)?.name : undefined,
         status: 'pending'
       }, attachments);
-
-      // Alerta por email (melhor esforço — não bloqueia a criação da SC se falhar)
-      if (newRequest.type === 'SC') {
-        const outOfStockItems = getOutOfStockItems(newRequest.items);
-        if (outOfStockItems.length > 0) {
-          fetch('/api/notifications/purchase-out-of-stock', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              requesterName: userProfile?.name || '',
-              requestDate,
-              reason: newRequest.reason,
-              items: outOfStockItems,
-            }),
-          }).catch((err) => {
-            console.warn('[handleSubmitRequest] Falha ao notificar produtos sem estoque:', err);
-          });
-        }
-      }
 
       setNewRequest({
         type: 'SM',
