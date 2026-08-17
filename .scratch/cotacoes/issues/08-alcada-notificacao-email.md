@@ -1,6 +1,6 @@
 # Notificar gestores por email quando cotação entra em "Aguardando Aprovação"
 
-Status: ready-for-agent
+Status: done
 
 ## Onde
 

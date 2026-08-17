@@ -1,6 +1,6 @@
 # Remover o alerta por email de "SC sem estoque"
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 08
 
