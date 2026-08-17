@@ -31,6 +31,7 @@ import {
 } from '../types';
 import { QuotationDrawer } from './QuotationDrawer';
 import { CreateQuotationModal } from './CreateQuotationModal';
+import { QuotationTypeSelectionModal } from './QuotationTypeSelectionModal';
 import { PurchaseOrderModal } from './PurchaseOrderModal';
 import { useInventory } from '../../../hooks/useInventory';
 
@@ -116,6 +117,8 @@ export const QuotationManagementPage: React.FC = () => {
     sort,
   } = useQuotation();
 
+  const [showTypeSelectionModal, setShowTypeSelectionModal] = useState(false);
+  const [newQuotationType, setNewQuotationType] = useState<QuotationType>('compras');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
@@ -145,6 +148,16 @@ export const QuotationManagementPage: React.FC = () => {
   const handleCloseDrawer = () => {
     setShowDrawer(false);
     setTimeout(() => setSelectedQuotation(null), 300);
+  };
+
+  const handleNewQuotationClick = () => {
+    setShowTypeSelectionModal(true);
+  };
+
+  const handleQuotationTypeSelected = (type: QuotationType) => {
+    setNewQuotationType(type);
+    setShowTypeSelectionModal(false);
+    setShowCreateModal(true);
   };
 
   const handleCreateQuotation = async (data: any) => {
@@ -229,7 +242,7 @@ export const QuotationManagementPage: React.FC = () => {
           </button>
           {permissions.canCreate && (
             <button
-              onClick={() => setShowCreateModal(true)}
+              onClick={handleNewQuotationClick}
               className="flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all font-semibold text-sm shadow-lg shadow-blue-500/25 hover:shadow-blue-500/40"
             >
               <Plus className="w-5 h-5" />
@@ -726,6 +739,13 @@ export const QuotationManagementPage: React.FC = () => {
         Exibindo {filteredQuotations.length} de {quotations.length} cotações
       </div>
 
+      {/* Type Selection Modal */}
+      <QuotationTypeSelectionModal
+        isOpen={showTypeSelectionModal}
+        onClose={() => setShowTypeSelectionModal(false)}
+        onSelect={handleQuotationTypeSelected}
+      />
+
       {/* Create Modal */}
       {showCreateModal && (
         <CreateQuotationModal
@@ -734,6 +754,7 @@ export const QuotationManagementPage: React.FC = () => {
           onSubmit={handleCreateQuotation}
           suppliers={suppliers}
           onSupplierCreated={handleSupplierCreated}
+          quotationType={newQuotationType}
         />
       )}
 

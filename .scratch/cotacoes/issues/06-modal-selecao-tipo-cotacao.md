@@ -1,6 +1,6 @@
 # Modal de seleção de tipo: Contratação ou Compras
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 05
 

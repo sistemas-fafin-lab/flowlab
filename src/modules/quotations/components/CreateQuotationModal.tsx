@@ -15,7 +15,7 @@ import {
   ClipboardList,
 } from 'lucide-react';
 import { Department, DepartmentLabels, Request, Supplier } from '../../../types';
-import { CreateQuotationInput, QuotationItem } from '../types';
+import { CreateQuotationInput, QuotationItem, QuotationType, QuotationTypeLabels } from '../types';
 import { useInventory } from '../../../hooks/useInventory';
 import SupplierFormModal from '../../../components/SupplierFormModal';
 import { mergeSuppliers } from '../utils/mergeSuppliers';
@@ -27,6 +27,7 @@ interface CreateQuotationModalProps {
   onSubmit: (data: CreateQuotationInput) => Promise<void>;
   suppliers: { id: string; name: string; email: string }[];
   onSupplierCreated?: (supplier: Supplier) => void | Promise<void>;
+  quotationType?: QuotationType;
   linkedRequest?: {
     id: string;
     code: string;
@@ -61,6 +62,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   onSubmit,
   suppliers,
   onSupplierCreated,
+  quotationType = 'compras',
   linkedRequest,
 }) => {
   const { products, requests } = useInventory();
@@ -242,7 +244,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
     const submitData = {
       title,
       description: description || undefined,
-      quotationType: 'compras' as const,
+      quotationType,
       requestId: linkedRequest?.id,
       department,
       costCenter: costCenter || undefined,
@@ -293,7 +295,9 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
         <div className="flex-shrink-0 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Nova Cotação</h2>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">
+                Nova Cotação <span className="text-base font-medium text-gray-500 dark:text-gray-400">· {QuotationTypeLabels[quotationType]}</span>
+              </h2>
               {linkedRequest && (
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
                   Vinculada à requisição {linkedRequest.code}
