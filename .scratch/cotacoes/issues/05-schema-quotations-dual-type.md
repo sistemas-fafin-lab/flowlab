@@ -1,6 +1,6 @@
 # Schema: suportar dois tipos de cotação (Compras / Contratação) no banco
 
-Status: ready-for-agent
+Status: done
 
 ## Onde
 

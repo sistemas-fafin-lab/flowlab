@@ -187,8 +187,10 @@ export const useQuotation = () => {
         title: q.title || q.product_name || 'Cotação sem título',
         description: q.description,
         status: mapLegacyStatus(q.status),
+        quotationType: q.quotation_type || 'compras',
         requestId: q.request_id,
         requestCode: q.request_code,
+        maintenanceRequestId: q.maintenance_request_id,
         items,
         invitedSuppliers: (q.quotation_invited_suppliers || []).map((supplier: any) => ({
           id: supplier.id,
@@ -384,6 +386,9 @@ export const useQuotation = () => {
     // Apply filters
     if (filters.status?.length) {
       result = result.filter(q => filters.status!.includes(q.status));
+    }
+    if (filters.quotationType?.length) {
+      result = result.filter(q => filters.quotationType!.includes(q.quotationType));
     }
     if (filters.department?.length) {
       result = result.filter(q => filters.department!.includes(q.department));
@@ -625,7 +630,9 @@ export const useQuotation = () => {
       title: input.title,
       description: input.description,
       status: 'draft',
+      quotationType: input.quotationType,
       requestId: input.requestId,
+      maintenanceRequestId: input.maintenanceRequestId,
       items: input.items.map((item, index) => ({
         ...item,
         id: crypto.randomUUID(),
@@ -681,7 +688,9 @@ export const useQuotation = () => {
         title: newQuotation.title,
         description: newQuotation.description,
         status: 'draft',
+        quotation_type: newQuotation.quotationType,
         request_id: newQuotation.requestId || null,
+        maintenance_request_id: newQuotation.maintenanceRequestId || null,
         product_id: newQuotation.items[0]?.productId || null,
         product_name: newQuotation.items[0]?.productName || newQuotation.title,
         requested_quantity: newQuotation.items[0]?.quantity || 1,

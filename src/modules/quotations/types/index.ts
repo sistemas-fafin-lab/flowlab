@@ -39,6 +39,16 @@ export const QuotationStatusColors: Record<QuotationStatus, string> = {
 };
 
 // ============================================
+// QUOTATION TYPE
+// ============================================
+export type QuotationType = 'compras' | 'contratacao';
+
+export const QuotationTypeLabels: Record<QuotationType, string> = {
+  compras: 'Compras',
+  contratacao: 'Contratação',
+};
+
+// ============================================
 // PAYMENT METHOD
 // ============================================
 export type PaymentMethod = 'pix' | 'credit_card' | 'boleto';
@@ -275,11 +285,13 @@ export interface Quotation {
   title: string;
   description?: string;
   status: QuotationStatus;
-  
+  quotationType: QuotationType;
+
   // Optional link to request
   requestId?: string;
   requestCode?: string;
-  
+  maintenanceRequestId?: string;
+
   // Items
   items: QuotationItem[];
   
@@ -376,7 +388,9 @@ export interface SupplierComparisonData {
 export interface CreateQuotationInput {
   title: string;
   description?: string;
+  quotationType: QuotationType;
   requestId?: string;
+  maintenanceRequestId?: string;
   department: Department;
   costCenter?: string;
   justification?: string;
@@ -418,6 +432,7 @@ export interface SubmitProposalInput {
 // ============================================
 export interface QuotationFilters {
   status?: QuotationStatus[];
+  quotationType?: QuotationType[];
   department?: Department[];
   priority?: ('low' | 'medium' | 'high' | 'urgent')[];
   dateFrom?: string;

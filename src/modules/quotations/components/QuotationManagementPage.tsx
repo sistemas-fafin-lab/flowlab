@@ -20,12 +20,14 @@ import {
   BarChart3,
 } from 'lucide-react';
 import { useQuotation } from '../hooks/useQuotation';
-import { 
-  Quotation, 
+import {
+  Quotation,
   QuotationStatus,
-  QuotationStatusLabels, 
+  QuotationStatusLabels,
   QuotationStatusColors,
-  QuotationSortField
+  QuotationSortField,
+  QuotationType,
+  QuotationTypeLabels,
 } from '../types';
 import { QuotationDrawer } from './QuotationDrawer';
 import { CreateQuotationModal } from './CreateQuotationModal';
@@ -69,6 +71,12 @@ const STATUS_FILTER_OPTIONS: { value: QuotationStatus | 'all'; label: string }[]
   { value: 'awaiting_approval', label: 'Aprovação' },
   { value: 'approved', label: 'Aprovadas' },
   { value: 'rejected', label: 'Rejeitadas' },
+];
+
+const TYPE_FILTER_OPTIONS: { value: QuotationType | 'all'; label: string }[] = [
+  { value: 'all', label: 'Todos os tipos' },
+  { value: 'compras', label: QuotationTypeLabels.compras },
+  { value: 'contratacao', label: QuotationTypeLabels.contratacao },
 ];
 
 const SORT_OPTIONS: { value: QuotationSortField; label: string }[] = [
@@ -191,6 +199,11 @@ export const QuotationManagementPage: React.FC = () => {
   };
 
   const activeStatusFilter = filters.status?.[0] || 'all';
+  const activeTypeFilter = filters.quotationType?.[0] || 'all';
+
+  const handleTypeFilterChange = (value: QuotationType | 'all') => {
+    setFilters({ ...filters, quotationType: value === 'all' ? undefined : [value] });
+  };
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -439,6 +452,19 @@ export const QuotationManagementPage: React.FC = () => {
               placeholder="Buscar cotações..."
               className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
             />
+          </div>
+
+          {/* Type Filter */}
+          <div>
+            <select
+              value={activeTypeFilter}
+              onChange={(e) => handleTypeFilterChange(e.target.value as QuotationType | 'all')}
+              className="w-full sm:w-auto px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl text-sm bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100"
+            >
+              {TYPE_FILTER_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* Mobile Status Filter */}

@@ -242,6 +242,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
     const submitData = {
       title,
       description: description || undefined,
+      quotationType: 'compras' as const,
       requestId: linkedRequest?.id,
       department,
       costCenter: costCenter || undefined,
