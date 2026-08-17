@@ -1,6 +1,6 @@
 # Import de solicitação de manutenção em cotação de Contratação
 
-Status: ready-for-agent
+Status: done
 
 Blocked by: 05, 06, 04
 
