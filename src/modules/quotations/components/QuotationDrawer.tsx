@@ -23,6 +23,7 @@ import {
   Search,
   Maximize2,
   Minimize2,
+  RotateCcw,
 } from 'lucide-react';
 import { Quotation, QuotationStatusColors, QuotationStatusLabels, QuotationPermissions, SubmitProposalInput, QuotationItem, SupplierProposal } from '../types';
 import { Supplier } from '../../../types';
@@ -54,6 +55,7 @@ interface QuotationDrawerProps {
   onReject?: (comment: string) => void;
   onConvertToPurchase?: () => void;
   onCancel?: (reason: string) => void;
+  onRevert?: () => void;
   onSubmitProposal?: (quotationId: string, data: SubmitProposalInput) => Promise<void>;
   onUpdateProposal?: (quotationId: string, proposalId: string, data: SubmitProposalInput) => Promise<void>;
   onAdvanceToReview?: () => void;
@@ -106,6 +108,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onReject,
   onConvertToPurchase,
   onCancel,
+  onRevert,
   onSubmitProposal,
   onUpdateProposal,
   onAdvanceToReview,
@@ -314,6 +317,15 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                         <FileDown className="w-4 h-4 text-slate-500" />
                         Gerar PDF
                       </button>
+                      {permissions.canRevert && (
+                        <button
+                          onClick={() => { setShowActionsMenu(false); onRevert?.(); }}
+                          className="w-full px-4 py-2.5 text-left text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50 flex items-center gap-2.5 transition-colors"
+                        >
+                          <RotateCcw className="w-4 h-4 text-slate-500" />
+                          Reverter Etapa
+                        </button>
+                      )}
                       {permissions.canCancel && (
                         <button
                           onClick={() => { setShowActionsMenu(false); setShowCancelModal(true); }}
