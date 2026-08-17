@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { X, Package, User, Calendar, FileText, ClipboardList } from 'lucide-react';
-import { Request } from '../../../types';
+import { Request, MaintenanceRequest, DepartmentLabels, Department } from '../../../types';
 import { formatDate } from '../utils/formatDate';
 
 interface ImportDetailBadge {
@@ -65,6 +65,25 @@ const PRIORITY_LABEL: Record<string, string> = {
   urgent: 'Urgente',
 };
 
+const MNT_PRIORITY_LABEL: Record<string, string> = {
+  common: 'Comum',
+  priority: 'Prioritário',
+  urgent: 'Urgente',
+};
+
+const MNT_PRIORITY_BADGE_CLASSNAME: Record<string, string> = {
+  common: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
+  priority: 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300',
+  urgent: 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300',
+};
+
+const MNT_STATUS_LABEL: Record<string, string> = {
+  pending: 'Aguardando análise',
+  in_progress: 'Em andamento',
+  completed: 'Concluído',
+  cancelled: 'Cancelado',
+};
+
 /** Builds the view model for an inventory request (SC/SM). */
 export const buildRequestImportDetails = (request: Request): ImportDetailsData => ({
   title: `${request.type} - ${request.id}`,
@@ -85,6 +104,27 @@ export const buildRequestImportDetails = (request: Request): ImportDetailsData =
     productName: item.productName,
     quantity: item.quantity,
   })),
+});
+
+/** Builds the view model for a maintenance request (MNT) — no item list, free-text fields instead. */
+export const buildMaintenanceImportDetails = (mnt: MaintenanceRequest): ImportDetailsData => ({
+  title: `MNT - ${mnt.codigo}`,
+  badges: [
+    {
+      label: MNT_PRIORITY_LABEL[mnt.prioridade] || mnt.prioridade,
+      className: MNT_PRIORITY_BADGE_CLASSNAME[mnt.prioridade] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400',
+    },
+    { label: MNT_STATUS_LABEL[mnt.status] || mnt.status, className: STATUS_BADGE_CLASSNAME[mnt.status] || 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' },
+  ],
+  fields: [
+    { label: 'Local da ocorrência', value: mnt.localOcorrencia },
+    { label: 'Departamento', value: DepartmentLabels[mnt.department as Department] || mnt.department },
+    { label: 'Data de identificação', value: formatDate(mnt.dataIdentificacao) },
+  ],
+  justification: {
+    label: 'Descrição / Impacto operacional',
+    value: `${mnt.descricao}\n\n${mnt.impactoOperacional}`,
+  },
 });
 
 export const RequestImportDetailsModal: React.FC<RequestImportDetailsModalProps> = ({

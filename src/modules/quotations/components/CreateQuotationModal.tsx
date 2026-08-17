@@ -14,12 +14,13 @@ import {
   AlertTriangle,
   ClipboardList,
 } from 'lucide-react';
-import { Department, DepartmentLabels, Request, Supplier } from '../../../types';
+import { Department, DepartmentLabels, MaintenanceRequest, Request, Supplier } from '../../../types';
 import { CreateQuotationInput, QuotationItem, QuotationType, QuotationTypeLabels } from '../types';
 import { useInventory } from '../../../hooks/useInventory';
+import { useMaintenanceRequest } from '../../../hooks/useMaintenanceRequest';
 import SupplierFormModal from '../../../components/SupplierFormModal';
 import { mergeSuppliers } from '../utils/mergeSuppliers';
-import RequestImportDetailsModal, { buildRequestImportDetails } from './RequestImportDetailsModal';
+import RequestImportDetailsModal, { buildMaintenanceImportDetails, buildRequestImportDetails } from './RequestImportDetailsModal';
 
 interface CreateQuotationModalProps {
   isOpen: boolean;
@@ -56,6 +57,96 @@ interface ItemForm {
   description?: string;
 }
 
+interface ImportPickerPanelProps<T> {
+  isOpen: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  buttonLabel: string;
+  panelTitle: string;
+  items: T[];
+  getKey: (item: T) => string;
+  onSelect: (item: T) => void;
+  renderItem: (item: T) => React.ReactNode;
+  searchTerm: string;
+  onSearchChange: (value: string) => void;
+  searchPlaceholder: string;
+  emptyMessage: string;
+}
+
+/** Shared shell (toggle button, search box, scrollable result list) for the two item-import pickers in the Items step. */
+function ImportPickerPanel<T>({
+  isOpen,
+  onOpen,
+  onClose,
+  buttonLabel,
+  panelTitle,
+  items,
+  getKey,
+  onSelect,
+  renderItem,
+  searchTerm,
+  onSearchChange,
+  searchPlaceholder,
+  emptyMessage,
+}: ImportPickerPanelProps<T>) {
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-sm font-medium"
+      >
+        <ClipboardList className="w-4 h-4" />
+        {buttonLabel}
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 flex items-center gap-2">
+          <ClipboardList className="w-4 h-4" />
+          {panelTitle}
+        </h3>
+        <button
+          type="button"
+          onClick={onClose}
+          className="p-1 text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 rounded"
+        >
+          <X className="w-4 h-4" />
+        </button>
+      </div>
+      <div className="relative mb-3">
+        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="w-full pl-9 pr-3 py-2 border border-blue-200 dark:border-blue-700 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
+          placeholder={searchPlaceholder}
+        />
+      </div>
+      <div className="max-h-48 overflow-y-auto space-y-2">
+        {items.length === 0 ? (
+          <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">{emptyMessage}</p>
+        ) : (
+          items.slice(0, 10).map(item => (
+            <button
+              key={getKey(item)}
+              type="button"
+              onClick={() => onSelect(item)}
+              className="w-full text-left p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all"
+            >
+              {renderItem(item)}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   isOpen,
   onClose,
@@ -66,14 +157,16 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   linkedRequest,
 }) => {
   const { products, requests } = useInventory();
+  const { maintenanceRequests } = useMaintenanceRequest();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<'info' | 'items' | 'suppliers' | 'review'>(linkedRequest ? 'suppliers' : 'info');
   const [showRequestPicker, setShowRequestPicker] = useState(false);
   const [requestSearchTerm, setRequestSearchTerm] = useState('');
   const [requestDetails, setRequestDetails] = useState<Request | null>(null);
+  const [maintenanceDetails, setMaintenanceDetails] = useState<MaintenanceRequest | null>(null);
   const [showSupplierForm, setShowSupplierForm] = useState(false);
   const [extraSuppliers, setExtraSuppliers] = useState<{ id: string; name: string; email: string }[]>([]);
-  
+
   // Form state
   const [title, setTitle] = useState(linkedRequest ? `Cotação - ${linkedRequest.code}` : '');
   const [description, setDescription] = useState('');
@@ -83,6 +176,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
   const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>('medium');
   const [responseDeadline, setResponseDeadline] = useState('');
   const [deliveryDeadline, setDeliveryDeadline] = useState('');
+  const [maintenanceRequestId, setMaintenanceRequestId] = useState<string | undefined>(undefined);
   
   // Items
   const [items, setItems] = useState<ItemForm[]>(
@@ -211,6 +305,28 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
     return true;
   });
 
+  const handleImportFromMaintenance = (mnt: MaintenanceRequest) => {
+    setTitle(`Contratação - ${mnt.codigo}`);
+    setDescription(mnt.descricao);
+    setJustification(mnt.impactoOperacional);
+    setDepartment(mnt.department as Department);
+    setMaintenanceRequestId(mnt.id);
+    setShowRequestPicker(false);
+    setRequestSearchTerm('');
+  };
+
+  const filteredMaintenanceRequests = maintenanceRequests.filter(m => {
+    if (requestSearchTerm) {
+      const term = requestSearchTerm.toLowerCase();
+      return (
+        m.codigo.toLowerCase().includes(term) ||
+        m.descricao.toLowerCase().includes(term) ||
+        m.localOcorrencia.toLowerCase().includes(term)
+      );
+    }
+    return true;
+  });
+
   const handleToggleSupplier = (supplierId: string) => {
     setSelectedSuppliers(prev =>
       prev.includes(supplierId)
@@ -246,6 +362,7 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
       description: description || undefined,
       quotationType,
       requestId: linkedRequest?.id,
+      maintenanceRequestId,
       department,
       costCenter: costCenter || undefined,
       justification: justification || undefined,
@@ -464,85 +581,80 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
           {/* Items Step */}
           {step === 'items' && (
             <div className="space-y-4">
-              {/* Import from Request */}
-              {!showRequestPicker ? (
-                <button
-                  type="button"
-                  onClick={() => setShowRequestPicker(true)}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors text-sm font-medium"
-                >
-                  <ClipboardList className="w-4 h-4" />
-                  Importar Itens de uma Solicitação
-                </button>
+              {/* Import from Request / Maintenance Request */}
+              {quotationType === 'compras' ? (
+                <ImportPickerPanel
+                  isOpen={showRequestPicker}
+                  onOpen={() => setShowRequestPicker(true)}
+                  onClose={() => { setShowRequestPicker(false); setRequestSearchTerm(''); }}
+                  buttonLabel="Importar Itens de uma Solicitação"
+                  panelTitle="Importar de Solicitação"
+                  items={filteredRequests}
+                  getKey={(request) => request.id}
+                  onSelect={(request) => setRequestDetails(request)}
+                  searchTerm={requestSearchTerm}
+                  onSearchChange={setRequestSearchTerm}
+                  searchPlaceholder="Buscar por solicitação..."
+                  emptyMessage="Nenhuma solicitação encontrada"
+                  renderItem={(request) => (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
+                            request.type === 'SC' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
+                          }`}>
+                            {request.type}
+                          </span>
+                          <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
+                            request.status === 'approved' ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' :
+                            request.status === 'pending' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' :
+                            'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                          }`}>
+                            {request.status === 'approved' ? 'Aprovada' : request.status === 'pending' ? 'Pendente' : request.status}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-400">{request.items.length} item(ns)</span>
+                      </div>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 line-clamp-1">{request.reason}</p>
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {request.items.slice(0, 3).map((ri, idx) => (
+                          <span key={idx} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
+                            {ri.productName} ({ri.quantity})
+                          </span>
+                        ))}
+                        {request.items.length > 3 && (
+                          <span className="text-xs text-gray-400">+{request.items.length - 3} mais</span>
+                        )}
+                      </div>
+                    </>
+                  )}
+                />
               ) : (
-                <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-xl p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-sm font-medium text-blue-800 dark:text-blue-300 flex items-center gap-2">
-                      <ClipboardList className="w-4 h-4" />
-                      Importar de Solicitação
-                    </h3>
-                    <button
-                      type="button"
-                      onClick={() => { setShowRequestPicker(false); setRequestSearchTerm(''); }}
-                      className="p-1 text-blue-400 hover:text-blue-600 dark:hover:text-blue-300 rounded"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                    <input
-                      type="text"
-                      value={requestSearchTerm}
-                      onChange={(e) => setRequestSearchTerm(e.target.value)}
-                      className="w-full pl-9 pr-3 py-2 border border-blue-200 dark:border-blue-700 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                      placeholder="Buscar por solicitação..."
-                    />
-                  </div>
-                  <div className="max-h-48 overflow-y-auto space-y-2">
-                    {filteredRequests.length === 0 ? (
-                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">Nenhuma solicitação encontrada</p>
-                    ) : (
-                      filteredRequests.slice(0, 10).map(request => (
-                        <button
-                          key={request.id}
-                          type="button"
-                          onClick={() => setRequestDetails(request)}
-                          className="w-full text-left p-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg hover:border-blue-300 dark:hover:border-blue-600 hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-all"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <span className={`text-xs font-medium px-1.5 py-0.5 rounded ${
-                                request.type === 'SC' ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300'
-                              }`}>
-                                {request.type}
-                              </span>
-                              <span className={`ml-2 text-xs px-1.5 py-0.5 rounded ${
-                                request.status === 'approved' ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' :
-                                request.status === 'pending' ? 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' :
-                                'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
-                              }`}>
-                                {request.status === 'approved' ? 'Aprovada' : request.status === 'pending' ? 'Pendente' : request.status}
-                              </span>
-                            </div>
-                            <span className="text-xs text-gray-400">{request.items.length} item(ns)</span>
-                          </div>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 line-clamp-1">{request.reason}</p>
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {request.items.slice(0, 3).map((ri, idx) => (
-                              <span key={idx} className="text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 px-1.5 py-0.5 rounded">
-                                {ri.productName} ({ri.quantity})
-                              </span>
-                            ))}
-                            {request.items.length > 3 && (
-                              <span className="text-xs text-gray-400">+{request.items.length - 3} mais</span>
-                            )}
-                          </div>
-                        </button>
-                      ))
-                    )}
-                  </div>
-                </div>
+                <ImportPickerPanel
+                  isOpen={showRequestPicker}
+                  onOpen={() => setShowRequestPicker(true)}
+                  onClose={() => { setShowRequestPicker(false); setRequestSearchTerm(''); }}
+                  buttonLabel="Importar de Solicitação de Manutenção"
+                  panelTitle="Importar de Solicitação de Manutenção"
+                  items={filteredMaintenanceRequests}
+                  getKey={(mnt) => mnt.id}
+                  onSelect={(mnt) => setMaintenanceDetails(mnt)}
+                  searchTerm={requestSearchTerm}
+                  onSearchChange={setRequestSearchTerm}
+                  searchPlaceholder="Buscar por código, descrição ou local..."
+                  emptyMessage="Nenhuma solicitação de manutenção encontrada"
+                  renderItem={(mnt) => (
+                    <>
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300">
+                          {mnt.codigo}
+                        </span>
+                        <span className="text-xs text-gray-400">{mnt.localOcorrencia}</span>
+                      </div>
+                      <p className="text-sm text-gray-700 dark:text-gray-300 mt-1 line-clamp-1">{mnt.descricao}</p>
+                    </>
+                  )}
+                />
               )}
 
               {/* Add Item Form */}
@@ -972,6 +1084,17 @@ export const CreateQuotationModal: React.FC<CreateQuotationModalProps> = ({
         onImport={() => {
           handleImportFromRequest(requestDetails);
           setRequestDetails(null);
+        }}
+      />
+    )}
+    {maintenanceDetails && (
+      <RequestImportDetailsModal
+        isOpen={!!maintenanceDetails}
+        data={buildMaintenanceImportDetails(maintenanceDetails)}
+        onClose={() => setMaintenanceDetails(null)}
+        onImport={() => {
+          handleImportFromMaintenance(maintenanceDetails);
+          setMaintenanceDetails(null);
         }}
       />
     )}
