@@ -1,6 +1,6 @@
 # Sidemodal de cotação: navegação restrita + botão do WhatsApp menor
 
-Status: ready-for-agent
+Status: done
 
 ## Onde
 

@@ -1,6 +1,6 @@
 # Cotações: fluxo dual (Compras / Contratação) + ajustes
 
-Status: planejamento (não implementado)
+Status: implementado (Fases 1-3 concluídas; Centro de Custo fora de escopo)
 
 ## Contexto
 

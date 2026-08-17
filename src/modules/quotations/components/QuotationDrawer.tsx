@@ -13,6 +13,7 @@ import {
   Check,
   AlertTriangle,
   ChevronRight,
+  ChevronLeft,
   ShoppingCart,
   MoreHorizontal,
   Plus,
@@ -79,6 +80,19 @@ const formatDate = (date: string) => {
 
 type Tab = 'overview' | 'items' | 'proposals' | 'approval' | 'history';
 
+// Sequential steps (History is not part of the flow, always accessible)
+const stepOrder: Tab[] = ['overview', 'items', 'proposals', 'approval'];
+
+const computeFurthestStep = (quotation: Quotation) => {
+  let furthest = 1; // "items" is always reachable from "overview" (no gate)
+  if (quotation.items.length > 0) furthest = Math.max(furthest, 2);
+  if (quotation.proposals.length >= 3) furthest = Math.max(furthest, 3);
+  if (!['draft', 'sent_to_suppliers', 'waiting_responses'].includes(quotation.status)) {
+    furthest = Math.max(furthest, 3);
+  }
+  return furthest;
+};
+
 export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   quotation,
   permissions,
@@ -101,6 +115,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onSupplierCreated,
 }) => {
   const [activeTab, setActiveTab] = React.useState<Tab>('overview');
+  const [furthestStepIndex, setFurthestStepIndex] = React.useState(1);
   const [showCancelModal, setShowCancelModal] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState('');
   const [showActionsMenu, setShowActionsMenu] = React.useState(false);
@@ -144,8 +159,16 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   useEffect(() => {
     if (quotation) {
       setActiveTab('overview');
+      setFurthestStepIndex(computeFurthestStep(quotation));
     }
   }, [quotation?.id]);
+
+  // Unlock further steps as the quotation progresses (items added, proposals
+  // received, status advanced) without requiring the user to re-click "Avançar"
+  useEffect(() => {
+    if (!quotation) return;
+    setFurthestStepIndex(prev => Math.max(prev, computeFurthestStep(quotation)));
+  }, [quotation?.items.length, quotation?.proposals.length, quotation?.status]);
 
   // Prevent body scroll when drawer is open
   useEffect(() => {
@@ -174,6 +197,35 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   const canConvertNow = quotation.status === 'approved';
   const canAdvanceToReview = ['draft', 'sent_to_suppliers', 'waiting_responses'].includes(quotation.status) && quotation.proposals.length >= 3;
   const canAddProposal = ['draft', 'sent_to_suppliers', 'waiting_responses'].includes(quotation.status);
+
+  const currentStepIndex = stepOrder.indexOf(activeTab);
+  const isOnStepTab = currentStepIndex !== -1;
+  const isLastStep = currentStepIndex === stepOrder.length - 1;
+  const nextStepDisabledReason =
+    activeTab === 'items' && quotation.items.length === 0 ? 'Adicione pelo menos 1 item para avançar' :
+    activeTab === 'proposals' && quotation.proposals.length < 3 ? 'É necessário no mínimo 3 propostas para avançar' :
+    undefined;
+  const canGoToNextStep = isOnStepTab && !isLastStep && !nextStepDisabledReason;
+
+  const handleTabClick = (tabId: Tab) => {
+    if (tabId === 'history') {
+      setActiveTab('history');
+      return;
+    }
+    const idx = stepOrder.indexOf(tabId);
+    if (idx <= furthestStepIndex) setActiveTab(tabId);
+  };
+
+  const handleBackStep = () => {
+    if (currentStepIndex > 0) setActiveTab(stepOrder[currentStepIndex - 1]);
+  };
+
+  const handleAdvanceStep = () => {
+    if (!canGoToNextStep) return;
+    const nextIndex = currentStepIndex + 1;
+    setActiveTab(stepOrder[nextIndex]);
+    setFurthestStepIndex(prev => Math.max(prev, nextIndex));
+  };
 
   const handleCancel = () => {
     if (cancelReason.trim()) {
@@ -294,30 +346,37 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
             <StatusStepper currentStatus={quotation.status} />
           </div>
 
-          {/* Tabs */}
+          {/* Tabs (progress indicators — navigation happens via Voltar/Avançar) */}
           <div className="mt-4 flex gap-1 overflow-x-auto pb-1 -mb-px">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-xl whitespace-nowrap transition-all ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600/10 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 shadow-sm'
-                    : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200'
-                }`}
-              >
-                {tab.label}
-                {tab.count !== undefined && tab.count > 0 && (
-                  <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full font-medium ${
-                    activeTab === tab.id
-                      ? 'bg-blue-600/15 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
-                      : 'bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-400'
-                  }`}>
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            ))}
+            {tabs.map(tab => {
+              const stepIdx = stepOrder.indexOf(tab.id);
+              const isLocked = tab.id !== 'history' && stepIdx > furthestStepIndex;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => handleTabClick(tab.id)}
+                  disabled={isLocked}
+                  className={`px-3 sm:px-4 py-2 text-sm font-medium rounded-xl whitespace-nowrap transition-all ${
+                    isLocked
+                      ? 'text-slate-400 dark:text-slate-600 opacity-50 cursor-not-allowed'
+                      : activeTab === tab.id
+                        ? 'bg-blue-600/10 dark:bg-blue-500/15 text-blue-700 dark:text-blue-300 shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100/70 dark:hover:bg-slate-800/50 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                  {tab.count !== undefined && tab.count > 0 && (
+                    <span className={`ml-1.5 px-1.5 py-0.5 text-xs rounded-full font-medium ${
+                      activeTab === tab.id
+                        ? 'bg-blue-600/15 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300'
+                        : 'bg-slate-200/80 dark:bg-slate-700/80 text-slate-600 dark:text-slate-400'
+                    }`}>
+                      {tab.count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -673,51 +732,75 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
 
         {/* Footer Actions */}
         <div className="flex-shrink-0 px-5 sm:px-6 py-4 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md border-t border-slate-200/70 dark:border-slate-800/70">
-          <div className="flex flex-col sm:flex-row gap-2.5">
-            {quotation.status === 'draft' && permissions.canSendToSuppliers && (
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5">
+            {/* Left: business action buttons */}
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              {quotation.status === 'draft' && permissions.canSendToSuppliers && (
+                <button
+                  onClick={onSendToSuppliers}
+                  disabled
+                  title="Envio via WhatsApp temporariamente desativado"
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2.5 bg-emerald-600 text-white font-semibold text-sm rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex-shrink-0"
+                >
+                  <Send className="w-4 h-4" />
+                  WhatsApp
+                </button>
+              )}
+              {canAdvanceToReview && onAdvanceToReview && (
+                <button
+                  onClick={onAdvanceToReview}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-semibold text-sm rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                >
+                  <ClipboardList className="w-4 h-4" />
+                  Avançar para Análise
+                </button>
+              )}
+              {canSubmitForApprovalNow && (
+                <button
+                  onClick={onSubmitForApproval}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 text-white font-semibold text-sm rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                  Submeter para Aprovação
+                </button>
+              )}
+              {canConvertNow && permissions.canConvertToPurchase && (
+                <button
+                  onClick={onConvertToPurchase}
+                  className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold text-sm rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
+                >
+                  <ShoppingCart className="w-4 h-4" />
+                  Converter em Pedido
+                </button>
+              )}
+            </div>
+
+            {/* Right: step navigation + close (always visible, enabled only when applicable) */}
+            <div className="flex gap-2.5 flex-shrink-0">
               <button
-                onClick={onSendToSuppliers}
-                disabled={quotation.items.length === 0 || quotation.invitedSuppliers.length === 0}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold text-sm rounded-xl hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
+                onClick={handleBackStep}
+                disabled={!isOnStepTab || currentStepIndex === 0}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 text-slate-700 dark:text-slate-300 font-medium text-sm rounded-xl bg-white/70 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/70 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
               >
-                <Send className="w-4 h-4" />
-                Enviar via WhatsApp
-                <span className="text-xs opacity-75">(opcional)</span>
+                <ChevronLeft className="w-4 h-4" />
+                Voltar
               </button>
-            )}
-            {canAdvanceToReview && onAdvanceToReview && (
               <button
-                onClick={onAdvanceToReview}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-semibold text-sm rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
+                onClick={handleAdvanceStep}
+                disabled={!canGoToNextStep}
+                title={nextStepDisabledReason}
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-slate-700 dark:bg-slate-600 text-white font-semibold text-sm rounded-xl hover:bg-slate-800 dark:hover:bg-slate-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm flex-shrink-0"
               >
-                <ClipboardList className="w-4 h-4" />
-                Avançar para Análise
-              </button>
-            )}
-            {canSubmitForApprovalNow && (
-              <button
-                onClick={onSubmitForApproval}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 text-white font-semibold text-sm rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
-              >
+                Avançar
                 <ChevronRight className="w-4 h-4" />
-                Submeter para Aprovação
               </button>
-            )}
-            {canConvertNow && permissions.canConvertToPurchase && (
               <button
-                onClick={onConvertToPurchase}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 text-white font-semibold text-sm rounded-xl hover:bg-emerald-700 transition-colors shadow-sm"
+                onClick={onClose}
+                className="px-4 py-2.5 text-slate-700 dark:text-slate-300 font-medium text-sm rounded-xl bg-white/70 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/70 transition-colors flex-shrink-0"
               >
-                <ShoppingCart className="w-4 h-4" />
-                Converter em Pedido
+                Fechar
               </button>
-            )}
-            <button
-              onClick={onClose}
-              className="sm:w-auto px-4 py-2.5 text-slate-700 dark:text-slate-300 font-medium text-sm rounded-xl bg-white/70 dark:bg-slate-800/70 border border-slate-200/80 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-700/70 transition-colors"
-            >
-              Fechar
-            </button>
+            </div>
           </div>
         </div>
       </motion.div>
