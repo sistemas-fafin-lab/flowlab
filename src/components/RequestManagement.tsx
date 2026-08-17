@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image, Clock, CheckCircle2, XCircle, Play, ChevronDown } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
@@ -20,6 +20,11 @@ import { RequestManagementSkeleton } from './PageLoadingSkeleton';
 
 const ITEMS_PER_PAGE = 25;
 
+// Departamento dos locais do almoxarifado central ("Estoque" e "Depósito").
+// A quantidade disponível para solicitar/retirar vem só daqui, não do total
+// do produto (que soma também os departamentos setoriais).
+const CENTRAL_STOCK_DEPARTMENT = 'Estoque';
+
 const RequestManagement: React.FC = () => {
   const { user, userProfile } = useAuth();
   const {
@@ -33,7 +38,28 @@ const RequestManagement: React.FC = () => {
     createQuotation,
     locations,
     fetchProductStock,
+    fetchStockByLocations,
   } = useInventory();
+
+  // Saldo agregado apenas dos locais do almoxarifado central (Estoque/Depósito),
+  // por produto — usado para decidir disponibilidade em Solicitações.
+  const centralLocationIds = useMemo(
+    () => locations.filter(l => l.department === CENTRAL_STOCK_DEPARTMENT || l.isPrincipal).map(l => l.id),
+    [locations]
+  );
+  const [centralStock, setCentralStock] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (centralLocationIds.length === 0) return;
+    let cancelled = false;
+    fetchStockByLocations(centralLocationIds)
+      .then(totals => { if (!cancelled) setCentralStock(totals); })
+      .catch(() => { if (!cancelled) setCentralStock({}); });
+    return () => { cancelled = true; };
+  }, [centralLocationIds, fetchStockByLocations, products]);
+
+  // Quantidade disponível no Estoque/Depósito (não o total do produto).
+  const getCentralStockQuantity = (productId: string) => centralStock[productId] ?? 0;
 
   // Fase 5 (§4.2): retirada de solicitação vira TRANSFERÊNCIA para o local do setor
   // quando o department tem controla_consumo=true; senão, baixa (out) como hoje.
@@ -269,7 +295,7 @@ useEffect(() => {
     const matchesSearch = product.name.toLowerCase().includes(productSearch.toLowerCase()) ||
                          product.code.toLowerCase().includes(productSearch.toLowerCase());
     const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
-    const hasStock = product.quantity > 0;
+    const hasStock = getCentralStockQuantity(product.id) > 0;
     return matchesSearch && matchesCategory && hasStock;
   });
 
@@ -1044,12 +1070,17 @@ const handleCompleteRequest = async (request: Request) => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <span className={`text-xs font-medium px-2 py-1 rounded-full ${
-                          product.quantity > 10 ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' : 
-                          product.quantity > 0 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
-                        }`}>
-                          {product.quantity} {product.unit}
-                        </span>
+                        {(() => {
+                          const stockQty = getCentralStockQuantity(product.id);
+                          return (
+                            <span className={`text-xs font-medium px-2 py-1 rounded-full ${
+                              stockQty > 10 ? 'bg-green-100 dark:bg-green-900/50 text-green-700 dark:text-green-300' :
+                              stockQty > 0 ? 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' : 'bg-red-100 dark:bg-red-900/50 text-red-700 dark:text-red-300'
+                            }`}>
+                              {stockQty} {product.unit}
+                            </span>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -2213,6 +2244,7 @@ const handleCompleteRequest = async (request: Request) => {
         approvedBy={showWithdrawalModal.approvedBy}
         items={showWithdrawalModal.items}
         products={products}
+        stockByProductId={centralStock}
         onClose={() => {
           setShowWithdrawalModal(null);
           setProcessingRequestId(null);

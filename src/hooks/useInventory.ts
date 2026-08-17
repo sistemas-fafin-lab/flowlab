@@ -1061,6 +1061,14 @@ export const useInventory = () => {
       // Calcular quantidade sugerida (dobro do estoque mínimo)
       const suggestedQuantity = Math.max(product.minStock * 2, 10);
 
+      // Estoque atual só do almoxarifado central (Estoque/Depósito), não o total
+      // do produto somando todos os departamentos.
+      const centralLocationIds = locations
+        .filter(l => l.department === 'Estoque' || l.isPrincipal)
+        .map(l => l.id);
+      const centralStock = await fetchStockByLocations(centralLocationIds);
+      const currentStock = centralStock[product.id] ?? 0;
+
       await addRequest({
         items: [{
           id: Date.now().toString(),
@@ -1069,7 +1077,7 @@ export const useInventory = () => {
           quantity: suggestedQuantity,
           category: product.category
         }],
-        reason: `Solicitação automática de reposição - Produto próximo ao vencimento. Estoque atual: ${product.quantity} ${product.unit}`,
+        reason: `Solicitação automática de reposição - Produto próximo ao vencimento. Estoque atual: ${currentStock} ${product.unit}`,
         priority: 'priority',
         requestedBy,
         requestDate: new Date().toISOString().split('T')[0],

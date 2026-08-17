@@ -19,6 +19,9 @@ interface StockWithdrawalModalProps {
   approvedBy?: string;
   items: RequestItem[];
   products: Product[];
+  // Saldo por produto restrito ao almoxarifado central (Estoque/Depósito),
+  // usado para validar a retirada em vez do total geral do produto.
+  stockByProductId: Record<string, number>;
   onConfirm: (
     signature: string,
     receiverName: string,
@@ -34,6 +37,7 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
   approvedBy,
   items,
   products,
+  stockByProductId,
   onConfirm,
   onClose,
 }) => {
@@ -55,7 +59,7 @@ const StockWithdrawalModal: React.FC<StockWithdrawalModalProps> = ({
   const [withdrawalItems, setWithdrawalItems] = useState<WithdrawalItem[]>(() => {
     return items.map(item => {
       const product = products.find(p => p.id === item.productId);
-      const currentStock = product?.quantity || 0;
+      const currentStock = (item.productId && stockByProductId[item.productId]) || 0;
       const hasStock = product !== undefined && currentStock >= item.quantity;
       
       return {
