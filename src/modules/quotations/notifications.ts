@@ -37,15 +37,15 @@ export function buildQuotationApprovalNotifications(
   > & { items: Pick<QuotationItem, 'productName' | 'quantity' | 'unit'>[] },
   approvers: ApproverWithEmail[],
 ): EmailNotificationRequest[] {
-  const amount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
+  const amount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
   const variables = {
-    quotation_code: quotation.code,
-    quotation_title: quotation.title,
+    quotation_code: escapeHtml(quotation.code),
+    quotation_title: escapeHtml(quotation.title),
     quotation_type_label: QuotationTypeLabels[quotation.quotationType],
-    requester_name: quotation.createdByName,
+    requester_name: escapeHtml(quotation.createdByName),
     total_amount: formatCurrency(amount),
     action_url: `${APP_BASE_URL}/quotations`,
-    supplier_name: quotation.selectedSupplierName || 'Não informado',
+    supplier_name: escapeHtml(quotation.selectedSupplierName || 'Não informado'),
     items_list_html: buildItemsListHtml(quotation.items),
   };
 

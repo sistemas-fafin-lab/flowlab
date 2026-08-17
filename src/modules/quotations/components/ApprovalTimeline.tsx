@@ -12,7 +12,7 @@ interface ApprovalTimelineProps {
   quotation: Quotation;
   currentUserApprovalLimit: number;
   onApprove?: (comment?: string) => void | Promise<void>;
-  onReject?: (comment: string) => void;
+  onReject?: (comment: string) => void | Promise<void>;
 }
 
 const formatCurrency = (value: number) => {
@@ -61,15 +61,37 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
   const [approveComment, setApproveComment] = React.useState('');
   const [showRejectForm, setShowRejectForm] = React.useState(false);
   const [showSignatureModal, setShowSignatureModal] = React.useState(false);
+  const [isRejecting, setIsRejecting] = React.useState(false);
+  const [rejectError, setRejectError] = React.useState<string | null>(null);
 
-  const amount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
+  const amount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
   const isWithinLimit = amount <= currentUserApprovalLimit;
-  const canApprove = quotation.status === 'awaiting_approval' && isWithinLimit;
-  const canReject = quotation.status === 'awaiting_approval';
+  // onApprove/onReject só vêm preenchidos quando o QuotationDrawer já checou
+  // permissions.canApprove/canReject — checar status e alçada aqui de novo,
+  // sem essa condição, reabriria a possibilidade de mostrar o botão para
+  // quem não tem o direito e o onConfirm virar um no-op silencioso.
+  const canApprove = !!onApprove && quotation.status === 'awaiting_approval' && isWithinLimit;
+  const canReject = !!onReject && quotation.status === 'awaiting_approval';
 
   const handleConfirmSignedApproval = async () => {
     await onApprove?.(approveComment || undefined);
-    setShowSignatureModal(false);
+    // Não fecha o modal aqui: ele mesmo mostra a tela de sucesso e se fecha
+    // via onClose após o delay. Fechar por aqui desmontaria o modal antes
+    // dele ter a chance de renderizar essa tela.
+  };
+
+  const handleConfirmReject = async () => {
+    if (isRejecting || !rejectComment.trim()) return;
+
+    try {
+      setIsRejecting(true);
+      setRejectError(null);
+      await onReject?.(rejectComment);
+    } catch (error) {
+      console.error('Erro ao rejeitar cotação:', error);
+      setRejectError(error instanceof Error ? error.message : 'Erro ao rejeitar cotação.');
+      setIsRejecting(false);
+    }
   };
 
   return (
@@ -253,20 +275,24 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
                   placeholder="Informe o motivo da rejeição..."
                 />
               </div>
+              {rejectError && (
+                <p className="text-xs text-red-600 dark:text-red-400">{rejectError}</p>
+              )}
               <div className="flex gap-2.5">
                 <button
-                  onClick={() => { setShowRejectForm(false); setRejectComment(''); }}
-                  className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-700/70 text-slate-700 dark:text-slate-300 font-medium text-sm rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                  onClick={() => { setShowRejectForm(false); setRejectComment(''); setRejectError(null); }}
+                  disabled={isRejecting}
+                  className="flex-1 px-4 py-2.5 bg-slate-100 dark:bg-slate-700/70 text-slate-700 dark:text-slate-300 font-medium text-sm rounded-xl hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancelar
                 </button>
                 <button
-                  onClick={() => { if (rejectComment.trim()) onReject?.(rejectComment); }}
-                  disabled={!rejectComment.trim()}
+                  onClick={handleConfirmReject}
+                  disabled={!rejectComment.trim() || isRejecting}
                   className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 text-white font-semibold text-sm rounded-xl hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-sm"
                 >
                   <X className="w-4 h-4" />
-                  Confirmar Rejeição
+                  {isRejecting ? 'Rejeitando...' : 'Confirmar Rejeição'}
                 </button>
               </div>
             </div>

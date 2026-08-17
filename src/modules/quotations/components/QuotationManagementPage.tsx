@@ -633,7 +633,7 @@ export const QuotationManagementPage: React.FC = () => {
                   <div>
                     <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Valor Estimado</p>
                     <p className="text-lg sm:text-2xl font-bold text-blue-600 dark:text-blue-400">
-                      {formatCurrency(quotation.finalTotalAmount || quotation.estimatedTotalAmount)}
+                      {formatCurrency(quotation.finalTotalAmount ?? quotation.estimatedTotalAmount)}
                     </p>
                   </div>
                 </div>

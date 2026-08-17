@@ -557,7 +557,7 @@ export const useQuotation = () => {
     }
 
     const status = quotation.status;
-    const quotationAmount = quotation.finalTotalAmount || quotation.estimatedTotalAmount || 0;
+    const quotationAmount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
     
     return {
       canView,
@@ -1542,7 +1542,7 @@ export const useQuotation = () => {
       quotationId,
       level: quotation.requiredApprovalLevel,
       status: 'pending',
-      amount: quotation.finalTotalAmount || quotation.estimatedTotalAmount,
+      amount: quotation.finalTotalAmount ?? quotation.estimatedTotalAmount,
       createdAt: new Date().toISOString(),
     };
 
@@ -1561,7 +1561,7 @@ export const useQuotation = () => {
 
     await addAuditLog(quotationId, 'submitted_for_approval', {
       level: quotation.requiredApprovalLevel,
-      amount: quotation.finalTotalAmount || quotation.estimatedTotalAmount,
+      amount: quotation.finalTotalAmount ?? quotation.estimatedTotalAmount,
     }, {
       previousStatus: quotation.status,
       newStatus: 'awaiting_approval',
@@ -1570,7 +1570,7 @@ export const useQuotation = () => {
     // Notificar por email todo gestor com alçada suficiente para o valor da
     // cotação — melhor esforço, uma falha aqui não pode reverter a submissão.
     try {
-      const amount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
+      const amount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
       const { data: approvers, error: approversError } = await supabase
         .from('user_approval_limits_with_details')
         .select('user_email')
@@ -1597,31 +1597,25 @@ export const useQuotation = () => {
     }
   }, [quotations, addAuditLog]);
 
-  const approveQuotation = useCallback(async (quotationId: string, comment?: string): Promise<void> => {
+  // Persiste a decisão via RPC atômica e reflete no estado local. Comum a
+  // approveQuotation/rejectQuotation; `now` entra como parâmetro (em vez de
+  // ser gerado aqui) porque no caso de aprovação ele já foi usado para gerar
+  // o signatureHash — os dois precisam ser exatamente o mesmo instante.
+  const applyQuotationDecision = useCallback(async (
+    quotation: Quotation,
+    decision: 'approved' | 'rejected',
+    comment: string | undefined,
+    now: string,
+    signatureHash: string | null,
+  ): Promise<void> => {
     if (!user || !userProfile) throw new Error('Usuário não autenticado');
 
-    const quotation = quotations.find(q => q.id === quotationId);
-    if (!quotation) throw new Error('Cotação não encontrada');
-
-    const permissions = getPermissions(quotation);
-    if (!permissions.canApprove) {
-      throw new Error('Você não tem permissão para aprovar esta cotação');
-    }
-
-    const now = new Date().toISOString();
-    const approvalAmount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
-    const signatureHash = await generateApprovalHash({
-      quotationId,
-      approverId: user.id,
-      approverName: userProfile.name,
-      amount: approvalAmount,
-      timestamp: now,
-    });
+    const approvalAmount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
 
     const { data: insertedApproval, error: approvalError } = await supabase
       .rpc('quotation_record_decision', {
-        p_quotation_id: quotationId,
-        p_decision: 'approved',
+        p_quotation_id: quotation.id,
+        p_decision: decision,
         p_level: quotation.requiredApprovalLevel,
         p_approver_id: user.id,
         p_approver_name: userProfile.name,
@@ -1634,43 +1628,68 @@ export const useQuotation = () => {
       .single<QuotationDecisionRow>();
 
     if (approvalError) {
-      console.error('Error persisting quotation approval:', approvalError);
-      throw new Error('Erro ao registrar aprovação');
+      console.error(`Error persisting quotation ${decision}:`, approvalError);
+      throw new Error(decision === 'approved' ? 'Erro ao registrar aprovação' : 'Erro ao registrar rejeição');
     }
 
     const newApproval: QuotationApproval = {
       id: insertedApproval.id,
-      quotationId,
+      quotationId: quotation.id,
       level: quotation.requiredApprovalLevel,
-      status: 'approved',
+      status: decision,
       approverId: user.id,
       approverName: userProfile.name,
       approverRole: userProfile.role,
       amount: approvalAmount,
       comment,
-      approvedAt: now,
       createdAt: insertedApproval.created_at,
-      signatureHash,
+      ...(decision === 'approved'
+        ? { approvedAt: now, signatureHash: signatureHash ?? undefined }
+        : { rejectedAt: now }),
     };
 
     setQuotations(prev => prev.map(q => {
-      if (q.id === quotationId) {
+      if (q.id === quotation.id) {
         return {
           ...q,
-          status: 'approved',
+          status: decision,
           approvals: [...q.approvals.filter(a => a.level !== quotation.requiredApprovalLevel), newApproval],
           updatedAt: now,
         };
       }
       return q;
     }));
+  }, [user, userProfile]);
+
+  const approveQuotation = useCallback(async (quotationId: string, comment?: string): Promise<void> => {
+    if (!user || !userProfile) throw new Error('Usuário não autenticado');
+
+    const quotation = quotations.find(q => q.id === quotationId);
+    if (!quotation) throw new Error('Cotação não encontrada');
+
+    const permissions = getPermissions(quotation);
+    if (!permissions.canApprove) {
+      throw new Error('Você não tem permissão para aprovar esta cotação');
+    }
+
+    const now = new Date().toISOString();
+    const approvalAmount = quotation.finalTotalAmount ?? quotation.estimatedTotalAmount;
+    const signatureHash = await generateApprovalHash({
+      quotationId,
+      approverId: user.id,
+      approverName: userProfile.name,
+      amount: approvalAmount,
+      timestamp: now,
+    });
+
+    await applyQuotationDecision(quotation, 'approved', comment, now, signatureHash);
 
     await addAuditLog(quotationId, 'approved', { comment }, {
       previousStatus: 'awaiting_approval',
       newStatus: 'approved',
       amount: quotation.finalTotalAmount,
     });
-  }, [quotations, user, userProfile, getPermissions, addAuditLog]);
+  }, [quotations, user, userProfile, getPermissions, addAuditLog, applyQuotationDecision]);
 
   const rejectQuotation = useCallback(async (quotationId: string, comment: string): Promise<void> => {
     if (!user || !userProfile) throw new Error('Usuário não autenticado');
@@ -1683,60 +1702,14 @@ export const useQuotation = () => {
     }
 
     const now = new Date().toISOString();
-    const approvalAmount = quotation.finalTotalAmount || quotation.estimatedTotalAmount;
-
-    const { data: insertedApproval, error: approvalError } = await supabase
-      .rpc('quotation_record_decision', {
-        p_quotation_id: quotationId,
-        p_decision: 'rejected',
-        p_level: quotation.requiredApprovalLevel,
-        p_approver_id: user.id,
-        p_approver_name: userProfile.name,
-        p_approver_role: userProfile.role,
-        p_max_amount: approvalAmount,
-        p_comment: comment,
-        p_decided_at: now,
-        p_signature_hash: null,
-      })
-      .single<QuotationDecisionRow>();
-
-    if (approvalError) {
-      console.error('Error persisting quotation rejection:', approvalError);
-      throw new Error('Erro ao registrar rejeição');
-    }
-
-    const newApproval: QuotationApproval = {
-      id: insertedApproval.id,
-      quotationId,
-      level: quotation.requiredApprovalLevel,
-      status: 'rejected',
-      approverId: user.id,
-      approverName: userProfile.name,
-      approverRole: userProfile.role,
-      amount: approvalAmount,
-      comment,
-      rejectedAt: now,
-      createdAt: insertedApproval.created_at,
-    };
-
-    setQuotations(prev => prev.map(q => {
-      if (q.id === quotationId) {
-        return {
-          ...q,
-          status: 'rejected',
-          approvals: [...q.approvals.filter(a => a.level !== quotation.requiredApprovalLevel), newApproval],
-          updatedAt: now,
-        };
-      }
-      return q;
-    }));
+    await applyQuotationDecision(quotation, 'rejected', comment, now, null);
 
     await addAuditLog(quotationId, 'rejected', { comment }, {
       previousStatus: quotation.status,
       newStatus: 'rejected',
       comment,
     });
-  }, [quotations, user, userProfile, addAuditLog]);
+  }, [quotations, user, userProfile, addAuditLog, applyQuotationDecision]);
 
   const revertStatus = useCallback(async (quotationId: string): Promise<void> => {
     const quotation = quotations.find(q => q.id === quotationId);

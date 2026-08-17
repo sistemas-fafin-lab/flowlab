@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Check, Fingerprint, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, Check, Fingerprint, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface QuotationApprovalSignatureModalProps {
   quotationCode: string;
@@ -10,8 +10,6 @@ interface QuotationApprovalSignatureModalProps {
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }
-
-const SUBMIT_COOLDOWN_MS = 3000;
 
 export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatureModalProps> = ({
   quotationCode,
@@ -23,9 +21,13 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
 }) => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingComplete, setProcessingComplete] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Guarda síncrona contra duplo clique: isProcessing só reflete o estado
+  // depois que o React processa o setState, então dois cliques na mesma
+  // tarefa ainda veriam isProcessing=false. isSubmittingRef é atualizado na
+  // hora.
   const isSubmittingRef = useRef(false);
-  const lastSubmitTimeRef = useRef<number>(0);
 
   useEffect(() => {
     return () => {
@@ -34,17 +36,13 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
   }, []);
 
   const handleConfirm = async () => {
-    const now = Date.now();
-    if (now - lastSubmitTimeRef.current < SUBMIT_COOLDOWN_MS) {
-      return;
-    }
     if (isSubmittingRef.current || isProcessing) {
       return;
     }
 
     try {
       isSubmittingRef.current = true;
-      lastSubmitTimeRef.current = now;
+      setErrorMessage(null);
       setIsProcessing(true);
 
       await onConfirm();
@@ -53,6 +51,7 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
       setTimeout(() => onClose(), 1500);
     } catch (error) {
       console.error('Erro ao confirmar aprovação:', error);
+      setErrorMessage(error instanceof Error ? error.message : 'Erro ao confirmar aprovação.');
       isSubmittingRef.current = false;
       setIsProcessing(false);
     }
@@ -117,6 +116,18 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
                   vinculando esta aprovação a você, ao valor e ao instante da decisão. Ela fica
                   registrada no histórico da cotação e impressa no PDF da Ordem de Compra.
                 </p>
+              </div>
+            </div>
+          )}
+
+          {errorMessage && !processingComplete && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-red-800 dark:text-red-300">Não foi possível confirmar a aprovação</p>
+                  <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">{errorMessage}</p>
+                </div>
               </div>
             </div>
           )}

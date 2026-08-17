@@ -91,4 +91,20 @@ describe('buildQuotationApprovalNotifications', () => {
       '<li>1 un &mdash; &lt;script&gt;alert(1)&lt;/script&gt;</li>',
     );
   });
+
+  it('escapa HTML em título, solicitante e fornecedor para evitar injeção no template de email', () => {
+    const notifications = buildQuotationApprovalNotifications(
+      {
+        ...baseQuotation,
+        title: '<img src=x onerror=alert(1)>',
+        createdByName: '<b>Maria</b>',
+        selectedSupplierName: 'Fornecedor & Cia <script>',
+      },
+      [{ user_email: 'gestor@empresa.com' }],
+    );
+
+    expect(notifications[0].variables.quotation_title).toBe('&lt;img src=x onerror=alert(1)&gt;');
+    expect(notifications[0].variables.requester_name).toBe('&lt;b&gt;Maria&lt;/b&gt;');
+    expect(notifications[0].variables.supplier_name).toBe('Fornecedor &amp; Cia &lt;script&gt;');
+  });
 });

@@ -32,7 +32,13 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
   const winnerProposal = quotation.proposals.find(p => p.id === quotation.selectedProposalId);
   const issueDate = quotation.convertedAt || new Date().toISOString();
-  const approvedEntry = [...quotation.approvals].reverse().find(a => a.status === 'approved');
+  let approvedEntry: (typeof quotation.approvals)[number] | undefined;
+  for (let i = quotation.approvals.length - 1; i >= 0; i--) {
+    if (quotation.approvals[i].status === 'approved') {
+      approvedEntry = quotation.approvals[i];
+      break;
+    }
+  }
   const approverName = approvedEntry?.approverName || '—';
   const approvalDateLabel = approvedEntry?.approvedAt ? formatDate(approvedEntry.approvedAt) : '—';
 
@@ -188,29 +194,45 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
     }
 
     // ── Signature area ──
-    const signatureHash = approvedEntry?.signatureHash;
-    const verificationCode = signatureHash ? `${signatureHash.slice(0, 24)}…` : '—';
     const sigY = doc.internal.pageSize.getHeight() - 50;
 
-    // Aprovador: assinatura eletrônica (código de verificação), sem linha física
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9.5);
-    doc.setTextColor(30, 30, 30);
-    doc.text(approverName, margin, sigY - 8);
+    if (approvedEntry) {
+      // Aprovador: assinatura eletrônica (código de verificação), sem linha física
+      const verificationCode = approvedEntry.signatureHash ? `${approvedEntry.signatureHash.slice(0, 24)}…` : '—';
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.text('Aprovado eletronicamente', margin, sigY - 3);
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(9.5);
+      doc.setTextColor(30, 30, 30);
+      doc.text(approverName, margin, sigY - 8);
 
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(7);
-    doc.setTextColor(90, 90, 90);
-    doc.text(`Código de verificação: ${verificationCode}`, margin, sigY + 2);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.text('Aprovado eletronicamente', margin, sigY - 3);
 
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(30, 30, 30);
-    doc.text(`Data: ${approvalDateLabel}`, margin, sigY + 7);
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(90, 90, 90);
+      doc.text(`Código de verificação: ${verificationCode}`, margin, sigY + 2);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(30, 30, 30);
+      doc.text(`Data: ${approvalDateLabel}`, margin, sigY + 7);
+    } else {
+      // Sem registro em quotation_approvals (ex.: cotações aprovadas antes da
+      // assinatura eletrônica existir) — não afirmar uma aprovação eletrônica
+      // que não aconteceu; deixa linha física, igual ao bloco do fornecedor.
+      doc.setDrawColor(150, 150, 150);
+      doc.setLineDashPattern([2, 2], 0);
+      doc.line(margin, sigY, margin + 70, sigY);
+      doc.setLineDashPattern([], 0);
+
+      doc.setFontSize(8.5);
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(30, 30, 30);
+      doc.text('Aprovador / Confirmação', margin, sigY + 5);
+      doc.text('Data: ___/___/______', margin, sigY + 10);
+    }
 
     // Fornecedor: continua com linha física de assinatura
     doc.setDrawColor(150, 150, 150);
