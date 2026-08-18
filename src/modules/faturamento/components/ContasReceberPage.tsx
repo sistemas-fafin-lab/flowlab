@@ -8,6 +8,7 @@ import type { DashboardReceberFiltros, TituloReceber, TituloStatus } from '../ty
 import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
 import PendenciasNaoFaturadas from './PendenciasNaoFaturadas';
+import PendenciasParticulares from './PendenciasParticulares';
 import NovoTituloModal from './NovoTituloModal';
 import BaixaModal from './BaixaModal';
 
@@ -44,6 +45,7 @@ const filtrosPainelPadrao = (): DashboardReceberFiltros => ({
 });
 
 type Aba = 'dashboard' | 'titulos' | 'pendencias';
+type SubAbaPendencias = 'lotes' | 'particulares';
 
 const ContasReceberPage: React.FC = () => {
   const { userProfile } = useAuth();
@@ -52,6 +54,7 @@ const ContasReceberPage: React.FC = () => {
   const podeEditar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
 
   const [aba, setAba] = useState<Aba>('dashboard');
+  const [subAbaPendencias, setSubAbaPendencias] = useState<SubAbaPendencias>('lotes');
   const [filtros, setFiltros] = useState({
     // Três meses cobrem o ciclo típico de pagamento de convênio sem trazer a
     // base inteira na primeira abertura.
@@ -254,7 +257,33 @@ const ContasReceberPage: React.FC = () => {
         />
       )}
 
-      {aba === 'pendencias' && <PendenciasNaoFaturadas operadoras={operadoras} />}
+      {aba === 'pendencias' && (
+        <div className="space-y-4">
+          <div className="flex gap-1">
+            {([
+              { id: 'lotes' as SubAbaPendencias, rotulo: 'Sem NF (lotes)' },
+              { id: 'particulares' as SubAbaPendencias, rotulo: 'Particulares' },
+            ]).map(({ id, rotulo }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setSubAbaPendencias(id)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium ${
+                  subAbaPendencias === id
+                    ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                    : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+
+          {subAbaPendencias === 'lotes'
+            ? <PendenciasNaoFaturadas operadoras={operadoras} />
+            : <PendenciasParticulares />}
+        </div>
+      )}
 
       <NovoTituloModal
         aberto={novoAberto}

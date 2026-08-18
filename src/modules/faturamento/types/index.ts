@@ -211,6 +211,42 @@ export interface PendenciasMeta {
 }
 
 // ============================================================================
+// PENDÊNCIAS — PARTICULARES (aba Contas a Receber → Pendências → Particulares)
+// ============================================================================
+// Contrato de GET /api/faturamento/pendencias-particulares — requisições da
+// fonte pagadora PARTICULAR (1102) com laudo liberado e sem NF, ao nível de
+// requisição (não de lote — a maioria nunca entra num lote do apLIS). Regra
+// completa em api/_lib/faturamento/bdLab.ts (listarParticularesPendentes).
+
+export interface RequisicaoParticularPendencia {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  dtaSolicitacao: string | null;
+  dtaFinalizacao: string | null;
+  paciente: string | null;
+  valor: number;
+  codEvento: number;
+  eventoLabel: string | null;
+  /** Lote do apLIS, quando a requisição chegou a entrar num — a maioria não entra. */
+  idLote: number | null;
+}
+
+export interface ParticularesPendentesFiltros {
+  /** YYYY-MM-DD */
+  desde?: string;
+  ate?: string;
+  pagina?: number;
+  tamanho?: number;
+}
+
+export interface ParticularesPendentesMeta {
+  pagina: number;
+  tamanho: number;
+  qtdPaginas: number;
+  registros: number;
+}
+
+// ============================================================================
 // CONTAS A RECEBER (aba Faturamento → Contas a Receber)
 // ============================================================================
 // Um TÍTULO (`notas`) é o agrupamento manual de N lotes do apLIS cobrado de uma

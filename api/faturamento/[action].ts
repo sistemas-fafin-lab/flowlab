@@ -18,6 +18,7 @@ import faturamentoLotes from '../_lib/handlers/faturamento-lotes.js';
 import faturamentoLoteDetalhe from '../_lib/handlers/faturamento-lote-detalhe.js';
 import faturamentoPendencias from '../_lib/handlers/faturamento-pendencias.js';
 import faturamentoPendenciaDetalhe from '../_lib/handlers/faturamento-pendencia-detalhe.js';
+import faturamentoPendenciasParticulares from '../_lib/handlers/faturamento-pendencias-particulares.js';
 import faturamentoTituloCriar from '../_lib/handlers/faturamento-titulo-criar.js';
 import faturamentoOperadorasSync from '../_lib/handlers/faturamento-operadoras-sync.js';
 import faturamentoGlosasLegado from '../_lib/handlers/faturamento-glosas-legado.js';
@@ -33,6 +34,7 @@ const ROTAS: Record<string, Handler> = {
   'lote-detalhe': faturamentoLoteDetalhe,
   'pendencias-nao-faturadas': faturamentoPendencias,
   'pendencia-lote-detalhe': faturamentoPendenciaDetalhe,
+  'pendencias-particulares': faturamentoPendenciasParticulares,
   'titulo-criar': faturamentoTituloCriar,
   'operadoras-sync': faturamentoOperadorasSync,
   'glosas-legado': faturamentoGlosasLegado,

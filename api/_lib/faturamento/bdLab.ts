@@ -889,6 +889,173 @@ export async function detalharLotePendencia(
 }
 
 // ============================================================================
+// PENDÊNCIAS — PARTICULARES (aba Contas a Receber → Pendências → Particulares)
+// ============================================================================
+// Espelha a subtab "recebido" da planilha do setor (issue 08 do feedback):
+// requisições da fonte pagadora PARTICULAR com laudo já liberado ao cliente e
+// sem NF emitida. Diferente de `listarLotesPendentes` acima, a unidade aqui é a
+// REQUISIÇÃO, não o lote — a maioria dos particulares (verificado: ~60% do
+// recorte "evento liberado") nunca chega a entrar num `fatlote` (pagamento é
+// direto no balcão), então esperar por um lote sem IdRPS deixaria de fora
+// justamente o caso mais comum.
+//
+// Fonte pagadora: só 1102 (PARTICULAR, ativa). A 101 é a mesma razão social mas
+// está INATIVA no apLIS (fatinstituicao.Inativo = 1) — confirmado no banco real,
+// não é erro de digitação, são dois IDs legítimos; a regra do grilling fixou 1102.
+export const ID_FONTE_PAGADORA_PARTICULAR = 1102;
+
+// "Laudo liberado" = requisicao.CodEvento num destes códigos (tabela `evento`),
+// regra da subtab "recebido" que o setor já usa hoje. Referência de contexto:
+// evento 1040 "Requisição para pagamento no particular" (rótulo com typo no
+// banco: "Requsição") não entra aqui — é o evento SEGUINTE, que o setor lança
+// manualmente depois de cobrar; não faz sentido como filtro de pendência.
+const EVENTOS_LAUDO_LIBERADO_PARTICULAR = [11, 56, 16, 1000, 9, 19];
+
+export interface RequisicaoParticularPendencia {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  dtaSolicitacao: string | null;
+  dtaFinalizacao: string | null;
+  paciente: string | null;
+  valor: number;
+  codEvento: number;
+  eventoLabel: string | null;
+  /** Lote do apLIS, quando a requisição chegou a entrar num — a maioria não entra. */
+  idLote: number | null;
+}
+
+export interface ListarParticularesPendentesParams {
+  /** YYYY-MM-DD — sobre DtaSolicitacao. */
+  desde?: string;
+  ate?: string;
+  pagina?: number;
+  tamanho?: number;
+  ignorarCache?: boolean;
+}
+
+export interface ParticularesPendentesMeta {
+  pagina: number;
+  tamanho: number;
+  qtdPaginas: number;
+  registros: number;
+}
+
+export type ListarParticularesPendentesResultado =
+  | { requisicoes: RequisicaoParticularPendencia[]; meta: ParticularesPendentesMeta }
+  | { erro: { status: number; mensagem: string } };
+
+const cacheParticularesPendentes = new Map<string, EntradaCache<ListarParticularesPendentesResultado>>();
+
+function chaveParticularesPendentes(params: ListarParticularesPendentesParams): string {
+  return `particularesPendentes|${params.desde ?? ''}|${params.ate ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}`;
+}
+
+// `r.Lote IS NULL OR (l.IdRPS IS NULL AND l.Status IN STATUS_PENDENCIA)` cobre os
+// dois formatos de "sem NF" do particular: nunca entrou em lote, ou entrou mas o
+// lote não tem RPS/NF ainda E ainda está num status que pode virar NF. O filtro de
+// status é o MESMO `STATUS_PENDENCIA` de `listarLotesPendentes` acima, pelo mesmo
+// motivo: verificado no banco que 344 dos 756 particulares que entram em lote têm
+// lote Status=4 (Recebido) sem IdRPS — é o achado do design doc de
+// `listarLotesPendentes` (NF emitida fora do apLIS, nunca religada), não uma
+// pendência real. Sem esse filtro, lote Recebido/Cancelado/Prejuízo entraria
+// como falso positivo.
+//
+// O `NOT EXISTS` cobre o caso raro (ver design doc de `listarLotesPendentes`) de
+// a requisição já ter um RPS/NFe individual lançado fora do fluxo de lote —
+// `rps.DataCancelamento IS NULL` porque um RPS cancelado não é "já cobrado".
+const SQL_PARTICULARES_PENDENTES_WHERE = `
+  r.IdFontePagadora = ${ID_FONTE_PAGADORA_PARTICULAR}
+  AND r.CodEvento IN (${EVENTOS_LAUDO_LIBERADO_PARTICULAR.join(', ')})
+  AND (r.Lote IS NULL OR (l.IdRPS IS NULL AND l.Status IN (${STATUS_PENDENCIA.join(', ')})))
+  AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
+  AND NOT EXISTS (
+    SELECT 1 FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps
+    WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL
+  )`;
+
+function normalizarParticularPendencia(linha: mysql.RowDataPacket): RequisicaoParticularPendencia {
+  return {
+    idRequisicao: numero(linha.IdRequisicao),
+    codRequisicao: texto(linha.CodRequisicao),
+    dtaSolicitacao: dataIso(linha.DtaSolicitacao),
+    dtaFinalizacao: dataIso(linha.DtaFinalizacao),
+    paciente: texto(linha.NomPaciente),
+    valor: numero(linha.Valor),
+    codEvento: numero(linha.CodEvento),
+    eventoLabel: texto(linha.DesEvento),
+    idLote: inteiroOuNulo(linha.Lote),
+  };
+}
+
+/** Requisições particulares com laudo liberado e sem NF, paginadas. Mais antiga
+ *  primeiro — é a que está esperando cobrança há mais tempo. */
+export async function listarParticularesPendentes(
+  params: ListarParticularesPendentesParams,
+): Promise<ListarParticularesPendentesResultado> {
+  const pagina = params.pagina ?? 1;
+  const tamanho = params.tamanho ?? TAMANHO_PADRAO;
+
+  const chave = chaveParticularesPendentes(params);
+  const cacheHit = params.ignorarCache ? null : daCache(cacheParticularesPendentes, chave, false);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('listarParticularesPendentes', async (conn) => {
+    const condicoes = [SQL_PARTICULARES_PENDENTES_WHERE];
+    const valores: ParametroSql[] = [];
+    if (params.desde) {
+      condicoes.push('r.DtaSolicitacao >= ?');
+      valores.push(`${params.desde} 00:00:00`);
+    }
+    if (params.ate) {
+      condicoes.push('r.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 DAY)');
+      valores.push(`${params.ate} 00:00:00`);
+    }
+    const where = condicoes.join(' AND ');
+
+    const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS n
+         FROM requisicao r
+         LEFT JOIN fatlote l ON l.IdLote = r.Lote
+        WHERE ${where}`,
+      valores,
+    );
+    const registros = numero(contagem[0]?.n);
+
+    const limite = Math.trunc(tamanho);
+    const deslocamento = Math.trunc((pagina - 1) * tamanho);
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT r.IdRequisicao, r.CodRequisicao,
+              DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
+              DATE_FORMAT(r.DtaFinalizacao, '%Y-%m-%d') AS DtaFinalizacao,
+              p.NomPaciente, r.CodEvento, ev.DesEvento, r.Lote,
+              COALESCE((SELECT SUM(frp.ValorLiquido) FROM fatrequisicaoprocedimento frp
+                         WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor
+         FROM requisicao r
+         LEFT JOIN fatlote l ON l.IdLote = r.Lote
+         LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
+         LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
+        WHERE ${where}
+        ORDER BY r.DtaSolicitacao ASC, r.IdRequisicao ASC
+        LIMIT ${limite} OFFSET ${deslocamento}`,
+      valores,
+    );
+
+    return {
+      requisicoes: linhas.map(normalizarParticularPendencia),
+      meta: {
+        pagina,
+        tamanho,
+        qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
+        registros,
+      },
+    };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheParticularesPendentes, chave, resultado);
+    return resultado;
+  });
+}
+
+// ============================================================================
 // GLOSAS E RECURSOS — histórico do legado (aba "Histórico (apLIS)")
 // ============================================================================
 // Leitura ao vivo, mesmo padrão acima: nada é persistido no Supabase.

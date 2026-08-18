@@ -90,3 +90,39 @@ lista — o operador vê e decide, em vez de a regra decidir por ele.
   `components/PendenciasNaoFaturadas.tsx`, nova aba "Pendências" em
   `ContasReceberPage.tsx` (filtros de período e fonte pagadora, lista
   expansível até a requisição).
+
+## 5. Extensão: particulares (issue 08)
+
+A partir da issue 08 do feedback, a aba Pendências ganhou uma segunda seção —
+"Particulares" — que espelha a subtab "recebido" da planilha do setor:
+requisições da fonte pagadora PARTICULAR (`IdFontePagadora 1102`; a 101 é a
+mesma razão social mas está inativa) com laudo já liberado ao cliente
+(`requisicao.CodEvento` em 11, 56, 16, 1000, 9 ou 19) e sem NF emitida.
+
+**Por que a unidade é a requisição, não o lote** (diferente da seção acima):
+verificado no banco que ~60% das requisições particulares com laudo liberado
+nunca chegam a entrar num `fatlote` — o pagamento é direto no balcão, sem
+passar pelo fluxo de lote/RPS. Esperar por um lote sem `IdRPS`, como a seção
+"Sem NF (lotes)" faz, deixaria de fora justamente o caso mais comum.
+
+**Mesmo achado da seção 1 se repete aqui e quase virou um falso positivo**:
+das requisições particulares que ENTRAM em lote, sem `IdRPS`, laudo liberado,
+344 de 756 (~46%) estavam em lote `Status = 4` (Recebido) — o mesmo padrão de
+NF emitida fora do apLIS e nunca religada, documentado na seção 2 acima. A
+primeira versão da consulta (`listarParticularesPendentes`) não aplicava o
+filtro de status do lote e contava esses 344 como pendência; corrigido para
+reusar o mesmo `STATUS_PENDENCIA = [1, 2, 3, 6, 7]` de `listarLotesPendentes`
+quando a requisição tem lote (`r.Lote IS NULL OR (l.IdRPS IS NULL AND l.Status
+IN (1,2,3,6,7))`). Achado durante a revisão de código desta entrega (`/review`
+axis Spec), não estava no ticket original.
+
+Sem cutoff de M-2 nesta seção: a contagem mensal de pendência não fica
+concentrada em meses antigos (distribuição ~flat nos últimos 12 meses,
+diferente do padrão de lote/operadora), então não haveria janela de "fluxo
+normal" a excluir — a lista mostra tudo, com filtro opcional de período.
+
+Implementação: `listarParticularesPendentes` em `bdLab.ts`,
+`api/_lib/handlers/faturamento-pendencias-particulares.ts` (ação
+`pendencias-particulares`), `usePendenciasParticulares.ts` +
+`components/PendenciasParticulares.tsx`, sub-aba dentro de "Pendências" em
+`ContasReceberPage.tsx`.
