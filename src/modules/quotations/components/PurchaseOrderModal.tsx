@@ -198,8 +198,6 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
 
     if (approvedEntry) {
       // Aprovador: assinatura eletrônica (código de verificação), sem linha física
-      const verificationCode = approvedEntry.signatureHash ? `${approvedEntry.signatureHash.slice(0, 24)}…` : '—';
-
       doc.setFont('helvetica', 'bold');
       doc.setFontSize(9.5);
       doc.setTextColor(30, 30, 30);
@@ -209,15 +207,22 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
       doc.setFontSize(8);
       doc.text('Aprovado eletronicamente', margin, sigY - 3);
 
-      doc.setFont('courier', 'normal');
-      doc.setFontSize(7);
-      doc.setTextColor(90, 90, 90);
-      doc.text(`Código de verificação: ${verificationCode}`, margin, sigY + 2);
-
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(30, 30, 30);
       doc.text(`Data: ${approvalDateLabel}`, margin, sigY + 7);
+
+      // O hash completo (64 caracteres hex) não cabe na coluna esquerda do
+      // aprovador — a versão anterior truncava com slice(0, 24) + "…",
+      // escondendo justamente a parte verificável do código. Em linha
+      // própria de largura total ele cabe inteiro, abaixo dos dois blocos
+      // de assinatura e acima do rodapé.
+      const verificationLine = `Código de verificação: ${approvedEntry.signatureHash ?? '—'}`;
+      doc.setFont('courier', 'normal');
+      doc.setFontSize(7);
+      doc.setTextColor(90, 90, 90);
+      const verificationLines = doc.splitTextToSize(verificationLine, pageW - margin * 2);
+      doc.text(verificationLines, margin, sigY + 14);
     } else {
       // Sem registro em quotation_approvals (ex.: cotações aprovadas antes da
       // assinatura eletrônica existir) — não afirmar uma aprovação eletrônica
