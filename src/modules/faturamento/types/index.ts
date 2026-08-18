@@ -206,6 +206,8 @@ export interface PendenciasMeta {
   tamanho: number;
   qtdPaginas: number;
   registros: number;
+  /** Soma do valor de todos os lotes pendentes, não só a página atual. */
+  valorTotal: number;
   /** Fim de M-2 — data de corte da regra, calculada no servidor a partir de "hoje". */
   cutoff: string;
 }
@@ -244,7 +246,13 @@ export interface ParticularesPendentesMeta {
   tamanho: number;
   qtdPaginas: number;
   registros: number;
+  /** Soma do valor de todas as requisições pendentes, não só a página atual. */
+  valorTotal: number;
 }
+
+/** Sub-aba da aba "Pendências", compartilhada entre ContasReceberPage (dono do
+ *  estado) e ContasReceberDashboard (widgets-resumo que navegam até ela). */
+export type SubAbaPendencias = 'lotes' | 'particulares';
 
 // ============================================================================
 // CONTAS A RECEBER (aba Faturamento → Contas a Receber)

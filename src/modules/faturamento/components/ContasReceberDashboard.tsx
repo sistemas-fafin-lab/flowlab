@@ -15,6 +15,7 @@ import {
   BarChart3,
   CalendarClock,
   DollarSign,
+  FileWarning,
   Gavel,
   GripVertical,
   Lock,
@@ -25,6 +26,7 @@ import {
   Timer,
   TrendingUp,
   Unlock,
+  UserCircle,
 } from 'lucide-react';
 import {
   WidthProvider,
@@ -36,10 +38,12 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useTheme } from '../../../hooks/useTheme';
 import { useContasReceberDashboard } from '../hooks/useContasReceberDashboard';
+import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
+import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
 import { formatCompetencia, formatCurrency } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import FiltrosReceber from './FiltrosReceber';
-import type { DashboardReceberFiltros, OperadoraResumo } from '../types';
+import type { DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
 // RPC fat_dashboard_receber — nada é recalculado aqui.
@@ -54,12 +58,16 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 const GRID_BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480 };
 const GRID_COLS = { lg: 12, md: 10, sm: 6, xs: 2 };
 const GRID_ROW_HEIGHT = 50;
-// v3: novo widget "Principais motivos de glosa". Um layout salvo na v2 não tem
-// a chave 'motivos-glosa', e o react-grid-layout autoposiciona chaves ausentes
-// com um tamanho mínimo — a versão do storage sobe para que todo mundo receba
-// o widget já no tamanho pensado no DEFAULT_LAYOUTS, e não um card espremido.
-const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v3';
-const LAYOUTS_ANTIGOS = ['flowLab_contas_receber_layout_v1', 'flowLab_contas_receber_layout_v2'];
+// v4: novo widget "kpis-pendencias" (resumo de Requisições não faturadas +
+// Particulares sem NF). Mesmo motivo do bump da v3: sem subir a versão, quem já
+// tinha um layout salvo receberia a chave nova autoposicionada num tamanho
+// mínimo, em vez do tamanho pensado no DEFAULT_LAYOUTS.
+const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v4';
+const LAYOUTS_ANTIGOS = [
+  'flowLab_contas_receber_layout_v1',
+  'flowLab_contas_receber_layout_v2',
+  'flowLab_contas_receber_layout_v3',
+];
 
 // Aging: a cor intensifica com o atraso. Sequencial, não categórica — a ordem dos
 // buckets É a informação.
@@ -86,40 +94,44 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
   lg: [
     { i: 'kpis-valor', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2 },
     { i: 'kpis-prazo', x: 0, y: 3, w: 12, h: 3, minW: 4, minH: 2 },
-    { i: 'aging', x: 0, y: 6, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'saldo-operadoras', x: 6, y: 6, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'previsao', x: 0, y: 13, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'serie', x: 0, y: 21, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'motivos-glosa', x: 0, y: 29, w: 12, h: 8, minW: 3, minH: 4 },
+    { i: 'kpis-pendencias', x: 0, y: 6, w: 12, h: 3, minW: 4, minH: 2 },
+    { i: 'aging', x: 0, y: 9, w: 6, h: 7, minW: 3, minH: 4 },
+    { i: 'saldo-operadoras', x: 6, y: 9, w: 6, h: 7, minW: 3, minH: 4 },
+    { i: 'previsao', x: 0, y: 16, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'serie', x: 0, y: 24, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'motivos-glosa', x: 0, y: 32, w: 12, h: 8, minW: 3, minH: 4 },
   ],
   md: [
     { i: 'kpis-valor', x: 0, y: 0, w: 10, h: 3 },
     { i: 'kpis-prazo', x: 0, y: 3, w: 10, h: 3 },
-    { i: 'aging', x: 0, y: 6, w: 5, h: 7 },
-    { i: 'saldo-operadoras', x: 5, y: 6, w: 5, h: 7 },
-    { i: 'previsao', x: 0, y: 13, w: 10, h: 8 },
-    { i: 'serie', x: 0, y: 21, w: 10, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 29, w: 10, h: 8 },
+    { i: 'kpis-pendencias', x: 0, y: 6, w: 10, h: 3 },
+    { i: 'aging', x: 0, y: 9, w: 5, h: 7 },
+    { i: 'saldo-operadoras', x: 5, y: 9, w: 5, h: 7 },
+    { i: 'previsao', x: 0, y: 16, w: 10, h: 8 },
+    { i: 'serie', x: 0, y: 24, w: 10, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 32, w: 10, h: 8 },
   ],
   sm: [
     // 2 colunas: os quatro cards de valor viram duas linhas.
     { i: 'kpis-valor', x: 0, y: 0, w: 6, h: 5 },
     { i: 'kpis-prazo', x: 0, y: 5, w: 6, h: 3 },
-    { i: 'aging', x: 0, y: 8, w: 6, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 15, w: 6, h: 7 },
-    { i: 'previsao', x: 0, y: 22, w: 6, h: 8 },
-    { i: 'serie', x: 0, y: 30, w: 6, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 38, w: 6, h: 8 },
+    { i: 'kpis-pendencias', x: 0, y: 8, w: 6, h: 3 },
+    { i: 'aging', x: 0, y: 11, w: 6, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 18, w: 6, h: 7 },
+    { i: 'previsao', x: 0, y: 25, w: 6, h: 8 },
+    { i: 'serie', x: 0, y: 33, w: 6, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 41, w: 6, h: 8 },
   ],
   xs: [
-    // Empilhado: quatro linhas de card e três, respectivamente.
+    // Empilhado: quatro linhas de card, três, e duas, respectivamente.
     { i: 'kpis-valor', x: 0, y: 0, w: 2, h: 8 },
     { i: 'kpis-prazo', x: 0, y: 8, w: 2, h: 6 },
-    { i: 'aging', x: 0, y: 14, w: 2, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 21, w: 2, h: 7 },
-    { i: 'previsao', x: 0, y: 28, w: 2, h: 8 },
-    { i: 'serie', x: 0, y: 36, w: 2, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 44, w: 2, h: 8 },
+    { i: 'kpis-pendencias', x: 0, y: 14, w: 2, h: 4 },
+    { i: 'aging', x: 0, y: 18, w: 2, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 25, w: 2, h: 7 },
+    { i: 'previsao', x: 0, y: 32, w: 2, h: 8 },
+    { i: 'serie', x: 0, y: 40, w: 2, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 48, w: 2, h: 8 },
   ],
 };
 
@@ -141,29 +153,48 @@ const Kpi: React.FC<{
   sub?: string;
   cor: string;
   atraso?: number;
-}> = ({ icon, label, valor, sub, cor, atraso = 0 }) => (
-  // h-full: o card preenche a fatia que o widget lhe dá, então redimensionar o
-  // widget redimensiona os cards em vez de criar faixa vazia em volta.
-  <div
-    className={`relative overflow-hidden h-full flex items-center ${VIDRO} rounded-2xl sm:rounded-3xl px-3 py-3 sm:px-4 hover:shadow-xl hover:border-blue-200/60 dark:hover:border-blue-700/60 transition-all duration-300 hover-lift card-interactive animate-fade-in-up`}
-    style={{ animationDelay: `${atraso * 0.05}s` }}
-  >
-    <div className="w-full flex items-center justify-between gap-2">
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
-          {label}
-        </p>
-        <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
-          {valor}
-        </p>
-        {sub && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{sub}</p>}
-      </div>
-      <div className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl shadow-lg flex-shrink-0 bg-gradient-to-br ${cor}`}>
-        <span className="text-white">{icon}</span>
+  /** Quando presente, o card vira um atalho de navegação (ex.: widget-resumo →
+   *  aba Pendências) em vez de só exibir o número. */
+  onClick?: () => void;
+}> = ({ icon, label, valor, sub, cor, atraso = 0, onClick }) => {
+  const clicavel = Boolean(onClick);
+  return (
+    // h-full: o card preenche a fatia que o widget lhe dá, então redimensionar o
+    // widget redimensiona os cards em vez de criar faixa vazia em volta.
+    <div
+      role={clicavel ? 'button' : undefined}
+      tabIndex={clicavel ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        clicavel
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
+      className={`relative overflow-hidden h-full flex items-center ${VIDRO} rounded-2xl sm:rounded-3xl px-3 py-3 sm:px-4 hover:shadow-xl hover:border-blue-200/60 dark:hover:border-blue-700/60 transition-all duration-300 hover-lift card-interactive animate-fade-in-up ${clicavel ? 'cursor-pointer' : ''}`}
+      style={{ animationDelay: `${atraso * 0.05}s` }}
+    >
+      <div className="w-full flex items-center justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
+            {label}
+          </p>
+          <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+            {valor}
+          </p>
+          {sub && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{sub}</p>}
+        </div>
+        <div className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl shadow-lg flex-shrink-0 bg-gradient-to-br ${cor}`}>
+          <span className="text-white">{icon}</span>
+        </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
 
 /** Widget: o vidro, a alça e o cabeçalho. O conteúdo ocupa a altura restante. */
 const Widget: React.FC<{
@@ -226,6 +257,8 @@ interface Props {
   /** O mesmo padrão do "Limpar", para o modal zerar sem fechar. */
   padrao: DashboardReceberFiltros;
   operadoras: OperadoraResumo[];
+  /** Widgets-resumo de pendências → aba Pendências, já na sub-aba certa. */
+  onNavegarPendencias: (subAba: SubAbaPendencias) => void;
 }
 
 const ContasReceberDashboard: React.FC<Props> = ({
@@ -234,9 +267,25 @@ const ContasReceberDashboard: React.FC<Props> = ({
   onLimpar,
   padrao,
   operadoras,
+  onNavegarPendencias,
 }) => {
   const { data, loading, error } = useContasReceberDashboard(filtros);
   const { isDark } = useTheme();
+
+  // Widgets-resumo das issues 07/08: mesmas rotas e cache da aba Pendências (sem
+  // filtro de período/operadora, para o número bater com o que a aba mostra por
+  // padrão), pedindo 1 item só — aqui interessa `meta.registros`/`valorTotal`,
+  // não a lista.
+  const {
+    meta: metaPendenciasLotes,
+    loading: loadingPendenciasLotes,
+    error: erroPendenciasLotes,
+  } = usePendenciasNaoFaturadas({ pagina: 1, tamanho: 1 });
+  const {
+    meta: metaPendenciasParticulares,
+    loading: loadingPendenciasParticulares,
+    error: erroPendenciasParticulares,
+  } = usePendenciasParticulares({ pagina: 1, tamanho: 1 });
 
   // ─── Layout dos widgets ─────────────────────────────────────────────────────
   // Travado por padrão: quem abre a tela quer ler os números, não rearranjá-los,
@@ -479,6 +528,55 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 valor={formatDias(kpis.prazoPonderadoDias)}
                 cor="from-teal-500 to-teal-600"
                 atraso={2}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ── Pendências ───────────────────────────────────────────────────────
+            Resumo das duas listas da aba Pendências (issues 07/08): clicar leva
+            direto pra lista, já na sub-aba certa. */}
+        <div key="kpis-pendencias" className="group">
+          <div className={`h-full ${VIDRO} rounded-3xl overflow-y-auto p-3 sm:p-4`}>
+            <Alca />
+            <div className="min-h-full grid grid-cols-1 sm:grid-cols-2 gap-3 [grid-auto-rows:1fr]">
+              <Kpi
+                icon={<FileWarning className="w-4 h-4 sm:w-5 sm:h-5" />}
+                label="Requisições não faturadas (até M-2)"
+                sub={
+                  loadingPendenciasLotes
+                    ? 'carregando…'
+                    : erroPendenciasLotes
+                      ? 'falha ao consultar'
+                      : `${metaPendenciasLotes?.registros ?? 0} lote${metaPendenciasLotes?.registros === 1 ? '' : 's'} sem NF/RPS`
+                }
+                valor={
+                  loadingPendenciasLotes || erroPendenciasLotes
+                    ? '—'
+                    : formatCurrency(metaPendenciasLotes?.valorTotal ?? 0)
+                }
+                cor="from-amber-500 to-amber-600"
+                atraso={0}
+                onClick={() => onNavegarPendencias('lotes')}
+              />
+              <Kpi
+                icon={<UserCircle className="w-4 h-4 sm:w-5 sm:h-5" />}
+                label="Particulares sem NF"
+                sub={
+                  loadingPendenciasParticulares
+                    ? 'carregando…'
+                    : erroPendenciasParticulares
+                      ? 'falha ao consultar'
+                      : `${metaPendenciasParticulares?.registros ?? 0} requisiç${metaPendenciasParticulares?.registros === 1 ? 'ão' : 'ões'} com laudo liberado`
+                }
+                valor={
+                  loadingPendenciasParticulares || erroPendenciasParticulares
+                    ? '—'
+                    : formatCurrency(metaPendenciasParticulares?.valorTotal ?? 0)
+                }
+                cor="from-orange-500 to-orange-600"
+                atraso={1}
+                onClick={() => onNavegarPendencias('particulares')}
               />
             </div>
           </div>

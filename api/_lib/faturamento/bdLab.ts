@@ -678,6 +678,9 @@ export interface PendenciasMeta {
   tamanho: number;
   qtdPaginas: number;
   registros: number;
+  /** Soma do valor de TODOS os lotes que casam o filtro, não só a página atual —
+   *  é o número que o widget-resumo do Dashboard mostra. */
+  valorTotal: number;
   /** Fim de M-2 — data de corte da regra, calculada no MySQL a partir de CURDATE(). */
   cutoff: string;
 }
@@ -761,11 +764,25 @@ export async function listarLotesPendentes(
     }
     const where = condicoes.join(' AND ');
 
+    // O total (sem LIMIT — o widget-resumo do Dashboard precisa da pendência
+    // inteira, não só da página exibida na tabela) soma por LEFT JOIN + GROUP BY
+    // num único passe, em vez de uma subconsulta correlacionada reexecutada por
+    // lote: com milhares de lotes pendentes essa é a diferença entre uma consulta
+    // e milhares delas a cada carregamento do Dashboard.
     const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT COUNT(*) AS n FROM fatlote l WHERE ${where}`,
+      `SELECT COUNT(*) AS n, COALESCE(SUM(t.ValorLote), 0) AS ValorTotal
+         FROM (
+           SELECT l.IdLote, COALESCE(SUM(frp.ValorLiquido), 0) AS ValorLote
+             FROM fatlote l
+             LEFT JOIN requisicao r ON r.Lote = l.IdLote
+             LEFT JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+            WHERE ${where}
+            GROUP BY l.IdLote
+         ) t`,
       valores,
     );
     const registros = numero(contagem[0]?.n);
+    const valorTotal = numero(contagem[0]?.ValorTotal);
 
     const limite = Math.trunc(tamanho);
     const deslocamento = Math.trunc((pagina - 1) * tamanho);
@@ -795,6 +812,7 @@ export async function listarLotesPendentes(
         tamanho,
         qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
         registros,
+        valorTotal,
         cutoff,
       },
     };
@@ -938,6 +956,9 @@ export interface ParticularesPendentesMeta {
   tamanho: number;
   qtdPaginas: number;
   registros: number;
+  /** Soma do valor de TODAS as requisições que casam o filtro, não só a página
+   *  atual — é o número que o widget-resumo do Dashboard mostra. */
+  valorTotal: number;
 }
 
 export type ListarParticularesPendentesResultado =
@@ -1012,14 +1033,22 @@ export async function listarParticularesPendentes(
     }
     const where = condicoes.join(' AND ');
 
+    // Mesma troca de subconsulta correlacionada por LEFT JOIN + GROUP BY de
+    // listarLotesPendentes acima, e pelo mesmo motivo: o total ignora LIMIT.
     const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT COUNT(*) AS n
-         FROM requisicao r
-         LEFT JOIN fatlote l ON l.IdLote = r.Lote
-        WHERE ${where}`,
+      `SELECT COUNT(*) AS n, COALESCE(SUM(t.ValorReq), 0) AS ValorTotal
+         FROM (
+           SELECT r.IdRequisicao, COALESCE(SUM(frp.ValorLiquido), 0) AS ValorReq
+             FROM requisicao r
+             LEFT JOIN fatlote l ON l.IdLote = r.Lote
+             LEFT JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+            WHERE ${where}
+            GROUP BY r.IdRequisicao
+         ) t`,
       valores,
     );
     const registros = numero(contagem[0]?.n);
+    const valorTotal = numero(contagem[0]?.ValorTotal);
 
     const limite = Math.trunc(tamanho);
     const deslocamento = Math.trunc((pagina - 1) * tamanho);
@@ -1047,6 +1076,7 @@ export async function listarParticularesPendentes(
         tamanho,
         qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
         registros,
+        valorTotal,
       },
     };
   }).then((resultado) => {

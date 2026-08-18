@@ -4,7 +4,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
 import { useContasReceber } from '../hooks/useContasReceber';
-import type { DashboardReceberFiltros, TituloReceber, TituloStatus } from '../types';
+import type { DashboardReceberFiltros, SubAbaPendencias, TituloReceber, TituloStatus } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
 import PendenciasNaoFaturadas from './PendenciasNaoFaturadas';
@@ -45,7 +45,6 @@ const filtrosPainelPadrao = (): DashboardReceberFiltros => ({
 });
 
 type Aba = 'dashboard' | 'titulos' | 'pendencias';
-type SubAbaPendencias = 'lotes' | 'particulares';
 
 const ContasReceberPage: React.FC = () => {
   const { userProfile } = useAuth();
@@ -107,6 +106,13 @@ const ContasReceberPage: React.FC = () => {
   }, []);
 
   const limparFiltroPainel = useCallback(() => setFiltrosPainel(filtrosPainelPadrao()), []);
+
+  // Alvo dos widgets-resumo de pendências do Dashboard: troca de aba E de
+  // sub-aba numa só chamada, para o clique cair já na lista certa.
+  const navegarParaPendencias = useCallback((subAba: SubAbaPendencias) => {
+    setAba('pendencias');
+    setSubAbaPendencias(subAba);
+  }, []);
 
   // Recalculado só na montagem: as datas do padrão dependem de "hoje", e um
   // literal novo a cada render invalidaria o memo do painel a cada digitação.
@@ -235,6 +241,7 @@ const ContasReceberPage: React.FC = () => {
           onLimpar={limparFiltroPainel}
           padrao={padraoPainel}
           operadoras={operadoras}
+          onNavegarPendencias={navegarParaPendencias}
         />
       )}
 
