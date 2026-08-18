@@ -658,34 +658,65 @@ const NovoLaudoModal: React.FC<{
 };
 
 // ─── Página ───────────────────────────────────────────────────────────────────
+type Aba = 'andamento' | 'liberados';
+
 const LaudosPage: React.FC = () => {
-  const { laudos, agendamentos, loading, error, refetch, createLaudo, updateLaudo, deleteLaudo } = useLaudos();
+  const {
+    laudos,
+    agendamentos,
+    loading,
+    error,
+    refetch,
+    laudosLiberados,
+    agendamentosLiberados,
+    loadingLiberados,
+    errorLiberados,
+    liberadosCarregado,
+    totalLiberados,
+    fetchLaudosLiberados,
+    createLaudo,
+    updateLaudo,
+    deleteLaudo,
+  } = useLaudos();
   const { userProfile } = useAuth();
   const canManage = hasPermission(userProfile?.permissions || [], 'canManageColetas');
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
 
+  const [aba, setAba] = useState<Aba>('andamento');
   const [postoSel, setPostoSel] = useState<string>('');
   const [busca, setBusca] = useState<string>('');
   const [aberto, setAberto] = useState<AcLaudo | null>(null);
   const [criando, setCriando] = useState(false);
 
-  // Agendamentos presentes nos laudos para filtro.
+  // Carrega a aba "Liberados" sob demanda, só na primeira vez que é aberta.
+  useEffect(() => {
+    if (aba === 'liberados' && !liberadosCarregado) {
+      void fetchLaudosLiberados();
+    }
+  }, [aba, liberadosCarregado, fetchLaudosLiberados]);
+
+  const laudosAba = aba === 'andamento' ? laudos : laudosLiberados;
+  const agendamentosAba = aba === 'andamento' ? agendamentos : agendamentosLiberados;
+  const loadingAba = aba === 'andamento' ? loading : loadingLiberados;
+  const errorAba = aba === 'andamento' ? error : errorLiberados;
+
+  // Agendamentos presentes nos laudos da aba ativa, para o filtro de posto.
   const postosDisponiveis = useMemo(() => {
     const m = new Map<string, string>();
-    for (const l of laudos) {
-      const ag = agendamentos.find((a) => a.id === l.agendamento_id);
+    for (const l of laudosAba) {
+      const ag = agendamentosAba.find((a) => a.id === l.agendamento_id);
       const key = ag?.posto_id ?? ag?.local_posto ?? '';
       if (key && !m.has(key)) m.set(key, ag?.local_posto ?? '—');
     }
     return [...m.entries()].map(([id, nome]) => ({ id, nome }));
-  }, [laudos, agendamentos]);
+  }, [laudosAba, agendamentosAba]);
 
   const filtradas = useMemo(() => {
-    let resultado = laudos;
+    let resultado = laudosAba;
     // Filtro por posto
     if (postoSel) {
       resultado = resultado.filter((l) => {
-        const ag = agendamentos.find((a) => a.id === l.agendamento_id);
+        const ag = agendamentosAba.find((a) => a.id === l.agendamento_id);
         return (ag?.posto_id ?? ag?.local_posto ?? '') === postoSel;
       });
     }
@@ -693,7 +724,7 @@ const LaudosPage: React.FC = () => {
     const q = busca.trim().toLowerCase();
     if (q) {
       resultado = resultado.filter((l) => {
-        const ag = agendamentos.find((a) => a.id === l.agendamento_id);
+        const ag = agendamentosAba.find((a) => a.id === l.agendamento_id);
         const nome = ag?.paciente_nome?.toLowerCase() ?? '';
         const posto = ag?.local_posto?.toLowerCase() ?? '';
         const idAg = l.agendamento_id.toLowerCase();
@@ -702,14 +733,22 @@ const LaudosPage: React.FC = () => {
       });
     }
     return resultado;
-  }, [laudos, agendamentos, postoSel, busca]);
+  }, [laudosAba, agendamentosAba, postoSel, busca]);
 
+  // "Aguarda"/"parcial" respeitam o filtro de busca/posto ativo na aba "Em
+  // andamento" (mesmo cálculo de sempre). "Completo" vem de `totalLiberados`
+  // (contagem sempre em dia, sem baixar a lista) — a aba principal nunca
+  // contém laudos liberados, então filtrá-la por status daria sempre zero.
   const kpis = useMemo(() => {
     const aguarda = filtradas.filter((l) => l.status === LAUDO_STATUS_KEY.AGUARDA_LIBERACAO).length;
     const parcial = filtradas.filter((l) => l.status === LAUDO_STATUS_KEY.PARCIAL_LIBERADO).length;
-    const completo = filtradas.filter((l) => l.status === LAUDO_STATUS_KEY.COMPLETO_LIBERADO).length;
-    return { aguarda, parcial, completo };
-  }, [filtradas]);
+    return { aguarda, parcial, completo: totalLiberados };
+  }, [filtradas, totalLiberados]);
+
+  const ABAS: { key: Aba; label: string; badge: number }[] = [
+    { key: 'andamento', label: 'Em andamento', badge: laudos.length },
+    { key: 'liberados', label: 'Liberados', badge: totalLiberados },
+  ];
 
   const handleDelete = (l: AcLaudo) => {
     showConfirmDialog(
@@ -717,7 +756,7 @@ const LaudosPage: React.FC = () => {
       <span>
         Remover o laudo do agendamento{' '}
         <strong className="text-gray-900 dark:text-gray-100">
-          {agendamentos.find((a) => a.id === l.agendamento_id)?.paciente_nome ?? l.agendamento_id.slice(0, 8)}
+          {agendamentosAba.find((a) => a.id === l.agendamento_id)?.paciente_nome ?? l.agendamento_id.slice(0, 8)}
         </strong>
         ?
       </span>,
@@ -768,10 +807,10 @@ const LaudosPage: React.FC = () => {
             ))}
           </select>
           <button
-            onClick={() => void refetch()}
+            onClick={() => void (aba === 'andamento' ? refetch() : fetchLaudosLiberados())}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
           >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${loadingAba ? 'animate-spin' : ''}`} />
             Atualizar
           </button>
           {canManage && (
@@ -786,6 +825,32 @@ const LaudosPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Abas */}
+      <div className="flex flex-wrap gap-2 mb-6">
+        {ABAS.map((a) => (
+          <button
+            key={a.key}
+            onClick={() => setAba(a.key)}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+              aba === a.key
+                ? 'bg-gradient-to-r from-violet-500 to-purple-600 text-white shadow-md shadow-violet-500/25'
+                : 'text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            {a.label}
+            {a.badge > 0 && (
+              <span
+                className={`px-1.5 py-0.5 text-xs rounded-full ${
+                  aba === a.key ? 'bg-white/20' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                {a.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-3 mb-6">
         <Kpi icon={<AlertCircle className="w-5 h-5" />} label="Aguarda liberação" valor={kpis.aguarda} cor="from-amber-500 to-orange-500" />
@@ -793,13 +858,13 @@ const LaudosPage: React.FC = () => {
         <Kpi icon={<Check className="w-5 h-5" />} label="Laudo completo" valor={kpis.completo} cor="from-emerald-500 to-teal-600" />
       </div>
 
-      {error && (
+      {errorAba && (
         <div className="mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm">
-          {error}
+          {errorAba}
         </div>
       )}
 
-      {loading ? (
+      {loadingAba ? (
         <div className="flex items-center justify-center py-20">
           <div className="animate-spin rounded-full h-10 w-10 border-4 border-violet-600 border-t-transparent" />
         </div>
@@ -809,20 +874,26 @@ const LaudosPage: React.FC = () => {
             <FileCheck2 className="w-8 h-8 text-gray-400" />
           </div>
           <h3 className="text-lg font-medium text-gray-700 dark:text-gray-300">
-            {busca.trim() ? 'Nenhum laudo encontrado para esta busca' : 'Nenhum laudo em acompanhamento'}
+            {busca.trim()
+              ? 'Nenhum laudo encontrado para esta busca'
+              : aba === 'andamento'
+                ? 'Nenhum laudo em acompanhamento'
+                : 'Nenhum laudo liberado ainda'}
           </h3>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {busca.trim()
               ? 'Tente ajustar os termos da pesquisa.'
-              : canManage
-                ? 'Use "Novo laudo" para vincular um agendamento.'
-                : 'Aguardando criação de laudos.'}
+              : aba === 'andamento'
+                ? canManage
+                  ? 'Use "Novo laudo" para vincular um agendamento.'
+                  : 'Aguardando criação de laudos.'
+                : 'Laudos completos liberados aparecem aqui.'}
           </p>
         </div>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filtradas.map((l) => {
-            const ag = agendamentos.find((a) => a.id === l.agendamento_id);
+            const ag = agendamentosAba.find((a) => a.id === l.agendamento_id);
             return (
               <div
                 key={l.id}
@@ -915,14 +986,14 @@ const LaudosPage: React.FC = () => {
       {aberto && (
         <LaudoModal
           laudo={aberto}
-          paciente={agendamentos.find((a) => a.id === aberto.agendamento_id)?.paciente_nome ?? ''}
+          paciente={agendamentosAba.find((a) => a.id === aberto.agendamento_id)?.paciente_nome ?? ''}
           podeEditar={canManage}
           onSave={(patch) => updateLaudo(aberto.id, patch)}
           onClose={(houveMudanca) => {
             setAberto(null);
             // Quem recontou exames_concluidos foi o trigger, no banco — o laudo em
             // memória está desatualizado. Só recarrega se algo foi realmente marcado.
-            if (houveMudanca) void refetch();
+            if (houveMudanca) void (aba === 'andamento' ? refetch() : fetchLaudosLiberados());
           }}
         />
       )}
