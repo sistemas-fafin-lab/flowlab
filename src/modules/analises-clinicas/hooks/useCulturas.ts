@@ -12,10 +12,11 @@ export interface CulturaPatch {
 }
 
 // Cadastro de cultura AVULSA (sem vínculo com agendamento/coleta): a via alternativa
-// à criação pelo check-in. `exameId` fica null quando o tipo é digitado à mão ("Outro").
+// à criação pelo check-in. `exameId` é obrigatório — só os 3 tipos do catálogo
+// (is_cultura = true) podem virar cultura, sem opção de tipo livre.
 export interface CulturaCreateInput {
   exameNome: string;
-  exameId?: string | null;
+  exameId: string;
   pacienteNome?: string | null;
   postoId?: string | null;
   localPosto?: string | null;
@@ -101,9 +102,10 @@ export function useCulturas(): UseCulturasResult {
     async (input) => {
       const nome = input.exameNome.trim();
       if (!nome) return 'Informe o tipo de cultura.';
+      if (!input.exameId) return 'Selecione o tipo de cultura.';
       const row: Record<string, unknown> = {
         agendamento_id: null, // avulsa: sem vínculo com coleta/agendamento
-        exame_id: input.exameId ?? null,
+        exame_id: input.exameId,
         exame_nome: nome,
         paciente_nome: input.pacienteNome?.trim() || null,
         posto_id: input.postoId ?? null,

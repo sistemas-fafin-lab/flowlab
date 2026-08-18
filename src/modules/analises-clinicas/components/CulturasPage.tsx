@@ -8,7 +8,6 @@ import {
   ChevronRight,
   Pencil,
   Plus,
-  Search,
   Loader2,
   Trash2,
   X,
@@ -241,10 +240,6 @@ const CulturaModal: React.FC<{
 };
 
 // ─── Modal de criação avulsa (sem vínculo com coleta/agendamento) ───────────────
-// Busca sem acento/caixa (espelha o seletor de exames do check-in).
-const normalize = (s: string) =>
-  s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-
 interface CulturaOpt {
   id: string;
   nome: string;
@@ -259,14 +254,14 @@ const NovaCulturaModal: React.FC<{
   const { postos } = usePostos();
   const [catalogo, setCatalogo] = useState<CulturaOpt[]>([]);
   const [loadingCat, setLoadingCat] = useState(true);
-  const [busca, setBusca] = useState('');
-  const [selecionado, setSelecionado] = useState<{ id: string | null; nome: string } | null>(null);
+  const [exameIdSel, setExameIdSel] = useState<string>('');
   const [paciente, setPaciente] = useState('');
   const [postoSel, setPostoSel] = useState('');
   const [prazoDias, setPrazoDias] = useState('5');
   const [nota, setNota] = useState('');
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [erroCat, setErroCat] = useState<string | null>(null);
 
   // Catálogo só com exames de cultura ativos (espelha o fetch do check-in).
   useEffect(() => {
@@ -280,7 +275,8 @@ const NovaCulturaModal: React.FC<{
         .eq('is_cultura', true)
         .order('nome');
       if (!ativo) return;
-      if (!error) setCatalogo((data ?? []) as CulturaOpt[]);
+      if (error) setErroCat(error.message);
+      else setCatalogo((data ?? []) as CulturaOpt[]);
       setLoadingCat(false);
     })();
     return () => {
@@ -289,18 +285,12 @@ const NovaCulturaModal: React.FC<{
   }, []);
 
   const postosAtivos = useMemo(() => postos.filter((p) => p.ativo), [postos]);
-  const resultados = useMemo(() => {
-    const q = normalize(busca);
-    if (!q) return [];
-    return catalogo
-      .filter((e) => normalize(e.nome).includes(q) || (e.mnemonico ? normalize(e.mnemonico).includes(q) : false))
-      .slice(0, 20);
-  }, [busca, catalogo]);
+  const selecionado = useMemo(() => catalogo.find((e) => e.id === exameIdSel) ?? null, [catalogo, exameIdSel]);
 
   const handleSave = async () => {
     setErro(null);
-    if (!selecionado || !selecionado.nome.trim()) {
-      setErro('Selecione ou informe o tipo de cultura.');
+    if (!selecionado) {
+      setErro('Selecione o tipo de cultura.');
       return;
     }
     const prazo = Number(prazoDias);
@@ -311,7 +301,7 @@ const NovaCulturaModal: React.FC<{
     const posto = postosAtivos.find((p) => p.id === postoSel);
     setSaving(true);
     const msg = await onCreate({
-      exameNome: selecionado.nome.trim(),
+      exameNome: selecionado.nome,
       exameId: selecionado.id,
       pacienteNome: paciente.trim() || null,
       postoId: posto?.id ?? null,
@@ -346,89 +336,50 @@ const NovaCulturaModal: React.FC<{
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Tipo de cultura</label>
 
-            {selecionado ? (
-              // Selecionado: chip com opção de trocar.
-              <span className="inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1.5 rounded-lg text-sm font-medium border bg-violet-50 text-violet-700 border-violet-200 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-800/60">
-                <Microscope className="w-4 h-4 shrink-0" />
-                <span className="truncate max-w-[240px]">{selecionado.nome}</span>
-                <button
-                  onClick={() => setSelecionado(null)}
-                  className="p-0.5 rounded hover:bg-black/10 dark:hover:bg-white/10 transition-colors"
-                  aria-label="Trocar tipo de cultura"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </span>
+            {loadingCat ? (
+              <p className="inline-flex items-center gap-1.5 text-xs text-gray-400 px-1">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando catálogo…
+              </p>
+            ) : erroCat ? (
+              <p className="inline-flex items-center gap-1.5 text-xs text-red-500 px-1">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> Falha ao carregar catálogo: {erroCat}
+              </p>
+            ) : catalogo.length === 0 ? (
+              <p className="text-xs text-gray-400 px-1">Nenhum tipo de cultura disponível no catálogo.</p>
             ) : (
-              <div className="space-y-2">
-                {/* Busca (mesmo padrão do check-in) */}
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input
-                    type="text"
-                    value={busca}
-                    onChange={(e) => setBusca(e.target.value)}
-                    placeholder="Buscar cultura ou digitar um tipo…"
-                    autoFocus
-                    className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-violet-500"
-                  />
-                </div>
-
-                {loadingCat && (
-                  <p className="inline-flex items-center gap-1.5 text-xs text-gray-400 px-1">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando catálogo…
-                  </p>
-                )}
-
-                {/* Resultados + opção de tipo livre com o texto digitado */}
-                {busca.trim() && (
-                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 max-h-56 overflow-y-auto">
-                    {resultados.map((e) => (
-                      <button
-                        key={e.id}
-                        type="button"
-                        onClick={() => {
-                          setSelecionado({ id: e.id, nome: e.nome });
-                          setBusca('');
-                        }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 flex items-center justify-center shrink-0">
-                          <Microscope className="w-4 h-4" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{e.nome}</div>
-                          <div className="text-xs text-gray-400 truncate">
-                            {[e.mnemonico, e.material].filter(Boolean).join(' · ') || 'sem mnemônico'}
-                          </div>
-                        </div>
-                        <Plus className="w-4 h-4 text-gray-400 shrink-0" />
-                      </button>
-                    ))}
-                    {/* Tipo livre: usa exatamente o texto digitado (exame_id = null) */}
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 overflow-hidden">
+                {catalogo.map((e) => {
+                  const ativo = e.id === exameIdSel;
+                  return (
                     <button
+                      key={e.id}
                       type="button"
-                      onClick={() => {
-                        setSelecionado({ id: null, nome: busca.trim() });
-                        setBusca('');
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+                      onClick={() => setExameIdSel(e.id)}
+                      className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
+                        ativo
+                          ? 'bg-violet-50 dark:bg-violet-900/20'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-700/40'
+                      }`}
                     >
-                      <div className="w-8 h-8 rounded-lg bg-gray-500/10 text-gray-500 dark:text-gray-400 flex items-center justify-center shrink-0">
-                        <Pencil className="w-4 h-4" />
+                      <div
+                        className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${
+                          ativo
+                            ? 'bg-violet-500/10 text-violet-600 dark:text-violet-400'
+                            : 'bg-gray-500/10 text-gray-500 dark:text-gray-400'
+                        }`}
+                      >
+                        <Microscope className="w-4 h-4" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">Usar “{busca.trim()}”</div>
-                        <div className="text-xs text-gray-400 truncate">tipo livre (fora do catálogo)</div>
+                        <div className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">{e.nome}</div>
+                        <div className="text-xs text-gray-400 truncate">
+                          {[e.mnemonico, e.material].filter(Boolean).join(' · ') || 'sem mnemônico'}
+                        </div>
                       </div>
-                      <Plus className="w-4 h-4 text-gray-400 shrink-0" />
+                      {ativo && <Check className="w-4 h-4 text-violet-600 dark:text-violet-400 shrink-0" />}
                     </button>
-                  </div>
-                )}
-
-                {!busca.trim() && !loadingCat && (
-                  <p className="text-xs text-gray-400 px-1">Busque uma cultura do catálogo ou digite um tipo livre.</p>
-                )}
+                  );
+                })}
               </div>
             )}
           </div>
