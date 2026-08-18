@@ -641,6 +641,254 @@ export async function detalharLote(
 }
 
 // ============================================================================
+// PENDÊNCIAS — lotes sem NF/RPS fora da janela normal (aba "Pendências")
+// ============================================================================
+// Regra decidida com o financeiro: lote em status ativo (1 Em Processamento, 2
+// Conciliação, 3 Faturado, 6 Exportado TOTVS, 7 Recebido - parcial), sem NF/RPS
+// vinculado (`fatlote.IdRPS` nulo), criado até o fim do mês retrasado (M-2) — os
+// dois meses mais recentes ainda estão no fluxo normal de fechamento e não são
+// pendência. Cancelado (5) e Prejuízo (8) nunca entram: não vão gerar NF.
+//
+// NÃO inclui Recebido (4), mesmo sem IdRPS. Achado do levantamento (ago/2026, ver
+// docs/plans/faturamento/pendencias-nao-faturadas-design.md): 3.188 lotes
+// "Recebidos" sem IdRPS, distribuídos de forma constante desde dez/2020 até hoje —
+// não é um lote de migração isolado. Lotes "Recebidos" COM IdRPS, ao contrário, só
+// aparecem a partir de out/2025. A leitura é que a nota fiscal desses lotes mais
+// antigos foi emitida FORA do apLIS e nunca foi religada ao lote: o pagamento já
+// aconteceu, só falta o vínculo — não é uma pendência de cobrança.
+//
+// O cutoff (fim de M-2) é calculado no PRÓPRIO MySQL a partir de CURDATE(), pelo
+// mesmo motivo do DATE_FORMAT no resto do arquivo: calcular em Date do Node
+// puxaria o fuso do processo (UTC no Vercel, America/Sao_Paulo em dev), e um
+// request na virada do mês poderia decidir um cutoff diferente dependendo de onde
+// rodou.
+
+export interface LotePendencia {
+  idLote: number;
+  status: number;
+  statusLabel: string;
+  dtaCriacao: string | null;
+  valor: number;
+  qtdRequisicoes: number;
+  fontePagadora: { id: number | null; nome: string | null; razaoSocial: string | null };
+}
+
+export interface PendenciasMeta {
+  pagina: number;
+  tamanho: number;
+  qtdPaginas: number;
+  registros: number;
+  /** Fim de M-2 — data de corte da regra, calculada no MySQL a partir de CURDATE(). */
+  cutoff: string;
+}
+
+export interface ListarLotesPendentesParams {
+  /** YYYY-MM-DD — limite inferior opcional. */
+  desde?: string;
+  /** YYYY-MM-DD — limite superior opcional; nunca ESTENDE o cutoff de M-2, só pode
+   *  encurtar a janela (ver `ateEfetivo` em `listarLotesPendentes`). */
+  ate?: string;
+  operadoraId?: number;
+  pagina?: number;
+  tamanho?: number;
+  ignorarCache?: boolean;
+}
+
+export type ListarLotesPendentesResultado =
+  | { lotes: LotePendencia[]; meta: PendenciasMeta }
+  | { erro: { status: number; mensagem: string } };
+
+// Códigos STLOT que ainda podem virar uma NF — ver a nota da regra acima.
+const STATUS_PENDENCIA = [1, 2, 3, 6, 7];
+
+const cachePendencias = new Map<string, EntradaCache<ListarLotesPendentesResultado>>();
+
+function chavePendencias(params: ListarLotesPendentesParams): string {
+  return `pendencias|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}`;
+}
+
+function normalizarLotePendencia(linha: mysql.RowDataPacket): LotePendencia {
+  const status = inteiroOuNulo(linha.Status) ?? 0;
+  return {
+    idLote: numero(linha.IdLote),
+    status,
+    statusLabel: STLOT_LABELS[status] ?? `Status ${status}`,
+    dtaCriacao: dataIso(linha.DtaCriacao),
+    valor: numero(linha.Valor),
+    qtdRequisicoes: numero(linha.QtdRequisicoes),
+    fontePagadora: {
+      id: inteiroOuNulo(linha.IdFontePagadora),
+      nome: texto(linha.NomFantasia),
+      razaoSocial: texto(linha.RazaoSocial),
+    },
+  };
+}
+
+/** Lotes pendentes (sem NF/RPS, fora da janela normal), paginados. Mais antigo
+ *  primeiro — é o que o financeiro precisa resolver com mais urgência. */
+export async function listarLotesPendentes(
+  params: ListarLotesPendentesParams,
+): Promise<ListarLotesPendentesResultado> {
+  const pagina = params.pagina ?? 1;
+  const tamanho = params.tamanho ?? TAMANHO_PADRAO;
+
+  const chave = chavePendencias(params);
+  const cacheHit = params.ignorarCache ? null : daCache(cachePendencias, chave, false);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('listarLotesPendentes', async (conn) => {
+    const [cutoffLinhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT DATE_FORMAT(LAST_DAY(CURDATE() - INTERVAL 2 MONTH), '%Y-%m-%d') AS cutoff`,
+      [],
+    );
+    const cutoff = String(cutoffLinhas[0]?.cutoff);
+    // `ate` do cliente só pode ENCURTAR a janela, nunca estendê-la além do cutoff.
+    const ateEfetivo = params.ate && params.ate < cutoff ? params.ate : cutoff;
+
+    const condicoes = [
+      'l.IdRPS IS NULL',
+      `l.Status IN (${STATUS_PENDENCIA.join(', ')})`,
+      'l.DtaCriacao < DATE_ADD(?, INTERVAL 1 DAY)',
+    ];
+    const valores: ParametroSql[] = [ateEfetivo];
+    if (params.desde) {
+      condicoes.push('l.DtaCriacao >= ?');
+      valores.push(`${params.desde} 00:00:00`);
+    }
+    if (params.operadoraId !== undefined) {
+      condicoes.push('l.IdFontePagadora = ?');
+      valores.push(params.operadoraId);
+    }
+    const where = condicoes.join(' AND ');
+
+    const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS n FROM fatlote l WHERE ${where}`,
+      valores,
+    );
+    const registros = numero(contagem[0]?.n);
+
+    const limite = Math.trunc(tamanho);
+    const deslocamento = Math.trunc((pagina - 1) * tamanho);
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT l.IdLote, l.Status, l.IdFontePagadora,
+              DATE_FORMAT(l.DtaCriacao, '%Y-%m-%d') AS DtaCriacao,
+              fp.NomFantasia, fp.RazaoSocial,
+              (SELECT COUNT(*) FROM requisicao r
+                WHERE r.Lote = l.IdLote
+                  AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)) AS QtdRequisicoes,
+              (SELECT COALESCE(SUM(frp.ValorLiquido), 0)
+                 FROM requisicao r
+                 JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+                WHERE r.Lote = l.IdLote) AS Valor
+         FROM fatlote l
+         LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora
+        WHERE ${where}
+        ORDER BY l.DtaCriacao ASC, l.IdLote ASC
+        LIMIT ${limite} OFFSET ${deslocamento}`,
+      valores,
+    );
+
+    return {
+      lotes: linhas.map(normalizarLotePendencia),
+      meta: {
+        pagina,
+        tamanho,
+        qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
+        registros,
+        cutoff,
+      },
+    };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cachePendencias, chave, resultado);
+    return resultado;
+  });
+}
+
+export interface RequisicaoPendencia {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  dtaSolicitacao: string | null;
+  dtaFinalizacao: string | null;
+  numGuiaConvenio: string | null;
+  paciente: string | null;
+  valor: number;
+  /** Só preenchido no raro caso (~1,6% dos lotes pendentes, ver design doc) em que
+   *  a requisição já tem RPS/NF individual lançado em fatrpsrequisicao/fatrps,
+   *  mesmo o LOTE não tendo (fatlote.IdRPS nulo) — sinal pro operador conferir
+   *  antes de cobrar de novo. */
+  numeroRPS: number | null;
+  nfeNumero: string | null;
+}
+
+export type DetalharLotePendenciaResultado =
+  | { requisicoes: RequisicaoPendencia[] }
+  | { erro: { status: number; mensagem: string } };
+
+const cacheDetalhePendencia = new Map<string, EntradaCache<DetalharLotePendenciaResultado>>();
+
+// `r.Lote = ? AND EXISTS (...)` repete o filtro de QtdRequisicoes em
+// listarLotesPendentes de propósito: sem ele, uma requisição sem nenhuma linha em
+// fatrequisicaoprocedimento apareceria aqui mas não entraria na contagem da
+// listagem, e o número da coluna "Requisições" divergiria do que a expansão
+// mostra — o mesmo cuidado que o comentário de SQL_LISTA (acima) já documenta
+// para a aba Faturas.
+//
+// `rps.DataCancelamento IS NULL` nas duas subconsultas de NF/RPS: um RPS
+// cancelado não pode virar sinal de "já foi cobrado" — mostraria a badge verde
+// numa requisição que ainda precisa ser faturada.
+const SQL_DETALHE_PENDENCIA = `
+  SELECT r.IdRequisicao, r.CodRequisicao,
+         DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
+         DATE_FORMAT(r.DtaFinalizacao, '%Y-%m-%d') AS DtaFinalizacao,
+         r.NumGuiaConvenio, p.NomPaciente,
+         COALESCE((SELECT SUM(frp.ValorLiquido) FROM fatrequisicaoprocedimento frp
+                    WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor,
+         (SELECT rps.NumeroRPS FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps
+           WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL
+           ORDER BY rps.DataEmissao DESC LIMIT 1) AS NumeroRPS,
+         (SELECT rps.NFeNumero FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps
+           WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL
+           ORDER BY rps.DataEmissao DESC LIMIT 1) AS NFeNumero
+    FROM requisicao r
+    LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
+   WHERE r.Lote = ?
+     AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
+   ORDER BY r.CodRequisicao`;
+
+/** Requisições de um lote pendente, com a situação de NF individual quando existe
+ *  (ver `RequisicaoPendencia.numeroRPS`/`nfeNumero`). Rota própria, separada de
+ *  `detalharLote`: essa consulta não precisa dos procedimentos por requisição
+ *  (só o total), e evita colocar 2 subconsultas novas na rota de Faturas, que já é
+ *  usada por outras telas e tem seu tempo medido. */
+export async function detalharLotePendencia(
+  idLote: number,
+  ignorarCache = false,
+): Promise<DetalharLotePendenciaResultado> {
+  const chave = `detalhePendencia|${idLote}`;
+  const cacheHit = ignorarCache ? null : daCache(cacheDetalhePendencia, chave, false);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('detalharLotePendencia', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(SQL_DETALHE_PENDENCIA, [idLote]);
+    const requisicoes: RequisicaoPendencia[] = linhas.map((linha) => ({
+      idRequisicao: numero(linha.IdRequisicao),
+      codRequisicao: texto(linha.CodRequisicao),
+      dtaSolicitacao: dataIso(linha.DtaSolicitacao),
+      dtaFinalizacao: dataIso(linha.DtaFinalizacao),
+      numGuiaConvenio: texto(linha.NumGuiaConvenio),
+      paciente: texto(linha.NomPaciente),
+      valor: numero(linha.Valor),
+      numeroRPS: inteiroOuNulo(linha.NumeroRPS),
+      nfeNumero: texto(linha.NFeNumero),
+    }));
+    return { requisicoes };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheDetalhePendencia, chave, resultado);
+    return resultado;
+  });
+}
+
+// ============================================================================
 // GLOSAS E RECURSOS — histórico do legado (aba "Histórico (apLIS)")
 // ============================================================================
 // Leitura ao vivo, mesmo padrão acima: nada é persistido no Supabase.

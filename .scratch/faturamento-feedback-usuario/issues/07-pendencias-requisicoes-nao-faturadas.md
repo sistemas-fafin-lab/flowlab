@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Pendências: requisições não faturadas (janela M-2)

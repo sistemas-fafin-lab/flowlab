@@ -160,6 +160,57 @@ export interface LotesMeta {
 }
 
 // ============================================================================
+// PENDÊNCIAS (aba Contas a Receber → Pendências)
+// ============================================================================
+// Contrato de GET /api/faturamento/pendencias-nao-faturadas e
+// GET /api/faturamento/pendencia-lote-detalhe — lotes do MySQL de backup sem NF/RPS
+// vinculado e fora da janela normal de fechamento. Regra completa em
+// api/_lib/faturamento/bdLab.ts (listarLotesPendentes).
+
+export interface LotePendencia {
+  idLote: number;
+  status: number;
+  statusLabel: string;
+  dtaCriacao: string | null;
+  valor: number;
+  qtdRequisicoes: number;
+  fontePagadora: { id: number | null; nome: string | null; razaoSocial: string | null };
+}
+
+/** Requisição de um lote pendente, com a situação de NF individual quando existe
+ *  (raro: a requisição foi cobrada fora do lote, mesmo o lote não tendo NF). */
+export interface RequisicaoPendencia {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  dtaSolicitacao: string | null;
+  dtaFinalizacao: string | null;
+  numGuiaConvenio: string | null;
+  paciente: string | null;
+  valor: number;
+  numeroRPS: number | null;
+  nfeNumero: string | null;
+}
+
+export interface PendenciasFiltros {
+  /** YYYY-MM-DD */
+  desde?: string;
+  /** YYYY-MM-DD — nunca ultrapassa o cutoff de M-2 devolvido em `PendenciasMeta`. */
+  ate?: string;
+  operadoraId?: number;
+  pagina?: number;
+  tamanho?: number;
+}
+
+export interface PendenciasMeta {
+  pagina: number;
+  tamanho: number;
+  qtdPaginas: number;
+  registros: number;
+  /** Fim de M-2 — data de corte da regra, calculada no servidor a partir de "hoje". */
+  cutoff: string;
+}
+
+// ============================================================================
 // CONTAS A RECEBER (aba Faturamento → Contas a Receber)
 // ============================================================================
 // Um TÍTULO (`notas`) é o agrupamento manual de N lotes do apLIS cobrado de uma
@@ -359,6 +410,10 @@ export interface PrevisaoOperadora {
 export interface OperadoraResumo {
   id: string;
   nome: string;
+  /** `fatinstituicao.IdInstituicao` no apLIS, como string — null enquanto a
+   *  operadora não foi sincronizada. Usado por telas que filtram direto no MySQL
+   *  do laboratório (ex.: aba Pendências), que não conhece o UUID do Supabase. */
+  aplisId: string | null;
 }
 
 /** Tela dona do formato de filtro salvo numa `ViewSalva` — ver comentário de

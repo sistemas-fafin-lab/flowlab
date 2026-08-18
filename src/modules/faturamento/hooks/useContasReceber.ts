@@ -208,8 +208,12 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
 
   // Lista fixa para o seletor de filtro — não acompanha o período nem a página.
   const refetchOperadoras = useCallback(async () => {
-    const { data } = await supabase.from('operadoras').select('id_operadora, nome').order('nome');
-    setOperadoras((data ?? []).map((o) => ({ id: o.id_operadora as string, nome: o.nome as string })));
+    const { data } = await supabase.from('operadoras').select('id_operadora, nome, aplis_id').order('nome');
+    setOperadoras((data ?? []).map((o) => ({
+      id: o.id_operadora as string,
+      nome: o.nome as string,
+      aplisId: (o.aplis_id as string | null) ?? null,
+    })));
   }, []);
 
   useEffect(() => {

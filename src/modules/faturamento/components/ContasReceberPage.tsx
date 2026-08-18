@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { BarChart3, ListChecks, RefreshCw, Wallet } from 'lucide-react';
+import { AlertTriangle, BarChart3, ListChecks, RefreshCw, Wallet } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
@@ -7,6 +7,7 @@ import { useContasReceber } from '../hooks/useContasReceber';
 import type { DashboardReceberFiltros, TituloReceber, TituloStatus } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
+import PendenciasNaoFaturadas from './PendenciasNaoFaturadas';
 import NovoTituloModal from './NovoTituloModal';
 import BaixaModal from './BaixaModal';
 
@@ -42,7 +43,7 @@ const filtrosPainelPadrao = (): DashboardReceberFiltros => ({
   notas: [],
 });
 
-type Aba = 'dashboard' | 'titulos';
+type Aba = 'dashboard' | 'titulos' | 'pendencias';
 
 const ContasReceberPage: React.FC = () => {
   const { userProfile } = useAuth();
@@ -207,6 +208,7 @@ const ContasReceberPage: React.FC = () => {
         {([
           { id: 'dashboard' as Aba, rotulo: 'Dashboard', icone: BarChart3 },
           { id: 'titulos' as Aba, rotulo: 'Títulos', icone: ListChecks },
+          { id: 'pendencias' as Aba, rotulo: 'Pendências', icone: AlertTriangle },
         ]).map(({ id, rotulo, icone: Icone }) => (
           <button
             key={id}
@@ -223,7 +225,7 @@ const ContasReceberPage: React.FC = () => {
         ))}
       </div>
 
-      {aba === 'dashboard' ? (
+      {aba === 'dashboard' && (
         <ContasReceberDashboard
           filtros={filtrosPainel}
           onFiltrar={aplicarFiltroPainel}
@@ -231,7 +233,9 @@ const ContasReceberPage: React.FC = () => {
           padrao={padraoPainel}
           operadoras={operadoras}
         />
-      ) : (
+      )}
+
+      {aba === 'titulos' && (
         <TitulosList
           titulos={titulos}
           operadoras={operadoras}
@@ -249,6 +253,8 @@ const ContasReceberPage: React.FC = () => {
           buscarGuias={buscarGuias}
         />
       )}
+
+      {aba === 'pendencias' && <PendenciasNaoFaturadas operadoras={operadoras} />}
 
       <NovoTituloModal
         aberto={novoAberto}
