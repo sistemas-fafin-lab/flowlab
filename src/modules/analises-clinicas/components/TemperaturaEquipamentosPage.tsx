@@ -739,7 +739,7 @@ const LeituraModal: React.FC<{
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full flex flex-col max-h-[88vh]">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh]">
         <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
           <div>
             <h3 className="font-bold text-gray-900 dark:text-gray-100">Registrar leitura</h3>
@@ -902,7 +902,13 @@ const LeituraModal: React.FC<{
                           </span>
                         )}
                       </span>
-                      <span className="text-xs text-gray-400">
+                      {t.frascos.length > 0 && (
+                        <span className="flex-1 min-w-0 flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                          <FlaskConical className="w-3.5 h-3.5 flex-shrink-0" />
+                          <span className="truncate">{fmtFrascos(t.frascos)}</span>
+                        </span>
+                      )}
+                      <span className="text-xs text-gray-400 text-right flex-shrink-0">
                         {fmtDateTime(t.registrado_em)} · {t.registrado_por}
                       </span>
                     </div>
@@ -910,12 +916,6 @@ const LeituraModal: React.FC<{
                       <p className="mt-1 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                         <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                         <span className="break-words">{t.observacao}</span>
-                      </p>
-                    )}
-                    {t.frascos.length > 0 && (
-                      <p className="mt-1 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                        <FlaskConical className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                        <span className="break-words">{fmtFrascos(t.frascos)}</span>
                       </p>
                     )}
                   </li>
@@ -1364,47 +1364,51 @@ const TemperaturaEquipamentosPage: React.FC = () => {
     <div className="max-w-6xl mx-auto pt-4 sm:pt-6">
       {/* Header — banner de status */}
       <div className="mb-6 rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 sm:p-5">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0 ${bannerIconClass}`}>
-              <Thermometer className="w-6 h-6 text-white" />
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className={`w-11 h-11 rounded-2xl flex items-center justify-center shadow-lg flex-shrink-0 ${bannerIconClass}`}>
+                <Thermometer className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100">{tituloResumo}</h1>
             </div>
-            <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-gray-100 truncate">{tituloResumo}</h1>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => {
+                  void refetch();
+                  void recarregarSeries();
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+                Atualizar
+              </button>
+              {canManage && (
+                <button
+                  onClick={() => setTiposFrascoModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                >
+                  <Settings className="w-4 h-4" />
+                  Tipos de frasco
+                </button>
+              )}
+              {canManage && (
+                <button
+                  onClick={() => setEquipModal({ open: true, equipamento: null })}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Novo equipamento
+                </button>
+              )}
+            </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center justify-end gap-2">
             <StatusPill tone="normal" count={nNormal} label="normais" items={grupos.normal} />
             <StatusPill tone="limite" count={nLimite} label="no limite" items={grupos.limite} />
             <StatusPill tone="fora" count={nFora} label="fora" items={grupos.fora} />
-            <div className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block" />
-            <button
-              onClick={() => {
-                void refetch();
-                void recarregarSeries();
-              }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-              Atualizar
-            </button>
-            {canManage && (
-              <button
-                onClick={() => setTiposFrascoModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-              >
-                <Settings className="w-4 h-4" />
-                Tipos de frasco
-              </button>
-            )}
-            {canManage && (
-              <button
-                onClick={() => setEquipModal({ open: true, equipamento: null })}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all"
-              >
-                <Plus className="w-4 h-4" />
-                Novo equipamento
-              </button>
-            )}
           </div>
         </div>
       </div>

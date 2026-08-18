@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Temperatura: catálogo de tipos de frasco + contagem por leitura
