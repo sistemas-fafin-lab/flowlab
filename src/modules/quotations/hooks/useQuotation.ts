@@ -24,6 +24,7 @@ import {
 import { buildQuotationApprovalNotifications } from '../notifications';
 import { generateApprovalHash } from '../utils/generateApprovalHash';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
+import { getQuotationAmountFromRow } from '../utils/getQuotationAmountFromRow';
 import {
   canTransition,
   validateTransition,
@@ -220,8 +221,12 @@ export const useQuotation = () => {
         selectedSupplierName: q.selected_supplier_name,
         selectedTotalAmount: q.selected_price,
         estimatedTotalAmount: q.estimated_total || q.final_total_amount || 0,
-        finalTotalAmount: q.selected_price || q.final_total_amount,
-        requiredApprovalLevel: getRequiredApprovalLevel(q.estimated_total || q.final_total_amount || q.selected_price || 0),
+        // Regra do valor real espelhada na RPC quotation_record_decision
+        // (selected_price ?? final_total_amount ?? estimated_total ?? 0) —
+        // linhas legacy gravam só selected_price; o nível precisa vir do
+        // mesmo valor que será validado/enviado na decisão.
+        finalTotalAmount: q.selected_price ?? q.final_total_amount,
+        requiredApprovalLevel: getRequiredApprovalLevel(getQuotationAmountFromRow(q)),
         currentApprovalLevel: undefined,
         approvals: (q.quotation_approvals || [])
           .sort((a: any, b: any) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
@@ -1741,26 +1746,29 @@ export const useQuotation = () => {
     // status) vão na RPC quotation_revert_from_approved, que roda os dois
     // numa transação única — sem isso, um UPDATE falhando depois do DELETE
     // deixaria a cotação aprovada sem registro de assinatura.
+    let revertError: { message?: string } | null = null;
+    let revertMessage: string | null = null;
     if (quotation.status === 'approved') {
-      const { error: revertError } = await supabase.rpc('quotation_revert_from_approved', {
+      const { error } = await supabase.rpc('quotation_revert_from_approved', {
         p_quotation_id: quotationId,
         p_level: quotation.requiredApprovalLevel,
       });
-
-      if (revertError) {
-        console.error('Error reverting approved quotation:', revertError);
-        throw new Error(revertError.message || 'Erro ao retornar etapa da cotação');
-      }
+      revertError = error;
+      // A RPC devolve mensagens pt-BR específicas (nível sem aprovação,
+      // status mudou) — repassar em vez de trocar por texto genérico.
+      revertMessage = error?.message ?? null;
     } else {
-      const { error: dbError } = await supabase
+      const { error } = await supabase
         .from('quotations')
         .update(updates)
         .eq('id', quotationId);
+      revertError = error;
+      // Mensagens do PostgREST são em inglês — manter o texto pt-BR fixo.
+    }
 
-      if (dbError) {
-        console.error('Error reverting quotation status:', dbError);
-        throw new Error('Erro ao retornar etapa da cotação');
-      }
+    if (revertError) {
+      console.error('Error reverting quotation status:', revertError);
+      throw new Error(revertMessage ?? 'Erro ao retornar etapa da cotação');
     }
 
     // If reverting from awaiting_approval, reset proposal statuses back to submitted

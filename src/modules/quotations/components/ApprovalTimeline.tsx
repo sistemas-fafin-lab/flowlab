@@ -101,6 +101,16 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
     }
   };
 
+  // Fecha o formulário de rejeição quando a cotação muda de status ou de
+  // identidade: sem isso, um revert de rejected → awaiting_approval
+  // ressuscitava o form com o comentário da rejeição anterior ainda
+  // preenchido.
+  React.useEffect(() => {
+    setShowRejectForm(false);
+    setRejectComment('');
+    setRejectError(null);
+  }, [quotation.id, quotation.status]);
+
   return (
     <div className="space-y-4">
       {/* Header card */}
