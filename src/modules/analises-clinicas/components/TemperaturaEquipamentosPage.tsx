@@ -15,13 +15,15 @@ import {
   History,
   MessageSquare,
   Loader2,
+  FlaskConical,
+  Settings,
 } from 'lucide-react';
 import { useTemperaturas } from '../hooks/useTemperaturas';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { useDialog } from '../../../hooks/useDialog';
 import ConfirmDialog from '../../../components/ConfirmDialog';
-import type { AcEquipamento, AcTemperatura, EquipamentoTipo } from '../types';
+import type { AcEquipamento, AcTemperatura, AcTipoFrasco, EquipamentoTipo } from '../types';
 import { TIPOS_EQUIPAMENTO } from '../types';
 import { rotuloStatus } from '../domain/status';
 
@@ -46,6 +48,11 @@ const fmtDateTimeFull = (iso: string) =>
   });
 
 const fmtTemp = (t: number) => `${t.toFixed(1).replace('.', ',')} °C`;
+
+// "Urina: 3, Fezes: 2" — resumo em texto dos frascos de uma leitura, para o
+// histórico. Vazio quando a leitura não registrou nenhum frasco.
+const fmtFrascos = (frascos: AcTemperatura['frascos']) =>
+  frascos.map((f) => `${f.tipo_frasco_nome}: ${f.quantidade}`).join(', ');
 
 // Valor para <input type="datetime-local"> no fuso local: 'YYYY-MM-DDTHH:MM'.
 const toDatetimeLocal = (d: Date) => {
@@ -404,6 +411,211 @@ const EquipamentoModal: React.FC<{
   );
 };
 
+// ─── Modal de administração do catálogo de tipos de frasco ─────────────────────
+const TiposFrascoModal: React.FC<{
+  onClose: () => void;
+  fetchTiposFrasco: ReturnType<typeof useTemperaturas>['fetchTiposFrasco'];
+  createTipoFrasco: ReturnType<typeof useTemperaturas>['createTipoFrasco'];
+  updateTipoFrasco: ReturnType<typeof useTemperaturas>['updateTipoFrasco'];
+  desativarTipoFrasco: ReturnType<typeof useTemperaturas>['desativarTipoFrasco'];
+}> = ({ onClose, fetchTiposFrasco, createTipoFrasco, updateTipoFrasco, desativarTipoFrasco }) => {
+  const [tipos, setTipos] = useState<AcTipoFrasco[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
+  const [novoNome, setNovoNome] = useState('');
+  const [salvandoNovo, setSalvandoNovo] = useState(false);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [editNome, setEditNome] = useState('');
+  const [ocupado, setOcupado] = useState<string | null>(null); // id em operação (salvar/ativar/desativar)
+
+  const recarregar = useCallback(async () => {
+    setCarregando(true);
+    setErro(null);
+    try {
+      setTipos(await fetchTiposFrasco(false)); // ativos + inativos
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não foi possível carregar o catálogo.');
+    } finally {
+      setCarregando(false);
+    }
+  }, [fetchTiposFrasco]);
+
+  useEffect(() => {
+    void recarregar();
+  }, [recarregar]);
+
+  const handleCriar = async () => {
+    if (!novoNome.trim()) return;
+    setErro(null);
+    setSalvandoNovo(true);
+    const msg = await createTipoFrasco(novoNome.trim());
+    setSalvandoNovo(false);
+    if (msg) {
+      setErro(msg);
+      return;
+    }
+    setNovoNome('');
+    await recarregar();
+  };
+
+  const iniciarEdicao = (t: AcTipoFrasco) => {
+    setEditandoId(t.id);
+    setEditNome(t.nome);
+  };
+
+  const salvarEdicao = async (id: string) => {
+    if (!editNome.trim()) return;
+    setErro(null);
+    setOcupado(id);
+    const msg = await updateTipoFrasco(id, { nome: editNome.trim() });
+    setOcupado(null);
+    if (msg) {
+      setErro(msg);
+      return;
+    }
+    setEditandoId(null);
+    await recarregar();
+  };
+
+  const alternarAtivo = async (t: AcTipoFrasco) => {
+    setErro(null);
+    setOcupado(t.id);
+    const msg = t.ativo ? await desativarTipoFrasco(t.id) : await updateTipoFrasco(t.id, { ativo: true });
+    setOcupado(null);
+    if (msg) setErro(msg);
+    else await recarregar();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full flex flex-col max-h-[85vh]">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+          <h3 className="font-bold text-gray-900 dark:text-gray-100">Tipos de frasco</h3>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 overflow-y-auto space-y-4">
+          {erro && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">{erro}</div>
+          )}
+
+          <div className="flex gap-2">
+            <input
+              value={novoNome}
+              onChange={(e) => setNovoNome(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  void handleCriar();
+                }
+              }}
+              placeholder="Novo tipo (ex.: Sangue)"
+              className={inputCls}
+            />
+            <button
+              onClick={() => void handleCriar()}
+              disabled={salvandoNovo || !novoNome.trim()}
+              className="px-4 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 inline-flex items-center gap-1.5 flex-shrink-0"
+            >
+              {salvandoNovo ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+              Adicionar
+            </button>
+          </div>
+
+          {carregando ? (
+            <p className="text-sm text-gray-400">Carregando…</p>
+          ) : tipos.length === 0 ? (
+            <p className="text-sm text-gray-400">Nenhum tipo cadastrado ainda.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {tipos.map((t) => (
+                <li
+                  key={t.id}
+                  className={`px-3 py-2 rounded-lg flex items-center justify-between gap-2 ${
+                    t.ativo ? 'bg-gray-50 dark:bg-gray-900/50' : 'bg-gray-50/50 dark:bg-gray-900/25 opacity-60'
+                  }`}
+                >
+                  {editandoId === t.id ? (
+                    <input
+                      value={editNome}
+                      onChange={(e) => setEditNome(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          void salvarEdicao(t.id);
+                        }
+                        if (e.key === 'Escape') setEditandoId(null);
+                      }}
+                      autoFocus
+                      className="flex-1 min-w-0 px-2 py-1 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  ) : (
+                    <span className="text-sm text-gray-700 dark:text-gray-200 truncate">{t.nome}</span>
+                  )}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {editandoId === t.id ? (
+                      <>
+                        <button
+                          onClick={() => void salvarEdicao(t.id)}
+                          disabled={ocupado === t.id}
+                          className="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-md disabled:opacity-60"
+                        >
+                          Salvar
+                        </button>
+                        <button
+                          onClick={() => setEditandoId(null)}
+                          className="px-2 py-1 text-xs font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md"
+                        >
+                          Cancelar
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span
+                          className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
+                            t.ativo
+                              ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300'
+                              : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400'
+                          }`}
+                        >
+                          {t.ativo ? 'Ativo' : 'Inativo'}
+                        </span>
+                        <button
+                          onClick={() => iniciarEdicao(t)}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          title="Editar nome"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => void alternarAtivo(t)}
+                          disabled={ocupado === t.id}
+                          className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-60"
+                          title={t.ativo ? 'Desativar' : 'Ativar'}
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl flex justify-end">
+          <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100">
+            Fechar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ─── Modal de leitura (registrar + histórico recente) ──────────────────────────
 const LeituraModal: React.FC<{
   equipamento: AcEquipamento;
@@ -412,7 +624,8 @@ const LeituraModal: React.FC<{
   onDone: () => void;
   registrarTemperatura: ReturnType<typeof useTemperaturas>['registrarTemperatura'];
   fetchTemperaturas: ReturnType<typeof useTemperaturas>['fetchTemperaturas'];
-}> = ({ equipamento, registradoPor, onClose, onDone, registrarTemperatura, fetchTemperaturas }) => {
+  fetchTiposFrasco: ReturnType<typeof useTemperaturas>['fetchTiposFrasco'];
+}> = ({ equipamento, registradoPor, onClose, onDone, registrarTemperatura, fetchTemperaturas, fetchTiposFrasco }) => {
   const [temperatura, setTemperatura] = useState('');
   const [porNome, setPorNome] = useState(registradoPor);
   const [dataHora, setDataHora] = useState(() => toDatetimeLocal(new Date()));
@@ -422,6 +635,9 @@ const LeituraModal: React.FC<{
   const [confirmando, setConfirmando] = useState(false);
   const [historico, setHistorico] = useState<AcTemperatura[]>([]);
   const [loadingHist, setLoadingHist] = useState(true);
+  const [tiposFrasco, setTiposFrasco] = useState<AcTipoFrasco[]>([]);
+  // Quantidade digitada por tipo de frasco (texto, para aceitar campo vazio).
+  const [qtdFrascos, setQtdFrascos] = useState<Record<string, string>>({});
 
   const recarregar = useCallback(async () => {
     setLoadingHist(true);
@@ -437,6 +653,26 @@ const LeituraModal: React.FC<{
   useEffect(() => {
     void recarregar();
   }, [recarregar]);
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const tipos = await fetchTiposFrasco(true);
+        if (vivo) setTiposFrasco(tipos);
+      } catch {
+        /* seção de frascos é opcional: silencia falha de catálogo */
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [fetchTiposFrasco]);
+
+  // Lista de { tipo, quantidade } só com quantidade > 0 — vai pro resumo e pro save.
+  const frascosPreenchidos = tiposFrasco
+    .map((t) => ({ tipo: t, quantidade: Number(qtdFrascos[t.id] || 0) }))
+    .filter((f) => f.quantidade > 0);
 
   const valorNum = Number(temperatura.replace(',', '.'));
   const previewFora = temperatura !== '' && !Number.isNaN(valorNum) && (valorNum < equipamento.temp_min || valorNum > equipamento.temp_max);
@@ -466,6 +702,12 @@ const LeituraModal: React.FC<{
       setErro('A data e hora não podem estar no futuro.');
       return;
     }
+    // Quantidade de frasco é sempre inteira — o banco rejeita decimal (::int) e
+    // isso derrubaria a leitura inteira junto, então barra aqui antes de gravar.
+    if (frascosPreenchidos.some((f) => !Number.isInteger(f.quantidade))) {
+      setErro('A quantidade de frascos deve ser um número inteiro.');
+      return;
+    }
     setConfirmando(true);
   };
 
@@ -478,6 +720,7 @@ const LeituraModal: React.FC<{
       registradoPor: porNome.trim(),
       observacao: observacao.trim(),
       registradoEm: new Date(dataHora).toISOString(),
+      frascos: frascosPreenchidos.map((f) => ({ tipo_frasco_id: f.tipo.id, quantidade: f.quantidade })),
     });
     setSalvando(false);
     if (msg) {
@@ -488,6 +731,7 @@ const LeituraModal: React.FC<{
     setTemperatura('');
     setObservacao('');
     setDataHora(toDatetimeLocal(new Date()));
+    setQtdFrascos({});
     setConfirmando(false);
     onDone();
     await recarregar();
@@ -538,6 +782,14 @@ const LeituraModal: React.FC<{
                   <div className="flex items-center justify-between gap-3 px-3 py-2.5">
                     <span className="text-gray-500 dark:text-gray-400">Observação</span>
                     <span className="font-medium text-gray-800 dark:text-gray-200 text-right">{observacao.trim()}</span>
+                  </div>
+                )}
+                {frascosPreenchidos.length > 0 && (
+                  <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                    <span className="text-gray-500 dark:text-gray-400">Frascos</span>
+                    <span className="font-medium text-gray-800 dark:text-gray-200 text-right">
+                      {frascosPreenchidos.map((f) => `${f.tipo.nome}: ${f.quantidade}`).join(', ')}
+                    </span>
                   </div>
                 )}
               </div>
@@ -597,6 +849,35 @@ const LeituraModal: React.FC<{
             <input value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Opcional (ex.: porta aberta, degelo)" className={inputCls} />
           </div>
 
+          {tiposFrasco.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <FlaskConical className="w-4 h-4 text-gray-400" />
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Frascos nesta remessa <span className="text-xs font-normal text-gray-400">(opcional)</span>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {tiposFrasco.map((t) => (
+                  <div key={t.id}>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1 truncate" title={t.nome}>
+                      {t.nome}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={qtdFrascos[t.id] ?? ''}
+                      onChange={(e) => setQtdFrascos((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                      placeholder="0"
+                      className={inputCls}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="pt-2">
             <div className="flex items-center gap-2 mb-2">
               <Clock className="w-4 h-4 text-gray-400" />
@@ -629,6 +910,12 @@ const LeituraModal: React.FC<{
                       <p className="mt-1 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
                         <MessageSquare className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                         <span className="break-words">{t.observacao}</span>
+                      </p>
+                    )}
+                    {t.frascos.length > 0 && (
+                      <p className="mt-1 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                        <FlaskConical className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                        <span className="break-words">{fmtFrascos(t.frascos)}</span>
                       </p>
                     )}
                   </li>
@@ -869,6 +1156,12 @@ const HistoricoModal: React.FC<{
                             <span className="block text-gray-400">{t.registrado_por}</span>
                           </span>
                         </div>
+                        {t.frascos.length > 0 && (
+                          <p className="mt-1.5 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                            <FlaskConical className="w-3.5 h-3.5 flex-shrink-0 mt-0.5 text-gray-400" />
+                            <span className="break-words">{fmtFrascos(t.frascos)}</span>
+                          </p>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -976,6 +1269,10 @@ const TemperaturaEquipamentosPage: React.FC = () => {
     registrarTemperatura,
     fetchTemperaturas,
     fetchLeiturasRecentes,
+    fetchTiposFrasco,
+    createTipoFrasco,
+    updateTipoFrasco,
+    desativarTipoFrasco,
   } = useTemperaturas();
 
   const { user, userProfile } = useAuth();
@@ -993,6 +1290,7 @@ const TemperaturaEquipamentosPage: React.FC = () => {
   });
   const [leituraEquip, setLeituraEquip] = useState<AcEquipamento | null>(null);
   const [historicoEquip, setHistoricoEquip] = useState<AcEquipamento | null>(null);
+  const [tiposFrascoModalOpen, setTiposFrascoModalOpen] = useState(false);
 
   const recarregarSeries = useCallback(async () => {
     try {
@@ -1089,6 +1387,15 @@ const TemperaturaEquipamentosPage: React.FC = () => {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Atualizar
             </button>
+            {canManage && (
+              <button
+                onClick={() => setTiposFrascoModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+                Tipos de frasco
+              </button>
+            )}
             {canManage && (
               <button
                 onClick={() => setEquipModal({ open: true, equipamento: null })}
@@ -1303,6 +1610,17 @@ const TemperaturaEquipamentosPage: React.FC = () => {
           onDone={() => void recarregarSeries()}
           registrarTemperatura={registrarTemperatura}
           fetchTemperaturas={fetchTemperaturas}
+          fetchTiposFrasco={fetchTiposFrasco}
+        />
+      )}
+
+      {tiposFrascoModalOpen && (
+        <TiposFrascoModal
+          onClose={() => setTiposFrascoModalOpen(false)}
+          fetchTiposFrasco={fetchTiposFrasco}
+          createTipoFrasco={createTipoFrasco}
+          updateTipoFrasco={updateTipoFrasco}
+          desativarTipoFrasco={desativarTipoFrasco}
         />
       )}
 

@@ -333,6 +333,8 @@ export interface AcEquipamento {
 
 // Leitura de temperatura (log append-only) — espelha ac_temperaturas.
 // `fora_faixa` é derivado no banco (trigger) contra a faixa do equipamento.
+// `frascos` vem de um join/fetch separado com ac_temperatura_frascos; sempre
+// presente (lista vazia quando a leitura não registrou nenhum frasco).
 export interface AcTemperatura {
   id: string;
   equipamento_id: string;
@@ -342,6 +344,32 @@ export interface AcTemperatura {
   observacao: string | null;
   registrado_em: string; // ISO 8601
   created_at: string;
+  frascos: AcTemperaturaFrascoComNome[];
+}
+
+// Tipo de frasco do catálogo gerenciável — espelha ac_tipos_frasco.
+export interface AcTipoFrasco {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// Contagem de frascos de um tipo numa leitura de temperatura — espelha
+// ac_temperatura_frascos.
+export interface AcTemperaturaFrasco {
+  id: string;
+  temperatura_id: string;
+  tipo_frasco_id: string;
+  quantidade: number;
+  created_at: string;
+}
+
+// AcTemperaturaFrasco + nome do tipo (join com ac_tipos_frasco), para exibir no
+// histórico sem depender de o tipo ainda estar ativo no catálogo.
+export interface AcTemperaturaFrascoComNome extends AcTemperaturaFrasco {
+  tipo_frasco_nome: string;
 }
 
 // ─── Fase 8 — Laudos ────────────────────────────────────────────────────────────
