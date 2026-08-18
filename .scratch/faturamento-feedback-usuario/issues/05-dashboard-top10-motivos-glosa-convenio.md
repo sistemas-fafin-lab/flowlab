@@ -1,7 +1,15 @@
-Status: ready-for-agent
+Status: needs-info
 Type: task
 
 # Dashboard: top 10 motivos de glosa com breakdown por operadora
+
+## Adiada (2026-08-18)
+
+Verificado em produção (Supabase `jqxeqmeikqclmmongclj`, via SQL Editor): tabela `glosas` tem **0 linhas**. `notas` tem 5 linhas, todas de uma carga de seed única (mesmo timestamp `2026-03-27 14:45:38`), não uso orgânico do setor. O widget, implementado sobre essa fonte, ficaria vazio hoje.
+
+Cogitou-se migrar a fonte para o apLIS (`fatrequisicaoprocedimento.IdMotivoGlosa` + `fatmotivoglosa.Descricao`, que tem 26.258 procedimentos com glosa reais, ex.: "VALOR APRESENTADO A MAIOR" 8.824× / R$225k, "GLOSA MANTIDA" 3.494× / R$22k) — descartado por decisão explícita: manter a fonte nativa do flowlab e esperar o módulo Títulos ganhar uso orgânico, em vez de reformular a fonte de dado agora.
+
+**Retomar quando**: `glosas` (Supabase) tiver volume real de glosas registradas pelo setor via o fluxo de baixa do flowlab. Nesse momento, seguir o plano abaixo como estava.
 
 ## Onde
 

@@ -1,7 +1,13 @@
-Status: ready-for-agent
+Status: needs-info
 Type: task
 
 # Títulos: vínculo NF → lote → requisição do Aplis
+
+## Adiada (2026-08-18)
+
+Esta melhoria enriquece a expansão de um título **já criado** (`TitulosList.tsx:411-449`), a partir do snapshot que `fat_criar_titulo` grava no Supabase. Em produção só existem 5 notas, todas de uma carga de seed (mesmo achado das issues 01/05/06) — nenhuma criada organicamente pelo setor ainda. Não há título real hoje pra essa navegação melhorada valer a pena testar/usar.
+
+**Retomar quando**: o setor começar a criar títulos de verdade pelo fluxo "Novo título". Nesse momento, confirmar quais campos o snapshot já captura versus o que falta (`CodRequisicao` etc.) antes de implementar.
 
 ## Onde
 

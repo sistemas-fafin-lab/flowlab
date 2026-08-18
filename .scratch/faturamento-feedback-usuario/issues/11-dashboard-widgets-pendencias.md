@@ -18,3 +18,7 @@ Blocked by: 07, 08
 ## Critérios de aceite
 
 - Ambos os indicadores visíveis no dashboard com valores consistentes com a aba Pendências.
+
+## Fora de escopo
+
+- Widget para recebimento parcial pendente (issue 09) e para o vínculo NF+lote+Aplis (issue 12) — decisão de grilling (rodada 2, 2026-08-18): (c) fica só no drill-down do lote em Faturas, mais natural no contexto do lote; (d) é navegação/detalhe, não métrica agregável para widget.

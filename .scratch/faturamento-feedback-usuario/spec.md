@@ -1,12 +1,14 @@
 # Faturamento: feedback do usuário (dashboard, faturas, contas a receber, glosas)
 
-Status: planejado — Fases 1 e 2 prontas para execução; Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
+Status: planejado — Fases 1 e 2 prontas para execução (exceto issues 01/05/06/12, adiadas); Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
 
 Spec resultante de sessão de grilling em 2026-08-18, a partir do relatório de análise do setor de faturamento. Cada item vira uma issue própria em `issues/`.
 
 ## Contexto
 
 O setor de faturamento avaliou o flowlab positivamente (centraliza o que hoje vive em planilhas) e listou melhorias em 4 áreas: Dashboard, Faturas, Contas a Receber e Glosas e Recursos. Durante o grilling foram levantados fatos direto nos dados do apLIS (consultas read-only ao backup via `api/_lib/faturamento/bdLab.ts`) que fundamentam as decisões abaixo.
+
+**Acesso ao banco real (para qualquer issue desta spec que precise investigar/verificar dado do apLIS):** o `.env` do projeto tem `DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD`/`DB_NAME=lab` apontando para um túnel ngrok já configurado — dá para consultar o MySQL real (somente leitura, mesmo banco que `bdLab.ts` usa) sem depender do ambiente do cliente nem de esperar snapshot. O schema completo das tabelas está em `/home/erudhir101/projects/import_files/schema-backup-banco.csv` (fora deste repo). Vários fatos desta spec (issues 01, 03, 08, 10) foram verificados/reconfirmados direto nesse banco em 2026-08-18. A instância Supabase local do flowlab é que não tem os dados do apLIS — isso não é bloqueio para pesquisar os dados de origem.
 
 ## Decisões já tomadas (grilling session)
 
@@ -19,30 +21,45 @@ O setor de faturamento avaliou o flowlab positivamente (centraliza o que hoje vi
 - Pendente de recebimento = `ValorRecebido < ValorLiquido` (cobre glosa integral, VR=0), com `CodEventoFatur` (`RECEBIDO` etc.) como sinal auxiliar — alinhado à planilha do setor.
 - "Não faturada" = lote apLIS sem NF/RPS (`fatlote.IdRPS` nulo) em status ativos (1, 2, 3, 6, 7), criado até o fim de M-2 (ex.: em agosto, jan–jun sem NF = pendência); verificação fina por requisição via `NFeReq`/`RPSReq` do export.
 - Particulares pendentes = fonte 1102 + evento de laudo liberado (CodEvento 11, 56, 16, 1000, 9, 19 — regra da subtab "recebido" que o setor usa hoje) + sem NF.
-- Top 10 motivos de glosa mantém a fonte atual (glosas do flowlab); ampliar 8 → 10 + breakdown por operadora via `glosas.nota_id → notas.operadora_id`.
-- Protocolo duplicado (3.1): badge + filtro, sem bloqueio de operação; exceção AMHP-DF.
+- ~~Top 10 motivos de glosa mantém a fonte atual (glosas do flowlab); ampliar 8 → 10 + breakdown por operadora via `glosas.nota_id → notas.operadora_id`.~~ Revisto na rodada 3 — ver abaixo.
+- Protocolo duplicado (3.1): badge + filtro, sem bloqueio de operação; exceção por **formato de protocolo** (não por lista de operadoras).
 - Guias com `ValorRecebido = 0` (glosa integral) deixam de aparecer como recebidas — a exibição passa a usar os valores do apLIS.
 - Novas áreas: widgets-resumo no dashboard + aba "Pendências" em Contas a Receber (híbrido).
+
+### Grilling — rodada 2 (2026-08-18): escopo dos widgets do dashboard e exceção de protocolo duplicado
+
+- **Widgets-resumo (issue 11)**: ficam restritos aos itens das issues 07 (requisições não faturadas) e 08 (particulares sem NF). Os itens "requisições recebidas parcialmente, só as pendentes" (issue 09) e "vínculo NF+lote+Aplis" (issue 12) **não** ganham widget no dashboard — decisão explícita, não lacuna: (c) é mais natural de consultar dentro do contexto do lote em Faturas; (d) é uma feature de navegação/detalhe, não uma métrica agregável.
+- **Exceção de protocolo duplicado (issue 10)**: a investigação achou que a Medigest usa o mesmo padrão de protocolo-data legítimo que a AMHP-DF (ex.: `03082026`), fato não previsto no feedback original (que só pedia exceção para a AMHP). Em vez de manter/ampliar uma lista de operadoras isentas por `IdFontePagadora`, a regra passa a isentar automaticamente qualquer protocolo cujo valor seja uma **data válida no formato `DDMMYYYY`** (8 dígitos, dia 01–31, mês 01–12, ano plausível), independente da operadora. Isso cobre AMHP-DF e Medigest sem hardcode e continua marcando duplicidades reais como o protocolo `760054` (ASSEFAZ/Medigest), que não tem formato de data.
+
+### Grilling — rodada 3 (2026-08-18): fonte de dados das issues 05 e 06 (adiadas)
+
+- **Correção de ambiente**: o `.env` local tinha `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` apontando para o projeto **de teste** (`eqzqkztgzcngnxmihdom`, "eqk"), não o de produção. O projeto real de produção é **`jqxeqmeikqclmmongclj`** ("jqx") — confirmado via `vercel env pull` (o `VITE_SUPABASE_URL` de produção bate com esse projeto). Corrigir o `.env` local antes de qualquer issue futura que precise ler dado real do Supabase (nenhuma issue desta spec dependia disso além de 04/05/06 — 04 já foi resolvida assumindo a hipótese (c), não bloqueada por isso).
+- **Achado em produção (banco `jqx`, consultado via SQL Editor em 2026-08-18)**: `notas` tem 5 linhas, todas inseridas no mesmo instante (`2026-03-27 14:45:38`, milissegundos de diferença) — claramente carga de seed/demo, não uso orgânico. `glosas` tem **0 linhas**. O módulo Títulos/Contas a Receber (que alimenta os widgets de dashboard, incluindo o RPC `fat_dashboard_receber`) não tem, na prática, nenhum dado real de glosa ou faturamento gerado pelo setor até agora — mesmo em produção.
+- **Decisão**: issues 05 (top 10 motivos de glosa) e 06 (valor faturado por convênio) ficam **adiadas** (não canceladas). Motivo: construir os widgets sobre `notas`/`glosas` hoje resultaria em widgets vazios/enganosos; migrar a fonte para o apLIS (que tem 26.258 procedimentos com glosa reais) foi considerado, mas o setor optou por manter a fonte nativa do flowlab e esperar o módulo Títulos ganhar uso orgânico em vez de reformular a fonte de dado agora.
+- **Critério de retomada**: revisitar quando `notas`/`glosas` tiverem volume real de uso orgânico do setor (títulos criados e baixas/glosas registradas pelo fluxo manual do flowlab, não seed). Reavaliar nesse momento se a fonte nativa já é suficiente ou se ainda vale considerar o apLIS como fonte (opção descartada nesta rodada, não permanentemente).
+- **Mesmo achado se aplica às issues 01 e 12** (revisão de 2026-08-18): issue 01 investiga o KPI faturado×recebido do mesmo RPC `fat_dashboard_receber` — sem baixas reais em produção, não há divergência real pra investigar; sua parte de valor real (guia R$0 como "recebida") já está coberta pela issue 09 (apLIS, independente do módulo Títulos). Issue 12 enriquece a expansão de um título já criado — sem título real criado organicamente, não há o que validar. Ambas ficam **adiadas** pelo mesmo critério de retomada acima.
 
 ## Entrega em fases
 
 ### Fase 1 — Investigações + ajustes rápidos do dashboard
 
-1. Investigar divergência faturado × recebido no dashboard (e guias R$0 como "recebidas") — issue 01.
-2. Investigar lotes "Prejuízo" ausentes na "pesquisa personalizada" (item 3.3) — issue 02.
+~~1. Investigar divergência faturado × recebido no dashboard (e guias R$0 como "recebidas") — issue 01.~~
+2. Lotes "Prejuízo" somem por causa do período padrão do filtro (item 3.3) — issue 02.
 3. Exceção AMHP-DF no aviso "sem envio" (Títulos – Aberta) — issue 03.
-4. Investigar número de NF "semelhante" entre os status de títulos — issue 04.
-5. Widget top 10 motivos de glosa com breakdown por operadora (item 2.2) — issue 05.
-6. Widget valor faturado por convênio (item 2.3) — issue 06.
+4. Indicar mudança de status ao longo do tempo em Títulos (item 4) — issue 04.
+
+~~5. Widget top 10 motivos de glosa com breakdown por operadora (item 2.2) — issue 05.~~
+~~6. Widget valor faturado por convênio (item 2.3) — issue 06.~~
+Issues 01, 05 e 06 **adiadas** — ver "Fora de escopo (parked)".
 
 ### Fase 2 — Pendências e faturas
 
 7. Aba "Pendências": requisições não faturadas (janela M-2) (item 2.4) — issue 07.
-8. Aba "Pendências": particulares sem NF emitida (item 2.6) — issue 08.
+8. Aba "Pendências": particulares sem NF emitida (item 2.6) — issue 08 (bloqueada por 07).
 9. Recebimento por requisição no lote "Recebido - parcial" (itens 3.2 e 3.2b) — issue 09.
-10. Sinalizar lotes com protocolo de envio duplicado, exceto AMHP-DF (item 3.1) — issue 10.
+10. Sinalizar lotes com protocolo de envio duplicado, exceto protocolos em formato de data (item 3.1) — issue 10.
 11. Widgets-resumo das novas pendências no dashboard — issue 11 (bloqueada por 07 e 08).
-12. Vínculo NF → lote → requisição do Aplis no Títulos (item 5) — issue 12.
+~~12. Vínculo NF → lote → requisição do Aplis no Títulos (item 5) — issue 12.~~ **Adiada** — ver "Fora de escopo (parked)".
 
 ### Fase 3 — Aguardando insumos externos (sem issues ainda)
 
@@ -52,21 +69,22 @@ O setor de faturamento avaliou o flowlab positivamente (centraliza o que hoje vi
 
 ## Issues
 
-- `issues/01-investigar-divergencia-faturado-recebido.md` — research
-- `issues/02-investigar-prejuizo-pesquisa-personalizada.md` — research
+- `issues/01-investigar-divergencia-faturado-recebido.md` — research, **adiada** (ver Fora de escopo)
+- `issues/02-investigar-prejuizo-pesquisa-personalizada.md` — task
 - `issues/03-excecao-amhp-sem-envio.md` — task
-- `issues/04-investigar-nf-semelhante-entre-status.md` — research
-- `issues/05-dashboard-top10-motivos-glosa-convenio.md` — task
-- `issues/06-dashboard-valor-faturado-convenio.md` — task
+- `issues/04-investigar-nf-semelhante-entre-status.md` — task
+- `issues/05-dashboard-top10-motivos-glosa-convenio.md` — task, **adiada** (ver Fora de escopo)
+- `issues/06-dashboard-valor-faturado-convenio.md` — task, **adiada** (ver Fora de escopo)
 - `issues/07-pendencias-requisicoes-nao-faturadas.md` — task
 - `issues/08-pendencias-particulares-sem-nf.md` — task
 - `issues/09-lote-parcial-recebimento-por-requisicao.md` — task
 - `issues/10-lotes-protocolo-duplicado.md` — task
 - `issues/11-dashboard-widgets-pendencias.md` — task (bloqueada por 07 e 08)
-- `issues/12-titulos-vinculo-nf-lote-requisicao.md` — task
+- `issues/12-titulos-vinculo-nf-lote-requisicao.md` — task, **adiada** (ver Fora de escopo)
 
 ## Fora de escopo (parked)
 
 - **Item 6 — reclassificação de glosas**: aguardando o documento específico de Glosas e Recursos. Contexto registrado para o documento futuro: a classificação (glosa × negativa de autorização × procedimento não autorizado × ocorrência administrativa) pode usar os eventos do apLIS — `CodEvento` (tabela `evento`) 57 (Aguarda autorização do convênio), 58 (Aguarda resolução de não conformidade), 1021 (Amostra Pendente de PGTO.), 1036 (Autorização para o Laboratório LAP), 1040 (Requisição para pagamento no particular — rótulo com typo no banco: "Requsição"), 1041 (Requisição criada para faturamento, ativo; o 1049 é inativo), 1022 (FAT. EXTERNO), 1039 (APENAS PARA FATURAMENTO DA SULAMERICA), 1008 (FATURAMENTO ENCERRADO) — além de `CodEventoFatur` (tabela `eventofatur`: 1 AGUARDANDO FATURAMENTO, 2 FATURAMENTO EM PROGRESSO, 3 AGUARDANDO RE-FATURAMENTO, 5 RECEBIDO, 6 GLOSADO ainda SEM RECURSO, 7 RECURSO DE GLOSA - 1º RECURSO, 8 GLOSA DEFINITIVA - ACATADA DIRETORIA, 11 CONCILIAÇÃO - AGUARDANDO, 14 AGUARDANDO CARÊNCIA, 15 RECURSO NÃO ACATADO) e `IdMotivoGlosa`/`DesMotivoGlosa` (ex.: 1702 = COBRANÇA DE PROCEDIMENTO EM DUPLICIDADE; 2902 = GLOSA MANTIDA). Esses valores foram verificados no banco e estão documentados no export que o setor usa (projeto csv-filter, `filtros.md`; schema em `import_files/schema-backup-banco.csv`).
 - **Itens 2.1 e 2.5**: retomados quando o Mapa de Pagamento das Operadoras chegar.
+- **Issues 01, 05, 06 e 12**: adiadas — `notas`/`titulos`/`glosas` (Supabase, produção) não têm uso orgânico do setor ainda (5 notas de seed, 0 glosas reais, verificado em 2026-08-18). Issue 01 (KPI faturado×recebido) e issue 12 (vínculo NF→lote→requisição na expansão do título) dependem da mesma base sem dado real. Retomar todas as quatro quando o módulo Títulos tiver volume real; ver "Grilling — rodada 3" acima para o achado completo e a alternativa descartada (migrar para o apLIS).
 - **Preencher `DtaEnvio` no apLIS** (não é escopo do flowlab; a exceção AMHP-DF cobre o sintoma).

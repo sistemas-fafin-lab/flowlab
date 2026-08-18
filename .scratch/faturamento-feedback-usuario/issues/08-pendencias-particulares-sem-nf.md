@@ -1,5 +1,6 @@
 Status: ready-for-agent
 Type: task
+Blocked by: 07
 
 # Pendências: requisições particulares sem NF emitida
 
@@ -9,7 +10,7 @@ Mesma aba "Pendências" da issue 07 (`ContasReceberPage.tsx`) + consulta/endpoin
 
 ## Regra (decidida no grilling, espelha a subtab "recebido" da planilha do setor)
 
-- Fonte pagadora `IdFontePagadora = 1102` (PARTICULAR, ativa no apLIS; a linha tem flag `fatinstituicao.Particular = 1` — a 101, inativa, também é Particular).
+- Fonte pagadora `IdFontePagadora = 1102` (PARTICULAR, ativa no apLIS; a linha tem flag `fatinstituicao.Particular = 1` — a 101, inativa, também é Particular). Verificado no banco real: `IdInstituicao 101` = "PARTICULAR" (`Particular=1`, `Inativo=1`); `IdInstituicao 1102` = "PARTICULAR" (`Particular=1`, `Inativo=0`) — não há erro de digitação, são dois IDs de 3 e 4 dígitos legítimos.
 - Evento de laudo liberado: `CodEvento` 11 (Laudo Concluído Definitivo), 56 (Concluído - Laudo em Fotos), 16 (Microscopia), 1000 (Microscopia - Aguarda Liberação), 9 (Histotécnica), 19 (Envio material parceiro).
 - Sem NF emitida (lote sem `IdRPS` / requisição sem `NFeReq`).
 - Referência: evento 1040 "Requisição para pagamento no particular" (rótulo com typo no banco: "Requsição").

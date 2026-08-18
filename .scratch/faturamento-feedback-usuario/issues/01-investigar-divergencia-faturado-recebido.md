@@ -1,7 +1,15 @@
-Status: ready-for-agent
+Status: needs-info
 Type: research
 
 # Investigar divergência faturado × recebido no dashboard (e guias R$0 como "recebidas")
+
+## Adiada (2026-08-18)
+
+O KPI "faturado × recebido" investigado aqui vem do RPC `fat_dashboard_receber`, calculado sobre `titulos`/`notas` (Supabase) — mesma fonte quase vazia identificada nas issues 05/06 (produção: 5 notas de seed, 0 baixas reais). Não há divergência real pra investigar nesse agregado hoje — é matematicamente estável sobre dado de teste que nunca muda.
+
+A parte que tinha valor real e verificável — guias com `ValorRecebido = 0` aparecendo como "recebidas" (lotes 6108/6075, requisições 188604/190485) — é 100% apLIS ao vivo e já está integralmente coberta pela **issue 09**, que corrige a exibição em `SQL_DETALHE`/`detalharLote` (`bdLab.ts`, aba Faturas), independente do módulo Títulos. Nenhum trabalho é perdido ao adiar esta issue.
+
+**Retomar quando**: `titulos`/`notas` tiverem volume real (mesmo critério das issues 05/06/12). Nesse momento, reavaliar se ainda há divergência a investigar no KPI do dashboard, além do que a issue 09 já resolve.
 
 ## Onde
 
@@ -20,7 +28,7 @@ Fatos já levantados (apLIS, somente leitura, verificados também contra `import
 - `faturado` = `SUM(notas.valor_total)` dos títulos emitidos no período; `recebido` = `SUM(notas.valor_recebido)` (soma de baixas) sobre os mesmos títulos — fontes e eventos diferentes.
 - Status "recebida" é da nota (`v_recebido >= v_total`); guias do snapshot têm `status = 'faturada'` para sempre (`20260807130000_contas_receber_rpcs.sql:178`).
 - Baixa acima do saldo é aceita (achado 4.4 de `docs/plans/faturamento/revisao-contas-receber.md:935-961`) e força "recebida" com saldo negativo.
-- O `.env` local aponta para a mesma instância MySQL do csv-filter (`lab`), mas a instância Supabase local não tem os snapshots reais — investigar no ambiente que o cliente usa.
+- Acesso direto ao MySQL real do apLIS: `.env` (`DB_HOST`/`DB_PORT`/`DB_USER`/`DB_PASSWORD`/`DB_NAME=lab`) aponta para um túnel ngrok já configurado — dá para consultar o banco real (somente leitura) sem depender do ambiente do cliente. Os fatos acima (requisições 188604/190485, lotes 6108/6075) foram reconfirmados direto nesse banco em 2026-08-18. A instância Supabase local é que não tem os snapshots — não é bloqueio para investigar os dados do apLIS.
 
 ## O que investigar
 
