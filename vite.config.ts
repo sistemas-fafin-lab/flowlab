@@ -623,7 +623,18 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
   const FATURAMENTO_ACTIONS = new Set([
     'lotes', 'lote-detalhe', 'titulo-criar', 'operadoras-sync',
     'glosas-legado', 'recursos-legado',
+    'pendencias-nao-faturadas', 'pendencia-lote-detalhe', 'pendencias-particulares',
   ]);
+  // O nome do arquivo do handler segue a action, exceto estas duas: os handlers
+  // de pendências (issues 07/08) nasceram com nome mais curto que a action
+  // pública (`faturamento-pendencias.ts`, não `faturamento-pendencias-nao-faturadas.ts`)
+  // — ver o mapeamento real em api/faturamento/[action].ts. Sem este override, o
+  // ssrLoadModule abaixo tenta um arquivo que não existe e a rota cai no fallback
+  // do SPA, devolvendo index.html em vez de JSON.
+  const FATURAMENTO_HANDLER_OVERRIDES: Record<string, string> = {
+    'pendencias-nao-faturadas': 'pendencias',
+    'pendencia-lote-detalhe': 'pendencia-detalhe',
+  };
   // DB_* é o MySQL de backup do laboratório: a fonte da aba Faturas (antes era o apLIS).
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
@@ -689,7 +700,8 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
 
         try {
           ensureProcessEnv();
-          const mod = await server.ssrLoadModule(`/api/_lib/handlers/faturamento-${action}.ts`);
+          const handlerName = FATURAMENTO_HANDLER_OVERRIDES[action] ?? action;
+          const mod = await server.ssrLoadModule(`/api/_lib/handlers/faturamento-${handlerName}.ts`);
           await mod.default(vReq, vRes);
         } catch (err) {
           console.error(`[dev/faturamento/${action}]`, err);
