@@ -21,7 +21,7 @@ import DatePicker from '../../../components/DatePicker';
 // Cópias locais destas duas viraram utilitário do módulo quando Contas a Receber
 // passou a precisar das mesmas regras (inclusive o T00:00:00 do fuso).
 import { formatCurrency, formatData } from '../utils/formato';
-import { janelaDoPreset, PeriodoPreset } from '../utils/periodo';
+import { janelaDoPreset, janelaEfetiva, PeriodoPreset } from '../utils/periodo';
 
 // ============================================================================
 // COMPONENTE: FaturasDashboard
@@ -92,11 +92,12 @@ const FaturasDashboard: React.FC = () => {
   }, [busca]);
 
   // Intervalo efetivo (preset OU datas personalizadas) → limites ISO p/ o hook.
-  // Memoizado: os limites ficam fixos até o preset/datas mudarem, evitando refetch
-  // em loop (o hook depende dessas strings).
+  // Memoizado: os limites ficam fixos até o preset/datas/status mudarem, evitando
+  // refetch em loop (o hook depende dessas strings). Ignora o preset padrão quando o
+  // status filtrado é raro e sem prazo natural (ex.: Prejuízo) — ver janelaEfetiva.
   const range = useMemo(
-    () => janelaDoPreset(preset, new Date(), { ini: customIni, fim: customFim }),
-    [preset, customIni, customFim],
+    () => janelaEfetiva(preset, filtroStatus, new Date(), { ini: customIni, fim: customFim }),
+    [preset, customIni, customFim, filtroStatus],
   );
 
   const { lotes, meta, loading, error, refetch, buscarRequisicoes } = useFaturamentoLotes({
@@ -159,8 +160,12 @@ const FaturasDashboard: React.FC = () => {
 
   const ativarCustom = () => {
     if (!customIni || !customFim) {
-      setCustomIni(range.periodoIni);
-      setCustomFim(range.periodoFim);
+      // Não usa `range` aqui: com status Prejuízo ele carrega o sentinela de
+      // "todos os períodos" (2000-01-01), que pré-preencheria os campos com uma
+      // data sem sentido em vez do período do preset que estava ativo.
+      const base = janelaDoPreset(preset === 'custom' ? 'mes' : preset, new Date());
+      setCustomIni(base.periodoIni);
+      setCustomFim(base.periodoFim);
     }
     setPreset('custom');
   };
@@ -214,7 +219,9 @@ const FaturasDashboard: React.FC = () => {
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Lotes no período</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                {range.ignorandoPeriodo ? 'Lotes encontrados' : 'Lotes no período'}
+              </p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">
                 {meta?.registros ?? 0}
               </p>
@@ -224,7 +231,9 @@ const FaturasDashboard: React.FC = () => {
             </div>
           </div>
           <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-            {formatData(range.periodoIni)} a {formatData(range.periodoFim)}
+            {range.ignorandoPeriodo
+              ? 'Todos os períodos'
+              : `${formatData(range.periodoIni)} a ${formatData(range.periodoFim)}`}
           </div>
         </div>
 
@@ -325,6 +334,14 @@ const FaturasDashboard: React.FC = () => {
             />
           </div>
         </div>
+
+        {range.ignorandoPeriodo && (
+          <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+            <AlertCircle size={14} className="text-gray-400 shrink-0" />
+            Prejuízo é raro e sem prazo natural: mostrando todos os períodos, ignorando o filtro
+            de data. Escolha um período personalizado para restringir.
+          </p>
+        )}
       </div>
 
       {/* Lista de Lotes */}

@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Faturas: lotes "Prejuízo" somem por causa do período padrão do filtro (item 3.3)
