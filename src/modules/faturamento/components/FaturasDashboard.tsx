@@ -75,6 +75,7 @@ const FaturasDashboard: React.FC = () => {
   const [customIni, setCustomIni] = useState('');
   const [customFim, setCustomFim] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<number | 0>(0);
+  const [somenteProtocoloDuplicado, setSomenteProtocoloDuplicado] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [tamanho, setTamanho] = useState(50);
   const [busca, setBusca] = useState('');
@@ -107,13 +108,14 @@ const FaturasDashboard: React.FC = () => {
     tamanho,
     statusLote: filtroStatus || undefined,
     busca: buscaDebounced || undefined,
+    somenteProtocoloDuplicado: somenteProtocoloDuplicado || undefined,
   });
 
   // Trocar período/status/tamanho volta para a primeira página: a página 7 de um
   // filtro raramente existe no outro, e a consulta devolveria lista vazia.
   useEffect(() => {
     setPagina(1);
-  }, [range.periodoIni, range.periodoFim, filtroStatus, tamanho, buscaDebounced]);
+  }, [range.periodoIni, range.periodoFim, filtroStatus, tamanho, buscaDebounced, somenteProtocoloDuplicado]);
 
   // Requisições são carregadas sob demanda: um lote pode ter dezenas, cada uma com
   // vários procedimentos.
@@ -323,6 +325,18 @@ const FaturasDashboard: React.FC = () => {
             controlClass={`${CAMPO_FILTRO} min-w-[180px]`}
           />
 
+          <button
+            onClick={() => setSomenteProtocoloDuplicado((v) => !v)}
+            title="Lotes cujo protocolo de envio se repete em outro lote (exceto protocolo em formato de data)"
+            className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+              somenteProtocoloDuplicado
+                ? 'bg-amber-600 text-white'
+                : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+            }`}
+          >
+            Protocolos duplicados
+          </button>
+
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -433,6 +447,14 @@ const FaturasDashboard: React.FC = () => {
                               className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 whitespace-nowrap"
                             >
                               título {lote.tituloNumero ?? lote.tituloId}
+                            </span>
+                          )}
+                          {lote.protocoloDuplicado && (
+                            <span
+                              title={`Protocolo duplicado em ${lote.protocoloDuplicadoContagem ?? 0} lotes`}
+                              className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap"
+                            >
+                              protocolo duplicado
                             </span>
                           )}
                         </td>

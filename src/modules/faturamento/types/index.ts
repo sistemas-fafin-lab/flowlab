@@ -88,6 +88,11 @@ export interface LoteFaturamento {
   dtaEnvio: string | null;
   dtaCancelamento: string | null;
   protocolo: string | null;
+  /** `protocolo` não vazio e repetido em outro lote, excluindo protocolo em
+   *  formato de data (DDMMYYYY plausível) — issue 10 do feedback. */
+  protocoloDuplicado: boolean;
+  /** Em quantos lotes este protocolo aparece; null quando não duplicado. */
+  protocoloDuplicadoContagem: number | null;
   nfeNumero: string | null;
   nfeCodigoVerificacao: string | null;
   numeroRPS: number | null;
@@ -145,6 +150,8 @@ export interface LotesFiltros {
   /** Esconde os lotes que já pertencem a um título ativo. Usado pelo modal de
    *  criação; recorta a página, não o total (ver o handler). */
   somenteSemTitulo?: boolean;
+  /** Só lotes com protocolo duplicado (ver `LoteFaturamento.protocoloDuplicado`). */
+  somenteProtocoloDuplicado?: boolean;
 }
 
 export interface LotesMeta {

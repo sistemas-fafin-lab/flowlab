@@ -18,6 +18,7 @@
  *   statusLote              código STLOT (1..8)
  *   pagina                  default 1
  *   tamanho                 1..200, default 50
+ *   somenteProtocoloDuplicado  '1' filtra só lotes com protocolo duplicado (issue 10)
  *
  * Variáveis de ambiente: DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME
  *   + SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY para validar a sessão.
@@ -191,6 +192,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // Corta em vez de recusar: o operador colando um texto grande no campo de busca
       // não é erro dele, e o termo vira 7 predicados LIKE lá embaixo.
       busca: primeiro(q.busca)?.trim().slice(0, MAX_BUSCA) || undefined,
+      // A aba Faturas é a única leitora de protocoloDuplicado/protocoloDuplicadoContagem
+      // (a criação de título usa listarLotes por outro caminho, sem ligar isto — ver
+      // comProtocoloDuplicado em bdLab.ts), então liga sempre aqui.
+      comProtocoloDuplicado: true,
+      somenteProtocoloDuplicado: primeiro(q.somenteProtocoloDuplicado) === '1',
       ignorarCache: primeiro(q.semCache) === '1',
     });
 

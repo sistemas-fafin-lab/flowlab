@@ -62,6 +62,11 @@ export interface LoteFaturamento {
   dtaEnvio: string | null;
   dtaCancelamento: string | null;
   protocolo: string | null;
+  /** `protocolo` não vazio e repetido em outro lote, excluindo protocolo em
+   *  formato de data (ver `protocoloEhData`) — issue 10 do feedback. */
+  protocoloDuplicado: boolean;
+  /** Em quantos lotes este protocolo aparece; null quando não duplicado. */
+  protocoloDuplicadoContagem: number | null;
   nfeNumero: string | null;
   nfeCodigoVerificacao: string | null;
   numeroRPS: number | null;
@@ -139,6 +144,16 @@ export interface ListarLotesParams {
   /** Ignora o cache em memória e o regrava. É o que o botão "Atualizar" da tela usa —
    *  sem isto ele devolveria a mesma resposta durante os 3 min de TTL. */
   ignorarCache?: boolean;
+  /** Só lotes com protocolo duplicado (ver `LoteFaturamento.protocoloDuplicado`).
+   *  Filtro de tela, sem efeito em bloqueio de operação. */
+  somenteProtocoloDuplicado?: boolean;
+  /** Calcula `protocoloDuplicado`/`protocoloDuplicadoContagem` de cada lote (custa
+   *  uma agregação sobre TODA a fatlote — ver `protocolosDuplicados`). Opt-in: a
+   *  aba Faturas liga; a criação de título (que só lê idLote/status/valor/guias)
+   *  não precisa pagar esse full scan a cada snapshot. Ligado automaticamente
+   *  quando `somenteProtocoloDuplicado` é usado, senão o filtro não teria o que
+   *  filtrar. */
+  comProtocoloDuplicado?: boolean;
 }
 
 // Discriminado pela PRESENÇA de `erro` (idiom de recepcaoAgendamento.ts): o tsconfig
@@ -216,6 +231,34 @@ function texto(bruto: unknown): string | null {
 // Datas já saem 'YYYY-MM-DD' do MySQL; só normaliza o vazio.
 const dataIso = texto;
 
+// Faixa de ano aceita para um protocolo em formato de data — larga o bastante para
+// cobrir o histórico da fatlote (achado das pendências: lotes desde dez/2020) sem
+// deixar passar lixo óbvio como "00002026" teria se só checássemos dia/mês.
+const ANO_MINIMO_PROTOCOLO_DATA = 1900;
+const ANO_MAXIMO_PROTOCOLO_DATA = 2099;
+
+/**
+ * Protocolo em formato de data válida: 8 dígitos `DDMMYYYY` que formam uma data de
+ * calendário real (dia 01–31, mês 01–12, ano plausível — E o dia tem que existir
+ * naquele mês, tipo 31/04 não vale). AMHP-DF e Medigest usam esse formato
+ * legitimamente compartilhado entre lotes (issue 10 do feedback) — protocolos assim
+ * NUNCA contam como duplicidade, mesmo repetidos entre vários lotes ou operadoras.
+ *
+ * A validação de calendário (via `Date`, não só faixa numérica) importa: sem ela um
+ * protocolo realmente duplicado que por coincidência caísse numa "data" inexistente
+ * (ex.: 31042026) escaparia da marcação — a faixa dia<=31/mês<=12 sozinha aceitaria.
+ */
+export function protocoloEhData(protocolo: string): boolean {
+  if (!/^\d{8}$/.test(protocolo)) return false;
+  const dia = Number(protocolo.slice(0, 2));
+  const mes = Number(protocolo.slice(2, 4));
+  const ano = Number(protocolo.slice(4, 8));
+  if (dia < 1 || dia > 31 || mes < 1 || mes > 12) return false;
+  if (ano < ANO_MINIMO_PROTOCOLO_DATA || ano > ANO_MAXIMO_PROTOCOLO_DATA) return false;
+  const data = new Date(ano, mes - 1, dia);
+  return data.getFullYear() === ano && data.getMonth() === mes - 1 && data.getDate() === dia;
+}
+
 /** Tipos que o `execute` do mysql2 aceita como bind — só isto entra nas consultas. */
 type ParametroSql = string | number;
 
@@ -231,7 +274,7 @@ const TTL_BUSCA = 60_000;      // 1 min quando há termo de busca
 const MAX_ENTRADAS = 128;
 
 function chaveListar(params: ListarLotesParams): string {
-  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${(params.idsLote ?? []).join('.')}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}`;
+  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${(params.idsLote ?? []).join('.')}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}|${params.somenteProtocoloDuplicado ? 1 : 0}|${params.comProtocoloDuplicado ? 1 : 0}`;
 }
 
 function doCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, resultado: T): void {
@@ -251,6 +294,54 @@ function daCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, temBusca
     return null;
   }
   return entrada.resultado;
+}
+
+// Protocolos duplicados são propriedade GLOBAL do lote, não do período filtrado:
+// dois lotes podem compartilhar protocolo em janelas de tempo bem distantes (achado
+// real: protocolo 760054 repetido entre ASSEFAZ e Medigest em dez/2024, fora de
+// qualquer janela de 12 meses). Por isso a contagem roda sobre TODA a fatlote, numa
+// única agregação (GROUP BY) em vez de subconsulta correlacionada por linha — cache
+// à parte da listagem, mesmo TTL, para não pagar esse full scan a cada combinação de
+// filtro/página.
+let cacheProtocolosDuplicados: { mapa: Map<string, number>; ts: number } | null = null;
+
+/** Protocolo (já trimado — ver TRIM no SELECT, mesmo tratamento de `texto()`) →
+ *  quantos lotes o compartilham, só para os que NÃO são formato de data (ver
+ *  `protocoloEhData`) e aparecem em mais de um lote.
+ *
+ *  `ignorarCache` fura o TTL deste mapa — usado pelo botão "Atualizar" da aba
+ *  Faturas (mesmo `ignorarCache` da listagem em si), não pela criação de título:
+ *  essa já força `ignorarCache` na LISTAGEM por outro motivo (snapshot do título
+ *  tem que ser o estado atual dos lotes) mas nunca lê `protocoloDuplicado`, então
+ *  nem chama esta função — ver `comProtocoloDuplicado` em `listarLotes`. */
+async function protocolosDuplicados(
+  conn: mysql.Connection,
+  ignorarCache: boolean,
+): Promise<Map<string, number>> {
+  if (!ignorarCache && cacheProtocolosDuplicados
+      && Date.now() - cacheProtocolosDuplicados.ts <= TTL_PADRAO) {
+    return cacheProtocolosDuplicados.mapa;
+  }
+  // TRIM no GROUP BY: sem isso, um protocolo com espaço a mais gravado por engano
+  // ("760054" vs " 760054") formaria um grupo à parte da contagem, e o filtro
+  // `TRIM(l.Protocolo) IN (...)` de filtroLotes (que usa esta mesma lista) deixaria
+  // de bater com o valor cru da coluna.
+  const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+    `SELECT TRIM(Protocolo) AS Protocolo, COUNT(*) AS Contagem
+       FROM fatlote
+      WHERE Protocolo IS NOT NULL AND TRIM(Protocolo) <> ''
+      GROUP BY TRIM(Protocolo)
+     HAVING COUNT(*) > 1`,
+    [],
+  );
+  const mapa = new Map<string, number>();
+  for (const linha of linhas) {
+    const protocolo = texto(linha.Protocolo);
+    if (!protocolo || protocoloEhData(protocolo)) continue;
+    mapa.set(protocolo, numero(linha.Contagem));
+  }
+  cacheProtocolosDuplicados = { mapa, ts: Date.now() };
+  return mapa;
 }
 
 // O termo de busca é sempre bind (`?`), então não há injeção — mas `%` e `_` digitados
@@ -273,7 +364,10 @@ function like(expressao: string): string {
  * `periodoFim` é inclusivo: `< periodoFim + 1 dia` pega o dia inteiro sem depender de
  * como o DATETIME guarda a hora.
  */
-function filtroLotes(params: ListarLotesParams): { where: string; valores: ParametroSql[] } {
+function filtroLotes(
+  params: ListarLotesParams,
+  protocolosDuplicadosList: string[],
+): { where: string; valores: ParametroSql[] } {
   const condicoes: string[] = [];
   const valores: ParametroSql[] = [];
 
@@ -294,6 +388,16 @@ function filtroLotes(params: ListarLotesParams): { where: string; valores: Param
   if (params.statusLote !== undefined) {
     condicoes.push('l.Status = ?');
     valores.push(params.statusLote);
+  }
+  if (params.somenteProtocoloDuplicado) {
+    // Lista vazia = nenhum protocolo duplicado existe agora: `1 = 0` em vez de um
+    // `IN ()` vazio, que o mysql2 não aceita como SQL válido.
+    if (protocolosDuplicadosList.length === 0) {
+      condicoes.push('1 = 0');
+    } else {
+      condicoes.push(`TRIM(l.Protocolo) IN (${protocolosDuplicadosList.map(() => '?').join(', ')})`);
+      valores.push(...protocolosDuplicadosList);
+    }
   }
   if (params.busca !== undefined && params.busca.trim() !== '') {
     const termo = escaparLike(params.busca.trim().slice(0, MAX_BUSCA));
@@ -364,8 +468,10 @@ const SQL_LISTA = `
    ORDER BY l.DtaCriacao DESC, l.IdLote DESC
    LIMIT %LIMIT% OFFSET %OFFSET%`;
 
-function normalizarLote(linha: mysql.RowDataPacket): LoteFaturamento {
+function normalizarLote(linha: mysql.RowDataPacket, duplicados: Map<string, number>): LoteFaturamento {
   const status = inteiroOuNulo(linha.Status) ?? 0;
+  const protocolo = texto(linha.Protocolo);
+  const contagemDuplicado = protocolo ? duplicados.get(protocolo) ?? 0 : 0;
   return {
     idLote: numero(linha.IdLote),
     status,
@@ -375,7 +481,9 @@ function normalizarLote(linha: mysql.RowDataPacket): LoteFaturamento {
     dtaFechamento: dataIso(linha.DtaFechamento),
     dtaEnvio: dataIso(linha.DtaEnvio),
     dtaCancelamento: dataIso(linha.DtaCancelamento),
-    protocolo: texto(linha.Protocolo),
+    protocolo,
+    protocoloDuplicado: contagemDuplicado > 0,
+    protocoloDuplicadoContagem: contagemDuplicado > 0 ? contagemDuplicado : null,
     nfeNumero: texto(linha.NFeNumero),
     nfeCodigoVerificacao: texto(linha.NFeCodigoVerificacao),
     numeroRPS: inteiroOuNulo(linha.NumeroRPS),
@@ -425,7 +533,6 @@ export async function listarFontesPagadoras(): Promise<FontesPagadorasResultado>
 export async function listarLotes(params: ListarLotesParams): Promise<ListarLotesResultado> {
   const pagina = params.pagina ?? 1;
   const tamanho = params.tamanho ?? TAMANHO_PADRAO;
-  const { where, valores } = filtroLotes(params);
 
   // `ignorarCache` não entra em chaveListar de propósito: a releitura tem que
   // sobrescrever a MESMA entrada, senão o "Atualizar" gravaria numa chave paralela e a
@@ -436,6 +543,16 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
   if (cacheHit) return cacheHit;
 
   return comConexao('listarLotes', async (conn) => {
+    // Só paga o full scan de protocolosDuplicados quando alguém de fato vai usar o
+    // resultado — comProtocoloDuplicado (aba Faturas) ou somenteProtocoloDuplicado
+    // (que sem o mapa não teria o que filtrar). A criação de título (idsLote) não
+    // liga nenhum dos dois: ela só lê idLote/status/valor/guias do snapshot.
+    const precisaDuplicados = Boolean(params.comProtocoloDuplicado || params.somenteProtocoloDuplicado);
+    const duplicados = precisaDuplicados
+      ? await protocolosDuplicados(conn, Boolean(params.ignorarCache))
+      : new Map<string, number>();
+    const { where, valores } = filtroLotes(params, [...duplicados.keys()]);
+
     // Diferente do apLIS, que saturava o total em 2000: aqui a contagem é exata.
     const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT COUNT(*) AS n FROM fatlote l WHERE ${where}`,
@@ -464,7 +581,7 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
     );
 
     return {
-      lotes: linhas.map(normalizarLote),
+      lotes: linhas.map((linha) => normalizarLote(linha, duplicados)),
       meta: {
         pagina,
         tamanho,

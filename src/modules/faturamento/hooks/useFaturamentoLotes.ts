@@ -65,13 +65,14 @@ export function useFaturamentoLotes(filtros: LotesFiltros): UseFaturamentoLotesR
     rota: 'lotes',
     cache: cacheSessao,
     chaveCache: (f) =>
-      `${f.periodoIni}|${f.periodoFim}|${f.pagina ?? 1}|${f.tamanho ?? 50}|${f.statusLote ?? ''}|${f.busca ?? ''}`,
+      `${f.periodoIni}|${f.periodoFim}|${f.pagina ?? 1}|${f.tamanho ?? 50}|${f.statusLote ?? ''}|${f.busca ?? ''}|${f.somenteProtocoloDuplicado ? 1 : 0}`,
     montarParams: (f, force) => {
       const params = new URLSearchParams({ periodoIni: f.periodoIni, periodoFim: f.periodoFim });
       if (f.pagina) params.set('pagina', String(f.pagina));
       if (f.tamanho) params.set('tamanho', String(f.tamanho));
       if (f.statusLote) params.set('statusLote', String(f.statusLote));
       if (f.busca) params.set('busca', f.busca);
+      if (f.somenteProtocoloDuplicado) params.set('somenteProtocoloDuplicado', '1');
       if (force) {
         // O servidor também cacheia (TTL 3 min). Sem furar os dois, o "Atualizar"
         // devolveria exatamente a mesma resposta e o botão não faria nada.
