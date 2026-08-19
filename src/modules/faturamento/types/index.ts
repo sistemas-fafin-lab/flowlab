@@ -311,6 +311,8 @@ export interface TituloReceber {
   observacoes: string | null;
   /** Dias corridos de atraso; negativo = ainda a vencer, null = sem vencimento. */
   diasAtraso: number | null;
+  /** `notas.updated_at` — quando o status atual foi atingido (baixa/glosa que o recalculou). */
+  statusAtualizadoEm: string;
   lotes: TituloLote[];
 }
 

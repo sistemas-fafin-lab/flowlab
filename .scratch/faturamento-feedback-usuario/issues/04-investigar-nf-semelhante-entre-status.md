@@ -36,3 +36,9 @@ Também descartei a hipótese (b): a tabela em `TitulosList.tsx:293-295` já mos
 ## Referência
 
 Feedback do setor, item 4. `fat_criar_titulo` não deduplica por `numero_nota`.
+
+## Comments
+
+Implementado assumindo a hipótese (c): `TitulosList.tsx` agora mostra "atualizado em `notas.updated_at`" sob o badge de status (data + hora, fuso America/Sao_Paulo). `useContasReceber.ts` passou a selecionar `updated_at` e normalizar em `TituloReceber.statusAtualizadoEm`. Novo util `formatDataHora` em `utils/formato.ts`, com teste em `utils/formato.test.ts`.
+
+Item 2 (histórico simplificado de status na expansão) não foi feito — o item 1 já cobre o critério de aceite ("dá para saber quando o status atual foi atingido") e o item 2 era opcional ("se fizer sentido"). Sem mudança de regra de negócio.

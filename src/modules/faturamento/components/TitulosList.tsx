@@ -17,7 +17,7 @@ import type {
   TituloStatus,
   TitulosViewFiltros,
 } from '../types';
-import { formatCompetencia, formatCurrency, formatData } from '../utils/formato';
+import { formatCompetencia, formatCurrency, formatData, formatDataHora } from '../utils/formato';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
@@ -344,6 +344,12 @@ const TitulosList: React.FC<Props> = ({
                           <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_CORES[titulo.status]}`}>
                             {STATUS_ROTULOS[titulo.status]}
                           </span>
+                          {/* Mesmos poucos títulos revisitados em dias diferentes mudam de
+                              status (Aberta → Parcial → Recebida) conforme as baixas chegam —
+                              sem isto, a mudança parece uma NF "semelhante" duplicada. */}
+                          <div className="mt-1 text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+                            atualizado em {formatDataHora(titulo.statusAtualizadoEm)}
+                          </div>
                         </td>
                         {podeEditar && (
                           <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>

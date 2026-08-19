@@ -16,6 +16,25 @@ export { formatCurrency } from '../../../utils/paymentUtils';
 export const formatData = (iso: string | null | undefined): string =>
   iso ? new Date(`${iso}T00:00:00`).toLocaleDateString('pt-BR') : '—';
 
+/**
+ * Timestamptz completo (ex.: `notas.updated_at`) em data + hora no padrão brasileiro.
+ *
+ * `timeZone` fixo em America/Sao_Paulo: sem isto, o horário sai no fuso do
+ * dispositivo que roda o código (navegador do usuário, ou o runner de CI),
+ * não no fuso da operação — que é sempre Brasil.
+ */
+export const formatDataHora = (iso: string | null | undefined): string =>
+  iso
+    ? new Date(iso).toLocaleString('pt-BR', {
+        timeZone: 'America/Sao_Paulo',
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : '—';
+
 /** Competência "2026-08" → "08/2026". */
 export const formatCompetencia = (competencia: string | null | undefined): string => {
   if (!competencia) return '—';

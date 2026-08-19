@@ -43,6 +43,7 @@ interface LinhaTitulo {
   valor_saldo: number | string;
   status: TituloReceber['status'];
   observacoes: string | null;
+  updated_at: string;
   operadoras: { nome: string } | null;
   nota_lote: {
     lotes: {
@@ -91,6 +92,7 @@ function normalizar(linha: LinhaTitulo): TituloReceber {
     status: linha.status,
     observacoes: linha.observacoes,
     diasAtraso: diasDeAtraso(linha.data_vencimento),
+    statusAtualizadoEm: linha.updated_at,
     lotes,
   };
 }
@@ -148,7 +150,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         .from('notas')
         .select(
           `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
-           valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes,
+           valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes, updated_at,
            operadoras(nome),
            nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes))`,
           { count: 'exact' },
