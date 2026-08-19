@@ -123,6 +123,10 @@ export interface ProcedimentoRequisicao {
   valor: number;
   numGuia: string | null;
   motivoGlosa: string | null;
+  /** Descrição do catálogo `fatmotivoglosa` — `motivoGlosa` às vezes vem só com o
+   *  código numérico (ex.: "1001"), sem texto; usar em tooltip para mostrar o
+   *  motivo completo mesmo nesses casos. */
+  motivoGlosaDescricao: string | null;
   /** `fatrequisicaoprocedimento.ValorRecebido` — 0 quando glosado integralmente. */
   valorRecebido: number;
   dtaRecebido: string | null;

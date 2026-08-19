@@ -103,6 +103,10 @@ export interface ProcedimentoRequisicao {
   valor: number;
   numGuia: string | null;
   motivoGlosa: string | null;
+  /** Descrição do catálogo `fatmotivoglosa` (via `IdMotivoGlosa`) — `motivoGlosa` às
+   *  vezes vem só com o código numérico (ex.: "1001"), sem texto nenhum; isto dá o
+   *  texto completo pra exibir em tooltip mesmo nesses casos. */
+  motivoGlosaDescricao: string | null;
   /** `fatrequisicaoprocedimento.ValorRecebido` — 0 quando glosado integralmente. */
   valorRecebido: number;
   dtaRecebido: string | null;
@@ -635,7 +639,7 @@ const SQL_DETALHE = `
          tp.Codigo, tp.Descricao,
          frp.Quantidade, frp.ValorUnitario, frp.ValorLiquido,
          frp.ValorRecebido, DATE_FORMAT(frp.DtaRecebido, '%Y-%m-%d') AS DtaRecebido,
-         frp.DesMotivoGlosa,
+         frp.DesMotivoGlosa, fmg.Descricao AS MotivoGlosaDescricao,
          r.CodEventoFatur, ef.DesEvento AS DesEventoFatur,
          COALESCE(
            (SELECT fra.NumGuia FROM fatrequisicaoautorizacao fra
@@ -656,6 +660,7 @@ const SQL_DETALHE = `
     LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
     LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
     LEFT JOIN eventofatur ef ON ef.CodEvento = r.CodEventoFatur
+    LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = frp.IdMotivoGlosa
    WHERE r.Lote = ?
    ORDER BY r.CodRequisicao, tp.Codigo`;
 
@@ -714,6 +719,7 @@ function acumularProcedimento(req: RequisicaoLote, linha: mysql.RowDataPacket): 
     valor,
     numGuia: texto(linha.NumGuia),
     motivoGlosa: texto(linha.DesMotivoGlosa),
+    motivoGlosaDescricao: texto(linha.MotivoGlosaDescricao),
     valorRecebido,
     dtaRecebido: dataIso(linha.DtaRecebido),
     pendente,

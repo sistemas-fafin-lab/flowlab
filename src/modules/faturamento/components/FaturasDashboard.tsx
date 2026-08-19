@@ -18,10 +18,11 @@ import { STLOT_LABELS, LoteFaturamento, RequisicaoLote } from '../types';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
+import Tooltip from '../../../components/Tooltip';
 // Cópias locais destas duas viraram utilitário do módulo quando Contas a Receber
 // passou a precisar das mesmas regras (inclusive o T00:00:00 do fuso).
 import { formatCurrency, formatData } from '../utils/formato';
-import { janelaDoPreset, janelaEfetiva, PeriodoPreset } from '../utils/periodo';
+import { dayKey, janelaDoPreset, janelaEfetiva, PeriodoPreset, statusIgnoraPeriodo } from '../utils/periodo';
 
 // ============================================================================
 // COMPONENTE: FaturasDashboard
@@ -109,13 +110,40 @@ const FaturasDashboard: React.FC = () => {
   }, [busca]);
 
   // Intervalo efetivo (preset OU datas personalizadas) → limites ISO p/ o hook.
-  // Memoizado: os limites ficam fixos até o preset/datas/status mudarem, evitando
-  // refetch em loop (o hook depende dessas strings). Ignora o preset padrão quando o
-  // status filtrado é raro e sem prazo natural (ex.: Prejuízo) — ver janelaEfetiva.
+  // Memoizado: os limites ficam fixos até o preset/datas/status/duplicados mudarem,
+  // evitando refetch em loop (o hook depende dessas strings). Ignora o preset padrão
+  // quando o status filtrado tem data de referência diferente da criação do lote
+  // (ex.: Prejuízo, Recebido - parcial) ou quando "Protocolos duplicados" está ativo
+  // — mesmo motivo: duplicidade pode vir de um lote antigo — ver janelaEfetiva.
   const range = useMemo(
-    () => janelaEfetiva(preset, filtroStatus, new Date(), { ini: customIni, fim: customFim }),
-    [preset, customIni, customFim, filtroStatus],
+    () =>
+      janelaEfetiva(preset, filtroStatus, new Date(), { ini: customIni, fim: customFim }, {
+        somenteProtocoloDuplicado,
+      }),
+    [preset, customIni, customFim, filtroStatus, somenteProtocoloDuplicado],
   );
+
+  // Enquanto o período é ignorado, o botão do preset fixo (ex.: "Mês atual") ficaria
+  // aceso mentindo sobre o que está em tela — que na prática é "o ano atual inteiro".
+  // `presetExibido` só afeta o destaque visual dos botões e a exibição dos campos de
+  // data; a consulta continua usando `range` (via `preset`), preservando a garantia
+  // da issue 02/09/10 de não esconder lotes fora do preset padrão de período.
+  const presetExibido: PeriodoPreset = range.ignorandoPeriodo ? 'custom' : preset;
+
+  // Clicar em "Mês atual"/"30 dias"/"90 dias" nesse estado muda `preset` mas não muda
+  // nada em tela (janelaEfetiva continua ignorando o período) — sem desabilitar, o
+  // clique fica silenciosamente sem efeito. Ver `statusIgnoraPeriodo`.
+  const presetsFixosDesabilitados = statusIgnoraPeriodo(filtroStatus) || somenteProtocoloDuplicado;
+
+  // Texto do porquê o período está sendo ignorado — usado no tooltip dos presets
+  // desabilitados e no aviso abaixo dos filtros. Os dois motivos podem coincidir
+  // (ex.: Recebido - parcial + Protocolos duplicados ao mesmo tempo).
+  const motivoIgnorarPeriodo = [
+    statusIgnoraPeriodo(filtroStatus) ? `status "${STLOT_LABELS[filtroStatus] ?? filtroStatus}"` : null,
+    somenteProtocoloDuplicado ? '"Protocolos duplicados"' : null,
+  ]
+    .filter(Boolean)
+    .join(' e ');
 
   const { lotes, meta, loading, error, refetch, buscarRequisicoes } = useFaturamentoLotes({
     periodoIni: range.periodoIni,
@@ -126,6 +154,36 @@ const FaturasDashboard: React.FC = () => {
     busca: buscaDebounced || undefined,
     somenteProtocoloDuplicado: somenteProtocoloDuplicado || undefined,
   });
+
+  // Pré-preenche os campos de data com o intervalo real dos lotes encontrados (não o
+  // início do ano atual de `janelaEfetiva`) assim que a consulta do ano inteiro
+  // retorna — só um ponto de partida caso o usuário queira restringir via
+  // "Personalizado"; a consulta em si só passa a respeitar essas datas depois
+  // que ele de fato editar um dos campos (ver `escolherCustomIni`/`escolherCustomFim`).
+  // Sobrescreve sempre (não só quando vazio): enquanto `ignorandoPeriodo` for true, o
+  // preset ainda não é 'custom' de fato, então esses campos não vêm de uma escolha do
+  // usuário — podem ser sobra de um período customizado anterior (outro status/sessão)
+  // e precisam refletir os lotes atuais, não o que ficou setado antes.
+  useEffect(() => {
+    if (!range.ignorandoPeriodo || loading || lotes.length === 0) return;
+    const datas = lotes.map((l) => l.dtaCriacao).filter((d): d is string => Boolean(d));
+    if (datas.length === 0) return;
+    const minData = datas.reduce((a, b) => (a < b ? a : b));
+    setCustomIni(minData);
+    setCustomFim(dayKey(new Date()));
+  }, [range.ignorandoPeriodo, loading, lotes]);
+
+  // Editar a data manualmente enquanto o período está sendo ignorado é a forma do
+  // usuário restringir de fato: ativa o preset "custom" (que já vem pré-preenchido
+  // pelo efeito acima) em vez de só mexer num campo que a consulta não está usando.
+  const escolherCustomIni = (v: string) => {
+    setCustomIni(v);
+    setPreset('custom');
+  };
+  const escolherCustomFim = (v: string) => {
+    setCustomFim(v);
+    setPreset('custom');
+  };
 
   // Trocar período/status/tamanho volta para a primeira página: a página 7 de um
   // filtro raramente existe no outro, e a consulta devolveria lista vazia.
@@ -178,9 +236,9 @@ const FaturasDashboard: React.FC = () => {
 
   const ativarCustom = () => {
     if (!customIni || !customFim) {
-      // Não usa `range` aqui: com status Prejuízo ele carrega o sentinela de
-      // "todos os períodos" (2000-01-01), que pré-preencheria os campos com uma
-      // data sem sentido em vez do período do preset que estava ativo.
+      // Não usa `range` aqui: com status Prejuízo (ou outro que ignore o período) ele
+      // carrega o início do ano atual, que pré-preencheria os campos com esse
+      // intervalo largo em vez do período do preset que estava ativo antes.
       const base = janelaDoPreset(preset === 'custom' ? 'mes' : preset, new Date());
       setCustomIni(base.periodoIni);
       setCustomFim(base.periodoFim);
@@ -249,9 +307,7 @@ const FaturasDashboard: React.FC = () => {
             </div>
           </div>
           <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-            {range.ignorandoPeriodo
-              ? 'Todos os períodos'
-              : `${formatData(range.periodoIni)} a ${formatData(range.periodoFim)}`}
+            {formatData(range.periodoIni)} a {formatData(range.periodoFim)}
           </div>
         </div>
 
@@ -304,8 +360,16 @@ const FaturasDashboard: React.FC = () => {
                 <button
                   key={String(valor)}
                   onClick={() => setPreset(valor)}
+                  disabled={presetsFixosDesabilitados}
+                  title={
+                    presetsFixosDesabilitados
+                      ? `${motivoIgnorarPeriodo} ignora o período fixo — use "Personalizado" para restringir`
+                      : undefined
+                  }
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    preset === valor
+                    presetsFixosDesabilitados
+                      ? 'bg-gray-50 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
+                      : presetExibido === valor
                       ? 'bg-blue-600 text-white'
                       : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                   }`}
@@ -317,7 +381,7 @@ const FaturasDashboard: React.FC = () => {
             <button
               onClick={ativarCustom}
               className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                preset === 'custom'
+                presetExibido === 'custom'
                   ? 'bg-blue-600 text-white'
                   : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
               }`}
@@ -326,11 +390,11 @@ const FaturasDashboard: React.FC = () => {
             </button>
           </div>
 
-          {preset === 'custom' && (
+          {presetExibido === 'custom' && (
             <div className="flex items-center gap-2">
-              <DatePicker value={customIni} onChange={setCustomIni} controlClass={CAMPO_FILTRO} />
+              <DatePicker value={customIni} onChange={escolherCustomIni} controlClass={CAMPO_FILTRO} />
               <span className="text-gray-500 text-sm">até</span>
-              <DatePicker value={customFim} onChange={setCustomFim} controlClass={CAMPO_FILTRO} />
+              <DatePicker value={customFim} onChange={escolherCustomFim} controlClass={CAMPO_FILTRO} />
             </div>
           )}
 
@@ -368,8 +432,9 @@ const FaturasDashboard: React.FC = () => {
         {range.ignorandoPeriodo && (
           <p className="mt-3 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
             <AlertCircle size={14} className="text-gray-400 shrink-0" />
-            Prejuízo é raro e sem prazo natural: mostrando todos os períodos, ignorando o filtro
-            de data. Escolha um período personalizado para restringir.
+            Filtro de {motivoIgnorarPeriodo} tem data de referência diferente da criação do lote:
+            mostrando o ano atual inteiro, ignorando o preset de período. Escolha um período
+            personalizado para ver anos anteriores.
           </p>
         )}
       </div>
@@ -554,12 +619,11 @@ const FaturasDashboard: React.FC = () => {
                                         {req.paciente ?? 'Paciente não identificado'}
                                       </span>
                                       {req.pendente && (
-                                        <span
-                                          className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap"
-                                          title={req.eventoFaturLabel ?? undefined}
-                                        >
-                                          Pendente {formatCurrency(req.valorPendente)}
-                                        </span>
+                                        <Tooltip label={req.eventoFaturLabel}>
+                                          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                                            Pendente {formatCurrency(req.valorPendente)}
+                                          </span>
+                                        </Tooltip>
                                       )}
                                       {req.numGuiaConvenio && (
                                         <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -599,9 +663,11 @@ const FaturasDashboard: React.FC = () => {
                                               : 'Recebido'}
                                           </span>
                                           {proc.motivoGlosa && (
-                                            <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
-                                              Glosa: {proc.motivoGlosa}
-                                            </span>
+                                            <Tooltip label={proc.motivoGlosaDescricao}>
+                                              <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 cursor-help">
+                                                Glosa: {proc.motivoGlosa}
+                                              </span>
+                                            </Tooltip>
                                           )}
                                           <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
                                             {proc.quantidade}x {formatCurrency(proc.valorUnitario)}
