@@ -226,13 +226,14 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const buscarGuias = useCallback(async (loteId: string) => {
     const { data, error: erro } = await supabase
       .from('requisicoes')
-      .select('id_requisicao, numero_guia, data_execucao, valor, paciente_nome, procedimento_descricao')
+      .select('id_requisicao, numero_guia, codigo_requisicao, data_execucao, valor, paciente_nome, procedimento_descricao')
       .eq('lote_id', loteId)
       .order('numero_guia');
     if (erro) throw new Error(erro.message);
     return (data ?? []).map((linha) => ({
       id: linha.id_requisicao as string,
       numeroGuia: linha.numero_guia as string,
+      codigoRequisicao: (linha.codigo_requisicao as string | null) ?? null,
       dataExecucao: (linha.data_execucao as string | null) ?? null,
       valor: num(linha.valor as number),
       pacienteNome: (linha.paciente_nome as string | null) ?? null,

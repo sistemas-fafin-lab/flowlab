@@ -1,24 +1,30 @@
-Status: needs-info
+Status: done
 Type: task
 
 # Títulos: vínculo NF → lote → requisição do Aplis
 
-## Adiada (2026-08-18)
+## Achado (verificado em código, 2026-08-19 — não depende de volume real de títulos)
 
-Esta melhoria enriquece a expansão de um título **já criado** (`TitulosList.tsx:411-449`), a partir do snapshot que `fat_criar_titulo` grava no Supabase. Em produção só existem 5 notas, todas de uma carga de seed (mesmo achado das issues 01/05/06) — nenhuma criada organicamente pelo setor ainda. Não há título real hoje pra essa navegação melhorada valer a pena testar/usar.
+A ressalva original ("esperar título real pra confirmar campos") não se sustenta: dá pra responder lendo o código, sem precisar de dado de produção.
 
-**Retomar quando**: o setor começar a criar títulos de verdade pelo fluxo "Novo título". Nesse momento, confirmar quais campos o snapshot já captura versus o que falta (`CodRequisicao` etc.) antes de implementar.
+- `fat_criar_titulo` (`supabase/migrations/20260807130000_contas_receber_rpcs.sql:167-180`): o snapshot da guia grava `numero_guia`, `data_criacao`/`data_execucao`, `valor`, `paciente_nome`, `procedimento_codigo`/`procedimento_descricao`, `aplis_id` — **não grava `codigo_requisicao`**.
+- `api/_lib/handlers/faturamento-titulo-criar.ts:87`: o handler já tem `req.codRequisicao` disponível (vem do apLIS), mas hoje só usa como fallback dentro de `numeroGuia` (`numGuiaConvenio ?? numGuia ?? codRequisicao ?? 'sem-guia'`) — o campo em si é descartado, não é propagado como campo próprio no payload.
+
+Ou seja, o dado já flui até o handler — só não é persistido separadamente. Não falta pesquisa, falta implementar o encanamento.
 
 ## Onde
 
-`src/modules/faturamento/components/TitulosList.tsx` — expansão título → lote → guias (`:411-449`); tipos `TituloGuia` em `src/modules/faturamento/types/index.ts:181+`; snapshots criados por `fat_criar_titulo` (`supabase/migrations/20260807130000_contas_receber_rpcs.sql`).
+`src/modules/faturamento/components/TitulosList.tsx` — expansão título → lote → guias (`:411-449`); tipos `TituloGuia` em `src/modules/faturamento/types/index.ts:181+`; snapshot criado por `fat_criar_titulo` (`supabase/migrations/20260807130000_contas_receber_rpcs.sql:167-180`); payload montado por `api/_lib/handlers/faturamento-titulo-criar.ts:87`; tabela `requisicoes` (Supabase).
 
 ## O que fazer
 
-1. Levantar quais campos do apLIS o snapshot de guia guarda hoje (ex.: `numeroGuia` = `NumGuiaConvenio`) e o que falta para o setor localizar a requisição no apLIS (ex.: `CodRequisicao`).
-2. Garantir que a expansão mostre NF → lote (código) → requisições com número identificável no apLIS; adicionar colunas que faltem (código da requisição, data, valor).
-3. Se necessário, ampliar o snapshot (`fat_criar_titulo`) e a tabela `requisicoes` para incluir `CodRequisicao`; para títulos antigos, indicar dados indisponíveis sem quebrar.
+1. Adicionar `codigo_requisicao` como campo próprio no payload de `api/_lib/handlers/faturamento-titulo-criar.ts` (hoje `req.codRequisicao` só cai dentro de `numeroGuia` como fallback — passar também como campo separado).
+2. Nova coluna `codigo_requisicao` na tabela `requisicoes` (Supabase) — migration.
+3. `fat_criar_titulo` passa a persistir esse campo no `INSERT`/`ON CONFLICT DO UPDATE` do snapshot de guia.
+4. Expor a coluna no tipo `TituloGuia` (`types/index.ts:181+`) e exibir na expansão do título em `TitulosList.tsx`, junto com lote (código) e requisição.
+5. Títulos antigos (criados antes dessa mudança) não têm o campo — exibir como indisponível, sem quebrar a expansão.
 
 ## Critérios de aceite
 
-- A partir de um título, o operador identifica NF, lote e cada requisição no apLIS sem abrir outro sistema/planilha.
+- A partir de um título, o operador identifica NF, lote e cada requisição no apLIS (via `codigo_requisicao`) sem abrir outro sistema/planilha.
+- Títulos criados antes da mudança mostram "indisponível" no lugar do código da requisição, sem erro.

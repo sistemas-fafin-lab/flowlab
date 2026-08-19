@@ -302,6 +302,8 @@ export type TituloStatus =
 export interface TituloGuia {
   id: string;
   numeroGuia: string;
+  /** CodRequisicao do apLIS. Null em títulos criados antes dessa coluna existir. */
+  codigoRequisicao: string | null;
   dataExecucao: string | null;
   valor: number;
   pacienteNome: string | null;

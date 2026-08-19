@@ -440,6 +440,7 @@ const TitulosList: React.FC<Props> = ({
                                             <thead>
                                               <tr className="text-left text-gray-400">
                                                 <th className="py-1">Guia</th>
+                                                <th className="py-1">Requisição</th>
                                                 <th className="py-1">Paciente</th>
                                                 <th className="py-1">Procedimento</th>
                                                 <th className="py-1">Execução</th>
@@ -450,6 +451,11 @@ const TitulosList: React.FC<Props> = ({
                                               {guias[lote.id]?.map((guia) => (
                                                 <tr key={guia.id} className="text-gray-600 dark:text-gray-300">
                                                   <td className="py-1">{guia.numeroGuia}</td>
+                                                  <td className="py-1">
+                                                    {guia.codigoRequisicao ?? (
+                                                      <span className="text-gray-400 italic">indisponível</span>
+                                                    )}
+                                                  </td>
                                                   <td className="py-1 truncate max-w-[180px]">{guia.pacienteNome ?? '—'}</td>
                                                   <td className="py-1 truncate max-w-[220px]">{guia.procedimentoDescricao ?? '—'}</td>
                                                   <td className="py-1 tabular-nums">{formatData(guia.dataExecucao)}</td>

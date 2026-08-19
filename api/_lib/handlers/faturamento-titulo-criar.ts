@@ -85,6 +85,7 @@ function montarRequisicoes(requisicoes: RequisicaoLote[]): Record<string, unknow
     return {
       aplisId: String(req.idRequisicao),
       numeroGuia: req.numGuiaConvenio ?? proc?.numGuia ?? req.codRequisicao ?? 'sem-guia',
+      codigoRequisicao: req.codRequisicao,
       dataCriacao: req.dtaSolicitacao,
       dataExecucao: req.dtaFinalizacao,
       valor: req.valor,
