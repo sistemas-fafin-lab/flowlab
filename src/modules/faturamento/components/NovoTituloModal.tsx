@@ -20,6 +20,11 @@ import { formatCurrency, formatData, hojeIso } from '../utils/formato';
 
 const TAMANHO_PAGINA = 50;
 
+// O apLIS não grava DtaEnvio nos lotes da AMHP-DF (IdFontePagadora 1025), mesmo
+// já faturados e protocolados — não é falta de envio, é um campo que essa
+// operadora nunca preenche. Tratar como "sem envio" geraria um aviso falso.
+const ID_FONTE_PAGADORA_AMHP_DF = 1025;
+
 const CAMPO =
   'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 const CAMPO_FULL = `${CAMPO} w-full`;
@@ -156,7 +161,9 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
   );
   const misturouFontes = fontes.size > 1;
   const qtdPaginas = meta?.qtdPaginas ?? 0;
-  const lotesSemEnvio = lotes.filter((lote) => !lote.dtaEnvio).length;
+  const lotesSemEnvio = lotes.filter(
+    (lote) => !lote.dtaEnvio && lote.fontePagadora.id !== ID_FONTE_PAGADORA_AMHP_DF,
+  ).length;
 
   const submeter = async (evento: React.FormEvent) => {
     evento.preventDefault();
@@ -289,7 +296,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
                           {lote.fontePagadora.nome ?? lote.fontePagadora.razaoSocial ?? '—'}
                         </td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400 tabular-nums">
-                          {lote.dtaEnvio ? (
+                          {lote.dtaEnvio || lote.fontePagadora.id === ID_FONTE_PAGADORA_AMHP_DF ? (
                             formatData(lote.dtaEnvio)
                           ) : (
                             <span
