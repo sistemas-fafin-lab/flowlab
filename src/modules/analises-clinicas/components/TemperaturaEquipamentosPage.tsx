@@ -26,6 +26,7 @@ import ConfirmDialog from '../../../components/ConfirmDialog';
 import type { AcEquipamento, AcTemperatura, AcTipoFrasco, EquipamentoTipo } from '../types';
 import { TIPOS_EQUIPAMENTO } from '../types';
 import { rotuloStatus } from '../domain/status';
+import { normalizarTemperatura, toDatetimeLocal, validarLeitura } from '../domain/leituras';
 
 const tipoLabel = (t: EquipamentoTipo) => rotuloStatus(TIPOS_EQUIPAMENTO, t);
 
@@ -53,12 +54,6 @@ const fmtTemp = (t: number) => `${t.toFixed(1).replace('.', ',')} °C`;
 // histórico. Vazio quando a leitura não registrou nenhum frasco.
 const fmtFrascos = (frascos: AcTemperatura['frascos']) =>
   frascos.map((f) => `${f.tipo_frasco_nome}: ${f.quantidade}`).join(', ');
-
-// Valor para <input type="datetime-local"> no fuso local: 'YYYY-MM-DDTHH:MM'.
-const toDatetimeLocal = (d: Date) => {
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 const inputCls =
   'w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500';
@@ -674,38 +669,20 @@ const LeituraModal: React.FC<{
     .map((t) => ({ tipo: t, quantidade: Number(qtdFrascos[t.id] || 0) }))
     .filter((f) => f.quantidade > 0);
 
-  const valorNum = Number(temperatura.replace(',', '.'));
+  const valorNum = normalizarTemperatura(temperatura) ?? Number.NaN;
   const previewFora = temperatura !== '' && !Number.isNaN(valorNum) && (valorNum < equipamento.temp_min || valorNum > equipamento.temp_max);
 
   // 1º passo: valida e leva à tela de confirmação (não grava ainda).
   const irParaConfirmacao = () => {
     setErro(null);
-    if (temperatura === '' || Number.isNaN(valorNum)) {
-      setErro('Informe a temperatura lida.');
-      return;
-    }
-    if (!porNome.trim()) {
-      setErro('Informe quem registrou.');
-      return;
-    }
-    if (!dataHora) {
-      setErro('Informe a data e hora da leitura.');
-      return;
-    }
-    const quando = new Date(dataHora);
-    if (Number.isNaN(quando.getTime())) {
-      setErro('Data e hora inválidas.');
-      return;
-    }
-    if (quando.getTime() > Date.now() + 60_000) {
-      // tolerância de 1 min para diferenças de relógio
-      setErro('A data e hora não podem estar no futuro.');
-      return;
-    }
-    // Quantidade de frasco é sempre inteira — o banco rejeita decimal (::int) e
-    // isso derrubaria a leitura inteira junto, então barra aqui antes de gravar.
-    if (frascosPreenchidos.some((f) => !Number.isInteger(f.quantidade))) {
-      setErro('A quantidade de frascos deve ser um número inteiro.');
+    const msg = validarLeitura({
+      temperatura,
+      registradoPor: porNome,
+      dataHora,
+      frascos: frascosPreenchidos.map((f) => ({ quantidade: f.quantidade })),
+    });
+    if (msg) {
+      setErro(msg);
       return;
     }
     setConfirmando(true);
@@ -965,19 +942,235 @@ const LeituraModal: React.FC<{
   );
 };
 
-// ─── Modal de histórico (somente leitura) ──────────────────────────────────────
+// ─── Modal de edição de leitura (corrige uma leitura do histórico) ─────────────
+const EditarLeituraModal: React.FC<{
+  equipamento: AcEquipamento;
+  leitura: AcTemperatura;
+  onClose: () => void;
+  onDone: () => void;
+  editarTemperatura: ReturnType<typeof useTemperaturas>['editarTemperatura'];
+  fetchTiposFrasco: ReturnType<typeof useTemperaturas>['fetchTiposFrasco'];
+}> = ({ equipamento, leitura, onClose, onDone, editarTemperatura, fetchTiposFrasco }) => {
+  const [temperatura, setTemperatura] = useState(() => String(leitura.temperatura));
+  const [porNome, setPorNome] = useState(leitura.registrado_por);
+  const [dataHora, setDataHora] = useState(() => toDatetimeLocal(new Date(leitura.registrado_em)));
+  const [observacao, setObservacao] = useState(leitura.observacao ?? '');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [tiposFrasco, setTiposFrasco] = useState<AcTipoFrasco[]>(() =>
+    // Começa com os tipos que a leitura já tem — mesmo se o catálogo falhar ao
+    // carregar, os frascos existentes continuam visíveis e não se perdem ao salvar.
+    leitura.frascos.map((f) => ({
+      id: f.tipo_frasco_id,
+      nome: f.tipo_frasco_nome,
+      ativo: true,
+      created_at: '',
+      updated_at: '',
+    })),
+  );
+  // Quantidade digitada por tipo de frasco (texto, para aceitar campo vazio),
+  // pré-preenchida com os frascos da leitura — inclusive de tipos inativos.
+  const [qtdFrascos, setQtdFrascos] = useState<Record<string, string>>(() =>
+    Object.fromEntries(leitura.frascos.map((f) => [f.tipo_frasco_id, String(f.quantidade)])),
+  );
+
+  useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        // Todos os tipos (não só ativos): a leitura pode ter frascos de um tipo
+        // que já foi desativado e o usuário precisa poder zerá-los. Junta com os
+        // tipos já carregados da leitura, sem duplicar.
+        const tipos = await fetchTiposFrasco(false);
+        if (!vivo) return;
+        setTiposFrasco((prev) => {
+          const vistos = new Set(prev.map((t) => t.id));
+          return [...prev, ...tipos.filter((t) => !vistos.has(t.id))];
+        });
+      } catch {
+        /* seção de frascos é opcional: os tipos da leitura já foram carregados */
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [fetchTiposFrasco]);
+
+  useEffect(() => {
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !salvando) onClose();
+    };
+    document.addEventListener('keydown', onEsc);
+    return () => document.removeEventListener('keydown', onEsc);
+  }, [onClose, salvando]);
+
+  const frascosPreenchidos = tiposFrasco
+    .map((t) => ({ tipo: t, quantidade: Number(qtdFrascos[t.id] || 0) }))
+    .filter((f) => f.quantidade > 0);
+
+  const valorNum = normalizarTemperatura(temperatura) ?? Number.NaN;
+  const previewFora = temperatura !== '' && !Number.isNaN(valorNum) && (valorNum < equipamento.temp_min || valorNum > equipamento.temp_max);
+
+  const handleSalvar = async () => {
+    setErro(null);
+    const msg = validarLeitura({
+      temperatura,
+      registradoPor: porNome,
+      dataHora,
+      frascos: frascosPreenchidos.map((f) => ({ quantidade: f.quantidade })),
+    });
+    if (msg) {
+      setErro(msg);
+      return;
+    }
+    setSalvando(true);
+    const err = await editarTemperatura({
+      temperaturaId: leitura.id,
+      temperatura: valorNum,
+      registradoPor: porNome.trim(),
+      observacao: observacao.trim(),
+      registradoEm: new Date(dataHora).toISOString(),
+      frascos: frascosPreenchidos.map((f) => ({ tipo_frasco_id: f.tipo.id, quantidade: f.quantidade })),
+    });
+    setSalvando(false);
+    if (err) {
+      setErro(err);
+      return;
+    }
+    onDone();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[88vh]">
+        <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-gray-900 dark:text-gray-100">Editar leitura</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {equipamento.nome} · faixa {fmtTemp(equipamento.temp_min)} a {fmtTemp(equipamento.temp_max)}
+            </p>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700">
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 overflow-y-auto space-y-4">
+          {erro && (
+            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 text-sm">{erro}</div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Temperatura (°C)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={temperatura}
+                onChange={(e) => setTemperatura(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    void handleSalvar();
+                  }
+                }}
+                autoFocus
+                className={inputCls}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Registrado por</label>
+              <input value={porNome} onChange={(e) => setPorNome(e.target.value)} className={inputCls} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Data e hora da leitura</label>
+            <input
+              type="datetime-local"
+              value={dataHora}
+              onChange={(e) => setDataHora(e.target.value)}
+              className={`${inputCls} [color-scheme:light] dark:[color-scheme:dark]`}
+            />
+          </div>
+          {previewFora && (
+            <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300 text-sm">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              Fora da faixa aceitável — a leitura entrará como alerta.
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Observação</label>
+            <input value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Opcional (ex.: porta aberta, degelo)" className={inputCls} />
+          </div>
+
+          {tiposFrasco.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <FlaskConical className="w-4 h-4 text-gray-400" />
+                <label className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                  Frascos nesta remessa <span className="text-xs font-normal text-gray-400">(opcional)</span>
+                </label>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {tiposFrasco.map((t) => (
+                  <div key={t.id}>
+                    <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1 truncate" title={t.nome}>
+                      {t.nome}
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="1"
+                      value={qtdFrascos[t.id] ?? ''}
+                      onChange={(e) => setQtdFrascos((prev) => ({ ...prev, [t.id]: e.target.value }))}
+                      placeholder="0"
+                      className={inputCls}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/50 rounded-b-2xl flex justify-end gap-2">
+          <button onClick={onClose} disabled={salvando} className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-gray-100 disabled:opacity-60">
+            Cancelar
+          </button>
+          <button
+            onClick={() => void handleSalvar()}
+            disabled={salvando}
+            className="px-5 py-2 text-sm font-semibold text-white rounded-xl bg-gradient-to-r from-blue-500 to-indigo-500 shadow-lg shadow-blue-500/25 hover:scale-[1.02] transition-all disabled:opacity-60 inline-flex items-center gap-2"
+          >
+            {salvando && <Loader2 className="w-4 h-4 animate-spin" />}
+            {salvando ? 'Salvando…' : 'Salvar alterações'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── Modal de histórico (com edição por leitura, quando canManage) ─────────────
 const PAGINA_HISTORICO = 50;
 
 const HistoricoModal: React.FC<{
   equipamento: AcEquipamento;
   onClose: () => void;
   fetchTemperaturas: ReturnType<typeof useTemperaturas>['fetchTemperaturas'];
-}> = ({ equipamento, onClose, fetchTemperaturas }) => {
+  canManage: boolean;
+  editarTemperatura: ReturnType<typeof useTemperaturas>['editarTemperatura'];
+  fetchTiposFrasco: ReturnType<typeof useTemperaturas>['fetchTiposFrasco'];
+  onEdited: () => void;
+}> = ({ equipamento, onClose, fetchTemperaturas, canManage, editarTemperatura, fetchTiposFrasco, onEdited }) => {
   const [leituras, setLeituras] = useState<AcTemperatura[]>([]);
   const [limite, setLimite] = useState(PAGINA_HISTORICO);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
   const [soFora, setSoFora] = useState(false);
+  const [editando, setEditando] = useState<AcTemperatura | null>(null);
+  // Incrementado quando uma leitura é editada — força o refetch da lista.
+  const [versao, setVersao] = useState(0);
 
   useEffect(() => {
     // `vivo` descarta a resposta de um limite antigo que chegue fora de ordem.
@@ -997,7 +1190,7 @@ const HistoricoModal: React.FC<{
     return () => {
       vivo = false;
     };
-  }, [equipamento.id, limite, fetchTemperaturas]);
+  }, [equipamento.id, limite, fetchTemperaturas, versao]);
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => {
@@ -1155,6 +1348,15 @@ const HistoricoModal: React.FC<{
                             {fmtDateTimeFull(t.registrado_em)}
                             <span className="block text-gray-400">{t.registrado_por}</span>
                           </span>
+                          {canManage && (
+                            <button
+                              onClick={() => setEditando(t)}
+                              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+                              title="Editar leitura"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
                         {t.frascos.length > 0 && (
                           <p className="mt-1.5 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -1180,6 +1382,20 @@ const HistoricoModal: React.FC<{
             </>
           )}
         </div>
+
+        {editando && (
+          <EditarLeituraModal
+            equipamento={equipamento}
+            leitura={editando}
+            onClose={() => setEditando(null)}
+            onDone={() => {
+              setVersao((v) => v + 1);
+              onEdited();
+            }}
+            editarTemperatura={editarTemperatura}
+            fetchTiposFrasco={fetchTiposFrasco}
+          />
+        )}
       </div>
     </div>
   );
@@ -1267,6 +1483,7 @@ const TemperaturaEquipamentosPage: React.FC = () => {
     updateEquipamento,
     deleteEquipamento,
     registrarTemperatura,
+    editarTemperatura,
     fetchTemperaturas,
     fetchLeiturasRecentes,
     fetchTiposFrasco,
@@ -1603,6 +1820,10 @@ const TemperaturaEquipamentosPage: React.FC = () => {
           equipamento={historicoEquip}
           onClose={() => setHistoricoEquip(null)}
           fetchTemperaturas={fetchTemperaturas}
+          canManage={canManage}
+          editarTemperatura={editarTemperatura}
+          fetchTiposFrasco={fetchTiposFrasco}
+          onEdited={() => void recarregarSeries()}
         />
       )}
 

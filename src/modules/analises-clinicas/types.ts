@@ -331,8 +331,10 @@ export interface AcEquipamento {
   updated_at: string;
 }
 
-// Leitura de temperatura (log append-only) — espelha ac_temperaturas.
-// `fora_faixa` é derivado no banco (trigger) contra a faixa do equipamento.
+// Leitura de temperatura — espelha ac_temperaturas.
+// `fora_faixa` é derivado no banco (trigger) contra a faixa do equipamento;
+// a trigger dispara também em UPDATE, então uma leitura editada tem o valor
+// recalculado.
 // `frascos` vem de um join/fetch separado com ac_temperatura_frascos; sempre
 // presente (lista vazia quando a leitura não registrou nenhum frasco).
 export interface AcTemperatura {

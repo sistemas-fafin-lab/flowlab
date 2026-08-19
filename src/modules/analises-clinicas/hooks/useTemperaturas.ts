@@ -52,13 +52,24 @@ interface UseTemperaturasResult {
     registradoEm: string; // ISO 8601 (data/hora da leitura escolhida)
     frascos?: FrascoInput[];
   }) => Promise<string | null>;
+  // Corrige uma leitura já registrada (update + substituição dos frascos numa
+  // transação só, via ac_editar_temperatura). Retorna erro ou null.
+  editarTemperatura: (input: {
+    temperaturaId: string;
+    temperatura: number;
+    registradoPor: string;
+    observacao: string;
+    registradoEm: string; // ISO 8601 (data/hora da leitura escolhida)
+    frascos?: FrascoInput[];
+  }) => Promise<string | null>;
   // Histórico de leituras de um equipamento (mais recentes primeiro), com frascos.
   fetchTemperaturas: (equipamentoId: string, limit?: number) => Promise<AcTemperatura[]>;
   // Séries recentes por equipamento (ordem cronológica: antigo → novo), indexadas
   // por equipamento_id. Servem ao sparkline + à última leitura (último item).
   fetchLeiturasRecentes: (porEquipamento?: number) => Promise<Record<string, AcTemperatura[]>>;
   // Catálogo de tipos de frasco (ac_tipos_frasco). `soAtivos` (default true) filtra
-  // para uso no formulário de leitura; a tela de administração usa `false`.
+  // para uso no formulário de leitura; a tela de administração e a edição de
+  // leitura (que pode ter frascos de tipos já inativos) usam `false`.
   fetchTiposFrasco: (soAtivos?: boolean) => Promise<AcTipoFrasco[]>;
   createTipoFrasco: (nome: string) => Promise<string | null>;
   updateTipoFrasco: (id: string, patch: Partial<{ nome: string; ativo: boolean }>) => Promise<string | null>;
@@ -202,6 +213,23 @@ export function useTemperaturas(): UseTemperaturasResult {
     [],
   );
 
+  const editarTemperatura: UseTemperaturasResult['editarTemperatura'] = useCallback(
+    async ({ temperaturaId, temperatura, registradoPor, observacao, registradoEm, frascos }) => {
+      // Mesmo contrato de ac_registrar_temperatura: leitura + frascos numa
+      // transação só — frasco inválido reverte o update inteiro.
+      const { error: err } = await supabase.rpc('ac_editar_temperatura', {
+        p_temperatura_id: temperaturaId,
+        p_temperatura: temperatura,
+        p_registrado_por: registradoPor,
+        p_observacao: observacao || '',
+        p_registrado_em: registradoEm,
+        p_frascos: (frascos ?? []).filter((f) => f.quantidade > 0),
+      });
+      return err ? err.message : null;
+    },
+    [],
+  );
+
   const fetchTemperaturas: UseTemperaturasResult['fetchTemperaturas'] = useCallback(
     async (equipamentoId, limit = 30) => {
       const { data, error: err } = await supabase
@@ -281,6 +309,7 @@ export function useTemperaturas(): UseTemperaturasResult {
     updateEquipamento,
     deleteEquipamento,
     registrarTemperatura,
+    editarTemperatura,
     fetchTemperaturas,
     fetchLeiturasRecentes,
     fetchTiposFrasco,
