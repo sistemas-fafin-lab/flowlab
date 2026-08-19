@@ -1194,11 +1194,13 @@ const HistoricoModal: React.FC<{
 
   useEffect(() => {
     const onEsc = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      // Com o modal de edição aberto, o Esc fecha só ele — senão os dois
+      // modais fechariam juntos no mesmo toque.
+      if (e.key === 'Escape' && !editando) onClose();
     };
     document.addEventListener('keydown', onEsc);
     return () => document.removeEventListener('keydown', onEsc);
-  }, [onClose]);
+  }, [onClose, editando]);
 
   const visiveis = soFora ? leituras.filter((l) => l.fora_faixa) : leituras;
   const nFora = leituras.filter((l) => l.fora_faixa).length;
@@ -1344,19 +1346,21 @@ const HistoricoModal: React.FC<{
                               <span className="truncate">{t.observacao}</span>
                             </span>
                           )}
-                          <span className="text-xs text-gray-400 text-right flex-shrink-0">
-                            {fmtDateTimeFull(t.registrado_em)}
-                            <span className="block text-gray-400">{t.registrado_por}</span>
+                          <span className="flex items-center gap-1 flex-shrink-0">
+                            <span className="text-xs text-gray-400 text-right">
+                              {fmtDateTimeFull(t.registrado_em)}
+                              <span className="block text-gray-400">{t.registrado_por}</span>
+                            </span>
+                            {canManage && (
+                              <button
+                                onClick={() => setEditando(t)}
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
+                                title="Editar leitura"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </span>
-                          {canManage && (
-                            <button
-                              onClick={() => setEditando(t)}
-                              className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex-shrink-0"
-                              title="Editar leitura"
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                          )}
                         </div>
                         {t.frascos.length > 0 && (
                           <p className="mt-1.5 flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400">
