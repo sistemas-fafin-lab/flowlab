@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Faturas: recebimento por requisição no lote "Recebido - parcial"
