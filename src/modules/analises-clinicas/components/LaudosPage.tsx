@@ -732,6 +732,12 @@ const LaudosPage: React.FC = () => {
         return nome.includes(q) || posto.includes(q) || idAg.includes(q) || nota.includes(q);
       });
     }
+    // Ordena alfabeticamente pelo nome do paciente.
+    resultado = [...resultado].sort((a, b) => {
+      const nomeA = agendamentosAba.find((ag) => ag.id === a.agendamento_id)?.paciente_nome ?? '';
+      const nomeB = agendamentosAba.find((ag) => ag.id === b.agendamento_id)?.paciente_nome ?? '';
+      return nomeA.localeCompare(nomeB, 'pt-BR', { sensitivity: 'base' });
+    });
     return resultado;
   }, [laudosAba, agendamentosAba, postoSel, busca]);
 
