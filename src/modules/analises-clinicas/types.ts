@@ -261,7 +261,8 @@ export type RecoletaMotivo =
   | 'recipiente_inadequado'
   | 'amostra_insuficiente'
   | 'confirmacao_resultados'
-  | 'amostra_extraviada';
+  | 'amostra_extraviada'
+  | 'falha_antissepsia';
 
 // Lista FIXA dos motivos (fonte do select da tela e das chaves válidas de motivo).
 export const MOTIVOS_RECOLETA: { key: RecoletaMotivo; label: string }[] = [
@@ -271,6 +272,7 @@ export const MOTIVOS_RECOLETA: { key: RecoletaMotivo; label: string }[] = [
   { key: 'amostra_insuficiente',  label: 'Amostra Insuficiente' },
   { key: 'confirmacao_resultados',  label: 'Nova amostra para confirmação de resultados' },
   { key: 'amostra_extraviada',    label: 'Amostra Extraviada' },
+  { key: 'falha_antissepsia',      label: 'Provável falha de antissepsia' },
 ];
 
 // Recoleta acompanhada manualmente (espelha ac_recoletas).
