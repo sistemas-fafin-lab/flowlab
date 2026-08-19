@@ -123,6 +123,13 @@ export interface ProcedimentoRequisicao {
   valor: number;
   numGuia: string | null;
   motivoGlosa: string | null;
+  /** `fatrequisicaoprocedimento.ValorRecebido` — 0 quando glosado integralmente. */
+  valorRecebido: number;
+  dtaRecebido: string | null;
+  /** `valorRecebido < valor` — inclui glosa integral (valorRecebido = 0). */
+  pendente: boolean;
+  /** `valor - valorRecebido`, nunca negativo; 0 quando não pendente. */
+  valorPendente: number;
 }
 
 /** Requisição dentro de um lote, com os procedimentos que ela levou para a cobrança. */
@@ -135,6 +142,14 @@ export interface RequisicaoLote {
   paciente: string | null;
   valor: number;
   procedimentos: ProcedimentoRequisicao[];
+  /** `requisicao.CodEventoFatur` — sinal auxiliar (tabela `eventofatur`; 5 = RECEBIDO,
+   *  6 = GLOSADO ainda SEM RECURSO), alinhado à planilha do setor. */
+  codEventoFatur: number | null;
+  eventoFaturLabel: string | null;
+  /** Algum procedimento com `pendente = true`. */
+  pendente: boolean;
+  /** Soma do `valorPendente` dos procedimentos. */
+  valorPendente: number;
 }
 
 export interface LotesFiltros {

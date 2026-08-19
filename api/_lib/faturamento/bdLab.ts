@@ -103,6 +103,13 @@ export interface ProcedimentoRequisicao {
   valor: number;
   numGuia: string | null;
   motivoGlosa: string | null;
+  /** `fatrequisicaoprocedimento.ValorRecebido` — 0 quando glosado integralmente. */
+  valorRecebido: number;
+  dtaRecebido: string | null;
+  /** `valorRecebido < valor` — inclui glosa integral (valorRecebido = 0). */
+  pendente: boolean;
+  /** `valor - valorRecebido`, nunca negativo; 0 quando não pendente. */
+  valorPendente: number;
 }
 
 export interface RequisicaoLote {
@@ -114,6 +121,14 @@ export interface RequisicaoLote {
   paciente: string | null;
   valor: number;
   procedimentos: ProcedimentoRequisicao[];
+  /** `requisicao.CodEventoFatur` — sinal auxiliar (tabela `eventofatur`; 5 = RECEBIDO,
+   *  6 = GLOSADO ainda SEM RECURSO), alinhado à planilha do setor. */
+  codEventoFatur: number | null;
+  eventoFaturLabel: string | null;
+  /** Algum procedimento com `pendente = true`. */
+  pendente: boolean;
+  /** Soma do `valorPendente` dos procedimentos. */
+  valorPendente: number;
 }
 
 export interface LotesMeta {
@@ -619,7 +634,9 @@ const SQL_DETALHE = `
          r.NumGuiaConvenio, p.NomPaciente,
          tp.Codigo, tp.Descricao,
          frp.Quantidade, frp.ValorUnitario, frp.ValorLiquido,
+         frp.ValorRecebido, DATE_FORMAT(frp.DtaRecebido, '%Y-%m-%d') AS DtaRecebido,
          frp.DesMotivoGlosa,
+         r.CodEventoFatur, ef.DesEvento AS DesEventoFatur,
          COALESCE(
            (SELECT fra.NumGuia FROM fatrequisicaoautorizacao fra
              WHERE fra.IdRequisicaoProcedimento = frp.IdRequisicaoProcedimento
@@ -638,8 +655,71 @@ const SQL_DETALHE = `
     JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
     LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
     LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
+    LEFT JOIN eventofatur ef ON ef.CodEvento = r.CodEventoFatur
    WHERE r.Lote = ?
    ORDER BY r.CodRequisicao, tp.Codigo`;
+
+function novaRequisicaoLote(linha: mysql.RowDataPacket): RequisicaoLote {
+  return {
+    idRequisicao: numero(linha.IdRequisicao),
+    codRequisicao: texto(linha.CodRequisicao),
+    dtaSolicitacao: dataIso(linha.DtaSolicitacao),
+    dtaFinalizacao: dataIso(linha.DtaFinalizacao),
+    numGuiaConvenio: texto(linha.NumGuiaConvenio),
+    paciente: texto(linha.NomPaciente),
+    valor: 0,
+    procedimentos: [],
+    codEventoFatur: inteiroOuNulo(linha.CodEventoFatur),
+    eventoFaturLabel: texto(linha.DesEventoFatur),
+    pendente: false,
+    valorPendente: 0,
+  };
+}
+
+/** Pendente = ValorRecebido < ValorLiquido (issue 09: inclui glosa integral, VR = 0).
+ *  `valorPendente` é `valorLiquido - valorRecebido`, nunca negativo. Exportada pura
+ *  para teste direto, sem precisar de uma linha de mysql2 ou conexão de banco. */
+export function calcularPendenciaProcedimento(
+  valorLiquido: number,
+  valorRecebido: number,
+): { pendente: boolean; valorPendente: number } {
+  const pendente = valorRecebido < valorLiquido;
+  const valorPendente = pendente ? Math.round((valorLiquido - valorRecebido) * 100) / 100 : 0;
+  return { pendente, valorPendente };
+}
+
+/** Acumula um procedimento (linha de SQL_DETALHE) na requisição, mutando `req`. */
+function acumularProcedimento(req: RequisicaoLote, linha: mysql.RowDataPacket): void {
+  const valor = numero(linha.ValorLiquido);
+  // `numero()` trata NULL como 0 — aqui isso funde dois estados do apLIS (ValorRecebido
+  // ainda NULL, operadora não retornou; e ValorRecebido = 0, glosa integral já
+  // retornada). Não dá pra distinguir sem outra coluna, e a regra da issue 09 quer os
+  // dois como pendente mesmo: nenhum dos dois é dinheiro recebido.
+  const valorRecebido = numero(linha.ValorRecebido);
+  const { pendente, valorPendente } = calcularPendenciaProcedimento(valor, valorRecebido);
+
+  // Somar em ponto flutuante vaza resíduo (404,84 + 46,13 = 450.96999999999997) e
+  // o contrato da rota não deve carregar isso; o total do lote não passa por aqui,
+  // vem somado pelo DECIMAL do MySQL.
+  req.valor = Math.round((req.valor + valor) * 100) / 100;
+  if (pendente) {
+    req.pendente = true;
+    req.valorPendente = Math.round((req.valorPendente + valorPendente) * 100) / 100;
+  }
+  req.procedimentos.push({
+    codigo: texto(linha.Codigo),
+    descricao: texto(linha.Descricao),
+    quantidade: numero(linha.Quantidade),
+    valorUnitario: numero(linha.ValorUnitario),
+    valor,
+    numGuia: texto(linha.NumGuia),
+    motivoGlosa: texto(linha.DesMotivoGlosa),
+    valorRecebido,
+    dtaRecebido: dataIso(linha.DtaRecebido),
+    pendente,
+    valorPendente,
+  });
+}
 
 export type DetalharVariosResultado =
   | { porLote: Record<number, RequisicaoLote[]> }
@@ -673,31 +753,11 @@ export async function detalharVariosLotes(idsLote: number[]): Promise<DetalharVa
       const idRequisicao = numero(linha.IdRequisicao);
       let req = porRequisicao.get(idRequisicao);
       if (!req) {
-        req = {
-          idRequisicao,
-          codRequisicao: texto(linha.CodRequisicao),
-          dtaSolicitacao: dataIso(linha.DtaSolicitacao),
-          dtaFinalizacao: dataIso(linha.DtaFinalizacao),
-          numGuiaConvenio: texto(linha.NumGuiaConvenio),
-          paciente: texto(linha.NomPaciente),
-          valor: 0,
-          procedimentos: [],
-        };
+        req = novaRequisicaoLote(linha);
         porRequisicao.set(idRequisicao, req);
         (porLote[idLote] ??= []).push(req);
       }
-
-      const valor = numero(linha.ValorLiquido);
-      req.valor = Math.round((req.valor + valor) * 100) / 100;
-      req.procedimentos.push({
-        codigo: texto(linha.Codigo),
-        descricao: texto(linha.Descricao),
-        quantidade: numero(linha.Quantidade),
-        valorUnitario: numero(linha.ValorUnitario),
-        valor,
-        numGuia: texto(linha.NumGuia),
-        motivoGlosa: texto(linha.DesMotivoGlosa),
-      });
+      acumularProcedimento(req, linha);
     }
 
     return { porLote };
@@ -721,33 +781,10 @@ export async function detalharLote(
       const idRequisicao = numero(linha.IdRequisicao);
       let req = porRequisicao.get(idRequisicao);
       if (!req) {
-        req = {
-          idRequisicao,
-          codRequisicao: texto(linha.CodRequisicao),
-          dtaSolicitacao: dataIso(linha.DtaSolicitacao),
-          dtaFinalizacao: dataIso(linha.DtaFinalizacao),
-          numGuiaConvenio: texto(linha.NumGuiaConvenio),
-          paciente: texto(linha.NomPaciente),
-          valor: 0,
-          procedimentos: [],
-        };
+        req = novaRequisicaoLote(linha);
         porRequisicao.set(idRequisicao, req);
       }
-
-      const valor = numero(linha.ValorLiquido);
-      // Somar em ponto flutuante vaza resíduo (404,84 + 46,13 = 450.96999999999997) e
-      // o contrato da rota não deve carregar isso; o total do lote não passa por aqui,
-      // vem somado pelo DECIMAL do MySQL.
-      req.valor = Math.round((req.valor + valor) * 100) / 100;
-      req.procedimentos.push({
-        codigo: texto(linha.Codigo),
-        descricao: texto(linha.Descricao),
-        quantidade: numero(linha.Quantidade),
-        valorUnitario: numero(linha.ValorUnitario),
-        valor,
-        numGuia: texto(linha.NumGuia),
-        motivoGlosa: texto(linha.DesMotivoGlosa),
-      });
+      acumularProcedimento(req, linha);
     }
 
     return { requisicoes: [...porRequisicao.values()] };

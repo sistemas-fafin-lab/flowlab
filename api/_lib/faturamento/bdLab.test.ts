@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { protocoloEhData } from './bdLab.js';
+import { calcularPendenciaProcedimento, protocoloEhData } from './bdLab.js';
 
 // Casos vêm da issue 10 (.scratch/faturamento-feedback-usuario/issues/10-lotes-protocolo-duplicado.md):
 // achados reais do banco em 2026-08-18.
@@ -46,5 +46,28 @@ describe('protocoloEhData', () => {
 
   it('aceita 29/02 em ano bissexto', () => {
     expect(protocoloEhData('29022024')).toBe(true);
+  });
+});
+
+// Casos vêm da issue 09 (.scratch/faturamento-feedback-usuario/issues/09-lote-parcial-recebimento-por-requisicao.md):
+// requisições reais dos lotes 6108 (Bradesco) e 6075 (PMDF).
+describe('calcularPendenciaProcedimento', () => {
+  it('marca pendente uma guia glosada integralmente (ValorRecebido = 0)', () => {
+    // requisição 0100024943007, lote 6108: líquido 94,51, recebido 0,00, glosa 1702.
+    expect(calcularPendenciaProcedimento(94.51, 0)).toEqual({ pendente: true, valorPendente: 94.51 });
+  });
+
+  it('marca pendente um recebimento parcial (ValorRecebido < ValorLiquido)', () => {
+    // lote 6075, requisição 0040001906000: dois procedimentos parcialmente recebidos.
+    expect(calcularPendenciaProcedimento(10.29, 10.08)).toEqual({ pendente: true, valorPendente: 0.21 });
+    expect(calcularPendenciaProcedimento(20.37, 19.96)).toEqual({ pendente: true, valorPendente: 0.41 });
+  });
+
+  it('não marca pendente um procedimento totalmente recebido', () => {
+    expect(calcularPendenciaProcedimento(94.51, 94.51)).toEqual({ pendente: false, valorPendente: 0 });
+  });
+
+  it('não marca pendente quando o recebido excede o líquido (nunca fica negativo)', () => {
+    expect(calcularPendenciaProcedimento(50, 55)).toEqual({ pendente: false, valorPendente: 0 });
   });
 });

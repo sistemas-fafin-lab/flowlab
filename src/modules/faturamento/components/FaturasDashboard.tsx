@@ -34,6 +34,11 @@ import { janelaDoPreset, janelaEfetiva, PeriodoPreset } from '../utils/periodo';
 // nenhuma referência às requisições — daí a troca para o banco.
 // ============================================================================
 
+// STLOT 7 — o único status em que o drill-down filtra para mostrar só pendências
+// (issue 09 do feedback: ValorRecebido < ValorLiquido). Nos demais status o
+// recebido × pendente aparece por procedimento, mas sem esconder requisições.
+const STATUS_RECEBIDO_PARCIAL = 7;
+
 const TAMANHOS_PAGINA = [25, 50, 100, 200];
 const TAMANHOS_PAGINA_OPCOES = TAMANHOS_PAGINA.map((n) => ({ value: String(n), label: String(n) }));
 
@@ -59,6 +64,17 @@ const STATUS_CORES: Record<number, string> = {
   8: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
 };
 
+/** Em lotes "Recebido - parcial" (STLOT 7), esconde as requisições já totalmente
+ *  recebidas do drill-down — só as pendentes (issue 09 do feedback). Nos demais
+ *  status mostra tudo, sem filtrar. */
+function requisicoesParaExibir(
+  lote: LoteFaturamento,
+  todas: RequisicaoLote[],
+): { exibidas: RequisicaoLote[]; ocultasRecebidas: number } {
+  if (lote.status !== STATUS_RECEBIDO_PARCIAL) return { exibidas: todas, ocultasRecebidas: 0 };
+  const exibidas = todas.filter((r) => r.pendente);
+  return { exibidas, ocultasRecebidas: todas.length - exibidas.length };
+}
 
 const StatusBadge: React.FC<{ lote: LoteFaturamento }> = ({ lote }) => (
   <span
@@ -428,7 +444,12 @@ const FaturasDashboard: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {lotes.map((lote) => (
+                  {lotes.map((lote) => {
+                    const { exibidas: requisicoesExibidas, ocultasRecebidas } = requisicoesParaExibir(
+                      lote,
+                      requisicoes[lote.idLote] ?? [],
+                    );
+                    return (
                     <React.Fragment key={lote.idLote}>
                       <tr
                         onClick={() => alternarLote(lote.idLote)}
@@ -504,14 +525,22 @@ const FaturasDashboard: React.FC = () => {
                               <p className="text-sm text-gray-500 dark:text-gray-400">
                                 Nenhuma requisição cobrada neste lote.
                               </p>
+                            ) : requisicoesExibidas.length === 0 ? (
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Nenhuma pendência neste lote — todas as requisições foram recebidas.
+                              </p>
                             ) : (
                               <div className="space-y-3">
                                 <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                                  {requisicoes[lote.idLote].length} requisiç
-                                  {requisicoes[lote.idLote].length === 1 ? 'ão' : 'ões'} neste lote
+                                  {requisicoesExibidas.length} requisiç{requisicoesExibidas.length === 1 ? 'ão' : 'ões'}
+                                  {lote.status === STATUS_RECEBIDO_PARCIAL
+                                    ? ` pendente${requisicoesExibidas.length === 1 ? '' : 's'}`
+                                    : ' neste lote'}
+                                  {ocultasRecebidas > 0 &&
+                                    ` · ${ocultasRecebidas} recebida${ocultasRecebidas === 1 ? '' : 's'} oculta${ocultasRecebidas === 1 ? '' : 's'}`}
                                 </p>
 
-                                {requisicoes[lote.idLote].map((req) => (
+                                {requisicoesExibidas.map((req) => (
                                   <div
                                     key={req.idRequisicao}
                                     className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
@@ -524,6 +553,14 @@ const FaturasDashboard: React.FC = () => {
                                       <span className="text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-[12rem]">
                                         {req.paciente ?? 'Paciente não identificado'}
                                       </span>
+                                      {req.pendente && (
+                                        <span
+                                          className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap"
+                                          title={req.eventoFaturLabel ?? undefined}
+                                        >
+                                          Pendente {formatCurrency(req.valorPendente)}
+                                        </span>
+                                      )}
                                       {req.numGuiaConvenio && (
                                         <span className="text-xs text-gray-500 dark:text-gray-400">
                                           Guia {req.numGuiaConvenio}
@@ -549,6 +586,17 @@ const FaturasDashboard: React.FC = () => {
                                           </span>
                                           <span className="text-gray-700 dark:text-gray-300 flex-1 min-w-[12rem]">
                                             {proc.descricao ?? 'Procedimento sem descrição na tabela de preço'}
+                                          </span>
+                                          <span
+                                            className={`text-xs px-2 py-0.5 rounded-full whitespace-nowrap ${
+                                              proc.pendente
+                                                ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                                                : 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                            }`}
+                                          >
+                                            {proc.pendente
+                                              ? `Recebido ${formatCurrency(proc.valorRecebido)} · Pendente ${formatCurrency(proc.valorPendente)}`
+                                              : 'Recebido'}
                                           </span>
                                           {proc.motivoGlosa && (
                                             <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
@@ -586,7 +634,8 @@ const FaturasDashboard: React.FC = () => {
                         </tr>
                       )}
                     </React.Fragment>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
