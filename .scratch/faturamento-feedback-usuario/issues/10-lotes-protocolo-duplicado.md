@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Faturas: sinalizar lotes com protocolo de envio duplicado (exceto protocolos em formato de data)

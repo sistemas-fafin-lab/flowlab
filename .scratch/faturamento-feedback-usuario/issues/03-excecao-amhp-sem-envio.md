@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Títulos – Aberta: exceção AMHP-DF no aviso "sem envio"

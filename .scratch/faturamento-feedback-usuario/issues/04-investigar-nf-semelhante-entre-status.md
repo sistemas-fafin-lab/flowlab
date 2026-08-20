@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Títulos: indicar mudança de status ao longo do tempo (número de NF "semelhante" entre status)
