@@ -50,8 +50,10 @@ import {
   ehSlotRetroativo,
   fmtDiaSemana,
   hojeISO,
+  janelaDoPresetData,
   rotuloDiaPassado,
   temDataRetroativa,
+  type PresetData,
 } from '../domain/datas';
 
 // Classe compartilhada de input (foco azul, cor do módulo de agendamentos).
@@ -218,6 +220,14 @@ const STATUS: Record<string, StatusCfg> = {
 
 // Opções do seletor de status (derivadas do mapa acima).
 const STATUS_OPCOES = Object.entries(STATUS).map(([value, cfg]) => ({ value, label: cfg.label }));
+
+// Presets do filtro rápido de data — mais próxima → mais distante. 'todos'
+// (sem preset selecionado) não filtra por data.
+const PRESETS_DATA: { value: PresetData; label: string }[] = [
+  { value: 'hoje', label: 'Hoje' },
+  { value: 'amanha', label: 'Amanhã' },
+  { value: 'semana', label: 'Esta semana' },
+];
 
 const statusCfg = (status: AcAgendamentoStatus): StatusCfg =>
   STATUS[status] ?? {
@@ -1701,7 +1711,8 @@ const EditarAgendamentoModal: React.FC<{
 // ─── Página ───────────────────────────────────────────────────────────────────
 const AgendamentosPage: React.FC = () => {
   const [postoSel, setPostoSel] = useState<string>(''); // ac_postos.id — '' = todos
-  const [data, setData] = useState('');
+  const [data, setData] = useState(''); // data específica (input type=date) — '' = nenhuma
+  const [presetSel, setPresetSel] = useState<PresetData | ''>(''); // preset rápido — '' = nenhum
   const [busca, setBusca] = useState(''); // nome ou telefone
   const [statusSel, setStatusSel] = useState(''); // '' = todos os status
   const [mostrarFiltros, setMostrarFiltros] = useState(false);
@@ -1711,8 +1722,17 @@ const AgendamentosPage: React.FC = () => {
   const navigate = useNavigate();
 
   // O posto é filtrado no cliente para que os cartões-resumo sempre reflitam o
-  // total do dia; a data continua filtrando no servidor (janela do dia).
-  const filtros = useMemo(() => ({ data: data || undefined }), [data]);
+  // total do período; a data (preset ou específica) continua filtrando no
+  // servidor (janela de um ou mais dias). Preset e data específica são
+  // mutuamente exclusivos — ver os handlers no filtro abaixo.
+  const filtros = useMemo(() => {
+    if (presetSel) {
+      const { inicio, fim } = janelaDoPresetData(presetSel);
+      return { dataInicio: inicio, dataFim: fim };
+    }
+    if (data) return { dataInicio: data, dataFim: data };
+    return {};
+  }, [presetSel, data]);
   const {
     agendamentos,
     loading,
@@ -1816,7 +1836,7 @@ const AgendamentosPage: React.FC = () => {
     return ordenarAgendamentosParaLista(filtrados);
   }, [agendamentos, postoSel, statusSel, busca]);
 
-  const temFiltro = Boolean(postoSel || data || busca.trim() || statusSel);
+  const temFiltro = Boolean(postoSel || data || presetSel || busca.trim() || statusSel);
   const nomePostoSel = postos.find((p) => p.id === postoSel)?.nome;
   // Painel de filtros: abre pelo botão "Filtrar" ou fica aberto enquanto há filtro
   // ativo (para o usuário sempre conseguir ver/limpar mesmo em resultado vazio).
@@ -1993,11 +2013,47 @@ const AgendamentosPage: React.FC = () => {
                 </option>
               ))}
             </select>
-            {/* Data */}
+            {/* Presets de data: mais próxima → mais distante, + "Todos". Mutuamente
+                exclusivo com a data específica — escolher um limpa o outro. */}
+            <div className="inline-flex rounded-lg border border-gray-200 dark:border-gray-600 overflow-hidden shrink-0">
+              {PRESETS_DATA.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => {
+                    setPresetSel(p.value);
+                    setData('');
+                  }}
+                  className={`px-3 py-2 text-sm font-medium transition-colors ${
+                    presetSel === p.value
+                      ? 'bg-blue-500 text-white'
+                      : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <button
+                onClick={() => {
+                  setPresetSel('');
+                  setData('');
+                }}
+                className={`px-3 py-2 text-sm font-medium border-l border-gray-200 dark:border-gray-600 transition-colors ${
+                  !presetSel && !data
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                Todos
+              </button>
+            </div>
+            {/* Data específica */}
             <input
               type="date"
               value={data}
-              onChange={(e) => setData(e.target.value)}
+              onChange={(e) => {
+                setData(e.target.value);
+                setPresetSel('');
+              }}
               className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 [color-scheme:light] dark:[color-scheme:dark]"
             />
             {temFiltro && (
@@ -2005,6 +2061,7 @@ const AgendamentosPage: React.FC = () => {
                 onClick={() => {
                   setPostoSel('');
                   setData('');
+                  setPresetSel('');
                   setBusca('');
                   setStatusSel('');
                 }}

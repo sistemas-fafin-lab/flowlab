@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   dataKeyDeIso,
+  diaSeguinteISO,
   ehSlotRetroativo,
+  fimDaSemanaISO,
   fmtDiaSemana,
   hojeISO,
   janelaDoDia,
+  janelaDoPresetData,
   parseDataLocal,
   rotuloDiaPassado,
   temDataRetroativa,
@@ -119,5 +122,61 @@ describe('ehSlotRetroativo', () => {
 
   it('é falso sem horário escolhido', () => {
     expect(ehSlotRetroativo('', new Date(2026, 7, 13, 8, 0))).toBe(false);
+  });
+});
+
+describe('diaSeguinteISO', () => {
+  it('devolve o dia seguinte no mesmo mês', () => {
+    expect(diaSeguinteISO('2026-08-12')).toBe('2026-08-13');
+  });
+
+  it('rola para o mês seguinte', () => {
+    expect(diaSeguinteISO('2026-01-31')).toBe('2026-02-01');
+  });
+
+  it('rola para o ano seguinte', () => {
+    expect(diaSeguinteISO('2025-12-31')).toBe('2026-01-01');
+  });
+});
+
+describe('fimDaSemanaISO', () => {
+  it('avança de uma quarta-feira até o sábado da mesma semana', () => {
+    expect(fimDaSemanaISO('2026-08-12')).toBe('2026-08-15');
+  });
+
+  it('avança de um domingo até o sábado da mesma semana', () => {
+    expect(fimDaSemanaISO('2026-08-09')).toBe('2026-08-15');
+  });
+
+  it('devolve a própria data quando já é sábado', () => {
+    expect(fimDaSemanaISO('2026-08-15')).toBe('2026-08-15');
+  });
+});
+
+describe('janelaDoPresetData', () => {
+  const hoje = '2026-08-12'; // quarta-feira
+
+  it('"hoje" é uma janela de um único dia', () => {
+    expect(janelaDoPresetData('hoje', hoje)).toEqual({ inicio: hoje, fim: hoje });
+  });
+
+  it('"amanha" é uma janela de um único dia, no dia seguinte', () => {
+    expect(janelaDoPresetData('amanha', hoje)).toEqual({
+      inicio: '2026-08-13',
+      fim: '2026-08-13',
+    });
+  });
+
+  it('"semana" vai de hoje até o sábado da semana atual', () => {
+    expect(janelaDoPresetData('semana', hoje)).toEqual({
+      inicio: '2026-08-12',
+      fim: '2026-08-15',
+    });
+  });
+
+  it('usa a data atual quando "hoje" não é informado', () => {
+    const { inicio, fim } = janelaDoPresetData('hoje');
+    expect(inicio).toBe(fim);
+    expect(inicio).toMatch(/^\d{4}-\d{2}-\d{2}$/);
   });
 });

@@ -160,7 +160,7 @@ const PainelColetasPage: React.FC = () => {
   const [pendingOpen, setPendingOpen] = useState<string | null>(() => searchParams.get('open'));
 
   const filtros = useMemo(
-    () => ({ postoId: postoSel || undefined, data: data || undefined }),
+    () => ({ postoId: postoSel || undefined, dataInicio: data || undefined, dataFim: data || undefined }),
     [postoSel, data],
   );
   const { agendamentos, loading, error, refetch } = useAgendamentos(filtros);

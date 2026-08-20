@@ -52,3 +52,39 @@ export const temDataRetroativa = (datas: string[], hoje: string = hojeISO()): bo
 // O horário escolhido (ISO) já passou?
 export const ehSlotRetroativo = (slotIso: string, agora: Date = new Date()): boolean =>
   Boolean(slotIso) && new Date(slotIso).getTime() < agora.getTime();
+
+// Presets do filtro rápido de data (mais próxima → mais distante) na lista de
+// agendamentos. 'semana' cobre o resto da semana atual (hoje até sábado).
+export type PresetData = 'hoje' | 'amanha' | 'semana';
+
+// Chave YYYY-MM-DD → chave do dia seguinte, em fuso local.
+export const diaSeguinteISO = (dateKey: string): string => {
+  const d = parseDataLocal(dateKey);
+  d.setDate(d.getDate() + 1);
+  return dayKey(d);
+};
+
+// Chave YYYY-MM-DD → chave do sábado da mesma semana (getDay(): 0=dom … 6=sáb).
+// Se `dateKey` já é sábado, devolve a própria data.
+export const fimDaSemanaISO = (dateKey: string): string => {
+  const d = parseDataLocal(dateKey);
+  d.setDate(d.getDate() + (6 - d.getDay()));
+  return dayKey(d);
+};
+
+// Janela (chaves YYYY-MM-DD, ambas inclusive) de um preset relativo a `hoje`.
+export const janelaDoPresetData = (
+  preset: PresetData,
+  hoje: string = hojeISO(),
+): { inicio: string; fim: string } => {
+  switch (preset) {
+    case 'hoje':
+      return { inicio: hoje, fim: hoje };
+    case 'amanha': {
+      const amanha = diaSeguinteISO(hoje);
+      return { inicio: amanha, fim: amanha };
+    }
+    case 'semana':
+      return { inicio: hoje, fim: fimDaSemanaISO(hoje) };
+  }
+};

@@ -10,7 +10,8 @@ export type { PacienteBuscaItem } from '../api';
 
 export interface AgendamentosFiltros {
   postoId?: string; // ac_postos.id
-  data?: string; // YYYY-MM-DD (filtra pelo dia local)
+  dataInicio?: string; // YYYY-MM-DD (início da janela, dia local, inclusive)
+  dataFim?: string; // YYYY-MM-DD (fim da janela, dia local, inclusive)
 }
 
 // Disponibilidade de um posto (mesma grade que o paciente vê). `slots` são
@@ -78,7 +79,7 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { postoId, data } = filtros;
+  const { postoId, dataInicio, dataFim } = filtros;
 
   const refetch = useCallback(async () => {
     setLoading(true);
@@ -90,9 +91,11 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
       .order('data_hora', { ascending: true });
 
     if (postoId) query = query.eq('posto_id', postoId);
-    if (data) {
-      // Janela do dia escolhido (horário local do navegador → ISO p/ comparar timestamptz).
-      const { inicio, fim } = janelaDoDia(data);
+    if (dataInicio || dataFim) {
+      // Janela dos dias escolhidos (horário local do navegador → ISO p/ comparar
+      // timestamptz). Um único dia é o caso em que início == fim.
+      const { inicio } = janelaDoDia(dataInicio ?? dataFim!);
+      const { fim } = janelaDoDia(dataFim ?? dataInicio!);
       query = query.gte('data_hora', inicio.toISOString()).lte('data_hora', fim.toISOString());
     }
 
@@ -104,7 +107,7 @@ export function useAgendamentos(filtros: AgendamentosFiltros): UseAgendamentosRe
       setAgendamentos(ordenarAgendamentosPorData((rows ?? []) as AcAgendamento[]));
     }
     setLoading(false);
-  }, [postoId, data]);
+  }, [postoId, dataInicio, dataFim]);
 
   useEffect(() => {
     void refetch();
