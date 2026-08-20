@@ -1,4 +1,4 @@
-Status: todo
+Status: done
 Type: bug
 
 # Bugs visuais no modo escuro (módulo Qualidade)
@@ -23,3 +23,27 @@ Reportado pelo usuário após testar o módulo em produção: existem bugs visua
 
 - Nenhum elemento do módulo Qualidade usa classe CSS inexistente.
 - Telas do módulo com boa legibilidade/contraste no modo escuro do FlowLab (a definir tela por tela conforme feedback do usuário).
+
+## Comments
+
+Resolvidos os dois achados concretos:
+
+1. `.glass-surface` definida em `src/index.css` (`@layer components`, com par light/dark)
+   — fundo translúcido + blur, cede para qualquer utilitária Tailwind de cor de
+   fundo/borda no mesmo elemento (Tailwind emite `base < components < utilities`,
+   então a camada `components` sempre perde em empate de especificidade). Cobre
+   as 17 ocorrências da classe no módulo, não só as 3 citadas no achado original.
+2. Cores hex hardcoded de superfície (`#0F1729`, `#141B2D`) trocadas pelos tokens
+   `dark:bg-gray-800`/`dark:bg-gray-700` do FlowLab em 8 arquivos (drawers, modais,
+   dropdowns, célula sticky de tabela, stroke de gráfico).
+
+**Não feito, propositalmente fora de escopo** (achado 2, item "avaliar" a paleta de
+gráficos, e item 1 do "O que fazer"): a paleta hardcoded de cores de série dos
+gráficos (`DonutChart`, `BarChartHorizontal`, `TopLista`, cores por autor em
+`DashboardPage`) não foi tocada — são pares light/dark já calibrados
+deliberadamente, e o próprio texto da issue pede feedback/screenshot do usuário
+antes de mexer nisso. Pedir esses screenshots continua pendente.
+
+Verificado: `npx tsc --noEmit` limpo no módulo, `npm run build` ok, `npm test`
+158/158 passando, eslint sem erros novos. Revisão em duas frentes (Standards +
+Spec) rodada via `/code-review` antes de fechar.

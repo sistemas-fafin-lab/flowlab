@@ -8,6 +8,7 @@ import { ErrorState } from '../ui/ErrorState.js';
 
 interface VinculoDrawerProps {
   id: string;
+  canManage: boolean;
   onFechar: () => void;
 }
 
@@ -21,7 +22,7 @@ const OPCOES_STATUS: { valor: StatusCuradoriaIhq; rotulo: string }[] = [
 const campoInput =
   'mt-1 w-full glass-field rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-200';
 
-export function VinculoDrawer({ id, onFechar }: VinculoDrawerProps) {
+export function VinculoDrawer({ id, canManage, onFechar }: VinculoDrawerProps) {
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['ihq', id],
@@ -70,7 +71,7 @@ export function VinculoDrawer({ id, onFechar }: VinculoDrawerProps) {
   return createPortal(
     <div className="fixed inset-0 z-[60] flex justify-end">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onFechar} />
-      <div className="relative flex h-full w-full max-w-3xl animate-slide-in-right flex-col border-l border-slate-200/50 bg-white/90 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-[#0F1729]/85">
+      <div className="relative flex h-full w-full max-w-3xl animate-slide-in-right flex-col border-l border-slate-200/50 bg-white/90 shadow-2xl backdrop-blur-2xl dark:border-white/10 dark:bg-gray-800/85">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4 dark:border-white/10">
           <div>
             <h2 className="text-lg font-semibold text-gray-800 dark:text-slate-100">Solicitação de IHQ</h2>
@@ -148,14 +149,16 @@ export function VinculoDrawer({ id, onFechar }: VinculoDrawerProps) {
                             {candidata.dtaSolicitacao} — {candidata.temPeca ? 'com peça cadastrada' : 'sem peça cadastrada'}
                           </p>
                         </div>
-                        <button
-                          type="button"
-                          disabled={confirmarVinculo.isPending}
-                          onClick={() => confirmarVinculo.mutate(candidata.codRequisicaoOriginal)}
-                          className="rounded-full bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-200 disabled:opacity-50 dark:bg-blue-900/40 dark:text-blue-300"
-                        >
-                          Confirmar esta
-                        </button>
+                        {canManage && (
+                          <button
+                            type="button"
+                            disabled={confirmarVinculo.isPending}
+                            onClick={() => confirmarVinculo.mutate(candidata.codRequisicaoOriginal)}
+                            className="rounded-full bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-200 disabled:opacity-50 dark:bg-blue-900/40 dark:text-blue-300"
+                          >
+                            Confirmar esta
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
@@ -187,6 +190,7 @@ export function VinculoDrawer({ id, onFechar }: VinculoDrawerProps) {
                     className={campoInput}
                     value={dtaEnvioCorrigida}
                     onChange={(e) => setDtaEnvioCorrigida(e.target.value)}
+                    disabled={!canManage}
                   />
                 </div>
               </dl>
@@ -213,7 +217,12 @@ export function VinculoDrawer({ id, onFechar }: VinculoDrawerProps) {
               <div className="mt-3 space-y-4">
                 <div>
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Lâmina enviada</label>
-                  <select className={campoInput} value={laminaEnviada} onChange={(e) => setLaminaEnviada(e.target.value)}>
+                  <select
+                    className={campoInput}
+                    value={laminaEnviada}
+                    onChange={(e) => setLaminaEnviada(e.target.value)}
+                    disabled={!canManage}
+                  >
                     <option value="">Não informado</option>
                     <option value="true">Sim</option>
                     <option value="false">Não</option>
@@ -221,11 +230,22 @@ export function VinculoDrawer({ id, onFechar }: VinculoDrawerProps) {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Observações</label>
-                  <textarea className={campoInput} rows={3} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} />
+                  <textarea
+                    className={campoInput}
+                    rows={3}
+                    value={observacoes}
+                    onChange={(e) => setObservacoes(e.target.value)}
+                    disabled={!canManage}
+                  />
                 </div>
                 <div>
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Status</label>
-                  <select className={campoInput} value={status} onChange={(e) => setStatus(e.target.value as StatusCuradoriaIhq)}>
+                  <select
+                    className={campoInput}
+                    value={status}
+                    onChange={(e) => setStatus(e.target.value as StatusCuradoriaIhq)}
+                    disabled={!canManage}
+                  >
                     {OPCOES_STATUS.map((opcao) => (
                       <option key={opcao.valor} value={opcao.valor}>
                         {opcao.rotulo}
@@ -246,14 +266,16 @@ export function VinculoDrawer({ id, onFechar }: VinculoDrawerProps) {
           >
             Cancelar
           </button>
-          <button
-            type="button"
-            disabled={!data || salvarCuradoria.isPending}
-            onClick={() => salvarCuradoria.mutate()}
-            className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50"
-          >
-            {salvarCuradoria.isPending ? 'Salvando…' : 'Salvar curadoria'}
-          </button>
+          {canManage && (
+            <button
+              type="button"
+              disabled={!data || salvarCuradoria.isPending}
+              onClick={() => salvarCuradoria.mutate()}
+              className="rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50"
+            >
+              {salvarCuradoria.isPending ? 'Salvando…' : 'Salvar curadoria'}
+            </button>
+          )}
         </div>
         {salvarCuradoria.isError && (
           <p role="alert" className="px-6 pb-4 text-sm text-red-600 dark:text-red-400">

@@ -1,4 +1,4 @@
-Status: todo
+Status: done
 Type: bug
 
 # Frontend de Qualidade não checa `canManageQualidade` em nenhuma ação de escrita
@@ -29,3 +29,36 @@ recebe erro genérico em vez do botão já vir desabilitado/oculto).
 
 - Um usuário só com `canViewQualidade` não vê nenhum botão de escrita habilitado nas 4
   páginas de Qualidade.
+
+## Comments
+
+Resolvido após code review (Standards + Spec) do WIP:
+
+1. **Hook compartilhado** `useCanManageQualidade()` (`hooks/useCanManageQualidade.ts`)
+   + gate nas 4 páginas e drawers: Sincronizar oculto, salvar curadoria/confirmar
+   vínculo/criar-editar cota ocultos ou `disabled`, classificação CID-O e triagem
+   gateadas (`CasoDrawer`), e os botões de salvar de `CampoParametroFixo` agora
+   também checam `canManage` (antes só a entrada em edição checava).
+2. **Legacy roles corrigidos** (`src/utils/permissions.ts`): `canViewQualidade`/
+   `canManageQualidade` saíram do fallback de `operator` — no banco,
+   `current_user_has_permission()` só honra `custom_roles.permissions` ou
+   `role='admin'`, então o fallback sintetizado dava botões habilitados que o RLS
+   negava com 403 (o exato bug da issue). Admin legado mantém as chaves (RLS
+   reconhece `role='admin'`). Teste novo `src/utils/permissions.test.ts` cobre os 3
+   papéis (TDD: vermelho → verde).
+3. **Exportação RHC** não existia na UI — criado `cancer/ExportacaoRhcCard.tsx`
+   (ano/trimestre/registrador + botão "Gerar exportação" gateado por `canManage`,
+   lista de exportações com download livre para `canViewQualidade`) e plugado na
+   `CancerPage`.
+4. **Fixes de Standards do review**: `.glass-field` definida em `src/index.css`
+   (par light/dark + foco — a classe era usada em 14 lugares sem definição);
+   `chamarQualidadeApi` agora lança `ErroApiQualidade` com o status real (branch
+   401 das páginas era inalcançável) e as mensagens "ver STATUS.md" (arquivo
+   inexistente) foram removidas; `Inicio` renomeado para `QualidadeDashboardPage`;
+   prop `colunaAcoes` removida de `TabelaExpansivel` (nenhum caller usava);
+   policy `app_parametros_write` restrita a `chave LIKE 'cancer.%'` (antes dava
+   escrita sobre todas as chaves compartilhadas a qualquer `canManageQualidade`).
+
+Verificado: `npx tsc --noEmit` sem erros novos (25 pré-existentes em arquivos de
+IT), `npm test` 161/161, `npm run build` ok, eslint sem erros novos nos arquivos
+tocados.

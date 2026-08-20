@@ -49,6 +49,9 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // ── Sistemas Externos (não é um módulo do FlowLab — apenas usa este
   //    ecossistema de autenticação/permissões para controlar acesso) ─────────
   { key: 'canUseWhatsapp', label: 'Usar WhatsApp', group: 'Sistemas Externos' },
+  // ── Qualidade ──────────────────────────────────────────────────────────────
+  { key: 'canViewQualidade', label: 'Visualizar Qualidade', group: 'Qualidade' },
+  { key: 'canManageQualidade', label: 'Gerenciar Qualidade (curadoria e sincronização)', group: 'Qualidade' },
 ];
 
 // ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────
@@ -60,10 +63,15 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
 export const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
 
 // ─── Fallback: permissões para roles legadas (usado quando custom_role não existe) ─
+// Atenção: no banco, current_user_has_permission() só honra
+// custom_roles.permissions ou role = 'admin' — um operator/requester legado
+// sem cargo customizado tem ZERO permissões no RLS. Chaves novas (como as do
+// módulo Qualidade) ficam de fora do fallback de operator para não mostrar
+// botões de escrita que o RLS vai negar com 403 (issue 04).
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ALL_PERMISSION_KEYS.map(p => p.key),
   operator: ALL_PERMISSION_KEYS.map(p => p.key).filter(
-    k => !['canViewDashboard', 'canManageUsers', 'canManageRoles', 'canManageIT'].includes(k)
+    k => !['canViewDashboard', 'canManageUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade'].includes(k)
   ),
   requester: ['canViewRequests', 'canAddRequests'],
 };

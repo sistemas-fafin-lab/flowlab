@@ -9,6 +9,7 @@ import {
   History,
   FileText,
   AlertTriangle,
+  Gift,
   Menu,
   X,
   LogOut,
@@ -91,7 +92,7 @@ const DEFAULT_CATEGORIES: CategoryConfig[] = [
     id: 'operacoes',
     name: 'OPERAÇÕES',
     sort_order: 1,
-    items: ['Produtos', 'Movimentações', 'Estoque Departamental', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas'],
+    items: ['Produtos', 'Movimentações', 'Estoque Departamental', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas', 'Qualidade'],
   },
   {
     id: 'administracao',
@@ -462,6 +463,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
+    if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer'].includes(path)) return ['Qualidade'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -628,6 +630,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Indicadores', href: '/analises-clinicas/indicadores', icon: BarChart3, permission: 'canViewAnalisesClinicas' },
           { name: 'Postos de Coleta', href: '/analises-clinicas/postos', icon: MapPin, permission: 'canManageAnalisesClinicas' },
           { name: 'Correção de Identidade', href: '/analises-clinicas/correcao-identidade', icon: ShieldAlert, permission: 'canCorrigirIdentidade' },
+        ],
+      },
+      {
+        name: 'Qualidade',
+        href: '/qualidade',
+        icon: Shield,
+        anyOf: ['canViewQualidade', 'canManageQualidade'],
+        category: 'OPERAÇÕES',
+        subItems: [
+          { name: 'Painel', href: '/qualidade', icon: Shield, anyOf: ['canViewQualidade', 'canManageQualidade'] },
+          { name: 'Ocorrências', href: '/qualidade/ocorrencias', icon: AlertTriangle, anyOf: ['canViewQualidade', 'canManageQualidade'] },
+          { name: 'Cortesias', href: '/qualidade/cortesias', icon: Gift, anyOf: ['canViewQualidade', 'canManageQualidade'] },
+          { name: 'IHQ', href: '/qualidade/ihq', icon: Microscope, anyOf: ['canViewQualidade', 'canManageQualidade'] },
+          { name: 'Registro de Câncer', href: '/qualidade/cancer', icon: Stethoscope, anyOf: ['canViewQualidade', 'canManageQualidade'] },
         ],
       },
       {

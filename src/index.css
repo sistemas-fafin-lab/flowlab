@@ -583,3 +583,53 @@ html.theme-transition *::after {
   transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease !important;
   transition-delay: 0s !important;
 }
+
+/* ========================================
+   SUPERFÍCIE COM EFEITO DE VIDRO (módulo Qualidade)
+   ======================================== */
+
+@layer components {
+  /* Fundo translúcido + blur para painéis flutuantes (dropdowns, cards, tooltips).
+     Uso deliberado de `@layer components` (não `utilities`, onde vive `.glass`):
+     o Tailwind emite base < components < utilities nessa ordem (v. @tailwind
+     no topo do arquivo), então qualquer utilitária de cor de fundo/borda do
+     Tailwind no mesmo elemento sobrepõe estes valores por padrão — sem
+     precisar editar cada um dos usos desta classe. Distinta de `.glass`
+     (utilitária simples, sem variante dark): esta tem par light/dark e
+     borda dedicados. */
+  .glass-surface {
+    background-color: rgb(255 255 255 / 0.85);
+    border: 1px solid rgb(226 232 240 / 0.6);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .dark .glass-surface {
+    background-color: rgb(31 41 55 / 0.85);
+    border-color: rgb(55 65 81 / 0.6);
+  }
+
+  /* Campo de formulário translúcido (inputs/selects do módulo Qualidade).
+     Mesma estratégia de .glass-surface: utilitárias de cor do Tailwind no
+     mesmo elemento sobrepõem estes valores. */
+  .glass-field {
+    background-color: rgb(255 255 255 / 0.6);
+    border: 1px solid rgb(226 232 240 / 0.9);
+  }
+
+  .glass-field:focus {
+    outline: none;
+    border-color: rgb(59 130 246 / 0.5);
+    box-shadow: 0 0 0 3px rgb(59 130 246 / 0.15);
+  }
+
+  .dark .glass-field {
+    background-color: rgb(31 41 55 / 0.6);
+    border-color: rgb(55 65 81 / 0.8);
+  }
+
+  .dark .glass-field:focus {
+    border-color: rgb(59 130 246 / 0.6);
+    box-shadow: 0 0 0 3px rgb(59 130 246 / 0.2);
+  }
+}

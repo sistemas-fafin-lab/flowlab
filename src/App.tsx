@@ -35,6 +35,15 @@ import TestKanban from './components/IT/TestKanban';
 import { NotificationAdminPanel } from './components/NotificationAdminPanel';
 import CostControlDashboard from './pages/CostControlDashboard';
 import { AgendamentosPage, PostosPage, PainelColetasPage, TemperaturaEquipamentosPage, CulturasPage, RecoletasPage, LaudosPage, IndicadoresPage, EnvioApoioPage, CorrecaoIdentidadePage } from './modules/analises-clinicas';
+import {
+  QualidadeProviders,
+  QualidadeDashboardPage,
+  OcorrenciasPage,
+  CortesiasPage,
+  CortesiasCotasPage,
+  IhqPage,
+  CancerPage,
+} from './modules/qualidade';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -338,6 +347,67 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canViewAnalisesClinicas" permissions={userPermissions}>
               <IndicadoresPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Qualidade Routes */}
+        <Route
+          path="/qualidade"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <QualidadeDashboardPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualidade/ocorrencias"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <OcorrenciasPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualidade/cortesias"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <CortesiasPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualidade/cortesias/cotas"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <CortesiasCotasPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualidade/ihq"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <IhqPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualidade/cancer"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <CancerPage />
+              </QualidadeProviders>
             </ProtectedRoute>
           }
         />
