@@ -1,4 +1,4 @@
-// api/cron/umami-inatividade.ts
+// API Route: GET /api/umami/inatividade-cron
 // Vercel Cron (semanal) — alerta por email de projetos sem uso há 7 dias.
 //
 // Regra de "sem uso", inferida automaticamente pelos dados do Umami:
@@ -14,10 +14,10 @@
 // Variáveis de ambiente:
 //   CRON_SECRET          → segredo do cron (obrigatória)
 //   INACTIVITY_ALERT_TO  → email de destino do resumo (obrigatória para envio real)
-//   UMAMI_BASE_URL, UMAMI_USER, UMAMI_PASS, UMAMI_TIMEZONE → já usadas por api/umami.ts
+//   UMAMI_BASE_URL, UMAMI_USER, UMAMI_PASS, UMAMI_TIMEZONE → já usadas por umami-dashboard.ts
 //   SMTP_* e SUPABASE_*  → já usadas por api/_lib/email.ts
 //
-// Teste sem enviar email: GET /api/cron/umami-inatividade?dryRun=true
+// Teste sem enviar email: GET /api/umami/inatividade-cron?dryRun=true
 //   (com o header Authorization: Bearer <CRON_SECRET>) devolve o cálculo em JSON.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -25,9 +25,9 @@ import {
   createUmamiClient,
   buildTimeRangeParams,
   type UmamiWebsite,
-} from '../_lib/umami.js';
-import { sendTemplatedEmail } from '../_lib/email.js';
-import { escapeHtml } from '../_lib/html.js';
+} from '../umami.js';
+import { sendTemplatedEmail } from '../email.js';
+import { escapeHtml } from '../html.js';
 
 const INACTIVITY_DAYS = 7;
 const CLASSIFY_DAYS = 90;
@@ -51,7 +51,7 @@ interface Evaluation {
   error?: string;
 }
 
-/** Lê um stat do Umami seja ele `number` ou `{ value }` (api/_lib/umami.ts não exporta helper). */
+/** Lê um stat do Umami seja ele `number` ou `{ value }` (../umami.ts não exporta helper). */
 function statValue(stat: number | { value: number } | undefined): number {
   if (stat === undefined || stat === null) return 0;
   return typeof stat === 'object' ? stat.value : stat;
@@ -136,14 +136,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   // ── Configuração do Umami (sem fallback: falha explícita se faltar) ────────
   const { UMAMI_BASE_URL, UMAMI_USER, UMAMI_PASS } = process.env;
   if (!UMAMI_BASE_URL || !UMAMI_USER || !UMAMI_PASS) {
-    console.error('[cron/umami-inatividade] UMAMI_BASE_URL, UMAMI_USER e UMAMI_PASS são obrigatórias');
+    console.error('[umami/inatividade-cron] UMAMI_BASE_URL, UMAMI_USER e UMAMI_PASS são obrigatórias');
     res.status(500).json({ error: 'Integração com o Umami não configurada.' });
     return;
   }
 
   const to = process.env.INACTIVITY_ALERT_TO;
   if (!dryRun && !to) {
-    console.error('[cron/umami-inatividade] INACTIVITY_ALERT_TO não configurada');
+    console.error('[umami/inatividade-cron] INACTIVITY_ALERT_TO não configurada');
     res.status(500).json({ error: 'Destinatário do alerta (INACTIVITY_ALERT_TO) não configurado.' });
     return;
   }
@@ -168,7 +168,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     // ── Sem inativos: não envia email ────────────────────────────────────────
     if (inactive.length === 0) {
-      console.log('[cron/umami-inatividade] Nenhum projeto inativo. Nenhum email enviado.');
+      console.log('[umami/inatividade-cron] Nenhum projeto inativo. Nenhum email enviado.');
       res.status(200).json({
         ok: true,
         totalSites: websites.length,
@@ -212,7 +212,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const result = await sendTemplatedEmail({ to: to!, templateSlug: TEMPLATE_SLUG, variables });
 
     if (!result.success) {
-      console.error('[cron/umami-inatividade] Falha ao enviar email:', result.errorCode, result.error);
+      console.error('[umami/inatividade-cron] Falha ao enviar email:', result.errorCode, result.error);
       res.status(500).json({
         ok: false,
         error: result.error ?? 'Falha ao enviar email',
@@ -223,7 +223,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     console.log(
-      `[cron/umami-inatividade] Resumo enviado para ${to} — ${inactive.length} projeto(s) inativo(s).`,
+      `[umami/inatividade-cron] Resumo enviado para ${to} — ${inactive.length} projeto(s) inativo(s).`,
     );
     res.status(200).json({
       ok: true,
@@ -234,7 +234,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[cron/umami-inatividade]', message);
+    console.error('[umami/inatividade-cron]', message);
     res.status(500).json({ ok: false, error: message });
   }
 }

@@ -1,7 +1,7 @@
 // api/_lib/umamiAuth.ts
-// Autorização de /api/umami — usado pelo handler de produção (api/umami.ts) e
-// pelo middleware de desenvolvimento (vite.config.ts), para os dois exigirem
-// exatamente a mesma coisa.
+// Autorização de /api/umami/dashboard — usado pelo handler de produção
+// (api/_lib/handlers/umami-dashboard.ts) e pelo middleware de desenvolvimento
+// (vite.config.ts), para os dois exigirem exatamente a mesma coisa.
 
 import { getSupabaseAdminClient } from './supabase.js';
 import { describeError } from './errors.js';

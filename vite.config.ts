@@ -1,9 +1,6 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { createUmamiClient, buildTimeRangeParams } from './api/_lib/umami';
-import type { UmamiTimeRange, UmamiTimeUnit } from './api/_lib/umami';
-import { authorizeUmamiRequest } from './api/_lib/umamiAuth';
 import nodemailer from 'nodemailer';
 import { createClient } from '@supabase/supabase-js';
 // ── Dev-only middleware para POST /api/notifications/email ───────────────────
@@ -122,96 +119,62 @@ function emailApiPlugin(env: Record<string, string>): Plugin {
     },
   };
 }
-// ── Dev-only middleware that emula /api/umami sem precisar do vercel dev ──────
+// ── Dev-only middleware que espelha /api/umami/[action] (dashboard + cron de
+// inatividade) via ssrLoadModule, como no apoioApiPlugin/faturamentoApiPlugin —
+// evita reimplementar a lógica dos handlers aqui (era uma 3ª cópia da mesma
+// lógica, além de api/umami.ts e api/cron/umami-inatividade.ts).
 function umamiApiPlugin(env: Record<string, string>): Plugin {
+  const UMAMI_ACTIONS = new Set(['dashboard', 'inatividade-cron']);
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'UMAMI_BASE_URL', 'UMAMI_USER', 'UMAMI_PASS', 'UMAMI_TIMEZONE',
+    'CRON_SECRET', 'INACTIVITY_ALERT_TO',
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
   return {
     name: 'umami-dev-api',
     configureServer(server) {
       server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
-        if (!req.url?.startsWith('/api/umami')) return next();
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        const match = url.pathname.match(/^\/api\/umami\/([^/]+)$/);
+        const action = match?.[1];
+        if (!action || !UMAMI_ACTIONS.has(action) || req.method !== 'GET') return next();
 
-        const url = new URL(req.url, 'http://localhost');
-        const param = (key: string): string | null => url.searchParams.get(key);
+        const query: Record<string, string> = { action };
+        for (const [chave, valor] of url.searchParams) query[chave] = valor;
 
-        const send = (status: number, body: unknown) => {
-          res.statusCode = status;
-          res.setHeader('Content-Type', 'application/json');
-          res.setHeader('Cache-Control', 'no-store');
-          res.end(JSON.stringify(body));
-        };
-
-        // Mesma autorização da produção: dev que não exige sessão esconde 401/403
-        // que só apareceriam depois do deploy. `authorizeUmamiRequest` lê os
-        // segredos de process.env, então mapeamos as vars do .env antes.
-        for (const k of ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY']) {
-          if (env[k] && !process.env[k]) process.env[k] = env[k];
-        }
-        const auth = await authorizeUmamiRequest(req.headers.authorization);
-        if (!auth.ok) return send(auth.status, { error: auth.error });
-
-        const websiteId  = param('id');
-        const startAtRaw = param('startAt');
-        const endAtRaw   = param('endAt');
-        const unitRaw    = param('unit') as UmamiTimeUnit | null;
-        const rangeRaw   = param('range');
-        const timezone   = param('timezone');
-        const all        = param('all') === 'true';
-
-        const range: UmamiTimeRange =
-          startAtRaw && endAtRaw
-            ? { startAt: Number(startAtRaw), endAt: Number(endAtRaw), unit: unitRaw ?? 'day' }
-            : ((rangeRaw ?? '24h') as UmamiTimeRange);
-
-        // Sem fallback de credencial, igual à produção (ver api/umami.ts).
-        if (!env.UMAMI_BASE_URL || !env.UMAMI_USER || !env.UMAMI_PASS) {
-          return send(500, {
-            error: 'Defina UMAMI_BASE_URL, UMAMI_USER e UMAMI_PASS no .env',
-          });
-        }
-
-        const client = createUmamiClient({
-          baseUrl:  env.UMAMI_BASE_URL,
-          username: env.UMAMI_USER,
-          password: env.UMAMI_PASS,
-          timezone: env.UMAMI_TIMEZONE ?? 'America/Sao_Paulo',
+        const vReq = Object.assign(req, { query });
+        const vRes = Object.assign(res, {
+          status(code: number) { res.statusCode = code; return vRes; },
+          json(payload: unknown) {
+            if (!res.headersSent) res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(payload));
+            return vRes;
+          },
         });
 
         try {
-          await client.authenticate();
-          const websites = await client.getWebsites();
-          // Mesmo contrato do handler de produção (api/umami.ts): o timezone do
-          // cliente manda, para os buckets baterem com os rótulos do gráfico.
-          const params   = { ...buildTimeRangeParams(range), ...(timezone ? { timezone } : {}) };
-
-          if (all) {
-            if (!websites.length) {
-              return send(200, { websites: [], results: [], error: 'Nenhum site encontrado' });
-            }
-            const results = await Promise.all(
-              websites.map(async (site) => {
-                const [stats, events, pageviews] = await Promise.all([
-                  client.getStats(site.id, params),
-                  client.getEvents(site.id, params),
-                  client.getPageviews(site.id, params),
-                ]);
-                return { id: site.id, stats, events, pageviews };
-              }),
-            );
-            return send(200, { websites, results });
-          }
-
-          const targetId = websiteId ?? (websites[0]?.id ?? null);
-          if (!targetId) return send(200, { websites, error: 'Nenhum site encontrado' });
-
-          const [stats, events, pageviews] = await Promise.all([
-            client.getStats(targetId, params),
-            client.getEvents(targetId, params),
-            client.getPageviews(targetId, params),
-          ]);
-          return send(200, { websites, currentId: targetId, stats, events, pageviews });
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule(`/api/_lib/handlers/umami-${action}.ts`);
+          await mod.default(vReq, vRes);
         } catch (err) {
-          console.error('[dev/api/umami]', err);
-          send(500, { error: err instanceof Error ? err.message : 'Erro ao buscar dados do Umami' });
+          console.error(`[dev/umami/${action}]`, err);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ error: err instanceof Error ? err.message : 'Erro interno' }));
+          }
         }
       });
     },

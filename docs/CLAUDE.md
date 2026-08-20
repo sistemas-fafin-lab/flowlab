@@ -151,7 +151,7 @@ The system handles multiple request types with distinct workflows:
 ### Analytics Integration
 
 **Umami Analytics** (self-hosted):
-- API proxy in `api/umami.ts` for Vercel deployment
+- API proxy in `api/umami/[action].ts` (dispatcher: `dashboard` + `inatividade-cron`) for Vercel deployment
 - Dev server middleware in `vite.config.ts` for local development
 - Hook `useUmamiAnalytics` in `src/hooks/useUmamiAnalytics.ts`
 - Environment variables for Umami instance configuration
@@ -233,7 +233,7 @@ const statusConfig = {
 - `src/lib/database.types.ts` - TypeScript types from Supabase schema
 - `src/types/index.ts` - Application type definitions
 - `src/index.css` - Custom Tailwind utilities and animations
-- `api/umami.ts` - Analytics API proxy for Vercel
+- `api/umami/[action].ts` - Analytics API proxy for Vercel
 - `vite.config.ts` - Vite configuration with dev middleware
 
 ## Documentation

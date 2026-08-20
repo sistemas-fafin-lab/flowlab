@@ -341,7 +341,7 @@ export function buildEventChartData(
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 
-const API_URL = '/api/umami';
+const API_URL = '/api/umami/dashboard';
 
 /**
  * Umami client-side tracker — injected once into <head>. Endereço e id do site
