@@ -57,6 +57,8 @@ The application uses a **bounded context** approach with isolated modules:
 - `quotations/` - Complete quotation workflow with state machine
 - `messaging/` - WhatsApp/messaging integration infrastructure  
 - `faturamento/` - Billing/invoicing module
+- `analises-clinicas/` - Clinical analysis scheduling, collections, cultures, reports
+- `qualidade/` - Quality module (Ocorrências, Cortesias, IHQ, Registro de Câncer) — ported from a separate project (flowlab-qualidade); `/api/qualidade/*` dispatcher/handlers and `cancerRegras.ts` are implemented (`api/qualidade/[action].ts`, `api/_lib/qualidade/`), but the LIS-side identification of Cortesias authorizations and IHQ requests relies on documented best-effort heuristics — see the caveats in `api/_lib/qualidade/bdLabQualidade.ts` and `.scratch/qualidade/issues/`
 - Each module exports types, hooks, components, and services via `index.ts`
 
 **Quotations Module**:
