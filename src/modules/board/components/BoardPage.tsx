@@ -4,6 +4,7 @@ import { Draggable, type DragStart, type DragUpdate, type DropResult } from '@he
 import { KanbanBoard, type KanbanBoardColumnConfig } from '../../../components/shared/KanbanBoard';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import Notification from '../../../components/Notification';
+import Select from '../../../components/Select';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNotification } from '../../../hooks/useNotification';
 import { useBoardAccess } from '../hooks/useBoardAccess';
@@ -55,19 +56,20 @@ type FormState = { mode: 'create'; column: KanbanStatus } | { mode: 'edit'; tick
  * `canManage` é `true` (cargo com `canManageBoard`, ou `canManageAllBoards`
  * — ver `resolveBoardAccess`); a RLS de `board_tickets` bloqueia a escrita de
  * qualquer forma, então esconder os botões aqui é só UX, não a defesa real.
- * Seletor para quem enxerga mais de um board fica para o ticket 06 — hoje,
- * nesse caso, cai direto no primeiro board da lista.
+ * Quem tem `canManageAllBoards` e mais de um board disponível vê um seletor
+ * (ticket 06); caindo no primeiro board da lista por padrão.
  */
 const BoardPage: React.FC = () => {
   const { userProfile } = useAuth();
   const access = useBoardAccess();
   const { boards, loading: loadingBoards } = useBoards();
+  const [selectedBoardId, setSelectedBoardId] = useState<string | null>(null);
 
   const targetBoardId = useMemo(() => {
     if (access.kind === 'single') return access.boardId;
-    if (access.kind === 'all') return boards[0]?.id ?? null;
+    if (access.kind === 'all') return selectedBoardId ?? boards[0]?.id ?? null;
     return null;
-  }, [access, boards]);
+  }, [access, boards, selectedBoardId]);
 
   const canManage = access.kind === 'all' ? true : access.kind === 'single' ? access.canManage : false;
 
@@ -170,14 +172,27 @@ const BoardPage: React.FC = () => {
         onClose={hideNotification}
       />
 
-      <div>
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent flex items-center gap-2.5">
-          <KanbanSquare className="w-6 h-6 text-violet-600 dark:text-violet-400" />
-          {board?.label ?? 'Board'}
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-          {canManage ? 'Colunas e cards do seu board.' : 'Colunas e cards do seu board (somente visualização).'}
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent flex items-center gap-2.5">
+            <KanbanSquare className="w-6 h-6 text-violet-600 dark:text-violet-400" />
+            {board?.label ?? 'Board'}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+            {canManage ? 'Colunas e cards do seu board.' : 'Colunas e cards do seu board (somente visualização).'}
+          </p>
+        </div>
+
+        {access.kind === 'all' && boards.length > 1 && (
+          <Select
+            ariaLabel="Selecionar board"
+            value={targetBoardId ?? ''}
+            onChange={setSelectedBoardId}
+            options={boards.map((b) => ({ value: b.id, label: b.label }))}
+            controlClass="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm font-medium text-gray-900 dark:text-gray-100"
+            wrapperClass="shrink-0 min-w-[10rem]"
+          />
+        )}
       </div>
 
       {error && (
