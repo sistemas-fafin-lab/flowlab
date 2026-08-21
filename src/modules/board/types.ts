@@ -25,3 +25,12 @@ export interface BoardTicket {
   created_at: string;
   updated_at: string;
 }
+
+/** Campos editáveis de um card, usados tanto na criação quanto na edição. */
+export interface BoardTicketInput {
+  title: string;
+  description: string | null;
+  responsible_id: string | null;
+  due_date: string | null;
+  priority: BoardTicketPriority;
+}
