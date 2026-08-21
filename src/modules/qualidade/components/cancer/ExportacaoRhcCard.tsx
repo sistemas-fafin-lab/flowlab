@@ -3,6 +3,7 @@ import { Download, FileSpreadsheet } from 'lucide-react';
 import { useState } from 'react';
 import { anoAtual } from '../../anoAtual.js';
 import { buscarLinkDownloadExportacao, gerarExportacaoCancer, listarExportacoesCancer } from '../../cancer.js';
+import { Skeleton } from '../ui/Skeleton.js';
 
 interface ExportacaoRhcCardProps {
   /** Registrador padrão vindo de `app_parametros` (parametro fixo `registrador`). */
@@ -111,7 +112,12 @@ export function ExportacaoRhcCard({ registradorPadrao, canManage }: ExportacaoRh
         </p>
       )}
 
-      {exportacoes.isLoading && <p className="mt-4 text-sm text-gray-500 dark:text-slate-400">Carregando exportações…</p>}
+      {exportacoes.isLoading && (
+        <div className="mt-4 space-y-2">
+          <Skeleton className="h-10 w-full" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+      )}
       {exportacoes.isError && (
         <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-400">
           Falha ao carregar exportações.

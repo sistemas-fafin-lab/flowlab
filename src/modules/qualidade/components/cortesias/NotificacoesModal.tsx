@@ -2,6 +2,7 @@ import type { NotificacaoCortesiaDTO } from '../../types';
 import { Gift, X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
+import { Skeleton } from '../ui/Skeleton.js';
 
 interface NotificacoesModalProps {
   notificacoes: NotificacaoCortesiaDTO[];
@@ -60,7 +61,13 @@ export function NotificacoesModal({ notificacoes, carregando, agora, onFechar, o
         </div>
 
         <div className="flex-1 overflow-y-auto p-2">
-          {carregando && <p className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">Carregando…</p>}
+          {carregando && (
+            <div className="space-y-2 p-2">
+              {[1, 2, 3].map((n) => (
+                <Skeleton key={n} className="h-14 w-full" />
+              ))}
+            </div>
+          )}
           {!carregando && notificacoes.length === 0 && (
             <p className="px-3 py-4 text-sm text-gray-500 dark:text-slate-400">Nenhuma cortesia concedida recentemente.</p>
           )}
