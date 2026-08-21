@@ -1,17 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { CortesiaDTO, StatusCuradoriaCortesia } from '../types';
-import { AlertTriangle, Bell, Clock, RefreshCw, Wallet } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Bell, Clock, Wallet } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { CuradoriaDrawer } from './cortesias/CuradoriaDrawer.js';
 import { NotificacoesModal } from './cortesias/NotificacoesModal.js';
-import { ErrorState } from './ui/ErrorState.js';
-import { SeletorPeriodoPorMes } from './ui/SeletorPeriodoPorMes.js';
-import { Skeleton } from './ui/Skeleton.js';
+import { BadgeRevisaoPendente } from './ui/BadgeRevisaoPendente.js';
+import { PaginaWorklist } from './ui/PaginaWorklist.js';
 import type { ColunaTabela } from './ui/TabelaExpansivel.js';
-import { TabelaExpansivel } from './ui/TabelaExpansivel.js';
-import { anoAtual } from '../anoAtual.js';
-import { ErroApi, buscarCortesias, buscarNotificacoesCortesias, sincronizarCortesias } from '../cortesias.js';
+import { buscarCortesias, buscarNotificacoesCortesias, sincronizarCortesias } from '../cortesias.js';
 import { useCanManageQualidade } from '../hooks/useCanManageQualidade.js';
 import {
   contarNaoLidas,
@@ -80,11 +77,143 @@ function formatarData(data: string | null): string {
 
 const INTERVALO_POLL_NOTIFICACOES_MS = 60_000;
 
+function pendentesDeAutorizacao(dados: CortesiaDTO[]): CortesiaDTO[] {
+  return dados.filter((item) => item.situacaoPrazo === 'sem_autorizacao');
+}
+
+const colunas: ColunaTabela<CortesiaDTO>[] = [
+  { chave: 'requisicao', titulo: 'Requisição', valor: (item) => item.codRequisicao, filtravel: true, larguraMin: 'min-w-[8rem]' },
+  {
+    chave: 'paciente',
+    titulo: 'Paciente',
+    // PII (P10) — lida do LIS sob demanda a cada carregamento, nunca persistida em qa_cortesias.
+    valor: (item) => item.nomePacienteLis ?? '',
+    quebrarLinha: true,
+    filtravel: true,
+    larguraMin: 'min-w-[14rem]',
+  },
+  {
+    chave: 'clinica',
+    titulo: 'Clínica',
+    valor: (item) => item.clinicaNome ?? '',
+    quebrarLinha: true,
+    filtravel: true,
+    larguraMin: 'min-w-[14rem]',
+  },
+  {
+    chave: 'exame',
+    titulo: 'Exame',
+    valor: (item) => item.exameNome ?? '',
+    quebrarLinha: true,
+    larguraMin: 'min-w-[14rem]',
+  },
+  { chave: 'dtaSolicitacao', titulo: 'Data solicitação', valor: (item) => item.dtaSolicitacao, render: (item) => formatarData(item.dtaSolicitacao), larguraMin: 'min-w-[9rem]' },
+  { chave: 'dtaAutorizacao', titulo: 'Data autorização', valor: (item) => item.dtaAutorizacao, render: (item) => formatarData(item.dtaAutorizacao), larguraMin: 'min-w-[9rem]' },
+  {
+    chave: 'prazo',
+    titulo: 'Prazo',
+    valor: (item) => ROTULO_PRAZO[item.situacaoPrazo],
+    filtravel: true,
+    tipoFiltro: 'select',
+    render: (item) => (
+      <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_PRAZO[item.situacaoPrazo]}`}>
+        {ROTULO_PRAZO[item.situacaoPrazo]}
+      </span>
+    ),
+    larguraMin: 'min-w-[10rem]',
+  },
+  { chave: 'motivo', titulo: 'Motivo', valor: (item) => item.motivoNome ?? '', filtravel: true, larguraMin: 'min-w-[10rem]' },
+  { chave: 'classificacao', titulo: 'Classificação', valor: (item) => item.classificacaoNome ?? '', filtravel: true, larguraMin: 'min-w-[10rem]' },
+  {
+    chave: 'valorParticular',
+    titulo: 'Valor particular',
+    valor: (item) => item.valorParticular ?? item.valorParticularCorrigido ?? undefined,
+    render: (item) => {
+      const valorEfetivo = item.valorParticular ?? item.valorParticularCorrigido;
+      return (
+        <>
+          {valorEfetivo === null ? (
+            <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+              Não cadastrado
+            </span>
+          ) : (
+            <span className="text-gray-700 dark:text-slate-300">{formatarMoeda(valorEfetivo)}</span>
+          )}
+          {item.valorParticular === null && item.valorParticularCorrigido !== null && (
+            <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+              ajustado
+            </span>
+          )}
+        </>
+      );
+    },
+    larguraMin: 'min-w-[8rem]',
+  },
+  { chave: 'valorCobrado', titulo: 'Valor cobrado', valor: (item) => item.valorCobrado ?? undefined, render: (item) => formatarMoeda(item.valorCobrado), larguraMin: 'min-w-[8rem]' },
+  {
+    chave: 'valorConcedido',
+    titulo: 'Valor concedido',
+    valor: (item) => item.valorConcedidoCorrigido ?? item.valorConcedido ?? undefined,
+    render: (item) => {
+      const valorEfetivo = item.valorConcedidoCorrigido ?? item.valorConcedido;
+      return (
+        <>
+          {valorEfetivo === null ? (
+            <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+              <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+              Não cadastrado
+            </span>
+          ) : (
+            <span className="text-gray-700 dark:text-slate-300">{formatarMoeda(valorEfetivo)}</span>
+          )}
+          {item.valorConcedidoCorrigido !== null && (
+            <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+              ajustado
+            </span>
+          )}
+          {item.divergenciaValores && (
+            <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+              divergência
+            </span>
+          )}
+        </>
+      );
+    },
+    larguraMin: 'min-w-[10rem]',
+  },
+  {
+    chave: 'autorizadoPor',
+    titulo: 'Autorizado por',
+    valor: (item) => item.autorizadoPorCorrigidoNome ?? item.autorizadoPorLis ?? '',
+    quebrarLinha: true,
+    filtravel: true,
+    larguraMin: 'min-w-[10rem]',
+  },
+  // Observações (LIS) deixa as rows muito altas e já está disponível por
+  // completo no CuradoriaDrawer (clique na linha) — não repetir na tabela.
+  {
+    chave: 'status',
+    titulo: 'Status da curadoria',
+    valor: (item) => item.statusCuradoria,
+    filtravel: true,
+    tipoFiltro: 'select',
+    opcoesFiltro: OPCOES_FILTRO_STATUS_CURADORIA,
+    render: (item) => (
+      <>
+        <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_STATUS[item.statusCuradoria]}`}>
+          {ROTULO_STATUS_CURADORIA[item.statusCuradoria]}
+        </span>
+        <BadgeRevisaoPendente revisaoPendente={item.revisaoPendente} />
+      </>
+    ),
+    larguraMin: 'min-w-[12rem]',
+  },
+];
+
 export function Cortesias() {
-  const queryClient = useQueryClient();
   const canManage = useCanManageQualidade();
-  const { periodo: periodoSalvo, definirPeriodo } = usePeriodoCompartilhado();
-  const { inicio, fim } = periodoSalvo;
+  const { periodo, definirPeriodo } = usePeriodoCompartilhado();
   const [idSelecionado, setIdSelecionado] = useState<string | null>(null);
   // "Pendente" aqui é sobre a AUTORIZAÇÃO no LIS (ainda sem `dtaAutorizacao`),
   // não sobre o status de curadoria — pedido explícito do usuário
@@ -142,172 +271,37 @@ export function Cortesias() {
     }, { replace: true });
   }, [searchParams, setSearchParams]);
 
-  const periodoCompleto = Boolean(inicio && fim);
-
-  const filtro = useMemo(() => ({ inicio, fim }), [inicio, fim]);
-
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['cortesias', filtro],
-    queryFn: () => buscarCortesias(filtro),
-    enabled: periodoCompleto,
-  });
-
-  const sync = useMutation({
-    mutationFn: () => sincronizarCortesias({ inicio, fim }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cortesias'] }),
-  });
-
-  const pendentesAutorizacao = useMemo(
-    () => (data ?? []).filter((item) => item.situacaoPrazo === 'sem_autorizacao'),
-    [data],
-  );
-
-  const itensExibidos = somentePendentesAutorizacao ? pendentesAutorizacao : (data ?? []);
-
-  const colunas: ColunaTabela<CortesiaDTO>[] = [
-    { chave: 'requisicao', titulo: 'Requisição', valor: (item) => item.codRequisicao, filtravel: true, larguraMin: 'min-w-[8rem]' },
-    {
-      chave: 'paciente',
-      titulo: 'Paciente',
-      // PII (P10) — lida do LIS sob demanda a cada carregamento, nunca persistida em qa_cortesias.
-      valor: (item) => item.nomePacienteLis ?? '',
-      quebrarLinha: true,
-      filtravel: true,
-      larguraMin: 'min-w-[14rem]',
-    },
-    {
-      chave: 'clinica',
-      titulo: 'Clínica',
-      valor: (item) => item.clinicaNome ?? '',
-      quebrarLinha: true,
-      filtravel: true,
-      larguraMin: 'min-w-[14rem]',
-    },
-    {
-      chave: 'exame',
-      titulo: 'Exame',
-      valor: (item) => item.exameNome ?? '',
-      quebrarLinha: true,
-      larguraMin: 'min-w-[14rem]',
-    },
-    { chave: 'dtaSolicitacao', titulo: 'Data solicitação', valor: (item) => item.dtaSolicitacao, render: (item) => formatarData(item.dtaSolicitacao), larguraMin: 'min-w-[9rem]' },
-    { chave: 'dtaAutorizacao', titulo: 'Data autorização', valor: (item) => item.dtaAutorizacao, render: (item) => formatarData(item.dtaAutorizacao), larguraMin: 'min-w-[9rem]' },
-    {
-      chave: 'prazo',
-      titulo: 'Prazo',
-      valor: (item) => ROTULO_PRAZO[item.situacaoPrazo],
-      filtravel: true,
-      tipoFiltro: 'select',
-      render: (item) => (
-        <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_PRAZO[item.situacaoPrazo]}`}>
-          {ROTULO_PRAZO[item.situacaoPrazo]}
-        </span>
-      ),
-      larguraMin: 'min-w-[10rem]',
-    },
-    { chave: 'motivo', titulo: 'Motivo', valor: (item) => item.motivoNome ?? '', filtravel: true, larguraMin: 'min-w-[10rem]' },
-    { chave: 'classificacao', titulo: 'Classificação', valor: (item) => item.classificacaoNome ?? '', filtravel: true, larguraMin: 'min-w-[10rem]' },
-    {
-      chave: 'valorParticular',
-      titulo: 'Valor particular',
-      valor: (item) => item.valorParticular ?? item.valorParticularCorrigido ?? undefined,
-      render: (item) => {
-        const valorEfetivo = item.valorParticular ?? item.valorParticularCorrigido;
-        return (
-          <>
-            {valorEfetivo === null ? (
-              <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-                <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                Não cadastrado
-              </span>
-            ) : (
-              <span className="text-gray-700 dark:text-slate-300">{formatarMoeda(valorEfetivo)}</span>
-            )}
-            {item.valorParticular === null && item.valorParticularCorrigido !== null && (
-              <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                ajustado
-              </span>
-            )}
-          </>
-        );
-      },
-      larguraMin: 'min-w-[8rem]',
-    },
-    { chave: 'valorCobrado', titulo: 'Valor cobrado', valor: (item) => item.valorCobrado ?? undefined, render: (item) => formatarMoeda(item.valorCobrado), larguraMin: 'min-w-[8rem]' },
-    {
-      chave: 'valorConcedido',
-      titulo: 'Valor concedido',
-      valor: (item) => item.valorConcedidoCorrigido ?? item.valorConcedido ?? undefined,
-      render: (item) => {
-        const valorEfetivo = item.valorConcedidoCorrigido ?? item.valorConcedido;
-        return (
-          <>
-            {valorEfetivo === null ? (
-              <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-                <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-                Não cadastrado
-              </span>
-            ) : (
-              <span className="text-gray-700 dark:text-slate-300">{formatarMoeda(valorEfetivo)}</span>
-            )}
-            {item.valorConcedidoCorrigido !== null && (
-              <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-                ajustado
-              </span>
-            )}
-            {item.divergenciaValores && (
-              <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                divergência
-              </span>
-            )}
-          </>
-        );
-      },
-      larguraMin: 'min-w-[10rem]',
-    },
-    {
-      chave: 'autorizadoPor',
-      titulo: 'Autorizado por',
-      valor: (item) => item.autorizadoPorCorrigidoNome ?? item.autorizadoPorLis ?? '',
-      quebrarLinha: true,
-      filtravel: true,
-      larguraMin: 'min-w-[10rem]',
-    },
-    // Observações (LIS) deixa as rows muito altas e já está disponível por
-    // completo no CuradoriaDrawer (clique na linha) — não repetir na tabela.
-    {
-      chave: 'status',
-      titulo: 'Status da curadoria',
-      valor: (item) => item.statusCuradoria,
-      filtravel: true,
-      tipoFiltro: 'select',
-      opcoesFiltro: OPCOES_FILTRO_STATUS_CURADORIA,
-      render: (item) => (
-        <>
-          <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_STATUS[item.statusCuradoria]}`}>
-            {ROTULO_STATUS_CURADORIA[item.statusCuradoria]}
-          </span>
-          {item.revisaoPendente && (
-            <span className="ml-2 rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
-              revisão pendente
-            </span>
-          )}
-        </>
-      ),
-      larguraMin: 'min-w-[12rem]',
-    },
-  ];
-
   return (
-    <div className="animate-fade-in space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Cortesias</h1>
-          <p className="text-sm text-gray-600 dark:text-slate-400">
-            Exames concedidos sem cobrança, com prazo de aprovação, cota por clínica e conferência de valores.
-          </p>
-        </div>
-        <div className="flex gap-2">
+    <PaginaWorklist<CortesiaDTO[], CortesiaDTO>
+      titulo="Cortesias"
+      descricao="Exames concedidos sem cobrança, com prazo de aprovação, cota por clínica e conferência de valores."
+      dominio="cortesias"
+      periodo={periodo}
+      onMudarPeriodo={definirPeriodo}
+      canManage={canManage}
+      queryFn={buscarCortesias}
+      syncFn={sincronizarCortesias}
+      errorTitulo="Não foi possível carregar cortesias"
+      mensagemVazio={(dados) =>
+        dados.length === 0
+          ? 'Nenhuma cortesia registrada neste período. Verifique o período ou sincronize com o LIS.'
+          : 'Nenhuma cortesia pendente de autorização neste período. ✓'
+      }
+      linhas={(dados) => (somentePendentesAutorizacao ? pendentesDeAutorizacao(dados) : dados)}
+      colunas={colunas}
+      tituloTabela="Cortesias"
+      cor="amber"
+      chaveLinha={(item) => item.id}
+      onClickLinha={(item) => setIdSelecionado(item.id)}
+      classeLinha={(item) =>
+        item.situacaoPrazo === 'nao_autorizada'
+          ? 'bg-rose-100 dark:bg-rose-950/50'
+          : item.aprovadaForaDoPrazo
+            ? 'bg-red-50 dark:bg-red-950/30'
+            : ''
+      }
+      extraHeader={
+        <>
           <button
             type="button"
             onClick={abrirNotificacoes}
@@ -328,35 +322,11 @@ export function Cortesias() {
             <Wallet className="h-4 w-4" aria-hidden />
             Cotas
           </Link>
-          {canManage && (
-            <button
-              type="button"
-              disabled={!periodoCompleto || sync.isPending}
-              onClick={() => sync.mutate()}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${sync.isPending ? 'animate-spin' : ''}`} aria-hidden />
-              Sincronizar
-            </button>
-          )}
-        </div>
-      </div>
-
-      <SeletorPeriodoPorMes
-        inicio={inicio}
-        fim={fim}
-        anoPadrao={anoAtual()}
-        onMudar={definirPeriodo}
-      />
-
-      {!periodoCompleto && (
-        <p className="text-sm text-gray-500 dark:text-slate-400">
-          Selecione o período para carregar a worklist.
-        </p>
-      )}
-
-      {periodoCompleto && (
-        <>
+        </>
+      }
+      acimaDaTabela={(dados) => {
+        const pendentes = pendentesDeAutorizacao(dados ?? []);
+        return (
           <button
             type="button"
             aria-pressed={somentePendentesAutorizacao}
@@ -374,76 +344,25 @@ export function Cortesias() {
               <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
                 Pendentes (sem autorização)
               </p>
-              <p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{pendentesAutorizacao.length}</p>
+              <p className="mt-1 text-2xl font-bold text-amber-600 dark:text-amber-400">{pendentes.length}</p>
             </div>
           </button>
-
-          {isLoading && (
-            <div className="space-y-2">
-              {[1, 2, 3].map((n) => (
-                <Skeleton key={n} className="h-12 w-full" />
-              ))}
-            </div>
-          )}
-
-          {isError && (
-            <ErrorState
-              titulo="Não foi possível carregar cortesias"
-              descricao={
-                error instanceof ErroApi && error.status === 401
-                  ? 'Sua sessão não está autenticada. Faça login novamente.'
-                  : 'Verifique sua conexão ou tente novamente.'
-              }
-              aoTentarNovamente={() => refetch()}
-            />
-          )}
-
-          {!isLoading && !isError && data && data.length === 0 && (
-            <p className="glass-surface rounded-2xl p-8 text-center text-sm text-gray-500 dark:text-slate-400">
-              Nenhuma cortesia registrada neste período. Verifique o período ou sincronize com o LIS.
-            </p>
-          )}
-
-          {!isLoading && !isError && data && data.length > 0 && itensExibidos.length === 0 && (
-            <p className="glass-surface rounded-2xl p-8 text-center text-sm text-gray-500 dark:text-slate-400">
-              Nenhuma cortesia pendente de autorização neste período. ✓
-            </p>
-          )}
-
-          {!isLoading && !isError && itensExibidos.length > 0 && (
-            <TabelaExpansivel
-              titulo="Cortesias"
-              caption="Cortesias"
-              colunas={colunas}
-              dados={itensExibidos}
-              chaveLinha={(item) => item.id}
-              onClickLinha={(item) => setIdSelecionado(item.id)}
-              classeLinha={(item) =>
-                item.situacaoPrazo === 'nao_autorizada'
-                  ? 'bg-rose-100 dark:bg-rose-950/50'
-                  : item.aprovadaForaDoPrazo
-                    ? 'bg-red-50 dark:bg-red-950/30'
-                    : ''
-              }
-              cor="amber"
+        );
+      }}
+      drawer={() => (
+        <>
+          {idSelecionado && <CuradoriaDrawer id={idSelecionado} canManage={canManage} onFechar={() => setIdSelecionado(null)} />}
+          {notificacoesAbertas && (
+            <NotificacoesModal
+              notificacoes={notificacoesVisiveis}
+              carregando={notificacoes.isLoading}
+              agora={Date.now()}
+              onFechar={fecharNotificacoes}
+              onLimpar={limparNotificacoes}
             />
           )}
         </>
       )}
-
-      {idSelecionado && (
-        <CuradoriaDrawer id={idSelecionado} canManage={canManage} onFechar={() => setIdSelecionado(null)} />
-      )}
-
-      {notificacoesAbertas && (
-        <NotificacoesModal
-          notificacoes={notificacoesVisiveis}
-          carregando={notificacoes.isLoading}
-          agora={Date.now()}
-          onFechar={fecharNotificacoes}
-          onLimpar={limparNotificacoes}
-        />
-      )}
-    </div>
+    />
   );
 }

@@ -1,15 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { IhqDTO, NivelConfianca, StatusCuradoriaIhq } from '../types';
-import { RefreshCw } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { VinculoDrawer } from './ihq/VinculoDrawer.js';
-import { ErrorState } from './ui/ErrorState.js';
-import { SeletorPeriodoPorMes } from './ui/SeletorPeriodoPorMes.js';
-import { Skeleton } from './ui/Skeleton.js';
+import { BadgeRevisaoPendente } from './ui/BadgeRevisaoPendente.js';
+import { PaginaWorklist } from './ui/PaginaWorklist.js';
 import type { ColunaTabela } from './ui/TabelaExpansivel.js';
-import { TabelaExpansivel } from './ui/TabelaExpansivel.js';
-import { anoAtual } from '../anoAtual.js';
-import { buscarIhqLista, ErroApi, sincronizarIhq } from '../ihq.js';
+import { buscarIhqLista, sincronizarIhq } from '../ihq.js';
 import { useCanManageQualidade } from '../hooks/useCanManageQualidade.js';
 import { usePeriodoCompartilhado } from '../providers/PeriodoProvider.js';
 
@@ -93,268 +88,183 @@ function TriEstado({ valor }: { valor: boolean | null }) {
   );
 }
 
+const colunas: ColunaTabela<LinhaAgrupadaIhq>[] = [
+  {
+    chave: 'admissao',
+    titulo: 'Data de admissão',
+    valor: (grupo) => grupo.principal.dtaAdmissao ?? '',
+    render: (grupo) => formatarData(grupo.principal.dtaAdmissao),
+    larguraMin: 'min-w-[8rem]',
+  },
+  {
+    chave: 'requisicao',
+    titulo: 'Nº da requisição',
+    valor: (grupo) => grupo.codRequisicaoIhq,
+    filtravel: true,
+    larguraMin: 'min-w-[9rem]',
+  },
+  {
+    chave: 'paciente',
+    titulo: 'Nome do paciente',
+    valor: (grupo) => grupo.principal.nomePacienteLis ?? '',
+    quebrarLinha: true,
+    filtravel: true,
+    larguraMin: 'min-w-[14rem]',
+  },
+  {
+    chave: 'material',
+    titulo: 'Material',
+    valor: (grupo) => grupo.principal.materialLis ?? '',
+    quebrarLinha: true,
+    larguraMin: 'min-w-[12rem]',
+  },
+  {
+    chave: 'medicoSolicitante',
+    titulo: 'Médico solicitante',
+    valor: (grupo) => grupo.principal.medicoSolicitante ?? '',
+    quebrarLinha: true,
+    filtravel: true,
+    larguraMin: 'min-w-[14rem]',
+  },
+  {
+    chave: 'dtaSolicitacaoBloco',
+    titulo: 'Data da solicitação do bloco',
+    valor: (grupo) => grupo.principal.dtaSolicitacaoBloco ?? '',
+    render: (grupo) => formatarData(grupo.principal.dtaSolicitacaoBloco),
+    larguraMin: 'min-w-[10rem]',
+  },
+  {
+    chave: 'patologista',
+    titulo: 'Patologista (laudo)',
+    valor: (grupo) => grupo.principal.patologistaLis ?? '',
+    larguraMin: 'min-w-[12rem]',
+  },
+  {
+    chave: 'confianca',
+    titulo: 'Confiança do vínculo',
+    valor: (grupo) => grupo.principal.vinculoConfianca ?? 'nenhuma',
+    filtravel: true,
+    tipoFiltro: 'select',
+    render: (grupo) => (
+      // Confiança sempre visível, mesmo quando "alta" (nunca omitida)
+      <span
+        className={`rounded-full px-2 py-1 text-xs font-medium ${
+          grupo.principal.vinculoConfianca ? BADGE_CONFIANCA[grupo.principal.vinculoConfianca] : BADGE_CONFIANCA.nenhuma
+        }`}
+      >
+        {grupo.principal.vinculoConfianca ?? 'nenhuma'}
+      </span>
+    ),
+    larguraMin: 'min-w-[10rem]',
+  },
+  {
+    chave: 'envio',
+    titulo: 'Data de envio',
+    valor: (grupo) => grupo.principal.dtaEnvioBloco ?? '',
+    render: (grupo) =>
+      grupo.principal.dtaEnvioBloco
+        ? `${formatarData(grupo.principal.dtaEnvioBloco)}${grupo.principal.dtaEnvioProveniencia === 'curadoria' ? '' : ' (aprox.)'}`
+        : '—',
+    larguraMin: 'min-w-[10rem]',
+  },
+  {
+    chave: 'statusLis',
+    titulo: 'Status',
+    valor: (grupo) => grupo.principal.statusLis ?? '',
+    filtravel: true,
+    tipoFiltro: 'select',
+    render: (grupo) =>
+      grupo.principal.statusLis ? (
+        <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_STATUS_LIS[grupo.principal.statusLis]}`}>
+          {ROTULO_STATUS_LIS[grupo.principal.statusLis]}
+        </span>
+      ) : (
+        '—'
+      ),
+    larguraMin: 'min-w-[9rem]',
+  },
+  {
+    chave: 'blocoRetornou',
+    titulo: 'Bloco retornou ao lab?',
+    valor: (grupo) => (grupo.principal.blocoRetornou === null ? '' : grupo.principal.blocoRetornou ? 'sim' : 'nao'),
+    render: (grupo) => (
+      <span className="inline-flex items-center gap-1">
+        <TriEstado valor={grupo.principal.blocoRetornou} />
+        {/* R4 — padrão de detecção não validado contra dado real; nunca apresentar como fato confirmado. */}
+        {grupo.principal.blocoRetornou !== null && (
+          <span className="text-[0.65rem] text-amber-600 dark:text-amber-400" title="Detecção não validada contra dado real (R4).">
+            não confirmado
+          </span>
+        )}
+      </span>
+    ),
+    larguraMin: 'min-w-[10rem]',
+  },
+  {
+    chave: 'dtaRetornoBloco',
+    titulo: 'Quando (retorno)',
+    valor: (grupo) => grupo.principal.dtaRetornoBloco ?? '',
+    render: (grupo) => formatarData(grupo.principal.dtaRetornoBloco),
+    larguraMin: 'min-w-[8rem]',
+  },
+  {
+    chave: 'laminaEnviada',
+    titulo: 'Lâmina enviada?',
+    valor: (grupo) => (grupo.principal.laminaEnviada === null ? '' : grupo.principal.laminaEnviada ? 'sim' : 'nao'),
+    render: (grupo) => <TriEstado valor={grupo.principal.laminaEnviada} />,
+    larguraMin: 'min-w-[8rem]',
+  },
+  {
+    chave: 'observacoes',
+    titulo: 'Observações',
+    valor: (grupo) => grupo.principal.observacoes ?? '',
+    quebrarLinha: true,
+    larguraMin: 'min-w-[14rem]',
+  },
+  {
+    chave: 'status',
+    titulo: 'Status (curadoria)',
+    valor: (grupo) => grupo.principal.statusCuradoria,
+    filtravel: true,
+    tipoFiltro: 'select',
+    render: (grupo) => (
+      <>
+        <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_STATUS[grupo.principal.statusCuradoria]}`}>
+          {grupo.principal.statusCuradoria}
+        </span>
+        <BadgeRevisaoPendente revisaoPendente={grupo.principal.revisaoPendente} />
+      </>
+    ),
+    larguraMin: 'min-w-[12rem]',
+  },
+];
+
 export function Ihq() {
-  const queryClient = useQueryClient();
   const canManage = useCanManageQualidade();
-  const { periodo: periodoSalvo, definirPeriodo } = usePeriodoCompartilhado();
-  const { inicio, fim } = periodoSalvo;
+  const { periodo, definirPeriodo } = usePeriodoCompartilhado();
   const [idSelecionado, setIdSelecionado] = useState<string | null>(null);
 
-  const periodoCompleto = Boolean(inicio && fim);
-
-  const filtro = useMemo(() => ({ inicio, fim }), [inicio, fim]);
-
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['ihq', filtro],
-    queryFn: () => buscarIhqLista(filtro),
-    enabled: periodoCompleto,
-  });
-
-  const sync = useMutation({
-    mutationFn: () => sincronizarIhq({ inicio, fim }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['ihq'] }),
-  });
-
-  const linhasAgrupadas = useMemo(() => agruparPorRequisicao(data ?? []), [data]);
-
-  const colunas: ColunaTabela<LinhaAgrupadaIhq>[] = [
-    {
-      chave: 'admissao',
-      titulo: 'Data de admissão',
-      valor: (grupo) => grupo.principal.dtaAdmissao ?? '',
-      render: (grupo) => formatarData(grupo.principal.dtaAdmissao),
-      larguraMin: 'min-w-[8rem]',
-    },
-    {
-      chave: 'requisicao',
-      titulo: 'Nº da requisição',
-      valor: (grupo) => grupo.codRequisicaoIhq,
-      filtravel: true,
-      larguraMin: 'min-w-[9rem]',
-    },
-    {
-      chave: 'paciente',
-      titulo: 'Nome do paciente',
-      valor: (grupo) => grupo.principal.nomePacienteLis ?? '',
-      quebrarLinha: true,
-      filtravel: true,
-      larguraMin: 'min-w-[14rem]',
-    },
-    {
-      chave: 'material',
-      titulo: 'Material',
-      valor: (grupo) => grupo.principal.materialLis ?? '',
-      quebrarLinha: true,
-      larguraMin: 'min-w-[12rem]',
-    },
-    {
-      chave: 'medicoSolicitante',
-      titulo: 'Médico solicitante',
-      valor: (grupo) => grupo.principal.medicoSolicitante ?? '',
-      quebrarLinha: true,
-      filtravel: true,
-      larguraMin: 'min-w-[14rem]',
-    },
-    {
-      chave: 'dtaSolicitacaoBloco',
-      titulo: 'Data da solicitação do bloco',
-      valor: (grupo) => grupo.principal.dtaSolicitacaoBloco ?? '',
-      render: (grupo) => formatarData(grupo.principal.dtaSolicitacaoBloco),
-      larguraMin: 'min-w-[10rem]',
-    },
-    {
-      chave: 'patologista',
-      titulo: 'Patologista (laudo)',
-      valor: (grupo) => grupo.principal.patologistaLis ?? '',
-      larguraMin: 'min-w-[12rem]',
-    },
-    {
-      chave: 'confianca',
-      titulo: 'Confiança do vínculo',
-      valor: (grupo) => grupo.principal.vinculoConfianca ?? 'nenhuma',
-      filtravel: true,
-      tipoFiltro: 'select',
-      render: (grupo) => (
-        // Confiança sempre visível, mesmo quando "alta" (nunca omitida)
-        <span
-          className={`rounded-full px-2 py-1 text-xs font-medium ${
-            grupo.principal.vinculoConfianca ? BADGE_CONFIANCA[grupo.principal.vinculoConfianca] : BADGE_CONFIANCA.nenhuma
-          }`}
-        >
-          {grupo.principal.vinculoConfianca ?? 'nenhuma'}
-        </span>
-      ),
-      larguraMin: 'min-w-[10rem]',
-    },
-    {
-      chave: 'envio',
-      titulo: 'Data de envio',
-      valor: (grupo) => grupo.principal.dtaEnvioBloco ?? '',
-      render: (grupo) =>
-        grupo.principal.dtaEnvioBloco
-          ? `${formatarData(grupo.principal.dtaEnvioBloco)}${grupo.principal.dtaEnvioProveniencia === 'curadoria' ? '' : ' (aprox.)'}`
-          : '—',
-      larguraMin: 'min-w-[10rem]',
-    },
-    {
-      chave: 'statusLis',
-      titulo: 'Status',
-      valor: (grupo) => grupo.principal.statusLis ?? '',
-      filtravel: true,
-      tipoFiltro: 'select',
-      render: (grupo) =>
-        grupo.principal.statusLis ? (
-          <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_STATUS_LIS[grupo.principal.statusLis]}`}>
-            {ROTULO_STATUS_LIS[grupo.principal.statusLis]}
-          </span>
-        ) : (
-          '—'
-        ),
-      larguraMin: 'min-w-[9rem]',
-    },
-    {
-      chave: 'blocoRetornou',
-      titulo: 'Bloco retornou ao lab?',
-      valor: (grupo) => (grupo.principal.blocoRetornou === null ? '' : grupo.principal.blocoRetornou ? 'sim' : 'nao'),
-      render: (grupo) => (
-        <span className="inline-flex items-center gap-1">
-          <TriEstado valor={grupo.principal.blocoRetornou} />
-          {/* R4 — padrão de detecção não validado contra dado real; nunca apresentar como fato confirmado. */}
-          {grupo.principal.blocoRetornou !== null && (
-            <span className="text-[0.65rem] text-amber-600 dark:text-amber-400" title="Detecção não validada contra dado real (R4).">
-              não confirmado
-            </span>
-          )}
-        </span>
-      ),
-      larguraMin: 'min-w-[10rem]',
-    },
-    {
-      chave: 'dtaRetornoBloco',
-      titulo: 'Quando (retorno)',
-      valor: (grupo) => grupo.principal.dtaRetornoBloco ?? '',
-      render: (grupo) => formatarData(grupo.principal.dtaRetornoBloco),
-      larguraMin: 'min-w-[8rem]',
-    },
-    {
-      chave: 'laminaEnviada',
-      titulo: 'Lâmina enviada?',
-      valor: (grupo) => (grupo.principal.laminaEnviada === null ? '' : grupo.principal.laminaEnviada ? 'sim' : 'nao'),
-      render: (grupo) => <TriEstado valor={grupo.principal.laminaEnviada} />,
-      larguraMin: 'min-w-[8rem]',
-    },
-    {
-      chave: 'observacoes',
-      titulo: 'Observações',
-      valor: (grupo) => grupo.principal.observacoes ?? '',
-      quebrarLinha: true,
-      larguraMin: 'min-w-[14rem]',
-    },
-    {
-      chave: 'status',
-      titulo: 'Status (curadoria)',
-      valor: (grupo) => grupo.principal.statusCuradoria,
-      filtravel: true,
-      tipoFiltro: 'select',
-      render: (grupo) => (
-        <>
-          <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_STATUS[grupo.principal.statusCuradoria]}`}>
-            {grupo.principal.statusCuradoria}
-          </span>
-          {grupo.principal.revisaoPendente && (
-            <span className="ml-2 rounded-full bg-purple-100 px-2 py-1 text-xs font-medium text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
-              revisão pendente
-            </span>
-          )}
-        </>
-      ),
-      larguraMin: 'min-w-[12rem]',
-    },
-  ];
-
   return (
-    <div className="animate-fade-in space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">IHQ</h1>
-          <p className="text-sm text-gray-600 dark:text-slate-400">
-            Blocos enviados ao laboratório parceiro externo. Metade dos dados é heurística ou texto livre — a
-            confiança do vínculo fica sempre visível, nunca escondida.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {canManage && (
-            <button
-              type="button"
-              disabled={!periodoCompleto || sync.isPending}
-              onClick={() => sync.mutate()}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${sync.isPending ? 'animate-spin' : ''}`} aria-hidden />
-              Sincronizar
-            </button>
-          )}
-        </div>
-      </div>
-
-      <SeletorPeriodoPorMes
-        inicio={inicio}
-        fim={fim}
-        anoPadrao={anoAtual()}
-        onMudar={definirPeriodo}
-      />
-
-      {!periodoCompleto && (
-        <p className="text-sm text-gray-500 dark:text-slate-400">
-          Selecione o período para carregar a worklist.
-        </p>
-      )}
-
-      {periodoCompleto && (
-        <>
-          {isLoading && (
-            <div className="space-y-2">
-              {[1, 2, 3].map((n) => (
-                <Skeleton key={n} className="h-12 w-full" />
-              ))}
-            </div>
-          )}
-
-          {isError && (
-            <ErrorState
-              titulo="Não foi possível carregar IHQ"
-              descricao={
-                error instanceof ErroApi && error.status === 401
-                  ? 'Sua sessão não está autenticada. Faça login novamente.'
-                  : 'Verifique sua conexão ou tente novamente.'
-              }
-              aoTentarNovamente={() => refetch()}
-            />
-          )}
-
-          {!isLoading && !isError && data && data.length === 0 && (
-            <p className="glass-surface rounded-2xl p-8 text-center text-sm text-gray-500 dark:text-slate-400">
-              Nenhuma solicitação registrada neste período. Verifique o período ou sincronize com o LIS.
-            </p>
-          )}
-
-          {!isLoading && !isError && linhasAgrupadas.length > 0 && (
-            <TabelaExpansivel
-              titulo="IHQ"
-              caption="IHQ"
-              colunas={colunas}
-              dados={linhasAgrupadas}
-              chaveLinha={(grupo) => grupo.codRequisicaoIhq}
-              onClickLinha={(grupo) => setIdSelecionado(grupo.principal.id)}
-              cor="purple"
-            />
-          )}
-        </>
-      )}
-
-      {idSelecionado && (
-        <VinculoDrawer id={idSelecionado} canManage={canManage} onFechar={() => setIdSelecionado(null)} />
-      )}
-    </div>
+    <PaginaWorklist<IhqDTO[], LinhaAgrupadaIhq>
+      titulo="IHQ"
+      descricao="Blocos enviados ao laboratório parceiro externo. Metade dos dados é heurística ou texto livre — a confiança do vínculo fica sempre visível, nunca escondida."
+      dominio="ihq"
+      periodo={periodo}
+      onMudarPeriodo={definirPeriodo}
+      canManage={canManage}
+      queryFn={buscarIhqLista}
+      syncFn={sincronizarIhq}
+      errorTitulo="Não foi possível carregar IHQ"
+      mensagemVazio={() => 'Nenhuma solicitação registrada neste período. Verifique o período ou sincronize com o LIS.'}
+      linhas={agruparPorRequisicao}
+      colunas={colunas}
+      tituloTabela="IHQ"
+      cor="purple"
+      chaveLinha={(grupo) => grupo.codRequisicaoIhq}
+      onClickLinha={(grupo) => setIdSelecionado(grupo.principal.id)}
+      drawer={() =>
+        idSelecionado && <VinculoDrawer id={idSelecionado} canManage={canManage} onFechar={() => setIdSelecionado(null)} />
+      }
+    />
   );
 }

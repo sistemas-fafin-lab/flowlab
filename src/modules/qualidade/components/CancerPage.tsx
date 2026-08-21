@@ -1,22 +1,19 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { TipoCido } from '../types';
-import { AlertTriangle, Check, HelpCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { AlertTriangle, Check, HelpCircle, Sparkles } from 'lucide-react';
 import { useState } from 'react';
 import { BuscaCido } from './cancer/BuscaCido.js';
 import { CasoDrawer } from './cancer/CasoDrawer.js';
 import { ExportacaoRhcCard } from './cancer/ExportacaoRhcCard.js';
-import { ErrorState } from './ui/ErrorState.js';
-import { SeletorPeriodoPorMes } from './ui/SeletorPeriodoPorMes.js';
-import { Skeleton } from './ui/Skeleton.js';
+import { PaginaWorklist } from './ui/PaginaWorklist.js';
 import type { ColunaTabela } from './ui/TabelaExpansivel.js';
-import { TabelaExpansivel } from './ui/TabelaExpansivel.js';
-import { anoAtual } from '../anoAtual.js';
-import { buscarFunilCancer, ErroApi, salvarClassificacaoCancer, sincronizarCancer } from '../cancer.js';
+import { buscarFunilCancer, salvarClassificacaoCancer, sincronizarCancer } from '../cancer.js';
 import { useCanManageQualidade } from '../hooks/useCanManageQualidade.js';
 import { usePeriodoCompartilhado } from '../providers/PeriodoProvider.js';
 
-type CasoLinha = Awaited<ReturnType<typeof buscarFunilCancer>>['casos'][number];
-type ParametrosFixos = Awaited<ReturnType<typeof buscarFunilCancer>>['parametrosFixos'];
+type FunilResposta = Awaited<ReturnType<typeof buscarFunilCancer>>;
+type CasoLinha = FunilResposta['casos'][number];
+type ParametrosFixos = FunilResposta['parametrosFixos'];
 
 // Split manual (sem `new Date`) para não sofrer deslocamento de fuso horário
 // ao formatar uma data `YYYY-MM-DD` vinda do banco.
@@ -198,135 +195,72 @@ function criarColunas(fixos: ParametrosFixos, canManage: boolean): ColunaTabela<
 }
 
 export function Cancer() {
-  const queryClient = useQueryClient();
   const canManage = useCanManageQualidade();
-  const { periodo: periodoSalvo, definirPeriodo } = usePeriodoCompartilhado();
-  const { inicio, fim } = periodoSalvo;
+  const { periodo, definirPeriodo } = usePeriodoCompartilhado();
   const [idSelecionado, setIdSelecionado] = useState<string | null>(null);
 
-  const periodoCompleto = Boolean(inicio && fim);
-  const periodo = { inicio, fim };
-
-  const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: ['cancer-funil', periodo],
-    queryFn: () => buscarFunilCancer(periodo),
-    enabled: periodoCompleto,
-  });
-
-  const sync = useMutation({
-    mutationFn: () => sincronizarCancer(periodo),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['cancer-funil'] }),
-  });
-
   return (
-    <div className="animate-fade-in space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Registro de Câncer</h1>
-          <p className="text-sm text-gray-600 dark:text-slate-400">
-            Funil de triagem: o sistema monta o universo pelo laudo definitivo, mas nunca decide se é câncer.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          {canManage && (
-            <button
-              type="button"
-              disabled={!periodoCompleto || sync.isPending}
-              onClick={() => sync.mutate()}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50"
-            >
-              <RefreshCw className={`h-4 w-4 ${sync.isPending ? 'animate-spin' : ''}`} aria-hidden />
-              Sincronizar
-            </button>
-          )}
-        </div>
-      </div>
-
-      <SeletorPeriodoPorMes
-        inicio={inicio}
-        fim={fim}
-        anoPadrao={anoAtual()}
-        onMudar={definirPeriodo}
-      />
-
-      {!periodoCompleto && (
-        <p className="text-sm text-gray-500 dark:text-slate-400">Selecione o período para carregar o funil.</p>
-      )}
-
-      {periodoCompleto && isLoading && (
-        <div className="space-y-2">
-          {[1, 2, 3].map((n) => (
-            <Skeleton key={n} className="h-16 w-full" />
-          ))}
-        </div>
-      )}
-
-      {periodoCompleto && isError && (
-        <ErrorState
-          titulo="Não foi possível carregar o funil"
-          descricao={
-            error instanceof ErroApi && error.status === 401
-              ? 'Sua sessão não está autenticada. Faça login novamente.'
-              : 'Verifique sua conexão ou tente novamente.'
-          }
-          aoTentarNovamente={() => refetch()}
-        />
-      )}
-
-      {periodoCompleto && !isLoading && !isError && data && (
-        <>
-          {data.retificacaoPendente > 0 && (
-            <div className="flex items-center gap-2 rounded-2xl bg-red-50 p-4 text-red-800 dark:bg-red-900/20 dark:text-red-300">
-              <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden />
-              <p className="text-sm font-medium">
-                {data.retificacaoPendente} caso(s) já exportado(s) tiveram o laudo alterado (R8) — revisão urgente.
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
-            {[
-              ['Universo', data.universo],
-              ['Triados', data.triados],
-              ['Confirmados', data.confirmados],
-              ['Classificados', data.classificados],
-              ['Exportados', data.exportados],
-            ].map(([rotulo, valor]) => (
-              <div key={rotulo as string} className="glass-surface rounded-2xl p-4">
-                <p className="text-xs text-gray-500 dark:text-slate-400">{rotulo}</p>
-                <p className="text-2xl font-bold text-slate-900 dark:text-white">{valor}</p>
+    <PaginaWorklist<FunilResposta, CasoLinha>
+      titulo="Registro de Câncer"
+      descricao="Funil de triagem: o sistema monta o universo pelo laudo definitivo, mas nunca decide se é câncer."
+      dominio="cancer-funil"
+      periodo={periodo}
+      onMudarPeriodo={definirPeriodo}
+      canManage={canManage}
+      queryFn={buscarFunilCancer}
+      syncFn={sincronizarCancer}
+      errorTitulo="Não foi possível carregar o funil"
+      descricaoGuardaPeriodo="Selecione o período para carregar o funil."
+      mensagemVazio={() => 'Nenhum caso positivo neste período. Verifique o período ou sincronize com o LIS.'}
+      linhas={(resposta) => resposta.casos}
+      colunas={(resposta) => criarColunas(resposta.parametrosFixos, canManage)}
+      tituloTabela="Casos positivos do período"
+      cor="rose"
+      chaveLinha={(caso) => caso.id}
+      onClickLinha={(caso) => setIdSelecionado(caso.id)}
+      acimaDaTabela={(resposta) => {
+        if (!resposta) return null;
+        return (
+          <>
+            {resposta.retificacaoPendente > 0 && (
+              <div className="flex items-center gap-2 rounded-2xl bg-red-50 p-4 text-red-800 dark:bg-red-900/20 dark:text-red-300">
+                <AlertTriangle className="h-5 w-5 shrink-0" aria-hidden />
+                <p className="text-sm font-medium">
+                  {resposta.retificacaoPendente} caso(s) já exportado(s) tiveram o laudo alterado (R8) — revisão urgente.
+                </p>
               </div>
-            ))}
-          </div>
+            )}
 
-          {data.casos.length === 0 ? (
-            <p className="glass-surface rounded-2xl p-8 text-center text-sm text-gray-500 dark:text-slate-400">
-              Nenhum caso positivo neste período. Verifique o período ou sincronize com o LIS.
-            </p>
-          ) : (
-            <TabelaExpansivel
-              titulo="Casos positivos do período"
-              caption="Casos positivos do período"
-              colunas={criarColunas(data.parametrosFixos, canManage)}
-              dados={data.casos}
-              chaveLinha={(caso) => caso.id}
-              onClickLinha={(caso) => setIdSelecionado(caso.id)}
-              cor="rose"
-            />
-          )}
-
-          <ExportacaoRhcCard registradorPadrao={data.parametrosFixos.registrador} canManage={canManage} />
-        </>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+              {[
+                ['Universo', resposta.universo],
+                ['Triados', resposta.triados],
+                ['Confirmados', resposta.confirmados],
+                ['Classificados', resposta.classificados],
+                ['Exportados', resposta.exportados],
+              ].map(([rotulo, valor]) => (
+                <div key={rotulo as string} className="glass-surface rounded-2xl p-4">
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{rotulo}</p>
+                  <p className="text-2xl font-bold text-slate-900 dark:text-white">{valor}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        );
+      }}
+      abaixoDaTabela={(resposta) => (
+        <ExportacaoRhcCard registradorPadrao={resposta.parametrosFixos.registrador} canManage={canManage} />
       )}
-
-      {idSelecionado && data && (
-        <CasoDrawer
-          id={idSelecionado}
-          parametrosFixos={data.parametrosFixos}
-          canManage={canManage}
-          onFechar={() => setIdSelecionado(null)}
-        />
-      )}
-    </div>
+      drawer={(resposta) =>
+        idSelecionado && resposta ? (
+          <CasoDrawer
+            id={idSelecionado}
+            parametrosFixos={resposta.parametrosFixos}
+            canManage={canManage}
+            onFechar={() => setIdSelecionado(null)}
+          />
+        ) : null
+      }
+    />
   );
 }
