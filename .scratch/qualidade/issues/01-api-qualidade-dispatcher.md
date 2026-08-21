@@ -56,3 +56,37 @@ fixado em `src/modules/qualidade/domain/cancerRegras.test.ts`, o que também res
 `02-cancer-regras-arquivo-faltando.md` como efeito colateral. Layout do CSV de exportação RHC
 (`gerar-exportacao-cancer`) é provisório — nenhum data dictionary oficial foi localizado neste
 repositório (ver aviso no próprio handler).
+
+**2026-08-21 — `/code-review high` (a rodada anterior tinha cortado por falta de tokens antes
+de terminar) encontrou 4 bugs reais, corrigidos nesta sessão:**
+
+1. `listarDiagnosticosPositivosLis`/`buscarDetalhesCancerLis` (bdLabQualidade.ts) podiam
+   devolver mais de uma linha por `CodRequisicao` quando uma requisição tinha mais de um laudo
+   positivo — `sync-cancer` quebrava inteiro no upsert (`ON CONFLICT... cannot affect row a
+   second time`) e o CSV de exportação ao RHC podia silenciosamente pegar o laudo errado. Fix:
+   dedup determinístico (`maisCompleta`, prefere a linha com laudo+topografia presentes) nas
+   duas funções.
+2. `listarAutorizacoesCortesiaLis` tinha o mesmo problema via `fatrequisicaoprocedimento`
+   (múltiplos procedimentos faturados sob a mesma autorização) — trocado o LEFT JOIN por
+   `GROUP BY` + `SUM` dos valores, que é a semântica correta (valor total dos procedimentos
+   cobertos pela cortesia) em vez de dedup arbitrário.
+3. `gerar-exportacao-cancer.ts` gravava `qa_exportacoes_rhc` (INSERT) e vinculava os casos
+   (`UPDATE qa_cancer_casos.exportacao_id`) em duas chamadas separadas — se a segunda falhasse
+   depois da primeira ter sucesso, uma nova tentativa gerava um SEGUNDO CSV e uma segunda linha
+   de exportação para os mesmos pacientes (risco de envio duplicado ao RHC). Fix: as duas
+   escritas viram uma função Postgres só (`qualidade_registrar_exportacao_rhc`, migration
+   `20260821090000`), chamada via `supabase.rpc` — Postgres desfaz as duas juntas se uma falhar.
+4. `autorizacao.ts`: `idDoUsuario` reforçava `getUser(token)` que `autorizarQualidade` já tinha
+   acabado de chamar para o mesmo token — 2 round-trips ao Supabase Auth por escrita em vez de
+   1. Fix: `autorizarQualidadeERetornarUsuario` devolve o `userId` já validado; `idDoUsuario`
+   foi removida (só tinha os 2 chamadores que precisavam do id).
+
+Um 5º achado (`nivelConfiancaVinculo` nunca é chamada no backend, então a heurística de
+confiança de vínculo de IHQ nunca é pré-calculada — só a confirmação manual grava
+`vinculo_confianca`) não foi corrigido nesta sessão: precisa de uma decisão de design (sync
+N+1 vs. cálculo preguiçoso em `buscar-detalhe-ihq`, e se a escrita automática deve disparar o
+trigger de auditoria) — documentado como issue nova, `05-nivelconfiancavinculo-nunca-invocada`.
+
+Verificado depois dos 4 fixes: `npx tsc --noEmit -p api/tsconfig.json` limpo, `npx eslint` limpo
+nos arquivos tocados, `npx vitest run src/modules/qualidade src/utils/permissions.test.ts`
+33/33, `npm run build` ok.

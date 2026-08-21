@@ -10,7 +10,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
-import { autorizarQualidade, idDoUsuario, tokenDoHeader } from '../qualidade/autorizacao.js';
+import { autorizarQualidadeERetornarUsuario, tokenDoHeader } from '../qualidade/autorizacao.js';
 import { buscarCodPacientePorRequisicaoLis, ehErroConsulta } from '../qualidade/bdLabQualidade.js';
 import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
 
@@ -27,9 +27,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   const token = tokenDoHeader(req.headers.authorization);
-  const erroAuth = await autorizarQualidade(token, 'canManageQualidade');
-  if (erroAuth) {
-    res.status(erroAuth.status).json(erroAuth.payload);
+  const autorizacao = await autorizarQualidadeERetornarUsuario(token, 'canManageQualidade');
+  if (!('userId' in autorizacao)) {
+    res.status(autorizacao.status).json(autorizacao.payload);
     return;
   }
 
@@ -82,11 +82,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const usuarioId = await idDoUsuario(token!);
-    if (!usuarioId) {
-      res.status(401).json({ success: false, error: 'Sessão inválida ou expirada.' });
-      return;
-    }
+    const usuarioId = autorizacao.userId;
 
     // Client DA SESSÃO (não service_role) para este UPDATE específico: o
     // trigger de auditoria (qa_ihq_solicitacoes_auditoria_trigger, migration

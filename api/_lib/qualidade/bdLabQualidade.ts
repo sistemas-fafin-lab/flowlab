@@ -114,6 +114,25 @@ function condicaoPeriodo(coluna: string, inicio: string, fim: string): { sql: st
   };
 }
 
+/**
+ * Uma requisição pode ter mais de uma linha positiva em
+ * `requisicaodiagnostico` (mais de uma peça com laudo publicado) — o LEFT
+ * JOIN de `listarDiagnosticosPositivosLis`/`buscarDetalhesCancerLis` então
+ * devolve mais de uma linha para o mesmo `CodRequisicao`. Sem isto, o
+ * upsert de `qa_cancer_casos` (chave única por `cod_requisicao`) falhava
+ * inteiro com "ON CONFLICT DO UPDATE command cannot affect row a second
+ * time", e o export CSV do RHC ficava com a última linha que o MySQL
+ * decidisse devolver, sem critério. Fica com a linha mais completa (laudo
+ * + topografia presentes), de forma determinística — achado de code
+ * review (o caso em si permanece 1 só; nenhuma linha é descartada da
+ * listagem de Ocorrências/Cortesias/IHQ, só da agregação por requisição
+ * aqui).
+ */
+function maisCompleta<T extends { textoLaudo: string | null; descricaoTopografiaLis: string | null }>(atual: T, nova: T): T {
+  const completude = (linha: T) => (linha.textoLaudo !== null ? 1 : 0) + (linha.descricaoTopografiaLis !== null ? 1 : 0);
+  return completude(nova) > completude(atual) ? nova : atual;
+}
+
 // ── Ocorrências ─────────────────────────────────────────────────────────────
 
 export interface OcorrenciaLis {
@@ -183,19 +202,26 @@ export async function listarAutorizacoesCortesiaLis(inicio: string, fim: string)
     const filtroTipo = tipo !== '' ? 'AND ra.Tipo = ?' : '';
     const valores = tipo !== '' ? [...periodo.valores, Number(tipo)] : periodo.valores;
 
+    // Uma autorização (ra) pode ter mais de uma linha em
+    // fatrequisicaoprocedimento (mais de um procedimento faturado sob a
+    // mesma cortesia) — o LEFT JOIN sem agregação devolvia N linhas por
+    // CodRequisicao e o upsert de qa_cortesias (chave única por
+    // cod_requisicao) quebrava. Agrega por SUM: valor total dos
+    // procedimentos cobertos por esta autorização (achado de code review).
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT r.CodRequisicao,
               DATE_FORMAT(ra.DtaCriacao, '%Y-%m-%d') AS DtaSolicitacao,
               DATE_FORMAT(ra.DtaFinalizacao, '%Y-%m-%d') AS DtaAutorizacao,
               r.IdConvenio, fc.NomConvenio, ev.DesEvento,
               ra.Solicitante, ra.Observacao,
-              fp.ValorBruto, fp.ValorCobrado, fp.ValorDesconto
+              SUM(fp.ValorBruto) AS ValorBruto, SUM(fp.ValorCobrado) AS ValorCobrado, SUM(fp.ValorDesconto) AS ValorDesconto
          FROM requisicaoautorizacao ra
          JOIN requisicao r ON r.IdRequisicao = ra.IdRequisicao
          LEFT JOIN fatconvenio fc ON fc.IdConvenio = r.IdConvenio
          LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
          LEFT JOIN fatrequisicaoprocedimento fp ON fp.IdRequisicao = ra.IdRequisicao
         WHERE ${periodo.sql} ${filtroTipo}
+        GROUP BY r.CodRequisicao, ra.DtaCriacao, ra.DtaFinalizacao, r.IdConvenio, fc.NomConvenio, ev.DesEvento, ra.Solicitante, ra.Observacao
         ORDER BY ra.DtaCriacao DESC`,
       valores,
     );
@@ -324,6 +350,7 @@ export async function buscarCodPacientePorRequisicaoLis(codRequisicao: string): 
 // ── Câncer ───────────────────────────────────────────────────────────────────
 
 export interface DiagnosticoPositivoLis {
+  idRequisicaoLis: number;
   codRequisicao: string;
   dtaDiagnostico: string;
   dtaColeta: string | null;
@@ -347,7 +374,7 @@ export async function listarDiagnosticosPositivosLis(inicio: string, fim: string
   return comConexao('listarDiagnosticosPositivosLis', async (conn) => {
     const periodo = condicaoPeriodo('r.DtaSolicitacao', inicio, fim);
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT r.CodRequisicao,
+      `SELECT r.IdRequisicao, r.CodRequisicao,
               DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaDiagnostico,
               DATE_FORMAT(r.DtaColeta, '%Y-%m-%d') AS DtaColeta,
               d.CodInternacional, rd.DesLaudo,
@@ -363,8 +390,10 @@ export async function listarDiagnosticosPositivosLis(inicio: string, fim: string
         ORDER BY r.DtaSolicitacao DESC`,
       periodo.valores,
     );
-    return {
-      casos: linhas.map((linha) => ({
+    const porRequisicao = new Map<string, DiagnosticoPositivoLis>();
+    for (const linha of linhas) {
+      const caso: DiagnosticoPositivoLis = {
+        idRequisicaoLis: inteiroOuNulo(linha.IdRequisicao) ?? 0,
         codRequisicao: texto(linha.CodRequisicao) ?? '',
         dtaDiagnostico: dataIso(linha.DtaDiagnostico) ?? inicio,
         dtaColeta: dataIso(linha.DtaColeta),
@@ -374,8 +403,12 @@ export async function listarDiagnosticosPositivosLis(inicio: string, fim: string
         nomePacienteLis: texto(linha.NomPaciente) ?? '',
         sexoLis: inteiroOuNulo(linha.Sexo),
         cpfLis: texto(linha.CPF),
-      })),
-    };
+      };
+      if (!caso.codRequisicao) continue;
+      const existente = porRequisicao.get(caso.codRequisicao);
+      porRequisicao.set(caso.codRequisicao, existente ? maisCompleta(existente, caso) : caso);
+    }
+    return { casos: Array.from(porRequisicao.values()) };
   });
 }
 
@@ -456,7 +489,7 @@ export async function buscarDetalhesCancerLis(codigos: readonly string[]): Promi
     for (const linha of linhas) {
       const cod = texto(linha.CodRequisicao);
       if (!cod) continue;
-      detalhes[cod] = {
+      const detalhe: DetalheCancerLis = {
         nomePacienteLis: texto(linha.NomPaciente) ?? '',
         sexoLis: inteiroOuNulo(linha.Sexo),
         cpfLis: texto(linha.CPF),
@@ -467,6 +500,12 @@ export async function buscarDetalhesCancerLis(codigos: readonly string[]): Promi
         codInternacionalDiagnostico: texto(linha.CodInternacional),
         descricaoTopografiaLis: texto(linha.DesTopografia),
       };
+      // Mesmo caso de linhas duplicadas por CodRequisicao de
+      // listarDiagnosticosPositivosLis (ver `maisCompleta`) — aqui alimenta
+      // o CSV de exportação ao RHC, então nunca escolhe a linha "que o
+      // MySQL devolveu por último" sem critério.
+      const existente = detalhes[cod];
+      detalhes[cod] = existente ? maisCompleta(existente, detalhe) : detalhe;
     }
     return { detalhes };
   });

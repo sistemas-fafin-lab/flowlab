@@ -17,7 +17,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
-import { autorizarQualidade, idDoUsuario, tokenDoHeader } from '../qualidade/autorizacao.js';
+import { autorizarQualidadeERetornarUsuario, tokenDoHeader } from '../qualidade/autorizacao.js';
 import { carregarParametrosFixosCancer } from '../qualidade/cancerConsulta.js';
 import { elegivelParaExportacao, type TriagemCancer } from '../qualidade/cancerRegras.js';
 import { buscarDetalhesCancerLis, ehErroConsulta } from '../qualidade/bdLabQualidade.js';
@@ -100,9 +100,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   const token = tokenDoHeader(req.headers.authorization);
-  const erroAuth = await autorizarQualidade(token, 'canManageQualidade');
-  if (erroAuth) {
-    res.status(erroAuth.status).json(erroAuth.payload);
+  const autorizacao = await autorizarQualidadeERetornarUsuario(token, 'canManageQualidade');
+  if (!('userId' in autorizacao)) {
+    res.status(autorizacao.status).json(autorizacao.payload);
     return;
   }
 
@@ -116,11 +116,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const usuarioId = await idDoUsuario(token!);
-    if (!usuarioId) {
-      res.status(401).json({ success: false, error: 'Sessão inválida ou expirada.' });
-      return;
-    }
+    const usuarioId = autorizacao.userId;
 
     const supabase = getSupabaseAdminClient();
     const { inicio, fim } = intervaloTrimestre(ano, trimestre);
@@ -217,29 +213,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const geradoEm = new Date().toISOString();
-    const { error: erroInsert } = await supabase.from('qa_exportacoes_rhc').insert({
-      id: exportacaoId,
-      ano,
-      trimestre,
-      hash_arquivo: hashArquivo,
-      total_casos: elegiveis.length,
-      registrador,
-      gerado_por: usuarioId,
-      gerado_em: geradoEm,
+    // Insert de qa_exportacoes_rhc + update de qa_cancer_casos.exportacao_id
+    // numa função só (migration 20260821090000): as duas escritas viram uma
+    // transação implícita — se o update falhar, o insert também é desfeito,
+    // em vez de deixar uma exportação "órfã" (arquivo já subido, linha
+    // gravada, casos ainda elegíveis) que uma nova tentativa duplicaria
+    // (achado de code review).
+    const { error: erroRegistrar } = await supabase.rpc('qualidade_registrar_exportacao_rhc', {
+      p_id: exportacaoId,
+      p_ano: ano,
+      p_trimestre: trimestre,
+      p_storage_path: caminhoArquivo,
+      p_hash_arquivo: hashArquivo,
+      p_total_casos: elegiveis.length,
+      p_registrador: registrador,
+      p_gerado_por: usuarioId,
+      p_gerado_em: geradoEm,
+      p_caso_ids: elegiveis.map((c) => c.id),
     });
-    if (erroInsert) {
-      console.error('[qualidade/gerar-exportacao-cancer] erro ao gravar qa_exportacoes_rhc:', describeError(erroInsert));
+    if (erroRegistrar) {
+      console.error('[qualidade/gerar-exportacao-cancer] erro ao registrar exportação:', describeError(erroRegistrar));
       res.status(500).json({ success: false, error: 'Falha ao registrar exportação.' });
-      return;
-    }
-
-    const { error: erroUpdateCasos } = await supabase
-      .from('qa_cancer_casos')
-      .update({ exportacao_id: exportacaoId })
-      .in('id', elegiveis.map((c) => c.id));
-    if (erroUpdateCasos) {
-      console.error('[qualidade/gerar-exportacao-cancer] erro ao vincular casos exportados:', describeError(erroUpdateCasos));
-      res.status(500).json({ success: false, error: 'Exportação gravada, mas falhou ao vincular os casos exportados.' });
       return;
     }
 

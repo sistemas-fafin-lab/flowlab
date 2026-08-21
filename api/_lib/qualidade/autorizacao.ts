@@ -19,17 +19,18 @@ export interface FalhaAutorizacao {
 export type PermissaoQualidade = 'canViewQualidade' | 'canManageQualidade';
 
 /**
- * Devolve `null` quando o operador tem `permissao`; a falha a devolver, senão.
- *
  * Espelha a RLS instalada nas migrations 20260820120000-150000: leitura
  * aceita `canViewQualidade` OU `canManageQualidade`; escrita (sync,
  * curadoria, confirmação de vínculo, geração de exportação) exige só
- * `canManageQualidade`.
+ * `canManageQualidade`. Devolve o `userId` da sessão validada quando
+ * autorizado — handlers que precisam do id (confirmar-vinculo-ihq,
+ * gerar-exportacao-cancer) usam `autorizarQualidadeComUsuario` direto, em
+ * vez de validar o token duas vezes (achado de code review).
  */
-export async function autorizarQualidade(
+async function autorizarQualidadeComUsuario(
   token: string | null,
-  permissao: PermissaoQualidade = 'canViewQualidade',
-): Promise<FalhaAutorizacao | null> {
+  permissao: PermissaoQualidade,
+): Promise<FalhaAutorizacao | { userId: string }> {
   if (!token) {
     return { status: 401, payload: { success: false, error: 'Token de autenticação ausente.' } };
   }
@@ -64,19 +65,28 @@ export async function autorizarQualidade(
       },
     };
   }
-  return null;
+  return { userId: caller.user.id };
+}
+
+/** Devolve `null` quando o operador tem `permissao`; a falha a devolver, senão. */
+export async function autorizarQualidade(
+  token: string | null,
+  permissao: PermissaoQualidade = 'canViewQualidade',
+): Promise<FalhaAutorizacao | null> {
+  const resultado = await autorizarQualidadeComUsuario(token, permissao);
+  return 'userId' in resultado ? null : resultado;
+}
+
+/** Para handlers que precisam do `userId` além da autorização — 1 validação de token só, não 2. */
+export async function autorizarQualidadeERetornarUsuario(
+  token: string | null,
+  permissao: PermissaoQualidade,
+): Promise<FalhaAutorizacao | { userId: string }> {
+  return autorizarQualidadeComUsuario(token, permissao);
 }
 
 /** Extrai o access_token do header `Authorization: Bearer <jwt>`. */
 export function tokenDoHeader(authorization: string | undefined): string | null {
   const header = authorization ?? '';
   return header.startsWith('Bearer ') ? header.slice(7) : null;
-}
-
-/** Retorna o `sub` (user id) do JWT já validado por `autorizarQualidade` — reusa a mesma chamada, sem round-trip extra. */
-export async function idDoUsuario(token: string): Promise<string | null> {
-  const supabase = getSupabaseAdminClient();
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return null;
-  return data.user.id;
 }

@@ -10,7 +10,7 @@ import { describeError } from '../errors.js';
 import { autorizarQualidade, tokenDoHeader } from '../qualidade/autorizacao.js';
 import { carregarCatalogoCido, carregarParametrosFixosCancer } from '../qualidade/cancerConsulta.js';
 import { avaliarCandidaturaCancer, calcularFunil, sugerirMorfologia, sugerirTopografia, type TriagemCancer } from '../qualidade/cancerRegras.js';
-import { ehErroConsulta, listarDiagnosticosPositivosLis } from '../qualidade/bdLabQualidade.js';
+import { buscarDetalhesCancerLis, ehErroConsulta } from '../qualidade/bdLabQualidade.js';
 import { getSupabaseAdminClient } from '../supabase.js';
 
 interface CorpoFunil {
@@ -56,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     const supabase = getSupabaseAdminClient();
 
-    const [casosResp, lisResp, catalogoTopografia, catalogoMorfologia, parametrosFixos] = await Promise.all([
+    const [casosResp, catalogoTopografia, catalogoMorfologia, parametrosFixos] = await Promise.all([
       supabase
         .from('qa_cancer_casos')
         .select(
@@ -64,7 +64,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         )
         .gte('dta_diagnostico', inicio)
         .lte('dta_diagnostico', fim),
-      listarDiagnosticosPositivosLis(inicio, fim),
       carregarCatalogoCido(supabase, 'topografia'),
       carregarCatalogoCido(supabase, 'morfologia'),
       carregarParametrosFixosCancer(supabase),
@@ -75,13 +74,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(500).json({ success: false, error: 'Falha ao ler casos de Registro de Câncer.' });
       return;
     }
+
+    const casos = (casosResp.data ?? []) as LinhaCancerCaso[];
+
+    // Busca por cod_requisicao (não por período): `dta_diagnostico` é um
+    // espelho gravado no último `sync-cancer` e pode ficar desatualizado se a
+    // DtaSolicitacao for corrigida no LIS depois — filtrar de novo por
+    // período aqui excluiria o enriquecimento (nome/sexo/CPF/candidatura) de
+    // casos cuja data mudou, mesmo a requisição existindo e tendo os dados.
+    const lisResp = await buscarDetalhesCancerLis(casos.map((c) => c.cod_requisicao));
     if (ehErroConsulta(lisResp)) {
       res.status(lisResp.erro.status).json({ success: false, error: lisResp.erro.mensagem });
       return;
     }
 
-    const casos = (casosResp.data ?? []) as LinhaCancerCaso[];
-    const lisPorRequisicao = new Map(lisResp.casos.map((c) => [c.codRequisicao, c]));
+    const lisPorRequisicao = lisResp.detalhes;
     const descricaoTopografiaPorCodigo = new Map(catalogoTopografia.map((e) => [e.codigo, e.descricao]));
     const descricaoMorfologiaPorCodigo = new Map(catalogoMorfologia.map((e) => [e.codigo, e.descricao]));
 
@@ -93,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const casosResumo = casos.map((caso) => {
-      const lis = lisPorRequisicao.get(caso.cod_requisicao);
+      const lis = lisPorRequisicao[caso.cod_requisicao];
       const candidatura = avaliarCandidaturaCancer(
         { codInternacionalDiagnostico: lis?.codInternacionalDiagnostico ?? null, textoLaudo: lis?.textoLaudo ?? null },
         catalogoMorfologia,
