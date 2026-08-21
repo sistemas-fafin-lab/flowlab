@@ -11,7 +11,7 @@ export { default as EnvioApoioPage } from './components/EnvioApoioPage';
 export { default as CorrecaoIdentidadePage } from './components/CorrecaoIdentidadePage';
 export { useAgendamentos } from './hooks/useAgendamentos';
 export { usePostos } from './hooks/usePostos';
-export { useColetas } from './hooks/useColetas';
+export { useColetas, useColeta } from './hooks/useColetas';
 export { useTemperaturas } from './hooks/useTemperaturas';
 export { useCulturas } from './hooks/useCulturas';
 export { useRecoletas } from './hooks/useRecoletas';

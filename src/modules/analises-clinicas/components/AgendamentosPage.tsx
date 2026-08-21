@@ -37,7 +37,7 @@ import {
   type PostoDisponivel,
 } from '../hooks/useAgendamentos';
 import { usePostos } from '../hooks/usePostos';
-import { useColetas } from '../hooks/useColetas';
+import { useColetas, useColeta } from '../hooks/useColetas';
 import { useAuth } from '../../../hooks/useAuth';
 import { useDialog } from '../../../hooks/useDialog';
 import InputDialog from '../../../components/InputDialog';
@@ -45,6 +45,7 @@ import { hasPermission } from '../../../utils/permissions';
 import { useDocumentosAgendamento } from '../hooks/useDocumentosAgendamento';
 import type { AcAgendamento, AcAgendamentoStatus, AcPosto, TipoDocumento } from '../types';
 import { ordenarAgendamentosParaLista } from '../utils/ordenarAgendamentos';
+import { resumoColeta } from '../domain/coleta';
 import {
   dataKeyDeIso,
   ehSlotRetroativo,
@@ -442,6 +443,10 @@ const DetalheAgendamentoModal: React.FC<{
     refetch: refetchDocs,
   } = useDocumentosAgendamento(ag.id);
 
+  // ── Coleta registrada (só faz sentido quando o agendamento já foi coletado) ─
+  const { coleta, loading: coletaLoading, error: coletaErro } = useColeta(ag.id);
+  const resumo = resumoColeta(coleta);
+
   // ── Upload de novos documentos (enviados pelo operador) ────────────────────
   const [docs, setDocs] = useState<DocItem[]>([]);
   const [docErro, setDocErro] = useState<string | null>(null);
@@ -557,6 +562,28 @@ const DetalheAgendamentoModal: React.FC<{
               label="Recebido em"
               valor={`${fmtHora(ag.recebido_em)} · ${fmtData(ag.recebido_em)}`}
             />
+            {ag.status === 'coletado' && coletaLoading && (
+              <div className="flex items-center gap-2 px-4 py-2.5 text-xs text-gray-400">
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                Carregando dados da coleta…
+              </div>
+            )}
+            {ag.status === 'coletado' && resumo && (
+              <>
+                <DetalheLinha icon={UserCheck} label="Coletado por" valor={resumo.coletadoPor} />
+                <DetalheLinha
+                  icon={Clock}
+                  label="Coletado em"
+                  valor={`${fmtHora(resumo.coletadoEm)} · ${fmtData(resumo.coletadoEm)}`}
+                />
+              </>
+            )}
+            {ag.status === 'coletado' && coletaErro && (
+              <div className="flex items-center gap-2 px-4 py-2.5 text-xs text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="w-3.5 h-3.5" />
+                {coletaErro}
+              </div>
+            )}
             {ag.status === 'cancelado' && (
               <DetalheLinha icon={XCircle} label="Cancelado por" valor={ag.cancelado_por ?? 'LAB-HUB'} />
             )}
@@ -564,6 +591,18 @@ const DetalheAgendamentoModal: React.FC<{
               <DetalheLinha icon={FileText} label="Motivo" valor={ag.cancelamento_motivo} />
             )}
           </div>
+
+          {ag.status === 'coletado' && resumo?.observacoes && (
+            <div className="rounded-xl border border-gray-100 dark:border-gray-700/60 bg-gray-50/50 dark:bg-gray-900/20 px-4 py-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1.5">
+                <FileText className="w-3.5 h-3.5" />
+                Observações da coleta
+              </div>
+              <p className="text-sm text-gray-700 dark:text-gray-200 whitespace-pre-wrap break-words">
+                {resumo.observacoes}
+              </p>
+            </div>
+          )}
 
           {/* ── Documentos ─────────────────────────────────────────────────────── */}
           {onUpload && (

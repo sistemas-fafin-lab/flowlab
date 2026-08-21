@@ -1,6 +1,55 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import type { AcCheckin, CheckinResultado, ChecklistItemKey } from '../types';
+import type { AcCheckin, AcColeta, CheckinResultado, ChecklistItemKey } from '../types';
+
+// Coleta (1:1) do agendamento, ou null quando ainda não registrada. Leitura
+// direta — a RLS libera SELECT p/ usuários autenticados. Lança o erro do
+// supabase em falha (o chamador decide como tratar).
+export async function buscarColeta(agendamentoId: string): Promise<AcColeta | null> {
+  const { data, error } = await supabase
+    .from('ac_coletas')
+    .select('*')
+    .eq('agendamento_id', agendamentoId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data ?? null) as AcColeta | null;
+}
+
+interface UseColetaResult {
+  coleta: AcColeta | null;
+  loading: boolean;
+  error: string | null;
+}
+
+// Estado da coleta (1:1) de um agendamento — o que o detalhe exibe quando o
+// status é 'coletado'. Recarrega quando o agendamento muda.
+export function useColeta(agendamentoId: string): UseColetaResult {
+  const [coleta, setColeta] = useState<AcColeta | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let ativo = true;
+    setLoading(true);
+    setError(null);
+    setColeta(null);
+    buscarColeta(agendamentoId)
+      .then((c) => {
+        if (ativo) setColeta(c);
+      })
+      .catch((e: unknown) => {
+        if (ativo) setError(e instanceof Error ? e.message : 'Falha ao carregar a coleta.');
+      })
+      .finally(() => {
+        if (ativo) setLoading(false);
+      });
+    return () => {
+      ativo = false;
+    };
+  }, [agendamentoId]);
+
+  return { coleta, loading, error };
+}
 
 interface UseColetasResult {
   // Conferência de recepção (gate). Retorna a mensagem de erro, ou null em sucesso.
