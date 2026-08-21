@@ -44,6 +44,7 @@ import {
   IhqPage,
   CancerPage,
 } from './modules/qualidade';
+import { BoardPage } from './modules/board';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -411,6 +412,10 @@ const AuthenticatedApp: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        {/* Board (Kanban multi-departamento) — gate de acesso é interno ao
+            componente (depende de custom_roles.board_id, não só de uma
+            permission string), por isso não usa <ProtectedRoute>. */}
+        <Route path="/board" element={<BoardPage />} />
         {/* IT Module Routes */}
         <Route
           path="/it/dashboard"

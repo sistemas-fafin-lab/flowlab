@@ -202,6 +202,8 @@ export interface UserProfile {
   customRoleId?: string;
   permissions: string[];
   roleName?: string;
+  /** custom_roles.board_id do cargo — ver src/modules/board/domain/resolveBoardAccess. */
+  boardId?: string | null;
 }
 
 export interface CustomRole {

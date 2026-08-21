@@ -56,6 +56,7 @@ import { NotificationBell } from './NotificationBell';
 import { useTheme } from '../hooks/useTheme';
 import { supabase } from '../lib/supabase';
 import { CollapsedFlyoutMenu } from './CollapsedFlyoutMenu';
+import { useBoardAccess } from '../modules/board/hooks/useBoardAccess';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -71,6 +72,12 @@ interface NavigationItem {
   icon: React.ComponentType<any>;
   permission?: string;
   anyOf?: string[]; // acessível se o usuário tiver QUALQUER uma destas permissões
+  /**
+   * Override de visibilidade para itens cujo acesso não é uma permission
+   * string (ex: Board — depende de custom_roles.board_id). Quando presente,
+   * tem prioridade sobre `permission`/`anyOf`.
+   */
+  visible?: boolean;
   category?: string;
   subItems?: NavigationItem[];
 }
@@ -92,7 +99,7 @@ const DEFAULT_CATEGORIES: CategoryConfig[] = [
     id: 'operacoes',
     name: 'OPERAÇÕES',
     sort_order: 1,
-    items: ['Produtos', 'Movimentações', 'Estoque Departamental', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas', 'Qualidade'],
+    items: ['Produtos', 'Movimentações', 'Estoque Departamental', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas', 'Qualidade', 'Board Setorial'],
   },
   {
     id: 'administracao',
@@ -478,6 +485,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const userRole = userProfile?.role || 'requester';
   const userPermissions = userProfile?.permissions || [];
+  // Ver src/modules/board/domain/resolveBoardAccess: item "Board" some do menu
+  // sem checar uma permission string — depende de custom_roles.board_id.
+  const boardAccess = useBoardAccess();
   const isAdmin = hasPermission(userPermissions, 'canManageUsers');
 
   // ─── Persist collapsed state ────────────────────────────────────────────────
@@ -647,6 +657,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ],
       },
       {
+        name: 'Board Setorial',
+        href: '/board',
+        icon: KanbanSquare,
+        visible: boardAccess.kind !== 'none',
+        category: 'OPERAÇÕES',
+      },
+      {
         name: 'Usuários',
         href: '/users',
         icon: Users,
@@ -678,7 +695,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ],
       },
     ],
-    []
+    [boardAccess]
   );
 
   // ─── Navigation helpers ─────────────────────────────────────────────────────
@@ -701,6 +718,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const isSubItemActive = (href: string) => location.pathname === href;
 
   const canAccessItem = (item: NavigationItem) => {
+    if (item.visible !== undefined) return item.visible;
     if (item.anyOf && item.anyOf.length > 0) {
       return item.anyOf.some((p) => hasPermission(userPermissions, p));
     }

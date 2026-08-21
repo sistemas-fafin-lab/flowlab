@@ -54,7 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const { data, error } = await supabase
         .from("user_profiles")
-        .select("*, custom_roles(id, name, permissions)")
+        .select("*, custom_roles(id, name, permissions, board_id)")
         .eq("id", userId)
         .single();
 
@@ -80,6 +80,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           customRoleId: data.custom_role_id,
           permissions,
           roleName: customRole?.name,
+          boardId: customRole?.board_id ?? null,
         });
       } else {
         setUserProfile(null);
