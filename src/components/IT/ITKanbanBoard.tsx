@@ -1,8 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import {
-  DragDropContext,
-  Droppable,
   Draggable,
   type DragStart,
   type DragUpdate,
@@ -44,6 +42,7 @@ import { IT_REQUESTS_PATH, itRequestUrl } from '../../utils/itRequestLink';
 import Notification from '../Notification';
 import ITTaskDrawer from './ITTaskDrawer';
 import ITProjectManager from './ITProjectManager';
+import { KanbanBoard, type KanbanBoardColumnConfig } from '../shared/KanbanBoard';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -312,220 +311,100 @@ const DraggableCard: React.FC<{
 };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// DROPPABLE COLUMN
+// INLINE ADD TASK FORM
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const KanbanColumnComponent: React.FC<{
-  column: typeof COLUMNS[number];
-  items: ITRequest[];
-  onCardClick: (item: ITRequest) => void;
-  onMenuOpen: (e: React.MouseEvent, task: ITRequest) => void;
-  onDeleteClick: (task: ITRequest) => void;
-  draggingOverColumn: KanbanColumn | null;
-  isAnyDragging: boolean;
-  // Inline add props
-  inlineAddColumn: KanbanColumn | null;
-  inlineAddText: string;
-  onInlineAddOpen: (columnId: KanbanColumn) => void;
-  onInlineAddClose: () => void;
-  onInlineAddTextChange: (text: string) => void;
-  onInlineAddSubmit: (columnId: KanbanColumn, title: string) => void;
-  isAddingTask: boolean;
-  // Project grouping
-  viewMode: ViewMode;
-  projectGroups?: { project: ITProject | null; items: ITRequest[] }[];
-}> = ({ column, items, onCardClick, onMenuOpen, onDeleteClick, draggingOverColumn, isAnyDragging, inlineAddColumn, inlineAddText, onInlineAddOpen, onInlineAddClose, onInlineAddTextChange, onInlineAddSubmit, isAddingTask, viewMode, projectGroups }) => {
-  const Icon = column.icon;
+const InlineAddTaskForm: React.FC<{
+  isOpen: boolean;
+  text: string;
+  isSubmitting: boolean;
+  onOpen: () => void;
+  onClose: () => void;
+  onTextChange: (text: string) => void;
+  onSubmit: () => void;
+}> = ({ isOpen, text, isSubmitting, onOpen, onClose, onTextChange, onSubmit }) => {
   const inputRef = useRef<HTMLInputElement>(null);
-  const isAddingHere = inlineAddColumn === column.id;
-  const totalES = items.reduce((acc, item) => acc + (calcES(item.function_quantity, item.priority) ?? 0), 0);
 
-  // Focus input when opened
   useEffect(() => {
-    if (isAddingHere && inputRef.current) {
+    if (isOpen && inputRef.current) {
       inputRef.current.focus();
     }
-  }, [isAddingHere]);
-
-  const handleSubmit = () => {
-    const trimmed = inlineAddText.trim();
-    if (trimmed) {
-      onInlineAddSubmit(column.id, trimmed);
-    }
-  };
+  }, [isOpen]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      handleSubmit();
+      onSubmit();
     }
     if (e.key === 'Escape') {
-      onInlineAddClose();
+      onClose();
     }
   };
 
   return (
-    <div className="flex flex-col w-[280px] sm:w-[300px] flex-shrink-0">
-      {/* Column header */}
-      <div className="flex items-center gap-2.5 px-3 py-3 mb-2">
-        <span className={`w-2 h-2 rounded-full ${column.dotColor}`} />
-        <Icon className={`w-4 h-4 ${column.accent}`} />
-        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{column.label}</h3>
-        <div className="ml-auto flex items-center gap-1.5">
-          <span className="text-xs font-medium text-gray-400 dark:text-gray-500 bg-gray-100 dark:bg-gray-800 px-2 py-0.5 rounded-md tabular-nums">
-            {items.length}
-          </span>
-          {totalES > 0 && (
-            <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 px-2 py-0.5 rounded-md tabular-nums">
-              ES {totalES}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Inline Add UI — TOP of column */}
-      <AnimatePresence mode="wait">
-        {isAddingHere ? (
-          <motion.div
-            key="inline-add-form"
-            initial={{ opacity: 0, y: -8, scale: 0.97 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.97 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            className="mb-3"
-          >
-            <div className="bg-white dark:bg-gray-800 border-2 border-violet-400 dark:border-violet-500 rounded-xl p-3 shadow-lg shadow-violet-500/10">
-              <input
-                ref={inputRef}
-                type="text"
-                value={inlineAddText}
-                onChange={(e) => onInlineAddTextChange(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="Título da tarefa…"
-                disabled={isAddingTask}
-                className="w-full text-sm text-gray-800 dark:text-gray-100 bg-transparent focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 mb-3"
-              />
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[10px] text-gray-400 dark:text-gray-500">Enter para criar · Esc para cancelar</span>
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={onInlineAddClose}
-                    disabled={isAddingTask}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    aria-label="Cancelar"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={handleSubmit}
-                    disabled={!inlineAddText.trim() || isAddingTask}
-                    className="p-1.5 bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    aria-label="Criar tarefa"
-                  >
-                    {isAddingTask ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <CheckCircle2 className="w-4 h-4" />
-                    )}
-                  </button>
-                </div>
+    <AnimatePresence mode="wait">
+      {isOpen ? (
+        <motion.div
+          key="inline-add-form"
+          initial={{ opacity: 0, y: -8, scale: 0.97 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -8, scale: 0.97 }}
+          transition={{ duration: 0.15, ease: 'easeOut' }}
+          className="mb-3"
+        >
+          <div className="bg-white dark:bg-gray-800 border-2 border-violet-400 dark:border-violet-500 rounded-xl p-3 shadow-lg shadow-violet-500/10">
+            <input
+              ref={inputRef}
+              type="text"
+              value={text}
+              onChange={(e) => onTextChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Título da tarefa…"
+              disabled={isSubmitting}
+              className="w-full text-sm text-gray-800 dark:text-gray-100 bg-transparent focus:outline-none placeholder-gray-400 dark:placeholder-gray-500 mb-3"
+            />
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[10px] text-gray-400 dark:text-gray-500">Enter para criar · Esc para cancelar</span>
+              <div className="flex gap-1.5">
+                <button
+                  onClick={onClose}
+                  disabled={isSubmitting}
+                  className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  aria-label="Cancelar"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={onSubmit}
+                  disabled={!text.trim() || isSubmitting}
+                  className="p-1.5 bg-violet-500 hover:bg-violet-600 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Criar tarefa"
+                >
+                  {isSubmitting ? (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4" />
+                  )}
+                </button>
               </div>
             </div>
-          </motion.div>
-        ) : (
-          <motion.button
-            key="inline-add-button"
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.9 }}
-            transition={{ duration: 0.12, ease: 'easeOut' }}
-            onClick={() => onInlineAddOpen(column.id)}
-            className="mb-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50/60 dark:hover:bg-violet-900/15 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-violet-300 dark:hover:border-violet-600 transition-all duration-200"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Adicionar
-          </motion.button>
-        )}
-      </AnimatePresence>
-
-      {/* Column body */}
-      <Droppable droppableId={column.id}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={`flex-1 min-h-[200px] rounded-xl p-2 transition-colors duration-200 overflow-hidden ${
-              snapshot.isDraggingOver
-                ? 'bg-violet-50/60 dark:bg-violet-900/15 ring-2 ring-violet-400/50 ring-inset'
-                : draggingOverColumn === column.id
-                  ? 'bg-violet-50/35 dark:bg-violet-900/10 ring-1 ring-violet-300/40 dark:ring-violet-700/40'
-                  : isAnyDragging
-                    ? 'bg-gray-50/60 dark:bg-gray-800/45'
-                    : 'bg-gray-50/50 dark:bg-gray-800/40'
-            }`}
-          >
-            {/* gap-4 controla o espaçamento — casca física do card NÃO pode ter margens */}
-            <div className="flex flex-col gap-4 h-full overflow-y-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-              {viewMode === 'by_project' && projectGroups ? (
-                // Render grouped by project — visual headers are plain divs, not Draggable
-                projectGroups.flatMap((group, groupIndex) => {
-                  if (group.items.length === 0) return [];
-                  const headerEl = (
-                    <div
-                      key={`group-header-${groupIndex}`}
-                      className="flex items-center gap-2 px-1 mt-1 first:mt-0"
-                    >
-                      <div
-                        className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: group.project?.color ?? '#94a3b8' }}
-                      />
-                      <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">
-                        {group.project?.name ?? 'Sem Projeto'}
-                      </span>
-                      <span className="ml-auto text-[10px] text-gray-400 dark:text-gray-500 tabular-nums flex-shrink-0">
-                        {group.items.length}
-                      </span>
-                    </div>
-                  );
-                  const cards = group.items.map((item) => (
-                    <DraggableCard
-                      key={item.id}
-                      item={item}
-                      index={items.indexOf(item)}
-                      onCardClick={onCardClick}
-                      onMenuOpen={onMenuOpen}
-                      onDeleteClick={onDeleteClick}
-                    />
-                  ));
-                  return [headerEl, ...cards];
-                })
-              ) : (
-                items.map((item, index) => (
-                  <DraggableCard
-                    key={item.id}
-                    item={item}
-                    index={index}
-                    onCardClick={onCardClick}
-                    onMenuOpen={onMenuOpen}
-                    onDeleteClick={onDeleteClick}
-                  />
-                ))
-              )}
-
-              {/* Empty column state */}
-              {items.length === 0 && !isAddingHere && !snapshot.isDraggingOver && (
-                <div className="flex flex-col items-center justify-center py-8 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 transition-colors">
-                  <Icon className="w-6 h-6 text-gray-300 dark:text-gray-600 mb-1.5" />
-                  <span className="text-xs text-gray-400 dark:text-gray-500">Solte aqui</span>
-                </div>
-              )}
-
-              {provided.placeholder}
-            </div>
           </div>
-        )}
-      </Droppable>
-    </div>
+        </motion.div>
+      ) : (
+        <motion.button
+          key="inline-add-button"
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={{ opacity: 0, scale: 0.9 }}
+          transition={{ duration: 0.12, ease: 'easeOut' }}
+          onClick={onOpen}
+          className="mb-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium text-gray-400 dark:text-gray-500 hover:text-violet-600 dark:hover:text-violet-400 hover:bg-violet-50/60 dark:hover:bg-violet-900/15 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 hover:border-violet-300 dark:hover:border-violet-600 transition-all duration-200"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Adicionar
+        </motion.button>
+      )}
+    </AnimatePresence>
   );
 };
 
@@ -1514,39 +1393,97 @@ const ITKanbanBoard: React.FC = () => {
         </div>
       </div>
 
-      {/* Kanban board — ZERO transform/animation/backdrop neste wrapper.
-           animate-fade-in-up criava transform:translateY(0) via forwards fill-mode,
-           que estabelece um Containing Block e quebra position:fixed do drag. */}
-      <div className="overflow-x-auto pb-4 -mx-1 px-1">
-        <DragDropContext onDragStart={handleDragStart} onDragUpdate={handleDragUpdate} onDragEnd={handleDragEnd}>
-          <div className="flex gap-4 min-w-max">
-            {COLUMNS.map((col) => (
-              <KanbanColumnComponent
-                key={col.id}
-                column={col}
-                items={columnItems[col.id]}
-                onCardClick={handleCardClick}
-                onMenuOpen={handleContextMenuOpen}
-                onDeleteClick={(task) => {
-                  console.log('[ITKanbanBoard] Opening delete modal for task:', task.id, task.title);
-                  setDeleteConfirmTask(task);
-                }}
-                draggingOverColumn={draggingOverColumn}
-                isAnyDragging={Boolean(activeDragId)}
-                inlineAddColumn={inlineAddColumn}
-                inlineAddText={inlineAddText}
-                onInlineAddOpen={handleInlineAddOpen}
-                onInlineAddClose={handleInlineAddClose}
-                onInlineAddTextChange={setInlineAddText}
-                onInlineAddSubmit={handleInlineAddSubmit}
-                isAddingTask={isAddingTask}
-                viewMode={viewMode}
-                projectGroups={columnItemsByProject?.[col.id]}
-              />
-            ))}
-          </div>
-        </DragDropContext>
-      </div>
+      <KanbanBoard
+        columns={COLUMNS as KanbanBoardColumnConfig[]}
+        onDragStart={handleDragStart}
+        onDragUpdate={handleDragUpdate}
+        onDragEnd={handleDragEnd}
+        draggingOverColumn={draggingOverColumn}
+        isAnyDragging={Boolean(activeDragId)}
+        getItemCount={(columnId) => columnItems[columnId as KanbanColumn]?.length ?? 0}
+        renderColumnBadge={(columnId) => {
+          const items = columnItems[columnId as KanbanColumn] ?? [];
+          const totalES = items.reduce((acc, item) => acc + (calcES(item.function_quantity, item.priority) ?? 0), 0);
+          if (totalES <= 0) return null;
+          return (
+            <span className="text-xs font-semibold text-violet-600 dark:text-violet-400 bg-violet-100 dark:bg-violet-900/30 px-2 py-0.5 rounded-md tabular-nums">
+              ES {totalES}
+            </span>
+          );
+        }}
+        renderColumnHeaderExtra={(columnId) => {
+          const col = columnId as KanbanColumn;
+          return (
+            <InlineAddTaskForm
+              isOpen={inlineAddColumn === col}
+              text={inlineAddText}
+              isSubmitting={isAddingTask}
+              onOpen={() => handleInlineAddOpen(col)}
+              onClose={handleInlineAddClose}
+              onTextChange={setInlineAddText}
+              onSubmit={() => {
+                const trimmed = inlineAddText.trim();
+                if (trimmed) handleInlineAddSubmit(col, trimmed);
+              }}
+            />
+          );
+        }}
+        isColumnEmpty={(columnId) => {
+          const col = columnId as KanbanColumn;
+          return (columnItems[col]?.length ?? 0) === 0 && inlineAddColumn !== col;
+        }}
+        renderColumnContent={(columnId) => {
+          const col = columnId as KanbanColumn;
+          const items = columnItems[col] ?? [];
+          const onDeleteClick = (task: ITRequest) => {
+            console.log('[ITKanbanBoard] Opening delete modal for task:', task.id, task.title);
+            setDeleteConfirmTask(task);
+          };
+
+          if (viewMode === 'by_project' && columnItemsByProject) {
+            const groups = columnItemsByProject[col] ?? [];
+            return groups.flatMap((group, groupIndex) => {
+              if (group.items.length === 0) return [];
+              const headerEl = (
+                <div key={`group-header-${groupIndex}`} className="flex items-center gap-2 px-1 mt-1 first:mt-0">
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: group.project?.color ?? '#94a3b8' }}
+                  />
+                  <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 truncate">
+                    {group.project?.name ?? 'Sem Projeto'}
+                  </span>
+                  <span className="ml-auto text-[10px] text-gray-400 dark:text-gray-500 tabular-nums flex-shrink-0">
+                    {group.items.length}
+                  </span>
+                </div>
+              );
+              const cards = group.items.map((item) => (
+                <DraggableCard
+                  key={item.id}
+                  item={item}
+                  index={items.indexOf(item)}
+                  onCardClick={handleCardClick}
+                  onMenuOpen={handleContextMenuOpen}
+                  onDeleteClick={onDeleteClick}
+                />
+              ));
+              return [headerEl, ...cards];
+            });
+          }
+
+          return items.map((item, index) => (
+            <DraggableCard
+              key={item.id}
+              item={item}
+              index={index}
+              onCardClick={handleCardClick}
+              onMenuOpen={handleContextMenuOpen}
+              onDeleteClick={onDeleteClick}
+            />
+          ));
+        }}
+      />
 
       {/* Task drawer */}
       <AnimatePresence>
