@@ -99,6 +99,13 @@
     border-radius: 0.375rem;
   }
 
+  /* No modo escuro o gradiente claro do skeleton fica destoando do fundo —
+     mesma animação, tons translúcidos sobre o próprio fundo escuro. */
+  .dark .skeleton {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0.06) 25%, rgba(255, 255, 255, 0.14) 50%, rgba(255, 255, 255, 0.06) 75%);
+    background-size: 200% 100%;
+  }
+
   /* Glass effect */
   .glass {
     background: rgba(255, 255, 255, 0.7);
