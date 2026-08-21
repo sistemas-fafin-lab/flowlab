@@ -75,7 +75,7 @@ export const ACCENT_TABELA: Record<
     anel: 'focus:ring-blue-500/40',
     gradiente: 'bg-gradient-to-r from-blue-500 to-blue-600',
     sombra: 'shadow-blue-500/25',
-    headerBg: 'bg-blue-50/70 dark:bg-blue-500/10',
+    headerBg: 'bg-blue-50 dark:bg-blue-950',
     headerTexto: 'text-blue-700 dark:text-blue-300',
     headerBorda: 'border-blue-200 dark:border-blue-500/20',
     scrollbar:
@@ -90,7 +90,7 @@ export const ACCENT_TABELA: Record<
     anel: 'focus:ring-amber-500/40',
     gradiente: 'bg-gradient-to-r from-amber-500 to-orange-500',
     sombra: 'shadow-amber-500/25',
-    headerBg: 'bg-amber-50/70 dark:bg-amber-500/10',
+    headerBg: 'bg-amber-50 dark:bg-amber-950',
     headerTexto: 'text-amber-700 dark:text-amber-300',
     headerBorda: 'border-amber-200 dark:border-amber-500/20',
     scrollbar:
@@ -105,7 +105,7 @@ export const ACCENT_TABELA: Record<
     anel: 'focus:ring-emerald-500/40',
     gradiente: 'bg-gradient-to-r from-emerald-500 to-teal-500',
     sombra: 'shadow-emerald-500/25',
-    headerBg: 'bg-emerald-50/70 dark:bg-emerald-500/10',
+    headerBg: 'bg-emerald-50 dark:bg-emerald-950',
     headerTexto: 'text-emerald-700 dark:text-emerald-300',
     headerBorda: 'border-emerald-200 dark:border-emerald-500/20',
     scrollbar:
@@ -120,7 +120,7 @@ export const ACCENT_TABELA: Record<
     anel: 'focus:ring-purple-500/40',
     gradiente: 'bg-gradient-to-r from-purple-500 to-fuchsia-500',
     sombra: 'shadow-purple-500/25',
-    headerBg: 'bg-purple-50/70 dark:bg-purple-500/10',
+    headerBg: 'bg-purple-50 dark:bg-purple-950',
     headerTexto: 'text-purple-700 dark:text-purple-300',
     headerBorda: 'border-purple-200 dark:border-purple-500/20',
     scrollbar:
@@ -135,7 +135,7 @@ export const ACCENT_TABELA: Record<
     anel: 'focus:ring-rose-500/40',
     gradiente: 'bg-gradient-to-r from-rose-500 to-pink-500',
     sombra: 'shadow-rose-500/25',
-    headerBg: 'bg-rose-50/70 dark:bg-rose-500/10',
+    headerBg: 'bg-rose-50 dark:bg-rose-950',
     headerTexto: 'text-rose-700 dark:text-rose-300',
     headerBorda: 'border-rose-200 dark:border-rose-500/20',
     scrollbar:
@@ -150,7 +150,7 @@ export const ACCENT_TABELA: Record<
     anel: 'focus:ring-sky-500/40',
     gradiente: 'bg-gradient-to-r from-sky-500 to-blue-500',
     sombra: 'shadow-sky-500/25',
-    headerBg: 'bg-sky-50/70 dark:bg-sky-500/10',
+    headerBg: 'bg-sky-50 dark:bg-sky-950',
     headerTexto: 'text-sky-700 dark:text-sky-300',
     headerBorda: 'border-sky-200 dark:border-sky-500/20',
     scrollbar:
@@ -328,7 +328,7 @@ export function TabelaExpansivel<T>({
 
   return (
     <>
-      <div className="w-[95%] max-w-[95%] min-w-0">
+      <div className="w-full min-w-0">
         <div className="glass-surface relative overflow-hidden rounded-2xl">
           <div className={`flex items-center justify-between gap-3 border-b ${accent.headerBorda} px-4 py-3`}>
             <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
