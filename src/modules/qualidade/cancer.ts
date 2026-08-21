@@ -202,10 +202,10 @@ export function buscarLinkDownloadExportacao(id: string): Promise<{ url: string 
 /**
  * Campos fixos institucionais (Fonte, Cor, Região administrativa etc.) —
  * "raramente variam" mas não são hardcoded (P5). `atualizado_por`/
- * `atualizado_em` na própria linha de `app_parametros` são o rastro de
+ * `atualizado_em` na própria linha de `qa_parametros` são o rastro de
  * quem mudou o quê (mesmo padrão de core/parametros.ts original — este
- * recurso não usa `app_auditoria`, porque a chave primária de
- * `app_parametros` é `chave text`, não `uuid`).
+ * recurso não usa `qa_auditoria`, porque a chave primária de
+ * `qa_parametros` é `chave text`, não `uuid`).
  */
 export async function atualizarParametroFixoCancer(input: AtualizarParametroFixoCancerInput): Promise<void> {
   const {
@@ -214,19 +214,19 @@ export async function atualizarParametroFixoCancer(input: AtualizarParametroFixo
   if (!user) throw new ErroApiQualidade(401, 'Sessão expirada. Faça login novamente.');
 
   const chave = `cancer.${input.chave}`;
-  const { data: existente, error: erroBusca } = await supabase.from('app_parametros').select('chave').eq('chave', chave).maybeSingle();
+  const { data: existente, error: erroBusca } = await supabase.from('qa_parametros').select('chave').eq('chave', chave).maybeSingle();
   if (erroBusca) throw new ErroApiQualidade(500, `Falha ao buscar parâmetro "${chave}": ${erroBusca.message}`);
   if (!existente) throw new ErroApiQualidade(404, `Parâmetro "${chave}" não existe — não é possível editar o que não foi criado por migration`);
 
   const { error } = await supabase
-    .from('app_parametros')
+    .from('qa_parametros')
     .update({ valor: input.valor, atualizado_em: new Date().toISOString(), atualizado_por: user.id })
     .eq('chave', chave);
   if (error) throw new ErroApiQualidade(error.code === '42501' ? 403 : 500, `Falha ao gravar parâmetro "${chave}": ${error.message}`);
 }
 
 export async function buscarParametrosFixosCancer(): Promise<ParametrosFixosCancerDTO> {
-  const { data, error } = await supabase.from('app_parametros').select('chave, valor').eq('modulo', 'cancer');
+  const { data, error } = await supabase.from('qa_parametros').select('chave, valor').eq('modulo', 'cancer');
   if (error) throw new ErroApiQualidade(500, `Falha ao carregar parâmetros fixos: ${error.message}`);
 
   const porChave = new Map((data ?? []).map((l) => [String(l.chave).replace('cancer.', ''), l.valor]));

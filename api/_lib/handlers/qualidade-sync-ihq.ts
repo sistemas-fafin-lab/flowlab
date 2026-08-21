@@ -43,10 +43,10 @@ interface CorpoSync {
 
 const JANELA_VINCULO_DIAS_PADRAO = 30;
 
-/** `app_parametros` (`ihq.janela_vinculo_dias`) — mesmo parâmetro lido em qualidade-buscar-detalhe-ihq.ts (duplicado aqui: mesmo padrão de carregarParametrosCortesia em qualidade-sync-cortesias.ts, sem helper cross-handler). */
+/** `qa_parametros` (`ihq.janela_vinculo_dias`) — mesmo parâmetro lido em qualidade-buscar-detalhe-ihq.ts (duplicado aqui: mesmo padrão de carregarParametrosCortesia em qualidade-sync-cortesias.ts, sem helper cross-handler). */
 async function carregarJanelaVinculoDias(supabase: ReturnType<typeof getSupabaseAdminClient>): Promise<number> {
   const { data } = await supabase
-    .from('app_parametros')
+    .from('qa_parametros')
     .select('valor')
     .eq('modulo', 'ihq')
     .eq('chave', 'ihq.janela_vinculo_dias')

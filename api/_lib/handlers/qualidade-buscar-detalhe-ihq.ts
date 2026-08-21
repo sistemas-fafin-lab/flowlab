@@ -27,7 +27,7 @@ interface CorpoBuscarDetalhe {
 
 async function carregarJanelaVinculoDias(supabase: ReturnType<typeof getSupabaseAdminClient>): Promise<number> {
   const { data } = await supabase
-    .from('app_parametros')
+    .from('qa_parametros')
     .select('valor')
     .eq('modulo', 'ihq')
     .eq('chave', 'ihq.janela_vinculo_dias')

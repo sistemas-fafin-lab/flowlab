@@ -15,7 +15,7 @@ const campoInput = 'glass-field w-full rounded-lg px-2 py-1 text-sm text-slate-8
 
 /**
  * Campo institucional "fixo" (Fonte, Cor, Região administrativa etc.) —
- * raramente muda, mas não é hardcoded (P5): fica em `app_parametros`, não
+ * raramente muda, mas não é hardcoded (P5): fica em `qa_parametros`, não
  * numa coluna por caso. Por isso editar aqui, a partir de QUALQUER caso,
  * muda o valor para TODOS os casos do módulo — daí o passo de confirmação
  * explícita antes de gravar, em vez de salvar direto ao sair do campo.

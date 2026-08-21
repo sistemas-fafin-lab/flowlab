@@ -36,7 +36,7 @@ export interface ItemVocabularioCortesia {
 }
 
 async function listarVocabulario(
-  tabela: 'qa_motivos_cortesia' | 'qa_classificacoes_cortesia' | 'app_colaboradores',
+  tabela: 'qa_motivos_cortesia' | 'qa_classificacoes_cortesia' | 'qa_colaboradores',
 ): Promise<ItemVocabularioCortesia[]> {
   const { data, error } = await supabase.from(tabela).select('id, nome').eq('ativo', true).order('nome');
   if (error) throw new ErroApiQualidade(500, `Falha ao listar ${tabela}: ${error.message}`);
@@ -53,7 +53,7 @@ export function buscarClassificacoesCortesia(): Promise<ItemVocabularioCortesia[
 
 /** Vocabulário controlado para `autorizado_por_corrigido` (R6) — nunca texto livre. */
 export function buscarColaboradoresCortesia(): Promise<ItemVocabularioCortesia[]> {
-  return listarVocabulario('app_colaboradores');
+  return listarVocabulario('qa_colaboradores');
 }
 
 const SELECT_CORTESIA =
@@ -62,7 +62,7 @@ const SELECT_CORTESIA =
   'dias_ate_autorizacao, situacao_prazo, aprovada_fora_do_prazo, divergencia_valores, preco_cortesia_nao_cadastrado, ' +
   'motivo_id, classificacao_id, autorizado_por_corrigido, observacoes_curadas, status_curadoria, revisao_pendente, ' +
   'curado_por, curado_em, ' +
-  'motivo:qa_motivos_cortesia(nome), classificacao:qa_classificacoes_cortesia(nome), colaborador:app_colaboradores(nome)';
+  'motivo:qa_motivos_cortesia(nome), classificacao:qa_classificacoes_cortesia(nome), colaborador:qa_colaboradores(nome)';
 
 interface LinhaBrutaCortesia {
   id: string;
@@ -243,7 +243,7 @@ export async function buscarIndicadoresCortesias(periodo: {
     .select(
       'valor_concedido, valor_concedido_corrigido, aprovada_fora_do_prazo, clinica_id_lis, clinica_nome, ' +
         'classificacao_id, autorizado_por_lis, dta_solicitacao, dta_autorizacao, ' +
-        'classificacao:qa_classificacoes_cortesia(nome), colaborador:app_colaboradores(nome)',
+        'classificacao:qa_classificacoes_cortesia(nome), colaborador:qa_colaboradores(nome)',
     )
     .gte(colunaPeriodo, periodo.inicio)
     .lte(colunaPeriodo, periodo.fim);
@@ -311,7 +311,7 @@ export async function buscarNotificacoesCortesias(desde: string | null): Promise
     .from('qa_cortesias')
     .select(
       'id, cod_requisicao, clinica_nome, exame_nome, autorizado_por_lis, dta_solicitacao, sincronizado_em, ' +
-        'colaborador:app_colaboradores(nome)',
+        'colaborador:qa_colaboradores(nome)',
     )
     .order('sincronizado_em', { ascending: false })
     .limit(LIMITE_NOTIFICACOES);

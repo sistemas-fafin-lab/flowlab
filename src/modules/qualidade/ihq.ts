@@ -218,9 +218,9 @@ export async function buscarIndicadoresIhq(periodo: {
 
   // tatAlertaDias é lido pelo dispatcher em sync; aqui, para indicadores
   // client-side, também precisa do parâmetro — lido diretamente do Supabase
-  // (leitura pública de app_parametros, mesma RLS de qualidade_usuario_tem_acesso()).
+  // (leitura pública de qa_parametros, mesma RLS de qualidade_usuario_tem_acesso()).
   const { data: parametro } = await supabase
-    .from('app_parametros')
+    .from('qa_parametros')
     .select('valor')
     .eq('modulo', 'ihq')
     .eq('chave', 'ihq.tat_alerta_dias')

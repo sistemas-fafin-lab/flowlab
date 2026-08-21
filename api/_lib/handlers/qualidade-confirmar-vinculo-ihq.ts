@@ -86,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     // Client DA SESSÃO (não service_role) para este UPDATE específico: o
     // trigger de auditoria (qa_ihq_solicitacoes_auditoria_trigger, migration
-    // 20260820140000) só grava em app_auditoria quando `auth.uid()` não é
+    // 20260820140000) só grava em qa_auditoria quando `auth.uid()` não é
     // nulo — uma conexão service_role não tem `auth.uid()`, e confirmar
     // vínculo é uma decisão de curadoria genuína que precisa ficar
     // auditada, como qualquer outra (achado de code review). RLS já libera

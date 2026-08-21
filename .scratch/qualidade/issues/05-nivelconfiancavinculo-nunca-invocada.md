@@ -86,7 +86,7 @@ Implementado **no sync** (opção 1), decisão do usuário.
 
 Escrita usa `getSupabaseAdminClient()` (service_role, mesmo client do upsert de espelho) —
 sem `auth.uid()`, então o trigger de auditoria (`qa_ihq_solicitacoes_auditoria_trigger`,
-migration 20260820140000) não grava em `app_auditoria` para essa atualização automática,
+migration 20260820140000) não grava em `qa_auditoria` para essa atualização automática,
 igual ao restante do sync; só a confirmação manual (`confirmar-vinculo-ihq.ts`, client da
 sessão do usuário) fica auditada — comportamento já existente, não alterado aqui.
 

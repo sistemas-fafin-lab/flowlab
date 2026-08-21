@@ -1,6 +1,6 @@
 // api/_lib/qualidade/cancerConsulta.ts
 // Leituras Supabase compartilhadas por buscar-funil-cancer.ts e
-// buscar-detalhe-cancer.ts — parâmetros fixos do RHC (`app_parametros`,
+// buscar-detalhe-cancer.ts — parâmetros fixos do RHC (`qa_parametros`,
 // módulo `cancer`) e catálogo CID-O (`qa_cido_catalogo`). Mesma transformação
 // de src/modules/qualidade/cancer.ts (`buscarParametrosFixosCancer`), só que
 // server-side com o client service_role.
@@ -28,7 +28,7 @@ export interface ParametrosFixosCancer {
 }
 
 export async function carregarParametrosFixosCancer(supabase: SupabaseClient): Promise<ParametrosFixosCancer> {
-  const { data } = await supabase.from('app_parametros').select('chave, valor').eq('modulo', 'cancer');
+  const { data } = await supabase.from('qa_parametros').select('chave, valor').eq('modulo', 'cancer');
   const porChave = new Map(((data ?? []) as { chave: string; valor: unknown }[]).map((l) => [String(l.chave).replace('cancer.', ''), l.valor]));
   const texto = (chave: string) => String(porChave.get(chave) ?? '');
 

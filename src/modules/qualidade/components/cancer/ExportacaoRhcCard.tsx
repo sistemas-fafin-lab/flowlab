@@ -6,7 +6,7 @@ import { buscarLinkDownloadExportacao, gerarExportacaoCancer, listarExportacoesC
 import { Skeleton } from '../ui/Skeleton.js';
 
 interface ExportacaoRhcCardProps {
-  /** Registrador padrão vindo de `app_parametros` (parametro fixo `registrador`). */
+  /** Registrador padrão vindo de `qa_parametros` (parametro fixo `registrador`). */
   registradorPadrao: string;
   canManage: boolean;
 }

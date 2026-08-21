@@ -14,7 +14,7 @@
 // `auditoria.registrar()` explícito de curadoria.ts foi removido: o trigger
 // Postgres de qa_ocorrencias (ver a migration deste piloto) grava a
 // auditoria automaticamente a partir de agora — nenhuma escrita direta em
-// `app_auditoria` do lado do cliente.
+// `qa_auditoria` do lado do cliente.
 
 import type { CuradoriaOcorrenciaInput, IndicadorOcorrenciasResposta, OcorrenciaDTO, OcorrenciaFiltro } from './types';
 import { supabase } from '../../lib/supabase';
@@ -29,7 +29,7 @@ export interface ItemVocabularioOcorrencia {
 }
 
 async function listarVocabulario(
-  tabela: 'app_colaboradores' | 'app_setores' | 'qa_motivos_ocorrencia',
+  tabela: 'qa_colaboradores' | 'qa_setores' | 'qa_motivos_ocorrencia',
 ): Promise<ItemVocabularioOcorrencia[]> {
   const { data, error } = await supabase.from(tabela).select('id, nome').eq('ativo', true).order('nome');
   if (error) throw new ErroApiQualidade(500, `Falha ao listar ${tabela}: ${error.message}`);
@@ -37,11 +37,11 @@ async function listarVocabulario(
 }
 
 export function buscarColaboradoresOcorrencia(): Promise<ItemVocabularioOcorrencia[]> {
-  return listarVocabulario('app_colaboradores');
+  return listarVocabulario('qa_colaboradores');
 }
 
 export function buscarSetoresOcorrencia(): Promise<ItemVocabularioOcorrencia[]> {
-  return listarVocabulario('app_setores');
+  return listarVocabulario('qa_setores');
 }
 
 export function buscarMotivosOcorrencia(): Promise<ItemVocabularioOcorrencia[]> {
@@ -52,7 +52,7 @@ const SELECT_OCORRENCIA =
   'id, id_ocorrencia_lis, num_cod, dta_ocorrencia, cod_requisicao, descricao_lis, acao_imediata_lis, ' +
   'cau_descricao_lis, categoria_origem_lis, categoria_origem_generica, colaborador_id, setor_erro_id, ' +
   'motivo_id, resumo_curado, acao_curada, status_curadoria, revisao_pendente, curado_por, curado_em, ' +
-  'colaborador:app_colaboradores(nome), setor:app_setores(nome), motivo:qa_motivos_ocorrencia(nome)';
+  'colaborador:qa_colaboradores(nome), setor:qa_setores(nome), motivo:qa_motivos_ocorrencia(nome)';
 
 interface LinhaBrutaOcorrencia {
   id: string;
@@ -173,7 +173,7 @@ export async function buscarIndicadoresOcorrencias(periodo: {
     .from('qa_ocorrencias')
     .select(
       'dta_ocorrencia, status_curadoria, motivo_id, setor_erro_id, colaborador_id, ' +
-        'motivo:qa_motivos_ocorrencia(nome), setor:app_setores(nome), colaborador:app_colaboradores(nome)',
+        'motivo:qa_motivos_ocorrencia(nome), setor:qa_setores(nome), colaborador:qa_colaboradores(nome)',
     )
     .gte('dta_ocorrencia', periodo.inicio)
     .lte('dta_ocorrencia', periodo.fim);

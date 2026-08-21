@@ -43,9 +43,9 @@ interface ParametrosCortesia {
   considerarDiasUteis: boolean;
 }
 
-/** `app_parametros` (módulo `cortesias`) com fallback documentado — mesmo padrão de `ihq.tat_alerta_dias` em ihq.ts. */
+/** `qa_parametros` (módulo `cortesias`) com fallback documentado — mesmo padrão de `ihq.tat_alerta_dias` em ihq.ts. */
 async function carregarParametrosCortesia(supabase: ReturnType<typeof getSupabaseAdminClient>): Promise<ParametrosCortesia> {
-  const { data } = await supabase.from('app_parametros').select('chave, valor').eq('modulo', 'cortesias');
+  const { data } = await supabase.from('qa_parametros').select('chave, valor').eq('modulo', 'cortesias');
   const porChave = new Map(((data ?? []) as { chave: string; valor: unknown }[]).map((l) => [l.chave, l.valor]));
 
   const prazoAprovacaoDias = Number(porChave.get('cortesias.prazo_aprovacao_dias') ?? PRAZO_APROVACAO_DIAS_PADRAO);

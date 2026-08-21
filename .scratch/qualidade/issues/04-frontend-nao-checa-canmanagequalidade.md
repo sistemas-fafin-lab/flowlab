@@ -56,7 +56,7 @@ Resolvido após code review (Standards + Spec) do WIP:
    401 das páginas era inalcançável) e as mensagens "ver STATUS.md" (arquivo
    inexistente) foram removidas; `Inicio` renomeado para `QualidadeDashboardPage`;
    prop `colunaAcoes` removida de `TabelaExpansivel` (nenhum caller usava);
-   policy `app_parametros_write` restrita a `chave LIKE 'cancer.%'` (antes dava
+   policy `qa_parametros_write` restrita a `chave LIKE 'cancer.%'` (antes dava
    escrita sobre todas as chaves compartilhadas a qualquer `canManageQualidade`).
 
 Verificado: `npx tsc --noEmit` sem erros novos (25 pré-existentes em arquivos de

@@ -461,7 +461,7 @@ export interface GerarExportacaoInput {
 }
 
 /**
- * Chaves editáveis de `ParametrosFixosCancerDTO` (`app_parametros`, módulo
+ * Chaves editáveis de `ParametrosFixosCancerDTO` (`qa_parametros`, módulo
  * `cancer`) — "raramente variam" (Fonte, Cor etc.), mas não são hardcoded
  * (P5), e o usuário pediu que fiquem editáveis a partir do drawer de 1 caso,
  * com confirmação. `cnes` fica de fora de propósito: continua sua própria
