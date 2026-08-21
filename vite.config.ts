@@ -679,13 +679,99 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
+// Espelho de dev de /api/qualidade/* (api/qualidade/[action].ts) — mesmo
+// raciocínio do faturamentoApiPlugin logo acima (dispatcher dinâmico +
+// MySQL de backup do laboratório). Sem este plugin, `npm run dev` (vite
+// puro, sem runtime Vercel) não tem NADA servindo `/api/qualidade/*` — a
+// requisição cai no fallback do SPA (GET) ou simplesmente 404 (POST, que é
+// o método usado por todas as actions de Qualidade), mesmo com
+// `vercel dev` rodando à parte: o browser está apontando pro servidor do
+// vite, não pro do vercel dev, e não há proxy entre os dois neste arquivo.
+function qualidadeApiPlugin(env: Record<string, string>): Plugin {
+  const QUALIDADE_ACTIONS = new Set([
+    'sync-ocorrencias', 'sync-cortesias', 'buscar-pii-cortesias',
+    'sync-ihq', 'buscar-pii-ihq', 'buscar-detalhe-ihq', 'confirmar-vinculo-ihq',
+    'sync-cancer', 'buscar-funil-cancer', 'buscar-detalhe-cancer',
+    'gerar-exportacao-cancer', 'baixar-exportacao-cancer',
+  ]);
+  // DB_* é o MySQL de backup do laboratório (mesma fonte de faturamento/apoio).
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME',
+    'APLIS_CORTESIA_TIPO_AUTORIZACAO',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
+  return {
+    name: 'qualidade-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        const match = url.pathname.match(/^\/api\/qualidade\/([^/]+)$/);
+        const action = match?.[1];
+        if (!action || !QUALIDADE_ACTIONS.has(action) || req.method !== 'POST') return next();
+
+        let body: Record<string, unknown> = {};
+        try {
+          await new Promise<void>((resolve, reject) => {
+            let raw = '';
+            req.on('data', (chunk) => { raw += chunk; });
+            req.on('end', () => {
+              try { body = raw ? JSON.parse(raw) : {}; resolve(); }
+              catch { reject(new Error('JSON inválido')); }
+            });
+            req.on('error', reject);
+          });
+        } catch {
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: 'Body inválido' }));
+          return;
+        }
+
+        const vReq = Object.assign(req, { body, query: { action } });
+        const vRes = Object.assign(res, {
+          status(code: number) { res.statusCode = code; return vRes; },
+          json(payload: unknown) {
+            if (!res.headersSent) res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(payload));
+            return vRes;
+          },
+        });
+
+        try {
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule(`/api/_lib/handlers/qualidade-${action}.ts`);
+          await mod.default(vReq, vRes);
+        } catch (err) {
+          console.error(`[dev/qualidade/${action}]`, err);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Erro interno' }));
+          }
+        }
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // loadEnv com prefix '' carrega TODAS as vars (inclusive UMAMI_* sem prefixo VITE_)
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env)],
+    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env), qualidadeApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },
