@@ -52,6 +52,11 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // ── Qualidade ──────────────────────────────────────────────────────────────
   { key: 'canViewQualidade', label: 'Visualizar Qualidade', group: 'Qualidade' },
   { key: 'canManageQualidade', label: 'Gerenciar Qualidade (curadoria e sincronização)', group: 'Qualidade' },
+  // ── Board (Kanban multi-departamento) ──────────────────────────────────────
+  // Visualizar o próprio board não é uma permission: é implícito a qualquer
+  // cargo com custom_roles.board_id preenchido (ver domain/resolveBoardAccess).
+  { key: 'canManageBoard', label: 'Gerenciar Board do Próprio Cargo', group: 'Board' },
+  { key: 'canManageAllBoards', label: 'Gerenciar Todos os Boards', group: 'Board' },
 ];
 
 // ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────
@@ -71,7 +76,7 @@ export const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ALL_PERMISSION_KEYS.map(p => p.key),
   operator: ALL_PERMISSION_KEYS.map(p => p.key).filter(
-    k => !['canViewDashboard', 'canManageUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade'].includes(k)
+    k => !['canViewDashboard', 'canManageUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards'].includes(k)
   ),
   requester: ['canViewRequests', 'canAddRequests'],
 };
