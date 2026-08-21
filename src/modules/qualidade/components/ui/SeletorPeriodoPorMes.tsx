@@ -1,4 +1,3 @@
-import { ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 
 interface SeletorPeriodoPorMesProps {
@@ -96,41 +95,37 @@ export function SeletorPeriodoPorMes({ inicio, fim, onMudar, anoPadrao }: Seleto
 
   return (
     <div className="w-full glass-surface rounded-2xl p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Período</p>
-        <div className="relative">
-          <select
-            aria-label="Ano"
-            value={anoExibido}
-            onChange={(e) => selecionarAno(Number(e.target.value))}
-            className="glass-field appearance-none rounded-xl py-2 pl-3 pr-8 text-sm font-semibold text-slate-800 dark:text-slate-200"
-          >
-            {anos.map((ano) => (
-              <option key={ano} value={ano}>
-                {ano}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-slate-400" aria-hidden />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-1 flex-wrap gap-2">
+          {MESES.map((mes) => (
+            <button
+              key={mes.numero}
+              type="button"
+              onClick={() => selecionarMes(mes.numero)}
+              aria-pressed={mesSelecionado === mes.numero}
+              className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${
+                mesSelecionado === mes.numero
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/25'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-200'
+              }`}
+            >
+              {mes.rotulo}
+            </button>
+          ))}
         </div>
-      </div>
 
-      <div className="mt-3 flex flex-wrap justify-center gap-2">
-        {MESES.map((mes) => (
-          <button
-            key={mes.numero}
-            type="button"
-            onClick={() => selecionarMes(mes.numero)}
-            aria-pressed={mesSelecionado === mes.numero}
-            className={`rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 ${
-              mesSelecionado === mes.numero
-                ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md shadow-blue-500/25'
-                : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-slate-200'
-            }`}
-          >
-            {mes.rotulo}
-          </button>
-        ))}
+        <select
+          aria-label="Ano"
+          value={anoExibido}
+          onChange={(e) => selecionarAno(Number(e.target.value))}
+          className="glass-field shrink-0 rounded-xl py-2 pl-3 text-sm font-semibold text-slate-800 dark:text-slate-200"
+        >
+          {anos.map((ano) => (
+            <option key={ano} value={ano}>
+              {ano}
+            </option>
+          ))}
+        </select>
       </div>
     </div>
   );
