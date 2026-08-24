@@ -36,6 +36,10 @@ const CONNECT_TIMEOUT_MS = 8_000;
 
 export const MAX_TAMANHO = 200;
 export const TAMANHO_PADRAO = 50;
+/** Teto de lotes por título — compartilhado entre a criação (titulo-criar) e a
+ *  revalidação ao vivo do envio (titulo-lotes-envio), que nunca recebe mais
+ *  lotes do que um título pode ter tido na criação. */
+export const MAX_LOTES_TITULO = 50;
 /** Teto do termo de busca: ele vira 7 predicados LIKE, não faz sentido aceitar texto longo. */
 export const MAX_BUSCA = 100;
 

@@ -18,6 +18,7 @@ import type {
   TitulosViewFiltros,
 } from '../types';
 import { formatCompetencia, formatCurrency, formatData, formatDataHora } from '../utils/formato';
+import { dataEnvioEfetiva } from '../utils/envioAoVivo';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
@@ -81,6 +82,8 @@ interface Props {
   onGlosa: (titulo: TituloReceber) => void;
   onCancelar: (titulo: TituloReceber) => void;
   buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
+  /** `DtaEnvio` ao vivo dos lotes (issue 15) — chave = aplisId. Ver utils/envioAoVivo.ts. */
+  buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
 }
 
 /** Badge de atraso. Só aparece quando há vencimento e o título ainda tem saldo. */
@@ -117,6 +120,7 @@ const TitulosList: React.FC<Props> = ({
   onGlosa,
   onCancelar,
   buscarGuias,
+  buscarEnvioLotes,
 }) => {
   const [expandido, setExpandido] = useState<string | null>(null);
   const [loteAberto, setLoteAberto] = useState<string | null>(null);
@@ -126,6 +130,35 @@ const TitulosList: React.FC<Props> = ({
   const [carregandoGuias, setCarregandoGuias] = useState<Record<string, boolean>>({});
   const [erroGuias, setErroGuias] = useState<Record<string, string>>({});
   const [busca, setBusca] = useState(filtros.busca);
+  // Por título: DtaEnvio ao vivo dos seus lotes, chave = aplisId (issue 15).
+  // Ausente = ainda não revalidado ou a consulta falhou — dataEnvioEfetiva cai
+  // pro snapshot nos dois casos, então não há necessidade de distinguir aqui.
+  const [enviosPorTitulo, setEnviosPorTitulo] = useState<Record<string, Record<string, string | null>>>({});
+
+  // Revalida o dataEnvio dos lotes do título assim que ele é expandido, direto
+  // no apLIS — o snapshot gravado na criação do título fica preso pra sempre
+  // quando o envio só aconteceu DEPOIS de o título existir (issue 15).
+  useEffect(() => {
+    if (!expandido) return;
+    const titulo = titulos.find((t) => t.id === expandido);
+    if (!titulo) return;
+    const idsAplis = [...new Set(
+      titulo.lotes.map((lote) => lote.aplisId).filter((id): id is string => Boolean(id)),
+    )];
+    if (idsAplis.length === 0) return;
+
+    let cancelado = false;
+    void buscarEnvioLotes(idsAplis)
+      .then((mapa) => {
+        if (!cancelado) setEnviosPorTitulo((atual) => ({ ...atual, [expandido]: mapa }));
+      })
+      .catch(() => {
+        // Túnel fora do ar, lote não encontrado etc.: a tela cai pro snapshot
+        // via dataEnvioEfetiva (sem entrada em enviosPorTitulo), sem quebrar.
+      });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandido]);
 
   // Debounce: cada tecla dispararia uma consulta paginada ao Supabase.
   useEffect(() => {
@@ -415,7 +448,7 @@ const TitulosList: React.FC<Props> = ({
                                         <span className="text-gray-400">{lote.statusLabel}</span>
                                       )}
                                       <span className="text-gray-400">
-                                        envio {formatData(lote.dataEnvio)}
+                                        envio {formatData(dataEnvioEfetiva(lote, enviosPorTitulo[titulo.id] ?? null))}
                                       </span>
                                       <span className="ml-auto text-gray-500 dark:text-gray-400 tabular-nums">
                                         {lote.qtdRequisicoes} guias · {formatCurrency(lote.valorTotal)}

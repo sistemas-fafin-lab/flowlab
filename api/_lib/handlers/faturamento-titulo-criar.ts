@@ -25,14 +25,12 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { detalharVariosLotes, listarLotes, MAX_TAMANHO } from '../faturamento/bdLab.js';
+import { detalharVariosLotes, listarLotes, MAX_LOTES_TITULO, MAX_TAMANHO } from '../faturamento/bdLab.js';
 import type { LoteFaturamento, RequisicaoLote } from '../faturamento/bdLab.js';
 import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 const COMPETENCIA_RE = /^\d{4}-\d{2}$/;
-/** Teto de lotes por título: o snapshot é síncrono e cada lote traz suas guias. */
-const MAX_LOTES = 50;
 
 const FORMATO_DATA_LOCAL = new Intl.DateTimeFormat('en-CA', {
   timeZone: 'America/Sao_Paulo',
@@ -127,7 +125,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const erros = [
       idsLote.length === 0 ? 'idsLote (ao menos um lote válido)' : null,
-      idsLote.length > MAX_LOTES ? `idsLote (máximo ${MAX_LOTES})` : null,
+      idsLote.length > MAX_LOTES_TITULO ? `idsLote (máximo ${MAX_LOTES_TITULO})` : null,
       !numeroNota ? 'numeroNota' : null,
       dataEmissao && !DATA_ISO_RE.test(dataEmissao) ? 'dataEmissao (YYYY-MM-DD)' : null,
       dataVencimento && !DATA_ISO_RE.test(dataVencimento) ? 'dataVencimento (YYYY-MM-DD)' : null,

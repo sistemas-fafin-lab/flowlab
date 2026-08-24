@@ -29,6 +29,32 @@ async function getToken(): Promise<string | null> {
   return session?.access_token ?? null;
 }
 
+/**
+ * Chamada autenticada a uma rota /api/faturamento/*: token da sessão, parsing
+ * do corpo e checagem de `success` num lugar só — criarTitulo e
+ * buscarEnvioLotes repetiam esse mesmo bloco ponta a ponta.
+ */
+async function chamarApi<T = unknown>(
+  path: string,
+  mensagemPadrao: string,
+  init: { method?: string; body?: unknown } = {},
+): Promise<T & { success?: boolean; error?: string }> {
+  const token = await getToken();
+  if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+
+  const res = await fetch(path, {
+    method: init.method ?? 'GET',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(init.body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(init.body !== undefined ? { body: JSON.stringify(init.body) } : {}),
+  });
+  const body = (await res.json().catch(() => ({}))) as T & { success?: boolean; error?: string };
+  if (!res.ok || !body.success) throw new Error(body.error || mensagemPadrao);
+  return body;
+}
+
 // Formato cru devolvido pelo PostgREST — snake_case, com os embeds aninhados.
 interface LinhaTitulo {
   id_nota: string;
@@ -109,6 +135,11 @@ interface UseContasReceberResult {
   /** Guias congeladas de um lote, sob demanda ao expandir a linha. Sempre um
    *  array — nunca undefined, mesmo sem nenhuma guia. */
   buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
+  /** `DtaEnvio` ao vivo dos lotes informados (chave = aplisId), direto do apLIS —
+   *  issue 15: revalida a expansão do título contra o snapshot desatualizado.
+   *  Lança em falha de rede/túnel; quem chama decide o fallback (ver
+   *  utils/envioAoVivo.ts), então nunca retorna silenciosamente vazio. */
+  buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
   criarTitulo: (dados: {
     idsLote: number[];
     numeroNota: string;
@@ -241,6 +272,15 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }));
   }, []);
 
+  const buscarEnvioLotes = useCallback(async (idsAplis: string[]): Promise<Record<string, string | null>> => {
+    if (idsAplis.length === 0) return {};
+    const body = await chamarApi<{ envios?: Record<string, string | null> }>(
+      `/api/faturamento/titulo-lotes-envio?idsLote=${idsAplis.join(',')}`,
+      'Não foi possível revalidar o envio dos lotes.',
+    );
+    return body.envios ?? {};
+  }, []);
+
   const criarTitulo = useCallback(async (dados: {
     idsLote: number[];
     numeroNota: string;
@@ -251,16 +291,11 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   }): Promise<string | null> => {
     setError(null);
     try {
-      const token = await getToken();
-      if (!token) throw new Error('Sessão expirada. Faça login novamente.');
-
-      const res = await fetch('/api/faturamento/titulo-criar', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(dados),
-      });
-      const body = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
-      if (!res.ok || !body.success) throw new Error(body.error || 'Não foi possível criar o título.');
+      await chamarApi(
+        '/api/faturamento/titulo-criar',
+        'Não foi possível criar o título.',
+        { method: 'POST', body: dados },
+      );
 
       await refetch();
       return null;
@@ -367,6 +402,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     refetch,
     refetchOperadoras,
     buscarGuias,
+    buscarEnvioLotes,
     criarTitulo,
     registrarBaixa,
     lancarGlosas,
