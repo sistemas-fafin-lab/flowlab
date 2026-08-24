@@ -223,7 +223,7 @@ export interface RequisicaoPendencia {
 export interface PendenciasFiltros {
   /** YYYY-MM-DD */
   desde?: string;
-  /** YYYY-MM-DD — nunca ultrapassa o cutoff de M-2 devolvido em `PendenciasMeta`. */
+  /** YYYY-MM-DD — nunca ultrapassa o cutoff de M-1 devolvido em `PendenciasMeta`. */
   ate?: string;
   operadoraId?: number;
   pagina?: number;
@@ -237,7 +237,7 @@ export interface PendenciasMeta {
   registros: number;
   /** Soma do valor de todos os lotes pendentes, não só a página atual. */
   valorTotal: number;
-  /** Fim de M-2 — data de corte da regra, calculada no servidor a partir de "hoje". */
+  /** Fim de M-1 — data de corte da regra, calculada no servidor a partir de "hoje". */
   cutoff: string;
 }
 

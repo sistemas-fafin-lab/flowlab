@@ -2,7 +2,7 @@
  * API Route: GET /api/faturamento/pendencias-nao-faturadas
  *
  * Devolve à aba Faturamento → Contas a Receber → Pendências os lotes de faturamento
- * sem NF/RPS vinculado e fora da janela normal de fechamento (2 meses mais recentes).
+ * sem NF/RPS vinculado e fora da janela normal de fechamento (mês corrente).
  * Regra completa em api/_lib/faturamento/bdLab.ts (listarLotesPendentes).
  *
  * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do operador
@@ -10,7 +10,7 @@
  *
  * Query params (todos opcionais):
  *   desde         YYYY-MM-DD — limite inferior
- *   ate           YYYY-MM-DD — limite superior (nunca ultrapassa o cutoff de M-2)
+ *   ate           YYYY-MM-DD — limite superior (nunca ultrapassa o cutoff de M-1)
  *   operadoraId   fatinstituicao.IdInstituicao
  *   pagina        default 1
  *   tamanho       1..200, default 50

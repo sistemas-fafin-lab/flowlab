@@ -1,4 +1,4 @@
-Status: needs-triage
+Status: done
 Type: task
 
 # Pendências: janela de "Sem NF (Lotes)" passa de M-2 para M-1

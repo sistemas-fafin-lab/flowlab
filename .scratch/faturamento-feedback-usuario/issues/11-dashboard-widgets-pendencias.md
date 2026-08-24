@@ -10,7 +10,7 @@ Blocked by: 07, 08
 
 ## O que fazer
 
-1. Widget-resumo "Requisições não faturadas (até M-2)": contagem e valor total das pendências da issue 07.
+1. Widget-resumo "Requisições não faturadas (até M-1)": contagem e valor total das pendências da issue 07. Ajustado de M-2 pra M-1 na issue 18 (grilling 24/08).
 2. Widget-resumo "Particulares sem NF": contagem e valor total da issue 08.
 3. Navegação dos widgets para a aba "Pendências" (com filtros aplicados, se simples).
 4. Bump da chave de layout se necessário.

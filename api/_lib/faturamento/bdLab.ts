@@ -828,9 +828,9 @@ export async function detalharLote(
 // ============================================================================
 // Regra decidida com o financeiro: lote em status ativo (1 Em Processamento, 2
 // Conciliação, 3 Faturado, 6 Exportado TOTVS, 7 Recebido - parcial), sem NF/RPS
-// vinculado (`fatlote.IdRPS` nulo), criado até o fim do mês retrasado (M-2) — os
-// dois meses mais recentes ainda estão no fluxo normal de fechamento e não são
-// pendência. Cancelado (5) e Prejuízo (8) nunca entram: não vão gerar NF.
+// vinculado (`fatlote.IdRPS` nulo), criado até o fim do mês passado (M-1) — o mês
+// corrente ainda está no fluxo normal de fechamento e não é pendência. Cancelado
+// (5) e Prejuízo (8) nunca entram: não vão gerar NF.
 //
 // NÃO inclui Recebido (4), mesmo sem IdRPS. Achado do levantamento (ago/2026, ver
 // docs/plans/faturamento/pendencias-nao-faturadas-design.md): 3.188 lotes
@@ -840,7 +840,7 @@ export async function detalharLote(
 // antigos foi emitida FORA do apLIS e nunca foi religada ao lote: o pagamento já
 // aconteceu, só falta o vínculo — não é uma pendência de cobrança.
 //
-// O cutoff (fim de M-2) é calculado no PRÓPRIO MySQL a partir de CURDATE(), pelo
+// O cutoff (fim de M-1) é calculado no PRÓPRIO MySQL a partir de CURDATE(), pelo
 // mesmo motivo do DATE_FORMAT no resto do arquivo: calcular em Date do Node
 // puxaria o fuso do processo (UTC no Vercel, America/Sao_Paulo em dev), e um
 // request na virada do mês poderia decidir um cutoff diferente dependendo de onde
@@ -864,14 +864,14 @@ export interface PendenciasMeta {
   /** Soma do valor de TODOS os lotes que casam o filtro, não só a página atual —
    *  é o número que o widget-resumo do Dashboard mostra. */
   valorTotal: number;
-  /** Fim de M-2 — data de corte da regra, calculada no MySQL a partir de CURDATE(). */
+  /** Fim de M-1 — data de corte da regra, calculada no MySQL a partir de CURDATE(). */
   cutoff: string;
 }
 
 export interface ListarLotesPendentesParams {
   /** YYYY-MM-DD — limite inferior opcional. */
   desde?: string;
-  /** YYYY-MM-DD — limite superior opcional; nunca ESTENDE o cutoff de M-2, só pode
+  /** YYYY-MM-DD — limite superior opcional; nunca ESTENDE o cutoff de M-1, só pode
    *  encurtar a janela (ver `ateEfetivo` em `listarLotesPendentes`). */
   ate?: string;
   operadoraId?: number;
@@ -924,7 +924,7 @@ export async function listarLotesPendentes(
 
   return comConexao('listarLotesPendentes', async (conn) => {
     const [cutoffLinhas] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT DATE_FORMAT(LAST_DAY(CURDATE() - INTERVAL 2 MONTH), '%Y-%m-%d') AS cutoff`,
+      `SELECT DATE_FORMAT(LAST_DAY(CURDATE() - INTERVAL 1 MONTH), '%Y-%m-%d') AS cutoff`,
       [],
     );
     const cutoff = String(cutoffLinhas[0]?.cutoff);

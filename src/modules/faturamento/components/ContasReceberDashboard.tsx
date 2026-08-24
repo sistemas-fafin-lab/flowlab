@@ -542,7 +542,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
             <div className="min-h-full grid grid-cols-1 sm:grid-cols-2 gap-3 [grid-auto-rows:1fr]">
               <Kpi
                 icon={<FileWarning className="w-4 h-4 sm:w-5 sm:h-5" />}
-                label="Requisições não faturadas (até M-2)"
+                label="Requisições não faturadas (até M-1)"
                 sub={
                   loadingPendenciasLotes
                     ? 'carregando…'
