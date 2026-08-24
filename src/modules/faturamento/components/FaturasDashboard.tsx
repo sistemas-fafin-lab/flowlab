@@ -77,6 +77,14 @@ function requisicoesParaExibir(
   return { exibidas, ocultasRecebidas: todas.length - exibidas.length };
 }
 
+/** Texto do tooltip do badge de protocolo duplicado — lista os OUTROS lotes do
+ *  mesmo grupo (issue 13 do feedback: só a contagem não dizia quais). */
+function protocoloDuplicadoLabel(lote: LoteFaturamento): string {
+  const outros = lote.protocoloDuplicadoLotes ?? [];
+  if (outros.length === 0) return `Protocolo duplicado em ${lote.protocoloDuplicadoContagem ?? 0} lotes`;
+  return `Protocolo duplicado com o(s) lote(s) ${outros.join(', ')}`;
+}
+
 const StatusBadge: React.FC<{ lote: LoteFaturamento }> = ({ lote }) => (
   <span
     className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${
@@ -536,12 +544,11 @@ const FaturasDashboard: React.FC = () => {
                             </span>
                           )}
                           {lote.protocoloDuplicado && (
-                            <span
-                              title={`Protocolo duplicado em ${lote.protocoloDuplicadoContagem ?? 0} lotes`}
-                              className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap"
-                            >
-                              protocolo duplicado
-                            </span>
+                            <Tooltip label={protocoloDuplicadoLabel(lote)} className="ml-2 align-middle">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap">
+                                protocolo duplicado
+                              </span>
+                            </Tooltip>
                           )}
                         </td>
                         <td className="px-3 py-4 text-gray-700 dark:text-gray-300">

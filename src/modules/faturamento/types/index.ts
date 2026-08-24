@@ -93,6 +93,9 @@ export interface LoteFaturamento {
   protocoloDuplicado: boolean;
   /** Em quantos lotes este protocolo aparece; null quando não duplicado. */
   protocoloDuplicadoContagem: number | null;
+  /** `IdLote` dos OUTROS lotes com o mesmo protocolo (exclui o próprio); null
+   *  quando não duplicado — issue 13 do feedback. */
+  protocoloDuplicadoLotes: number[] | null;
   nfeNumero: string | null;
   nfeCodigoVerificacao: string | null;
   numeroRPS: number | null;

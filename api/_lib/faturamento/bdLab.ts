@@ -67,6 +67,9 @@ export interface LoteFaturamento {
   protocoloDuplicado: boolean;
   /** Em quantos lotes este protocolo aparece; null quando não duplicado. */
   protocoloDuplicadoContagem: number | null;
+  /** `IdLote` dos OUTROS lotes com o mesmo protocolo (exclui o próprio); null
+   *  quando não duplicado — issue 13 do feedback. */
+  protocoloDuplicadoLotes: number[] | null;
   nfeNumero: string | null;
   nfeCodigoVerificacao: string | null;
   numeroRPS: number | null;
@@ -322,7 +325,7 @@ function daCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, temBusca
 // única agregação (GROUP BY) em vez de subconsulta correlacionada por linha — cache
 // à parte da listagem, mesmo TTL, para não pagar esse full scan a cada combinação de
 // filtro/página.
-let cacheProtocolosDuplicados: { mapa: Map<string, number>; ts: number } | null = null;
+let cacheProtocolosDuplicados: { mapa: Map<string, number[]>; ts: number } | null = null;
 
 /** Protocolo (já trimado — ver TRIM no SELECT, mesmo tratamento de `texto()`) →
  *  quantos lotes o compartilham, só para os que NÃO são formato de data (ver
@@ -336,7 +339,7 @@ let cacheProtocolosDuplicados: { mapa: Map<string, number>; ts: number } | null 
 async function protocolosDuplicados(
   conn: mysql.Connection,
   ignorarCache: boolean,
-): Promise<Map<string, number>> {
+): Promise<Map<string, number[]>> {
   if (!ignorarCache && cacheProtocolosDuplicados
       && Date.now() - cacheProtocolosDuplicados.ts <= TTL_PADRAO) {
     return cacheProtocolosDuplicados.mapa;
@@ -345,19 +348,29 @@ async function protocolosDuplicados(
   // ("760054" vs " 760054") formaria um grupo à parte da contagem, e o filtro
   // `TRIM(l.Protocolo) IN (...)` de filtroLotes (que usa esta mesma lista) deixaria
   // de bater com o valor cru da coluna.
+  //
+  // GROUP_CONCAT trunca em 1024 bytes por padrão (group_concat_max_len) — um
+  // protocolo com dezenas de lotes no grupo cortaria a lista e faria o próprio
+  // IdLote sobrar como "duplicado com" ele mesmo, além de subcontar. A sessão do
+  // pool não tem esse limite elevado em nenhum outro lugar, então garante aqui.
+  await conn.execute('SET SESSION group_concat_max_len = 1000000');
+  // GROUP_CONCAT traz os IdLote do grupo — issue 13 do feedback: o badge de
+  // duplicidade precisa apontar QUAIS lotes, não só quantos.
   const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-    `SELECT TRIM(Protocolo) AS Protocolo, COUNT(*) AS Contagem
+    `SELECT TRIM(Protocolo) AS Protocolo,
+            GROUP_CONCAT(IdLote ORDER BY IdLote) AS Lotes
        FROM fatlote
       WHERE Protocolo IS NOT NULL AND TRIM(Protocolo) <> ''
       GROUP BY TRIM(Protocolo)
      HAVING COUNT(*) > 1`,
     [],
   );
-  const mapa = new Map<string, number>();
+  const mapa = new Map<string, number[]>();
   for (const linha of linhas) {
     const protocolo = texto(linha.Protocolo);
     if (!protocolo || protocoloEhData(protocolo)) continue;
-    mapa.set(protocolo, numero(linha.Contagem));
+    const lotes = texto(linha.Lotes)?.split(',').map((n) => Number(n)) ?? [];
+    mapa.set(protocolo, lotes);
   }
   cacheProtocolosDuplicados = { mapa, ts: Date.now() };
   return mapa;
@@ -487,12 +500,17 @@ const SQL_LISTA = `
    ORDER BY l.DtaCriacao DESC, l.IdLote DESC
    LIMIT %LIMIT% OFFSET %OFFSET%`;
 
-function normalizarLote(linha: mysql.RowDataPacket, duplicados: Map<string, number>): LoteFaturamento {
+function normalizarLote(linha: mysql.RowDataPacket, duplicados: Map<string, number[]>): LoteFaturamento {
   const status = inteiroOuNulo(linha.Status) ?? 0;
   const protocolo = texto(linha.Protocolo);
-  const contagemDuplicado = protocolo ? duplicados.get(protocolo) ?? 0 : 0;
+  const idLote = numero(linha.IdLote);
+  // Grupo inteiro (inclui o próprio lote); o campo exposto na resposta é só o
+  // resto do grupo — ver `protocoloDuplicadoLotes`.
+  const grupo = protocolo ? duplicados.get(protocolo) ?? [] : [];
+  const contagemDuplicado = grupo.length;
+  const outrosLotes = grupo.filter((id) => id !== idLote);
   return {
-    idLote: numero(linha.IdLote),
+    idLote,
     status,
     // Código fora da tabela conhecida ainda tem que renderizar algo legível.
     statusLabel: STLOT_LABELS[status] ?? `Status ${status}`,
@@ -503,6 +521,7 @@ function normalizarLote(linha: mysql.RowDataPacket, duplicados: Map<string, numb
     protocolo,
     protocoloDuplicado: contagemDuplicado > 0,
     protocoloDuplicadoContagem: contagemDuplicado > 0 ? contagemDuplicado : null,
+    protocoloDuplicadoLotes: contagemDuplicado > 0 ? outrosLotes : null,
     nfeNumero: texto(linha.NFeNumero),
     nfeCodigoVerificacao: texto(linha.NFeCodigoVerificacao),
     numeroRPS: inteiroOuNulo(linha.NumeroRPS),
@@ -569,7 +588,7 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
     const precisaDuplicados = Boolean(params.comProtocoloDuplicado || params.somenteProtocoloDuplicado);
     const duplicados = precisaDuplicados
       ? await protocolosDuplicados(conn, Boolean(params.ignorarCache))
-      : new Map<string, number>();
+      : new Map<string, number[]>();
     const { where, valores } = filtroLotes(params, [...duplicados.keys()]);
 
     // Diferente do apLIS, que saturava o total em 2000: aqui a contagem é exata.
