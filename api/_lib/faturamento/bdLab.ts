@@ -1298,15 +1298,17 @@ export async function listarParticularesPendentes(
 // Ver docs/plans/faturamento/glosas-recursos-legado-design.md.
 //
 // `IdMotivoGlosa` sozinho NÃO basta: o catálogo `fatmotivoglosa` (motivos ANS)
-// é reaproveitado pelo apLIS tanto pra glosa de fato (pagamento já processado,
-// valor rejeitado) quanto pra estado de autorização ainda em análise (ex.
+// é reaproveitado pelo apLIS tanto pra glosa de fato (valor recusado pelo
+// convênio) quanto pra estado de autorização ainda em análise (ex.
 // "3051 DOCUMENTAÇÃO EM ANÁLISE" com DesMotivoGlosa "400 | Em Analise |
-// Procedimento necessita analise PDMA" — feedback do setor, 24/08). Verificado
-// direto no banco: linhas ainda em análise nunca têm `DtaRecebido`/
-// `ValorRecebido` preenchidos (o ciclo de pagamento/conciliação não aconteceu
-// ainda); linhas de glosa real (ex. "2902 GLOSA MANTIDA") quase sempre têm os
-// dois. Por isso o filtro abaixo exige pelo menos um dos dois como sinal de
-// que o procedimento já passou pelo ciclo de recebimento/conciliação.
+// Procedimento necessita analise PDMA" — feedback do setor, 24/08).
+//
+// Regra confirmada com o cliente (24/08, pós-feedback): só conta como glosa a
+// requisição de um lote com `fatlote.Status` (STLOT) = 3 Faturado — literal,
+// não os demais status "já enviado" (4 Recebido, 6 Exportado TOTVS, 7
+// Recebido - parcial). Cogitado e descartado usar os 4 status de "já
+// enviado" (manteria ~25 mil linhas em vez de ~2.699), mas o cliente foi
+// explícito: só o 3.
 
 export interface GlosaRequisicaoLegado {
   idRequisicaoProcedimento: number;
@@ -1357,10 +1359,9 @@ function filtroGlosasLegado(
 ): { where: string; valores: ParametroSql[] } {
   const condicoes: string[] = [
     'frp.IdMotivoGlosa IS NOT NULL',
-    // Exclui procedimentos ainda em análise de autorização (nunca passaram por
-    // recebimento/conciliação) — só entram como "glosa" os que têm pelo menos
-    // um sinal de terem sido processados. Ver comentário no topo da seção.
-    '(frp.DtaRecebido IS NOT NULL OR frp.ValorRecebido IS NOT NULL)',
+    // Só lotes no status Faturado contam como glosa. Ver comentário no topo
+    // da seção.
+    'fl.Status = 3',
   ];
   const valores: ParametroSql[] = [];
 
@@ -1407,6 +1408,7 @@ const SQL_LISTA_GLOSAS_LEGADO = `
          r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial
     FROM requisicao r
     JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+    JOIN fatlote fl ON fl.IdLote = r.Lote
     LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
     LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
     LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
@@ -1460,6 +1462,7 @@ export async function listarGlosasLegado(
       `SELECT COUNT(*) AS n
          FROM requisicao r
          JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+         JOIN fatlote fl ON fl.IdLote = r.Lote
          LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
          LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
          LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento

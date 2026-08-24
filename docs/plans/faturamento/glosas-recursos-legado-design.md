@@ -372,14 +372,21 @@ porque o SPA e as functions não compartilham pacote de tipos"):
 5. **[Resolvido pós-publicação, 24/08]** `IdMotivoGlosa IS NOT NULL` sozinho
    trazia negativa de autorização junto com glosa real — feedback do setor ao
    ver "3051 DOCUMENTAÇÃO EM ANÁLISE" (`DesMotivoGlosa` "400 | Em Analise |
-   Procedimento necessita analise PDMA") listado como "glosa". Investigação
-   direta no banco: das 26.296 linhas com `IdMotivoGlosa` preenchido, 1.306
-   (5%) não têm `DtaRecebido` nem `ValorRecebido` — nunca passaram por
-   recebimento/conciliação, são autorização/documentação ainda em análise, não
-   glosa. Corrigido em `filtroGlosasLegado`
-   (`api/_lib/faturamento/bdLab.ts`): exige `DtaRecebido IS NOT NULL OR
-   ValorRecebido IS NOT NULL` além do `IdMotivoGlosa`. Ligado ao item 6 do
-   feedback do setor (`.scratch/faturamento-feedback-usuario/spec.md`) —
-   resolve o sintoma reportado nesta tela; a reclassificação completa
-   (glosa × negativa de autorização × procedimento não autorizado) para o
-   restante do módulo segue estacionada aguardando o documento "Zero Glosa".
+   Procedimento necessita analise PDMA") listado como "glosa". Duas correções
+   intermediárias foram cogitadas e substituídas até o cliente fechar a regra
+   final:
+   - 1ª tentativa: heurística `DtaRecebido`/`ValorRecebido` preenchido.
+   - 2ª tentativa: `fatlote.Status IN (3, 4, 6, 7)` ("já enviado ao
+     convênio" — Faturado/Recebido/Exportado TOTVS/Recebido-parcial).
+   - **Regra final do cliente**: só o status 3 (Faturado), literal — não os
+     demais status pós-envio. Implementado em `filtroGlosasLegado`
+     (`api/_lib/faturamento/bdLab.ts`) com `JOIN fatlote fl` +
+     `fl.Status = 3`. Volume real: cai de ~26 mil pra **2.699 linhas** — bem
+     menor que a opção "já enviado" (~25 mil), mas foi a instrução explícita
+     do cliente, então prevalece sobre a leitura "mais lotes é mais seguro"
+     que orientou a 2ª tentativa.
+   Ligado ao item 6 do feedback do setor
+   (`.scratch/faturamento-feedback-usuario/spec.md`) — resolve o sintoma
+   reportado nesta tela; a reclassificação completa (glosa × negativa de
+   autorização × procedimento não autorizado) para o restante do módulo
+   segue estacionada aguardando o documento "Zero Glosa".
