@@ -561,13 +561,13 @@ const ContasReceberDashboard: React.FC<Props> = ({
               />
               <Kpi
                 icon={<UserCircle className="w-4 h-4 sm:w-5 sm:h-5" />}
-                label="Particulares sem NF"
+                label="Particulares sem NF (até M-1)"
                 sub={
                   loadingPendenciasParticulares
                     ? 'carregando…'
                     : erroPendenciasParticulares
                       ? 'falha ao consultar'
-                      : `${metaPendenciasParticulares?.registros ?? 0} requisiç${metaPendenciasParticulares?.registros === 1 ? 'ão' : 'ões'} com laudo liberado`
+                      : `${metaPendenciasParticulares?.registros ?? 0} requisiç${metaPendenciasParticulares?.registros === 1 ? 'ão' : 'ões'} pendente${metaPendenciasParticulares?.registros === 1 ? '' : 's'}`
                 }
                 valor={
                   loadingPendenciasParticulares || erroPendenciasParticulares

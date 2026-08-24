@@ -6,9 +6,9 @@ import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import DatePicker from '../../../components/DatePicker';
 
 // Aba Contas a Receber → Pendências → Particulares: requisições da fonte
-// pagadora PARTICULAR (IdFontePagadora 1102) com laudo já liberado ao cliente e
-// sem NF emitida. Regra completa em api/_lib/faturamento/bdLab.ts
-// (listarParticularesPendentes).
+// pagadora PARTICULAR (IdFontePagadora 1102) sem NF emitida, dentro da janela
+// M-1 (mesmo corte de PendenciasNaoFaturadas). Regra completa em
+// api/_lib/faturamento/bdLab.ts (listarParticularesPendentes).
 //
 // Diferente de PendenciasNaoFaturadas (lote → requisições expansível), aqui a
 // requisição já é a unidade da lista: a maioria dos particulares nunca entra
@@ -68,8 +68,9 @@ const PendenciasParticulares: React.FC = () => {
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400">
-        Requisições particulares com laudo já liberado ao cliente e sem nota fiscal/RPS
-        emitida — inclui as que nunca chegaram a entrar num lote do apLIS.
+        Requisições particulares sem nota fiscal/RPS emitida
+        {meta?.cutoff ? <> desde a solicitação até {formatData(meta.cutoff)}</> : null} — inclui as
+        que nunca chegaram a entrar num lote do apLIS.
       </p>
 
       {error && (

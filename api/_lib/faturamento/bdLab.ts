@@ -887,6 +887,23 @@ export type ListarLotesPendentesResultado =
 // Códigos STLOT que ainda podem virar uma NF — ver a nota da regra acima.
 const STATUS_PENDENCIA = [1, 2, 3, 6, 7];
 
+/** Fim de M-1, calculado no MySQL a partir de CURDATE(), e o `ate` efetivo pra
+ *  janela de pendências: o `ate` do cliente só pode ENCURTAR a janela, nunca
+ *  estendê-la além do cutoff. Compartilhado por `listarLotesPendentes` e
+ *  `listarParticularesPendentes` (issue 19) — a mesma regra de janela nas duas. */
+async function cutoffEAteEfetivoM1(
+  conn: mysql.Connection,
+  ate: string | undefined,
+): Promise<{ cutoff: string; ateEfetivo: string }> {
+  const [cutoffLinhas] = await conn.execute<mysql.RowDataPacket[]>(
+    `SELECT DATE_FORMAT(LAST_DAY(CURDATE() - INTERVAL 1 MONTH), '%Y-%m-%d') AS cutoff`,
+    [],
+  );
+  const cutoff = String(cutoffLinhas[0]?.cutoff);
+  const ateEfetivo = ate && ate < cutoff ? ate : cutoff;
+  return { cutoff, ateEfetivo };
+}
+
 const cachePendencias = new Map<string, EntradaCache<ListarLotesPendentesResultado>>();
 
 function chavePendencias(params: ListarLotesPendentesParams): string {
@@ -923,13 +940,7 @@ export async function listarLotesPendentes(
   if (cacheHit) return cacheHit;
 
   return comConexao('listarLotesPendentes', async (conn) => {
-    const [cutoffLinhas] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT DATE_FORMAT(LAST_DAY(CURDATE() - INTERVAL 1 MONTH), '%Y-%m-%d') AS cutoff`,
-      [],
-    );
-    const cutoff = String(cutoffLinhas[0]?.cutoff);
-    // `ate` do cliente só pode ENCURTAR a janela, nunca estendê-la além do cutoff.
-    const ateEfetivo = params.ate && params.ate < cutoff ? params.ate : cutoff;
+    const { cutoff, ateEfetivo } = await cutoffEAteEfetivoM1(conn, params.ate);
 
     const condicoes = [
       'l.IdRPS IS NULL',
@@ -1092,25 +1103,24 @@ export async function detalharLotePendencia(
 // ============================================================================
 // PENDÊNCIAS — PARTICULARES (aba Contas a Receber → Pendências → Particulares)
 // ============================================================================
-// Espelha a subtab "recebido" da planilha do setor (issue 08 do feedback):
-// requisições da fonte pagadora PARTICULAR com laudo já liberado ao cliente e
-// sem NF emitida. Diferente de `listarLotesPendentes` acima, a unidade aqui é a
-// REQUISIÇÃO, não o lote — a maioria dos particulares (verificado: ~60% do
-// recorte "evento liberado") nunca chega a entrar num `fatlote` (pagamento é
-// direto no balcão), então esperar por um lote sem IdRPS deixaria de fora
-// justamente o caso mais comum.
+// Espelha a subtab "recebido" da planilha do setor (issue 08 do feedback, regra
+// revista pela issue 19): requisições da fonte pagadora PARTICULAR sem NF
+// emitida. Diferente de `listarLotesPendentes` acima, a unidade aqui é a
+// REQUISIÇÃO, não o lote — a maioria dos particulares nunca chega a entrar num
+// `fatlote` (pagamento é direto no balcão), então esperar por um lote sem IdRPS
+// deixaria de fora justamente o caso mais comum.
+//
+// Sem exigência de laudo liberado (issue 19): a NF do particular precisa ser
+// emitida no momento do PAGAMENTO, que acontece antes do laudo — exigir laudo
+// liberado escondia particulares que já deveriam ter NF emitida. Sem esse corte
+// por evento, a lista passa a contar da data de registro da requisição
+// (`DtaSolicitacao`), por isso ganha a mesma janela M-1 de `listarLotesPendentes`
+// (senão junta particulares antigos demais e vira ruído).
 //
 // Fonte pagadora: só 1102 (PARTICULAR, ativa). A 101 é a mesma razão social mas
 // está INATIVA no apLIS (fatinstituicao.Inativo = 1) — confirmado no banco real,
 // não é erro de digitação, são dois IDs legítimos; a regra do grilling fixou 1102.
 export const ID_FONTE_PAGADORA_PARTICULAR = 1102;
-
-// "Laudo liberado" = requisicao.CodEvento num destes códigos (tabela `evento`),
-// regra da subtab "recebido" que o setor já usa hoje. Referência de contexto:
-// evento 1040 "Requisição para pagamento no particular" (rótulo com typo no
-// banco: "Requsição") não entra aqui — é o evento SEGUINTE, que o setor lança
-// manualmente depois de cobrar; não faz sentido como filtro de pendência.
-const EVENTOS_LAUDO_LIBERADO_PARTICULAR = [11, 56, 16, 1000, 9, 19];
 
 export interface RequisicaoParticularPendencia {
   idRequisicao: number;
@@ -1128,6 +1138,8 @@ export interface RequisicaoParticularPendencia {
 export interface ListarParticularesPendentesParams {
   /** YYYY-MM-DD — sobre DtaSolicitacao. */
   desde?: string;
+  /** YYYY-MM-DD — limite superior opcional; nunca ESTENDE o cutoff de M-1, só pode
+   *  encurtar a janela (ver `ateEfetivo` em `listarParticularesPendentes`). */
   ate?: string;
   pagina?: number;
   tamanho?: number;
@@ -1142,6 +1154,9 @@ export interface ParticularesPendentesMeta {
   /** Soma do valor de TODAS as requisições que casam o filtro, não só a página
    *  atual — é o número que o widget-resumo do Dashboard mostra. */
   valorTotal: number;
+  /** Fim de M-1 — data de corte da regra (issue 19), calculada no MySQL a partir
+   *  de CURDATE(). */
+  cutoff: string;
 }
 
 export type ListarParticularesPendentesResultado =
@@ -1167,9 +1182,12 @@ function chaveParticularesPendentes(params: ListarParticularesPendentesParams): 
 // O `NOT EXISTS` cobre o caso raro (ver design doc de `listarLotesPendentes`) de
 // a requisição já ter um RPS/NFe individual lançado fora do fluxo de lote —
 // `rps.DataCancelamento IS NULL` porque um RPS cancelado não é "já cobrado".
+//
+// Sem corte por `CodEvento` (issue 19): a janela M-1 sobre `DtaSolicitacao`, mais
+// abaixo em `listarParticularesPendentes`, é quem evita ruído de particulares
+// antigos — não há mais exigência de laudo liberado aqui.
 const SQL_PARTICULARES_PENDENTES_WHERE = `
   r.IdFontePagadora = ${ID_FONTE_PAGADORA_PARTICULAR}
-  AND r.CodEvento IN (${EVENTOS_LAUDO_LIBERADO_PARTICULAR.join(', ')})
   AND (r.Lote IS NULL OR (l.IdRPS IS NULL AND l.Status IN (${STATUS_PENDENCIA.join(', ')})))
   AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
   AND NOT EXISTS (
@@ -1191,7 +1209,7 @@ function normalizarParticularPendencia(linha: mysql.RowDataPacket): RequisicaoPa
   };
 }
 
-/** Requisições particulares com laudo liberado e sem NF, paginadas. Mais antiga
+/** Requisições particulares sem NF, dentro da janela M-1, paginadas. Mais antiga
  *  primeiro — é a que está esperando cobrança há mais tempo. */
 export async function listarParticularesPendentes(
   params: ListarParticularesPendentesParams,
@@ -1204,15 +1222,16 @@ export async function listarParticularesPendentes(
   if (cacheHit) return cacheHit;
 
   return comConexao('listarParticularesPendentes', async (conn) => {
-    const condicoes = [SQL_PARTICULARES_PENDENTES_WHERE];
-    const valores: ParametroSql[] = [];
+    const { cutoff, ateEfetivo } = await cutoffEAteEfetivoM1(conn, params.ate);
+
+    const condicoes = [
+      SQL_PARTICULARES_PENDENTES_WHERE,
+      'r.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 DAY)',
+    ];
+    const valores: ParametroSql[] = [ateEfetivo];
     if (params.desde) {
       condicoes.push('r.DtaSolicitacao >= ?');
       valores.push(`${params.desde} 00:00:00`);
-    }
-    if (params.ate) {
-      condicoes.push('r.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 DAY)');
-      valores.push(`${params.ate} 00:00:00`);
     }
     const where = condicoes.join(' AND ');
 
@@ -1260,6 +1279,7 @@ export async function listarParticularesPendentes(
         qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
         registros,
         valorTotal,
+        cutoff,
       },
     };
   }).then((resultado) => {

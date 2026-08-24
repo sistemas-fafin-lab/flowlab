@@ -245,7 +245,7 @@ export interface PendenciasMeta {
 // PENDÊNCIAS — PARTICULARES (aba Contas a Receber → Pendências → Particulares)
 // ============================================================================
 // Contrato de GET /api/faturamento/pendencias-particulares — requisições da
-// fonte pagadora PARTICULAR (1102) com laudo liberado e sem NF, ao nível de
+// fonte pagadora PARTICULAR (1102) sem NF, dentro da janela M-1, ao nível de
 // requisição (não de lote — a maioria nunca entra num lote do apLIS). Regra
 // completa em api/_lib/faturamento/bdLab.ts (listarParticularesPendentes).
 
@@ -277,6 +277,8 @@ export interface ParticularesPendentesMeta {
   registros: number;
   /** Soma do valor de todas as requisições pendentes, não só a página atual. */
   valorTotal: number;
+  /** Fim de M-1 — data de corte da regra, calculada no servidor a partir de "hoje". */
+  cutoff: string;
 }
 
 /** Sub-aba da aba "Pendências", compartilhada entre ContasReceberPage (dono do

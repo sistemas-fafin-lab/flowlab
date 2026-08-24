@@ -2,8 +2,8 @@
  * API Route: GET /api/faturamento/pendencias-particulares
  *
  * Devolve à aba Faturamento → Contas a Receber → Pendências → Particulares as
- * requisições da fonte pagadora PARTICULAR (IdFontePagadora 1102) com laudo já
- * liberado ao cliente e sem NF emitida. Regra completa em
+ * requisições da fonte pagadora PARTICULAR (IdFontePagadora 1102) sem NF
+ * emitida, dentro da janela M-1. Regra completa em
  * api/_lib/faturamento/bdLab.ts (listarParticularesPendentes).
  *
  * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do operador
