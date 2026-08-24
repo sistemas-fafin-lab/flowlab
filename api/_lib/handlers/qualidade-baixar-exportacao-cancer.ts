@@ -1,7 +1,7 @@
 // api/_lib/handlers/qualidade-baixar-exportacao-cancer.ts
 // Ação `baixar-exportacao-cancer` — devolve uma signed URL de curta duração
-// para o CSV gravado por gerar-exportacao-cancer.ts, no bucket PRIVADO
-// `qualidade-exportacoes-rhc`. Nunca expõe o bucket como público (PII
+// para o CSV ou o PDF gravados por gerar-exportacao-cancer.ts, no bucket
+// PRIVADO `qualidade-exportacoes-rhc`. Nunca expõe o bucket como público (PII
 // completa no arquivo).
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -14,6 +14,7 @@ const EXPIRACAO_SEGUNDOS = 300;
 
 interface CorpoBaixar {
   id?: unknown;
+  formato?: unknown;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -31,6 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   const corpo = req.body as CorpoBaixar;
   const id = typeof corpo?.id === 'string' ? corpo.id : null;
+  const formato = corpo?.formato === 'pdf' ? 'pdf' : 'csv';
   if (!id) {
     res.status(400).json({ success: false, error: 'Informe "id".' });
     return;
@@ -50,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const { ano, trimestre } = data as { ano: number; trimestre: number };
-    const caminhoArquivo = `${ano}/${trimestre}/${id}.csv`;
+    const caminhoArquivo = `${ano}/${trimestre}/${id}.${formato}`;
 
     const { data: assinado, error: erroAssinatura } = await supabase.storage
       .from(BUCKET_EXPORTACOES)

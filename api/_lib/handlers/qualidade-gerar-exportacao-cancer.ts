@@ -18,12 +18,20 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarQualidadeERetornarUsuario, tokenDoHeader } from '../qualidade/autorizacao.js';
-import { carregarParametrosFixosCancer } from '../qualidade/cancerConsulta.js';
+import { carregarCatalogoCido, carregarParametrosFixosCancer } from '../qualidade/cancerConsulta.js';
 import { elegivelParaExportacao, type TriagemCancer } from '../qualidade/cancerRegras.js';
 import { buscarDetalhesCancerLis, ehErroConsulta } from '../qualidade/bdLabQualidade.js';
+import { gerarPdfExportacaoCancer, type LinhaPdfExportacaoCancer } from '../qualidade/gerarPdfExportacaoCancer.js';
 import { getSupabaseAdminClient } from '../supabase.js';
 
 const BUCKET_EXPORTACOES = 'qualidade-exportacoes-rhc';
+
+/** Mesmo mapeamento de CancerPage.tsx (ROTULO_SEXO) — só para exibição no PDF; o CSV mantém o código bruto do LIS. */
+const ROTULO_SEXO: Record<number, string> = { 0: 'Não declarado', 1: 'Masculino', 2: 'Feminino' };
+function rotuloSexo(sexoLis: number | null | undefined): string {
+  if (sexoLis === null || sexoLis === undefined) return '';
+  return ROTULO_SEXO[sexoLis] ?? String(sexoLis);
+}
 
 interface CorpoGerarExportacao {
   ano?: unknown;
@@ -121,14 +129,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const supabase = getSupabaseAdminClient();
     const { inicio, fim } = intervaloTrimestre(ano, trimestre);
 
-    const [casosResp, parametrosFixos] = await Promise.all([
+    const [casosResp, parametrosFixos, catalogoTopografia, catalogoMorfologia] = await Promise.all([
       supabase
         .from('qa_cancer_casos')
         .select('id, cod_requisicao, dta_diagnostico, dta_coleta, triagem, cido_topografia_codigo, cido_morfologia_codigo, exportacao_id')
         .gte('dta_diagnostico', inicio)
         .lte('dta_diagnostico', fim),
       carregarParametrosFixosCancer(supabase),
+      carregarCatalogoCido(supabase, 'topografia'),
+      carregarCatalogoCido(supabase, 'morfologia'),
     ]);
+    const descricaoTopografia = new Map(catalogoTopografia.map((e) => [e.codigo, e.descricao]));
+    const descricaoMorfologia = new Map(catalogoMorfologia.map((e) => [e.codigo, e.descricao]));
 
     if (casosResp.error) {
       console.error('[qualidade/gerar-exportacao-cancer] erro ao ler qa_cancer_casos:', describeError(casosResp.error));
@@ -157,8 +169,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const linhasCsv: string[] = [CABECALHO_CSV.join(';')];
+    const linhasPdf: LinhaPdfExportacaoCancer[] = [];
     for (const caso of elegiveis) {
       const paciente = detalhesResp.detalhes[caso.cod_requisicao];
+      linhasPdf.push({
+        codRequisicao: caso.cod_requisicao,
+        nomePaciente: paciente?.nomePacienteLis ?? '',
+        sexo: rotuloSexo(paciente?.sexoLis),
+        dataNascimento: paciente?.dataNascimentoLis ?? '',
+        dtaDiagnostico: caso.dta_diagnostico,
+        dtaColeta: caso.dta_coleta ?? '',
+        topografiaCodigo: caso.cido_topografia_codigo ?? '',
+        topografiaDescricao: descricaoTopografia.get(caso.cido_topografia_codigo ?? '') ?? '',
+        morfologiaCodigo: caso.cido_morfologia_codigo ?? '',
+        morfologiaDescricao: descricaoMorfologia.get(caso.cido_morfologia_codigo ?? '') ?? '',
+      });
       linhasCsv.push(
         [
           caso.cod_requisicao,
@@ -197,12 +222,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const bufferCsv = Buffer.from(conteudoCsv, 'utf-8');
     const hashArquivo = createHash('sha256').update(bufferCsv).digest('hex');
     const exportacaoId = randomUUID();
+    const geradoEm = new Date().toISOString();
+    const bufferPdf = gerarPdfExportacaoCancer({ ano, trimestre, registrador, geradoEm, parametrosFixos, linhas: linhasPdf });
     // Caminho determinístico a partir de (ano, trimestre, id) — não precisa de
     // coluna própria em qa_exportacoes_rhc; baixar-exportacao-cancer.ts
-    // reconstrói o mesmo caminho a partir da linha lida por id.
-    const caminhoArquivo = `${ano}/${trimestre}/${exportacaoId}.csv`;
+    // reconstrói o mesmo caminho (com a extensão pedida) a partir da linha
+    // lida por id.
+    const caminhoBase = `${ano}/${trimestre}/${exportacaoId}`;
+    const caminhoCsv = `${caminhoBase}.csv`;
+    const caminhoPdf = `${caminhoBase}.pdf`;
 
-    const { error: erroUpload } = await supabase.storage.from(BUCKET_EXPORTACOES).upload(caminhoArquivo, bufferCsv, {
+    const { error: erroUpload } = await supabase.storage.from(BUCKET_EXPORTACOES).upload(caminhoCsv, bufferCsv, {
       contentType: 'text/csv; charset=utf-8',
       upsert: false,
     });
@@ -212,7 +242,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const geradoEm = new Date().toISOString();
+    const { error: erroUploadPdf } = await supabase.storage.from(BUCKET_EXPORTACOES).upload(caminhoPdf, bufferPdf, {
+      contentType: 'application/pdf',
+      upsert: false,
+    });
+    if (erroUploadPdf) {
+      console.error('[qualidade/gerar-exportacao-cancer] erro ao subir PDF:', describeError(erroUploadPdf));
+      // Nenhuma linha em qa_exportacoes_rhc foi gravada ainda (RPC roda
+      // depois) — remove o CSV órfão para uma nova tentativa não colidir
+      // com upsert: false.
+      await supabase.storage.from(BUCKET_EXPORTACOES).remove([caminhoCsv]);
+      res.status(500).json({ success: false, error: 'Falha ao gravar arquivo de exportação.' });
+      return;
+    }
+
     // Insert de qa_exportacoes_rhc + update de qa_cancer_casos.exportacao_id
     // numa função só (migration 20260821090000): as duas escritas viram uma
     // transação implícita — se o update falhar, o insert também é desfeito,
@@ -223,7 +266,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       p_id: exportacaoId,
       p_ano: ano,
       p_trimestre: trimestre,
-      p_storage_path: caminhoArquivo,
+      p_storage_path: caminhoCsv,
       p_hash_arquivo: hashArquivo,
       p_total_casos: elegiveis.length,
       p_registrador: registrador,

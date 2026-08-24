@@ -195,8 +195,8 @@ export function gerarExportacaoCancer(input: GerarExportacaoInput): Promise<Expo
   return chamarQualidadeApi('gerar-exportacao-cancer', input, 'Falha ao gerar exportação.');
 }
 
-export function buscarLinkDownloadExportacao(id: string): Promise<{ url: string }> {
-  return chamarQualidadeApi('baixar-exportacao-cancer', { id }, 'Falha ao gerar link de download.');
+export function buscarLinkDownloadExportacao(id: string, formato: 'csv' | 'pdf' = 'csv'): Promise<{ url: string }> {
+  return chamarQualidadeApi('baixar-exportacao-cancer', { id, formato }, 'Falha ao gerar link de download.');
 }
 
 /**

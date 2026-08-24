@@ -51,7 +51,7 @@ export function ExportacaoRhcCard({ registradorPadrao, canManage }: ExportacaoRh
   });
 
   const baixar = useMutation({
-    mutationFn: (id: string) => buscarLinkDownloadExportacao(id),
+    mutationFn: ({ id, formato }: { id: string; formato: 'csv' | 'pdf' }) => buscarLinkDownloadExportacao(id, formato),
     onSuccess: (resposta) => window.open(resposta.url, '_blank', 'noopener'),
   });
 
@@ -141,12 +141,21 @@ export function ExportacaoRhcCard({ registradorPadrao, canManage }: ExportacaoRh
               </span>
               <button
                 type="button"
-                disabled={baixar.isPending && baixar.variables === exportacao.id}
-                onClick={() => baixar.mutate(exportacao.id)}
+                disabled={baixar.isPending && baixar.variables?.id === exportacao.id && baixar.variables?.formato === 'csv'}
+                onClick={() => baixar.mutate({ id: exportacao.id, formato: 'csv' })}
                 className="ml-auto flex items-center gap-1 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-200 disabled:opacity-50 dark:bg-blue-900/40 dark:text-blue-300"
               >
                 <Download className="h-3.5 w-3.5" aria-hidden />
-                Baixar CSV
+                CSV
+              </button>
+              <button
+                type="button"
+                disabled={baixar.isPending && baixar.variables?.id === exportacao.id && baixar.variables?.formato === 'pdf'}
+                onClick={() => baixar.mutate({ id: exportacao.id, formato: 'pdf' })}
+                className="flex items-center gap-1 rounded-lg bg-blue-100 px-3 py-1.5 text-xs font-medium text-blue-800 transition-colors hover:bg-blue-200 disabled:opacity-50 dark:bg-blue-900/40 dark:text-blue-300"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                PDF
               </button>
             </li>
           ))}
