@@ -130,8 +130,8 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
 
       {meta?.cutoff && (
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Mostrando lotes sem nota fiscal/RPS criados até {formatData(meta.cutoff)} — os dois meses
-          mais recentes ainda estão no fluxo normal de fechamento e não entram aqui.
+          Mostrando lotes sem nota fiscal/RPS criados até {formatData(meta.cutoff)} — o mês mais
+          recente ainda está no fluxo normal de fechamento e não entra aqui.
         </p>
       )}
 
