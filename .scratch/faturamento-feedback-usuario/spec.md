@@ -1,8 +1,8 @@
 # Faturamento: feedback do usuário (dashboard, faturas, contas a receber, glosas)
 
-Status: planejado — Fases 1 e 2 prontas para execução (exceto issues 01/05/06/12, adiadas); Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
+Status: Fases 1 e 2 implementadas (issues 02/03/07/08/10 done); issues 01/05/06/12 seguem adiadas. Fase 4 (novo relatório de 24/08) com issues 13-19 abertas para triagem. Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
 
-Spec resultante de sessão de grilling em 2026-08-18, a partir do relatório de análise do setor de faturamento. Cada item vira uma issue própria em `issues/`.
+Spec resultante de sessão de grilling em 2026-08-18, a partir do relatório de análise do setor de faturamento. Cada item vira uma issue própria em `issues/`. Rodada 4 de grilling em 2026-08-24 revisou um segundo relatório do setor (pós-Fase 1/2 em produção) — ver seção própria abaixo.
 
 ## Contexto
 
@@ -39,6 +39,20 @@ O setor de faturamento avaliou o flowlab positivamente (centraliza o que hoje vi
 - **Critério de retomada**: revisitar quando `notas`/`glosas` tiverem volume real de uso orgânico do setor (títulos criados e baixas/glosas registradas pelo fluxo manual do flowlab, não seed). Reavaliar nesse momento se a fonte nativa já é suficiente ou se ainda vale considerar o apLIS como fonte (opção descartada nesta rodada, não permanentemente).
 - **Mesmo achado se aplica às issues 01 e 12** (revisão de 2026-08-18): issue 01 investiga o KPI faturado×recebido do mesmo RPC `fat_dashboard_receber` — sem baixas reais em produção, não há divergência real pra investigar; sua parte de valor real (guia R$0 como "recebida") já está coberta pela issue 09 (apLIS, independente do módulo Títulos). Issue 12 enriquece a expansão de um título já criado — sem título real criado organicamente, não há o que validar. Ambas ficam **adiadas** pelo mesmo critério de retomada acima.
 
+### Grilling — rodada 4 (2026-08-24): segundo relatório do setor, pós-Fase 1/2 em produção
+
+O setor mandou um novo relatório de análise depois de testar o dashboard com as issues 02/03/07/08/10 já em produção. Boa parte do relatório reafirma itens já conhecidos (adiados ou aguardando insumo externo, sem fato novo); o restante são bugs/regressões reais na Fase 1/2 já implementada, ou pedidos novos. Issues 13-19 abaixo.
+
+- **Itens sem fato novo, mantidos como estavam** (decisão: não abrir issue, só reafirmar aqui): item 2.2 (indicadores do dashboard sem dado — Valor Faturado/Recebido/Glosado, Previsão Contratual, Prazo Médio de Recebimento/Ponderado, Comparativo), item 2.3 (top 10 motivos de glosa + breakdown por operadora), item 2.4 valor faturado por convênio, síntese DSI itens 1 e 3 — todos batem com as issues **01/05/06/12** (adiadas por falta de dado orgânico em `notas`/`titulos`/`glosas`; ver rodada 3). Os widgets em questão (Valor faturado/recebido/glosado, Previsão contratual, Prazo médio de recebimento/ponderado) **já existem no código** (`ContasReceberDashboard.tsx:462-527`) — não é feature faltando, é a fonte de dado vazia, mesmo diagnóstico da rodada 3.
+- **Itens 2.1/2.5 (previsão de pagamento e NFs pendentes por operadora) e item 6 (reclassificação de glosas)**: relatório novo ainda fala em "encaminharemos"/"documento será elaborado" — nenhum dos dois insumos veio anexado. Seguem parked, Fase 3.
+- **Item 3.1 (protocolo duplicado)**: bug real na feature já implementada (issue 10) — o badge só mostra a contagem, não os lotes correlacionados. → issue 13.
+- **Item 3.2 (Prejuízo sumindo)**: causa raiz achada nesta rodada — a exceção "Prejuízo ignora período" (issue 02) não dispara quando o período vem de uma View salva restaurada (tratado como "período customizado explícito"). → issue 14.
+- **Item 4.1, lotes 6607/6608 (Plan Assiste) "não enviados"**: verificado no apLIS (24/08) — esses lotes **têm `DtaEnvio` preenchido** (21/08), não é o padrão da AMHP-DF (issue 03). Causa raiz: `dataEnvio` do título é um **snapshot gravado na criação** (`fat_criar_titulo`), nunca revalidado contra o apLIS depois. → issue 15 (revalidar ao vivo).
+- **Item 4.1, filtro de clínicas parceiras**: verificado no `fatinstituicao` — Nexus/ABAC/Medigest não têm nenhuma flag que as distinga de convênio comum. É classificação de negócio nova. Decisão: lista gerenciável dentro do flowlab (não config fixa no código), gated por `canManageBilling`. → issue 16.
+- **Item 4.1, filtro "Todas" vazando período/convênio**: "Todas" é o filtro de Operadora (não status). Causa não identificada por leitura de código — abre como investigação. → issue 17.
+- **Item 4.2, "Sem NF (Lotes)" M-1 vs "requisições não faturadas" M-2**: na implementação (issue 07) é uma regra só, a nível de lote, sem separação. Decisão: não criar duas listas, só trocar a janela de M-2 para M-1 (`bdLab.ts:904`). → issue 18.
+- **Item 4.2, Particulares sem exigir laudo**: reverte a regra da issue 08 (fonte 1102 + evento de laudo liberado + sem NF) para fonte 1102 + sem NF, sem evento — mas ganha a mesma janela M-1 da issue 18, pra não virar lista sem corte de tempo (a consulta hoje não tem nenhum cutoff). → issue 19, bloqueada por 18.
+
 ## Entrega em fases
 
 ### Fase 1 — Investigações + ajustes rápidos do dashboard
@@ -61,6 +75,16 @@ Issues 01, 05 e 06 **adiadas** — ver "Fora de escopo (parked)".
 11. Widgets-resumo das novas pendências no dashboard — issue 11 (bloqueada por 07 e 08).
 ~~12. Vínculo NF → lote → requisição do Aplis no Títulos (item 5) — issue 12.~~ **Adiada** — ver "Fora de escopo (parked)".
 
+### Fase 4 — Segundo relatório do setor (2026-08-24), pós-produção
+
+13. Badge de protocolo duplicado não mostra os lotes correlacionados (item 3.1) — issue 13.
+14. Prejuízo some de novo ao aplicar View salva com período customizado (item 3.2) — issue 14.
+15. Títulos: "sem envio" preso no snapshot da criação, não revalida contra o apLIS (item 4.1, ex. Plan Assiste 6607/6608) — issue 15.
+16. Títulos: filtro pra ocultar clínicas parceiras (Nexus, ABAC, Medigest etc.) (item 4.1) — issue 16.
+17. Investigar filtro "Todas" (operadora) vazando NFs fora do período/convênio, incl. R$0,00 como "Recebido" (item 4.1) — issue 17.
+18. Pendências "Sem NF (Lotes)": janela M-2 → M-1 (item 4.2) — issue 18.
+19. Pendências Particulares: remove exigência de laudo emitido, ganha janela M-1 (item 4.2) — issue 19 (bloqueada por 18).
+
 ### Fase 3 — Aguardando insumos externos (sem issues ainda)
 
 - **2.1 Previsão de pagamento por operadora**: reconciliar o widget atual com o Mapa de Pagamento das Operadoras quando ele for encaminhado.
@@ -81,6 +105,13 @@ Issues 01, 05 e 06 **adiadas** — ver "Fora de escopo (parked)".
 - `issues/10-lotes-protocolo-duplicado.md` — task
 - `issues/11-dashboard-widgets-pendencias.md` — task (bloqueada por 07 e 08)
 - `issues/12-titulos-vinculo-nf-lote-requisicao.md` — task, **adiada** (ver Fora de escopo)
+- `issues/13-protocolo-duplicado-lista-lotes-correlacionados.md` — task
+- `issues/14-prejuizo-ignora-periodo-view-salva.md` — task
+- `issues/15-titulos-revalidar-envio-ao-vivo.md` — task
+- `issues/16-titulos-filtro-clinicas-parceiras.md` — task
+- `issues/17-investigar-filtro-todas-titulos-fora-periodo.md` — research
+- `issues/18-pendencias-sem-nf-janela-m1.md` — task
+- `issues/19-pendencias-particulares-remove-laudo-aplica-m1.md` — task (bloqueada por 18)
 
 ## Fora de escopo (parked)
 
@@ -88,3 +119,4 @@ Issues 01, 05 e 06 **adiadas** — ver "Fora de escopo (parked)".
 - **Itens 2.1 e 2.5**: retomados quando o Mapa de Pagamento das Operadoras chegar.
 - **Issues 01, 05, 06 e 12**: adiadas — `notas`/`titulos`/`glosas` (Supabase, produção) não têm uso orgânico do setor ainda (5 notas de seed, 0 glosas reais, verificado em 2026-08-18). Issue 01 (KPI faturado×recebido) e issue 12 (vínculo NF→lote→requisição na expansão do título) dependem da mesma base sem dado real. Retomar todas as quatro quando o módulo Títulos tiver volume real; ver "Grilling — rodada 3" acima para o achado completo e a alternativa descartada (migrar para o apLIS).
 - **Preencher `DtaEnvio` no apLIS** (não é escopo do flowlab; a exceção AMHP-DF cobre o sintoma).
+- **Reafirmado pelo relatório de 24/08 (rodada 4), sem fato novo**: itens 2.1/2.5 (previsão por operadora, ainda sem Mapa de Pagamento), item 6/glosas (ainda sem doc "Zero Glosa"), e os itens que batem com as issues 01/05/06/12 (indicadores do dashboard sem dado por falta de uso orgânico em `notas`/`titulos`/`glosas`) — ver "Grilling — rodada 4" acima.
