@@ -355,6 +355,8 @@ export interface TitulosFiltros {
   operadoraId?: string;
   /** Número da nota (busca parcial). */
   busca?: string;
+  /** Issue 16: some da lista os títulos de operadoras marcadas `is_clinica_parceira`. */
+  ocultarParceiras?: boolean;
   pagina?: number;
   tamanho?: number;
 }
@@ -366,6 +368,7 @@ export interface TitulosViewFiltros {
   status: TituloStatus | '';
   operadoraId: string;
   busca: string;
+  ocultarParceiras: boolean;
 }
 
 /** Glosa lançada junto de uma baixa, no formato que `fat_registrar_baixa` espera
@@ -491,6 +494,9 @@ export interface OperadoraResumo {
    *  operadora não foi sincronizada. Usado por telas que filtram direto no MySQL
    *  do laboratório (ex.: aba Pendências), que não conhece o UUID do Supabase. */
   aplisId: string | null;
+  /** Issue 16: é clínica parceira (lab que envia exame pra este processar),
+   *  não convênio de saúde — o apLIS não distingue isso. */
+  isClinicaParceira: boolean;
 }
 
 /** Tela dona do formato de filtro salvo numa `ViewSalva` — ver comentário de

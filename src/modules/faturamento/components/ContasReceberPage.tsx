@@ -11,6 +11,7 @@ import PendenciasNaoFaturadas from './PendenciasNaoFaturadas';
 import PendenciasParticulares from './PendenciasParticulares';
 import NovoTituloModal from './NovoTituloModal';
 import BaixaModal from './BaixaModal';
+import ClinicasParceirasModal from './ClinicasParceirasModal';
 
 // ============================================================================
 // COMPONENTE: ContasReceberPage
@@ -62,6 +63,7 @@ const ContasReceberPage: React.FC = () => {
     status: '' as TituloStatus | '',
     operadoraId: '',
     busca: '',
+    ocultarParceiras: false,
     pagina: 1,
     tamanho: 25,
   });
@@ -72,6 +74,7 @@ const ContasReceberPage: React.FC = () => {
   const [filtrosPainel, setFiltrosPainel] = useState<DashboardReceberFiltros>(filtrosPainelPadrao);
 
   const [novoAberto, setNovoAberto] = useState(false);
+  const [parceirasAberto, setParceirasAberto] = useState(false);
   const [tituloBaixa, setTituloBaixa] = useState<TituloReceber | null>(null);
   const [modoModal, setModoModal] = useState<'baixa' | 'glosa'>('baixa');
   const [sincronizando, setSincronizando] = useState(false);
@@ -86,6 +89,7 @@ const ContasReceberPage: React.FC = () => {
     status: filtros.status,
     operadoraId: filtros.operadoraId,
     busca: filtros.busca,
+    ocultarParceiras: filtros.ocultarParceiras,
     pagina: filtros.pagina,
     tamanho: filtros.tamanho,
   }), [filtros]);
@@ -93,6 +97,7 @@ const ContasReceberPage: React.FC = () => {
   const {
     titulos, operadoras, total, loading, error, refetch, refetchOperadoras,
     buscarGuias, buscarEnvioLotes, criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
+    marcarClinicaParceira,
   } = useContasReceber(parametros);
 
   const aplicarFiltro = useCallback((patch: Partial<typeof filtros>) => {
@@ -257,6 +262,7 @@ const ContasReceberPage: React.FC = () => {
           onFiltrar={aplicarFiltro}
           onAtualizar={() => void refetch()}
           onNovoTitulo={() => setNovoAberto(true)}
+          onGerenciarParceiras={() => setParceirasAberto(true)}
           onBaixa={abrirBaixa}
           onGlosa={abrirGlosa}
           onCancelar={(titulo) => void confirmarCancelamento(titulo)}
@@ -306,6 +312,13 @@ const ContasReceberPage: React.FC = () => {
         onRegistrar={registrarBaixa}
         onLancarGlosas={lancarGlosas}
         buscarGuias={buscarGuias}
+      />
+
+      <ClinicasParceirasModal
+        aberto={parceirasAberto}
+        onFechar={() => setParceirasAberto(false)}
+        operadoras={operadoras}
+        onAlternar={marcarClinicaParceira}
       />
     </div>
   );

@@ -20,6 +20,7 @@ const BASE_TITULOS: TitulosViewFiltros = {
   status: '',
   operadoraId: '',
   busca: '',
+  ocultarParceiras: false,
 };
 
 describe('sanitizarFiltrosPainel', () => {
@@ -93,8 +94,23 @@ describe('sanitizarFiltrosTitulos', () => {
       status: 'recebida',
       operadoraId: 'op1',
       busca: '123',
+      ocultarParceiras: true,
     };
     expect(sanitizarFiltrosTitulos(view, BASE_TITULOS)).toEqual(view);
+  });
+
+  it('view antiga sem ocultarParceiras cai na base (issue 16)', () => {
+    expect(sanitizarFiltrosTitulos({ desde: '2025-07-01' }, BASE_TITULOS)).toEqual({
+      ...BASE_TITULOS,
+      desde: '2025-07-01',
+    });
+    expect(
+      sanitizarFiltrosTitulos({ desde: '2025-07-01' }, { ...BASE_TITULOS, ocultarParceiras: true }),
+    ).toEqual({ ...BASE_TITULOS, desde: '2025-07-01', ocultarParceiras: true });
+  });
+
+  it('ocultarParceiras fora do tipo boolean cai na base', () => {
+    expect(sanitizarFiltrosTitulos({ ocultarParceiras: 'sim' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
   });
 });
 

@@ -151,6 +151,8 @@ interface UseContasReceberResult {
   registrarBaixa: (dados: BaixaInput) => Promise<string | null>;
   lancarGlosas: (notaId: string, glosas: GlosaLancamentoInput[]) => Promise<string | null>;
   cancelarTitulo: (notaId: string) => Promise<string | null>;
+  /** Issue 16: marca/desmarca uma operadora como clínica parceira. */
+  marcarClinicaParceira: (operadoraId: string, valor: boolean) => Promise<string | null>;
 }
 
 export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResult {
@@ -162,7 +164,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
 
   // Desestruturado para que as deps do useCallback sejam primitivas — com o
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
-  const { desde, ate, status, operadoraId, busca, pagina, tamanho } = filtros;
+  const { desde, ate, status, operadoraId, busca, ocultarParceiras, pagina, tamanho } = filtros;
 
   // Descarta respostas de buscas antigas: trocar de página/filtro rápido pode
   // devolver fora de ordem e sobrescrever o resultado novo com o velho.
@@ -215,6 +217,16 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         }
         query = query.or(condicoes.join(','));
       }
+      if (ocultarParceiras) {
+        // Issue 16: a marcação mora em `operadoras`, não em `notas` — resolve pelos
+        // ids já carregados (mesma origem do <select> de Operadora) e exclui, em vez
+        // de embutir `operadoras(is_clinica_parceira)` no select e filtrar em memória,
+        // o que quebraria a contagem/paginação server-side.
+        const idsParceiras = operadoras.filter((o) => o.isClinicaParceira).map((o) => o.id);
+        if (idsParceiras.length > 0) {
+          query = query.not('operadora_id', 'in', `(${idsParceiras.join(',')})`);
+        }
+      }
 
       const { data, count, error: erro } = await query;
       if (reqId !== buscaAtual.current) return;
@@ -230,7 +242,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [desde, ate, status, operadoraId, busca, pagina, tamanho, operadoras]);
+  }, [desde, ate, status, operadoraId, busca, ocultarParceiras, pagina, tamanho, operadoras]);
 
   useEffect(() => {
     void refetch();
@@ -241,11 +253,15 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
 
   // Lista fixa para o seletor de filtro — não acompanha o período nem a página.
   const refetchOperadoras = useCallback(async () => {
-    const { data } = await supabase.from('operadoras').select('id_operadora, nome, aplis_id').order('nome');
+    const { data } = await supabase
+      .from('operadoras')
+      .select('id_operadora, nome, aplis_id, is_clinica_parceira')
+      .order('nome');
     setOperadoras((data ?? []).map((o) => ({
       id: o.id_operadora as string,
       nome: o.nome as string,
       aplisId: (o.aplis_id as string | null) ?? null,
+      isClinicaParceira: Boolean(o.is_clinica_parceira),
     })));
   }, []);
 
@@ -393,6 +409,27 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }
   }, [refetch]);
 
+  // Issue 16: UPDATE direto, sem RPC — é uma marcação de negócio isolada, sem
+  // invariante cruzando outra tabela. Gate de canManageBilling já é a RLS de
+  // `operadoras` (política `_update_billing` de 20260807120000); o front só
+  // repete o gate pra esconder o controle de quem não pode usá-lo.
+  const marcarClinicaParceira = useCallback(async (
+    operadoraId: string,
+    valor: boolean,
+  ): Promise<string | null> => {
+    try {
+      const { error: erro } = await supabase
+        .from('operadoras')
+        .update({ is_clinica_parceira: valor })
+        .eq('id_operadora', operadoraId);
+      if (erro) throw new Error(erro.message);
+      await refetchOperadoras();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Não foi possível atualizar a operadora.';
+    }
+  }, [refetchOperadoras]);
+
   return {
     titulos,
     operadoras,
@@ -407,5 +444,6 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     registrarBaixa,
     lancarGlosas,
     cancelarTitulo,
+    marcarClinicaParceira,
   };
 }

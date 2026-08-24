@@ -9,6 +9,7 @@ import {
   RefreshCw,
   Scissors,
   Search,
+  Settings,
 } from 'lucide-react';
 import type {
   OperadoraResumo,
@@ -72,12 +73,16 @@ interface Props {
     status: TituloStatus | '';
     operadoraId: string;
     busca: string;
+    /** Issue 16: some da lista os títulos de operadoras marcadas como clínica parceira. */
+    ocultarParceiras: boolean;
     pagina: number;
     tamanho: number;
   };
   onFiltrar: (patch: Partial<Props['filtros']>) => void;
   onAtualizar: () => void;
   onNovoTitulo: () => void;
+  /** Issue 16: abre o modal de gerenciamento das clínicas parceiras. */
+  onGerenciarParceiras: () => void;
   onBaixa: (titulo: TituloReceber) => void;
   onGlosa: (titulo: TituloReceber) => void;
   onCancelar: (titulo: TituloReceber) => void;
@@ -116,6 +121,7 @@ const TitulosList: React.FC<Props> = ({
   onFiltrar,
   onAtualizar,
   onNovoTitulo,
+  onGerenciarParceiras,
   onBaixa,
   onGlosa,
   onCancelar,
@@ -213,8 +219,9 @@ const TitulosList: React.FC<Props> = ({
       status: filtros.status,
       operadoraId: filtros.operadoraId,
       busca,
+      ocultarParceiras: filtros.ocultarParceiras,
     }),
-    [filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca],
+    [filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca, filtros.ocultarParceiras],
   );
 
   // A garantia de formato mora no sanitizador (utils/viewsSalvas.ts): a view
@@ -267,6 +274,15 @@ const TitulosList: React.FC<Props> = ({
             wrapperClass="max-w-[220px]"
           />
         </label>
+        <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 pb-2">
+          <input
+            type="checkbox"
+            checked={filtros.ocultarParceiras}
+            onChange={(e) => onFiltrar({ ocultarParceiras: e.target.checked, pagina: 1 })}
+            className="rounded border-gray-300 dark:border-gray-600"
+          />
+          Ocultar clínicas parceiras
+        </label>
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -290,6 +306,16 @@ const TitulosList: React.FC<Props> = ({
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
         </button>
+        {podeEditar && (
+          <button
+            type="button"
+            onClick={onGerenciarParceiras}
+            title="Gerenciar clínicas parceiras"
+            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <Settings className="w-4 h-4" /> Clínicas parceiras
+          </button>
+        )}
         {podeEditar && (
           <button
             type="button"

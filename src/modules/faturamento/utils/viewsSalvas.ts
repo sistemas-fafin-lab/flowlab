@@ -48,6 +48,11 @@ function textoOu(valor: unknown, fallback: string): string {
   return typeof valor === 'string' ? valor : fallback;
 }
 
+/** Qualquer boolean serve; sem boolean cai no fallback. */
+function boolOu(valor: unknown, fallback: boolean): boolean {
+  return typeof valor === 'boolean' ? valor : fallback;
+}
+
 /** Lista de termos: só strings sobrevivem; não-array vira lista vazia. */
 function listaDeTextos(valor: unknown): string[] {
   return Array.isArray(valor) ? valor.filter((v): v is string => typeof v === 'string') : [];
@@ -96,6 +101,7 @@ export function sanitizarFiltrosTitulos(
     status: statusTituloOu(obj.status, base.status),
     operadoraId: textoOu(obj.operadoraId, base.operadoraId),
     busca: textoOu(obj.busca, ''),
+    ocultarParceiras: boolOu(obj.ocultarParceiras, base.ocultarParceiras),
   };
 }
 
