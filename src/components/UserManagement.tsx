@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock, Search, SlidersHorizontal, UserPlus } from 'lucide-react';
+import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock, Search, SlidersHorizontal, UserPlus, KanbanSquare } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { supabase } from '../lib/supabase';
 import { UserProfile, UserRole, Department, CustomRole } from '../types';
 import { DEPARTMENTS, getRoleForDepartment, getRoleLabel, getDepartmentLabel, ALL_PERMISSION_KEYS, hasPermission } from '../utils/permissions';
+import { useBoards } from '../modules/board';
 import Notification from './Notification';
 import NewUserForm from './NewUserForm';
 
@@ -78,7 +79,9 @@ const UserManagement: React.FC = () => {
     name: '',
     description: '',
     permissions: [] as string[],
+    boardId: '' as string,
   });
+  const { boards } = useBoards();
 
   const [formData, setFormData] = useState({
     name: '',
@@ -119,6 +122,7 @@ const UserManagement: React.FC = () => {
         isSystem: r.is_system,
         createdAt: r.created_at,
         updatedAt: r.updated_at,
+        boardId: r.board_id ?? null,
       }));
 
       setCustomRoles(roles);
@@ -438,13 +442,14 @@ const UserManagement: React.FC = () => {
       name: role.name,
       description: role.description || '',
       permissions: [...role.permissions],
+      boardId: role.boardId || '',
     });
     setEditingRole(role);
     setShowRoleForm(true);
   };
 
   const handleCancelRole = () => {
-    setRoleFormData({ name: '', description: '', permissions: [] });
+    setRoleFormData({ name: '', description: '', permissions: [], boardId: '' });
     setEditingRole(null);
     setShowRoleForm(false);
   };
@@ -479,6 +484,7 @@ const UserManagement: React.FC = () => {
             name: roleFormData.name.trim(),
             description: roleFormData.description.trim() || null,
             permissions: roleFormData.permissions,
+            board_id: roleFormData.boardId || null,
             updated_at: new Date().toISOString(),
           })
           .eq('id', editingRole.id);
@@ -492,6 +498,7 @@ const UserManagement: React.FC = () => {
             name: roleFormData.name.trim(),
             description: roleFormData.description.trim() || null,
             permissions: roleFormData.permissions,
+            board_id: roleFormData.boardId || null,
             is_system: false,
           });
 
@@ -1255,6 +1262,24 @@ const UserManagement: React.FC = () => {
                       placeholder="Descrição das responsabilidades"
                     />
                   </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      Board (Kanban Setorial)
+                    </label>
+                    <select
+                      value={roleFormData.boardId}
+                      onChange={(e) => setRoleFormData(prev => ({ ...prev, boardId: e.target.value }))}
+                      className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100"
+                    >
+                      <option value="">Nenhum</option>
+                      {boards.map(board => (
+                        <option key={board.id} value={board.id}>{board.label}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
+                      Cargos vinculados a um board enxergam automaticamente o Kanban daquele departamento em "Board Setorial".
+                    </p>
+                  </div>
                 </div>
 
                 {/* Permissions Grid */}
@@ -1356,7 +1381,7 @@ const UserManagement: React.FC = () => {
           ) : (
             <div className="flex justify-end">
               <button
-                onClick={() => { setEditingRole(null); setRoleFormData({ name: '', description: '', permissions: [] }); setShowRoleForm(true); }}
+                onClick={() => { setEditingRole(null); setRoleFormData({ name: '', description: '', permissions: [], boardId: '' }); setShowRoleForm(true); }}
                 className="flex items-center px-4 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 shadow-md shadow-blue-500/25 font-medium"
               >
                 <Plus className="w-4 h-4 mr-2" />
@@ -1435,6 +1460,14 @@ const UserManagement: React.FC = () => {
                       {/* Description */}
                       {role.description && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3 line-clamp-2 leading-relaxed">{role.description}</p>
+                      )}
+
+                      {/* Board vinculado */}
+                      {role.boardId && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 mb-3 rounded-full text-[10px] font-semibold bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-300 border border-violet-200 dark:border-violet-700">
+                          <KanbanSquare className="w-3 h-3" />
+                          {boards.find(b => b.id === role.boardId)?.label || 'Board'}
+                        </span>
                       )}
 
                       {/* Group coverage dots */}

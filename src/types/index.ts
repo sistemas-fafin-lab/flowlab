@@ -214,6 +214,8 @@ export interface CustomRole {
   isSystem: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Board (kanban multi-departamento) vinculado a este cargo — ver src/modules/board. */
+  boardId?: string | null;
 }
 
 export interface RolePermissions {
