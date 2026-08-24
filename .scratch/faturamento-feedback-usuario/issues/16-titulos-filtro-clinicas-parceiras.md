@@ -1,4 +1,4 @@
-Status: needs-triage
+Status: done
 Type: task
 
 # Títulos: opção pra ocultar clínicas parceiras (Nexus, ABAC, Medigest etc.)

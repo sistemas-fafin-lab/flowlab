@@ -1,4 +1,4 @@
-Status: needs-triage
+Status: done
 Type: task
 
 # Faturas: badge de protocolo duplicado não mostra quais lotes estão envolvidos

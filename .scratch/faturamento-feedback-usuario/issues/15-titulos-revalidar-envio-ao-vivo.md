@@ -1,4 +1,4 @@
-Status: needs-triage
+Status: done
 Type: task
 
 # Títulos: status "sem envio" fica preso no snapshot da criação, não acompanha o apLIS
