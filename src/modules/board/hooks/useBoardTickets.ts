@@ -109,12 +109,53 @@ export function useBoardTickets(boardId: string | null, userId: string | null) {
   );
 
   const moveTicket = useCallback(
-    async (id: string, kanbanStatus: KanbanStatus): Promise<MutationResult> => {
-      setTickets((prev) => prev.map((t) => (t.id === id ? { ...t, kanban_status: kanbanStatus } : t)));
+    async (
+      id: string,
+      sourceStatus: KanbanStatus,
+      sourceIndex: number,
+      destStatus: KanbanStatus,
+      destIndex: number,
+    ): Promise<MutationResult> => {
+      // Reordena localmente mesmo quando a coluna não muda — sem isso, soltar
+      // um card em outra posição dentro da mesma coluna não altera o estado,
+      // e o drag-and-drop anima o card de volta pro lugar original (mesmo
+      // problema que o `handleDragEnd` do board de TI já resolve reordenando
+      // a lista local, mesmo sem persistir uma posição).
+      setTickets((prev) => {
+        const byStatus: Record<KanbanStatus, BoardTicket[]> = {
+          backlog: [],
+          todo: [],
+          in_progress: [],
+          review: [],
+          done: [],
+        };
+        prev.forEach((t) => byStatus[t.kanban_status].push(t));
+
+        const sourceList = [...byStatus[sourceStatus]];
+        const [moved] = sourceList.splice(sourceIndex, 1);
+        if (!moved) return prev;
+        const movedWithStatus = sourceStatus === destStatus ? moved : { ...moved, kanban_status: destStatus };
+
+        if (sourceStatus === destStatus) {
+          sourceList.splice(destIndex, 0, movedWithStatus);
+          byStatus[sourceStatus] = sourceList;
+        } else {
+          const destList = [...byStatus[destStatus]];
+          destList.splice(destIndex, 0, movedWithStatus);
+          byStatus[sourceStatus] = sourceList;
+          byStatus[destStatus] = destList;
+        }
+
+        return (['backlog', 'todo', 'in_progress', 'review', 'done'] as KanbanStatus[]).flatMap(
+          (status) => byStatus[status],
+        );
+      });
+
+      if (sourceStatus === destStatus) return { error: null };
 
       const { data, error: updateError } = await supabase
         .from('board_tickets')
-        .update({ kanban_status: kanbanStatus })
+        .update({ kanban_status: destStatus })
         .eq('id', id)
         .select('id');
 

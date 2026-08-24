@@ -62,7 +62,16 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
     // ZERO transform/animation/backdrop neste wrapper: animações que aplicam
     // `transform` (ex: `animate-fade-in-up` com forwards fill-mode) criam um
     // Containing Block e quebram o `position:fixed` usado pelo drag-and-drop.
-    <div className={`overflow-x-auto pb-4 -mx-1 px-1 ${className}`}>
+    //
+    // `overflow-y-hidden` é obrigatório aqui, não cosmético: por spec, um
+    // elemento com só um eixo de overflow definido (`overflow-x-auto`) tem o
+    // outro eixo coagido para `auto` pelo browser caso contrário. Isso torna
+    // este wrapper um segundo scroll parent "acima" do Droppable de cada
+    // coluna (que também é `overflow-y-auto`) — o @hello-pangea/dnd só
+    // suporta um scroll parent por Droppable, e com dois ele mede errado no
+    // início do drag (mesmo sintoma de "pisca"/muda de altura que o
+    // comentário no Droppable abaixo já descreve).
+    <div className={`overflow-x-auto overflow-y-hidden pb-4 -mx-1 px-1 ${className}`}>
       <DragDropContext onDragStart={onDragStart} onDragUpdate={onDragUpdate} onDragEnd={onDragEnd}>
         <div className="flex gap-4 min-w-max">
           {columns.map((column) => {
@@ -87,12 +96,17 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                 {renderColumnHeaderExtra?.(column.id)}
 
                 {/* Column body */}
+                {/* O Droppable precisa ser o próprio container de scroll — se o
+                    scroll (overflow-y-auto/maxHeight) viver num filho aninhado
+                    em vez do elemento com `provided.innerRef`, o
+                    @hello-pangea/dnd mede o container errado ao iniciar o
+                    drag e a coluna "pisca"/muda de altura nesse instante. */}
                 <Droppable droppableId={column.id}>
                   {(provided, snapshot) => (
                     <div
                       ref={provided.innerRef}
                       {...provided.droppableProps}
-                      className={`flex-1 min-h-[200px] rounded-xl p-2 transition-colors duration-200 overflow-hidden ${
+                      className={`flex-1 flex flex-col gap-4 min-h-[200px] rounded-xl p-2 overflow-y-auto transition-colors duration-200 ${
                         snapshot.isDraggingOver
                           ? 'bg-violet-50/60 dark:bg-violet-900/15 ring-2 ring-violet-400/50 ring-inset'
                           : draggingOverColumn === column.id
@@ -101,19 +115,18 @@ export const KanbanBoard: React.FC<KanbanBoardProps> = ({
                               ? 'bg-gray-50/60 dark:bg-gray-800/45'
                               : 'bg-gray-50/50 dark:bg-gray-800/40'
                       }`}
+                      style={{ maxHeight: 'calc(100vh - 300px)' }}
                     >
-                      <div className="flex flex-col gap-4 h-full overflow-y-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
-                        {renderColumnContent(column.id, snapshot.isDraggingOver)}
+                      {renderColumnContent(column.id, snapshot.isDraggingOver)}
 
-                        {isColumnEmpty(column.id) && !snapshot.isDraggingOver && (
-                          <div className="flex flex-col items-center justify-center py-8 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 transition-colors">
-                            <Icon className="w-6 h-6 text-gray-300 dark:text-gray-600 mb-1.5" />
-                            <span className="text-xs text-gray-400 dark:text-gray-500">{emptyStateLabel}</span>
-                          </div>
-                        )}
+                      {isColumnEmpty(column.id) && !snapshot.isDraggingOver && (
+                        <div className="flex flex-col items-center justify-center py-8 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 transition-colors">
+                          <Icon className="w-6 h-6 text-gray-300 dark:text-gray-600 mb-1.5" />
+                          <span className="text-xs text-gray-400 dark:text-gray-500">{emptyStateLabel}</span>
+                        </div>
+                      )}
 
-                        {provided.placeholder}
-                      </div>
+                      {provided.placeholder}
                     </div>
                   )}
                 </Droppable>

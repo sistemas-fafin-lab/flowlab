@@ -129,9 +129,14 @@ const BoardPage: React.FC = () => {
 
     const { source, destination, draggableId } = result;
     if (!destination) return;
-    if (source.droppableId === destination.droppableId) return;
 
-    const { error: moveError } = await moveTicket(draggableId, destination.droppableId as KanbanStatus);
+    const { error: moveError } = await moveTicket(
+      draggableId,
+      source.droppableId as KanbanStatus,
+      source.index,
+      destination.droppableId as KanbanStatus,
+      destination.index,
+    );
     if (moveError) showError('Erro ao mover card', moveError);
   };
 
