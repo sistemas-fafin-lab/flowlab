@@ -56,8 +56,8 @@ type FormState = { mode: 'create'; column: KanbanStatus } | { mode: 'edit'; tick
  * `canManage` é `true` (cargo com `canManageBoard`, ou `canManageAllBoards`
  * — ver `resolveBoardAccess`); a RLS de `board_tickets` bloqueia a escrita de
  * qualquer forma, então esconder os botões aqui é só UX, não a defesa real.
- * Quem tem `canManageAllBoards` e mais de um board disponível vê um seletor
- * (ticket 06); caindo no primeiro board da lista por padrão.
+ * Quem tem `canManageAllBoards` vê um seletor de boards, mesmo havendo só um
+ * cadastrado; caindo no primeiro board da lista por padrão.
  */
 const BoardPage: React.FC = () => {
   const { userProfile } = useAuth();
@@ -183,7 +183,7 @@ const BoardPage: React.FC = () => {
           </p>
         </div>
 
-        {access.kind === 'all' && boards.length > 1 && (
+        {access.kind === 'all' && (
           <Select
             ariaLabel="Selecionar board"
             value={targetBoardId ?? ''}
@@ -255,6 +255,7 @@ const BoardPage: React.FC = () => {
         <BoardTicketFormModal
           ticket={formState.mode === 'edit' ? formState.ticket : null}
           createInColumn={formState.mode === 'create' ? formState.column : null}
+          boardId={targetBoardId}
           submitting={submitting}
           onSubmit={handleFormSubmit}
           onClose={() => setFormState(null)}

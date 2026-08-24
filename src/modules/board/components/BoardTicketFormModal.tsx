@@ -33,6 +33,8 @@ interface BoardTicketFormModalProps {
   /** Card em edição, ou `null` para criar um card novo em `createInColumn`. */
   ticket: BoardTicket | null;
   createInColumn: KanbanStatus | null;
+  /** Board do card — usado para restringir o seletor de responsável a quem tem cargo neste board. */
+  boardId: string | null;
   submitting: boolean;
   onSubmit: (input: BoardTicketInput) => void;
   onClose: () => void;
@@ -41,11 +43,12 @@ interface BoardTicketFormModalProps {
 export const BoardTicketFormModal: React.FC<BoardTicketFormModalProps> = ({
   ticket,
   createInColumn,
+  boardId,
   submitting,
   onSubmit,
   onClose,
 }) => {
-  const { users } = useBoardUsers();
+  const { users } = useBoardUsers(boardId);
   const isEdit = ticket != null;
   const [input, setInput] = useState<BoardTicketInput>(() => (ticket ? inputFromTicket(ticket) : emptyInput()));
   const [formError, setFormError] = useState<string | null>(null);
