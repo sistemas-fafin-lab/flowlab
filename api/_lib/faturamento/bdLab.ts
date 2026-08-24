@@ -1296,6 +1296,17 @@ export async function listarParticularesPendentes(
 // fatdemonstrativoguiaprocedimento — decisão registrada no design doc, a glosa
 // lançada só na conciliação do demonstrativo de pagamento não aparece aqui).
 // Ver docs/plans/faturamento/glosas-recursos-legado-design.md.
+//
+// `IdMotivoGlosa` sozinho NÃO basta: o catálogo `fatmotivoglosa` (motivos ANS)
+// é reaproveitado pelo apLIS tanto pra glosa de fato (pagamento já processado,
+// valor rejeitado) quanto pra estado de autorização ainda em análise (ex.
+// "3051 DOCUMENTAÇÃO EM ANÁLISE" com DesMotivoGlosa "400 | Em Analise |
+// Procedimento necessita analise PDMA" — feedback do setor, 24/08). Verificado
+// direto no banco: linhas ainda em análise nunca têm `DtaRecebido`/
+// `ValorRecebido` preenchidos (o ciclo de pagamento/conciliação não aconteceu
+// ainda); linhas de glosa real (ex. "2902 GLOSA MANTIDA") quase sempre têm os
+// dois. Por isso o filtro abaixo exige pelo menos um dos dois como sinal de
+// que o procedimento já passou pelo ciclo de recebimento/conciliação.
 
 export interface GlosaRequisicaoLegado {
   idRequisicaoProcedimento: number;
@@ -1344,7 +1355,13 @@ function chaveGlosasLegado(params: ListarGlosasLegadoParams): string {
 function filtroGlosasLegado(
   params: ListarGlosasLegadoParams,
 ): { where: string; valores: ParametroSql[] } {
-  const condicoes: string[] = ['frp.IdMotivoGlosa IS NOT NULL'];
+  const condicoes: string[] = [
+    'frp.IdMotivoGlosa IS NOT NULL',
+    // Exclui procedimentos ainda em análise de autorização (nunca passaram por
+    // recebimento/conciliação) — só entram como "glosa" os que têm pelo menos
+    // um sinal de terem sido processados. Ver comentário no topo da seção.
+    '(frp.DtaRecebido IS NOT NULL OR frp.ValorRecebido IS NOT NULL)',
+  ];
   const valores: ParametroSql[] = [];
 
   condicoes.push('r.DtaSolicitacao >= ?');
