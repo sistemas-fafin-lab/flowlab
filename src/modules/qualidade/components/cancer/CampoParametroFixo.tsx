@@ -129,6 +129,7 @@ export function CampoParametroFixo({ chave, rotulo, valorAtual, canManage }: Cam
 }
 
 export const ROTULOS_PARAMETRO_FIXO: Record<ChaveParametroFixoCancer, string> = {
+  cnes: 'CNES',
   fonte: 'Fonte',
   cor_ignorado: 'Cor',
   endereco_codigo: 'Endereço',
@@ -148,6 +149,7 @@ export const ROTULOS_PARAMETRO_FIXO: Record<ChaveParametroFixoCancer, string> = 
 
 /** Ordem de exibição — segue a ordem das colunas do layout RHC em `Positivos_Cancer.csv`. */
 export const ORDEM_PARAMETRO_FIXO: ChaveParametroFixoCancer[] = [
+  'cnes',
   'fonte',
   'cor_ignorado',
   'endereco_codigo',
@@ -167,6 +169,7 @@ export const ORDEM_PARAMETRO_FIXO: ChaveParametroFixoCancer[] = [
 
 export function valorDoParametroFixo(fixos: ParametrosFixosCancerDTO, chave: ChaveParametroFixoCancer): string {
   const mapa: Record<ChaveParametroFixoCancer, string> = {
+    cnes: fixos.cnes,
     fonte: fixos.fonte,
     cor_ignorado: fixos.corIgnorado,
     endereco_codigo: fixos.enderecoCodigo,

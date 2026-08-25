@@ -464,10 +464,15 @@ export interface GerarExportacaoInput {
  * Chaves editáveis de `ParametrosFixosCancerDTO` (`qa_parametros`, módulo
  * `cancer`) — "raramente variam" (Fonte, Cor etc.), mas não são hardcoded
  * (P5), e o usuário pediu que fiquem editáveis a partir do drawer de 1 caso,
- * com confirmação. `cnes` fica de fora de propósito: continua sua própria
- * coluna na tabela, fora deste conjunto editável.
+ * com confirmação. `cnes` também mantém sua própria coluna na tabela — só
+ * passou a entrar aqui porque não havia NENHUM outro lugar no app pra
+ * configurá-lo (achado ao investigar o relato de CNES sempre vazio: a
+ * migration nunca semeou `qa_parametros`, e `atualizarParametroFixoCancer`
+ * recusa criar chave nova, então sem seed nem sem entrar neste conjunto
+ * editável, `cnes` ficaria travado pra sempre).
  */
 export const CHAVES_PARAMETRO_FIXO_CANCER = [
+  'cnes',
   'fonte',
   'cor_ignorado',
   'endereco_codigo',
