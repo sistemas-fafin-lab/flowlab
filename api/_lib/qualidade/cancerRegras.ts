@@ -157,6 +157,70 @@ export function sugerirMorfologia(
   return entrada ? { codigo: entrada.codigo, descricao: entrada.descricao } : null;
 }
 
+/** Prefixo gravado por `qa_parametros` (módulo `cancer`) enquanto o valor real de um campo fixo do RHC é pendência de negócio — ver issue 11. */
+export const PREFIXO_PLACEHOLDER_PARAMETRO_FIXO_CANCER = 'PLACEHOLDER — ';
+
+/**
+ * As colunas do layout RHC sem origem no LIS — exceto `registrador`, que vem
+ * do formulário de exportação, não de `qa_parametros` (issue 13).
+ */
+export interface ColunasFixasExportacaoCancer {
+  cnes: string;
+  fonte: string;
+  regiaoAdministrativa: string;
+  municipio: string;
+  estado: string;
+  naturalidadeFixa: string;
+  nacionalidadeFixa: string;
+  corIgnorado: string;
+  enderecoCodigo: string;
+  profissaoCodigo: string;
+  meioDiagnostico: string;
+  extensao: string;
+  casoRaro: string;
+  estadoCivilIgnorado: string;
+  escolaridadeIgnorado: string;
+}
+
+/**
+ * Lista fechada de chaves (não `Object.keys`/`Object.entries`): quem chama
+ * passa o DTO completo de `carregarParametrosFixosCancer` (16 campos, com
+ * `registrador`), que é um superset estrutural de `ColunasFixasExportacaoCancer`
+ * — iterar as chaves do objeto em runtime pegaria `registrador` junto e
+ * bloquearia a exportação pra sempre, já que esse campo nunca é preenchido
+ * em `qa_parametros` (vem do formulário, ver issue 13).
+ */
+const CHAVES_COLUNAS_FIXAS_EXPORTACAO_CANCER = [
+  'cnes',
+  'fonte',
+  'regiaoAdministrativa',
+  'municipio',
+  'estado',
+  'naturalidadeFixa',
+  'nacionalidadeFixa',
+  'corIgnorado',
+  'enderecoCodigo',
+  'profissaoCodigo',
+  'meioDiagnostico',
+  'extensao',
+  'casoRaro',
+  'estadoCivilIgnorado',
+  'escolaridadeIgnorado',
+] as const satisfies readonly (keyof ColunasFixasExportacaoCancer)[];
+
+/**
+ * R4 (spec RHC do projeto irmão) — nenhuma dessas colunas pode ir pro CSV de
+ * exportação vazia ou com placeholder: é um arquivo de notificação
+ * compulsória à vigilância epidemiológica. Devolve as chaves ainda
+ * pendentes; vazio = liberado para exportar.
+ */
+export function parametrosFixosPendentes(parametros: ColunasFixasExportacaoCancer): string[] {
+  return CHAVES_COLUNAS_FIXAS_EXPORTACAO_CANCER.filter((chave) => {
+    const valor = parametros[chave];
+    return valor === '' || valor.startsWith(PREFIXO_PLACEHOLDER_PARAMETRO_FIXO_CANCER);
+  });
+}
+
 export interface SugestaoTopografiaInput {
   descricaoTopografiaLis: string | null;
 }

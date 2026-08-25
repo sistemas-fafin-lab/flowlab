@@ -19,7 +19,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarQualidadeERetornarUsuario, tokenDoHeader } from '../qualidade/autorizacao.js';
 import { carregarCatalogoCido, carregarParametrosFixosCancer } from '../qualidade/cancerConsulta.js';
-import { elegivelParaExportacao, type TriagemCancer } from '../qualidade/cancerRegras.js';
+import { elegivelParaExportacao, parametrosFixosPendentes, type TriagemCancer } from '../qualidade/cancerRegras.js';
 import { buscarDetalhesCancerLis, ehErroConsulta } from '../qualidade/bdLabQualidade.js';
 import { gerarPdfExportacaoCancer, type LinhaPdfExportacaoCancer } from '../qualidade/gerarPdfExportacaoCancer.js';
 import { getSupabaseAdminClient } from '../supabase.js';
@@ -145,6 +145,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     if (casosResp.error) {
       console.error('[qualidade/gerar-exportacao-cancer] erro ao ler qa_cancer_casos:', describeError(casosResp.error));
       res.status(500).json({ success: false, error: 'Falha ao ler casos de Registro de Câncer.' });
+      return;
+    }
+
+    // Bloqueio rígido (R4): arquivo de notificação compulsória à vigilância
+    // epidemiológica — nenhuma coluna fixa do RHC sem origem no LIS pode sair
+    // como placeholder/vazia (achado issue 12). Checa antes de qualquer
+    // consulta ao LIS ou escrita no Storage.
+    const pendentes = parametrosFixosPendentes(parametrosFixos);
+    if (pendentes.length > 0) {
+      res.status(400).json({
+        success: false,
+        error: `Exportação bloqueada: parâmetro(s) fixo(s) do RHC ainda pendente(s) de valor real (qa_parametros, módulo cancer): ${pendentes.join(', ')}.`,
+      });
       return;
     }
 

@@ -4,9 +4,12 @@ import {
   calcularFunil,
   combinarCandidaturas,
   elegivelParaExportacao,
+  parametrosFixosPendentes,
   sugerirMorfologia,
   sugerirTopografia,
+  type ColunasFixasExportacaoCancer,
 } from '../../../../api/_lib/qualidade/cancerRegras.js';
+import type { ParametrosFixosCancer } from '../../../../api/_lib/qualidade/cancerConsulta.js';
 
 describe('calcularFunil', () => {
   it('conta as 5 etapas + retificação pendente separadamente (R8)', () => {
@@ -90,5 +93,49 @@ describe('sugerirMorfologia / sugerirTopografia', () => {
     const catalogo = [{ codigo: 'C50', descricao: 'Mama' }];
     expect(sugerirTopografia({ descricaoTopografiaLis: 'MAMA' }, catalogo)?.codigo).toBe('C50');
     expect(sugerirTopografia({ descricaoTopografiaLis: 'pulmão' }, catalogo)).toBeNull();
+  });
+});
+
+describe('parametrosFixosPendentes', () => {
+  const completos: ColunasFixasExportacaoCancer = {
+    cnes: '3744221',
+    fonte: 'Laboratório X',
+    regiaoAdministrativa: '01',
+    municipio: '530010',
+    estado: 'DF',
+    naturalidadeFixa: '10',
+    nacionalidadeFixa: '1',
+    corIgnorado: '9',
+    enderecoCodigo: '0',
+    profissaoCodigo: '0',
+    meioDiagnostico: '1',
+    extensao: '1',
+    casoRaro: '2',
+    estadoCivilIgnorado: '9',
+    escolaridadeIgnorado: '9',
+  };
+
+  it('sem nenhum campo vazio nem placeholder: lista vazia (exportação liberada)', () => {
+    expect(parametrosFixosPendentes(completos)).toEqual([]);
+  });
+
+  it('campo com valor placeholder (issue 11) entra na lista de pendentes', () => {
+    const pendentes = parametrosFixosPendentes({ ...completos, fonte: 'PLACEHOLDER — preencher com o valor real (ver issue 11)' });
+    expect(pendentes).toEqual(['fonte']);
+  });
+
+  it('campo em branco (\'\') é tratado como pendente, igual a um placeholder', () => {
+    const pendentes = parametrosFixosPendentes({ ...completos, estado: '' });
+    expect(pendentes).toEqual(['estado']);
+  });
+
+  it('lista todas as chaves pendentes, não só a primeira', () => {
+    const pendentes = parametrosFixosPendentes({ ...completos, municipio: '', estado: 'PLACEHOLDER — x' });
+    expect(pendentes).toEqual(['municipio', 'estado']);
+  });
+
+  it('recebendo o DTO real de 16 campos (com `registrador` vazio) não bloqueia por causa dele: registrador vem do formulário, não de qa_parametros', () => {
+    const dtoReal: ParametrosFixosCancer = { ...completos, registrador: '' };
+    expect(parametrosFixosPendentes(dtoReal)).toEqual([]);
   });
 });
