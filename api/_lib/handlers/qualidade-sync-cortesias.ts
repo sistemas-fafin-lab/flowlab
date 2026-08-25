@@ -107,6 +107,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const situacaoPrazo = calcularSituacaoPrazo(diasAteAutorizacao, c.dtaAutorizacao, parametros.prazoAprovacaoDias, diasEmAberto);
 
       return {
+        id_requisicao_lis: c.idRequisicaoLis,
         cod_requisicao: c.codRequisicao,
         dta_solicitacao: c.dtaSolicitacao,
         dta_autorizacao: c.dtaAutorizacao,

@@ -97,6 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const supabase = getSupabaseAdminClient();
     const linhas = resultado.solicitacoes.map((s) => ({
+      id_requisicao_ihq: s.idRequisicaoIhq,
       cod_requisicao_ihq: s.codRequisicaoIhq,
       dta_admissao: s.dtaAdmissao,
       dta_solicitacao_bloco: s.dtaSolicitacaoBloco,

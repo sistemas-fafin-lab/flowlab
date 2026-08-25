@@ -177,6 +177,7 @@ export async function listarOcorrenciasLis(inicio: string, fim: string): Promise
 // ── Cortesias ────────────────────────────────────────────────────────────────
 
 export interface AutorizacaoCortesiaLis {
+  idRequisicaoLis: number;
   codRequisicao: string;
   dtaSolicitacao: string;
   dtaAutorizacao: string | null;
@@ -209,7 +210,7 @@ export async function listarAutorizacoesCortesiaLis(inicio: string, fim: string)
     // cod_requisicao) quebrava. Agrega por SUM: valor total dos
     // procedimentos cobertos por esta autorização (achado de code review).
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT r.CodRequisicao,
+      `SELECT r.IdRequisicao, r.CodRequisicao,
               DATE_FORMAT(ra.DtaCriacao, '%Y-%m-%d') AS DtaSolicitacao,
               DATE_FORMAT(ra.DtaFinalizacao, '%Y-%m-%d') AS DtaAutorizacao,
               r.IdConvenio, fc.NomConvenio, ev.DesEvento,
@@ -221,12 +222,13 @@ export async function listarAutorizacoesCortesiaLis(inicio: string, fim: string)
          LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
          LEFT JOIN fatrequisicaoprocedimento fp ON fp.IdRequisicao = ra.IdRequisicao
         WHERE ${periodo.sql} ${filtroTipo}
-        GROUP BY r.CodRequisicao, ra.DtaCriacao, ra.DtaFinalizacao, r.IdConvenio, fc.NomConvenio, ev.DesEvento, ra.Solicitante, ra.Observacao
+        GROUP BY r.IdRequisicao, r.CodRequisicao, ra.DtaCriacao, ra.DtaFinalizacao, r.IdConvenio, fc.NomConvenio, ev.DesEvento, ra.Solicitante, ra.Observacao
         ORDER BY ra.DtaCriacao DESC`,
       valores,
     );
     return {
       cortesias: linhas.map((linha) => ({
+        idRequisicaoLis: numero(linha.IdRequisicao) ?? 0,
         codRequisicao: texto(linha.CodRequisicao) ?? '',
         dtaSolicitacao: dataIso(linha.DtaSolicitacao) ?? inicio,
         dtaAutorizacao: dataIso(linha.DtaAutorizacao),
@@ -246,6 +248,7 @@ export async function listarAutorizacoesCortesiaLis(inicio: string, fim: string)
 // ── IHQ ──────────────────────────────────────────────────────────────────────
 
 export interface SolicitacaoIhqLis {
+  idRequisicaoIhq: number;
   codRequisicaoIhq: string;
   codPaciente: number | null;
   dtaAdmissao: string;
@@ -264,7 +267,7 @@ export async function listarSolicitacoesIhqLis(inicio: string, fim: string): Pro
   return comConexao('listarSolicitacoesIhqLis', async (conn) => {
     const periodo = condicaoPeriodo('r.DtaSolicitacao', inicio, fim);
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT r.CodRequisicao, r.CodPaciente,
+      `SELECT r.IdRequisicao, r.CodRequisicao, r.CodPaciente,
               DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
               r.DtaFinalizacao, med.NomMedico,
               (SELECT COUNT(*) FROM requisicaopeca rp WHERE rp.IdRequisicao = r.IdRequisicao) AS QtdPeca
@@ -277,6 +280,7 @@ export async function listarSolicitacoesIhqLis(inicio: string, fim: string): Pro
     );
     return {
       solicitacoes: linhas.map((linha) => ({
+        idRequisicaoIhq: numero(linha.IdRequisicao) ?? 0,
         codRequisicaoIhq: texto(linha.CodRequisicao) ?? '',
         codPaciente: inteiroOuNulo(linha.CodPaciente),
         dtaAdmissao: dataIso(linha.DtaSolicitacao) ?? inicio,
