@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: bug
 
 # Registro de Câncer: exportação RHC não bloqueia geração enquanto houver campo fixo pendente/placeholder
@@ -48,3 +48,13 @@ identificável, notificação compulsória).
 Depende logicamente das issues 10 e 11 (definir o valor real dos 8 campos
 e o formato do placeholder dos 6 pendentes) para a checagem ter algo
 concreto pra comparar.
+
+## Answer
+
+Implementado no commit `ecfd555`: `parametrosFixosPendentes` (`cancerRegras.ts`)
+checa as 15 colunas com origem em `qa_parametros` contra o prefixo de
+placeholder (issue 11) ou string vazia. `qualidade-gerar-exportacao-cancer.ts`
+chama essa checagem logo após validar `casosResp.error` e antes de qualquer
+consulta ao LIS ou escrita no Storage — bloqueio rígido (400, mensagem com
+as chaves pendentes), sem opção de prosseguir, dado o risco regulatório.
+Coberto por testes em `cancerRegras.test.ts`.
