@@ -144,7 +144,6 @@ export const ROTULOS_PARAMETRO_FIXO: Record<ChaveParametroFixoCancer, string> = 
   caso_raro: 'Caso raro',
   estado_civil_ignorado: 'Estado civil',
   escolaridade_ignorado: 'Escolaridade',
-  registrador: 'Registrador',
 };
 
 /** Ordem de exibição — segue a ordem das colunas do layout RHC em `Positivos_Cancer.csv`. */
@@ -164,7 +163,6 @@ export const ORDEM_PARAMETRO_FIXO: ChaveParametroFixoCancer[] = [
   'caso_raro',
   'estado_civil_ignorado',
   'escolaridade_ignorado',
-  'registrador',
 ];
 
 export function valorDoParametroFixo(fixos: ParametrosFixosCancerDTO, chave: ChaveParametroFixoCancer): string {
@@ -184,7 +182,6 @@ export function valorDoParametroFixo(fixos: ParametrosFixosCancerDTO, chave: Cha
     caso_raro: fixos.casoRaro,
     estado_civil_ignorado: fixos.estadoCivilIgnorado,
     escolaridade_ignorado: fixos.escolaridadeIgnorado,
-    registrador: fixos.registrador,
   };
   return mapa[chave];
 }

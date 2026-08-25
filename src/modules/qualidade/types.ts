@@ -394,8 +394,6 @@ export interface ParametrosFixosCancerDTO {
   casoRaro: string;
   estadoCivilIgnorado: string;
   escolaridadeIgnorado: string;
-  /** "Registrador" (coluna 29 do RHC) — mesmo valor para todos os casos até alguém trocar, como os demais campos fixos (não é mais vocabulário controlado por caso/exportação). */
-  registrador: string;
 }
 
 /** Detalhe de 1 caso, com PII lida do LIS sob demanda — nunca persistida (P10). */
@@ -487,7 +485,6 @@ export const CHAVES_PARAMETRO_FIXO_CANCER = [
   'caso_raro',
   'estado_civil_ignorado',
   'escolaridade_ignorado',
-  'registrador',
 ] as const;
 
 export type ChaveParametroFixoCancer = (typeof CHAVES_PARAMETRO_FIXO_CANCER)[number];

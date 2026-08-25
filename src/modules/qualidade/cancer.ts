@@ -248,6 +248,5 @@ export async function buscarParametrosFixosCancer(): Promise<ParametrosFixosCanc
     casoRaro: texto('caso_raro'),
     estadoCivilIgnorado: texto('estado_civil_ignorado'),
     escolaridadeIgnorado: texto('escolaridade_ignorado'),
-    registrador: texto('registrador'),
   };
 }

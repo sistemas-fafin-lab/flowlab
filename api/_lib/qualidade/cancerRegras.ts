@@ -161,8 +161,9 @@ export function sugerirMorfologia(
 export const PREFIXO_PLACEHOLDER_PARAMETRO_FIXO_CANCER = 'PLACEHOLDER — ';
 
 /**
- * As colunas do layout RHC sem origem no LIS — exceto `registrador`, que vem
- * do formulário de exportação, não de `qa_parametros` (issue 13).
+ * As colunas do layout RHC sem origem no LIS — `registrador` fica de fora:
+ * vem do formulário de exportação a cada lote, não de `qa_parametros`
+ * (issue 13).
  */
 export interface ColunasFixasExportacaoCancer {
   cnes: string;
@@ -183,12 +184,9 @@ export interface ColunasFixasExportacaoCancer {
 }
 
 /**
- * Lista fechada de chaves (não `Object.keys`/`Object.entries`): quem chama
- * passa o DTO completo de `carregarParametrosFixosCancer` (16 campos, com
- * `registrador`), que é um superset estrutural de `ColunasFixasExportacaoCancer`
- * — iterar as chaves do objeto em runtime pegaria `registrador` junto e
- * bloquearia a exportação pra sempre, já que esse campo nunca é preenchido
- * em `qa_parametros` (vem do formulário, ver issue 13).
+ * Lista fechada de chaves (não `Object.keys`/`Object.entries`) — mesmas 15
+ * chaves de `ColunasFixasExportacaoCancer`/`carregarParametrosFixosCancer`;
+ * `registrador` não entra em nenhuma das duas (issue 13).
  */
 const CHAVES_COLUNAS_FIXAS_EXPORTACAO_CANCER = [
   'cnes',

@@ -24,7 +24,6 @@ export interface ParametrosFixosCancer {
   casoRaro: string;
   estadoCivilIgnorado: string;
   escolaridadeIgnorado: string;
-  registrador: string;
 }
 
 export async function carregarParametrosFixosCancer(supabase: SupabaseClient): Promise<ParametrosFixosCancer> {
@@ -48,7 +47,6 @@ export async function carregarParametrosFixosCancer(supabase: SupabaseClient): P
     casoRaro: texto('caso_raro'),
     estadoCivilIgnorado: texto('estado_civil_ignorado'),
     escolaridadeIgnorado: texto('escolaridade_ignorado'),
-    registrador: texto('registrador'),
   };
 }
 

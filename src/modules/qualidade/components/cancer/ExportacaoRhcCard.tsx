@@ -6,8 +6,6 @@ import { buscarLinkDownloadExportacao, gerarExportacaoCancer, listarExportacoesC
 import { Skeleton } from '../ui/Skeleton.js';
 
 interface ExportacaoRhcCardProps {
-  /** Registrador padrão vindo de `qa_parametros` (parametro fixo `registrador`). */
-  registradorPadrao: string;
   canManage: boolean;
 }
 
@@ -28,14 +26,14 @@ function formatarGeradoEm(iso: string): string {
  * `canManageQualidade`) e lista as exportações já feitas com link de
  * download (`baixar-exportacao-cancer`, exige só `canViewQualidade`).
  */
-export function ExportacaoRhcCard({ registradorPadrao, canManage }: ExportacaoRhcCardProps) {
+export function ExportacaoRhcCard({ canManage }: ExportacaoRhcCardProps) {
   const queryClient = useQueryClient();
   const [ano, setAno] = useState(anoAtual());
   const [trimestre, setTrimestre] = useState<1 | 2 | 3 | 4>(trimestreAtual());
-  // O card só monta com o funil já carregado (CancerPage), então o valor
-  // padrão do parametro fixo está disponível no primeiro render — sem efeito
-  // de sincronização que sobrescreveria o que a pessoa digitou.
-  const [registrador, setRegistrador] = useState(registradorPadrao);
+  // Quem preencheu este lote específico, informado a cada exportação — não
+  // é fixo institucional, então não tem valor padrão vindo de qa_parametros
+  // (issue 13).
+  const [registrador, setRegistrador] = useState('');
 
   const exportacoes = useQuery({
     queryKey: ['cancer-exportacoes'],

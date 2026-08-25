@@ -9,7 +9,6 @@ import {
   sugerirTopografia,
   type ColunasFixasExportacaoCancer,
 } from '../../../../api/_lib/qualidade/cancerRegras.js';
-import type { ParametrosFixosCancer } from '../../../../api/_lib/qualidade/cancerConsulta.js';
 
 describe('calcularFunil', () => {
   it('conta as 5 etapas + retificação pendente separadamente (R8)', () => {
@@ -132,10 +131,5 @@ describe('parametrosFixosPendentes', () => {
   it('lista todas as chaves pendentes, não só a primeira', () => {
     const pendentes = parametrosFixosPendentes({ ...completos, municipio: '', estado: 'PLACEHOLDER — x' });
     expect(pendentes).toEqual(['municipio', 'estado']);
-  });
-
-  it('recebendo o DTO real de 16 campos (com `registrador` vazio) não bloqueia por causa dele: registrador vem do formulário, não de qa_parametros', () => {
-    const dtoReal: ParametrosFixosCancer = { ...completos, registrador: '' };
-    expect(parametrosFixosPendentes(dtoReal)).toEqual([]);
   });
 });

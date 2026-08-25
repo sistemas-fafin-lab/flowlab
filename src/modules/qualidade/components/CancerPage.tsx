@@ -248,9 +248,7 @@ export function Cancer() {
           </>
         );
       }}
-      abaixoDaTabela={(resposta) => (
-        <ExportacaoRhcCard registradorPadrao={resposta.parametrosFixos.registrador} canManage={canManage} />
-      )}
+      abaixoDaTabela={() => <ExportacaoRhcCard canManage={canManage} />}
       drawer={(resposta) =>
         idSelecionado && resposta ? (
           <CasoDrawer
