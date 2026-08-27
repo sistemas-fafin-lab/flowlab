@@ -33,6 +33,7 @@ const RequestManagement: React.FC = () => {
     suppliers,
     loading,
     addRequest,
+    addAttachmentToRequest,
     updateRequestStatus,
     addMovement,
     createQuotation,
@@ -443,11 +444,9 @@ useEffect(() => {
     }));
   };
 
-  // Handle file attachments (multiple)
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
+  // Validate attachment files (type/size), shared by the create form and the
+  // "add attachment" button on an existing request's detail card.
+  const validateAttachmentFiles = (files: File[]): File[] => {
     const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
     const maxSize = 10 * 1024 * 1024;
     const validFiles: File[] = [];
@@ -463,6 +462,16 @@ useEffect(() => {
       }
       validFiles.push(file);
     }
+
+    return validFiles;
+  };
+
+  // Handle file attachments (multiple)
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+
+    const validFiles = validateAttachmentFiles(files);
 
     if (!validFiles.length) return;
 
@@ -487,6 +496,45 @@ useEffect(() => {
   const removeAttachment = (index: number) => {
     setAttachments(prev => prev.filter((_, i) => i !== index));
     setAttachmentPreviews(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Add attachment to an already-created request, from its detail card
+  const addAttachmentInputRef = React.useRef<HTMLInputElement>(null);
+  const [attachmentTargetRequestId, setAttachmentTargetRequestId] = useState<string | null>(null);
+  const [uploadingAttachmentRequestId, setUploadingAttachmentRequestId] = useState<string | null>(null);
+
+  const handleAddAttachmentClick = (requestId: string) => {
+    setAttachmentTargetRequestId(requestId);
+    addAttachmentInputRef.current?.click();
+  };
+
+  const handleAddAttachmentChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const requestId = attachmentTargetRequestId;
+
+    if (!files.length || !requestId) {
+      if (addAttachmentInputRef.current) addAttachmentInputRef.current.value = '';
+      return;
+    }
+
+    const validFiles = validateAttachmentFiles(files);
+    if (!validFiles.length) {
+      if (addAttachmentInputRef.current) addAttachmentInputRef.current.value = '';
+      return;
+    }
+
+    setUploadingAttachmentRequestId(requestId);
+    try {
+      await addAttachmentToRequest(requestId, validFiles);
+      showSuccess('Anexo adicionado com sucesso!');
+    } catch (error) {
+      console.error('Erro ao adicionar anexo:', error);
+      showError(error instanceof Error ? error.message : 'Erro ao adicionar anexo. Tente novamente.');
+    } finally {
+      setUploadingAttachmentRequestId(null);
+      setAttachmentTargetRequestId(null);
+      if (addAttachmentInputRef.current) addAttachmentInputRef.current.value = '';
+    }
   };
 
   // Open image viewer
@@ -776,6 +824,16 @@ const handleCompleteRequest = async (request: Request) => {
 
   return (
     <div className="space-y-6 overflow-x-hidden">
+      {/* Input oculto compartilhado para "Adicionar anexo" em solicitações já existentes */}
+      <input
+        ref={addAttachmentInputRef}
+        type="file"
+        accept=".pdf,.png,.jpg,.jpeg"
+        onChange={handleAddAttachmentChange}
+        multiple
+        className="hidden"
+      />
+
       <Notification
         type={notification.type}
         title={notification.title}
@@ -2008,14 +2066,29 @@ const handleCompleteRequest = async (request: Request) => {
             </div>
 
             {/* Attachments (múltiplos) */}
-            {(request.attachments && request.attachments.length > 0) && (
-              <div className="mb-4 space-y-2">
+            <div className="mb-4 space-y-2">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
                 <div className="flex items-center">
                   <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-purple-500/25 flex-shrink-0">
                     <Paperclip className="w-3 h-3 text-white" />
                   </div>
-                  <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200">Anexos ({request.attachments.length})</p>
+                  <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-200">Anexos ({request.attachments?.length || 0})</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => handleAddAttachmentClick(request.id)}
+                  disabled={uploadingAttachmentRequestId === request.id}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] sm:text-xs font-medium text-purple-700 dark:text-purple-300 bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/30 dark:to-pink-900/30 border border-purple-200 dark:border-purple-800 rounded-lg hover:from-purple-100 hover:to-pink-100 dark:hover:from-purple-900/50 dark:hover:to-pink-900/50 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {uploadingAttachmentRequestId === request.id ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Paperclip className="w-3 h-3" />
+                  )}
+                  Adicionar anexo
+                </button>
+              </div>
+              {request.attachments && request.attachments.length > 0 && (
                 <div className="space-y-2">
                   {request.attachments.map((att, idx) => (
                     <div key={idx} className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 p-3 rounded-xl border border-purple-100 dark:border-purple-800">
@@ -2067,8 +2140,8 @@ const handleCompleteRequest = async (request: Request) => {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Action Buttons */}
             {canApprove && request.status === 'pending' && (

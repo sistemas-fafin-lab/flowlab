@@ -776,6 +776,63 @@ export const useInventory = () => {
     }
   };
 
+  const addAttachmentToRequest = async (requestId: string, files: File[]) => {
+    try {
+      if (!files.length) return;
+
+      const uploadedData: { url: string; name: string }[] = [];
+
+      for (const file of files) {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+        const filePath = `${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('request-attachments')
+          .upload(filePath, file, { cacheControl: '3600', upsert: false });
+
+        if (uploadError) {
+          console.error('Erro ao fazer upload do anexo:', uploadError);
+          if (uploadError.message.includes('Bucket not found') || uploadError.message.includes('bucket')) {
+            throw new Error('O bucket de storage não está configurado. Por favor, contate o administrador do sistema.');
+          }
+          continue;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('request-attachments')
+          .getPublicUrl(filePath);
+
+        uploadedData.push({ url: publicUrl, name: file.name });
+      }
+
+      if (!uploadedData.length) {
+        throw new Error('Não foi possível enviar o(s) anexo(s). Tente novamente.');
+      }
+
+      const { data: currentRequest, error: fetchError } = await supabase
+        .from('requests')
+        .select('attachments')
+        .eq('id', requestId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const existingAttachments = (currentRequest?.attachments as { url: string; name: string }[] | null) ?? [];
+
+      const { error: updateError } = await supabase
+        .from('requests')
+        .update({ attachments: [...existingAttachments, ...uploadedData] })
+        .eq('id', requestId);
+
+      if (updateError) throw updateError;
+
+      await fetchRequests(); // Refresh requests list
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Failed to add attachment to request');
+    }
+  };
+
   const updateRequestStatus = async (id: string, status: Request['status'], approvedBy?: string) => {
     try {
       const updateData: any = { status };
@@ -1129,6 +1186,7 @@ export const useInventory = () => {
     updateProduct,
     addMovement,
     addRequest,
+    addAttachmentToRequest,
     updateRequestStatus,
     addSupplier,
     updateSupplier,
