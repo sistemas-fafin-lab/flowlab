@@ -94,3 +94,16 @@ apagar o objeto do bucket) + botão de lixeira por item no card de detalhe,
 com confirmação (`showConfirmDialog`, mesmo padrão de Aprovar/Rejeitar).
 Isso revoga a exclusão original de escopo ("Remover/substituir um anexo já
 existente"), que segue valendo só para "substituir" (não implementado).
+
+Verificação manual (27/08/2026): ao testar no ambiente de teste (Supabase
+`eqz...`), o bucket `request-attachments` não existia — a migration
+`20260310130000_multi_attachments.sql` (que cria bucket + policies) tinha
+sido aplicada em produção mas não nesse projeto. Criado manualmente nesse
+ambiente, com o mesmo bucket e as mesmas 3 policies da migration
+(`request_attachments_insert/select/delete`): bucket via API REST do
+Storage (service role key de `SUPABASE_URL`/`SUPABASE_SERVICE_ROLE_KEY` no
+`.env`, seção "ATIVO: TEST"), policies via `supabase db query --linked`
+apontando temporariamente pro ref de teste (`eqzqkztgzcngnxmihdom`) e
+depois restaurado o link pro ref de produção (`jqxeqmeikqclmmongclj`). Não
+gerou migration nova no repo porque o SQL já existe na
+`20260310130000_multi_attachments.sql` — só faltava rodar nesse projeto.
