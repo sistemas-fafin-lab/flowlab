@@ -1289,6 +1289,186 @@ export async function listarParticularesPendentes(
 }
 
 // ============================================================================
+// PENDÊNCIAS — REQUISIÇÕES SEM LOTE (aba Contas a Receber → Pendências → Sem lote)
+// ============================================================================
+// Issue 21 do feedback (27/08, investigação em dados reais do apLIS): a rodada 4
+// (issue 18) tratou "pendência" como algo só a nível de LOTE — trocar a janela de
+// M-2 para M-1 em `listarLotesPendentes` — sob a premissa de que toda requisição
+// cobrável acaba entrando num `fatlote`. Consulta direta ao MySQL mostrou que a
+// premissa estava incompleta: existe um volume real e constante (não só represado
+// do mês corrente) de requisições de convênio que NUNCA entram em nenhum lote —
+// `requisicao.Lote IS NULL` — logo invisíveis para `listarLotesPendentes`, que só
+// olha `fatlote`. Esta função cobre essa lacuna.
+//
+// Exclui as duas fontes pagadoras que já têm tratamento próprio: 1102 PARTICULAR
+// (lista própria, `listarParticularesPendentes`) e 100 Cortesia (não cobrável).
+// Mesma janela M-1 sobre `DtaSolicitacao` de `listarParticularesPendentes`, pelo
+// mesmo motivo: sem esse corte, requisições sem lote muito antigas virariam ruído.
+//
+// Não se sobrepõe a `listarLotesPendentes`: aquela exige `requisicao.Lote` ligado
+// a um `fatlote` sem NF; esta exige `requisicao.Lote IS NULL` — uma requisição
+// nunca casa as duas condições ao mesmo tempo.
+//
+// `100` veio da mesma investigação direta no MySQL da issue 21 (27/08) que
+// levantou o volume de requisições sem lote — não é um palpite.
+export const ID_FONTE_PAGADORA_CORTESIA = 100;
+
+export interface RequisicaoSemLotePendencia {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  dtaSolicitacao: string | null;
+  dtaFinalizacao: string | null;
+  paciente: string | null;
+  valor: number;
+  fontePagadora: { id: number | null; nome: string | null; razaoSocial: string | null };
+}
+
+export interface ListarRequisicoesSemLoteParams {
+  /** YYYY-MM-DD — sobre DtaSolicitacao. */
+  desde?: string;
+  /** YYYY-MM-DD — limite superior opcional; nunca ESTENDE o cutoff de M-1, só pode
+   *  encurtar a janela (mesma regra de `cutoffEAteEfetivoM1`). */
+  ate?: string;
+  operadoraId?: number;
+  pagina?: number;
+  tamanho?: number;
+  ignorarCache?: boolean;
+}
+
+export interface RequisicoesSemLoteMeta {
+  pagina: number;
+  tamanho: number;
+  qtdPaginas: number;
+  registros: number;
+  /** Soma do valor de TODAS as requisições que casam o filtro, não só a página
+   *  atual — é o número que o widget-resumo do Dashboard mostra. */
+  valorTotal: number;
+  /** Fim de M-1 — data de corte da regra, calculada no MySQL a partir de CURDATE(). */
+  cutoff: string;
+}
+
+export type ListarRequisicoesSemLoteResultado =
+  | { requisicoes: RequisicaoSemLotePendencia[]; meta: RequisicoesSemLoteMeta }
+  | { erro: { status: number; mensagem: string } };
+
+const cacheRequisicoesSemLote = new Map<string, EntradaCache<ListarRequisicoesSemLoteResultado>>();
+
+function chaveRequisicoesSemLote(params: ListarRequisicoesSemLoteParams): string {
+  return `requisicoesSemLote|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}`;
+}
+
+// `NOT EXISTS` de RPS/NFe individual: mesmo cuidado de
+// SQL_PARTICULARES_PENDENTES_WHERE acima — uma requisição sem lote pode já ter
+// sido cobrada fora do fluxo de lote (RPS/NFe lançado direto na requisição).
+// `rps.DataCancelamento IS NULL` porque um RPS cancelado não é "já cobrado".
+const SQL_SEM_LOTE_WHERE = `
+  r.Lote IS NULL
+  AND r.IdFontePagadora NOT IN (${ID_FONTE_PAGADORA_PARTICULAR}, ${ID_FONTE_PAGADORA_CORTESIA})
+  AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
+  AND NOT EXISTS (
+    SELECT 1 FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps
+    WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL
+  )`;
+
+function normalizarRequisicaoSemLote(linha: mysql.RowDataPacket): RequisicaoSemLotePendencia {
+  return {
+    idRequisicao: numero(linha.IdRequisicao),
+    codRequisicao: texto(linha.CodRequisicao),
+    dtaSolicitacao: dataIso(linha.DtaSolicitacao),
+    dtaFinalizacao: dataIso(linha.DtaFinalizacao),
+    paciente: texto(linha.NomPaciente),
+    valor: numero(linha.Valor),
+    fontePagadora: {
+      id: inteiroOuNulo(linha.IdFontePagadora),
+      nome: texto(linha.NomFantasia),
+      razaoSocial: texto(linha.RazaoSocial),
+    },
+  };
+}
+
+/** Requisições de convênio sem nenhum lote vinculado, dentro da janela M-1,
+ *  paginadas. Mais antiga primeiro — é a que está esperando cobrança há mais
+ *  tempo. */
+export async function listarRequisicoesSemLote(
+  params: ListarRequisicoesSemLoteParams,
+): Promise<ListarRequisicoesSemLoteResultado> {
+  const pagina = params.pagina ?? 1;
+  const tamanho = params.tamanho ?? TAMANHO_PADRAO;
+
+  const chave = chaveRequisicoesSemLote(params);
+  const cacheHit = params.ignorarCache ? null : daCache(cacheRequisicoesSemLote, chave, false);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('listarRequisicoesSemLote', async (conn) => {
+    const { cutoff, ateEfetivo } = await cutoffEAteEfetivoM1(conn, params.ate);
+
+    const condicoes = [
+      SQL_SEM_LOTE_WHERE,
+      'r.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 DAY)',
+    ];
+    const valores: ParametroSql[] = [ateEfetivo];
+    if (params.desde) {
+      condicoes.push('r.DtaSolicitacao >= ?');
+      valores.push(`${params.desde} 00:00:00`);
+    }
+    if (params.operadoraId !== undefined) {
+      condicoes.push('r.IdFontePagadora = ?');
+      valores.push(params.operadoraId);
+    }
+    const where = condicoes.join(' AND ');
+
+    // Mesma troca de subconsulta correlacionada por LEFT JOIN + GROUP BY de
+    // listarParticularesPendentes acima, e pelo mesmo motivo: o total ignora LIMIT.
+    const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(t.ValorReq), 0) AS ValorTotal
+         FROM (
+           SELECT r.IdRequisicao, COALESCE(SUM(frp.ValorLiquido), 0) AS ValorReq
+             FROM requisicao r
+             LEFT JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+            WHERE ${where}
+            GROUP BY r.IdRequisicao
+         ) t`,
+      valores,
+    );
+    const registros = numero(contagem[0]?.n);
+    const valorTotal = numero(contagem[0]?.ValorTotal);
+
+    const limite = Math.trunc(tamanho);
+    const deslocamento = Math.trunc((pagina - 1) * tamanho);
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT r.IdRequisicao, r.CodRequisicao,
+              DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
+              DATE_FORMAT(r.DtaFinalizacao, '%Y-%m-%d') AS DtaFinalizacao,
+              p.NomPaciente, r.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
+              COALESCE((SELECT SUM(frp.ValorLiquido) FROM fatrequisicaoprocedimento frp
+                         WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor
+         FROM requisicao r
+         LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
+         LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = r.IdFontePagadora
+        WHERE ${where}
+        ORDER BY r.DtaSolicitacao ASC, r.IdRequisicao ASC
+        LIMIT ${limite} OFFSET ${deslocamento}`,
+      valores,
+    );
+
+    return {
+      requisicoes: linhas.map(normalizarRequisicaoSemLote),
+      meta: {
+        pagina,
+        tamanho,
+        qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
+        registros,
+        valorTotal,
+        cutoff,
+      },
+    };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheRequisicoesSemLote, chave, resultado);
+    return resultado;
+  });
+}
+
+// ============================================================================
 // GLOSAS E RECURSOS — histórico do legado (aba "Histórico (apLIS)")
 // ============================================================================
 // Leitura ao vivo, mesmo padrão acima: nada é persistido no Supabase.

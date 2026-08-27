@@ -9,6 +9,7 @@ import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
 import PendenciasNaoFaturadas from './PendenciasNaoFaturadas';
 import PendenciasParticulares from './PendenciasParticulares';
+import PendenciasSemLote from './PendenciasSemLote';
 import NovoTituloModal from './NovoTituloModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
@@ -277,6 +278,7 @@ const ContasReceberPage: React.FC = () => {
             {([
               { id: 'lotes' as SubAbaPendencias, rotulo: 'Sem NF (lotes)' },
               { id: 'particulares' as SubAbaPendencias, rotulo: 'Particulares' },
+              { id: 'semLote' as SubAbaPendencias, rotulo: 'Sem lote' },
             ]).map(({ id, rotulo }) => (
               <button
                 key={id}
@@ -293,9 +295,9 @@ const ContasReceberPage: React.FC = () => {
             ))}
           </div>
 
-          {subAbaPendencias === 'lotes'
-            ? <PendenciasNaoFaturadas operadoras={operadoras} />
-            : <PendenciasParticulares />}
+          {subAbaPendencias === 'lotes' && <PendenciasNaoFaturadas operadoras={operadoras} />}
+          {subAbaPendencias === 'particulares' && <PendenciasParticulares />}
+          {subAbaPendencias === 'semLote' && <PendenciasSemLote operadoras={operadoras} />}
         </div>
       )}
 
