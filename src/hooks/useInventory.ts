@@ -833,6 +833,39 @@ export const useInventory = () => {
     }
   };
 
+  const removeAttachmentFromRequest = async (requestId: string, attachmentUrl: string) => {
+    try {
+      const { data: currentRequest, error: fetchError } = await supabase
+        .from('requests')
+        .select('attachments')
+        .eq('id', requestId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const existingAttachments = (currentRequest?.attachments as { url: string; name: string }[] | null) ?? [];
+      const remainingAttachments = existingAttachments.filter(att => att.url !== attachmentUrl);
+
+      const { error: updateError } = await supabase
+        .from('requests')
+        .update({ attachments: remainingAttachments })
+        .eq('id', requestId);
+
+      if (updateError) throw updateError;
+
+      // Best-effort: remove the file from storage too. Does not block the
+      // DB update above (which is what the UI reflects) if this fails.
+      const filePath = attachmentUrl.split('/request-attachments/')[1];
+      if (filePath) {
+        await supabase.storage.from('request-attachments').remove([decodeURIComponent(filePath)]);
+      }
+
+      await fetchRequests(); // Refresh requests list
+    } catch (err) {
+      throw new Error(err instanceof Error ? err.message : 'Failed to remove attachment from request');
+    }
+  };
+
   const updateRequestStatus = async (id: string, status: Request['status'], approvedBy?: string) => {
     try {
       const updateData: any = { status };
@@ -1187,6 +1220,7 @@ export const useInventory = () => {
     addMovement,
     addRequest,
     addAttachmentToRequest,
+    removeAttachmentFromRequest,
     updateRequestStatus,
     addSupplier,
     updateSupplier,

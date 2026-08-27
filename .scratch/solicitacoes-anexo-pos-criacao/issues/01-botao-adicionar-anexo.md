@@ -85,3 +85,12 @@ Implementado em 27/08/2026. Decisão em aberto (quem pode adicionar anexo):
 seguido o default sugerido no ticket — sem restrição extra além de já poder
 ver o detalhe da solicitação, já que a tela hoje não tem restrição extra
 nesse ponto. Sinalizar se o produto quiser restringir depois.
+
+Ampliação de escopo (pedido direto do usuário em 27/08/2026, fora do
+ticket original): botão de remover anexo também foi implementado —
+`removeAttachmentFromRequest` em `useInventory.ts` (lê `attachments` fresco
+do banco, filtra pela URL e faz o `UPDATE`; melhor esforço pra também
+apagar o objeto do bucket) + botão de lixeira por item no card de detalhe,
+com confirmação (`showConfirmDialog`, mesmo padrão de Aprovar/Rejeitar).
+Isso revoga a exclusão original de escopo ("Remover/substituir um anexo já
+existente"), que segue valendo só para "substituir" (não implementado).

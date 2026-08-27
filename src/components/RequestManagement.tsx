@@ -34,6 +34,7 @@ const RequestManagement: React.FC = () => {
     loading,
     addRequest,
     addAttachmentToRequest,
+    removeAttachmentFromRequest,
     updateRequestStatus,
     addMovement,
     createQuotation,
@@ -535,6 +536,29 @@ useEffect(() => {
       setAttachmentTargetRequestId(null);
       if (addAttachmentInputRef.current) addAttachmentInputRef.current.value = '';
     }
+  };
+
+  // Remove an attachment from an already-created request, from its detail card
+  const [removingAttachmentUrl, setRemovingAttachmentUrl] = useState<string | null>(null);
+
+  const handleRemoveAttachment = (requestId: string, attachmentUrl: string, attachmentName: string) => {
+    showConfirmDialog(
+      'Remover Anexo',
+      `Tem certeza que deseja remover o anexo "${attachmentName}"? Essa ação não pode ser desfeita.`,
+      async () => {
+        setRemovingAttachmentUrl(attachmentUrl);
+        try {
+          await removeAttachmentFromRequest(requestId, attachmentUrl);
+          showSuccess('Anexo removido com sucesso!');
+        } catch (error) {
+          console.error('Erro ao remover anexo:', error);
+          showError(error instanceof Error ? error.message : 'Erro ao remover anexo. Tente novamente.');
+        } finally {
+          setRemovingAttachmentUrl(null);
+        }
+      },
+      { type: 'danger', confirmText: 'Remover' }
+    );
   };
 
   // Open image viewer
@@ -2137,6 +2161,19 @@ const handleCompleteRequest = async (request: Request) => {
                           </div>
                         </>
                       )}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveAttachment(request.id, att.url, att.name)}
+                        disabled={removingAttachmentUrl === att.url}
+                        className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all flex-shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                        title="Remover anexo"
+                      >
+                        {removingAttachmentUrl === att.url ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
                     </div>
                   ))}
                 </div>
