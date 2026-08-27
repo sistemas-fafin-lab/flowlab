@@ -11,6 +11,13 @@ A parte que tinha valor real e verificável — guias com `ValorRecebido = 0` ap
 
 **Retomar quando**: `titulos`/`notas` tiverem volume real (mesmo critério das issues 05/06/12). Nesse momento, reavaliar se ainda há divergência a investigar no KPI do dashboard, além do que a issue 09 já resolve.
 
+**Revalidado em 27/08** (9 dias depois): consultei direto o Supabase de
+produção (projeto jqx) — `notas` continua com as MESMAS 5 linhas de seed
+(`created_at` 2026-03-27T14:45:38, `aplis_id` NF001–NF005), `valor_recebido =
+0` nas 5, e `recebimentos`/`glosas` seguem com **0 linhas**. Nenhum uso
+orgânico novo do setor nessas tabelas desde a checagem anterior — segue
+adiada, nada mudou no dado que justifique reabrir a investigação agora.
+
 ## Onde
 
 KPIs do dashboard: RPC `fat_dashboard_receber` — versão atual em `supabase/migrations/20260810140000_revisao_contas_receber_baixa_severidade.sql:436-450`; cálculo de `valor_recebido`/status da nota em `supabase/migrations/20260807120000_contas_receber.sql:177-238` (`fat_recalcular_nota`). Exibição: `src/modules/faturamento/components/ContasReceberDashboard.tsx:411-443` e `:620-644`.

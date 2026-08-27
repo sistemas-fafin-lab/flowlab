@@ -11,6 +11,12 @@ Cogitou-se migrar a fonte para o apLIS (`fatrequisicaoprocedimento.IdMotivoGlosa
 
 **Retomar quando**: `glosas` (Supabase) tiver volume real de glosas registradas pelo setor via o fluxo de baixa do flowlab. Nesse momento, seguir o plano abaixo como estava.
 
+**Revalidado em 27/08** (9 dias depois): consultei direto o Supabase de
+produção (projeto jqx) — `glosas` continua com **0 linhas** e `recebimentos`
+(de onde as glosas nasceriam) também com **0 linhas**; `notas` segue travada
+nas mesmas 5 linhas de seed de 2026-03-27. Nada mudou desde a checagem
+anterior — segue adiada.
+
 ## Onde
 
 Widget `motivos-glosa` em `src/modules/faturamento/components/ContasReceberDashboard.tsx`; agregação `porMotivo` no RPC `fat_dashboard_receber` (`supabase/migrations/20260811130000_glosas_por_motivo.sql` — hoje top 8 por valor, motivo normalizado lower/btrim).
