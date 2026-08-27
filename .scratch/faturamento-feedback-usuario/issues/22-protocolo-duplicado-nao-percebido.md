@@ -102,3 +102,11 @@ leitura de código em 2026-08-27 (ver histórico da sessão).
   `lote.protocoloDuplicado`, com a lista de lotes correlacionados. Não
   depende mais de hover — resolve desktop e touch igual.
 - `npm run test` (224 testes) e `tsc --noEmit` passando.
+
+## Verificado em 27/08
+
+Confirmado manualmente no navegador (filtro "Protocolos duplicados" na aba
+Faturas): lote 6215 (FASCAL) mostra o badge "protocolo duplicado" com
+"lote(s) 3324" visível logo abaixo, sem hover. Drill-down do lote (5
+requisições, protocolo 142158) segue funcionando normalmente — sem
+regressão. Issue fechada.
