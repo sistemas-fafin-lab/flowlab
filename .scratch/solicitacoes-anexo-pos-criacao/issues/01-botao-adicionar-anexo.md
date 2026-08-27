@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Botão "Adicionar anexo" na Solicitação já existente
@@ -78,3 +78,10 @@ implementar se o default (sem restrição extra) não for óbvio.
 Pedido do usuário em 27/08/2026, motivado por precisar anexar manualmente
 (via Supabase Dashboard) um comprovante na `REQ755` por falta dessa opção na
 UI.
+
+## Comments
+
+Implementado em 27/08/2026. Decisão em aberto (quem pode adicionar anexo):
+seguido o default sugerido no ticket — sem restrição extra além de já poder
+ver o detalhe da solicitação, já que a tela hoje não tem restrição extra
+nesse ponto. Sinalizar se o produto quiser restringir depois.
