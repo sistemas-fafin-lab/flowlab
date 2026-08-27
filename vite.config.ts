@@ -587,6 +587,7 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
     'lotes', 'lote-detalhe', 'titulo-criar', 'operadoras-sync',
     'glosas-legado', 'recursos-legado',
     'pendencias-nao-faturadas', 'pendencia-lote-detalhe', 'pendencias-particulares',
+    'pendencias-sem-lote',
   ]);
   // O nome do arquivo do handler segue a action, exceto estas duas: os handlers
   // de pendências (issues 07/08) nasceram com nome mais curto que a action
