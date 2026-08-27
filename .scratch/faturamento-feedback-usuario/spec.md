@@ -1,6 +1,6 @@
 # Faturamento: feedback do usuário (dashboard, faturas, contas a receber, glosas)
 
-Status: Fases 1 e 2 implementadas (issues 02/03/07/08/10 done); issues 01/05/06/12 seguem adiadas. Fase 4 (novo relatório de 24/08) com issues 13-19 abertas para triagem. Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
+Status: Fases 1, 2 e 4 implementadas (issues 02/03/04/07/08/09/10/11/13/15/16/18/19 done; 14/17 wontfix); issues 01/05/06/12 seguem adiadas. Fase 5 (novo relatório de 27/08) com issues 20-24, todas `done`; issue 24 desmembrou a issue 25 (`needs-triage`, feature de busca de título por NF, aguardando confirmação do setor). Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
 
 Spec resultante de sessão de grilling em 2026-08-18, a partir do relatório de análise do setor de faturamento. Cada item vira uma issue própria em `issues/`. Rodada 4 de grilling em 2026-08-24 revisou um segundo relatório do setor (pós-Fase 1/2 em produção) — ver seção própria abaixo.
 
@@ -53,6 +53,57 @@ O setor mandou um novo relatório de análise depois de testar o dashboard com a
 - **Item 4.2, "Sem NF (Lotes)" M-1 vs "requisições não faturadas" M-2**: na implementação (issue 07) é uma regra só, a nível de lote, sem separação. Decisão: não criar duas listas, só trocar a janela de M-2 para M-1 (`bdLab.ts:904`). → issue 18.
 - **Item 4.2, Particulares sem exigir laudo**: reverte a regra da issue 08 (fonte 1102 + evento de laudo liberado + sem NF) para fonte 1102 + sem NF, sem evento — mas ganha a mesma janela M-1 da issue 18, pra não virar lista sem corte de tempo (a consulta hoje não tem nenhum cutoff). → issue 19, bloqueada por 18.
 
+### Rodada 5 (2026-08-27): terceiro relatório do setor, pós-Fase 4 em produção
+
+O setor mandou um novo print/relato depois das issues 13-19 (Fase 4). Diferente
+das rodadas anteriores, nenhum item desta rodada foi investigado a ponto de ter
+causa raiz confirmada — os prints têm resolução baixa (444×832, rótulos de
+widget ilegíveis mesmo na imagem original) e um item reabre explicitamente uma
+decisão de escopo já tomada. Por isso as 5 issues abertas (20-24) nascem todas
+`needs-info`, com hipóteses registradas mas nada implementado ainda.
+
+- **"Filtro de Status em Títulos não muda a lista"**: pela leitura de código
+  (`useContasReceber.ts:197`, `.eq('status', status)`) não há bug óbvio de
+  mapeamento de enum. Hipótese mais provável, dado o histórico de `notas`/
+  `titulos` sem uso orgânico (rodada 3): a maioria dos títulos reais criados
+  até agora está no mesmo status, então trocar o filtro "não muda" a lista
+  porque não há diversidade de status pra filtrar — mesmo padrão das issues
+  01/05/06/12, mas não confirmado. → issue 20.
+- **"Requisições não faturadas deveria ser requisição sem lote, não lote sem
+  NF"**: isto reabre a decisão da rodada 4 ("não criar duas listas, só trocar
+  a janela de M-2 para M-1" → issue 18), mas a investigação em 27/08 (consulta
+  direta ao MySQL do apLIS) achou fato novo que muda o veredito: **14.335
+  requisições têm `Lote IS NULL`** (11.765 com procedimento cobrável); tirando
+  Particular (1102) e Cortesia (100), sobram milhares de requisições de
+  convênio (BRADESCO, CASSI, ASSEFAZ, Sul América, Medigest, GEAP, AMIL,
+  AMHP-DF, INAS GDF, PMDF, TJDFT etc.) que nunca tiveram lote — 150-600/mês,
+  R$8-30 mil/mês, desde pelo menos jul/2025. `listarLotesPendentes` (issue
+  07/18) não enxerga nada disso, porque só olha `fatlote`. Não é reabertura de
+  preferência de UX, é lacuna de cobertura real. → issue 21, promovida a
+  `ready-for-agent` (nova função + card em Pendências; "Sem NF (Lotes)" perde
+  o cutoff M-1 a pedido do setor, pendente só de confirmar esse detalhe
+  específico).
+- **"Protocolo duplicado ainda não mostra o outro lote"**: a issue 13 (done,
+  commit `47dc478`) já implementa exatamente isso — `protocoloDuplicadoLabel`
+  lista os lotes correlacionados a partir de uma agregação GLOBAL sobre
+  `fatlote`. Pela leitura de código a feature está correta; hipótese mais
+  provável é descoberta (a lista só aparece no hover do tooltip do badge) ou
+  deploy desatualizado, não regressão de lógica. → issue 22.
+- **"Dashboard ainda com valores zerados"**: o print mistura dois grupos de
+  widget com diagnósticos opostos — os 4 KPIs de topo (Valor faturado/
+  recebido/glosado/acatado) já são zero esperado e adiado (issues 01/05/06/12,
+  fonte `notas`/`glosas` sem uso orgânico); os widgets de pendências (issue 11)
+  usam dado ao vivo do apLIS e **não deveriam** estar zerados — não dá para
+  confirmar pelo print (rótulos ilegíveis) quais especificamente aparecem em
+  R$ 0,00. → issue 23.
+- **"Não é possível filtrar as nfs"**: o print mostra o formulário de criação
+  de título (`NovoTituloModal`: Número da nota/Emissão/Competência/Vencimento/
+  Observações), que não é uma tela de filtro — o "Número da nota" ali é o
+  número do título novo sendo criado. Não dá para saber pelo relato/print se o
+  setor está de fato nessa tela esperando algo que ela não faz por design, ou
+  se o campo problemático é outro (ex.: "Notas fiscais" em `FiltrosReceber`).
+  → issue 24.
+
 ## Entrega em fases
 
 ### Fase 1 — Investigações + ajustes rápidos do dashboard
@@ -85,6 +136,26 @@ Issues 01, 05 e 06 **adiadas** — ver "Fora de escopo (parked)".
 18. Pendências "Sem NF (Lotes)": janela M-2 → M-1 (item 4.2) — issue 18.
 19. Pendências Particulares: remove exigência de laudo emitido, ganha janela M-1 (item 4.2) — issue 19 (bloqueada por 18).
 
+### Fase 5 — Terceiro relatório do setor (2026-08-27), pós-Fase 4
+
+Todas needs-info: nenhuma tem causa raiz confirmada nem decisão de escopo
+fechada ainda (ver "Rodada 5" acima). Próximo passo de cada uma é
+esclarecimento com o setor antes de virar `task`.
+
+20. Títulos: filtro de Status parece não mudar a lista (bug real vs. falta de
+    diversidade de status nos dados) — issue 20.
+21. Pendências: nova lista "requisições sem lote vinculado" (M-1) — lacuna de
+    faturamento real, confirmada com dado do apLIS (milhares de requisições de
+    convênio sem lote); "Sem NF (Lotes)" perde o cutoff M-1 — issue 21.
+22. Faturas: setor não percebeu a lista de lotes correlacionados no badge de
+    protocolo duplicado (issue 13, done) — descoberta/deploy, não regressão
+    de lógica pela leitura de código — issue 22.
+23. Dashboard: confirmar se os widgets zerados são os já adiados (01/05/06/12)
+    ou se os widgets de pendências (issue 11, dado ao vivo) também zeraram —
+    issue 23.
+24. Esclarecer em qual tela/campo o setor tentou "filtrar as nfs" sem sucesso
+    — issue 24.
+
 ### Fase 3 — Aguardando insumos externos (sem issues ainda)
 
 - **2.1 Previsão de pagamento por operadora**: reconciliar o widget atual com o Mapa de Pagamento das Operadoras quando ele for encaminhado.
@@ -112,6 +183,11 @@ Issues 01, 05 e 06 **adiadas** — ver "Fora de escopo (parked)".
 - `issues/17-investigar-filtro-todas-titulos-fora-periodo.md` — research
 - `issues/18-pendencias-sem-nf-janela-m1.md` — task
 - `issues/19-pendencias-particulares-remove-laudo-aplica-m1.md` — task (bloqueada por 18)
+- `issues/20-titulos-filtro-status-sem-efeito.md` — research
+- `issues/21-pendencias-separar-sem-nf-sem-lote.md` — task, ready-for-agent (lacuna confirmada no apLIS)
+- `issues/22-protocolo-duplicado-nao-percebido.md` — research
+- `issues/23-dashboard-widgets-zerados-confirmar-quais.md` — research
+- `issues/24-novo-titulo-campo-filtro-nf-indefinido.md` — research
 
 ## Fora de escopo (parked)
 

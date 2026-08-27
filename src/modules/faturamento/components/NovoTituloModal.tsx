@@ -375,6 +375,9 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
           )}
 
           {/* ── Dados do título ──────────────────────────────────────────── */}
+          <h3 className="pt-2 border-t border-gray-100 dark:border-gray-700 text-sm font-semibold text-gray-700 dark:text-gray-300">
+            Dados do título que você está criando
+          </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Número da nota *
@@ -382,8 +385,14 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
                 type="text"
                 value={numeroNota}
                 onChange={(e) => setNumeroNota(e.target.value)}
+                placeholder="Ex.: 12345"
                 className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
               />
+              {/* Esse campo não busca nada: é o número da NF que o operador está
+                  atribuindo ao título NOVO acima, não um filtro da lista de lotes. */}
+              <span className="mt-1 block text-[11px] text-gray-400">
+                Número da NF deste título novo — não filtra a lista acima
+              </span>
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Emissão
