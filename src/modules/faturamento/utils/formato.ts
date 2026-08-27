@@ -49,6 +49,20 @@ export const hojeIso = (): string => {
 };
 
 /**
+ * Texto do badge "protocolo duplicado" — lista os OUTROS lotes do mesmo grupo
+ * (issue 13 do feedback: só a contagem não dizia quais; issue 22: precisa
+ * ficar visível sem depender de hover para aparecer).
+ */
+export const protocoloDuplicadoLotesLabel = (
+  lotes: number[] | null | undefined,
+  contagem: number | null | undefined,
+): string => {
+  if (lotes && lotes.length > 0) return `lote(s) ${lotes.join(', ')}`;
+  if (contagem) return `${contagem} lotes`;
+  return '—';
+};
+
+/**
  * Dias entre hoje e o vencimento. Positivo = atrasado, null = sem vencimento.
  * Calculado em UTC nos dois lados para não sofrer com horário de verão.
  */

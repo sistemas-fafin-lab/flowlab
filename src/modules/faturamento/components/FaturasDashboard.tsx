@@ -21,7 +21,7 @@ import DatePicker from '../../../components/DatePicker';
 import Tooltip from '../../../components/Tooltip';
 // Cópias locais destas duas viraram utilitário do módulo quando Contas a Receber
 // passou a precisar das mesmas regras (inclusive o T00:00:00 do fuso).
-import { formatCurrency, formatData } from '../utils/formato';
+import { formatCurrency, formatData, protocoloDuplicadoLotesLabel } from '../utils/formato';
 import { dayKey, janelaDoPreset, janelaEfetiva, PeriodoPreset, statusIgnoraPeriodo } from '../utils/periodo';
 
 // ============================================================================
@@ -75,14 +75,6 @@ function requisicoesParaExibir(
   if (lote.status !== STATUS_RECEBIDO_PARCIAL) return { exibidas: todas, ocultasRecebidas: 0 };
   const exibidas = todas.filter((r) => r.pendente);
   return { exibidas, ocultasRecebidas: todas.length - exibidas.length };
-}
-
-/** Texto do tooltip do badge de protocolo duplicado — lista os OUTROS lotes do
- *  mesmo grupo (issue 13 do feedback: só a contagem não dizia quais). */
-function protocoloDuplicadoLabel(lote: LoteFaturamento): string {
-  const outros = lote.protocoloDuplicadoLotes ?? [];
-  if (outros.length === 0) return `Protocolo duplicado em ${lote.protocoloDuplicadoContagem ?? 0} lotes`;
-  return `Protocolo duplicado com o(s) lote(s) ${outros.join(', ')}`;
 }
 
 const StatusBadge: React.FC<{ lote: LoteFaturamento }> = ({ lote }) => (
@@ -533,22 +525,30 @@ const FaturasDashboard: React.FC = () => {
                             ? <ChevronDown size={16} />
                             : <ChevronRight size={16} />}
                         </td>
-                        <td className="px-3 py-4 font-semibold text-gray-900 dark:text-white whitespace-nowrap">
-                          {lote.idLote}
-                          {lote.tituloId && (
-                            <span
-                              title={`Já está no título ${lote.tituloNumero ?? lote.tituloId}`}
-                              className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 whitespace-nowrap"
-                            >
-                              título {lote.tituloNumero ?? lote.tituloId}
-                            </span>
-                          )}
-                          {lote.protocoloDuplicado && (
-                            <Tooltip label={protocoloDuplicadoLabel(lote)} className="ml-2 align-middle">
+                        <td className="px-3 py-4 font-semibold text-gray-900 dark:text-white">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="whitespace-nowrap">{lote.idLote}</span>
+                            {lote.tituloId && (
+                              <span
+                                title={`Já está no título ${lote.tituloNumero ?? lote.tituloId}`}
+                                className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 whitespace-nowrap"
+                              >
+                                título {lote.tituloNumero ?? lote.tituloId}
+                              </span>
+                            )}
+                            {lote.protocoloDuplicado && (
                               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 whitespace-nowrap">
                                 protocolo duplicado
                               </span>
-                            </Tooltip>
+                            )}
+                          </div>
+                          {lote.protocoloDuplicado && (
+                            // Visível sem hover (issue 22): o badge acima só sinalizava a
+                            // duplicidade, não dizia com qual outro lote — e o tooltip
+                            // anterior (hover-only) não era descoberto pelo setor.
+                            <div className="mt-0.5 text-[11px] font-normal text-amber-700 dark:text-amber-300 whitespace-normal">
+                              {protocoloDuplicadoLotesLabel(lote.protocoloDuplicadoLotes, lote.protocoloDuplicadoContagem)}
+                            </div>
                           )}
                         </td>
                         <td className="px-3 py-4 text-gray-700 dark:text-gray-300">
