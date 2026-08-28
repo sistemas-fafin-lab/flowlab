@@ -153,6 +153,8 @@ interface UseContasReceberResult {
   cancelarTitulo: (notaId: string) => Promise<string | null>;
   /** Issue 16: marca/desmarca uma operadora como clínica parceira. */
   marcarClinicaParceira: (operadoraId: string, valor: boolean) => Promise<string | null>;
+  /** Issue 31: marca/desmarca a regra "NF só depois do pagamento" de uma operadora. */
+  alternarNfAposPagamento: (operadoraId: string, valor: boolean) => Promise<string | null>;
 }
 
 export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResult {
@@ -255,13 +257,14 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const refetchOperadoras = useCallback(async () => {
     const { data } = await supabase
       .from('operadoras')
-      .select('id_operadora, nome, aplis_id, is_clinica_parceira')
+      .select('id_operadora, nome, aplis_id, is_clinica_parceira, nf_apos_pagamento')
       .order('nome');
     setOperadoras((data ?? []).map((o) => ({
       id: o.id_operadora as string,
       nome: o.nome as string,
       aplisId: (o.aplis_id as string | null) ?? null,
       isClinicaParceira: Boolean(o.is_clinica_parceira),
+      nfAposPagamento: Boolean(o.nf_apos_pagamento),
     })));
   }, []);
 
@@ -430,6 +433,25 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }
   }, [refetchOperadoras]);
 
+  // Issue 31: mesmo padrão de marcarClinicaParceira acima — UPDATE direto,
+  // mesma RLS (`_update_billing`), mesma marcação de negócio isolada.
+  const alternarNfAposPagamento = useCallback(async (
+    operadoraId: string,
+    valor: boolean,
+  ): Promise<string | null> => {
+    try {
+      const { error: erro } = await supabase
+        .from('operadoras')
+        .update({ nf_apos_pagamento: valor })
+        .eq('id_operadora', operadoraId);
+      if (erro) throw new Error(erro.message);
+      await refetchOperadoras();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Não foi possível atualizar a operadora.';
+    }
+  }, [refetchOperadoras]);
+
   return {
     titulos,
     operadoras,
@@ -445,5 +467,6 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     lancarGlosas,
     cancelarTitulo,
     marcarClinicaParceira,
+    alternarNfAposPagamento,
   };
 }

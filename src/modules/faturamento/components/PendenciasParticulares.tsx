@@ -18,8 +18,14 @@ const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray
 
 const TAMANHO_PADRAO = 50;
 
+// Piso padrão do filtro "Solicitação de" (issue 28): o setor não emite mais NF
+// de particular para exames anteriores a 2026, então pendências mais antigas
+// nunca vão sair dessa lista — o padrão evita esse ruído sem tirar a opção de
+// olhar anos anteriores (o campo continua editável).
+const DESDE_PADRAO = '2026-01-01';
+
 const PendenciasParticulares: React.FC = () => {
-  const [desde, setDesde] = useState('');
+  const [desde, setDesde] = useState(DESDE_PADRAO);
   const [ate, setAte] = useState('');
   const [pagina, setPagina] = useState(1);
 

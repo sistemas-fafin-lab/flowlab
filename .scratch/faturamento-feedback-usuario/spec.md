@@ -1,6 +1,6 @@
 # Faturamento: feedback do usuário (dashboard, faturas, contas a receber, glosas)
 
-Status: Fases 1, 2 e 4 implementadas (issues 02/03/04/07/08/09/10/11/13/15/16/18/19 done; 14/17 wontfix); issues 01/05/06/12 seguem adiadas. Fase 5 (novo relatório de 27/08) com issues 20-24, todas `done`; issue 24 desmembrou a issue 25 (`needs-triage`, feature de busca de título por NF, aguardando confirmação do setor). Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
+Status: Fases 1, 2 e 4 implementadas (issues 02/03/04/07/08/09/10/11/13/15/16/18/19 done; 14/17 wontfix); issues 01/05/06/12 seguem adiadas. Fase 5 (terceiro relatório, 27/08) com issues 20-24, todas `done`; issue 24 desmembrou a issue 25 (`needs-triage`, feature de busca de título por NF, aguardando confirmação do setor — ver comentário de 27/08 nela). Fase 6 (quarto relatório, 27/08) com issues 26-30: 26/27/28 `done`; 29 `needs-triage` (esclarecimento/produto); 30 `needs-info` (provável fora do escopo do flowlab, apLIS legado). Issue 31 (28/08, pergunta direta do usuário na sessão, fora do relatório escrito): regra de NF antes/depois do pagamento por operadora, `done`. Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
 
 Spec resultante de sessão de grilling em 2026-08-18, a partir do relatório de análise do setor de faturamento. Cada item vira uma issue própria em `issues/`. Rodada 4 de grilling em 2026-08-24 revisou um segundo relatório do setor (pós-Fase 1/2 em produção) — ver seção própria abaixo.
 
@@ -104,6 +104,48 @@ decisão de escopo já tomada. Por isso as 5 issues abertas (20-24) nascem todas
   se o campo problemático é outro (ex.: "Notas fiscais" em `FiltrosReceber`).
   → issue 24.
 
+### Rodada 6 (2026-08-27): quarto relatório do setor, mesmo dia da Fase 5
+
+O setor mandou mais feedback em texto (sem print desta vez) no mesmo dia em
+que a Fase 5 fechou. Diferente da rodada 5, consegui investigar com dado real
+do apLIS (túnel MySQL já configurado) e confirmar causa raiz em dois itens
+antes de decidir; os demais viram issues `needs-triage`/`needs-info` por
+falta de detalhe reproduzível ou por provavelmente estarem fora do escopo do
+flowlab.
+
+- **"Notas Fiscais: não cria campo de busca, preenchi algo incorreto?"**:
+  mesma confusão de tela/campo já registrada na issue 25 (ver comentário
+  novo lá) — mas a investigação achou que a busca por NF **já existe** e
+  funciona (`TitulosList.tsx`, campo "Buscar por nota…"), só sujeita à mesma
+  pegadinha de período das issues 20/27. Não abriu issue nova; anexado à 25.
+- **"Notas fiscais de particulares: data inicial a partir de 2026"**: pedido
+  de feature novo, sem tela confirmada ainda — → issue 28.
+- **"Dashboard ainda com valores zerados, mesmo mudando os filtros"**: sem
+  fato novo — mesma família 1 (KPIs de topo sobre `notas`/`titulos` sem uso
+  orgânico) já diagnosticada e adiada nas issues 01/05/06/12 e reafirmada na
+  issue 23 nesse mesmo dia. Filtro não muda nada porque a fonte está vazia
+  independente do filtro — não abriu issue nova.
+- **"Gráficos: ver quais lotes estão agrupados + dados adicionais ausentes"**:
+  mesma fonte vazia dos gráficos (`ContasReceberDashboard.tsx`, `notas`/
+  `titulos`) para o drill-down; "dados adicionais" ficou vago demais para
+  agir sem exemplo concreto → issue 29.
+- **"Contas a Receber: filtro de Status não atualiza a lista"**: sintoma
+  idêntico ao da issue 20, fechada mais cedo no mesmo dia com causa raiz
+  confirmada (período padrão vazio, não bug no Status). A recorrência
+  independente do mesmo relato confirma que o aviso genérico "Nenhum título
+  no período" não bastou — → issue 27 (mensagem de vazio mais explícita,
+  `done`).
+- **"Requisições sem lote: existem canceladas que não deveriam aparecer"**:
+  investigação direta no MySQL do apLIS confirmou o relato — 575 de 3.430
+  requisições da lista da issue 21 tinham evento "Exame Cancelado"
+  (`CodEvento = 8`), R$224 mil de R$1 milhão na lista. → issue 26, corrigida
+  (`done`).
+- **"Poliame e outras clínicas travam a inclusão em lote"**: leitura de
+  código (`bdLab.ts`) confirma que o flowlab só lê o apLIS — não cria nem
+  edita lote nenhum lá. A trava relatada muito provavelmente é do sistema
+  legado (apLIS), fora do alcance deste repositório → issue 30, `needs-info`
+  pedindo confirmação de qual sistema antes de qualquer ação.
+
 ## Entrega em fases
 
 ### Fase 1 — Investigações + ajustes rápidos do dashboard
@@ -156,6 +198,19 @@ esclarecimento com o setor antes de virar `task`.
 24. Esclarecer em qual tela/campo o setor tentou "filtrar as nfs" sem sucesso
     — issue 24.
 
+### Fase 6 — Quarto relatório do setor (2026-08-27), mesmo dia da Fase 5
+
+26. Pendências "Sem lote": excluir requisições com evento "Exame Cancelado"
+    (`CodEvento = 8`) — issue 26, `done`.
+27. Títulos: mensagem de lista vazia explicita período/status, reincidência
+    da issue 20 — issue 27, `done`.
+28. Notas fiscais de particulares: data inicial padrão a partir de 2026 —
+    issue 28, `needs-triage` (tela ainda não confirmada).
+29. Dashboard: drill-down de lotes nos gráficos + "dados adicionais"
+    ausentes — issue 29, `needs-triage` (exemplo concreto pendente).
+30. Poliame/clínicas travam inclusão em lote — issue 30, `needs-info`
+    (provável fora do escopo do flowlab, apLIS legado).
+
 ### Fase 3 — Aguardando insumos externos (sem issues ainda)
 
 - **2.1 Previsão de pagamento por operadora**: reconciliar o widget atual com o Mapa de Pagamento das Operadoras quando ele for encaminhado.
@@ -188,6 +243,12 @@ esclarecimento com o setor antes de virar `task`.
 - `issues/22-protocolo-duplicado-nao-percebido.md` — research
 - `issues/23-dashboard-widgets-zerados-confirmar-quais.md` — research
 - `issues/24-novo-titulo-campo-filtro-nf-indefinido.md` — research
+- `issues/25-buscar-titulo-existente-por-numero-nf.md` — feature, needs-triage
+- `issues/26-pendencias-sem-lote-exclui-exame-cancelado.md` — task, done
+- `issues/27-titulos-mensagem-vazio-explica-periodo.md` — task, done
+- `issues/28-particulares-data-inicial-2026.md` — feature, needs-triage
+- `issues/29-dashboard-graficos-drilldown-lotes.md` — feature, needs-triage
+- `issues/30-poliame-trava-inclusao-lote-apLIS.md` — research, needs-info
 
 ## Fora de escopo (parked)
 

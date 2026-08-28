@@ -13,6 +13,7 @@ import PendenciasSemLote from './PendenciasSemLote';
 import NovoTituloModal from './NovoTituloModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
+import RegraNfModal from './RegraNfModal';
 
 // ============================================================================
 // COMPONENTE: ContasReceberPage
@@ -76,6 +77,7 @@ const ContasReceberPage: React.FC = () => {
 
   const [novoAberto, setNovoAberto] = useState(false);
   const [parceirasAberto, setParceirasAberto] = useState(false);
+  const [regraNfAberto, setRegraNfAberto] = useState(false);
   const [tituloBaixa, setTituloBaixa] = useState<TituloReceber | null>(null);
   const [modoModal, setModoModal] = useState<'baixa' | 'glosa'>('baixa');
   const [sincronizando, setSincronizando] = useState(false);
@@ -98,7 +100,7 @@ const ContasReceberPage: React.FC = () => {
   const {
     titulos, operadoras, total, loading, error, refetch, refetchOperadoras,
     buscarGuias, buscarEnvioLotes, criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
-    marcarClinicaParceira,
+    marcarClinicaParceira, alternarNfAposPagamento,
   } = useContasReceber(parametros);
 
   const aplicarFiltro = useCallback((patch: Partial<typeof filtros>) => {
@@ -264,6 +266,7 @@ const ContasReceberPage: React.FC = () => {
           onAtualizar={() => void refetch()}
           onNovoTitulo={() => setNovoAberto(true)}
           onGerenciarParceiras={() => setParceirasAberto(true)}
+          onGerenciarRegraNf={() => setRegraNfAberto(true)}
           onBaixa={abrirBaixa}
           onGlosa={abrirGlosa}
           onCancelar={(titulo) => void confirmarCancelamento(titulo)}
@@ -321,6 +324,13 @@ const ContasReceberPage: React.FC = () => {
         onFechar={() => setParceirasAberto(false)}
         operadoras={operadoras}
         onAlternar={marcarClinicaParceira}
+      />
+
+      <RegraNfModal
+        aberto={regraNfAberto}
+        onFechar={() => setRegraNfAberto(false)}
+        operadoras={operadoras}
+        onAlternar={alternarNfAposPagamento}
       />
     </div>
   );

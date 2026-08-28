@@ -1313,6 +1313,10 @@ export async function listarParticularesPendentes(
 // levantou o volume de requisições sem lote — não é um palpite.
 export const ID_FONTE_PAGADORA_CORTESIA = 100;
 
+// `evento.CodEvento` para "Exame Cancelado" (`StatusExame = 2`, `Excecao = 1`)
+// — verificado direto no apLIS na investigação da issue 26 (2026-08-27).
+const ID_EVENTO_EXAME_CANCELADO = 8;
+
 export interface RequisicaoSemLotePendencia {
   idRequisicao: number;
   codRequisicao: string | null;
@@ -1361,9 +1365,15 @@ function chaveRequisicoesSemLote(params: ListarRequisicoesSemLoteParams): string
 // SQL_PARTICULARES_PENDENTES_WHERE acima — uma requisição sem lote pode já ter
 // sido cobrada fora do fluxo de lote (RPS/NFe lançado direto na requisição).
 // `rps.DataCancelamento IS NULL` porque um RPS cancelado não é "já cobrado".
+// `r.CodEvento <> 8` (Exame Cancelado, issue 26): exame cancelado nunca vai
+// gerar lote/cobrança — sem esse corte a lista mistura pendência real com
+// requisição cancelada que nunca vai sair do estado "sem lote". Comparado só
+// com `CodEvento = 8` (não `StatusExame`, que é uma faixa larga e também cobre
+// eventos faturáveis como "Exame adicional"/"FAT. EXTERNO").
 const SQL_SEM_LOTE_WHERE = `
   r.Lote IS NULL
   AND r.IdFontePagadora NOT IN (${ID_FONTE_PAGADORA_PARTICULAR}, ${ID_FONTE_PAGADORA_CORTESIA})
+  AND (r.CodEvento IS NULL OR r.CodEvento <> ${ID_EVENTO_EXAME_CANCELADO})
   AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
   AND NOT EXISTS (
     SELECT 1 FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps

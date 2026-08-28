@@ -83,6 +83,8 @@ interface Props {
   onNovoTitulo: () => void;
   /** Issue 16: abre o modal de gerenciamento das clínicas parceiras. */
   onGerenciarParceiras: () => void;
+  /** Issue 31: abre o modal de gerenciamento da regra "NF só após pagamento". */
+  onGerenciarRegraNf: () => void;
   onBaixa: (titulo: TituloReceber) => void;
   onGlosa: (titulo: TituloReceber) => void;
   onCancelar: (titulo: TituloReceber) => void;
@@ -122,6 +124,7 @@ const TitulosList: React.FC<Props> = ({
   onAtualizar,
   onNovoTitulo,
   onGerenciarParceiras,
+  onGerenciarRegraNf,
   onBaixa,
   onGlosa,
   onCancelar,
@@ -140,6 +143,13 @@ const TitulosList: React.FC<Props> = ({
   // Ausente = ainda não revalidado ou a consulta falhou — dataEnvioEfetiva cai
   // pro snapshot nos dois casos, então não há necessidade de distinguir aqui.
   const [enviosPorTitulo, setEnviosPorTitulo] = useState<Record<string, Record<string, string | null>>>({});
+
+  // Issue 31: pra mostrar a regra de NF na própria linha do título, sem
+  // precisar abrir o lote — a operadora do título já é o dado, só falta o mapa.
+  const nfAposPagamentoPorOperadora = useMemo(
+    () => new Map(operadoras.map((o) => [o.id, o.nfAposPagamento])),
+    [operadoras],
+  );
 
   // Revalida o dataEnvio dos lotes do título assim que ele é expandido, direto
   // no apLIS — o snapshot gravado na criação do título fica preso pra sempre
@@ -319,6 +329,16 @@ const TitulosList: React.FC<Props> = ({
         {podeEditar && (
           <button
             type="button"
+            onClick={onGerenciarRegraNf}
+            title="Gerenciar regra de NF por operadora"
+            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <Settings className="w-4 h-4" /> Regra de NF
+          </button>
+        )}
+        {podeEditar && (
+          <button
+            type="button"
             onClick={onNovoTitulo}
             className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
           >
@@ -339,7 +359,10 @@ const TitulosList: React.FC<Props> = ({
         <div className="flex justify-center py-16"><LoadingSpinner /></div>
       ) : titulos.length === 0 ? (
         <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
-          Nenhum título no período.
+          Nenhum título de {formatData(filtros.desde)} até {formatData(filtros.ate)}
+          {filtros.status && ` com status "${STATUS_ROTULOS[filtros.status]}"`}.
+          {' '}Amplie o período de emissão acima — trocar o Status não muda a
+          lista se o período já não cobrir nenhum título.
           {podeEditar && ' Use "Novo título" para agrupar lotes do apLIS numa cobrança.'}
         </div>
       ) : (
@@ -379,6 +402,14 @@ const TitulosList: React.FC<Props> = ({
                         </td>
                         <td className="px-3 py-2 text-gray-600 dark:text-gray-300 truncate max-w-[200px]">
                           {titulo.operadoraNome ?? '—'}
+                          {nfAposPagamentoPorOperadora.get(titulo.operadoraId) && (
+                            <span
+                              title="Esta operadora só permite emitir a NF depois do pagamento"
+                              className="ml-2 inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                            >
+                              NF após pagamento
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400 tabular-nums">
                           {formatCompetencia(titulo.competencia)}

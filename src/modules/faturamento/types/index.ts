@@ -537,6 +537,9 @@ export interface OperadoraResumo {
   /** Issue 16: é clínica parceira (lab que envia exame pra este processar),
    *  não convênio de saúde — o apLIS não distingue isso. */
   isClinicaParceira: boolean;
+  /** Issue 31: só permite emitir a NF depois do pagamento — inverso do padrão
+   *  do módulo (NF libera o pagamento). O apLIS não tem essa distinção. */
+  nfAposPagamento: boolean;
 }
 
 /** Tela dona do formato de filtro salvo numa `ViewSalva` — ver comentário de

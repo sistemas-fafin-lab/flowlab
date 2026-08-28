@@ -46,3 +46,28 @@ rapidamente um título existente digitando a NF), falta esse campo de busca.
 
 Novo relatório de feedback do setor de faturamento (27/08). Ver issue 24
 para o histórico completo da investigação que originou esta issue.
+
+## Comments
+
+**Novo relato, mesmo dia (quarto relatório, 27/08)**: "Ao acessar a tela de
+Notas Fiscais, o sistema não cria um novo título/campo para realizar
+pesquisas. Preenchi algo incorreto?" — mesma confusão de tela/campo já
+registrada aqui, reforçando que o setor genuinamente quer/espera esse tipo de
+busca.
+
+**Achado importante**: a capacidade pedida **já existe, parcialmente**.
+`TitulosList.tsx:286-295` tem um campo de busca livre visível direto na tela
+de Títulos ("Buscar por nota, operadora, competência, observações…"), que
+filtra por `numero_nota` via `ilike` (`useContasReceber.ts:199-218`) — ou
+seja, já dá pra achar um título existente digitando a NF, sem precisar de
+feature nova. Esse campo está sujeito à mesma pegadinha do período padrão das
+issues 20/27 (se o período não cobrir o título, a busca não acha nada).
+
+Isso muda o escopo desta issue: não é mais claramente "falta a capacidade",
+pode ser "a capacidade existe mas não foi descoberta" — o setor pode estar
+testando em `NovoTituloModal` (campo de criação, não busca — issue 24) em vez
+do campo de busca da lista de Títulos. Antes de construir qualquer coisa nova,
+vale confirmar com o setor se o campo "Buscar por nota…" da lista de Títulos
+já resolve, com um período que cubra o título procurado. Se resolver, esta
+issue fecha como esclarecimento de UX (talvez só reforçar a descoberta desse
+campo), não como feature nova.
