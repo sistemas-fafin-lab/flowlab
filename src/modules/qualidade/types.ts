@@ -494,3 +494,68 @@ export interface AtualizarParametroFixoCancerInput {
   valor: string;
 }
 
+// ─── Riscos — .scratch/qualidade-riscos-indicadores/issues/01-riscos-cadastro-matriz-origem.md ──
+/**
+ * `qa_riscos` não espelha o LIS (diferente de Ocorrências/Cortesias/IHQ/Câncer)
+ * — é dado nativo do Supabase, sem distinção espelho × curadoria.
+ */
+export type OrigemRisco =
+  | 'nao_conformidade'
+  | 'ocorrencia'
+  | 'auditoria'
+  | 'indicador'
+  | 'reclamacao'
+  | 'analise_preventiva'
+  | 'falha_equipamento'
+  | 'mudanca_processo'
+  | 'fornecedor_parceiro'
+  | 'controle_qualidade'
+  | 'outro';
+
+/** Resolvido por `domain/riscosClassificacao.ts` a partir do score e das faixas configuráveis (`qa_parametros`) — nunca fixo no código. */
+export type NivelClassificacaoRisco = 'baixo' | 'medio' | 'alto' | 'critico';
+
+/** Uma faixa de `riscos.faixas_classificacao` (`qa_parametros`, módulo `riscos`) — configurável, não fixa no código. */
+export interface FaixaClassificacaoRisco {
+  min: number;
+  max: number;
+  nivel: NivelClassificacaoRisco;
+}
+
+export interface RiscoDTO {
+  id: string;
+  setorId: string;
+  setorNome: string | null;
+  processo: string;
+  riscoIdentificado: string;
+  causa: string | null;
+  consequencia: string | null;
+  controleExistente: string | null;
+  origemRisco: OrigemRisco;
+  ocorrenciaOrigemId: string | null;
+  probabilidade: number | null;
+  severidade: number | null;
+  score: number | null;
+  /** Resolvido no client de dados a partir do score + faixas configuradas — `null` enquanto P/S não forem informados. */
+  nivel: NivelClassificacaoRisco | null;
+  criadoPor: string;
+  criadoEm: string;
+}
+
+export interface RiscoFiltro {
+  setorId?: string;
+}
+
+export interface NovoRiscoInput {
+  setorId: string;
+  processo: string;
+  riscoIdentificado: string;
+  causa?: string | null;
+  consequencia?: string | null;
+  controleExistente?: string | null;
+  origemRisco: OrigemRisco;
+  ocorrenciaOrigemId?: string | null;
+  probabilidade?: number | null;
+  severidade?: number | null;
+}
+

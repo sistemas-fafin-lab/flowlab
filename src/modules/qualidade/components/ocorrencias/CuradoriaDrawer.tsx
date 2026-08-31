@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { StatusCuradoriaOcorrencia } from '../../types';
+import type { NovoRiscoInput, StatusCuradoriaOcorrencia } from '../../types';
+import { AlertOctagon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
   buscarColaboradoresOcorrencia,
@@ -8,6 +9,7 @@ import {
   buscarSetoresOcorrencia,
   salvarCuradoriaOcorrencia,
 } from '../../ocorrencias.js';
+import { NovoRiscoDrawer } from '../riscos/NovoRiscoDrawer.js';
 import { ComboboxBusca } from '../ui/ComboboxBusca.js';
 import { DrawerLateral } from '../ui/DrawerLateral.js';
 import { ErrorState } from '../ui/ErrorState.js';
@@ -46,6 +48,25 @@ export function CuradoriaDrawer({ id, canManage, onFechar }: CuradoriaDrawerProp
   const [motivoId, setMotivoId] = useState('');
   const [resumoCurado, setResumoCurado] = useState('');
   const [acaoCurada, setAcaoCurada] = useState('');
+  const [prefillRisco, setPrefillRisco] = useState<Partial<NovoRiscoInput> | null>(null);
+  const [erroSetorObrigatorio, setErroSetorObrigatorio] = useState(false);
+
+  // Usa o setor já selecionado na tela (mesmo que a curadoria ainda não tenha
+  // sido salva) em vez de reler `qa_ocorrencias` — evita um 422 confuso
+  // quando o usuário escolheu o setor mas ainda não clicou "Concluir curadoria".
+  function gerarRiscoDaOcorrencia() {
+    if (!setorErroId) {
+      setErroSetorObrigatorio(true);
+      return;
+    }
+    setErroSetorObrigatorio(false);
+    setPrefillRisco({
+      setorId: setorErroId,
+      riscoIdentificado: data?.descricaoLis ?? '',
+      origemRisco: 'ocorrencia',
+      ocorrenciaOrigemId: id,
+    });
+  }
 
   useEffect(() => {
     if (!data) return;
@@ -163,9 +184,26 @@ export function CuradoriaDrawer({ id, canManage, onFechar }: CuradoriaDrawerProp
           </section>
 
           <section aria-label="Sua decisão">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
-              Sua decisão
-            </h3>
+            <div className="flex items-center justify-between gap-3">
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
+                Sua decisão
+              </h3>
+              {canManage && (
+                <button
+                  type="button"
+                  onClick={gerarRiscoDaOcorrencia}
+                  className="flex shrink-0 items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/30"
+                >
+                  <AlertOctagon className="h-3.5 w-3.5" aria-hidden />
+                  Gerar risco a partir desta ocorrência
+                </button>
+              )}
+            </div>
+            {erroSetorObrigatorio && (
+              <p className="mt-1 text-xs text-red-600 dark:text-red-400">
+                Escolha o setor do erro antes de gerar um risco a partir desta ocorrência.
+              </p>
+            )}
 
             <div className="mt-3 space-y-4">
               <div>
@@ -248,6 +286,7 @@ export function CuradoriaDrawer({ id, canManage, onFechar }: CuradoriaDrawerProp
           </section>
         </div>
       )}
+      {prefillRisco && <NovoRiscoDrawer prefill={prefillRisco} onFechar={() => setPrefillRisco(null)} />}
     </DrawerLateral>
   );
 }
