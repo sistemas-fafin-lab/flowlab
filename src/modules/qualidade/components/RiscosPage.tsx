@@ -2,8 +2,9 @@
 // (.scratch/qualidade-riscos-indicadores/issues/01-riscos-cadastro-matriz-origem.md).
 
 import { useQuery } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { ShieldAlert, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type { RiscoDTO } from '../types';
 import { buscarSetoresRisco, listarRiscos } from '../riscos.js';
 import { useCanManageQualidade } from '../hooks/useCanManageQualidade.js';
@@ -68,16 +69,25 @@ export function Riscos() {
             Cadastro e classificação de riscos por setor e processo (Probabilidade × Severidade).
           </p>
         </div>
-        {canManage && (
-          <button
-            type="button"
-            onClick={() => setNovoAberto(true)}
-            className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700"
+        <div className="flex items-center gap-3">
+          <Link
+            to="/qualidade/riscos/contingencias"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:bg-white/5"
           >
-            <Plus className="h-4 w-4" aria-hidden />
-            Cadastrar novo risco
-          </button>
-        )}
+            <ShieldAlert className="h-4 w-4" aria-hidden />
+            Contingências
+          </Link>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => setNovoAberto(true)}
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700"
+            >
+              <Plus className="h-4 w-4" aria-hidden />
+              Cadastrar novo risco
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">

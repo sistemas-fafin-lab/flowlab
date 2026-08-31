@@ -17,3 +17,4 @@ export { Ihq as IhqPage } from './components/IhqPage';
 export { Cancer as CancerPage } from './components/CancerPage';
 
 export { Riscos as RiscosPage } from './components/RiscosPage';
+export { Contingencias as ContingenciasPage } from './components/ContingenciasPage';

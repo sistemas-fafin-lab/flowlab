@@ -644,3 +644,94 @@ export interface AvaliarEficaciaPlanoAcaoInput {
   observacaoEficacia?: string | null;
 }
 
+// ─── Riscos: contingência — .scratch/qualidade-riscos-indicadores/issues/03-riscos-contingencia.md ──
+/**
+ * Plano de contingência é independente de risco — `qa_planos_contingencia`
+ * não tem FK para `qa_riscos` (requisito do cliente original: "são duas
+ * coisas relacionadas, mas diferentes").
+ */
+export type StatusPlanoContingencia = 'ativo' | 'em_revisao' | 'inativo';
+
+export type ResultadoTesteContingencia = 'aprovado' | 'aprovado_com_ressalvas' | 'reprovado';
+
+/** Documento do plano — `path` aponta para o bucket `qa-contingencia-documentos` (privado, lido via signed URL). */
+export interface DocumentoPlanoContingencia {
+  path: string;
+  nome: string;
+  tamanho: number;
+}
+
+export interface PlanoContingenciaDTO {
+  id: string;
+  codigo: string;
+  setorId: string;
+  setorNome: string | null;
+  evento: string;
+  cenario: string;
+  impactos: string | null;
+  gatilhoAcionamento: string;
+  acoesImediatas: string;
+  responsaveis: string | null;
+  comunicacao: string | null;
+  materiais: string | null;
+  fornecedorAlternativo: string | null;
+  prazoMaximoInterrupcao: string | null;
+  status: StatusPlanoContingencia;
+  documento: DocumentoPlanoContingencia | null;
+  criadoPor: string;
+  criadoEm: string;
+  atualizadoPor: string | null;
+  atualizadoEm: string | null;
+}
+
+export interface PlanoContingenciaFiltro {
+  setorId?: string;
+}
+
+export interface NovoPlanoContingenciaInput {
+  codigo: string;
+  setorId: string;
+  evento: string;
+  cenario: string;
+  impactos?: string | null;
+  gatilhoAcionamento: string;
+  acoesImediatas: string;
+  responsaveis?: string | null;
+  comunicacao?: string | null;
+  materiais?: string | null;
+  fornecedorAlternativo?: string | null;
+  prazoMaximoInterrupcao?: string | null;
+  status?: StatusPlanoContingencia;
+}
+
+export interface AtualizarPlanoContingenciaInput {
+  status?: StatusPlanoContingencia;
+}
+
+/**
+ * Histórico de testes — nunca sobrescreve um teste anterior, cada teste é
+ * uma linha nova em `qa_testes_contingencia` (imutável, sem UPDATE/DELETE).
+ */
+export interface TesteContingenciaDTO {
+  id: string;
+  planoId: string;
+  dataTeste: string;
+  resultado: ResultadoTesteContingencia;
+  necessidadeMelhoria: boolean;
+  descricaoMelhoria: string | null;
+  proximaDataPrevista: string | null;
+  observacoes: string | null;
+  registradoPor: string;
+  registradoEm: string;
+}
+
+export interface NovoTesteContingenciaInput {
+  planoId: string;
+  dataTeste: string;
+  resultado: ResultadoTesteContingencia;
+  necessidadeMelhoria: boolean;
+  descricaoMelhoria?: string | null;
+  proximaDataPrevista?: string | null;
+  observacoes?: string | null;
+}
+
