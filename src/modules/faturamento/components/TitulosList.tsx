@@ -5,6 +5,7 @@ import {
   ChevronDown,
   ChevronRight,
   DollarSign,
+  Pencil,
   Plus,
   RefreshCw,
   Scissors,
@@ -88,6 +89,8 @@ interface Props {
   onBaixa: (titulo: TituloReceber) => void;
   onGlosa: (titulo: TituloReceber) => void;
   onCancelar: (titulo: TituloReceber) => void;
+  /** Issue 33: abre o modal de edição do número da nota. */
+  onEditar: (titulo: TituloReceber) => void;
   buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
   /** `DtaEnvio` ao vivo dos lotes (issue 15) — chave = aplisId. Ver utils/envioAoVivo.ts. */
   buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
@@ -128,6 +131,7 @@ const TitulosList: React.FC<Props> = ({
   onBaixa,
   onGlosa,
   onCancelar,
+  onEditar,
   buscarGuias,
   buscarEnvioLotes,
 }) => {
@@ -381,7 +385,7 @@ const TitulosList: React.FC<Props> = ({
                   <th className="px-3 py-2 text-right">Glosado</th>
                   <th className="px-3 py-2 text-right">Saldo</th>
                   <th className="px-3 py-2">Status</th>
-                  {podeEditar && <th className="px-3 py-2 w-32" />}
+                  {podeEditar && <th className="px-3 py-2 w-40" />}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -451,6 +455,15 @@ const TitulosList: React.FC<Props> = ({
                         {podeEditar && (
                           <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                             <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => onEditar(titulo)}
+                                disabled={titulo.status === 'cancelada'}
+                                title="Editar título"
+                                className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                              >
+                                <Pencil className="w-4 h-4" />
+                              </button>
                               <button
                                 type="button"
                                 onClick={() => onBaixa(titulo)}

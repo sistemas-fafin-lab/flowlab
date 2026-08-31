@@ -14,6 +14,7 @@ import NovoTituloModal from './NovoTituloModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
 import RegraNfModal from './RegraNfModal';
+import EditarTituloModal from './EditarTituloModal';
 
 // ============================================================================
 // COMPONENTE: ContasReceberPage
@@ -79,6 +80,7 @@ const ContasReceberPage: React.FC = () => {
   const [parceirasAberto, setParceirasAberto] = useState(false);
   const [regraNfAberto, setRegraNfAberto] = useState(false);
   const [tituloBaixa, setTituloBaixa] = useState<TituloReceber | null>(null);
+  const [tituloEditar, setTituloEditar] = useState<TituloReceber | null>(null);
   const [modoModal, setModoModal] = useState<'baixa' | 'glosa'>('baixa');
   const [sincronizando, setSincronizando] = useState(false);
   // Tipado para o card poder distinguir sucesso de falha — antes os dois caíam
@@ -100,7 +102,7 @@ const ContasReceberPage: React.FC = () => {
   const {
     titulos, operadoras, total, loading, error, refetch, refetchOperadoras,
     buscarGuias, buscarEnvioLotes, criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
-    marcarClinicaParceira, alternarNfAposPagamento,
+    atualizarNumeroNota, marcarClinicaParceira, alternarNfAposPagamento,
   } = useContasReceber(parametros);
 
   const aplicarFiltro = useCallback((patch: Partial<typeof filtros>) => {
@@ -270,6 +272,7 @@ const ContasReceberPage: React.FC = () => {
           onBaixa={abrirBaixa}
           onGlosa={abrirGlosa}
           onCancelar={(titulo) => void confirmarCancelamento(titulo)}
+          onEditar={setTituloEditar}
           buscarGuias={buscarGuias}
           buscarEnvioLotes={buscarEnvioLotes}
         />
@@ -331,6 +334,12 @@ const ContasReceberPage: React.FC = () => {
         onFechar={() => setRegraNfAberto(false)}
         operadoras={operadoras}
         onAlternar={alternarNfAposPagamento}
+      />
+
+      <EditarTituloModal
+        titulo={tituloEditar}
+        onFechar={() => setTituloEditar(null)}
+        onSalvar={atualizarNumeroNota}
       />
     </div>
   );

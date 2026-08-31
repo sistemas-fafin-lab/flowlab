@@ -151,6 +151,8 @@ interface UseContasReceberResult {
   registrarBaixa: (dados: BaixaInput) => Promise<string | null>;
   lancarGlosas: (notaId: string, glosas: GlosaLancamentoInput[]) => Promise<string | null>;
   cancelarTitulo: (notaId: string) => Promise<string | null>;
+  /** Issue 33: preenche/corrige o número da nota de um título já existente. */
+  atualizarNumeroNota: (notaId: string, numeroNota: string) => Promise<string | null>;
   /** Issue 16: marca/desmarca uma operadora como clínica parceira. */
   marcarClinicaParceira: (operadoraId: string, valor: boolean) => Promise<string | null>;
   /** Issue 31: marca/desmarca a regra "NF só depois do pagamento" de uma operadora. */
@@ -412,6 +414,28 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }
   }, [refetch]);
 
+  // Issue 33: via API (não supabase.rpc() direto) — ver o comentário do
+  // handler sobre por que este segue o padrão em vez de fat_registrar_baixa.
+  const atualizarNumeroNota = useCallback(async (
+    notaId: string,
+    numeroNota: string,
+  ): Promise<string | null> => {
+    setError(null);
+    try {
+      await chamarApi(
+        '/api/faturamento/titulo-atualizar-numero-nota',
+        'Não foi possível atualizar o número da nota.',
+        { method: 'POST', body: { idNota: notaId, numeroNota } },
+      );
+      await refetch();
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Não foi possível atualizar o número da nota.';
+      setError(msg);
+      return msg;
+    }
+  }, [refetch]);
+
   // Issue 16: UPDATE direto, sem RPC — é uma marcação de negócio isolada, sem
   // invariante cruzando outra tabela. Gate de canManageBilling já é a RLS de
   // `operadoras` (política `_update_billing` de 20260807120000); o front só
@@ -466,6 +490,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     registrarBaixa,
     lancarGlosas,
     cancelarTitulo,
+    atualizarNumeroNota,
     marcarClinicaParceira,
     alternarNfAposPagamento,
   };
