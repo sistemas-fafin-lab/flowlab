@@ -45,5 +45,5 @@ $$;
 COMMENT ON FUNCTION public.fat_atualizar_numero_nota(UUID, TEXT) IS
   'Preenche ou corrige o número da nota de um título já existente. Rejeita valor vazio e título com status cancelada.';
 
-REVOKE ALL ON FUNCTION public.fat_atualizar_numero_nota(UUID, TEXT) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.fat_atualizar_numero_nota(UUID, TEXT) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.fat_atualizar_numero_nota(UUID, TEXT) TO authenticated;
