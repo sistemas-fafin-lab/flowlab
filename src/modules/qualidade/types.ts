@@ -538,6 +538,8 @@ export interface RiscoDTO {
   score: number | null;
   /** Resolvido no client de dados a partir do score + faixas configuradas — `null` enquanto P/S não forem informados. */
   nivel: NivelClassificacaoRisco | null;
+  /** Aceitar/Monitorar/Reduzir/Eliminar/Transferir — `null` até a decisão de tratamento ser tomada (issue 02). */
+  tratamento: TratamentoRisco | null;
   criadoPor: string;
   criadoEm: string;
 }
@@ -557,5 +559,88 @@ export interface NovoRiscoInput {
   ocorrenciaOrigemId?: string | null;
   probabilidade?: number | null;
   severidade?: number | null;
+}
+
+// ─── Riscos: gerenciamento — .scratch/qualidade-riscos-indicadores/issues/02-riscos-gerenciamento.md ──
+
+export type TratamentoRisco = 'aceitar' | 'monitorar' | 'reduzir' | 'eliminar' | 'transferir';
+
+export type StatusPlanoAcao = 'planejado' | 'em_andamento' | 'concluido';
+
+/** Um anexo de evidência — `path` aponta para o bucket `qa-riscos-evidencias` (privado, lido via signed URL). */
+export interface EvidenciaPlanoAcao {
+  path: string;
+  nome: string;
+  tamanho: number;
+}
+
+/**
+ * Reavaliação (risco residual) — histórico imutável, nunca sobrescreve
+ * `qa_riscos.probabilidade`/`severidade` (risco inicial).
+ */
+export interface ReavaliacaoRiscoDTO {
+  id: string;
+  riscoId: string;
+  probabilidade: number;
+  severidade: number;
+  score: number;
+  observacao: string | null;
+  reavaliadoPor: string;
+  reavaliadoEm: string;
+}
+
+export interface NovaReavaliacaoInput {
+  riscoId: string;
+  probabilidade: number;
+  severidade: number;
+  observacao?: string | null;
+}
+
+/**
+ * Um risco pode ter N planos de ação. Eficácia vive como colunas do próprio
+ * plano (`eficaz`/`avaliadoEm`/`avaliadoPor`/`observacaoEficacia`) — sempre
+ * 1:1 com este registro, não uma tabela à parte. `planoAnteriorId` encadeia
+ * o próximo plano quando este foi marcado como não eficaz.
+ */
+export interface PlanoAcaoDTO {
+  id: string;
+  riscoId: string;
+  acao: string;
+  responsavelId: string;
+  responsavelNome: string | null;
+  dataPrevista: string | null;
+  dataConclusao: string | null;
+  status: StatusPlanoAcao;
+  evidencias: EvidenciaPlanoAcao[];
+  eficaz: boolean | null;
+  avaliadoEm: string | null;
+  avaliadoPor: string | null;
+  observacaoEficacia: string | null;
+  planoAnteriorId: string | null;
+  criadoPor: string;
+  criadoEm: string;
+}
+
+export interface NovoPlanoAcaoInput {
+  riscoId: string;
+  acao: string;
+  responsavelId: string;
+  dataPrevista?: string | null;
+  status?: StatusPlanoAcao;
+  /** Preenchido quando este plano nasce de um ciclo anterior marcado como não eficaz. */
+  planoAnteriorId?: string | null;
+}
+
+export interface AtualizarPlanoAcaoInput {
+  acao?: string;
+  responsavelId?: string;
+  dataPrevista?: string | null;
+  dataConclusao?: string | null;
+  status?: StatusPlanoAcao;
+}
+
+export interface AvaliarEficaciaPlanoAcaoInput {
+  eficaz: boolean;
+  observacaoEficacia?: string | null;
 }
 

@@ -8,6 +8,7 @@ import type { RiscoDTO } from '../types';
 import { buscarSetoresRisco, listarRiscos } from '../riscos.js';
 import { useCanManageQualidade } from '../hooks/useCanManageQualidade.js';
 import { NovoRiscoDrawer } from './riscos/NovoRiscoDrawer.js';
+import { RiscoDetalheDrawer } from './riscos/RiscoDetalheDrawer.js';
 import { BADGE_NIVEL, ROTULO_NIVEL } from './riscos/rotulos.js';
 import { ComboboxBusca } from './ui/ComboboxBusca.js';
 import { ErrorState } from './ui/ErrorState.js';
@@ -48,6 +49,7 @@ export function Riscos() {
   const canManage = useCanManageQualidade();
   const [setorId, setSetorId] = useState('');
   const [novoAberto, setNovoAberto] = useState(false);
+  const [detalheId, setDetalheId] = useState<string | null>(null);
 
   const { data: setores } = useQuery({ queryKey: ['riscos-setores'], queryFn: buscarSetoresRisco });
 
@@ -110,10 +112,12 @@ export function Riscos() {
           dados={data}
           chaveLinha={(r) => r.id}
           cor="rose"
+          onClickLinha={(r) => setDetalheId(r.id)}
         />
       )}
 
       {novoAberto && <NovoRiscoDrawer onFechar={() => setNovoAberto(false)} />}
+      {detalheId && <RiscoDetalheDrawer id={detalheId} canManage={canManage} onFechar={() => setDetalheId(null)} />}
     </div>
   );
 }
