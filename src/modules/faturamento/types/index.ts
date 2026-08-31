@@ -367,7 +367,8 @@ export interface TituloLote {
 
 export interface TituloReceber {
   id: string;
-  numeroNota: string;
+  /** Pode ser null: operadoras nf_apos_pagamento criam o título antes de ter o número (issue 32). */
+  numeroNota: string | null;
   operadoraId: string;
   operadoraNome: string | null;
   dataEmissao: string;

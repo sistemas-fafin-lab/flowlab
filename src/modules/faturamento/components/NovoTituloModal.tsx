@@ -177,11 +177,6 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
       setErroForm('Todos os lotes precisam ser da mesma fonte pagadora.');
       return;
     }
-    if (!numeroNota.trim()) {
-      setErroForm('Informe o número da nota.');
-      return;
-    }
-
     setSalvando(true);
     const erro = await onCriar({
       idsLote: marcados.map((lote) => lote.idLote),
@@ -380,7 +375,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <label className="text-xs text-gray-500 dark:text-gray-400">
-              Número da nota *
+              Número da nota
               <input
                 type="text"
                 value={numeroNota}
@@ -389,9 +384,11 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
                 className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
               />
               {/* Esse campo não busca nada: é o número da NF que o operador está
-                  atribuindo ao título NOVO acima, não um filtro da lista de lotes. */}
+                  atribuindo ao título NOVO acima, não um filtro da lista de lotes.
+                  Opcional: operadoras com NF só depois do pagamento (issue 31)
+                  criam o título sem número e completam depois. */}
               <span className="mt-1 block text-[11px] text-gray-400">
-                Número da NF deste título novo — não filtra a lista acima
+                Opcional — deixe em branco se a nota ainda não foi emitida. Não filtra a lista acima
               </span>
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">

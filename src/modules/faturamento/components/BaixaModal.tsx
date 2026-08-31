@@ -209,7 +209,7 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              {modo === 'glosa' ? 'Lançar glosa' : 'Registrar baixa'} — {titulo.numeroNota}
+              {modo === 'glosa' ? 'Lançar glosa' : 'Registrar baixa'} — {titulo.numeroNota || 'sem número de nota'}
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               {titulo.operadoraNome ?? 'Operadora'} · saldo{' '}

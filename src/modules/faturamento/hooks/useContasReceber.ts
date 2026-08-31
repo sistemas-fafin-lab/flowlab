@@ -58,7 +58,7 @@ async function chamarApi<T = unknown>(
 // Formato cru devolvido pelo PostgREST — snake_case, com os embeds aninhados.
 interface LinhaTitulo {
   id_nota: string;
-  numero_nota: string;
+  numero_nota: string | null;
   operadora_id: string;
   data_emissao: string;
   data_vencimento: string | null;

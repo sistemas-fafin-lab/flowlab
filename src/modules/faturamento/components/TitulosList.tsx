@@ -398,7 +398,14 @@ const TitulosList: React.FC<Props> = ({
                           {aberto ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                         </td>
                         <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
-                          {titulo.numeroNota}
+                          {titulo.numeroNota || (
+                            <span
+                              className="font-normal text-gray-400 dark:text-gray-500"
+                              title="Número da nota ainda não informado"
+                            >
+                              —
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-gray-600 dark:text-gray-300 truncate max-w-[200px]">
                           {titulo.operadoraNome ?? '—'}

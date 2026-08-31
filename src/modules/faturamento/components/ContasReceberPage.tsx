@@ -173,7 +173,7 @@ const ContasReceberPage: React.FC = () => {
 
   const confirmarCancelamento = async (titulo: TituloReceber) => {
     const ok = window.confirm(
-      `Cancelar o título ${titulo.numeroNota}? Os lotes voltam a ficar disponíveis para um novo título.`,
+      `Cancelar o título ${titulo.numeroNota || 'sem número de nota'}? Os lotes voltam a ficar disponíveis para um novo título.`,
     );
     if (!ok) return;
     const erro = await cancelarTitulo(titulo.id);

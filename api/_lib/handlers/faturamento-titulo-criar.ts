@@ -15,7 +15,8 @@
  *
  * Body:
  *   idsLote         number[]  obrigatório — IdLote no apLIS
- *   numeroNota      string    obrigatório
+ *   numeroNota      string    opcional — operadoras nf_apos_pagamento criam o
+ *                             título antes de ter o número (issue 32)
  *   dataEmissao     YYYY-MM-DD (default: hoje)
  *   competencia     "YYYY-MM"
  *   dataVencimento  YYYY-MM-DD — quando omitido, é resolvido aqui (ver abaixo)
@@ -126,7 +127,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const erros = [
       idsLote.length === 0 ? 'idsLote (ao menos um lote válido)' : null,
       idsLote.length > MAX_LOTES_TITULO ? `idsLote (máximo ${MAX_LOTES_TITULO})` : null,
-      !numeroNota ? 'numeroNota' : null,
       dataEmissao && !DATA_ISO_RE.test(dataEmissao) ? 'dataEmissao (YYYY-MM-DD)' : null,
       dataVencimento && !DATA_ISO_RE.test(dataVencimento) ? 'dataVencimento (YYYY-MM-DD)' : null,
       competencia && !COMPETENCIA_RE.test(competencia) ? 'competencia (YYYY-MM)' : null,
