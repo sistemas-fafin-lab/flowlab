@@ -15,3 +15,5 @@ export { CortesiasCotas as CortesiasCotasPage } from './components/CortesiasCota
 export { Ihq as IhqPage } from './components/IhqPage';
 
 export { Cancer as CancerPage } from './components/CancerPage';
+
+export { Riscos as RiscosPage } from './components/RiscosPage';

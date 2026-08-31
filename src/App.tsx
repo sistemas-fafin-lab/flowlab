@@ -43,6 +43,7 @@ import {
   CortesiasCotasPage,
   IhqPage,
   CancerPage,
+  RiscosPage,
 } from './modules/qualidade';
 import { BoardPage } from './modules/board';
 
@@ -408,6 +409,16 @@ const AuthenticatedApp: React.FC = () => {
             <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
               <QualidadeProviders>
                 <CancerPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualidade/riscos"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <RiscosPage />
               </QualidadeProviders>
             </ProtectedRoute>
           }
