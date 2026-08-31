@@ -410,6 +410,17 @@ const TitulosList: React.FC<Props> = ({
                               —
                             </span>
                           )}
+                          {/* Issue 35: só é alerta quando a ausência do número NÃO é o
+                              fluxo esperado — operadoras com NF pós-pagamento já mostram
+                              seu próprio badge âmbar na coluna Operadora. */}
+                          {!titulo.numeroNota && !nfAposPagamentoPorOperadora.get(titulo.operadoraId) && (
+                            <span
+                              title="Título sem número da nota — pendência a resolver"
+                              className="ml-2 inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300"
+                            >
+                              Aguardando nota
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-2 text-gray-600 dark:text-gray-300 truncate max-w-[200px]">
                           {titulo.operadoraNome ?? '—'}
