@@ -5,6 +5,8 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission } from '../utils/permissions';
 import { supabase } from '../lib/supabase';
+import { useQuotationsAwaitingApprovalCount } from '../modules/quotations/hooks/useQuotationsAwaitingApprovalCount';
+import { buildQuotationsUrl } from '../modules/quotations/routes';
 import {
   LayoutDashboard,
   Package,
@@ -22,6 +24,7 @@ import {
   TrendingUp,
   CheckCircle2,
   ClipboardList,
+  ShieldCheck,
   AlertCircle,
   Sparkles,
   CalendarDays,
@@ -57,6 +60,7 @@ interface QuickStats {
   lowStockCount: number;
   expiringCount: number;
   myPendingRequests: number;
+  quotationsAwaitingApprovalCount: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -122,6 +126,15 @@ const WIDGETS_CONFIG: WidgetConfig[] = [
     icon: ClipboardList,
     size: 'medium',
     requiredPermission: 'canApproveRequests',
+    category: 'action',
+  },
+  {
+    id: 'quotation-approvals',
+    title: 'Cotações Pendentes',
+    description: 'Cotações aguardando sua aprovação',
+    icon: ShieldCheck,
+    size: 'medium',
+    requiredPermission: 'canManageQuotations',
     category: 'action',
   },
   {
@@ -397,6 +410,43 @@ const PendingApprovalsWidget: React.FC<WidgetProps> = ({ stats }) => (
   </Link>
 );
 
+// Medium: Cotações Pendentes (aguardando aprovação, respeitando a alçada do usuário)
+const QuotationApprovalsWidget: React.FC<WidgetProps> = ({ stats }) => (
+  <Link
+    to={buildQuotationsUrl('', 'awaiting_approval')}
+    className="group relative w-full h-full rounded-3xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 border border-gray-100 dark:border-gray-700 shadow-xl min-h-[160px] flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:border-emerald-300 dark:hover:border-emerald-600"
+  >
+    <div className="h-full flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/25">
+          <ShieldCheck className="w-6 h-6 text-white" />
+        </div>
+        {stats.quotationsAwaitingApprovalCount > 0 && (
+          <span className="px-2.5 py-1 text-xs font-bold bg-emerald-500 text-white rounded-full">
+            {stats.quotationsAwaitingApprovalCount}
+          </span>
+        )}
+      </div>
+
+      {/* Content */}
+      <div className="mt-auto flex flex-col gap-1">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+          Cotações Pendentes
+        </h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {stats.quotationsAwaitingApprovalCount > 0
+            ? `${stats.quotationsAwaitingApprovalCount} aguardando sua aprovação`
+            : 'Nenhuma cotação aguardando você'}
+        </p>
+      </div>
+    </div>
+
+    {/* Arrow indicator */}
+    <ChevronRight className="absolute bottom-6 right-6 w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-emerald-500 group-hover:translate-x-1 transition-all" />
+  </Link>
+);
+
 // Medium: Minhas Solicitações
 const MyRequestsWidget: React.FC<WidgetProps> = ({ stats, loading }) => (
   <Link
@@ -602,6 +652,8 @@ const renderWidget = (config: WidgetConfig, stats: QuickStats, loading: boolean)
       return <AddProductWidget {...props} />;
     case 'pending-approvals':
       return <PendingApprovalsWidget {...props} />;
+    case 'quotation-approvals':
+      return <QuotationApprovalsWidget {...props} />;
     case 'my-requests':
       return <MyRequestsWidget {...props} />;
     case 'stats-pending':
@@ -789,8 +841,9 @@ const Home: React.FC = () => {
   const userPermissions = userProfile?.permissions || [];
   const userId = userProfile?.id || '';
 
-  // Stats state
-  const [stats, setStats] = useState<QuickStats>({
+  // Stats state (quotationsAwaitingApprovalCount vem de useQuotationsAwaitingApprovalCount,
+  // mesclado só na hora de renderizar os widgets — ver `statsForWidgets` abaixo)
+  const [stats, setStats] = useState<Omit<QuickStats, 'quotationsAwaitingApprovalCount'>>({
     pendingRequests: 0,
     approvedRequests: 0,
     lowStockCount: 0,
@@ -798,6 +851,14 @@ const Home: React.FC = () => {
     myPendingRequests: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Cotações aguardando aprovação: contagem já filtrada pela alçada do
+  // usuário logado — a query só roda para quem tem acesso ao módulo.
+  const canManageQuotations = hasPermission(userPermissions, 'canManageQuotations');
+  const {
+    count: quotationsAwaitingApprovalCount,
+    canApprove: hasQuotationApprovalAuthority,
+  } = useQuotationsAwaitingApprovalCount(canManageQuotations);
 
   // Customization state
   const [hiddenWidgets, setHiddenWidgets] = useState<string[]>([]);
@@ -841,18 +902,24 @@ const Home: React.FC = () => {
     }
   }, [userId]);
 
-  // Filter widgets by permission
+  // Filter widgets by permission (+ alçada de cotações para o card dedicado)
   const availableWidgets = useMemo(() => {
     return WIDGETS_CONFIG.filter((widget) => {
+      if (widget.id === 'quotation-approvals' && !hasQuotationApprovalAuthority) return false;
       if (widget.requiredPermission === null) return true;
       return hasPermission(userPermissions, widget.requiredPermission);
     });
-  }, [userPermissions]);
+  }, [userPermissions, hasQuotationApprovalAuthority]);
 
   // Final visible widgets (permission + not hidden)
   const visibleWidgets = useMemo(() => {
     return availableWidgets.filter((widget) => !hiddenWidgets.includes(widget.id));
   }, [availableWidgets, hiddenWidgets]);
+
+  const statsForWidgets = useMemo<QuickStats>(
+    () => ({ ...stats, quotationsAwaitingApprovalCount }),
+    [stats, quotationsAwaitingApprovalCount],
+  );
 
   // Fetch stats
   useEffect(() => {
@@ -954,7 +1021,7 @@ const Home: React.FC = () => {
               key={widget.id}
               className={SIZE_CLASSES[widget.size]}
             >
-              {renderWidget(widget, stats, loading)}
+              {renderWidget(widget, statsForWidgets, loading)}
             </div>
           ))}
         </div>
