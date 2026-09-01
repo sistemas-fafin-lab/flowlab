@@ -30,8 +30,8 @@ export { ErroApiQualidade as ErroApi };
 
 const LIMITE_CANDIDATOS = 20;
 
-function textoResumoOcorrencia(l: { descricao_lis: string | null; resumo_curado: string | null }): string {
-  return l.resumo_curado ?? l.descricao_lis ?? '';
+function textoResumoOcorrencia(linha: { descricao_lis: string | null; resumo_curado: string | null }): string {
+  return linha.resumo_curado ?? linha.descricao_lis ?? '';
 }
 
 // ─── Leitura: ocorrências vinculadas a 1 risco (detalhe do risco) ──────────
@@ -42,6 +42,17 @@ interface LinhaBrutaVinculoPorRisco {
   ocorrencia: { id: string; dta_ocorrencia: string; descricao_lis: string | null; resumo_curado: string | null } | null;
 }
 
+function mapearVinculoPorRisco(linha: LinhaBrutaVinculoPorRisco & { ocorrencia: NonNullable<LinhaBrutaVinculoPorRisco['ocorrencia']> }): OcorrenciaVinculoDTO & {
+  vinculoId: string;
+} {
+  return {
+    id: linha.ocorrencia.id,
+    vinculoId: linha.id,
+    dtaOcorrencia: linha.ocorrencia.dta_ocorrencia,
+    resumo: textoResumoOcorrencia(linha.ocorrencia),
+  };
+}
+
 async function listarOcorrenciasVinculadas(riscoId: string): Promise<(OcorrenciaVinculoDTO & { vinculoId: string })[]> {
   const { data, error } = await supabase
     .from('qa_riscos_ocorrencias')
@@ -50,13 +61,8 @@ async function listarOcorrenciasVinculadas(riscoId: string): Promise<(Ocorrencia
   if (error) throw new ErroApiQualidade(500, `Falha ao listar ocorrências vinculadas: ${error.message}`);
 
   return ((data ?? []) as unknown as LinhaBrutaVinculoPorRisco[])
-    .filter((l): l is LinhaBrutaVinculoPorRisco & { ocorrencia: NonNullable<LinhaBrutaVinculoPorRisco['ocorrencia']> } => l.ocorrencia !== null)
-    .map((l) => ({
-      id: l.ocorrencia.id,
-      vinculoId: l.id,
-      dtaOcorrencia: l.ocorrencia.dta_ocorrencia,
-      resumo: textoResumoOcorrencia(l.ocorrencia),
-    }));
+    .filter((linha): linha is LinhaBrutaVinculoPorRisco & { ocorrencia: NonNullable<LinhaBrutaVinculoPorRisco['ocorrencia']> } => linha.ocorrencia !== null)
+    .map(mapearVinculoPorRisco);
 }
 
 /** Seção "Correlação" do detalhe de 1 risco — vínculos N:N mesclados com a ocorrência de origem, sem duplicar. */
@@ -82,17 +88,29 @@ export async function buscarOcorrenciasCorrelacionadas(risco: { id: string; ocor
 
 // ─── Leitura: riscos vinculados a 1 ocorrência (detalhe da ocorrência) ─────
 
+interface RiscoVinculoBase {
+  id: string;
+  riscoIdentificado: string;
+  processo: string;
+  score: number | null;
+}
+
 interface LinhaBrutaVinculoPorOcorrencia {
   id: string;
   risco_id: string;
   risco: { id: string; risco_identificado: string; processo: string; score: number | null } | null;
 }
 
-interface RiscoVinculoBase {
-  id: string;
-  riscoIdentificado: string;
-  processo: string;
-  score: number | null;
+function mapearVinculoPorOcorrencia(
+  linha: LinhaBrutaVinculoPorOcorrencia & { risco: NonNullable<LinhaBrutaVinculoPorOcorrencia['risco']> },
+): RiscoVinculoBase & { vinculoId: string } {
+  return {
+    id: linha.risco.id,
+    vinculoId: linha.id,
+    riscoIdentificado: linha.risco.risco_identificado,
+    processo: linha.risco.processo,
+    score: linha.risco.score,
+  };
 }
 
 async function listarRiscosVinculados(ocorrenciaId: string): Promise<(RiscoVinculoBase & { vinculoId: string })[]> {
@@ -103,27 +121,32 @@ async function listarRiscosVinculados(ocorrenciaId: string): Promise<(RiscoVincu
   if (error) throw new ErroApiQualidade(500, `Falha ao listar riscos vinculados: ${error.message}`);
 
   return ((data ?? []) as unknown as LinhaBrutaVinculoPorOcorrencia[])
-    .filter((l): l is LinhaBrutaVinculoPorOcorrencia & { risco: NonNullable<LinhaBrutaVinculoPorOcorrencia['risco']> } => l.risco !== null)
-    .map((l) => ({
-      id: l.risco.id,
-      vinculoId: l.id,
-      riscoIdentificado: l.risco.risco_identificado,
-      processo: l.risco.processo,
-      score: l.risco.score,
-    }));
+    .filter((linha): linha is LinhaBrutaVinculoPorOcorrencia & { risco: NonNullable<LinhaBrutaVinculoPorOcorrencia['risco']> } => linha.risco !== null)
+    .map(mapearVinculoPorOcorrencia);
+}
+
+interface LinhaBrutaRiscoOrigem {
+  id: string;
+  risco_identificado: string;
+  processo: string;
+  score: number | null;
+}
+
+function mapearRiscoOrigem(linha: LinhaBrutaRiscoOrigem): RiscoVinculoBase & { vinculoId: null } {
+  return {
+    id: linha.id,
+    vinculoId: null,
+    riscoIdentificado: linha.risco_identificado,
+    processo: linha.processo,
+    score: linha.score,
+  };
 }
 
 async function listarRiscosDeOrigem(ocorrenciaId: string): Promise<(RiscoVinculoBase & { vinculoId: null })[]> {
   const { data, error } = await supabase.from('qa_riscos').select('id, risco_identificado, processo, score').eq('ocorrencia_origem_id', ocorrenciaId);
   if (error) throw new ErroApiQualidade(500, `Falha ao listar riscos de origem: ${error.message}`);
 
-  return (data ?? []).map((l) => ({
-    id: l.id as string,
-    vinculoId: null,
-    riscoIdentificado: l.risco_identificado as string,
-    processo: l.processo as string,
-    score: l.score as number | null,
-  }));
+  return ((data ?? []) as unknown as LinhaBrutaRiscoOrigem[]).map(mapearRiscoOrigem);
 }
 
 /** Seção "Riscos vinculados" do detalhe de 1 ocorrência — vínculos N:N mesclados com o(s) risco(s) de origem, sem duplicar. */
@@ -155,6 +178,23 @@ export async function desvincularRiscoOcorrencia(vinculoId: string): Promise<voi
 
 // ─── Busca de candidatos para vincular ──────────────────────────────────────
 
+interface LinhaBrutaOcorrenciaCandidata {
+  id: string;
+  dta_ocorrencia: string;
+  descricao_lis: string | null;
+  resumo_curado: string | null;
+  cod_requisicao: string | null;
+}
+
+function mapearOcorrenciaCandidata(linha: LinhaBrutaOcorrenciaCandidata): OcorrenciaCandidataVinculoDTO {
+  return {
+    id: linha.id,
+    dtaOcorrencia: linha.dta_ocorrencia,
+    resumo: textoResumoOcorrencia(linha),
+    codRequisicao: linha.cod_requisicao,
+  };
+}
+
 export async function buscarOcorrenciasParaVincular(busca: string): Promise<OcorrenciaCandidataVinculoDTO[]> {
   let query = supabase
     .from('qa_ocorrencias')
@@ -168,12 +208,17 @@ export async function buscarOcorrenciasParaVincular(busca: string): Promise<Ocor
   const { data, error } = await query;
   if (error) throw new ErroApiQualidade(500, `Falha ao buscar ocorrências: ${error.message}`);
 
-  return (data ?? []).map((l) => ({
-    id: l.id as string,
-    dtaOcorrencia: l.dta_ocorrencia as string,
-    resumo: textoResumoOcorrencia({ descricao_lis: l.descricao_lis as string | null, resumo_curado: l.resumo_curado as string | null }),
-    codRequisicao: l.cod_requisicao as string | null,
-  }));
+  return ((data ?? []) as unknown as LinhaBrutaOcorrenciaCandidata[]).map(mapearOcorrenciaCandidata);
+}
+
+interface LinhaBrutaRiscoCandidato {
+  id: string;
+  risco_identificado: string;
+  processo: string;
+}
+
+function mapearRiscoCandidato(linha: LinhaBrutaRiscoCandidato): RiscoCandidatoVinculoDTO {
+  return { id: linha.id, riscoIdentificado: linha.risco_identificado, processo: linha.processo };
 }
 
 export async function buscarRiscosParaVincular(busca: string): Promise<RiscoCandidatoVinculoDTO[]> {
@@ -185,11 +230,7 @@ export async function buscarRiscosParaVincular(busca: string): Promise<RiscoCand
   const { data, error } = await query;
   if (error) throw new ErroApiQualidade(500, `Falha ao buscar riscos: ${error.message}`);
 
-  return (data ?? []).map((l) => ({
-    id: l.id as string,
-    riscoIdentificado: l.risco_identificado as string,
-    processo: l.processo as string,
-  }));
+  return ((data ?? []) as unknown as LinhaBrutaRiscoCandidato[]).map(mapearRiscoCandidato);
 }
 
 // ─── Sub-aba Correlação: cards (1 por risco com ao menos 1 vínculo N:N) ────

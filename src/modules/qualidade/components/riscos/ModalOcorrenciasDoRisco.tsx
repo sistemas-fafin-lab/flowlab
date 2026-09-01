@@ -5,16 +5,11 @@
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import type { CardCorrelacaoRiscoDTO } from '../../types';
+import { formatarDataCurta } from './rotulos.js';
 
 interface ModalOcorrenciasDoRiscoProps {
   card: CardCorrelacaoRiscoDTO;
   onFechar: () => void;
-}
-
-// Split manual (sem `new Date`) para não sofrer deslocamento de fuso horário ao formatar uma data `YYYY-MM-DD` vinda do banco.
-function formatarData(iso: string): string {
-  const [ano, mes, dia] = iso.slice(0, 10).split('-');
-  return dia && mes && ano ? `${dia}/${mes}/${ano}` : iso;
 }
 
 export function ModalOcorrenciasDoRisco({ card, onFechar }: ModalOcorrenciasDoRiscoProps) {
@@ -45,7 +40,7 @@ export function ModalOcorrenciasDoRisco({ card, onFechar }: ModalOcorrenciasDoRi
             {card.ocorrencias.map((o) => (
               <li key={o.id} className="rounded-xl px-3 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-white/5">
                 <p className="text-slate-700 dark:text-slate-300">{o.resumo || '—'}</p>
-                <p className="text-xs text-gray-400 dark:text-slate-500">{formatarData(o.dtaOcorrencia)}</p>
+                <p className="text-xs text-gray-400 dark:text-slate-500">{formatarDataCurta(o.dtaOcorrencia)}</p>
               </li>
             ))}
           </ul>
