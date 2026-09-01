@@ -17,6 +17,7 @@ import SignatureViewModal from './SignatureViewModal';
 import StockWithdrawalModal from './StockWithdrawalModal';
 import { PenTool, Loader2 } from 'lucide-react';
 import { RequestManagementSkeleton } from './PageLoadingSkeleton';
+import { formatDate } from '../modules/quotations/utils/formatDate';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -1968,7 +1969,7 @@ const handleCompleteRequest = async (request: Request) => {
                   <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{request.id}</h3>
                   <div className="flex items-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
                     <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 flex-shrink-0" />
-                    <span className="truncate">{request.requestDate}</span>
+                    <span className="truncate">{formatDate(request.requestDate)}</span>
                   </div>
                 </div>
               </div>
