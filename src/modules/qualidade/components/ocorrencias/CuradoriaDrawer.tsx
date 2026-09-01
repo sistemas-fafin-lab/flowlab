@@ -14,6 +14,7 @@ import { ComboboxBusca } from '../ui/ComboboxBusca.js';
 import { DrawerLateral } from '../ui/DrawerLateral.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { Skeleton } from '../ui/Skeleton.js';
+import { RiscosVinculadosOcorrencia } from './RiscosVinculadosOcorrencia.js';
 
 interface CuradoriaDrawerProps {
   id: string;
@@ -284,6 +285,10 @@ export function CuradoriaDrawer({ id, canManage, onFechar }: CuradoriaDrawerProp
               </div>
             </div>
           </section>
+
+          <div className="md:col-span-2">
+            <RiscosVinculadosOcorrencia ocorrenciaId={id} canManage={canManage} />
+          </div>
         </div>
       )}
       {prefillRisco && <NovoRiscoDrawer prefill={prefillRisco} onFechar={() => setPrefillRisco(null)} />}

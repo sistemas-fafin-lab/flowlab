@@ -2,7 +2,7 @@
 // (.scratch/qualidade-riscos-indicadores/issues/01-riscos-cadastro-matriz-origem.md).
 
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, ShieldAlert, Plus } from 'lucide-react';
+import { ArrowLeft, Link2, ShieldAlert, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { RiscoDTO } from '../types';
@@ -89,6 +89,13 @@ export function Riscos() {
           >
             <ShieldAlert className="h-4 w-4" aria-hidden />
             Contingências
+          </Link>
+          <Link
+            to="/qualidade/riscos/correlacao"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:bg-white/5"
+          >
+            <Link2 className="h-4 w-4" aria-hidden />
+            Correlação
           </Link>
           {canManage && (
             <button

@@ -10,6 +10,7 @@ import { resolverFaixasClassificacao, classificarScore } from './domain/riscosCl
 import { calcularAlertasRiscos, type ContingenciaParaAlerta, type RiscoComHistorico } from './domain/riscosAlertas.js';
 import { proximaDataPrevistaAtual } from './domain/riscosContingencia.js';
 import { listarPlanosContingencia, listarTestesContingenciaPorPlanos } from './contingencias.js';
+import { vincularRiscoOcorrencia } from './correlacaoRiscosOcorrencias.js';
 import type {
   AlertaRiscoDTO,
   AtualizarPlanoAcaoInput,
@@ -124,6 +125,15 @@ export async function listarRiscos(filtro: RiscoFiltro = {}): Promise<RiscoDTO[]
   return filtro.nivel ? riscos.filter((r) => r.nivel === filtro.nivel) : riscos;
 }
 
+/**
+ * Quando `input.ocorrenciaOrigemId` vem preenchido ("Gerar risco a partir
+ * desta ocorrência", issue 01), o risco nasce já vinculado: além de setar a
+ * origem 1:N (imutável), grava também a correlação N:N correspondente
+ * (issue 05) — uma única ação do ponto de vista do usuário, dois registros
+ * do lado do banco. Falha ao gravar o vínculo N:N não desfaz o risco já
+ * criado (a origem sozinha já é suficiente para achar a ocorrência de volta;
+ * o usuário pode vincular manualmente depois pela seção de correlação).
+ */
 export async function criarRisco(input: NovoRiscoInput): Promise<string> {
   const {
     data: { user },
@@ -149,7 +159,10 @@ export async function criarRisco(input: NovoRiscoInput): Promise<string> {
     .single();
   if (error) throw new ErroApiQualidade(error.code === '42501' ? 403 : 500, `Falha ao cadastrar risco: ${error.message}`);
 
-  return data.id as string;
+  const riscoId = data.id as string;
+  if (input.ocorrenciaOrigemId) await vincularRiscoOcorrencia(riscoId, input.ocorrenciaOrigemId);
+
+  return riscoId;
 }
 
 export async function buscarRisco(id: string): Promise<RiscoDTO> {

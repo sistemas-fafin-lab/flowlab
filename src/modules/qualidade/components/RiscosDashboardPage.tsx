@@ -2,7 +2,7 @@
 // leitura (.scratch/qualidade-riscos-indicadores/issues/04-riscos-dashboard-mapa-alertas.md).
 
 import { useQuery } from '@tanstack/react-query';
-import { AlertTriangle, ArrowRight, CalendarClock, ClipboardList, ListChecks, Map as MapIcon, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, CalendarClock, ClipboardList, Link2, ListChecks, Map as MapIcon, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { NivelClassificacaoRisco, RiscoFiltro, TratamentoRisco } from '../types';
@@ -127,10 +127,11 @@ export function RiscosDashboard() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <LinkModulo to="/qualidade/riscos/matriz" titulo="Matriz de Riscos" descricao="Cadastrar e gerenciar riscos por setor/processo." icone={ShieldAlert} />
         <LinkModulo to="/qualidade/riscos/mapa" titulo="Mapa por Setor" descricao="Visão tabular por setor, voltada para auditoria." icone={MapIcon} />
         <LinkModulo to="/qualidade/riscos/contingencias" titulo="Planos de Contingência" descricao="O que fazer quando um risco vira realidade." icone={ShieldCheck} />
+        <LinkModulo to="/qualidade/riscos/correlacao" titulo="Correlação" descricao="Riscos vinculados a ocorrências, com busca." icone={Link2} />
       </div>
 
       <SeletorPeriodoPorMes inicio={periodo.inicio} fim={periodo.fim} anoPadrao={anoAtual()} onMudar={definirPeriodo} />

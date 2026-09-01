@@ -41,6 +41,12 @@ export const ROTULO_ORIGEM: Record<OrigemRisco, string> = {
 export const campoInput = 'mt-1 w-full glass-field rounded-xl px-3 py-2 text-sm text-slate-800 dark:text-slate-200';
 export const campoLabel = 'text-sm font-medium text-slate-700 dark:text-slate-300';
 
+/** Split manual (sem `new Date`) — não sofre deslocamento de fuso horário ao formatar uma data `YYYY-MM-DD` vinda do banco. */
+export function formatarDataCurta(iso: string): string {
+  const [ano, mes, dia] = iso.slice(0, 10).split('-');
+  return dia && mes && ano ? `${dia}/${mes}/${ano}` : iso;
+}
+
 export const ROTULO_TRATAMENTO: Record<TratamentoRisco, string> = {
   aceitar: 'Aceitar',
   monitorar: 'Monitorar',

@@ -793,3 +793,63 @@ export interface MapaRiscoLinhaDTO {
   tratamento: TratamentoRisco | null;
 }
 
+// ─── Riscos: correlação N:N com Ocorrências — .scratch/qualidade-riscos-indicadores/issues/05-riscos-correlacao-ocorrencias.md ──
+/**
+ * Mecanismo separado do vínculo de origem 1:N (`RiscoDTO.ocorrenciaOrigemId`,
+ * imutável): aqui um usuário vincula/desvincula livremente, a qualquer
+ * momento. `qa_riscos_ocorrencias` guarda só o vínculo N:N — a origem
+ * continua vivendo em `qa_riscos.ocorrencia_origem_id`. `ehOrigem` é
+ * calculado na leitura (`domain/riscosCorrelacao.ts`), mesclando os dois sem
+ * duplicar quando o mesmo par risco/ocorrência é as duas coisas ao mesmo
+ * tempo (ex.: nascido via "Gerar risco a partir desta ocorrência").
+ */
+
+/** Resumo mínimo de uma ocorrência — usado tanto na seção do risco quanto nos cards da aba Correlação. */
+export interface OcorrenciaVinculoDTO {
+  id: string;
+  dtaOcorrencia: string;
+  resumo: string;
+}
+
+/** Ocorrência vinculada a 1 risco (seção "Correlação" do detalhe do risco). */
+export interface OcorrenciaVinculadaRiscoDTO extends OcorrenciaVinculoDTO {
+  /** `null` quando o vínculo é só a origem 1:N (ainda sem linha em `qa_riscos_ocorrencias`) — nesse caso não há o que desvincular. */
+  vinculoId: string | null;
+  ehOrigem: boolean;
+}
+
+/** Risco vinculado a 1 ocorrência (seção "Riscos vinculados" do detalhe da ocorrência). */
+export interface RiscoVinculadoOcorrenciaDTO {
+  id: string;
+  /** `null` quando o vínculo é só a origem 1:N (ainda sem linha em `qa_riscos_ocorrencias`) — nesse caso não há o que desvincular. */
+  vinculoId: string | null;
+  riscoIdentificado: string;
+  processo: string;
+  score: number | null;
+  ehOrigem: boolean;
+}
+
+/** Um card da sub-aba Correlação — só riscos com ao menos 1 vínculo N:N entram aqui (origem sozinha não conta). */
+export interface CardCorrelacaoRiscoDTO {
+  riscoId: string;
+  riscoIdentificado: string;
+  processo: string;
+  setorNome: string | null;
+  ocorrencias: OcorrenciaVinculoDTO[];
+}
+
+/** Candidato retornado pela busca de ocorrências ao vincular a partir do detalhe de 1 risco. */
+export interface OcorrenciaCandidataVinculoDTO {
+  id: string;
+  dtaOcorrencia: string;
+  resumo: string;
+  codRequisicao: string | null;
+}
+
+/** Candidato retornado pela busca de riscos ao vincular a partir do detalhe de 1 ocorrência. */
+export interface RiscoCandidatoVinculoDTO {
+  id: string;
+  riscoIdentificado: string;
+  processo: string;
+}
+

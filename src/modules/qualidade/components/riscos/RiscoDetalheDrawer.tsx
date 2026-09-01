@@ -34,6 +34,7 @@ import { ComboboxBusca } from '../ui/ComboboxBusca.js';
 import { DrawerLateral } from '../ui/DrawerLateral.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { Skeleton } from '../ui/Skeleton.js';
+import { OcorrenciasCorrelacionadasRisco } from './OcorrenciasCorrelacionadasRisco.js';
 import { SeletorMatrizRisco } from './SeletorMatrizRisco.js';
 import {
   BADGE_NIVEL,
@@ -685,6 +686,7 @@ export function RiscoDetalheDrawer({ id, canManage, onFechar }: RiscoDetalheDraw
             canManage={canManage}
           />
           <SecaoPlanosAcao riscoId={risco.id} canManage={canManage} />
+          <OcorrenciasCorrelacionadasRisco riscoId={risco.id} ocorrenciaOrigemId={risco.ocorrenciaOrigemId} canManage={canManage} />
         </div>
       )}
     </DrawerLateral>
