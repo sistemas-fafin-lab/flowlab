@@ -908,6 +908,10 @@ export const QuotationManagementPage: React.FC = () => {
             await rejectQuotation(approvalQuotation.id, comment);
             await handleRefreshAfterAction();
           }}
+          onSelectWinner={async (proposalId) => {
+            await selectWinner(approvalQuotation.id, proposalId);
+            await handleRefreshAfterAction();
+          }}
         />
       )}
     </div>

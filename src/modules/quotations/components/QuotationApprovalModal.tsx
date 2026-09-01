@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, FileText, User, DollarSign, Package, Building2, Crown, Star, Clock } from 'lucide-react';
+import { X, FileText, User, DollarSign, Package, Building2, Crown, Star, Clock, Repeat } from 'lucide-react';
 import { Quotation, QuotationPermissions } from '../types';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { annotateProposals } from '../utils/annotateProposals';
@@ -12,6 +12,9 @@ interface QuotationApprovalModalProps {
   onClose: () => void;
   onApprove: (comment?: string) => Promise<void>;
   onReject: (comment: string) => Promise<void>;
+  // Reaproveita a mesma operação de seleção de vencedora usada na comparação
+  // de propostas — a troca dentro do modal não duplica a lógica de domínio.
+  onSelectWinner?: (proposalId: string) => Promise<void>;
 }
 
 const formatCurrency = (value: number) => {
@@ -27,11 +30,28 @@ export const QuotationApprovalModal: React.FC<QuotationApprovalModalProps> = ({
   onClose,
   onApprove,
   onReject,
+  onSelectWinner,
 }) => {
   // Sempre inclui todas as propostas (mesmo as marcadas como rejeitadas pela
   // seleção de vencedora) — a comparação padrão esconde as perdedoras, mas o
   // gestor precisa ver o quadro completo antes de decidir.
   const annotatedProposals = annotateProposals(quotation, { includeRejected: true });
+  const [switchingProposalId, setSwitchingProposalId] = useState<string | null>(null);
+  const [switchError, setSwitchError] = useState<string | null>(null);
+  const canSwitchWinner = permissions.canSelectWinner && !!onSelectWinner;
+
+  const handleSelectWinner = async (proposalId: string) => {
+    if (!onSelectWinner) return;
+    setSwitchError(null);
+    setSwitchingProposalId(proposalId);
+    try {
+      await onSelectWinner(proposalId);
+    } catch (error) {
+      setSwitchError(error instanceof Error ? error.message : 'Erro ao trocar a proposta vencedora');
+    } finally {
+      setSwitchingProposalId(null);
+    }
+  };
 
   return createPortal(
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[70] p-4 animate-fade-in">
@@ -130,19 +150,34 @@ export const QuotationApprovalModal: React.FC<QuotationApprovalModalProps> = ({
                       <span className={`text-sm font-bold ${isWinner ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-900 dark:text-slate-100'}`}>
                         {formatCurrency(proposal.totalAmount)}
                       </span>
+                      {canSwitchWinner && !isWinner && (
+                        <button
+                          onClick={() => handleSelectWinner(proposal.proposalId)}
+                          disabled={switchingProposalId !== null}
+                          className="flex items-center gap-1 px-2 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        >
+                          <Repeat className="w-3 h-3" />
+                          {switchingProposalId === proposal.proposalId ? 'Selecionando...' : 'Selecionar'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
+            {switchError && (
+              <p className="mt-2 text-xs text-red-600 dark:text-red-400">{switchError}</p>
+            )}
           </div>
 
-          {/* Approve/Reject — reaproveita a decisão atômica e a checagem de alçada já existentes */}
+          {/* Approve/Reject — reaproveita a decisão atômica e a checagem de alçada já existentes.
+              Desabilitado enquanto uma troca de vencedora está em andamento: o valor/alçada só
+              reflete a proposta recém-selecionada depois que o refresh pós-troca chega. */}
           <ApprovalTimeline
             quotation={quotation}
             currentUserApprovalLimit={permissions.maxApprovalAmount}
-            onApprove={permissions.canApprove ? onApprove : undefined}
-            onReject={permissions.canReject ? onReject : undefined}
+            onApprove={permissions.canApprove && !switchingProposalId ? onApprove : undefined}
+            onReject={permissions.canReject && !switchingProposalId ? onReject : undefined}
           />
         </div>
       </div>

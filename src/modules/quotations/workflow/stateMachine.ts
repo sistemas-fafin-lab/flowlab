@@ -112,10 +112,12 @@ export function canReceiveProposals(status: QuotationStatus): boolean {
 }
 
 /**
- * Checks if a winner can be selected in current status
+ * Checks if a winner can be selected in current status.
+ * Inclui 'awaiting_approval' para permitir a troca de vencedora dentro do
+ * modal de aprovação, sem exigir reabrir a cotação para revisão.
  */
 export function canSelectWinner(status: QuotationStatus): boolean {
-  return ['under_review', 'waiting_responses'].includes(status);
+  return ['under_review', 'waiting_responses', 'awaiting_approval'].includes(status);
 }
 
 /**
