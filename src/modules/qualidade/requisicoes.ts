@@ -9,6 +9,7 @@
 
 import type {
   CuradoriaRetificacaoInput,
+  IndicadorBiologiaMolecularResposta,
   IndicadoresGeraisLaboratorioResposta,
   IndicadorSecaoRequisicaoResposta,
   RequisicaoRetificadaDTO,
@@ -67,14 +68,13 @@ export async function buscarIndicadoresGeraisLaboratorio(periodo: {
 }
 
 const AGREGADOR_POR_SECAO = {
-  biologia_molecular: agregarBiologiaMolecular,
   patologia_ap: agregarPatologiaAp,
   histologia_citologia: agregarHistologiaCitologia,
   ihq_parceiro: agregarIhqParceiro,
 } as const;
 
 export async function buscarIndicadoresSecaoRequisicao(
-  secao: SecaoRequisicao,
+  secao: Exclude<SecaoRequisicao, 'biologia_molecular'>,
   periodo: { inicio: string; fim: string },
 ): Promise<IndicadorSecaoRequisicaoResposta> {
   const { data, error } = await supabase
@@ -92,6 +92,34 @@ export async function buscarIndicadoresSecaoRequisicao(
   }));
 
   return AGREGADOR_POR_SECAO[secao](periodo, linhas);
+}
+
+/**
+ * Biologia Molecular tem resposta própria (issue 07): além das 4 métricas
+ * genéricas, quebra o TAT médio por `exameTipoNomeLis` — por isso não passa
+ * por `buscarIndicadoresSecaoRequisicao`/`AGREGADOR_POR_SECAO` acima, que
+ * assumem o formato genérico de `IndicadorSecaoRequisicaoResposta`.
+ */
+export async function buscarIndicadoresBiologiaMolecular(periodo: {
+  inicio: string;
+  fim: string;
+}): Promise<IndicadorBiologiaMolecularResposta> {
+  const { data, error } = await supabase
+    .from('qa_requisicoes')
+    .select('dta_coleta, dta_prevista, dta_liberacao, exame_tipo_nome_lis')
+    .eq('secao_lis', 'biologia_molecular')
+    .gte('dta_solicitacao', periodo.inicio)
+    .lte('dta_solicitacao', periodo.fim);
+  if (error) throw new ErroApiQualidade(500, `Falha ao buscar indicadores de Biologia Molecular: ${error.message}`);
+
+  const linhas = (data ?? []).map((linha) => ({
+    dtaColeta: linha.dta_coleta,
+    dtaPrevista: linha.dta_prevista,
+    dtaLiberacao: linha.dta_liberacao,
+    exameTipoNomeLis: linha.exame_tipo_nome_lis,
+  }));
+
+  return agregarBiologiaMolecular(periodo, linhas);
 }
 
 const SELECT_RETIFICACAO =

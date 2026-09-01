@@ -30,9 +30,15 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
-import type { IndicadorSecaoRequisicaoResposta, RequisicaoRetificadaDTO, SecaoRequisicao } from '../types';
+import type {
+  IndicadorBiologiaMolecularResposta,
+  IndicadorSecaoRequisicaoResposta,
+  RequisicaoRetificadaDTO,
+  SecaoRequisicao,
+} from '../types';
 import { anoAtual } from '../anoAtual.js';
 import {
+  buscarIndicadoresBiologiaMolecular,
   buscarIndicadoresGeraisLaboratorio,
   buscarIndicadoresSecaoRequisicao,
   buscarRequisicoesRetificadas,
@@ -85,14 +91,9 @@ const CORES_SECAO: Record<CorSecao, { borda: string; badge: string; brilho: stri
   },
 };
 
-const SECOES_EXTRA: { secao: SecaoRequisicao; titulo: string; subtitulo: string; icone: LucideIcon; cor: CorSecao }[] = [
-  {
-    secao: 'biologia_molecular',
-    titulo: 'Biologia Molecular',
-    subtitulo: 'PCR e Captura Híbrida — volume, produtividade e prazo no período selecionado.',
-    icone: Dna,
-    cor: 'verde',
-  },
+type SecaoExtraGenerica = Exclude<SecaoRequisicao, 'biologia_molecular'>;
+
+const SECOES_EXTRA: { secao: SecaoExtraGenerica; titulo: string; subtitulo: string; icone: LucideIcon; cor: CorSecao }[] = [
   {
     secao: 'patologia_ap',
     titulo: 'Patologia / Anatomia Patológica',
@@ -223,7 +224,7 @@ function SecaoExtra({
   filtro,
   periodoCompleto,
 }: {
-  secao: SecaoRequisicao;
+  secao: SecaoExtraGenerica;
   titulo: string;
   subtitulo: string;
   icone: LucideIcon;
@@ -257,6 +258,74 @@ function SecaoExtra({
           <Kpi rotulo="Laudos liberados" valor={query.data.laudosLiberados} icone={FileCheck2} cor={cor} />
           <Kpi rotulo="TAT médio" valor={formatarTat(query.data.tatMedioDias)} icone={Clock} cor={cor} />
           <Kpi rotulo="Laudos fora do prazo" valor={query.data.laudosForaDoPrazo} icone={ShieldAlert} cor={cor} />
+        </div>
+      )}
+    </SecaoIndicador>
+  );
+}
+
+const COR_BIOLOGIA_MOLECULAR: CorSecao = 'verde';
+
+/**
+ * Bespoke em vez do `SecaoExtra` genérico (issue 07) — Biologia Molecular
+ * quebra o TAT médio por tipo de exame (PCR/Captura Híbrida), métrica que
+ * as outras 3 seções extras não têm. Mesmo padrão da seção "Indicadores
+ * Gerais" acima: KPIs + gráfico dentro do mesmo `SecaoIndicador`.
+ */
+function SecaoBiologiaMolecular({
+  filtro,
+  periodoCompleto,
+  tema,
+}: {
+  filtro: { inicio: string; fim: string };
+  periodoCompleto: boolean;
+  tema: 'light' | 'dark';
+}) {
+  const query = useQuery<IndicadorBiologiaMolecularResposta>({
+    queryKey: ['indicadores-requisicoes', 'biologia-molecular', filtro],
+    queryFn: () => buscarIndicadoresBiologiaMolecular(filtro),
+    enabled: periodoCompleto,
+  });
+
+  return (
+    <SecaoIndicador
+      titulo="Biologia Molecular"
+      subtitulo="PCR e Captura Híbrida — volume, produtividade e prazo no período selecionado."
+      icone={Dna}
+      cor={COR_BIOLOGIA_MOLECULAR}
+    >
+      {query.isLoading && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[1, 2, 3, 4].map((n) => (
+            <Skeleton key={n} className="h-24 w-full" />
+          ))}
+        </div>
+      )}
+
+      {query.isError && (
+        <ErrorState titulo="Não foi possível carregar os indicadores de Biologia Molecular" aoTentarNovamente={() => query.refetch()} />
+      )}
+
+      {query.data && (
+        <div className="space-y-6">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Kpi rotulo="Requisições" valor={query.data.totalRequisicoes} icone={Dna} cor={COR_BIOLOGIA_MOLECULAR} />
+            <Kpi rotulo="Laudos liberados" valor={query.data.laudosLiberados} icone={FileCheck2} cor={COR_BIOLOGIA_MOLECULAR} />
+            <Kpi rotulo="TAT médio" valor={formatarTat(query.data.tatMedioDias)} icone={Clock} cor={COR_BIOLOGIA_MOLECULAR} />
+            <Kpi rotulo="Laudos fora do prazo" valor={query.data.laudosForaDoPrazo} icone={ShieldAlert} cor={COR_BIOLOGIA_MOLECULAR} />
+          </div>
+
+          <div>
+            <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
+              TAT médio por tipo de exame
+            </h3>
+            <BarChartHorizontal
+              tema={tema}
+              cor={CORES_SECAO[COR_BIOLOGIA_MOLECULAR].grafico}
+              dados={query.data.tatPorTipoExame.map((t) => ({ rotulo: t.exameTipoNomeLis, valor: t.tatMedioDias }))}
+              formatarValor={(v) => `${v} dia(s)`}
+            />
+          </div>
         </div>
       )}
     </SecaoIndicador>
@@ -402,6 +471,8 @@ export function Indicadores() {
               </div>
             )}
           </SecaoIndicador>
+
+          <SecaoBiologiaMolecular filtro={filtro} periodoCompleto={periodoCompleto} tema={tema} />
 
           {SECOES_EXTRA.map((s) => (
             <SecaoExtra key={s.secao} {...s} filtro={filtro} periodoCompleto={periodoCompleto} />

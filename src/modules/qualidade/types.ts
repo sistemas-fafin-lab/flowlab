@@ -892,6 +892,25 @@ export interface IndicadorSecaoRequisicaoResposta {
   laudosForaDoPrazo: number;
 }
 
+/** TAT médio de 1 tipo de exame (ex.: `PCR`, `CAPTURA HÍBRIDA`) dentro da seção Biologia Molecular. */
+export interface IndicadorTatPorTipoExame {
+  exameTipoNomeLis: string;
+  tatMedioDias: number;
+  laudosLiberados: number;
+}
+
+/**
+ * Biologia Molecular — issue 07: além das 4 métricas genéricas de
+ * `IndicadorSecaoRequisicaoResposta`, quebra o TAT médio por
+ * `exameTipoNomeLis` (PCR vs. Captura Híbrida). Tipo próprio em vez de
+ * reaproveitar o genérico — ver issue 08 para o mesmo padrão nas outras seções.
+ */
+export interface IndicadorBiologiaMolecularResposta extends Omit<IndicadorSecaoRequisicaoResposta, 'secao'> {
+  secao: 'biologia_molecular';
+  /** Ordenado por `laudosLiberados` desc — tipos sem laudo liberado no período não aparecem. */
+  tatPorTipoExame: IndicadorTatPorTipoExame[];
+}
+
 /** Item da lista de laudos retificados no período, pendentes ou não de curadoria de motivo. */
 export interface RequisicaoRetificadaDTO {
   id: string;

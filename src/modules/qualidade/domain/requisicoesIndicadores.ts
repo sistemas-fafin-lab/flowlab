@@ -26,7 +26,7 @@ export interface LinhaIndicadorRequisicao {
 export type IndicadoresGeraisSemNaoConformidades = Omit<IndicadoresGeraisLaboratorioResposta, 'naoConformidadesPorSetor'>;
 
 /** Dias corridos entre duas datas `YYYY-MM-DD`, sem depender do fuso local. */
-function diasEntre(inicio: string, fim: string): number {
+export function diasEntre(inicio: string, fim: string): number {
   const [anoI, mesI, diaI] = inicio.slice(0, 10).split('-').map(Number);
   const [anoF, mesF, diaF] = fim.slice(0, 10).split('-').map(Number);
   const msInicio = Date.UTC(anoI, mesI - 1, diaI);
@@ -36,6 +36,11 @@ function diasEntre(inicio: string, fim: string): number {
 
 function incrementarMedico(mapa: Map<string, number>, nome: string): void {
   mapa.set(nome, (mapa.get(nome) ?? 0) + 1);
+}
+
+/** `null` quando não há nenhuma linha com TAT calculável (R4 — nunca vira 0). */
+export function mediaTatDias(somaTat: number, contagemTat: number): number | null {
+  return contagemTat === 0 ? null : Math.round((somaTat / contagemTat) * 10) / 10;
 }
 
 export function agregarIndicadoresGerais(
@@ -74,7 +79,7 @@ export function agregarIndicadoresGerais(
       .map(([medicoNome, total]) => ({ medicoNome, total }))
       .sort((a, b) => b.total - a.total),
     amostrasAdmitidas,
-    tatMedioDias: contagemTat === 0 ? null : Math.round((somaTat / contagemTat) * 10) / 10,
+    tatMedioDias: mediaTatDias(somaTat, contagemTat),
     laudosForaDoPrazo,
     laudosRetificados,
   };
@@ -118,7 +123,7 @@ export function agregarIndicadorSecao(
     secao,
     totalRequisicoes: linhas.length,
     laudosLiberados: liberadas.length,
-    tatMedioDias: contagemTat === 0 ? null : Math.round((somaTat / contagemTat) * 10) / 10,
+    tatMedioDias: mediaTatDias(somaTat, contagemTat),
     laudosForaDoPrazo,
   };
 }
