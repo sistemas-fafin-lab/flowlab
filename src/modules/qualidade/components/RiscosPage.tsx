@@ -2,7 +2,7 @@
 // (.scratch/qualidade-riscos-indicadores/issues/01-riscos-cadastro-matriz-origem.md).
 
 import { useQuery } from '@tanstack/react-query';
-import { ShieldAlert, Plus } from 'lucide-react';
+import { ArrowLeft, ShieldAlert, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { RiscoDTO } from '../types';
@@ -64,12 +64,25 @@ export function Riscos() {
     <div className="animate-fade-in space-y-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
+          <Link
+            to="/qualidade/riscos"
+            className="mb-2 inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-800 dark:text-slate-400 dark:hover:text-slate-200"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            Voltar para Riscos
+          </Link>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Matriz de Riscos</h1>
           <p className="text-sm text-gray-600 dark:text-slate-400">
             Cadastro e classificação de riscos por setor e processo (Probabilidade × Severidade).
           </p>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            to="/qualidade/riscos/mapa"
+            className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:bg-white/5"
+          >
+            Mapa por setor
+          </Link>
           <Link
             to="/qualidade/riscos/contingencias"
             className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50 dark:border-white/10 dark:bg-transparent dark:text-slate-300 dark:hover:bg-white/5"

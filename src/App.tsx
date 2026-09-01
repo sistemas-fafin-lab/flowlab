@@ -43,7 +43,9 @@ import {
   CortesiasCotasPage,
   IhqPage,
   CancerPage,
-  RiscosPage,
+  RiscosDashboardPage,
+  RiscosMatrizPage,
+  MapaRiscosPorSetorPage,
   ContingenciasPage,
 } from './modules/qualidade';
 import { BoardPage } from './modules/board';
@@ -419,7 +421,27 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
               <QualidadeProviders>
-                <RiscosPage />
+                <RiscosDashboardPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualidade/riscos/matriz"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <RiscosMatrizPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualidade/riscos/mapa"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <MapaRiscosPorSetorPage />
               </QualidadeProviders>
             </ProtectedRoute>
           }

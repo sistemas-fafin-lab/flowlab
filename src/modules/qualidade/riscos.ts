@@ -7,11 +7,18 @@
 import { supabase } from '../../lib/supabase';
 import { ErroApiQualidade } from './qualidadeApi.js';
 import { resolverFaixasClassificacao, classificarScore } from './domain/riscosClassificacao.js';
+import { calcularAlertasRiscos, type ContingenciaParaAlerta, type RiscoComHistorico } from './domain/riscosAlertas.js';
+import { proximaDataPrevistaAtual } from './domain/riscosContingencia.js';
+import { listarPlanosContingencia, listarTestesContingenciaPorPlanos } from './contingencias.js';
 import type {
+  AlertaRiscoDTO,
   AtualizarPlanoAcaoInput,
   AvaliarEficaciaPlanoAcaoInput,
   EvidenciaPlanoAcao,
   FaixaClassificacaoRisco,
+  IndicadoresRiscosDTO,
+  MapaRiscoLinhaDTO,
+  NivelClassificacaoRisco,
   NovaReavaliacaoInput,
   NovoPlanoAcaoInput,
   NovoRiscoInput,
@@ -37,6 +44,12 @@ async function buscarValorParametro(chave: string): Promise<unknown> {
 
 export async function buscarFaixasClassificacao(): Promise<readonly FaixaClassificacaoRisco[]> {
   return resolverFaixasClassificacao(await buscarValorParametro('riscos.faixas_classificacao'));
+}
+
+/** Janela (em dias) para o alerta "contingência com teste a vencer" — configurável (`qa_parametros`), com retaguarda de 20 dias. */
+export async function buscarDiasAlertaContingencia(): Promise<number> {
+  const valor = await buscarValorParametro('riscos.dias_alerta_contingencia');
+  return typeof valor === 'number' ? valor : 20;
 }
 
 export async function buscarProcessosSugeridos(setorId: string): Promise<string[]> {
@@ -96,11 +109,19 @@ function mapearRisco(linha: LinhaBrutaRisco, faixas: readonly FaixaClassificacao
 export async function listarRiscos(filtro: RiscoFiltro = {}): Promise<RiscoDTO[]> {
   let query = supabase.from('qa_riscos').select(SELECT_RISCO).order('criado_em', { ascending: false });
   if (filtro.setorId) query = query.eq('setor_id', filtro.setorId);
+  if (filtro.processo) query = query.ilike('processo', `%${filtro.processo}%`);
+  if (filtro.tratamento) query = query.eq('tratamento', filtro.tratamento);
+  if (filtro.inicio) query = query.gte('criado_em', filtro.inicio);
+  // `criado_em` é timestamptz — comparar direto com 'YYYY-MM-DD' trunca para
+  // meia-noite e exclui riscos criados mais tarde no último dia do período.
+  if (filtro.fim) query = query.lt('criado_em', `${filtro.fim}T23:59:59.999999`);
 
   const [faixas, { data, error }] = await Promise.all([buscarFaixasClassificacao(), query]);
   if (error) throw new ErroApiQualidade(500, `Falha ao listar riscos: ${error.message}`);
 
-  return ((data ?? []) as unknown as LinhaBrutaRisco[]).map((l) => mapearRisco(l, faixas));
+  const riscos = ((data ?? []) as unknown as LinhaBrutaRisco[]).map((l) => mapearRisco(l, faixas));
+  // Nível é derivado (score + faixas configuráveis), não uma coluna — filtro só pode ser aplicado depois do mapeamento.
+  return filtro.nivel ? riscos.filter((r) => r.nivel === filtro.nivel) : riscos;
 }
 
 export async function criarRisco(input: NovoRiscoInput): Promise<string> {
@@ -205,6 +226,23 @@ export async function listarReavaliacoesRisco(riscoId: string): Promise<Reavalia
   return ((data ?? []) as unknown as LinhaBrutaReavaliacao[]).map(mapearReavaliacao);
 }
 
+/** Uma query para todos os riscos, em vez de N — usado pelo dashboard (issue 04). */
+async function listarReavaliacoesPorRiscos(riscoIds: readonly string[]): Promise<Map<string, ReavaliacaoRiscoDTO[]>> {
+  const mapa = new Map<string, ReavaliacaoRiscoDTO[]>();
+  if (riscoIds.length === 0) return mapa;
+
+  const { data, error } = await supabase.from('qa_reavaliacoes_risco').select(SELECT_REAVALIACAO).in('risco_id', riscoIds);
+  if (error) throw new ErroApiQualidade(500, `Falha ao listar reavaliações: ${error.message}`);
+
+  for (const linha of (data ?? []) as unknown as LinhaBrutaReavaliacao[]) {
+    const reavaliacao = mapearReavaliacao(linha);
+    const lista = mapa.get(reavaliacao.riscoId) ?? [];
+    lista.push(reavaliacao);
+    mapa.set(reavaliacao.riscoId, lista);
+  }
+  return mapa;
+}
+
 export async function criarReavaliacaoRisco(input: NovaReavaliacaoInput): Promise<string> {
   const {
     data: { user },
@@ -283,6 +321,23 @@ export async function listarPlanosAcao(riscoId: string): Promise<PlanoAcaoDTO[]>
   if (error) throw new ErroApiQualidade(500, `Falha ao listar planos de ação: ${error.message}`);
 
   return ((data ?? []) as unknown as LinhaBrutaPlanoAcao[]).map(mapearPlanoAcao);
+}
+
+/** Uma query para todos os riscos, em vez de N — usado pelo dashboard (issue 04). */
+async function listarPlanosAcaoPorRiscos(riscoIds: readonly string[]): Promise<Map<string, PlanoAcaoDTO[]>> {
+  const mapa = new Map<string, PlanoAcaoDTO[]>();
+  if (riscoIds.length === 0) return mapa;
+
+  const { data, error } = await supabase.from('qa_planos_acao').select(SELECT_PLANO_ACAO).in('risco_id', riscoIds);
+  if (error) throw new ErroApiQualidade(500, `Falha ao listar planos de ação: ${error.message}`);
+
+  for (const linha of (data ?? []) as unknown as LinhaBrutaPlanoAcao[]) {
+    const plano = mapearPlanoAcao(linha);
+    const lista = mapa.get(plano.riscoId) ?? [];
+    lista.push(plano);
+    mapa.set(plano.riscoId, lista);
+  }
+  return mapa;
 }
 
 export async function criarPlanoAcao(input: NovoPlanoAcaoInput): Promise<string> {
@@ -367,4 +422,97 @@ export async function buscarUrlEvidencia(path: string): Promise<string> {
   const { data, error } = await supabase.storage.from(BUCKET_EVIDENCIAS).createSignedUrl(path, 300);
   if (error || !data) throw new ErroApiQualidade(500, `Falha ao gerar link da evidência: ${error?.message ?? 'sem URL'}`);
   return data.signedUrl;
+}
+
+// ─── Dashboard, mapa por setor e alertas — issue 04 ────────────────────────
+
+/** Mapa de auditoria por setor: Processo | Risco | P | S | Nível | Status. */
+export async function buscarMapaRiscosPorSetor(setorId: string): Promise<MapaRiscoLinhaDTO[]> {
+  const riscos = await listarRiscos({ setorId });
+  return riscos.map((r) => ({
+    riscoId: r.id,
+    processo: r.processo,
+    riscoIdentificado: r.riscoIdentificado,
+    probabilidade: r.probabilidade,
+    severidade: r.severidade,
+    nivel: r.nivel,
+    tratamento: r.tratamento,
+  }));
+}
+
+/**
+ * Painel da aba Riscos: totais, distribuição por setor/classificação e os 4
+ * tipos de alerta calculados na leitura (`domain/riscosAlertas.ts`). "Hoje" é
+ * lido aqui — o único ponto que decide "agora" — e passado como argumento
+ * explícito para a regra de domínio (P4).
+ */
+export async function buscarIndicadoresRiscos(filtro: RiscoFiltro = {}): Promise<IndicadoresRiscosDTO> {
+  const [riscos, planosContingencia, diasAlertaContingencia] = await Promise.all([
+    listarRiscos(filtro),
+    listarPlanosContingencia(filtro.setorId ? { setorId: filtro.setorId } : {}),
+    buscarDiasAlertaContingencia(),
+  ]);
+
+  const riscoIds = riscos.map((r) => r.id);
+  const [planosPorRisco, reavaliacoesPorRisco] = await Promise.all([
+    listarPlanosAcaoPorRiscos(riscoIds),
+    listarReavaliacoesPorRiscos(riscoIds),
+  ]);
+
+  const riscosComHistorico: RiscoComHistorico[] = riscos.map((risco) => ({
+    risco,
+    planosAcao: planosPorRisco.get(risco.id) ?? [],
+    reavaliacoes: reavaliacoesPorRisco.get(risco.id) ?? [],
+  }));
+
+  const planoIds = planosContingencia.map((p) => p.id);
+  const testesPorPlano = await listarTestesContingenciaPorPlanos(planoIds);
+  const contingenciasParaAlerta: ContingenciaParaAlerta[] = planosContingencia.map((p) => ({
+    id: p.id,
+    codigo: p.codigo,
+    evento: p.evento,
+    status: p.status,
+    proximoTeste: proximaDataPrevistaAtual(testesPorPlano.get(p.id) ?? []),
+  }));
+
+  const hoje = new Date().toISOString().slice(0, 10);
+  // Alertas usam o histórico completo (sem o filtro de responsável): um risco
+  // crítico sem plano nenhum nunca tem plano do responsável filtrado, então
+  // filtrar antes faria o alerta "crítico sem plano" nunca aparecer com esse
+  // filtro ativo.
+  const alertas: AlertaRiscoDTO[] = calcularAlertasRiscos(riscosComHistorico, contingenciasParaAlerta, hoje, diasAlertaContingencia);
+
+  // Cards e gráficos, por sua vez, respeitam o filtro de responsável: só
+  // entram riscos com ao menos um plano dele, e só os planos dele contam
+  // para "plano de ação pendente".
+  const riscosParaCards = filtro.responsavelId
+    ? riscosComHistorico
+        .filter((r) => r.planosAcao.some((p) => p.responsavelId === filtro.responsavelId))
+        .map((r) => ({ ...r, planosAcao: r.planosAcao.filter((p) => p.responsavelId === filtro.responsavelId) }))
+    : riscosComHistorico;
+
+  const porNivelMapa = new Map<NivelClassificacaoRisco, number>();
+  const porSetorMapa = new Map<string, { setorNome: string; total: number }>();
+  for (const r of riscosParaCards) {
+    if (r.risco.nivel) porNivelMapa.set(r.risco.nivel, (porNivelMapa.get(r.risco.nivel) ?? 0) + 1);
+    const atual = porSetorMapa.get(r.risco.setorId) ?? { setorNome: r.risco.setorNome ?? r.risco.setorId, total: 0 };
+    atual.total += 1;
+    porSetorMapa.set(r.risco.setorId, atual);
+  }
+
+  const planosAcaoPendentes = riscosParaCards.reduce(
+    (soma, r) => soma + r.planosAcao.filter((p) => p.status !== 'concluido').length,
+    0,
+  );
+
+  return {
+    totalRiscos: riscosParaCards.length,
+    porNivel: [...porNivelMapa.entries()].map(([nivel, total]) => ({ nivel, total })),
+    porSetor: [...porSetorMapa.entries()].map(([setorId, v]) => ({ setorId, setorNome: v.setorNome, total: v.total })),
+    planosAcaoPendentes,
+    planosAcaoVencidos: alertas.filter((a) => a.tipo === 'acao_vencida').length,
+    aguardandoReavaliacao: alertas.filter((a) => a.tipo === 'aguardando_reavaliacao').length,
+    contingenciasAtivas: planosContingencia.filter((p) => p.status === 'ativo').length,
+    alertas,
+  };
 }

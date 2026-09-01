@@ -546,6 +546,14 @@ export interface RiscoDTO {
 
 export interface RiscoFiltro {
   setorId?: string;
+  processo?: string;
+  nivel?: NivelClassificacaoRisco;
+  tratamento?: TratamentoRisco;
+  /** Riscos com ao menos um plano de ação atribuído a este responsável. */
+  responsavelId?: string;
+  /** Filtra por `criadoEm` do risco. */
+  inicio?: string;
+  fim?: string;
 }
 
 export interface NovoRiscoInput {
@@ -733,5 +741,55 @@ export interface NovoTesteContingenciaInput {
   descricaoMelhoria?: string | null;
   proximaDataPrevista?: string | null;
   observacoes?: string | null;
+}
+
+// ─── Riscos: dashboard, mapa por setor e alertas — .scratch/qualidade-riscos-indicadores/issues/04-riscos-dashboard-mapa-alertas.md ──
+
+export type TipoAlertaRisco = 'critico_sem_plano' | 'acao_vencida' | 'aguardando_reavaliacao' | 'contingencia_a_vencer';
+
+/**
+ * Um alerta calculado na leitura por `domain/riscosAlertas.ts` — não existe
+ * motor de notificação (email/push) nem tabela própria, só os cards/consultas
+ * do dashboard.
+ */
+export interface AlertaRiscoDTO {
+  tipo: TipoAlertaRisco;
+  riscoId: string | null;
+  planoAcaoId: string | null;
+  planoContingenciaId: string | null;
+  mensagem: string;
+}
+
+export interface IndicadorRiscoPorNivel {
+  nivel: NivelClassificacaoRisco;
+  total: number;
+}
+
+export interface IndicadorRiscoPorSetor {
+  setorId: string;
+  setorNome: string;
+  total: number;
+}
+
+export interface IndicadoresRiscosDTO {
+  totalRiscos: number;
+  porNivel: IndicadorRiscoPorNivel[];
+  porSetor: IndicadorRiscoPorSetor[];
+  planosAcaoPendentes: number;
+  planosAcaoVencidos: number;
+  aguardandoReavaliacao: number;
+  contingenciasAtivas: number;
+  alertas: AlertaRiscoDTO[];
+}
+
+/** Uma linha do mapa de riscos por setor (visão de auditoria): Processo | Risco | P | S | Nível | Status. */
+export interface MapaRiscoLinhaDTO {
+  riscoId: string;
+  processo: string;
+  riscoIdentificado: string;
+  probabilidade: number | null;
+  severidade: number | null;
+  nivel: NivelClassificacaoRisco | null;
+  tratamento: TratamentoRisco | null;
 }
 

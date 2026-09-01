@@ -211,6 +211,23 @@ export async function listarTestesContingencia(planoId: string): Promise<TesteCo
   return ((data ?? []) as unknown as LinhaBrutaTesteContingencia[]).map(mapearTesteContingencia);
 }
 
+/** Uma query para todos os planos, em vez de N — usado pelo dashboard de Riscos (issue 04) para resolver "último teste" de cada plano de contingência. */
+export async function listarTestesContingenciaPorPlanos(planoIds: readonly string[]): Promise<Map<string, TesteContingenciaDTO[]>> {
+  const mapa = new Map<string, TesteContingenciaDTO[]>();
+  if (planoIds.length === 0) return mapa;
+
+  const { data, error } = await supabase.from('qa_testes_contingencia').select(SELECT_TESTE_CONTINGENCIA).in('plano_id', planoIds);
+  if (error) throw new ErroApiQualidade(500, `Falha ao listar testes: ${error.message}`);
+
+  for (const linha of (data ?? []) as unknown as LinhaBrutaTesteContingencia[]) {
+    const teste = mapearTesteContingencia(linha);
+    const lista = mapa.get(teste.planoId) ?? [];
+    lista.push(teste);
+    mapa.set(teste.planoId, lista);
+  }
+  return mapa;
+}
+
 export async function criarTesteContingencia(input: NovoTesteContingenciaInput): Promise<string> {
   const {
     data: { user },
