@@ -78,4 +78,33 @@ describe('annotateProposals', () => {
   it('retorna lista vazia quando não há propostas', () => {
     expect(annotateProposals({ proposals: [], selectedProposalId: undefined })).toEqual([]);
   });
+
+  it('anota cada item com menor preço e melhor prazo comparando entre as propostas', () => {
+    const proposals = [
+      makeProposal({
+        id: 'a',
+        totalAmount: 200,
+        items: [
+          { id: 'ia1', proposalId: 'a', quotationItemId: 'item-1', productName: 'Item 1', quantity: 1, unitPrice: 100, totalPrice: 100, deliveryTime: '10 dias' },
+        ],
+      }),
+      makeProposal({
+        id: 'b',
+        totalAmount: 150,
+        items: [
+          { id: 'ib1', proposalId: 'b', quotationItemId: 'item-1', productName: 'Item 1', quantity: 1, unitPrice: 80, totalPrice: 80, deliveryTime: '3 dias' },
+        ],
+      }),
+    ];
+
+    const result = annotateProposals({ proposals, selectedProposalId: undefined });
+
+    const itemFromA = result.find(r => r.proposalId === 'a')!.items[0];
+    const itemFromB = result.find(r => r.proposalId === 'b')!.items[0];
+
+    expect(itemFromA.isLowestPrice).toBe(false);
+    expect(itemFromA.isBestDelivery).toBe(false);
+    expect(itemFromB.isLowestPrice).toBe(true);
+    expect(itemFromB.isBestDelivery).toBe(true);
+  });
 });

@@ -92,6 +92,22 @@ const SORT_OPTIONS: { value: QuotationSortField; label: string }[] = [
   { value: 'status', label: 'Status' },
 ];
 
+// Ressincroniza um item local (selectedQuotation, approvalQuotation) com a
+// versão mais recente vinda de `quotations` depois de qualquer ação que
+// dispare um refresh — evita que o drawer/modal fiquem mostrando dados
+// obsoletos até o usuário reabri-los manualmente.
+const useSyncFromQuotations = (
+  quotations: Quotation[],
+  id: string | undefined,
+  setItem: (quotation: Quotation) => void
+) => {
+  useEffect(() => {
+    if (!id) return;
+    const updated = quotations.find(q => q.id === id);
+    if (updated) setItem(updated);
+  }, [quotations, id, setItem]);
+};
+
 export const QuotationManagementPage: React.FC = () => {
   const {
     quotations,
@@ -132,22 +148,11 @@ export const QuotationManagementPage: React.FC = () => {
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<QuotationStatus>>(new Set());
   const [searchParams] = useSearchParams();
 
-  // Keep selectedQuotation in sync with quotations array so the drawer always shows fresh data
-  const selectedId = selectedQuotation?.id;
-  useEffect(() => {
-    if (!selectedId) return;
-    const updated = quotations.find(q => q.id === selectedId);
-    if (updated) setSelectedQuotation(updated);
-  }, [quotations, selectedId]);
-
-  // Same sync, for the approval modal — a decision refreshes quotations and
-  // the modal needs the post-decision status to show its "aprovada"/"rejeitada" state.
-  const approvalId = approvalQuotation?.id;
-  useEffect(() => {
-    if (!approvalId) return;
-    const updated = quotations.find(q => q.id === approvalId);
-    if (updated) setApprovalQuotation(updated);
-  }, [quotations, approvalId]);
+  // Mantém selectedQuotation e approvalQuotation em sincronia com o array
+  // quotations — o drawer e o modal de aprovação precisam ver o estado
+  // pós-ação (ex.: pós-decisão ou pós-troca de vencedora) sem reabrir.
+  useSyncFromQuotations(quotations, selectedQuotation?.id, setSelectedQuotation);
+  useSyncFromQuotations(quotations, approvalQuotation?.id, setApprovalQuotation);
 
   const { products, requests } = useInventory();
   const permissions = getPermissions(selectedQuotation ?? undefined);
