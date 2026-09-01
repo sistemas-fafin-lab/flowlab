@@ -66,6 +66,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       patologista_nome_lis: r.patologistaNomeLis,
       retificado: r.retificado,
       dta_retificacao: r.dtaRetificacao,
+      dta_prevista_setor: r.dtaPrevistaSetor,
+      recorte_coloracao: r.recorteColoracao,
+      dta_recorte_coloracao: r.dtaRecorteColoracao,
+      consenso_pendente: r.consensoPendente,
+      dta_consenso_criado: r.dtaConsensoCriado,
+      bloco_danificado: r.blocoDanificado,
+      dta_bloco_danificado: r.dtaBlocoDanificado,
     }));
 
     if (linhas.length === 0) {

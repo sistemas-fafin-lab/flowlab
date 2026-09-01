@@ -16,6 +16,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  AlertTriangle,
   CheckCircle2,
   Clock,
   Dna,
@@ -23,15 +24,19 @@ import {
   FlaskConical,
   Inbox,
   Microscope,
+  PackageX,
   RefreshCw,
+  Scissors,
   ShieldAlert,
   Stethoscope,
   UserCheck,
+  Users,
   type LucideIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import type {
   IndicadorBiologiaMolecularResposta,
+  IndicadorPatologiaApResposta,
   IndicadorSecaoRequisicaoResposta,
   RequisicaoRetificadaDTO,
   SecaoRequisicao,
@@ -40,6 +45,7 @@ import { anoAtual } from '../anoAtual.js';
 import {
   buscarIndicadoresBiologiaMolecular,
   buscarIndicadoresGeraisLaboratorio,
+  buscarIndicadoresPatologiaAp,
   buscarIndicadoresSecaoRequisicao,
   buscarRequisicoesRetificadas,
   sincronizarRequisicoes,
@@ -91,16 +97,9 @@ const CORES_SECAO: Record<CorSecao, { borda: string; badge: string; brilho: stri
   },
 };
 
-type SecaoExtraGenerica = Exclude<SecaoRequisicao, 'biologia_molecular'>;
+type SecaoExtraGenerica = Exclude<SecaoRequisicao, 'biologia_molecular' | 'patologia_ap'>;
 
 const SECOES_EXTRA: { secao: SecaoExtraGenerica; titulo: string; subtitulo: string; icone: LucideIcon; cor: CorSecao }[] = [
-  {
-    secao: 'patologia_ap',
-    titulo: 'Patologia / Anatomia Patológica',
-    subtitulo: 'Anátomo Patológico — volume, produtividade e prazo no período selecionado.',
-    icone: Stethoscope,
-    cor: 'roxo',
-  },
   {
     secao: 'histologia_citologia',
     titulo: 'Histologia / Citologia',
@@ -332,6 +331,58 @@ function SecaoBiologiaMolecular({
   );
 }
 
+const COR_PATOLOGIA_AP: CorSecao = 'roxo';
+
+/**
+ * Bespoke em vez do `SecaoExtra` genérico (issue 08) — Patologia/AP troca os
+ * 4 KPIs genéricos por métricas próprias da seção (Casos Atrasados usa o
+ * prazo OPERACIONAL do setor, não o prazo ao cliente). Mesmo padrão de
+ * `SecaoBiologiaMolecular` acima.
+ */
+function SecaoPatologiaAp({ filtro, periodoCompleto }: { filtro: { inicio: string; fim: string }; periodoCompleto: boolean }) {
+  const query = useQuery<IndicadorPatologiaApResposta>({
+    queryKey: ['indicadores-requisicoes', 'patologia-ap', filtro],
+    queryFn: () => buscarIndicadoresPatologiaAp(filtro),
+    enabled: periodoCompleto,
+  });
+
+  return (
+    <SecaoIndicador
+      titulo="Patologia / Anatomia Patológica"
+      subtitulo="Anátomo Patológico — casos atrasados, recorte/coloração, consenso e blocos refeitos no período selecionado."
+      icone={Stethoscope}
+      cor={COR_PATOLOGIA_AP}
+    >
+      {query.isLoading && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[1, 2, 3, 4].map((n) => (
+            <Skeleton key={n} className="h-24 w-full" />
+          ))}
+        </div>
+      )}
+
+      {query.isError && (
+        <ErrorState titulo="Não foi possível carregar os indicadores de Patologia/AP" aoTentarNovamente={() => query.refetch()} />
+      )}
+
+      {query.data && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <Kpi rotulo="Casos atrasados" valor={query.data.casosAtrasados} icone={AlertTriangle} cor={COR_PATOLOGIA_AP} />
+            <Kpi rotulo="Recorte / nova coloração" valor={query.data.recorteColoracao} icone={Scissors} cor={COR_PATOLOGIA_AP} />
+            <Kpi rotulo="Consenso pendente" valor={query.data.consensoPendente} icone={Users} cor={COR_PATOLOGIA_AP} />
+            <Kpi rotulo="Blocos refeitos" valor={query.data.blocosRefeitos} icone={PackageX} cor={COR_PATOLOGIA_AP} />
+          </div>
+          <p className="text-xs text-gray-500 dark:text-slate-400">
+            Blocos refeitos é raro neste LIS — só houve 1 registro em ~4 anos de histórico, então 0 é o valor esperado na
+            maior parte dos períodos.
+          </p>
+        </div>
+      )}
+    </SecaoIndicador>
+  );
+}
+
 export function Indicadores() {
   const canManage = useCanManageQualidade();
   const { theme: tema } = useTheme();
@@ -473,6 +524,8 @@ export function Indicadores() {
           </SecaoIndicador>
 
           <SecaoBiologiaMolecular filtro={filtro} periodoCompleto={periodoCompleto} tema={tema} />
+
+          <SecaoPatologiaAp filtro={filtro} periodoCompleto={periodoCompleto} />
 
           {SECOES_EXTRA.map((s) => (
             <SecaoExtra key={s.secao} {...s} filtro={filtro} periodoCompleto={periodoCompleto} />

@@ -911,6 +911,25 @@ export interface IndicadorBiologiaMolecularResposta extends Omit<IndicadorSecaoR
   tatPorTipoExame: IndicadorTatPorTipoExame[];
 }
 
+/**
+ * Patologia/AP — issue 08: substitui os 4 KPIs genéricos de
+ * `IndicadorSecaoRequisicaoResposta` (Requisições/Laudos liberados/TAT
+ * médio/Fora do prazo) por métricas próprias da seção — não estende o tipo
+ * genérico (diferente de `IndicadorBiologiaMolecularResposta`, que só
+ * acrescenta).
+ */
+export interface IndicadorPatologiaApResposta {
+  periodo: { inicio: string; fim: string };
+  secao: 'patologia_ap';
+  totalRequisicoes: number;
+  /** Laudo liberado depois de `dta_prevista_setor` (prazo OPERACIONAL do setor) — não confundir com `laudosForaDoPrazo` de Indicadores Gerais (prazo ao cliente). */
+  casosAtrasados: number;
+  recorteColoracao: number;
+  consensoPendente: number;
+  /** Quase sempre 0 neste LIS (CodProblema=19 praticamente morto, ver migration 20260901130000) — dado real, não omitido. */
+  blocosRefeitos: number;
+}
+
 /** Item da lista de laudos retificados no período, pendentes ou não de curadoria de motivo. */
 export interface RequisicaoRetificadaDTO {
   id: string;

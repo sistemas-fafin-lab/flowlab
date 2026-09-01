@@ -11,6 +11,7 @@ import type {
   CuradoriaRetificacaoInput,
   IndicadorBiologiaMolecularResposta,
   IndicadoresGeraisLaboratorioResposta,
+  IndicadorPatologiaApResposta,
   IndicadorSecaoRequisicaoResposta,
   RequisicaoRetificadaDTO,
   SecaoRequisicao,
@@ -68,13 +69,12 @@ export async function buscarIndicadoresGeraisLaboratorio(periodo: {
 }
 
 const AGREGADOR_POR_SECAO = {
-  patologia_ap: agregarPatologiaAp,
   histologia_citologia: agregarHistologiaCitologia,
   ihq_parceiro: agregarIhqParceiro,
 } as const;
 
 export async function buscarIndicadoresSecaoRequisicao(
-  secao: Exclude<SecaoRequisicao, 'biologia_molecular'>,
+  secao: Exclude<SecaoRequisicao, 'biologia_molecular' | 'patologia_ap'>,
   periodo: { inicio: string; fim: string },
 ): Promise<IndicadorSecaoRequisicaoResposta> {
   const { data, error } = await supabase
@@ -120,6 +120,35 @@ export async function buscarIndicadoresBiologiaMolecular(periodo: {
   }));
 
   return agregarBiologiaMolecular(periodo, linhas);
+}
+
+/**
+ * Patologia/AP tem resposta própria (issue 08): substitui as 4 métricas
+ * genéricas por Casos Atrasados/Recorte-Coloração/Consenso Pendente/Blocos
+ * Refeitos — por isso não passa por `buscarIndicadoresSecaoRequisicao`/
+ * `AGREGADOR_POR_SECAO` acima.
+ */
+export async function buscarIndicadoresPatologiaAp(periodo: {
+  inicio: string;
+  fim: string;
+}): Promise<IndicadorPatologiaApResposta> {
+  const { data, error } = await supabase
+    .from('qa_requisicoes')
+    .select('dta_prevista_setor, dta_liberacao, recorte_coloracao, consenso_pendente, bloco_danificado')
+    .eq('secao_lis', 'patologia_ap')
+    .gte('dta_solicitacao', periodo.inicio)
+    .lte('dta_solicitacao', periodo.fim);
+  if (error) throw new ErroApiQualidade(500, `Falha ao buscar indicadores de Patologia/AP: ${error.message}`);
+
+  const linhas = (data ?? []).map((linha) => ({
+    dtaPrevistaSetor: linha.dta_prevista_setor,
+    dtaLiberacao: linha.dta_liberacao,
+    recorteColoracao: linha.recorte_coloracao,
+    consensoPendente: linha.consenso_pendente,
+    blocoDanificado: linha.bloco_danificado,
+  }));
+
+  return agregarPatologiaAp(periodo, linhas);
 }
 
 const SELECT_RETIFICACAO =

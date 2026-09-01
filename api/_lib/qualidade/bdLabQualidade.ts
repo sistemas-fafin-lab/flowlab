@@ -103,7 +103,11 @@ function texto(bruto: unknown): string | null {
   return s === '' ? null : s;
 }
 
-// Datas já saem 'YYYY-MM-DD' do MySQL (DATE_FORMAT); só normaliza o vazio.
+// Datas já saem formatadas do MySQL via DATE_FORMAT — 'YYYY-MM-DD' na maioria
+// dos campos, 'YYYY-MM-DD HH:MM:SS' nos 4 campos timestamptz da issue 08
+// (DtaPrevistaSetor/DtaRecorteColoracao/DtaConsensoCriado/DtaBlocoDanificado
+// — DtaPrevistaSetor carrega hora real no LIS, ex. '19:00:00', não meia-noite
+// fixa) — em ambos os casos `dataIso` só normaliza o vazio, sem reformatar.
 const dataIso = texto;
 
 /** `fim` inclusivo: `< fim + 1 dia` pega o dia inteiro sem depender de como o DATETIME guarda a hora. */
@@ -545,6 +549,9 @@ const SECAO_POR_COD_EXAME_TIPO = new Map<number, SecaoRequisicaoLis>([
 const COD_EVENTO_AMOSTRA_RECEBIDA = 20; // 'Triagem de Amostra - Recebida'
 const COD_EVENTO_ADMISSAO = 1; // 'Admissão'
 const COD_EVENTO_RETIFICACAO = 54; // 'Retificação de laudo'
+// Issue 08 (Patologia/AP) — conferidos ao vivo em 2026-09-01 contra o mesmo backup.
+const COD_EVENTO_RECORTE_COLORACAO = 3; // 'Corte - Coloração Esp. / Novos Cortes'
+const COD_PROBLEMA_BLOCO_DANIFICADO = 19; // 'Bloco danificado ou quebrado'
 
 export type SecaoRequisicaoLis = 'biologia_molecular' | 'patologia_ap' | 'histologia_citologia' | 'ihq_parceiro';
 
@@ -563,6 +570,15 @@ export interface RequisicaoIndicadorLis {
   patologistaNomeLis: string | null;
   retificado: boolean;
   dtaRetificacao: string | null;
+  /** Issue 08 (Patologia/AP) — prazo OPERACIONAL do setor, distinto de dtaPrevista (prazo ao cliente). */
+  dtaPrevistaSetor: string | null;
+  recorteColoracao: boolean;
+  dtaRecorteColoracao: string | null;
+  consensoPendente: boolean;
+  dtaConsensoCriado: string | null;
+  /** Reaproveitado pela issue 09 (Histologia/Citologia) — mesmo CodProblema=19, dois usos. */
+  blocoDanificado: boolean;
+  dtaBlocoDanificado: string | null;
 }
 
 export type ListarRequisicoesResultado = { requisicoes: RequisicaoIndicadorLis[] } | ErroConsultaLis;
@@ -585,12 +601,17 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
     // correlacionada abaixo aproveita o índice em `IdRequisicao` por linha
     // já filtrada pelo período de `r` e levou <1s no mesmo teste. Não trocar
     // sem medir de novo contra dado real.
+    // Issue 08 (Patologia/AP) acrescentou mais 4 subqueries do mesmo formato
+    // (recorte/coloração, consenso pendente + criado, bloco danificado) —
+    // reconferido ao vivo com todas as 7 juntas: ~1.35s para 3 meses/~13k
+    // linhas, mesma ordem de grandeza do teste original.
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT r.IdRequisicao, r.CodRequisicao, et.CodExameTipo, et.NomExameTipo,
               DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
               DATE_FORMAT(r.DtaColeta, '%Y-%m-%d') AS DtaColeta,
               DATE_FORMAT(r.DtaPrevista, '%Y-%m-%d') AS DtaPrevista,
               DATE_FORMAT(r.Dta1aLiberacao, '%Y-%m-%d') AS DtaLiberacao,
+              DATE_FORMAT(r.DtaPrevistaSetor, '%Y-%m-%d %H:%i:%s') AS DtaPrevistaSetor,
               med.NomMedico AS PatologistaNome,
               DATE_FORMAT(
                 (SELECT MIN(rh.DtaEvento) FROM requisicaohistorico rh
@@ -606,19 +627,46 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
                 (SELECT MAX(rh.DtaEvento) FROM requisicaohistorico rh
                   WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
                 '%Y-%m-%d'
-              ) AS DtaRetificacao
+              ) AS DtaRetificacao,
+              DATE_FORMAT(
+                (SELECT MAX(rh.DtaEvento) FROM requisicaohistorico rh
+                  WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaRecorteColoracao,
+              (SELECT COUNT(*) FROM consenso c
+                 JOIN consensodetalhe cd ON cd.IdConsenso = c.IdConsenso
+                WHERE c.IdRequisicao = r.IdRequisicao AND cd.DtaResposta IS NULL
+              ) AS ConsensoPendenteQtd,
+              DATE_FORMAT(
+                (SELECT MIN(c.DtaCriacao) FROM consenso c WHERE c.IdRequisicao = r.IdRequisicao),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaConsensoCriado,
+              DATE_FORMAT(
+                (SELECT MAX(rp.DtaProblema) FROM requisicaoproblema rp
+                  WHERE rp.IdRequisicao = r.IdRequisicao AND rp.CodProblema = ?),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaBlocoDanificado
          FROM requisicao r
          LEFT JOIN exame ex ON ex.CodExame = r.CodExame
          LEFT JOIN exametipo et ON et.CodExameTipo = ex.CodExameTipo
          LEFT JOIN medico med ON med.CodMedico = r.IdPatologista
         WHERE ${periodo.sql}
         ORDER BY r.DtaSolicitacao DESC`,
-      [COD_EVENTO_AMOSTRA_RECEBIDA, COD_EVENTO_ADMISSAO, COD_EVENTO_RETIFICACAO, ...periodo.valores],
+      [
+        COD_EVENTO_AMOSTRA_RECEBIDA,
+        COD_EVENTO_ADMISSAO,
+        COD_EVENTO_RETIFICACAO,
+        COD_EVENTO_RECORTE_COLORACAO,
+        COD_PROBLEMA_BLOCO_DANIFICADO,
+        ...periodo.valores,
+      ],
     );
     return {
       requisicoes: linhas.map((linha) => {
         const codExameTipoLis = inteiroOuNulo(linha.CodExameTipo);
         const dtaRetificacao = dataIso(linha.DtaRetificacao);
+        const dtaRecorteColoracao = dataIso(linha.DtaRecorteColoracao);
+        const dtaBlocoDanificado = dataIso(linha.DtaBlocoDanificado);
         return {
           idRequisicaoLis: numero(linha.IdRequisicao) ?? 0,
           codRequisicao: texto(linha.CodRequisicao) ?? '',
@@ -634,6 +682,13 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
           patologistaNomeLis: texto(linha.PatologistaNome),
           retificado: dtaRetificacao !== null,
           dtaRetificacao,
+          dtaPrevistaSetor: dataIso(linha.DtaPrevistaSetor),
+          recorteColoracao: dtaRecorteColoracao !== null,
+          dtaRecorteColoracao,
+          consensoPendente: (numero(linha.ConsensoPendenteQtd) ?? 0) > 0,
+          dtaConsensoCriado: dataIso(linha.DtaConsensoCriado),
+          blocoDanificado: dtaBlocoDanificado !== null,
+          dtaBlocoDanificado,
         };
       }),
     };
