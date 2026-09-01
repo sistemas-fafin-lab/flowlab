@@ -624,7 +624,10 @@ function SecaoPlanosAcao({ riscoId, canManage }: { riscoId: string; canManage: b
           riscoId={riscoId}
           planoAnteriorId={formularioAberto.planoAnteriorId}
           onCancelar={() => setFormularioAberto(null)}
-          onCriado={() => setFormularioAberto(null)}
+          onCriado={() => {
+            setFormularioAberto(null);
+            refetch();
+          }}
         />
       )}
     </section>
