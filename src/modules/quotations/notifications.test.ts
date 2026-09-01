@@ -29,7 +29,7 @@ describe('buildQuotationApprovalNotifications', () => {
       quotation_type_label: 'Compras',
       requester_name: 'Maria Souza',
       total_amount: formatCurrency(5000),
-      action_url: 'https://flow-lab.vercel.app/quotations',
+      action_url: 'https://flow-lab.vercel.app/quotations?status=awaiting_approval',
       supplier_name: 'Fornecedor Alfa Ltda',
       items_list_html: '<li>10 cx &mdash; Luva nitrílica M</li><li>3 un &mdash; Máscara N95</li>',
     };

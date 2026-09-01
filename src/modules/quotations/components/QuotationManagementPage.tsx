@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Plus,
   RefreshCcw,
@@ -35,6 +36,7 @@ import { QuotationTypeSelectionModal } from './QuotationTypeSelectionModal';
 import { PurchaseOrderModal } from './PurchaseOrderModal';
 import { useInventory } from '../../../hooks/useInventory';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
+import { QUOTATIONS_STATUS_QUERY_PARAM } from '../routes';
 
 // Helper functions
 const formatCurrency = (value: number) => {
@@ -125,6 +127,7 @@ export const QuotationManagementPage: React.FC = () => {
   const [showDrawer, setShowDrawer] = useState(false);
   const [purchaseOrder, setPurchaseOrder] = useState<{ quotation: Quotation; code: string } | null>(null);
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<QuotationStatus>>(new Set());
+  const [searchParams] = useSearchParams();
 
   // Keep selectedQuotation in sync with quotations array so the drawer always shows fresh data
   const selectedId = selectedQuotation?.id;
@@ -139,6 +142,17 @@ export const QuotationManagementPage: React.FC = () => {
 
   useEffect(() => {
     refresh();
+  }, []);
+
+  // Pré-aplica o filtro de status vindo da URL (?status=awaiting_approval),
+  // usado pelo card da Home e pelo e-mail de notificação de submissão.
+  useEffect(() => {
+    const statusParam = searchParams.get(QUOTATIONS_STATUS_QUERY_PARAM);
+    if (!statusParam || !(statusParam in QuotationStatusLabels)) return;
+    const status = statusParam as QuotationStatus;
+    setSelectedStatusFilters(new Set([status]));
+    setFilters((prev) => ({ ...prev, status: [status] }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSelectQuotation = (quotation: Quotation) => {

@@ -2,6 +2,7 @@ import { Quotation, QuotationItem, QuotationTypeLabels } from './types';
 import { formatCurrency } from '../../utils/paymentUtils';
 import { APP_BASE_URL } from '../../utils/appUrl';
 import { getQuotationAmount } from './utils/getQuotationAmount';
+import { buildQuotationsUrl } from './routes';
 
 export interface ApproverWithEmail {
   user_email: string | null;
@@ -45,7 +46,7 @@ export function buildQuotationApprovalNotifications(
     quotation_type_label: QuotationTypeLabels[quotation.quotationType],
     requester_name: escapeHtml(quotation.createdByName),
     total_amount: formatCurrency(amount),
-    action_url: `${APP_BASE_URL}/quotations`,
+    action_url: buildQuotationsUrl(APP_BASE_URL, 'awaiting_approval'),
     supplier_name: escapeHtml(quotation.selectedSupplierName || 'Não informado'),
     items_list_html: buildItemsListHtml(quotation.items),
   };
