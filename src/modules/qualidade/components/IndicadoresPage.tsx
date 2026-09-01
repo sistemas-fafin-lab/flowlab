@@ -135,11 +135,11 @@ function TabelaRetificacoes({
               onClick={() => onClickLinha(item)}
               className="cursor-pointer border-b border-gray-50 last:border-0 hover:bg-gray-50/80 dark:border-white/5 dark:hover:bg-white/5"
             >
-              <td className="px-4 py-3">{item.codRequisicao}</td>
-              <td className="px-4 py-3">{formatarData(item.dtaSolicitacao)}</td>
-              <td className="px-4 py-3">{formatarData(item.dtaRetificacao)}</td>
-              <td className="px-4 py-3">{item.patologistaNomeLis ?? '—'}</td>
-              <td className="px-4 py-3">{item.motivoRetificacaoNome ?? '—'}</td>
+              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{item.codRequisicao}</td>
+              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{formatarData(item.dtaSolicitacao)}</td>
+              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{formatarData(item.dtaRetificacao)}</td>
+              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{item.patologistaNomeLis ?? '—'}</td>
+              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{item.motivoRetificacaoNome ?? '—'}</td>
               <td className="px-4 py-3">
                 <span
                   className={`rounded-full px-2 py-1 text-xs font-medium ${

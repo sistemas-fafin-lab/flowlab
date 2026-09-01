@@ -223,18 +223,18 @@ function SecaoReavaliacao({
           <tbody className="divide-y divide-gray-100 dark:divide-white/5">
             <tr>
               <td className="py-2 pr-3 font-medium text-slate-700 dark:text-slate-300">Inicial (cadastro)</td>
-              <td className="py-2 pr-3">{probabilidadeInicial ?? '—'}</td>
-              <td className="py-2 pr-3">{severidadeInicial ?? '—'}</td>
-              <td className="py-2 pr-3">{scoreInicial ?? '—'}</td>
+              <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{probabilidadeInicial ?? '—'}</td>
+              <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{severidadeInicial ?? '—'}</td>
+              <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{scoreInicial ?? '—'}</td>
               <td className="py-2 pr-3">{scoreInicial != null && faixas ? <BadgeNivel score={scoreInicial} faixas={faixas} /> : '—'}</td>
               <td className="py-2 text-gray-500 dark:text-slate-400">—</td>
             </tr>
             {(reavaliacoes ?? []).map((r) => (
               <tr key={r.id}>
                 <td className="py-2 pr-3 text-gray-600 dark:text-slate-400">{formatarDataHora(r.reavaliadoEm)}</td>
-                <td className="py-2 pr-3">{r.probabilidade}</td>
-                <td className="py-2 pr-3">{r.severidade}</td>
-                <td className="py-2 pr-3">{r.score}</td>
+                <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{r.probabilidade}</td>
+                <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{r.severidade}</td>
+                <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{r.score}</td>
                 <td className="py-2 pr-3">{faixas && <BadgeNivel score={r.score} faixas={faixas} />}</td>
                 <td className="py-2 text-gray-600 dark:text-slate-400">{r.observacao || '—'}</td>
               </tr>

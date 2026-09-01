@@ -237,7 +237,7 @@ function SecaoTestes({ planoId, canManage }: { planoId: string; canManage: boole
                     {ROTULO_RESULTADO_TESTE[t.resultado]}
                   </span>
                 </td>
-                <td className="py-2 pr-3">{t.necessidadeMelhoria ? 'Sim' : 'Não'}</td>
+                <td className="py-2 pr-3 text-gray-700 dark:text-slate-300">{t.necessidadeMelhoria ? 'Sim' : 'Não'}</td>
                 <td className="py-2 pr-3 text-gray-600 dark:text-slate-400">{formatarData(t.proximaDataPrevista)}</td>
                 <td className="py-2 text-gray-600 dark:text-slate-400">{t.observacoes || t.descricaoMelhoria || '—'}</td>
               </tr>
