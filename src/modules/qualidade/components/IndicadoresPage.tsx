@@ -1,103 +1,166 @@
 // Aba "Indicadores" — Indicadores Gerais do Laboratório + 4 seções extras
 // (.scratch/qualidade-riscos-indicadores/issues/06-indicadores-requisicoes.md).
+// Layout em SEÇÕES empilhadas na mesma página (não abas) — alinhado ao
+// design de referência do projeto de origem (Flowlab_Controle_Qualidade,
+// commit d78e375): cada seção tem uma cor própria (borda + badge do ícone),
+// aplicada uniformemente a todos os KPIs dela — identidade de NAVEGAÇÃO
+// entre seções, não codificação semântica por métrica.
+//
 // Módulo independente de Riscos: schema (qa_requisicoes) e domínio próprios,
 // só reaproveita o indicador de Ocorrências para "Não Conformidades por
-// Setor" (ver requisicoes.ts).
+// Setor" (ver requisicoes.ts). As 4 seções extras aqui usam o domínio
+// genérico já existente (totalRequisicoes/laudosLiberados/tatMedioDias/
+// laudosForaDoPrazo) — métricas mais ricas por seção (blocos, recorte,
+// consenso, tabela de IHQ) dependem de novos eventos do LIS ainda não
+// mapeados nesta base, fase 2.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Beaker,
   CheckCircle2,
-  ClipboardList,
   Clock,
+  Dna,
+  FileCheck2,
   FlaskConical,
-  Layers,
+  Inbox,
   Microscope,
   RefreshCw,
-  Users,
+  ShieldAlert,
+  Stethoscope,
+  UserCheck,
+  type LucideIcon,
 } from 'lucide-react';
-import { useState } from 'react';
-import type { RequisicaoRetificadaDTO, SecaoRequisicao } from '../types';
+import { useState, type ReactNode } from 'react';
+import type { IndicadorSecaoRequisicaoResposta, RequisicaoRetificadaDTO, SecaoRequisicao } from '../types';
 import { anoAtual } from '../anoAtual.js';
 import {
-  buscarContagensAbasIndicadores,
   buscarIndicadoresGeraisLaboratorio,
   buscarIndicadoresSecaoRequisicao,
   buscarRequisicoesRetificadas,
   sincronizarRequisicoes,
 } from '../requisicoes.js';
 import { useCanManageQualidade } from '../hooks/useCanManageQualidade.js';
+import { useTheme } from '../../../hooks/useTheme';
 import { usePeriodoCompartilhado } from '../providers/PeriodoProvider.js';
+import { BarChartHorizontal } from './ui/charts/BarChartHorizontal.js';
+import { TopLista } from './ui/charts/TopLista.js';
 import { CuradoriaRetificacaoDrawer } from './requisicoes/CuradoriaRetificacaoDrawer.js';
-import { formatarDataCurta } from './riscos/rotulos.js';
-import { AbasChips, type AbaChip } from './ui/AbasChips.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { SeletorPeriodoPorMes } from './ui/SeletorPeriodoPorMes.js';
 import { Skeleton } from './ui/Skeleton.js';
 
-type Aba = 'geral' | SecaoRequisicao;
+// ─── Identidade de cor por seção ────────────────────────────────────────────
 
-const ROTULO_ABA: Record<Aba, string> = {
-  geral: 'Indicadores Gerais',
-  biologia_molecular: 'Biologia Molecular',
-  patologia_ap: 'Patologia / AP',
-  histologia_citologia: 'Histologia / Citologia',
-  ihq_parceiro: 'IHQ / Parceiro',
-};
+type CorSecao = 'azul' | 'verde' | 'roxo' | 'ambar' | 'rosa';
 
-const ICONE_ABA: Record<Aba, typeof Beaker> = {
-  geral: Layers,
-  biologia_molecular: FlaskConical,
-  patologia_ap: Microscope,
-  histologia_citologia: Beaker,
-  ihq_parceiro: Users,
-};
-
-const CORES_BADGE: Record<'azul' | 'laranja' | 'verde' | 'roxo' | 'vermelho', { badge: string; brilho: string; valor: string }> = {
-  azul: { badge: 'bg-gradient-to-br from-blue-400 to-blue-600', brilho: 'shadow-blue-500/30', valor: 'text-blue-600 dark:text-blue-400' },
-  laranja: {
-    badge: 'bg-gradient-to-br from-orange-400 to-orange-600',
-    brilho: 'shadow-orange-500/30',
-    valor: 'text-orange-600 dark:text-orange-400',
+const CORES_SECAO: Record<CorSecao, { borda: string; badge: string; brilho: string; grafico: { light: string; dark: string } }> = {
+  azul: {
+    borda: 'border-l-4 border-l-blue-500',
+    badge: 'bg-gradient-to-br from-blue-400 to-blue-600',
+    brilho: 'shadow-blue-500/30',
+    grafico: { light: '#2a78d6', dark: '#3987e5' },
   },
   verde: {
+    borda: 'border-l-4 border-l-emerald-500',
     badge: 'bg-gradient-to-br from-emerald-400 to-emerald-600',
     brilho: 'shadow-emerald-500/30',
-    valor: 'text-emerald-600 dark:text-emerald-400',
+    grafico: { light: '#10b981', dark: '#34d399' },
   },
-  roxo: { badge: 'bg-gradient-to-br from-purple-400 to-purple-600', brilho: 'shadow-purple-500/30', valor: 'text-purple-600 dark:text-purple-400' },
-  vermelho: { badge: 'bg-gradient-to-br from-red-400 to-red-600', brilho: 'shadow-red-500/30', valor: 'text-red-600 dark:text-red-400' },
+  roxo: {
+    borda: 'border-l-4 border-l-purple-500',
+    badge: 'bg-gradient-to-br from-purple-400 to-purple-600',
+    brilho: 'shadow-purple-500/30',
+    grafico: { light: '#9333ea', dark: '#a855f7' },
+  },
+  ambar: {
+    borda: 'border-l-4 border-l-amber-500',
+    badge: 'bg-gradient-to-br from-amber-400 to-amber-600',
+    brilho: 'shadow-amber-500/30',
+    grafico: { light: '#d97706', dark: '#f59e0b' },
+  },
+  rosa: {
+    borda: 'border-l-4 border-l-rose-500',
+    badge: 'bg-gradient-to-br from-rose-400 to-rose-600',
+    brilho: 'shadow-rose-500/30',
+    grafico: { light: '#e11d48', dark: '#fb7185' },
+  },
 };
 
-function Kpi({
-  rotulo,
-  valor,
+const SECOES_EXTRA: { secao: SecaoRequisicao; titulo: string; subtitulo: string; icone: LucideIcon; cor: CorSecao }[] = [
+  {
+    secao: 'biologia_molecular',
+    titulo: 'Biologia Molecular',
+    subtitulo: 'PCR e Captura Híbrida — volume, produtividade e prazo no período selecionado.',
+    icone: Dna,
+    cor: 'verde',
+  },
+  {
+    secao: 'patologia_ap',
+    titulo: 'Patologia / Anatomia Patológica',
+    subtitulo: 'Anátomo Patológico — volume, produtividade e prazo no período selecionado.',
+    icone: Stethoscope,
+    cor: 'roxo',
+  },
+  {
+    secao: 'histologia_citologia',
+    titulo: 'Histologia / Citologia',
+    subtitulo: 'Citopatologia — volume, produtividade e prazo no período selecionado.',
+    icone: Microscope,
+    cor: 'ambar',
+  },
+  {
+    secao: 'ihq_parceiro',
+    titulo: 'IHQ / Parceiro',
+    subtitulo: 'Imunoistoquímica e exames por parceiro — volume, produtividade e prazo no período selecionado.',
+    icone: FlaskConical,
+    cor: 'rosa',
+  },
+];
+
+function SecaoIndicador({
+  titulo,
+  subtitulo,
   icone: Icone,
-  cor = 'azul',
+  cor,
+  children,
 }: {
-  rotulo: string;
-  valor: string | number;
-  icone: typeof Beaker;
-  cor?: keyof typeof CORES_BADGE;
+  titulo: string;
+  subtitulo: string;
+  icone: LucideIcon;
+  cor: CorSecao;
+  children: ReactNode;
 }) {
-  const paleta = CORES_BADGE[cor];
+  const paleta = CORES_SECAO[cor];
+  return (
+    <section className={`glass-surface rounded-2xl ${paleta.borda} p-5`} aria-label={titulo}>
+      <div className="mb-4 flex items-start gap-3">
+        <div className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl shadow-lg ${paleta.badge} ${paleta.brilho}`}>
+          <Icone className="h-5 w-5 text-white" aria-hidden />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{titulo}</h2>
+          <p className="text-xs text-gray-500 dark:text-slate-400">{subtitulo}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Kpi({ rotulo, valor, icone: Icone, cor }: { rotulo: string; valor: string | number; icone: LucideIcon; cor: CorSecao }) {
+  const paleta = CORES_SECAO[cor];
   return (
     <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-white/[0.03]">
       <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl shadow-lg ${paleta.badge} ${paleta.brilho}`}>
         <Icone className="h-5 w-5 text-white" aria-hidden />
       </div>
       <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">{rotulo}</p>
-      <p className={`mt-1 text-2xl font-bold ${paleta.valor}`}>{valor}</p>
+      <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{valor}</p>
     </div>
   );
 }
 
 function formatarTat(dias: number | null): string {
   return dias === null ? '—' : `${dias} dia(s)`;
-}
-
-function formatarData(data: string | null): string {
-  return data ? formatarDataCurta(data) : '—';
 }
 
 function TabelaRetificacoes({
@@ -108,24 +171,19 @@ function TabelaRetificacoes({
   onClickLinha: (item: RequisicaoRetificadaDTO) => void;
 }) {
   if (itens.length === 0) {
-    return (
-      <p className="glass-surface rounded-2xl p-6 text-center text-sm text-gray-500 dark:text-slate-400">
-        Nenhum laudo retificado neste período.
-      </p>
-    );
+    return <p className="text-sm text-gray-500 dark:text-slate-400">Nenhum laudo retificado no período.</p>;
   }
 
   return (
-    <div className="glass-surface overflow-x-auto rounded-2xl">
+    <div className="overflow-x-auto">
       <table className="w-full text-left text-sm">
-        <thead className="border-b border-gray-100 text-xs uppercase tracking-wide text-gray-500 dark:border-white/10 dark:text-slate-400">
-          <tr>
-            <th className="px-4 py-3">Requisição</th>
-            <th className="px-4 py-3">Solicitação</th>
-            <th className="px-4 py-3">Retificação</th>
-            <th className="px-4 py-3">Patologista</th>
-            <th className="px-4 py-3">Motivo</th>
-            <th className="px-4 py-3">Status</th>
+        <thead>
+          <tr className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-white/10 dark:text-slate-400">
+            <th className="py-2 pr-4">Requisição</th>
+            <th className="py-2 pr-4">Paciente</th>
+            <th className="py-2 pr-4">Exame</th>
+            <th className="py-2 pr-4">Patologista</th>
+            <th className="py-2 pr-4">Motivo</th>
           </tr>
         </thead>
         <tbody>
@@ -133,23 +191,20 @@ function TabelaRetificacoes({
             <tr
               key={item.id}
               onClick={() => onClickLinha(item)}
-              className="cursor-pointer border-b border-gray-50 last:border-0 hover:bg-gray-50/80 dark:border-white/5 dark:hover:bg-white/5"
+              className="cursor-pointer border-b border-gray-100 last:border-0 hover:bg-gray-50/80 dark:border-white/5 dark:hover:bg-white/5"
             >
-              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{item.codRequisicao}</td>
-              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{formatarData(item.dtaSolicitacao)}</td>
-              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{formatarData(item.dtaRetificacao)}</td>
-              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{item.patologistaNomeLis ?? '—'}</td>
-              <td className="px-4 py-3 text-gray-700 dark:text-slate-300">{item.motivoRetificacaoNome ?? '—'}</td>
-              <td className="px-4 py-3">
-                <span
-                  className={`rounded-full px-2 py-1 text-xs font-medium ${
-                    item.statusCuradoria === 'concluida'
-                      ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300'
-                      : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
-                  }`}
-                >
-                  {item.statusCuradoria === 'concluida' ? 'Concluída' : 'Pendente'}
-                </span>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{item.codRequisicao}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{item.nomPaciente ?? '—'}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{item.exameTipoNomeLis ?? '—'}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{item.patologistaNomeLis ?? '—'}</td>
+              <td className="py-2 pr-4">
+                {item.statusCuradoria === 'concluida' ? (
+                  <span className="text-slate-700 dark:text-slate-200">
+                    {item.motivoRetificacaoNome ?? item.resumoRetificacaoCurado ?? '—'}
+                  </span>
+                ) : (
+                  <span className="italic text-gray-400 dark:text-slate-500">Pendente de curadoria</span>
+                )}
               </td>
             </tr>
           ))}
@@ -159,11 +214,60 @@ function TabelaRetificacoes({
   );
 }
 
+function SecaoExtra({
+  secao,
+  titulo,
+  subtitulo,
+  icone,
+  cor,
+  filtro,
+  periodoCompleto,
+}: {
+  secao: SecaoRequisicao;
+  titulo: string;
+  subtitulo: string;
+  icone: LucideIcon;
+  cor: CorSecao;
+  filtro: { inicio: string; fim: string };
+  periodoCompleto: boolean;
+}) {
+  const query = useQuery<IndicadorSecaoRequisicaoResposta>({
+    queryKey: ['indicadores-requisicoes', 'secao', secao, filtro],
+    queryFn: () => buscarIndicadoresSecaoRequisicao(secao, filtro),
+    enabled: periodoCompleto,
+  });
+
+  return (
+    <SecaoIndicador titulo={titulo} subtitulo={subtitulo} icone={icone} cor={cor}>
+      {query.isLoading && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[1, 2, 3, 4].map((n) => (
+            <Skeleton key={n} className="h-24 w-full" />
+          ))}
+        </div>
+      )}
+
+      {query.isError && (
+        <ErrorState titulo={`Não foi possível carregar os indicadores de ${titulo}`} aoTentarNovamente={() => query.refetch()} />
+      )}
+
+      {query.data && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Kpi rotulo="Requisições" valor={query.data.totalRequisicoes} icone={icone} cor={cor} />
+          <Kpi rotulo="Laudos liberados" valor={query.data.laudosLiberados} icone={FileCheck2} cor={cor} />
+          <Kpi rotulo="TAT médio" valor={formatarTat(query.data.tatMedioDias)} icone={Clock} cor={cor} />
+          <Kpi rotulo="Laudos fora do prazo" valor={query.data.laudosForaDoPrazo} icone={ShieldAlert} cor={cor} />
+        </div>
+      )}
+    </SecaoIndicador>
+  );
+}
+
 export function Indicadores() {
   const canManage = useCanManageQualidade();
+  const { theme: tema } = useTheme();
   const { periodo, definirPeriodo } = usePeriodoCompartilhado();
   const queryClient = useQueryClient();
-  const [aba, setAba] = useState<Aba>('geral');
   const [idSelecionado, setIdSelecionado] = useState<string | null>(null);
 
   const periodoCompleto = Boolean(periodo.inicio && periodo.fim);
@@ -177,33 +281,14 @@ export function Indicadores() {
   const geral = useQuery({
     queryKey: ['indicadores-requisicoes', 'geral', filtro],
     queryFn: () => buscarIndicadoresGeraisLaboratorio(filtro),
-    enabled: periodoCompleto && aba === 'geral',
+    enabled: periodoCompleto,
   });
 
   const retificados = useQuery({
     queryKey: ['indicadores-requisicoes', 'retificados', filtro],
     queryFn: () => buscarRequisicoesRetificadas(filtro),
-    enabled: periodoCompleto && aba === 'geral',
-  });
-
-  const secaoAtual: SecaoRequisicao | null = aba === 'geral' ? null : aba;
-  const secao = useQuery({
-    queryKey: ['indicadores-requisicoes', 'secao', secaoAtual, filtro],
-    queryFn: () => buscarIndicadoresSecaoRequisicao(secaoAtual as SecaoRequisicao, filtro),
-    enabled: periodoCompleto && secaoAtual !== null,
-  });
-
-  const contagens = useQuery({
-    queryKey: ['indicadores-requisicoes', 'contagens-abas', filtro],
-    queryFn: () => buscarContagensAbasIndicadores(filtro),
     enabled: periodoCompleto,
   });
-
-  const abas: AbaChip<Aba>[] = (Object.keys(ROTULO_ABA) as Aba[]).map((valor) => ({
-    valor,
-    rotulo: ROTULO_ABA[valor],
-    contagem: contagens.data?.[valor] ?? 0,
-  }));
 
   return (
     <div className="animate-fade-in space-y-6">
@@ -212,7 +297,8 @@ export function Indicadores() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Indicadores</h1>
           <p className="text-sm text-gray-600 dark:text-slate-400">
             Indicadores gerais do laboratório e das seções de Biologia Molecular, Patologia/AP, Histologia/Citologia e
-            IHQ/Parceiro, calculados a partir das requisições sincronizadas do LIS.
+            IHQ/Parceiro, calculados a partir das requisições sincronizadas do LIS. Cada seção tem uma cor própria — use-a
+            para identificar rapidamente qual tópico é qual.
           </p>
         </div>
         {canManage && (
@@ -230,106 +316,96 @@ export function Indicadores() {
 
       <SeletorPeriodoPorMes inicio={periodo.inicio} fim={periodo.fim} anoPadrao={anoAtual()} onMudar={definirPeriodo} />
 
-      <AbasChips<Aba> abas={abas} atual={aba} onMudar={setAba} cor="blue" />
-
       {!periodoCompleto && (
         <p className="text-sm text-gray-500 dark:text-slate-400">Selecione o período para carregar os indicadores.</p>
       )}
 
-      {periodoCompleto && aba === 'geral' && (
+      {periodoCompleto && (
         <div className="space-y-6">
-          {geral.isLoading && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {[1, 2, 3, 4].map((n) => (
-                <Skeleton key={n} className="h-24 w-full" />
-              ))}
-            </div>
-          )}
-
-          {geral.isError && (
-            <ErrorState titulo="Não foi possível carregar os indicadores gerais" aoTentarNovamente={() => geral.refetch()} />
-          )}
-
-          {geral.data && (
-            <>
-              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                <Kpi rotulo="Amostras recebidas" valor={geral.data.amostrasRecebidas} icone={Beaker} cor="azul" />
-                <Kpi rotulo="Amostras admitidas" valor={geral.data.amostrasAdmitidas} icone={ClipboardList} cor="azul" />
-                <Kpi rotulo="Laudos liberados" valor={geral.data.laudosLiberados} icone={CheckCircle2} cor="verde" />
-                <Kpi rotulo="Laudos retificados" valor={geral.data.laudosRetificados} icone={RefreshCw} cor="roxo" />
-                <Kpi rotulo="TAT médio" valor={formatarTat(geral.data.tatMedioDias)} icone={Clock} cor="laranja" />
-                <Kpi rotulo="Laudos fora do prazo" valor={geral.data.laudosForaDoPrazo} icone={Clock} cor="vermelho" />
+          {/* ─── Indicadores Gerais do Laboratório — AZUL ─────────────────── */}
+          <SecaoIndicador
+            titulo="Indicadores Gerais do Laboratório"
+            subtitulo="Volume, produtividade, prazo e não conformidades no período selecionado."
+            icone={Inbox}
+            cor="azul"
+          >
+            {geral.isLoading && (
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <Skeleton key={i} className="h-24 w-full" />
+                ))}
               </div>
-
-              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <section className="glass-surface rounded-2xl p-5">
-                  <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Laudos liberados por médico (patologista)</h3>
-                  {geral.data.laudosLiberadosPorMedico.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-slate-400">Nenhum laudo liberado no período.</p>
-                  ) : (
-                    <ul className="space-y-2 text-sm">
-                      {geral.data.laudosLiberadosPorMedico.map((item) => (
-                        <li key={item.medicoNome} className="flex items-center justify-between gap-2">
-                          <span className="text-gray-700 dark:text-slate-300">{item.medicoNome}</span>
-                          <span className="font-semibold text-slate-900 dark:text-white">{item.total}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-
-                <section className="glass-surface rounded-2xl p-5">
-                  <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Não conformidades por setor</h3>
-                  {geral.data.naoConformidadesPorSetor.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-slate-400">Nenhuma ocorrência classificada no período.</p>
-                  ) : (
-                    <ul className="space-y-2 text-sm">
-                      {geral.data.naoConformidadesPorSetor.map((item) => (
-                        <li key={item.setorId} className="flex items-center justify-between gap-2">
-                          <span className="text-gray-700 dark:text-slate-300">{item.setorNome}</span>
-                          <span className="font-semibold text-slate-900 dark:text-white">{item.total}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-              </div>
-            </>
-          )}
-
-          <div>
-            <h3 className="mb-3 text-sm font-semibold text-slate-900 dark:text-white">Laudos retificados — curadoria do motivo</h3>
-            {retificados.isLoading && <Skeleton className="h-32 w-full" />}
-            {retificados.isError && (
-              <ErrorState titulo="Não foi possível carregar os laudos retificados" aoTentarNovamente={() => retificados.refetch()} />
             )}
-            {retificados.data && <TabelaRetificacoes itens={retificados.data} onClickLinha={(item) => setIdSelecionado(item.id)} />}
-          </div>
-        </div>
-      )}
 
-      {periodoCompleto && secaoAtual !== null && (
-        <div className="space-y-6">
-          {secao.isLoading && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {[1, 2, 3, 4].map((n) => (
-                <Skeleton key={n} className="h-24 w-full" />
-              ))}
-            </div>
-          )}
+            {geral.isError && (
+              <ErrorState titulo="Não foi possível carregar os indicadores gerais" aoTentarNovamente={() => geral.refetch()} />
+            )}
 
-          {secao.isError && (
-            <ErrorState titulo={`Não foi possível carregar os indicadores de ${ROTULO_ABA[aba]}`} aoTentarNovamente={() => secao.refetch()} />
-          )}
+            {geral.data && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+                  <Kpi rotulo="Amostras recebidas" valor={geral.data.amostrasRecebidas} icone={Inbox} cor="azul" />
+                  <Kpi rotulo="Amostras admitidas" valor={geral.data.amostrasAdmitidas} icone={UserCheck} cor="azul" />
+                  <Kpi rotulo="Laudos liberados" valor={geral.data.laudosLiberados} icone={FileCheck2} cor="azul" />
+                  <Kpi rotulo="TAT médio" valor={formatarTat(geral.data.tatMedioDias)} icone={Clock} cor="azul" />
+                  <Kpi rotulo="Fora do prazo" valor={geral.data.laudosForaDoPrazo} icone={ShieldAlert} cor="azul" />
+                  <Kpi rotulo="Laudos retificados" valor={geral.data.laudosRetificados} icone={RefreshCw} cor="azul" />
+                </div>
 
-          {secao.data && (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <Kpi rotulo="Requisições" valor={secao.data.totalRequisicoes} icone={ICONE_ABA[aba]} cor="azul" />
-              <Kpi rotulo="Laudos liberados" valor={secao.data.laudosLiberados} icone={CheckCircle2} cor="verde" />
-              <Kpi rotulo="TAT médio" valor={formatarTat(secao.data.tatMedioDias)} icone={Clock} cor="laranja" />
-              <Kpi rotulo="Laudos fora do prazo" valor={secao.data.laudosForaDoPrazo} icone={Clock} cor="vermelho" />
-            </div>
-          )}
+                <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                  <div>
+                    <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
+                      Laudos liberados por médico (patologista)
+                    </h3>
+                    <BarChartHorizontal
+                      tema={tema}
+                      cor={CORES_SECAO.azul.grafico}
+                      dados={geral.data.laudosLiberadosPorMedico.map((p) => ({ rotulo: p.medicoNome, valor: p.total }))}
+                    />
+                  </div>
+
+                  <div>
+                    <div className="mb-2 flex items-center gap-2">
+                      <ShieldAlert className="h-4 w-4 text-blue-500" aria-hidden />
+                      <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">
+                        Não conformidades por setor
+                      </h3>
+                    </div>
+                    <TopLista
+                      tema={tema}
+                      cor={CORES_SECAO.azul.grafico}
+                      itens={geral.data.naoConformidadesPorSetor.map((s) => ({
+                        id: s.setorId,
+                        rotulo: s.setorNome,
+                        valor: String(s.total),
+                      }))}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-blue-500" aria-hidden />
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-slate-400">Laudos retificados</h3>
+                  </div>
+                  <p className="mb-3 text-xs text-gray-500 dark:text-slate-400">
+                    O motivo da retificação não vem do LIS — clique numa linha para curar manualmente.
+                  </p>
+                  {retificados.isLoading && <Skeleton className="h-32 w-full" />}
+                  {retificados.isError && (
+                    <ErrorState titulo="Não foi possível carregar os laudos retificados" aoTentarNovamente={() => retificados.refetch()} />
+                  )}
+                  {retificados.data && (
+                    <TabelaRetificacoes itens={retificados.data} onClickLinha={(item) => setIdSelecionado(item.id)} />
+                  )}
+                </div>
+              </div>
+            )}
+          </SecaoIndicador>
+
+          {SECOES_EXTRA.map((s) => (
+            <SecaoExtra key={s.secao} {...s} filtro={filtro} periodoCompleto={periodoCompleto} />
+          ))}
         </div>
       )}
 

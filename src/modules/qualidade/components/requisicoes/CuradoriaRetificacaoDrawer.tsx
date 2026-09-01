@@ -116,6 +116,14 @@ export function CuradoriaRetificacaoDrawer({ id, canManage, onFechar }: Curadori
         <div className="flex-1 space-y-4 overflow-y-auto p-6">
           <dl className="grid grid-cols-2 gap-4 text-sm">
             <div>
+              <dt className="font-medium text-slate-700 dark:text-slate-300">Paciente</dt>
+              <dd className="mt-1 text-gray-600 dark:text-slate-400">{data.nomPaciente ?? '—'}</dd>
+            </div>
+            <div>
+              <dt className="font-medium text-slate-700 dark:text-slate-300">Exame</dt>
+              <dd className="mt-1 text-gray-600 dark:text-slate-400">{data.exameTipoNomeLis ?? '—'}</dd>
+            </div>
+            <div>
               <dt className="font-medium text-slate-700 dark:text-slate-300">Data da solicitação</dt>
               <dd className="mt-1 text-gray-600 dark:text-slate-400">{formatarData(data.dtaSolicitacao)}</dd>
             </div>

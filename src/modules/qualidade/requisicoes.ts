@@ -95,7 +95,7 @@ export async function buscarIndicadoresSecaoRequisicao(
 }
 
 const SELECT_RETIFICACAO =
-  'id, cod_requisicao, dta_solicitacao, dta_retificacao, patologista_nome_lis, motivo_retificacao_id, ' +
+  'id, cod_requisicao, dta_solicitacao, dta_retificacao, exame_tipo_nome_lis, patologista_nome_lis, motivo_retificacao_id, ' +
   'resumo_retificacao_curado, status_curadoria, curado_por, curado_em, ' +
   'motivo:qa_motivos_retificacao(nome)';
 
@@ -104,6 +104,7 @@ interface LinhaBrutaRetificacao {
   cod_requisicao: string;
   dta_solicitacao: string;
   dta_retificacao: string | null;
+  exame_tipo_nome_lis: string | null;
   patologista_nome_lis: string | null;
   motivo_retificacao_id: string | null;
   resumo_retificacao_curado: string | null;
@@ -118,12 +119,14 @@ function statusCuradoriaOuPendente(bruto: string | null): StatusCuradoriaRetific
   return bruto === 'concluida' ? 'concluida' : 'pendente';
 }
 
-function mapearRetificacaoParaDTO(linha: LinhaBrutaRetificacao): RequisicaoRetificadaDTO {
+function mapearRetificacaoParaDTO(linha: LinhaBrutaRetificacao, nomPaciente: string | null): RequisicaoRetificadaDTO {
   return {
     id: linha.id,
     codRequisicao: linha.cod_requisicao,
     dtaSolicitacao: linha.dta_solicitacao,
     dtaRetificacao: linha.dta_retificacao,
+    exameTipoNomeLis: linha.exame_tipo_nome_lis,
+    nomPaciente,
     patologistaNomeLis: linha.patologista_nome_lis,
     motivoRetificacaoId: linha.motivo_retificacao_id,
     motivoRetificacaoNome: linha.motivo?.nome ?? null,
@@ -132,6 +135,15 @@ function mapearRetificacaoParaDTO(linha: LinhaBrutaRetificacao): RequisicaoRetif
     curadoPor: linha.curado_por,
     curadoEm: linha.curado_em,
   };
+}
+
+/** PII sob demanda (P10) — nunca persistida; buscada em lote via dispatcher, mesmo padrão de cortesias.ts. */
+function buscarNomesPacientesRequisicoes(codigosRequisicao: string[]): Promise<Record<string, string>> {
+  return chamarQualidadeApi<Record<string, string>>(
+    'buscar-pii-requisicoes',
+    { codigosRequisicao },
+    'Falha ao buscar nomes de pacientes.',
+  );
 }
 
 export async function buscarRequisicoesRetificadas(periodo: {
@@ -147,14 +159,33 @@ export async function buscarRequisicoesRetificadas(periodo: {
     .order('dta_solicitacao', { ascending: false });
   if (error) throw new ErroApiQualidade(500, `Falha ao listar laudos retificados: ${error.message}`);
 
-  return ((data ?? []) as unknown as LinhaBrutaRetificacao[]).map(mapearRetificacaoParaDTO);
+  const linhas = (data ?? []) as unknown as LinhaBrutaRetificacao[];
+
+  let nomes: Record<string, string> = {};
+  try {
+    nomes = await buscarNomesPacientesRequisicoes(linhas.map((l) => l.cod_requisicao));
+  } catch {
+    // Nome de paciente é enriquecimento (PII sob demanda) — não bloqueia a lista se o LIS estiver indisponível.
+  }
+
+  return linhas.map((linha) => mapearRetificacaoParaDTO(linha, nomes[linha.cod_requisicao] ?? null));
 }
 
 export async function buscarRequisicaoRetificada(id: string): Promise<RequisicaoRetificadaDTO> {
   const { data, error } = await supabase.from('qa_requisicoes').select(SELECT_RETIFICACAO).eq('id', id).maybeSingle();
   if (error) throw new ErroApiQualidade(500, `Falha ao buscar laudo retificado ${id}: ${error.message}`);
   if (!data) throw new ErroApiQualidade(404, 'Laudo retificado não encontrado');
-  return mapearRetificacaoParaDTO(data as unknown as LinhaBrutaRetificacao);
+
+  const linha = data as unknown as LinhaBrutaRetificacao;
+  let nomPaciente: string | null = null;
+  try {
+    const nomes = await buscarNomesPacientesRequisicoes([linha.cod_requisicao]);
+    nomPaciente = nomes[linha.cod_requisicao] ?? null;
+  } catch {
+    // idem — enriquecimento, não bloqueia o detalhe.
+  }
+
+  return mapearRetificacaoParaDTO(linha, nomPaciente);
 }
 
 /**
@@ -184,40 +215,4 @@ export async function salvarCuradoriaRetificacao(id: string, input: CuradoriaRet
 
 export function sincronizarRequisicoes(periodo: { inicio: string; fim: string }): Promise<void> {
   return chamarQualidadeApi('sync-requisicoes', periodo, 'Falha ao sincronizar Requisições.');
-}
-
-export interface ContagensAbasIndicadores {
-  geral: number;
-  biologia_molecular: number;
-  patologia_ap: number;
-  histologia_citologia: number;
-  ihq_parceiro: number;
-}
-
-/** Contagens dos chips de aba (`AbasChips`) — 5 queries `count: 'exact', head: true` (sem baixar linhas), 1 por aba. */
-export async function buscarContagensAbasIndicadores(periodo: {
-  inicio: string;
-  fim: string;
-}): Promise<ContagensAbasIndicadores> {
-  async function contar(secao?: SecaoRequisicao): Promise<number> {
-    let query = supabase
-      .from('qa_requisicoes')
-      .select('id', { count: 'exact', head: true })
-      .gte('dta_solicitacao', periodo.inicio)
-      .lte('dta_solicitacao', periodo.fim);
-    if (secao) query = query.eq('secao_lis', secao);
-    const { count, error } = await query;
-    if (error) throw new ErroApiQualidade(500, `Falha ao contar requisições: ${error.message}`);
-    return count ?? 0;
-  }
-
-  const [geral, biologia_molecular, patologia_ap, histologia_citologia, ihq_parceiro] = await Promise.all([
-    contar(),
-    contar('biologia_molecular'),
-    contar('patologia_ap'),
-    contar('histologia_citologia'),
-    contar('ihq_parceiro'),
-  ]);
-
-  return { geral, biologia_molecular, patologia_ap, histologia_citologia, ihq_parceiro };
 }

@@ -898,6 +898,9 @@ export interface RequisicaoRetificadaDTO {
   codRequisicao: string;
   dtaSolicitacao: string;
   dtaRetificacao: string | null;
+  exameTipoNomeLis: string | null;
+  /** PII (P10) — lido do LIS em lote sob demanda, nunca persistido em `qa_requisicoes`. */
+  nomPaciente: string | null;
   patologistaNomeLis: string | null;
   motivoRetificacaoId: string | null;
   motivoRetificacaoNome: string | null;
