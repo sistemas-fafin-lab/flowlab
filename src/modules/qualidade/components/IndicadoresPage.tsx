@@ -268,7 +268,7 @@ export function Indicadores() {
   const { theme: tema } = useTheme();
   const { periodo, definirPeriodo } = usePeriodoCompartilhado();
   const queryClient = useQueryClient();
-  const [idSelecionado, setIdSelecionado] = useState<string | null>(null);
+  const [itemSelecionado, setItemSelecionado] = useState<RequisicaoRetificadaDTO | null>(null);
 
   const periodoCompleto = Boolean(periodo.inicio && periodo.fim);
   const filtro = { inicio: periodo.inicio, fim: periodo.fim };
@@ -396,7 +396,7 @@ export function Indicadores() {
                     <ErrorState titulo="Não foi possível carregar os laudos retificados" aoTentarNovamente={() => retificados.refetch()} />
                   )}
                   {retificados.data && (
-                    <TabelaRetificacoes itens={retificados.data} onClickLinha={(item) => setIdSelecionado(item.id)} />
+                    <TabelaRetificacoes itens={retificados.data} onClickLinha={setItemSelecionado} />
                   )}
                 </div>
               </div>
@@ -409,8 +409,13 @@ export function Indicadores() {
         </div>
       )}
 
-      {idSelecionado && (
-        <CuradoriaRetificacaoDrawer id={idSelecionado} canManage={canManage} onFechar={() => setIdSelecionado(null)} />
+      {itemSelecionado && (
+        <CuradoriaRetificacaoDrawer
+          id={itemSelecionado.id}
+          nomPacienteConhecido={itemSelecionado.nomPaciente}
+          canManage={canManage}
+          onFechar={() => setItemSelecionado(null)}
+        />
       )}
     </div>
   );

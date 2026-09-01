@@ -13,6 +13,8 @@ import { Skeleton } from '../ui/Skeleton.js';
 
 interface CuradoriaRetificacaoDrawerProps {
   id: string;
+  /** Nome já conhecido pela linha clicada na tabela — evita repetir a busca de PII sob demanda no LIS. */
+  nomPacienteConhecido?: string | null;
   canManage: boolean;
   onFechar: () => void;
 }
@@ -28,11 +30,11 @@ function formatarData(data: string | null): string {
  * ocorrencias/CuradoriaDrawer.tsx, mas mais enxuto: o único dado que não
  * existe estruturado no LIS aqui é "por que este laudo foi retificado".
  */
-export function CuradoriaRetificacaoDrawer({ id, canManage, onFechar }: CuradoriaRetificacaoDrawerProps) {
+export function CuradoriaRetificacaoDrawer({ id, nomPacienteConhecido, canManage, onFechar }: CuradoriaRetificacaoDrawerProps) {
   const queryClient = useQueryClient();
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['requisicao-retificada', id],
-    queryFn: () => buscarRequisicaoRetificada(id),
+    queryFn: () => buscarRequisicaoRetificada(id, nomPacienteConhecido),
   });
   const { data: motivos } = useQuery({ queryKey: ['motivos-retificacao'], queryFn: buscarMotivosRetificacao });
 

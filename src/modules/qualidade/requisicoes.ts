@@ -171,18 +171,26 @@ export async function buscarRequisicoesRetificadas(periodo: {
   return linhas.map((linha) => mapearRetificacaoParaDTO(linha, nomes[linha.cod_requisicao] ?? null));
 }
 
-export async function buscarRequisicaoRetificada(id: string): Promise<RequisicaoRetificadaDTO> {
+/**
+ * `nomPacienteConhecido` — quando o chamador já tem o nome (ex.: a linha
+ * clicada na tabela de retificados já veio de `buscarRequisicoesRetificadas`,
+ * que fez a mesma busca em lote) evita repetir a chamada de PII sob demanda
+ * (nova conexão ao LIS) só para reobter um dado que já está em mãos.
+ */
+export async function buscarRequisicaoRetificada(id: string, nomPacienteConhecido?: string | null): Promise<RequisicaoRetificadaDTO> {
   const { data, error } = await supabase.from('qa_requisicoes').select(SELECT_RETIFICACAO).eq('id', id).maybeSingle();
   if (error) throw new ErroApiQualidade(500, `Falha ao buscar laudo retificado ${id}: ${error.message}`);
   if (!data) throw new ErroApiQualidade(404, 'Laudo retificado não encontrado');
 
   const linha = data as unknown as LinhaBrutaRetificacao;
-  let nomPaciente: string | null = null;
-  try {
-    const nomes = await buscarNomesPacientesRequisicoes([linha.cod_requisicao]);
-    nomPaciente = nomes[linha.cod_requisicao] ?? null;
-  } catch {
-    // idem — enriquecimento, não bloqueia o detalhe.
+  let nomPaciente = nomPacienteConhecido ?? null;
+  if (nomPacienteConhecido === undefined) {
+    try {
+      const nomes = await buscarNomesPacientesRequisicoes([linha.cod_requisicao]);
+      nomPaciente = nomes[linha.cod_requisicao] ?? null;
+    } catch {
+      // idem — enriquecimento, não bloqueia o detalhe.
+    }
   }
 
   return mapearRetificacaoParaDTO(linha, nomPaciente);
