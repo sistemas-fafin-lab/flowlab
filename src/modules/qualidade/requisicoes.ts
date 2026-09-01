@@ -11,6 +11,7 @@ import type {
   CuradoriaRetificacaoInput,
   IndicadorBiologiaMolecularResposta,
   IndicadoresGeraisLaboratorioResposta,
+  IndicadorHistologiaCitologiaResposta,
   IndicadorPatologiaApResposta,
   IndicadorSecaoRequisicaoResposta,
   RequisicaoRetificadaDTO,
@@ -69,12 +70,11 @@ export async function buscarIndicadoresGeraisLaboratorio(periodo: {
 }
 
 const AGREGADOR_POR_SECAO = {
-  histologia_citologia: agregarHistologiaCitologia,
   ihq_parceiro: agregarIhqParceiro,
 } as const;
 
 export async function buscarIndicadoresSecaoRequisicao(
-  secao: Exclude<SecaoRequisicao, 'biologia_molecular' | 'patologia_ap'>,
+  secao: Exclude<SecaoRequisicao, 'biologia_molecular' | 'patologia_ap' | 'histologia_citologia'>,
   periodo: { inicio: string; fim: string },
 ): Promise<IndicadorSecaoRequisicaoResposta> {
   const { data, error } = await supabase
@@ -149,6 +149,38 @@ export async function buscarIndicadoresPatologiaAp(periodo: {
   }));
 
   return agregarPatologiaAp(periodo, linhas);
+}
+
+/**
+ * Histologia/Citologia tem resposta própria (issue 09): substitui as 4
+ * métricas genéricas por Blocos/Lâminas Produzidas, Tempo de Processamento,
+ * Microscopia Aguardando (realocada de Patologia/AP), Amostras Não
+ * Recebidas e Material Devolvido Não Conforme — por isso não passa por
+ * `buscarIndicadoresSecaoRequisicao`/`AGREGADOR_POR_SECAO` acima.
+ */
+export async function buscarIndicadoresHistologiaCitologia(periodo: {
+  inicio: string;
+  fim: string;
+}): Promise<IndicadorHistologiaCitologiaResposta> {
+  const { data, error } = await supabase
+    .from('qa_requisicoes')
+    .select('dta_amostra_recebida, dta_primeira_lamina_pronta, num_blocos, num_laminas, dta_microscopia_aguardando, amostra_nao_recebida, material_devolvido_nao_conforme')
+    .eq('secao_lis', 'histologia_citologia')
+    .gte('dta_solicitacao', periodo.inicio)
+    .lte('dta_solicitacao', periodo.fim);
+  if (error) throw new ErroApiQualidade(500, `Falha ao buscar indicadores de Histologia/Citologia: ${error.message}`);
+
+  const linhas = (data ?? []).map((linha) => ({
+    dtaAmostraRecebida: linha.dta_amostra_recebida,
+    dtaPrimeiraLaminaPronta: linha.dta_primeira_lamina_pronta,
+    numBlocos: linha.num_blocos,
+    numLaminas: linha.num_laminas,
+    microscopiaAguardando: linha.dta_microscopia_aguardando !== null,
+    amostraNaoRecebida: linha.amostra_nao_recebida,
+    materialDevolvidoNaoConforme: linha.material_devolvido_nao_conforme,
+  }));
+
+  return agregarHistologiaCitologia(periodo, linhas);
 }
 
 const SELECT_RETIFICACAO =

@@ -17,12 +17,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   AlertTriangle,
+  Ban,
   CheckCircle2,
   Clock,
   Dna,
   FileCheck2,
   FlaskConical,
   Inbox,
+  Layers,
+  LayoutGrid,
   Microscope,
   PackageX,
   RefreshCw,
@@ -36,6 +39,7 @@ import {
 import { useState, type ReactNode } from 'react';
 import type {
   IndicadorBiologiaMolecularResposta,
+  IndicadorHistologiaCitologiaResposta,
   IndicadorPatologiaApResposta,
   IndicadorSecaoRequisicaoResposta,
   RequisicaoRetificadaDTO,
@@ -45,6 +49,7 @@ import { anoAtual } from '../anoAtual.js';
 import {
   buscarIndicadoresBiologiaMolecular,
   buscarIndicadoresGeraisLaboratorio,
+  buscarIndicadoresHistologiaCitologia,
   buscarIndicadoresPatologiaAp,
   buscarIndicadoresSecaoRequisicao,
   buscarRequisicoesRetificadas,
@@ -97,16 +102,9 @@ const CORES_SECAO: Record<CorSecao, { borda: string; badge: string; brilho: stri
   },
 };
 
-type SecaoExtraGenerica = Exclude<SecaoRequisicao, 'biologia_molecular' | 'patologia_ap'>;
+type SecaoExtraGenerica = Exclude<SecaoRequisicao, 'biologia_molecular' | 'patologia_ap' | 'histologia_citologia'>;
 
 const SECOES_EXTRA: { secao: SecaoExtraGenerica; titulo: string; subtitulo: string; icone: LucideIcon; cor: CorSecao }[] = [
-  {
-    secao: 'histologia_citologia',
-    titulo: 'Histologia / Citologia',
-    subtitulo: 'Citopatologia — volume, produtividade e prazo no período selecionado.',
-    icone: Microscope,
-    cor: 'ambar',
-  },
   {
     secao: 'ihq_parceiro',
     titulo: 'IHQ / Parceiro',
@@ -383,6 +381,61 @@ function SecaoPatologiaAp({ filtro, periodoCompleto }: { filtro: { inicio: strin
   );
 }
 
+const COR_HISTOLOGIA_CITOLOGIA: CorSecao = 'ambar';
+
+/**
+ * Bespoke em vez do `SecaoExtra` genérico (issue 09) — Histologia/Citologia
+ * troca os 4 KPIs genéricos por métricas próprias da seção. "Microscopia
+ * Aguardando" foi realocada de Patologia/AP para cá (ver
+ * histologiaCitologiaIndicadores.ts). "Lâminas Inadequadas"/"Amostras
+ * Insatisfatórias" ficaram de fora desta fase — sinal quase inexistente no
+ * LIS (ver migration 20260901140000). Mesmo padrão de `SecaoPatologiaAp`.
+ */
+function SecaoHistologiaCitologia({ filtro, periodoCompleto }: { filtro: { inicio: string; fim: string }; periodoCompleto: boolean }) {
+  const query = useQuery<IndicadorHistologiaCitologiaResposta>({
+    queryKey: ['indicadores-requisicoes', 'histologia-citologia', filtro],
+    queryFn: () => buscarIndicadoresHistologiaCitologia(filtro),
+    enabled: periodoCompleto,
+  });
+
+  return (
+    <SecaoIndicador
+      titulo="Histologia / Citologia"
+      subtitulo="Citopatologia — blocos/lâminas produzidos, tempo de processamento e pendências de amostra no período selecionado."
+      icone={Microscope}
+      cor={COR_HISTOLOGIA_CITOLOGIA}
+    >
+      {query.isLoading && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((n) => (
+            <Skeleton key={n} className="h-24 w-full" />
+          ))}
+        </div>
+      )}
+
+      {query.isError && (
+        <ErrorState titulo="Não foi possível carregar os indicadores de Histologia/Citologia" aoTentarNovamente={() => query.refetch()} />
+      )}
+
+      {query.data && (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <Kpi rotulo="Blocos produzidos" valor={query.data.blocosProduzidos} icone={Layers} cor={COR_HISTOLOGIA_CITOLOGIA} />
+          <Kpi rotulo="Lâminas produzidas" valor={query.data.laminasProduzidas} icone={LayoutGrid} cor={COR_HISTOLOGIA_CITOLOGIA} />
+          <Kpi rotulo="Tempo de processamento" valor={formatarTat(query.data.tatProcessamentoDias)} icone={Clock} cor={COR_HISTOLOGIA_CITOLOGIA} />
+          <Kpi rotulo="Microscopia aguardando" valor={query.data.microscopiaAguardando} icone={Microscope} cor={COR_HISTOLOGIA_CITOLOGIA} />
+          <Kpi rotulo="Amostras não recebidas" valor={query.data.amostrasNaoRecebidas} icone={Ban} cor={COR_HISTOLOGIA_CITOLOGIA} />
+          <Kpi
+            rotulo="Material devolvido não conforme"
+            valor={query.data.materialDevolvidoNaoConforme}
+            icone={PackageX}
+            cor={COR_HISTOLOGIA_CITOLOGIA}
+          />
+        </div>
+      )}
+    </SecaoIndicador>
+  );
+}
+
 export function Indicadores() {
   const canManage = useCanManageQualidade();
   const { theme: tema } = useTheme();
@@ -526,6 +579,8 @@ export function Indicadores() {
           <SecaoBiologiaMolecular filtro={filtro} periodoCompleto={periodoCompleto} tema={tema} />
 
           <SecaoPatologiaAp filtro={filtro} periodoCompleto={periodoCompleto} />
+
+          <SecaoHistologiaCitologia filtro={filtro} periodoCompleto={periodoCompleto} />
 
           {SECOES_EXTRA.map((s) => (
             <SecaoExtra key={s.secao} {...s} filtro={filtro} periodoCompleto={periodoCompleto} />

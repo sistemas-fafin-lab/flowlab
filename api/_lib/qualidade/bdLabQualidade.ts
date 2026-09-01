@@ -552,6 +552,13 @@ const COD_EVENTO_RETIFICACAO = 54; // 'Retificação de laudo'
 // Issue 08 (Patologia/AP) — conferidos ao vivo em 2026-09-01 contra o mesmo backup.
 const COD_EVENTO_RECORTE_COLORACAO = 3; // 'Corte - Coloração Esp. / Novos Cortes'
 const COD_PROBLEMA_BLOCO_DANIFICADO = 19; // 'Bloco danificado ou quebrado'
+// Issue 09 (Histologia/Citologia) — conferidos ao vivo em 2026-09-01 contra o
+// mesmo backup. CodEvento=1000 é quase exclusivo de CITOPATOLOGIA neste LIS
+// (2681/2681 requisições nos últimos 90 dias) — por isso mora aqui, não em
+// Patologia/AP (ver cabeçalho da migration 20260901140000).
+const COD_EVENTO_MICROSCOPIA_AGUARDANDO = 1000; // 'Microscopia - Aguarda Liberação'
+const COD_PROBLEMA_AMOSTRA_NAO_RECEBIDA = 4; // 'Amostra não recebida'
+const COD_PROBLEMA_MATERIAL_DEVOLVIDO_NAO_CONFORME = 27; // 'Devolução de Material NÃO Conforme'
 
 export type SecaoRequisicaoLis = 'biologia_molecular' | 'patologia_ap' | 'histologia_citologia' | 'ihq_parceiro';
 
@@ -579,6 +586,19 @@ export interface RequisicaoIndicadorLis {
   /** Reaproveitado pela issue 09 (Histologia/Citologia) — mesmo CodProblema=19, dois usos. */
   blocoDanificado: boolean;
   dtaBlocoDanificado: string | null;
+  /** Issue 09 (Histologia/Citologia) — bloco/lamina.DtaCriacao via blocorequisicao/laminarequisicao, sem filtro de data própria (mesma simplificação de recorte único das demais colunas, ver comentário acima da query). */
+  numBlocos: number;
+  numLaminas: number;
+  /** MIN(lamina.DtaCriacao) — usada por "Tempo de Processamento" (dtaAmostraRecebida → 1ª lâmina pronta). */
+  dtaPrimeiraLaminaPronta: string | null;
+  /** CodEvento=1000 ("Microscopia - Aguarda Liberação") — realocado de Patologia/AP para Histologia/Citologia (ver cabeçalho da migration 20260901140000). */
+  dtaMicroscopiaAguardando: string | null;
+  /** CodProblema=4 ("Amostra não recebida"). */
+  amostraNaoRecebida: boolean;
+  dtaAmostraNaoRecebida: string | null;
+  /** CodProblema=27 ("Devolução de Material NÃO Conforme"). */
+  materialDevolvidoNaoConforme: boolean;
+  dtaMaterialDevolvido: string | null;
 }
 
 export type ListarRequisicoesResultado = { requisicoes: RequisicaoIndicadorLis[] } | ErroConsultaLis;
@@ -605,6 +625,12 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
     // (recorte/coloração, consenso pendente + criado, bloco danificado) —
     // reconferido ao vivo com todas as 7 juntas: ~1.35s para 3 meses/~13k
     // linhas, mesma ordem de grandeza do teste original.
+    // Issue 09 (Histologia/Citologia) acrescentou mais 6 (blocos produzidos,
+    // lâminas produzidas + primeira pronta, microscopia aguardando, amostra
+    // não recebida, material devolvido) — mesmo padrão correlacionado, não a
+    // query separada com GROUP BY que o projeto de referência usou para
+    // blocos/lâminas (aqui o padrão já testado e documentado acima é o
+    // correlacionado; não há motivo para desviar só para estas duas).
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT r.IdRequisicao, r.CodRequisicao, et.CodExameTipo, et.NomExameTipo,
               DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
@@ -645,7 +671,36 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
                 (SELECT MAX(rp.DtaProblema) FROM requisicaoproblema rp
                   WHERE rp.IdRequisicao = r.IdRequisicao AND rp.CodProblema = ?),
                 '%Y-%m-%d %H:%i:%s'
-              ) AS DtaBlocoDanificado
+              ) AS DtaBlocoDanificado,
+              (SELECT COUNT(*) FROM blocorequisicao br
+                 JOIN bloco b ON b.IdBloco = br.IdBloco
+                WHERE br.IdRequisicao = r.IdRequisicao
+              ) AS NumBlocos,
+              (SELECT COUNT(*) FROM laminarequisicao lr
+                 JOIN lamina la ON la.IdLamina = lr.IdLamina
+                WHERE lr.IdRequisicao = r.IdRequisicao
+              ) AS NumLaminas,
+              DATE_FORMAT(
+                (SELECT MIN(la.DtaCriacao) FROM laminarequisicao lr
+                   JOIN lamina la ON la.IdLamina = lr.IdLamina
+                  WHERE lr.IdRequisicao = r.IdRequisicao),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaPrimeiraLaminaPronta,
+              DATE_FORMAT(
+                (SELECT MAX(rh.DtaEvento) FROM requisicaohistorico rh
+                  WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaMicroscopiaAguardando,
+              DATE_FORMAT(
+                (SELECT MAX(rp.DtaProblema) FROM requisicaoproblema rp
+                  WHERE rp.IdRequisicao = r.IdRequisicao AND rp.CodProblema = ?),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaAmostraNaoRecebida,
+              DATE_FORMAT(
+                (SELECT MAX(rp.DtaProblema) FROM requisicaoproblema rp
+                  WHERE rp.IdRequisicao = r.IdRequisicao AND rp.CodProblema = ?),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaMaterialDevolvido
          FROM requisicao r
          LEFT JOIN exame ex ON ex.CodExame = r.CodExame
          LEFT JOIN exametipo et ON et.CodExameTipo = ex.CodExameTipo
@@ -658,6 +713,9 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
         COD_EVENTO_RETIFICACAO,
         COD_EVENTO_RECORTE_COLORACAO,
         COD_PROBLEMA_BLOCO_DANIFICADO,
+        COD_EVENTO_MICROSCOPIA_AGUARDANDO,
+        COD_PROBLEMA_AMOSTRA_NAO_RECEBIDA,
+        COD_PROBLEMA_MATERIAL_DEVOLVIDO_NAO_CONFORME,
         ...periodo.valores,
       ],
     );
@@ -667,6 +725,8 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
         const dtaRetificacao = dataIso(linha.DtaRetificacao);
         const dtaRecorteColoracao = dataIso(linha.DtaRecorteColoracao);
         const dtaBlocoDanificado = dataIso(linha.DtaBlocoDanificado);
+        const dtaAmostraNaoRecebida = dataIso(linha.DtaAmostraNaoRecebida);
+        const dtaMaterialDevolvido = dataIso(linha.DtaMaterialDevolvido);
         return {
           idRequisicaoLis: numero(linha.IdRequisicao) ?? 0,
           codRequisicao: texto(linha.CodRequisicao) ?? '',
@@ -689,6 +749,14 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
           dtaConsensoCriado: dataIso(linha.DtaConsensoCriado),
           blocoDanificado: dtaBlocoDanificado !== null,
           dtaBlocoDanificado,
+          numBlocos: numero(linha.NumBlocos) ?? 0,
+          numLaminas: numero(linha.NumLaminas) ?? 0,
+          dtaPrimeiraLaminaPronta: dataIso(linha.DtaPrimeiraLaminaPronta),
+          dtaMicroscopiaAguardando: dataIso(linha.DtaMicroscopiaAguardando),
+          amostraNaoRecebida: dtaAmostraNaoRecebida !== null,
+          dtaAmostraNaoRecebida,
+          materialDevolvidoNaoConforme: dtaMaterialDevolvido !== null,
+          dtaMaterialDevolvido,
         };
       }),
     };

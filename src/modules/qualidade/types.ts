@@ -930,6 +930,28 @@ export interface IndicadorPatologiaApResposta {
   blocosRefeitos: number;
 }
 
+/**
+ * Histologia/Citologia — issue 09: substitui os 4 KPIs genéricos de
+ * `IndicadorSecaoRequisicaoResposta` por métricas próprias da seção, mesmo
+ * padrão de `IndicadorPatologiaApResposta`. "Microscopia Aguardando" foi
+ * realocada de Patologia/AP para cá (ver migration 20260901140000: no LIS,
+ * o evento é quase exclusivo de CITOPATOLOGIA). "Lâminas Inadequadas" e
+ * "Amostras Insatisfatórias" ficaram de fora desta fase — decisão registrada
+ * no cabeçalho da mesma migration (sinal quase inexistente no LIS).
+ */
+export interface IndicadorHistologiaCitologiaResposta {
+  periodo: { inicio: string; fim: string };
+  secao: 'histologia_citologia';
+  totalRequisicoes: number;
+  blocosProduzidos: number;
+  laminasProduzidas: number;
+  /** `null` quando faltar recebimento ou primeira lâmina pronta (R4 — nunca vira 0). */
+  tatProcessamentoDias: number | null;
+  microscopiaAguardando: number;
+  amostrasNaoRecebidas: number;
+  materialDevolvidoNaoConforme: number;
+}
+
 /** Item da lista de laudos retificados no período, pendentes ou não de curadoria de motivo. */
 export interface RequisicaoRetificadaDTO {
   id: string;

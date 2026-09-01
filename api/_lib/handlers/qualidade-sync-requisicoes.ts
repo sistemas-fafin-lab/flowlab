@@ -73,6 +73,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       dta_consenso_criado: r.dtaConsensoCriado,
       bloco_danificado: r.blocoDanificado,
       dta_bloco_danificado: r.dtaBlocoDanificado,
+      num_blocos: r.numBlocos,
+      num_laminas: r.numLaminas,
+      dta_primeira_lamina_pronta: r.dtaPrimeiraLaminaPronta,
+      dta_microscopia_aguardando: r.dtaMicroscopiaAguardando,
+      amostra_nao_recebida: r.amostraNaoRecebida,
+      dta_amostra_nao_recebida: r.dtaAmostraNaoRecebida,
+      material_devolvido_nao_conforme: r.materialDevolvidoNaoConforme,
+      dta_material_devolvido: r.dtaMaterialDevolvido,
     }));
 
     if (linhas.length === 0) {
