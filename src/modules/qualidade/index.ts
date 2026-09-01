@@ -16,6 +16,8 @@ export { Ihq as IhqPage } from './components/IhqPage';
 
 export { Cancer as CancerPage } from './components/CancerPage';
 
+export { Indicadores as IndicadoresPage } from './components/IndicadoresPage';
+
 export { RiscosDashboard as RiscosDashboardPage } from './components/RiscosDashboardPage';
 export { Riscos as RiscosMatrizPage } from './components/RiscosPage';
 export { MapaRiscosPorSetor as MapaRiscosPorSetorPage } from './components/MapaRiscosPorSetorPage';

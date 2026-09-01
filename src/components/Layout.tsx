@@ -471,7 +471,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
-    if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias'].includes(path)) return ['Qualidade'];
+    if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias', '/qualidade/indicadores'].includes(path)) return ['Qualidade'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -656,6 +656,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'IHQ', href: '/qualidade/ihq', icon: Microscope, anyOf: ['canViewQualidade', 'canManageQualidade'] },
           { name: 'Registro de Câncer', href: '/qualidade/cancer', icon: Stethoscope, anyOf: ['canViewQualidade', 'canManageQualidade'] },
           { name: 'Riscos', href: '/qualidade/riscos', icon: AlertOctagon, anyOf: ['canViewQualidade', 'canManageQualidade'] },
+          { name: 'Indicadores', href: '/qualidade/indicadores', icon: BarChart3, anyOf: ['canViewQualidade', 'canManageQualidade'] },
         ],
       },
       {

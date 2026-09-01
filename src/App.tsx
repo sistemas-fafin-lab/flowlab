@@ -43,6 +43,7 @@ import {
   CortesiasCotasPage,
   IhqPage,
   CancerPage,
+  IndicadoresPage as QualidadeIndicadoresPage,
   RiscosDashboardPage,
   RiscosMatrizPage,
   MapaRiscosPorSetorPage,
@@ -413,6 +414,16 @@ const AuthenticatedApp: React.FC = () => {
             <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
               <QualidadeProviders>
                 <CancerPage />
+              </QualidadeProviders>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/qualidade/indicadores"
+          element={
+            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
+              <QualidadeProviders>
+                <QualidadeIndicadoresPage />
               </QualidadeProviders>
             </ProtectedRoute>
           }

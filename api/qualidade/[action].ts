@@ -16,6 +16,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import qualidadeSyncOcorrencias from '../_lib/handlers/qualidade-sync-ocorrencias.js';
+import qualidadeSyncRequisicoes from '../_lib/handlers/qualidade-sync-requisicoes.js';
 import qualidadeSyncCortesias from '../_lib/handlers/qualidade-sync-cortesias.js';
 import qualidadeBuscarPiiCortesias from '../_lib/handlers/qualidade-buscar-pii-cortesias.js';
 import qualidadeSyncIhq from '../_lib/handlers/qualidade-sync-ihq.js';
@@ -38,6 +39,7 @@ type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 // Chave = segmento do path, igual ao nome da action em qualidadeApi.ts.
 const ROTAS: Record<string, Handler> = {
   'sync-ocorrencias': qualidadeSyncOcorrencias,
+  'sync-requisicoes': qualidadeSyncRequisicoes,
   'sync-cortesias': qualidadeSyncCortesias,
   'buscar-pii-cortesias': qualidadeBuscarPiiCortesias,
   'sync-ihq': qualidadeSyncIhq,

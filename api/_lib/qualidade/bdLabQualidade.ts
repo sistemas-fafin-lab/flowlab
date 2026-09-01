@@ -515,6 +515,131 @@ export async function buscarDetalhesCancerLis(codigos: readonly string[]): Promi
   });
 }
 
+// ── Requisições (Indicadores) ─────────────────────────────────────────────────
+
+/**
+ * Seção derivada de `exame.CodExameTipo` (catálogo estável por exame no LIS,
+ * conferido ao vivo em 2026-09-01) — NUNCA de `evento`/`setor`, que refletem
+ * o passo atual do fluxo, não o tipo do exame (ver cabeçalho da migration
+ * 20260901120000_qualidade_requisicoes_indicadores.sql para o detalhe dos
+ * códigos). Mantido como Map em vez de faixa numérica porque os códigos não
+ * são contíguos nem ordenados por seção.
+ */
+const SECAO_POR_COD_EXAME_TIPO = new Map<number, SecaoRequisicaoLis>([
+  [1, 'patologia_ap'], // ANÁTOMO PATOLÓGICO
+  [8, 'patologia_ap'], // HISTOPATOLÓGICO
+  [9, 'patologia_ap'], // BIÓPSIA SIMPLES
+  [10, 'patologia_ap'], // FRAGMENTOS MÚLTIPLOS
+  [11, 'patologia_ap'], // MARGENS PEÇAS
+  [19, 'patologia_ap'], // PAAF
+  [2, 'histologia_citologia'], // CITOPATOLOGIA
+  [3, 'ihq_parceiro'], // IMUNOISTOQUÍMICA
+  [5, 'ihq_parceiro'], // EXAMES REALIZADOS POR PARCEIROS
+  [6, 'biologia_molecular'], // CAPTURA HÍBRIDA
+  [7, 'biologia_molecular'], // PAINEL DE HIBRIDIZAÇÃO
+  [18, 'biologia_molecular'], // PCR
+]);
+
+// CodEvento de requisicaohistorico, conferidos ao vivo em 2026-09-01 —
+// estáveis (chave técnica do LIS), diferente de DesEvento (texto editável).
+const COD_EVENTO_AMOSTRA_RECEBIDA = 20; // 'Triagem de Amostra - Recebida'
+const COD_EVENTO_ADMISSAO = 1; // 'Admissão'
+const COD_EVENTO_RETIFICACAO = 54; // 'Retificação de laudo'
+
+export type SecaoRequisicaoLis = 'biologia_molecular' | 'patologia_ap' | 'histologia_citologia' | 'ihq_parceiro';
+
+export interface RequisicaoIndicadorLis {
+  idRequisicaoLis: number;
+  codRequisicao: string;
+  codExameTipoLis: number | null;
+  exameTipoNomeLis: string | null;
+  secaoLis: SecaoRequisicaoLis | null;
+  dtaSolicitacao: string;
+  dtaColeta: string | null;
+  dtaAmostraRecebida: string | null;
+  dtaAdmissao: string | null;
+  dtaPrevista: string | null;
+  dtaLiberacao: string | null;
+  patologistaNomeLis: string | null;
+  retificado: boolean;
+  dtaRetificacao: string | null;
+}
+
+export type ListarRequisicoesResultado = { requisicoes: RequisicaoIndicadorLis[] } | ErroConsultaLis;
+
+/**
+ * Universo: toda requisição SOLICITADA no período (`r.DtaSolicitacao`) —
+ * mesma simplificação de recorte único já usada por Ocorrências/Cortesias/
+ * IHQ (ver limitação documentada em requisicoesIndicadores.ts): eventos que
+ * acontecem bem depois da solicitação (liberação, retificação) continuam
+ * contados na linha, mesmo que caiam fora do período do usuário.
+ */
+export async function listarRequisicoesLis(inicio: string, fim: string): Promise<ListarRequisicoesResultado> {
+  return comConexao('listarRequisicoesLis', async (conn) => {
+    const periodo = condicaoPeriodo('r.DtaSolicitacao', inicio, fim);
+    // 3 subqueries correlacionadas (1 por evento), NÃO 1 derived table
+    // agregada por IdRequisicao — testado ao vivo contra o MySQL de backup
+    // (requisicaohistorico tem ~2M linhas): a versão "agregar tudo 1 vez com
+    // GROUP BY" escaneia a tabela INTEIRA (sem filtro de período possível
+    // antes do JOIN com `r`) e levou ~40s num período de 1 mês; a versão
+    // correlacionada abaixo aproveita o índice em `IdRequisicao` por linha
+    // já filtrada pelo período de `r` e levou <1s no mesmo teste. Não trocar
+    // sem medir de novo contra dado real.
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT r.IdRequisicao, r.CodRequisicao, et.CodExameTipo, et.NomExameTipo,
+              DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
+              DATE_FORMAT(r.DtaColeta, '%Y-%m-%d') AS DtaColeta,
+              DATE_FORMAT(r.DtaPrevista, '%Y-%m-%d') AS DtaPrevista,
+              DATE_FORMAT(r.Dta1aLiberacao, '%Y-%m-%d') AS DtaLiberacao,
+              med.NomMedico AS PatologistaNome,
+              DATE_FORMAT(
+                (SELECT MIN(rh.DtaEvento) FROM requisicaohistorico rh
+                  WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
+                '%Y-%m-%d'
+              ) AS DtaAmostraRecebida,
+              DATE_FORMAT(
+                (SELECT MIN(rh.DtaEvento) FROM requisicaohistorico rh
+                  WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
+                '%Y-%m-%d'
+              ) AS DtaAdmissao,
+              DATE_FORMAT(
+                (SELECT MAX(rh.DtaEvento) FROM requisicaohistorico rh
+                  WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
+                '%Y-%m-%d'
+              ) AS DtaRetificacao
+         FROM requisicao r
+         LEFT JOIN exame ex ON ex.CodExame = r.CodExame
+         LEFT JOIN exametipo et ON et.CodExameTipo = ex.CodExameTipo
+         LEFT JOIN medico med ON med.CodMedico = r.IdPatologista
+        WHERE ${periodo.sql}
+        ORDER BY r.DtaSolicitacao DESC`,
+      [COD_EVENTO_AMOSTRA_RECEBIDA, COD_EVENTO_ADMISSAO, COD_EVENTO_RETIFICACAO, ...periodo.valores],
+    );
+    return {
+      requisicoes: linhas.map((linha) => {
+        const codExameTipoLis = inteiroOuNulo(linha.CodExameTipo);
+        const dtaRetificacao = dataIso(linha.DtaRetificacao);
+        return {
+          idRequisicaoLis: numero(linha.IdRequisicao) ?? 0,
+          codRequisicao: texto(linha.CodRequisicao) ?? '',
+          codExameTipoLis,
+          exameTipoNomeLis: texto(linha.NomExameTipo),
+          secaoLis: codExameTipoLis !== null ? (SECAO_POR_COD_EXAME_TIPO.get(codExameTipoLis) ?? null) : null,
+          dtaSolicitacao: dataIso(linha.DtaSolicitacao) ?? inicio,
+          dtaColeta: dataIso(linha.DtaColeta),
+          dtaAmostraRecebida: dataIso(linha.DtaAmostraRecebida),
+          dtaAdmissao: dataIso(linha.DtaAdmissao),
+          dtaPrevista: dataIso(linha.DtaPrevista),
+          dtaLiberacao: dataIso(linha.DtaLiberacao),
+          patologistaNomeLis: texto(linha.PatologistaNome),
+          retificado: dtaRetificacao !== null,
+          dtaRetificacao,
+        };
+      }),
+    };
+  });
+}
+
 // ── PII sob demanda (Cortesias/IHQ) ──────────────────────────────────────────
 
 export type BuscarNomesResultado = { nomes: Record<string, string> } | ErroConsultaLis;

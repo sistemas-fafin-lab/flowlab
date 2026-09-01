@@ -853,3 +853,62 @@ export interface RiscoCandidatoVinculoDTO {
   processo: string;
 }
 
+// ─── Indicadores: Requisições — .scratch/qualidade-riscos-indicadores/issues/06-indicadores-requisicoes.md ──
+// Módulo independente de Riscos — schema próprio (qa_requisicoes), sem FK
+// para qa_riscos. "Não Conformidades por Setor" reaproveita o indicador já
+// existente de Ocorrências (IndicadorOcorrenciasResposta.porSetor), por isso
+// não tem uma linha própria de espelho aqui.
+
+/** Derivada de `exame.CodExameTipo` do LIS pelo handler de sync — ver bdLabQualidade.ts. */
+export type SecaoRequisicao = 'biologia_molecular' | 'patologia_ap' | 'histologia_citologia' | 'ihq_parceiro';
+
+export type StatusCuradoriaRetificacao = 'pendente' | 'concluida';
+
+export interface IndicadorPorSetor {
+  setorId: string;
+  setorNome: string;
+  total: number;
+}
+
+export interface IndicadoresGeraisLaboratorioResposta {
+  periodo: { inicio: string; fim: string };
+  amostrasRecebidas: number;
+  laudosLiberados: number;
+  laudosLiberadosPorMedico: { medicoNome: string; total: number }[];
+  amostrasAdmitidas: number;
+  /** `null` quando nenhuma linha do período tem coleta e liberação preenchidas (R4 — nunca vira 0). */
+  tatMedioDias: number | null;
+  laudosForaDoPrazo: number;
+  naoConformidadesPorSetor: IndicadorPorSetor[];
+  laudosRetificados: number;
+}
+
+export interface IndicadorSecaoRequisicaoResposta {
+  periodo: { inicio: string; fim: string };
+  secao: SecaoRequisicao;
+  totalRequisicoes: number;
+  laudosLiberados: number;
+  tatMedioDias: number | null;
+  laudosForaDoPrazo: number;
+}
+
+/** Item da lista de laudos retificados no período, pendentes ou não de curadoria de motivo. */
+export interface RequisicaoRetificadaDTO {
+  id: string;
+  codRequisicao: string;
+  dtaSolicitacao: string;
+  dtaRetificacao: string | null;
+  patologistaNomeLis: string | null;
+  motivoRetificacaoId: string | null;
+  motivoRetificacaoNome: string | null;
+  resumoRetificacaoCurado: string | null;
+  statusCuradoria: StatusCuradoriaRetificacao;
+  curadoPor: string | null;
+  curadoEm: string | null;
+}
+
+export interface CuradoriaRetificacaoInput {
+  motivoRetificacaoId?: string | null;
+  resumoRetificacaoCurado?: string | null;
+}
+
