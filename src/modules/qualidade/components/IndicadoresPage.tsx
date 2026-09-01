@@ -8,11 +8,13 @@
 //
 // Módulo independente de Riscos: schema (qa_requisicoes) e domínio próprios,
 // só reaproveita o indicador de Ocorrências para "Não Conformidades por
-// Setor" (ver requisicoes.ts). As 4 seções extras aqui usam o domínio
-// genérico já existente (totalRequisicoes/laudosLiberados/tatMedioDias/
-// laudosForaDoPrazo) — métricas mais ricas por seção (blocos, recorte,
-// consenso, tabela de IHQ) dependem de novos eventos do LIS ainda não
-// mapeados nesta base, fase 2.
+// Setor" (ver requisicoes.ts). As 4 seções extras têm métricas próprias
+// (Biologia Molecular, Patologia/AP, Histologia/Citologia — issues 07-09 —
+// e IHQ/Parceiro — issue 10, a única em formato de TABELA em vez de grid de
+// KPIs), cada uma com domínio bespoke; nenhuma delas mais usa o agregador
+// genérico (`agregarIndicadorSecao`), que continua em
+// domain/requisicoesIndicadores.ts só como base compartilhada de Biologia
+// Molecular.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -40,18 +42,17 @@ import { useState, type ReactNode } from 'react';
 import type {
   IndicadorBiologiaMolecularResposta,
   IndicadorHistologiaCitologiaResposta,
+  IndicadorIhqParceiroResposta,
   IndicadorPatologiaApResposta,
-  IndicadorSecaoRequisicaoResposta,
   RequisicaoRetificadaDTO,
-  SecaoRequisicao,
 } from '../types';
 import { anoAtual } from '../anoAtual.js';
 import {
   buscarIndicadoresBiologiaMolecular,
   buscarIndicadoresGeraisLaboratorio,
   buscarIndicadoresHistologiaCitologia,
+  buscarIndicadoresIhqParceiro,
   buscarIndicadoresPatologiaAp,
-  buscarIndicadoresSecaoRequisicao,
   buscarRequisicoesRetificadas,
   sincronizarRequisicoes,
 } from '../requisicoes.js';
@@ -101,18 +102,6 @@ const CORES_SECAO: Record<CorSecao, { borda: string; badge: string; brilho: stri
     grafico: { light: '#e11d48', dark: '#fb7185' },
   },
 };
-
-type SecaoExtraGenerica = Exclude<SecaoRequisicao, 'biologia_molecular' | 'patologia_ap' | 'histologia_citologia'>;
-
-const SECOES_EXTRA: { secao: SecaoExtraGenerica; titulo: string; subtitulo: string; icone: LucideIcon; cor: CorSecao }[] = [
-  {
-    secao: 'ihq_parceiro',
-    titulo: 'IHQ / Parceiro',
-    subtitulo: 'Imunoistoquímica e exames por parceiro — volume, produtividade e prazo no período selecionado.',
-    icone: FlaskConical,
-    cor: 'rosa',
-  },
-];
 
 function SecaoIndicador({
   titulo,
@@ -212,51 +201,78 @@ function TabelaRetificacoes({
   );
 }
 
-function SecaoExtra({
-  secao,
-  titulo,
-  subtitulo,
-  icone,
-  cor,
-  filtro,
-  periodoCompleto,
-}: {
-  secao: SecaoExtraGenerica;
-  titulo: string;
-  subtitulo: string;
-  icone: LucideIcon;
-  cor: CorSecao;
-  filtro: { inicio: string; fim: string };
-  periodoCompleto: boolean;
-}) {
-  const query = useQuery<IndicadorSecaoRequisicaoResposta>({
-    queryKey: ['indicadores-requisicoes', 'secao', secao, filtro],
-    queryFn: () => buscarIndicadoresSecaoRequisicao(secao, filtro),
+function formatarTatHoras(horas: number | null): string {
+  return horas === null ? '—' : `${horas} h`;
+}
+
+const COR_IHQ_PARCEIRO: CorSecao = 'rosa';
+
+function TabelaIhqParceiro({ dados }: { dados: IndicadorIhqParceiroResposta }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left text-sm">
+        <thead>
+          <tr className="border-b border-gray-200 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:border-white/10 dark:text-slate-400">
+            <th className="py-2 pr-4">Tipo</th>
+            <th className="py-2 pr-4">Liberados</th>
+            <th className="py-2 pr-4">Fora do prazo</th>
+            <th className="py-2 pr-4">Enviados</th>
+            <th className="py-2 pr-4">Recebidos (fotos / devolvida / total)</th>
+            <th className="py-2 pr-4">TAT parceiro</th>
+            <th className="py-2 pr-4">TAT interno</th>
+            <th className="py-2 pr-4">Pend. parceiro</th>
+            <th className="py-2 pr-4">Pend. laudo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {dados.porTipo.map((tipo) => (
+            <tr key={tipo.codExame} className="border-b border-gray-100 last:border-0 dark:border-white/5">
+              <td className="py-2 pr-4 font-medium text-slate-700 dark:text-slate-200">{tipo.nomExame}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{tipo.laudosLiberados}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{tipo.laudosForaDoPrazo}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{tipo.enviadosParceiro}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">
+                {tipo.recebidosVolta.viaLaudoFotos} / {tipo.recebidosVolta.viaAmostraDevolvida} / {tipo.recebidosVolta.total}
+              </td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{formatarTatHoras(tipo.tatParceiroHoras)}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{formatarTat(tipo.tatInternoDias)}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{tipo.pendenciaAguardandoParceiro}</td>
+              <td className="py-2 pr-4 text-slate-700 dark:text-slate-200">{tipo.pendenciaAguardandoLaudo}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * Bespoke em vez do antigo `SecaoExtra` genérico (issue 10) — IHQ/Parceiro
+ * vira uma TABELA (não um grid de 4 KPIs), com 1 linha por tipo de exame
+ * (Interna/Externa Bloco/Externa Bloco+Lâmina), sempre as 3 juntas mesmo
+ * quando uma delas está zerada no período.
+ */
+function SecaoIhqParceiro({ filtro, periodoCompleto }: { filtro: { inicio: string; fim: string }; periodoCompleto: boolean }) {
+  const query = useQuery<IndicadorIhqParceiroResposta>({
+    queryKey: ['indicadores-requisicoes', 'ihq-parceiro', filtro],
+    queryFn: () => buscarIndicadoresIhqParceiro(filtro),
     enabled: periodoCompleto,
   });
 
   return (
-    <SecaoIndicador titulo={titulo} subtitulo={subtitulo} icone={icone} cor={cor}>
-      {query.isLoading && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          {[1, 2, 3, 4].map((n) => (
-            <Skeleton key={n} className="h-24 w-full" />
-          ))}
-        </div>
-      )}
+    <SecaoIndicador
+      titulo="IHQ / Parceiro"
+      subtitulo="Envio e retorno de material a laboratório parceiro — Interna, Externa (Bloco) e Externa (Bloco+Lâmina) no período selecionado."
+      icone={FlaskConical}
+      cor={COR_IHQ_PARCEIRO}
+    >
+      {query.isLoading && <Skeleton className="h-40 w-full" />}
 
       {query.isError && (
-        <ErrorState titulo={`Não foi possível carregar os indicadores de ${titulo}`} aoTentarNovamente={() => query.refetch()} />
+        <ErrorState titulo="Não foi possível carregar os indicadores de IHQ/Parceiro" aoTentarNovamente={() => query.refetch()} />
       )}
 
-      {query.data && (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Kpi rotulo="Requisições" valor={query.data.totalRequisicoes} icone={icone} cor={cor} />
-          <Kpi rotulo="Laudos liberados" valor={query.data.laudosLiberados} icone={FileCheck2} cor={cor} />
-          <Kpi rotulo="TAT médio" valor={formatarTat(query.data.tatMedioDias)} icone={Clock} cor={cor} />
-          <Kpi rotulo="Laudos fora do prazo" valor={query.data.laudosForaDoPrazo} icone={ShieldAlert} cor={cor} />
-        </div>
-      )}
+      {query.data && <TabelaIhqParceiro dados={query.data} />}
     </SecaoIndicador>
   );
 }
@@ -582,9 +598,7 @@ export function Indicadores() {
 
           <SecaoHistologiaCitologia filtro={filtro} periodoCompleto={periodoCompleto} />
 
-          {SECOES_EXTRA.map((s) => (
-            <SecaoExtra key={s.secao} {...s} filtro={filtro} periodoCompleto={periodoCompleto} />
-          ))}
+          <SecaoIhqParceiro filtro={filtro} periodoCompleto={periodoCompleto} />
         </div>
       )}
 

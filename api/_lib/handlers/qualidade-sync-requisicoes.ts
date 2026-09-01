@@ -81,6 +81,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       dta_amostra_nao_recebida: r.dtaAmostraNaoRecebida,
       material_devolvido_nao_conforme: r.materialDevolvidoNaoConforme,
       dta_material_devolvido: r.dtaMaterialDevolvido,
+      cod_exame: r.codExame,
+      dta_envio_parceiro: r.dtaEnvioParceiro,
+      dta_retorno_laudo_fotos: r.dtaRetornoLaudoFotos,
+      dta_retorno_amostra_devolvida: r.dtaRetornoAmostraDevolvida,
     }));
 
     if (linhas.length === 0) {

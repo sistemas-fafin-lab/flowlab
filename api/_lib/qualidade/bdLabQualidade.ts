@@ -559,6 +559,12 @@ const COD_PROBLEMA_BLOCO_DANIFICADO = 19; // 'Bloco danificado ou quebrado'
 const COD_EVENTO_MICROSCOPIA_AGUARDANDO = 1000; // 'Microscopia - Aguarda Liberação'
 const COD_PROBLEMA_AMOSTRA_NAO_RECEBIDA = 4; // 'Amostra não recebida'
 const COD_PROBLEMA_MATERIAL_DEVOLVIDO_NAO_CONFORME = 27; // 'Devolução de Material NÃO Conforme'
+// Issue 10 (IHQ/Parceiro) — conferidos ao vivo em 2026-09-01 contra o mesmo
+// backup. Escopo desta seção: CodExame IN (6,12,13) (ver migration
+// 20260901150000), não CodExameTipo — os 3 códigos têm CodExameTipo=5.
+const COD_EVENTO_ENVIO_PARCEIRO = 19; // 'Envio material parceiro'
+const COD_EVENTO_RETORNO_LAUDO_FOTOS = 56; // 'Concluído - Laudo em Fotos'
+const COD_EVENTO_RETORNO_AMOSTRA_DEVOLVIDA = 64; // 'Amostra DEVOLVIDA'
 
 export type SecaoRequisicaoLis = 'biologia_molecular' | 'patologia_ap' | 'histologia_citologia' | 'ihq_parceiro';
 
@@ -599,6 +605,14 @@ export interface RequisicaoIndicadorLis {
   /** CodProblema=27 ("Devolução de Material NÃO Conforme"). */
   materialDevolvidoNaoConforme: boolean;
   dtaMaterialDevolvido: string | null;
+  /** Issue 10 (IHQ/Parceiro) — requisicao.CodExame (via exame.CodExame), usado para separar as 3 linhas da tabela (6/12/13), distinto de codExameTipoLis. */
+  codExame: number | null;
+  /** CodEvento=19 ("Envio material parceiro"). */
+  dtaEnvioParceiro: string | null;
+  /** CodEvento=56 ("Concluído - Laudo em Fotos") — um dos dois sinais de retorno do parceiro. */
+  dtaRetornoLaudoFotos: string | null;
+  /** CodEvento=64 ("Amostra DEVOLVIDA") — o outro sinal de retorno do parceiro. */
+  dtaRetornoAmostraDevolvida: string | null;
 }
 
 export type ListarRequisicoesResultado = { requisicoes: RequisicaoIndicadorLis[] } | ErroConsultaLis;
@@ -631,8 +645,10 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
     // query separada com GROUP BY que o projeto de referência usou para
     // blocos/lâminas (aqui o padrão já testado e documentado acima é o
     // correlacionado; não há motivo para desviar só para estas duas).
+    // Issue 10 (IHQ/Parceiro) acrescentou mais 3 (envio ao parceiro, retorno
+    // via laudo em fotos, retorno via amostra devolvida) — mesmo padrão.
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT r.IdRequisicao, r.CodRequisicao, et.CodExameTipo, et.NomExameTipo,
+      `SELECT r.IdRequisicao, r.CodRequisicao, r.CodExame, et.CodExameTipo, et.NomExameTipo,
               DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
               DATE_FORMAT(r.DtaColeta, '%Y-%m-%d') AS DtaColeta,
               DATE_FORMAT(r.DtaPrevista, '%Y-%m-%d') AS DtaPrevista,
@@ -700,7 +716,22 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
                 (SELECT MAX(rp.DtaProblema) FROM requisicaoproblema rp
                   WHERE rp.IdRequisicao = r.IdRequisicao AND rp.CodProblema = ?),
                 '%Y-%m-%d %H:%i:%s'
-              ) AS DtaMaterialDevolvido
+              ) AS DtaMaterialDevolvido,
+              DATE_FORMAT(
+                (SELECT MIN(rh.DtaEvento) FROM requisicaohistorico rh
+                  WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaEnvioParceiro,
+              DATE_FORMAT(
+                (SELECT MIN(rh.DtaEvento) FROM requisicaohistorico rh
+                  WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaRetornoLaudoFotos,
+              DATE_FORMAT(
+                (SELECT MIN(rh.DtaEvento) FROM requisicaohistorico rh
+                  WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
+                '%Y-%m-%d %H:%i:%s'
+              ) AS DtaRetornoAmostraDevolvida
          FROM requisicao r
          LEFT JOIN exame ex ON ex.CodExame = r.CodExame
          LEFT JOIN exametipo et ON et.CodExameTipo = ex.CodExameTipo
@@ -716,6 +747,9 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
         COD_EVENTO_MICROSCOPIA_AGUARDANDO,
         COD_PROBLEMA_AMOSTRA_NAO_RECEBIDA,
         COD_PROBLEMA_MATERIAL_DEVOLVIDO_NAO_CONFORME,
+        COD_EVENTO_ENVIO_PARCEIRO,
+        COD_EVENTO_RETORNO_LAUDO_FOTOS,
+        COD_EVENTO_RETORNO_AMOSTRA_DEVOLVIDA,
         ...periodo.valores,
       ],
     );
@@ -757,6 +791,10 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
           dtaAmostraNaoRecebida,
           materialDevolvidoNaoConforme: dtaMaterialDevolvido !== null,
           dtaMaterialDevolvido,
+          codExame: inteiroOuNulo(linha.CodExame),
+          dtaEnvioParceiro: dataIso(linha.DtaEnvioParceiro),
+          dtaRetornoLaudoFotos: dataIso(linha.DtaRetornoLaudoFotos),
+          dtaRetornoAmostraDevolvida: dataIso(linha.DtaRetornoAmostraDevolvida),
         };
       }),
     };

@@ -12,10 +12,9 @@ import type {
   IndicadorBiologiaMolecularResposta,
   IndicadoresGeraisLaboratorioResposta,
   IndicadorHistologiaCitologiaResposta,
+  IndicadorIhqParceiroResposta,
   IndicadorPatologiaApResposta,
-  IndicadorSecaoRequisicaoResposta,
   RequisicaoRetificadaDTO,
-  SecaoRequisicao,
   StatusCuradoriaRetificacao,
 } from './types';
 import { supabase } from '../../lib/supabase';
@@ -25,7 +24,7 @@ import { agregarIndicadoresGerais, type LinhaIndicadorRequisicao } from './domai
 import { agregarBiologiaMolecular } from './domain/biologiaMolecularIndicadores.js';
 import { agregarPatologiaAp } from './domain/patologiaIndicadores.js';
 import { agregarHistologiaCitologia } from './domain/histologiaCitologiaIndicadores.js';
-import { agregarIhqParceiro } from './domain/ihqParceiroIndicadores.js';
+import { agregarIhqParceiro, CODS_EXAME_IHQ_PARCEIRO, type LinhaIndicadorIhqParceiro } from './domain/ihqParceiroIndicadores.js';
 
 export { ErroApiQualidade as ErroApi };
 
@@ -69,36 +68,42 @@ export async function buscarIndicadoresGeraisLaboratorio(periodo: {
   return { ...gerais, naoConformidadesPorSetor: indicadoresOcorrencias.porSetor };
 }
 
-const AGREGADOR_POR_SECAO = {
-  ihq_parceiro: agregarIhqParceiro,
-} as const;
-
-export async function buscarIndicadoresSecaoRequisicao(
-  secao: Exclude<SecaoRequisicao, 'biologia_molecular' | 'patologia_ap' | 'histologia_citologia'>,
-  periodo: { inicio: string; fim: string },
-): Promise<IndicadorSecaoRequisicaoResposta> {
+/**
+ * IHQ/Parceiro tem resposta própria (issue 10): tabela com 1 linha por tipo
+ * de exame (`cod_exame IN (6,12,13)`, ver migration 20260901150000), não a
+ * `secao_lis` inteira — filtra direto por `cod_exame` em vez de `secao_lis`
+ * porque `secao_lis='ihq_parceiro'` também inclui `cod_exame_tipo_lis=3`
+ * (fora do escopo desta tabela). Mesmo racional de
+ * `buscarIndicadoresPatologiaAp`/`buscarIndicadoresHistologiaCitologia`.
+ */
+export async function buscarIndicadoresIhqParceiro(periodo: {
+  inicio: string;
+  fim: string;
+}): Promise<IndicadorIhqParceiroResposta> {
   const { data, error } = await supabase
     .from('qa_requisicoes')
-    .select('dta_coleta, dta_prevista, dta_liberacao')
-    .eq('secao_lis', secao)
+    .select('cod_exame, dta_prevista, dta_liberacao, dta_envio_parceiro, dta_retorno_laudo_fotos, dta_retorno_amostra_devolvida')
+    .in('cod_exame', [...CODS_EXAME_IHQ_PARCEIRO])
     .gte('dta_solicitacao', periodo.inicio)
     .lte('dta_solicitacao', periodo.fim);
-  if (error) throw new ErroApiQualidade(500, `Falha ao buscar indicadores da seção ${secao}: ${error.message}`);
+  if (error) throw new ErroApiQualidade(500, `Falha ao buscar indicadores de IHQ/Parceiro: ${error.message}`);
 
-  const linhas = (data ?? []).map((linha) => ({
-    dtaColeta: linha.dta_coleta,
+  const linhas: LinhaIndicadorIhqParceiro[] = (data ?? []).map((linha) => ({
+    codExame: linha.cod_exame,
     dtaPrevista: linha.dta_prevista,
     dtaLiberacao: linha.dta_liberacao,
+    dtaEnvioParceiro: linha.dta_envio_parceiro,
+    dtaRetornoLaudoFotos: linha.dta_retorno_laudo_fotos,
+    dtaRetornoAmostraDevolvida: linha.dta_retorno_amostra_devolvida,
   }));
 
-  return AGREGADOR_POR_SECAO[secao](periodo, linhas);
+  return agregarIhqParceiro(periodo, linhas);
 }
 
 /**
  * Biologia Molecular tem resposta própria (issue 07): além das 4 métricas
- * genéricas, quebra o TAT médio por `exameTipoNomeLis` — por isso não passa
- * por `buscarIndicadoresSecaoRequisicao`/`AGREGADOR_POR_SECAO` acima, que
- * assumem o formato genérico de `IndicadorSecaoRequisicaoResposta`.
+ * genéricas de `agregarIndicadorSecao` (domain/requisicoesIndicadores.ts),
+ * quebra o TAT médio por `exameTipoNomeLis`.
  */
 export async function buscarIndicadoresBiologiaMolecular(periodo: {
   inicio: string;
@@ -124,9 +129,8 @@ export async function buscarIndicadoresBiologiaMolecular(periodo: {
 
 /**
  * Patologia/AP tem resposta própria (issue 08): substitui as 4 métricas
- * genéricas por Casos Atrasados/Recorte-Coloração/Consenso Pendente/Blocos
- * Refeitos — por isso não passa por `buscarIndicadoresSecaoRequisicao`/
- * `AGREGADOR_POR_SECAO` acima.
+ * genéricas de `agregarIndicadorSecao` por Casos Atrasados/Recorte-Coloração/
+ * Consenso Pendente/Blocos Refeitos.
  */
 export async function buscarIndicadoresPatologiaAp(periodo: {
   inicio: string;
@@ -153,10 +157,9 @@ export async function buscarIndicadoresPatologiaAp(periodo: {
 
 /**
  * Histologia/Citologia tem resposta própria (issue 09): substitui as 4
- * métricas genéricas por Blocos/Lâminas Produzidas, Tempo de Processamento,
- * Microscopia Aguardando (realocada de Patologia/AP), Amostras Não
- * Recebidas e Material Devolvido Não Conforme — por isso não passa por
- * `buscarIndicadoresSecaoRequisicao`/`AGREGADOR_POR_SECAO` acima.
+ * métricas genéricas de `agregarIndicadorSecao` por Blocos/Lâminas
+ * Produzidas, Tempo de Processamento, Microscopia Aguardando (realocada de
+ * Patologia/AP), Amostras Não Recebidas e Material Devolvido Não Conforme.
  */
 export async function buscarIndicadoresHistologiaCitologia(periodo: {
   inicio: string;

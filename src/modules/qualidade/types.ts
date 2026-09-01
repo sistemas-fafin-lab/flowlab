@@ -952,6 +952,42 @@ export interface IndicadorHistologiaCitologiaResposta {
   materialDevolvidoNaoConforme: number;
 }
 
+/**
+ * IHQ/Parceiro — issue 10: substitui os 4 KPIs genéricos de
+ * `IndicadorSecaoRequisicaoResposta` por uma tabela com 1 linha por tipo de
+ * exame (escopo: `codExame IN (6,12,13)`, não a `secao_lis` inteira — ver
+ * migration 20260901150000). Os 3 tipos são sempre mostrados separados,
+ * nunca somados entre si (decisão da issue 10). Resposta bespoke, mesmo
+ * racional de `IndicadorPatologiaApResposta`.
+ */
+export interface IndicadorIhqParceiroPorTipo {
+  codExame: number;
+  nomExame: string;
+  laudosLiberados: number;
+  laudosForaDoPrazo: number;
+  enviadosParceiro: number;
+  recebidosVolta: {
+    viaLaudoFotos: number;
+    viaAmostraDevolvida: number;
+    /** Uma requisição só é contada uma vez aqui, mesmo com os dois sinais de retorno presentes. */
+    total: number;
+  };
+  /** `null` quando não há nenhum par envio→retorno calculável (R4 — nunca vira 0). Envio até o PRIMEIRO dos dois sinais de retorno — em HORAS (envio e retorno são `timestamptz` com hora real). */
+  tatParceiroHoras: number | null;
+  /** `null` quando não há nenhum par retorno→liberação calculável. Do primeiro sinal de retorno até `dta_liberacao` — em DIAS, não horas: `dta_liberacao` é `date`, sem hora (ver calcularTatInternoDias). */
+  tatInternoDias: number | null;
+  /** Enviado ao parceiro, sem nenhum dos dois sinais de retorno ainda. */
+  pendenciaAguardandoParceiro: number;
+  /** Sem `dta_liberacao`, independente do estado do retorno do parceiro. */
+  pendenciaAguardandoLaudo: number;
+}
+
+export interface IndicadorIhqParceiroResposta {
+  periodo: { inicio: string; fim: string };
+  secao: 'ihq_parceiro';
+  porTipo: IndicadorIhqParceiroPorTipo[];
+}
+
 /** Item da lista de laudos retificados no período, pendentes ou não de curadoria de motivo. */
 export interface RequisicaoRetificadaDTO {
   id: string;
