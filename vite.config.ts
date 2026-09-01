@@ -694,6 +694,7 @@ function qualidadeApiPlugin(env: Record<string, string>): Plugin {
     'sync-ihq', 'buscar-pii-ihq', 'buscar-detalhe-ihq', 'confirmar-vinculo-ihq',
     'sync-cancer', 'buscar-funil-cancer', 'buscar-detalhe-cancer',
     'gerar-exportacao-cancer', 'baixar-exportacao-cancer',
+    'sync-requisicoes', 'buscar-pii-requisicoes',
   ]);
   // DB_* é o MySQL de backup do laboratório (mesma fonte de faturamento/apoio).
   const SERVER_ENV_KEYS = [
