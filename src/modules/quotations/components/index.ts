@@ -4,6 +4,7 @@ export { QuotationManagementPage } from './QuotationManagementPage';
 // List & Display Components
 export { QuotationList } from './QuotationList';
 export { QuotationDrawer } from './QuotationDrawer';
+export { QuotationApprovalModal } from './QuotationApprovalModal';
 export { StatusStepper } from './StatusStepper';
 
 // Creation & Editing

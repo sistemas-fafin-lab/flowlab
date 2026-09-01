@@ -16,6 +16,7 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import { Quotation, SupplierProposal, SupplierComparisonData } from '../types';
+import { annotateProposals } from '../utils/annotateProposals';
 
 interface ProposalComparisonProps {
   quotation: Quotation;
@@ -53,78 +54,7 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string | null>(null);
 
   // Calculate comparison data
-  const comparisonData = useMemo((): SupplierComparisonData[] => {
-    const proposals = quotation.proposals.filter(p => p.status !== 'rejected' || p.id === quotation.selectedProposalId);
-    
-    if (proposals.length === 0) return [];
-
-    // Find lowest and highest totals
-    const totals = proposals.map(p => p.totalAmount);
-    const lowestTotal = Math.min(...totals);
-    const highestTotal = Math.max(...totals);
-
-    // Find best delivery times
-    const deliveryDays = proposals.map(p => {
-      const match = p.deliveryTime?.match(/(\d+)/);
-      return match ? parseInt(match[1]) : Infinity;
-    });
-    const bestDelivery = Math.min(...deliveryDays);
-
-    return proposals.map((proposal, index) => {
-      const deliveryMatch = proposal.deliveryTime?.match(/(\d+)/);
-      const deliveryDaysNum = deliveryMatch ? parseInt(deliveryMatch[1]) : Infinity;
-
-      const isLowestTotal = proposal.totalAmount === lowestTotal;
-      const isBestDelivery = deliveryDaysNum === bestDelivery;
-      const savingsVsHighest = highestTotal - proposal.totalAmount;
-      const savingsPercentage = highestTotal > 0 
-        ? ((highestTotal - proposal.totalAmount) / highestTotal) * 100 
-        : 0;
-
-      // Check per-item lowest prices
-      const items = proposal.items.map(item => {
-        const allPricesForItem = proposals
-          .flatMap(p => p.items.filter(i => i.quotationItemId === item.quotationItemId))
-          .map(i => i.unitPrice);
-        const lowestPrice = Math.min(...allPricesForItem);
-        
-        const allDeliveriesForItem = proposals
-          .flatMap(p => p.items.filter(i => i.quotationItemId === item.quotationItemId))
-          .map(i => {
-            const match = i.deliveryTime?.match(/(\d+)/);
-            return match ? parseInt(match[1]) : Infinity;
-          });
-        const bestItemDelivery = Math.min(...allDeliveriesForItem);
-        const itemDeliveryMatch = item.deliveryTime?.match(/(\d+)/);
-        const itemDeliveryDays = itemDeliveryMatch ? parseInt(itemDeliveryMatch[1]) : Infinity;
-
-        return {
-          itemId: item.quotationItemId,
-          itemName: item.productName,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-          deliveryTime: item.deliveryTime,
-          isLowestPrice: item.unitPrice === lowestPrice,
-          isBestDelivery: itemDeliveryDays === bestItemDelivery,
-        };
-      });
-
-      return {
-        supplierId: proposal.supplierId,
-        supplierName: proposal.supplierName,
-        proposalId: proposal.id,
-        items,
-        totalAmount: proposal.totalAmount,
-        deliveryTime: proposal.deliveryTime,
-        paymentTerms: proposal.paymentTerms,
-        isLowestTotal,
-        isBestOverall: isLowestTotal && isBestDelivery,
-        savingsVsHighest,
-        savingsPercentage,
-      };
-    });
-  }, [quotation]);
+  const comparisonData = useMemo((): SupplierComparisonData[] => annotateProposals(quotation), [quotation]);
 
   // Sort data
   const sortedData = useMemo(() => {

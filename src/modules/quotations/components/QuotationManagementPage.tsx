@@ -19,6 +19,7 @@ import {
   SortDesc,
   Filter,
   BarChart3,
+  ShieldCheck,
 } from 'lucide-react';
 import { useQuotation } from '../hooks/useQuotation';
 import {
@@ -31,6 +32,7 @@ import {
   QuotationTypeLabels,
 } from '../types';
 import { QuotationDrawer } from './QuotationDrawer';
+import { QuotationApprovalModal } from './QuotationApprovalModal';
 import { CreateQuotationModal } from './CreateQuotationModal';
 import { QuotationTypeSelectionModal } from './QuotationTypeSelectionModal';
 import { PurchaseOrderModal } from './PurchaseOrderModal';
@@ -125,6 +127,7 @@ export const QuotationManagementPage: React.FC = () => {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   const [showDrawer, setShowDrawer] = useState(false);
+  const [approvalQuotation, setApprovalQuotation] = useState<Quotation | null>(null);
   const [purchaseOrder, setPurchaseOrder] = useState<{ quotation: Quotation; code: string } | null>(null);
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<QuotationStatus>>(new Set());
   const [searchParams] = useSearchParams();
@@ -136,6 +139,15 @@ export const QuotationManagementPage: React.FC = () => {
     const updated = quotations.find(q => q.id === selectedId);
     if (updated) setSelectedQuotation(updated);
   }, [quotations, selectedId]);
+
+  // Same sync, for the approval modal — a decision refreshes quotations and
+  // the modal needs the post-decision status to show its "aprovada"/"rejeitada" state.
+  const approvalId = approvalQuotation?.id;
+  useEffect(() => {
+    if (!approvalId) return;
+    const updated = quotations.find(q => q.id === approvalId);
+    if (updated) setApprovalQuotation(updated);
+  }, [quotations, approvalId]);
 
   const { products, requests } = useInventory();
   const permissions = getPermissions(selectedQuotation ?? undefined);
@@ -163,6 +175,12 @@ export const QuotationManagementPage: React.FC = () => {
   const handleCloseDrawer = () => {
     setShowDrawer(false);
     setTimeout(() => setSelectedQuotation(null), 300);
+  };
+
+  // Abre o modal-resumo de aprovação direto da lista, sem passar pelo
+  // painel de detalhes lateral genérico.
+  const handleOpenApproval = (quotation: Quotation) => {
+    setApprovalQuotation(quotation);
   };
 
   const handleNewQuotationClick = () => {
@@ -593,10 +611,18 @@ export const QuotationManagementPage: React.FC = () => {
           </div>
         ) : (
           filteredQuotations.map((quotation, index) => (
-            <button
+            <div
               key={quotation.id}
+              role="button"
+              tabIndex={0}
               onClick={() => handleSelectQuotation(quotation)}
-              className="w-full bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 text-left"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  handleSelectQuotation(quotation);
+                }
+              }}
+              className="w-full bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 text-left cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
             >
               {/* Header */}
@@ -737,14 +763,29 @@ export const QuotationManagementPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Approval pending indicator */}
+              {/* Approval pending indicator + ação de aprovar, visível só para quem tem alçada */}
               {quotation.status === 'awaiting_approval' && (
-                <div className="mt-3 flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-                  <Clock className="w-3.5 h-3.5" />
-                  <span>Aguardando aprovação</span>
+                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                    <Clock className="w-3.5 h-3.5" />
+                    Aguardando aprovação
+                  </span>
+                  {getPermissions(quotation).canApprove && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenApproval(quotation);
+                      }}
+                      onKeyDown={(e) => e.stopPropagation()}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 transition-colors shadow-sm flex-shrink-0"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      Aprovar
+                    </button>
+                  )}
                 </div>
               )}
-            </button>
+            </div>
           ))
         )}
       </div>
@@ -850,6 +891,23 @@ export const QuotationManagementPage: React.FC = () => {
           quotation={purchaseOrder.quotation}
           purchaseOrderCode={purchaseOrder.code}
           onClose={() => setPurchaseOrder(null)}
+        />
+      )}
+
+      {/* Approval Modal — resumo direto da lista, sem passar pelo drawer */}
+      {approvalQuotation && (
+        <QuotationApprovalModal
+          quotation={approvalQuotation}
+          permissions={getPermissions(approvalQuotation)}
+          onClose={() => setApprovalQuotation(null)}
+          onApprove={async (comment) => {
+            await approveQuotation(approvalQuotation.id, comment);
+            await handleRefreshAfterAction();
+          }}
+          onReject={async (comment) => {
+            await rejectQuotation(approvalQuotation.id, comment);
+            await handleRefreshAfterAction();
+          }}
         />
       )}
     </div>
