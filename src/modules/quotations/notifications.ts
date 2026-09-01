@@ -2,6 +2,7 @@ import { Quotation, QuotationItem, QuotationTypeLabels } from './types';
 import { formatCurrency } from '../../utils/paymentUtils';
 import { APP_BASE_URL } from '../../utils/appUrl';
 import { getQuotationAmount } from './utils/getQuotationAmount';
+import { escapeHtml } from './utils/escapeHtml';
 import { buildQuotationsUrl } from './routes';
 
 export interface ApproverWithEmail {
@@ -13,15 +14,6 @@ export interface EmailNotificationRequest {
   templateSlug: string;
   variables: Record<string, string>;
 }
-
-const escapeHtml = (value: string): string =>
-  value.replace(/[&<>"']/g, (char) => ({
-    '&': '&amp;',
-    '<': '&lt;',
-    '>': '&gt;',
-    '"': '&quot;',
-    "'": '&#39;',
-  }[char] as string));
 
 const buildItemsListHtml = (items: Pick<QuotationItem, 'productName' | 'quantity' | 'unit'>[]): string =>
   items
