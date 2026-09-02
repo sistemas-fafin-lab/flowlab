@@ -38,6 +38,13 @@
 //    `status_lis` só distingue concluído (`DtaFinalizacao` preenchida) de em
 //    andamento — não há sinal de cancelamento no schema, então "cancelado"
 //    nunca é inferido (evita marcar errado).
+// 4. [RESOLVIDO] Patologista (`requisicao.IdPatologista`) é `autusuario.IdUsuario`
+//    (usuário interno que libera o laudo), NÃO `medico.CodMedico`. As duas
+//    tabelas têm sequências de auto-incremento independentes que colidem por
+//    coincidência — um JOIN em `medico` "acerta" um nome plausível, porém de
+//    pessoa errada, na maioria dos IDs. Confirmado contra o Aplis:
+//    `IdPatologista=196` é Larissa Sena Teixeira Mendes em `autusuario`, mas
+//    `medico.CodMedico=196` é uma pessoa completamente diferente.
 
 import mysql from 'mysql2/promise';
 
@@ -438,14 +445,14 @@ export async function buscarDetalheCancerLis(codRequisicao: string): Promise<Bus
   return comConexao('buscarDetalheCancerLis', async (conn) => {
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT p.NomPaciente, p.Sexo, p.CPF, p.NomMae, DATE_FORMAT(p.DtaNascimento, '%Y-%m-%d') AS DtaNascimento,
-              med.NomMedico AS PatologistaLaudo, rd.DesLaudo, d.CodInternacional, top.DesTopografia
+              pat.NomUsuario AS PatologistaLaudo, rd.DesLaudo, d.CodInternacional, top.DesTopografia
          FROM requisicao r
          JOIN paciente p ON p.CodPaciente = r.CodPaciente
          LEFT JOIN requisicaodiagnostico rd ON rd.IdRequisicao = r.IdRequisicao AND rd.Positivo = 1
          LEFT JOIN diagnostico d ON d.CodDiagnostico = rd.CodDiagnostico
          LEFT JOIN requisicaopeca rp ON rp.IdPeca = rd.IdPeca
          LEFT JOIN topografia top ON top.CodTopografia = rp.CodTopografia
-         LEFT JOIN medico med ON med.CodMedico = r.IdPatologista
+         LEFT JOIN autusuario pat ON pat.IdUsuario = r.IdPatologista
         WHERE r.CodRequisicao = ?
         LIMIT 1`,
       [codRequisicao],
@@ -482,14 +489,14 @@ export async function buscarDetalhesCancerLis(codigos: readonly string[]): Promi
     const placeholders = codigos.map(() => '?').join(', ');
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT r.CodRequisicao, p.NomPaciente, p.Sexo, p.CPF, p.NomMae, DATE_FORMAT(p.DtaNascimento, '%Y-%m-%d') AS DtaNascimento,
-              med.NomMedico AS PatologistaLaudo, rd.DesLaudo, d.CodInternacional, top.DesTopografia
+              pat.NomUsuario AS PatologistaLaudo, rd.DesLaudo, d.CodInternacional, top.DesTopografia
          FROM requisicao r
          JOIN paciente p ON p.CodPaciente = r.CodPaciente
          LEFT JOIN requisicaodiagnostico rd ON rd.IdRequisicao = r.IdRequisicao AND rd.Positivo = 1
          LEFT JOIN diagnostico d ON d.CodDiagnostico = rd.CodDiagnostico
          LEFT JOIN requisicaopeca rp ON rp.IdPeca = rd.IdPeca
          LEFT JOIN topografia top ON top.CodTopografia = rp.CodTopografia
-         LEFT JOIN medico med ON med.CodMedico = r.IdPatologista
+         LEFT JOIN autusuario pat ON pat.IdUsuario = r.IdPatologista
         WHERE r.CodRequisicao IN (${placeholders})`,
       [...codigos],
     );
@@ -654,7 +661,7 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
               DATE_FORMAT(r.DtaPrevista, '%Y-%m-%d') AS DtaPrevista,
               DATE_FORMAT(r.Dta1aLiberacao, '%Y-%m-%d') AS DtaLiberacao,
               DATE_FORMAT(r.DtaPrevistaSetor, '%Y-%m-%d %H:%i:%s') AS DtaPrevistaSetor,
-              med.NomMedico AS PatologistaNome,
+              pat.NomUsuario AS PatologistaNome,
               DATE_FORMAT(
                 (SELECT MIN(rh.DtaEvento) FROM requisicaohistorico rh
                   WHERE rh.IdRequisicao = r.IdRequisicao AND rh.CodEvento = ?),
@@ -735,7 +742,7 @@ export async function listarRequisicoesLis(inicio: string, fim: string): Promise
          FROM requisicao r
          LEFT JOIN exame ex ON ex.CodExame = r.CodExame
          LEFT JOIN exametipo et ON et.CodExameTipo = ex.CodExameTipo
-         LEFT JOIN medico med ON med.CodMedico = r.IdPatologista
+         LEFT JOIN autusuario pat ON pat.IdUsuario = r.IdPatologista
         WHERE ${periodo.sql}
         ORDER BY r.DtaSolicitacao DESC`,
       [
