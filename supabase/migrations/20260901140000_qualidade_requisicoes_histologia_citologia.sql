@@ -37,8 +37,11 @@
 -- `ADD COLUMN IF NOT EXISTS` (idempotente) para o caso da 08 ainda não ter
 -- rodado neste ambiente.
 --
--- NÃO aplicado ainda em nenhum ambiente — revisar antes de rodar no SQL
--- Editor (mesmo processo de mudanca_supabase.md).
+-- Aplicada em produção (confirmado por introspecção direta em 2026-09-02).
+-- Ausente do bookkeeping supabase_migrations.schema_migrations porque foi
+-- aplicada manualmente via SQL Editor — rodar
+-- `supabase migration repair --status applied 20260901140000` se for
+-- reconciliar o histórico da CLI.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 BEGIN;

@@ -35,8 +35,11 @@
 -- a linha). TAT Parceiro usa o PRIMEIRO dos dois sinais de retorno (fotos ou
 -- amostra devolvida), não os dois somados nem uma média dos dois.
 --
--- NÃO aplicado ainda em nenhum ambiente — revisar antes de rodar no SQL
--- Editor (mesmo processo de mudanca_supabase.md).
+-- Aplicada em produção (confirmado por introspecção direta em 2026-09-02).
+-- Ausente do bookkeeping supabase_migrations.schema_migrations porque foi
+-- aplicada manualmente via SQL Editor — rodar
+-- `supabase migration repair --status applied 20260901150000` se for
+-- reconciliar o histórico da CLI.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 BEGIN;

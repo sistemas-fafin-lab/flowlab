@@ -26,8 +26,13 @@
 -- ambos setados pelo mesmo `CodProblema = 19` no sync (o problema não é
 -- específico de uma seção no LIS).
 --
--- NÃO aplicado ainda em nenhum ambiente — revisar antes de rodar no SQL
--- Editor (mesmo processo de mudanca_supabase.md).
+-- Aplicada em produção (confirmado por introspecção direta em 2026-09-02).
+-- Ausente do bookkeeping supabase_migrations.schema_migrations porque foi
+-- aplicada manualmente via SQL Editor — rodar
+-- `supabase migration repair --status applied 20260901130000` se for
+-- reconciliar o histórico da CLI (note a colisão de timestamp com
+-- 20260901130000_quotation_pending_approval_digest_template.sql, renomeada
+-- para 20260902130000 justamente por causa disso).
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 BEGIN;

@@ -54,4 +54,4 @@ alerta de hardware (`tools/hardware-monitor/`), mas — diferente dele — roda
 a partir de um checkout do próprio repositório (`REPO_DIR`), já que depende
 do código-fonte do domínio de cotações. Novo template de email
 `quotation_pending_approval_digest`
-(`supabase/migrations/20260901130000_quotation_pending_approval_digest_template.sql`).
+(`supabase/migrations/20260902130000_quotation_pending_approval_digest_template.sql`).

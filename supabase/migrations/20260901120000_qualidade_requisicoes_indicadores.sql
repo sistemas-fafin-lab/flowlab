@@ -35,8 +35,12 @@
 -- si não existe estruturado no LIS, por isso a curadoria manual
 -- (mesmo padrão de `qa_motivos_ocorrencia`/`qa_ocorrencias`).
 --
--- NÃO aplicado ainda em nenhum ambiente — revisar antes de rodar no SQL
--- Editor (mesmo processo de mudanca_supabase.md).
+-- Aplicada em produção (confirmado por introspecção direta em 2026-09-02 —
+-- ver supabase/scripts/prod-upgrade-qualidade-indicadores-fase2.sql para o
+-- contexto). Ausente do bookkeeping supabase_migrations.schema_migrations
+-- porque foi aplicada manualmente via SQL Editor, não via `supabase db push`
+-- — rodar `supabase migration repair --status applied 20260901120000` se
+-- for reconciliar o histórico da CLI.
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 BEGIN;

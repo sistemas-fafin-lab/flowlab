@@ -63,7 +63,7 @@ Gestor sem nenhuma cotação pendente dentro da sua alçada não gera e-mail.
 ## Template no Supabase
 
 A migration
-`supabase/migrations/20260901130000_quotation_pending_approval_digest_template.sql`
+`supabase/migrations/20260902130000_quotation_pending_approval_digest_template.sql`
 cria o template `quotation_pending_approval_digest` com as variáveis
 `{{pending_count}}`, `{{pending_list_html}}` e `{{action_url}}`. Aplique no
 Supabase (CLI ou SQL editor) antes do primeiro envio real.
