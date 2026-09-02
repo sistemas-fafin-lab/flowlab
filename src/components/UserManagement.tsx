@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock, Search, SlidersHorizontal, UserPlus, KanbanSquare } from 'lucide-react';
+import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock, Search, SlidersHorizontal, UserPlus, KanbanSquare, Ban, UserCheck } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
+import { useDialog } from '../hooks/useDialog';
 import { supabase } from '../lib/supabase';
 import { UserProfile, UserRole, Department, CustomRole } from '../types';
 import { DEPARTMENTS, getRoleForDepartment, getRoleLabel, getDepartmentLabel, ALL_PERMISSION_KEYS, hasPermission } from '../utils/permissions';
 import { useBoards } from '../modules/board';
 import Notification from './Notification';
+import ConfirmDialog from './ConfirmDialog';
 import NewUserForm from './NewUserForm';
 
 // Type for approval level configuration from database
@@ -49,6 +51,7 @@ const GROUP_COLORS: Record<string, {
 const UserManagement: React.FC = () => {
   const { userProfile } = useAuth();
   const { notification, showSuccess, showError, hideNotification } = useNotification();
+  const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [userApprovalLimits, setUserApprovalLimits] = useState<Record<string, UserApprovalLimit>>({});
   const [approvalLevels, setApprovalLevels] = useState<ApprovalLevelConfig[]>([]);
@@ -59,6 +62,8 @@ const UserManagement: React.FC = () => {
   const [showLevelConfig, setShowLevelConfig] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingLevels, setIsSavingLevels] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null);
   const topRef = React.useRef<HTMLDivElement>(null);
 
   // ─── Tab management ─────────────────────────────────────────────────────────
@@ -155,6 +160,8 @@ const UserManagement: React.FC = () => {
           customRoleId: user.custom_role_id,
           permissions: customRole?.permissions || [],
           roleName: customRole?.name,
+          disabledAt: user.disabled_at,
+          deletedAt: user.deleted_at,
         };
       });
 
@@ -287,6 +294,98 @@ const UserManagement: React.FC = () => {
     setTimeout(() => {
       topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
+  };
+
+  const handleDeactivateUser = (user: UserProfile) => {
+    if (user.id === userProfile?.id) {
+      showError('Você não pode desativar o próprio usuário.');
+      return;
+    }
+
+    showConfirmDialog(
+      'Desativar usuário',
+      <span>
+        Desativar <strong>"{user.name}"</strong>? O login será bloqueado imediatamente,
+        mas nome, e-mail e CPF continuam intactos — é possível reativar a qualquer momento.
+      </span>,
+      async () => {
+        setTogglingUserId(user.id);
+        try {
+          const { data, error } = await supabase.rpc('deactivate_user', { p_user_id: user.id });
+
+          if (error) {
+            showError(error.message || 'Erro ao desativar usuário.');
+            return;
+          }
+
+          showSuccess(data || 'Usuário desativado com sucesso!');
+          await fetchUsers();
+        } catch (error) {
+          console.error('Erro ao desativar usuário:', error);
+          showError('Erro ao desativar usuário. Tente novamente.');
+        } finally {
+          setTogglingUserId(null);
+        }
+      },
+      { confirmText: 'Desativar', cancelText: 'Cancelar', type: 'warning' }
+    );
+  };
+
+  const handleReactivateUser = async (user: UserProfile) => {
+    setTogglingUserId(user.id);
+    try {
+      const { data, error } = await supabase.rpc('reactivate_user', { p_user_id: user.id });
+
+      if (error) {
+        showError(error.message || 'Erro ao reativar usuário.');
+        return;
+      }
+
+      showSuccess(data || 'Usuário reativado com sucesso!');
+      await fetchUsers();
+    } catch (error) {
+      console.error('Erro ao reativar usuário:', error);
+      showError('Erro ao reativar usuário. Tente novamente.');
+    } finally {
+      setTogglingUserId(null);
+    }
+  };
+
+  const handleDeleteUser = (user: UserProfile) => {
+    if (user.id === userProfile?.id) {
+      showError('Você não pode remover o próprio usuário.');
+      return;
+    }
+
+    showConfirmDialog(
+      'Excluir usuário',
+      <span>
+        Deseja realmente excluir/desativar <strong>"{user.name}"</strong>?
+        <br /><br />
+        O login será bloqueado imediatamente e os dados pessoais (nome, e-mail, CPF) serão anonimizados.
+        Chamados, projetos e aprovações já registrados são preservados e podem ser restaurados depois pelo suporte.
+      </span>,
+      async () => {
+        setDeletingUserId(user.id);
+        try {
+          const { data, error } = await supabase.rpc('soft_delete_user', { p_user_id: user.id });
+
+          if (error) {
+            showError(error.message || 'Erro ao excluir usuário.');
+            return;
+          }
+
+          showSuccess(data || 'Usuário removido com sucesso!');
+          await fetchUsers();
+        } catch (error) {
+          console.error('Erro ao excluir usuário:', error);
+          showError('Erro ao excluir usuário. Tente novamente.');
+        } finally {
+          setDeletingUserId(null);
+        }
+      },
+      { confirmText: 'Excluir', cancelText: 'Cancelar', type: 'danger' }
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -584,6 +683,17 @@ const UserManagement: React.FC = () => {
         message={notification.message}
         isVisible={notification.isVisible}
         onClose={hideNotification}
+      />
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        cancelText={confirmDialog.cancelText}
+        type={confirmDialog.type}
+        onConfirm={handleConfirmDialogConfirm}
+        onCancel={hideConfirmDialog}
       />
 
       {showNewUserForm && (
@@ -1093,7 +1203,7 @@ const UserManagement: React.FC = () => {
                 <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                   Criado em
                 </th>
-                <th className="px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                <th className="w-px px-6 py-4 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider whitespace-nowrap">
                   Ações
                 </th>
               </tr>
@@ -1127,7 +1237,8 @@ const UserManagement: React.FC = () => {
                 const userLimit = userApprovalLimits[user.id];
                 const levelConfig = approvalLevels.find(l => l.level === userLimit?.approvalLevel);
                 const effectiveAmount = userLimit?.customMaxAmount || levelConfig?.maxAmount || 0;
-                
+                const isDeleted = !!user.deletedAt;
+
                 return (
                 <tr key={user.id} className="hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors duration-150">
                   <td className="px-6 py-4 whitespace-nowrap">
@@ -1136,7 +1247,18 @@ const UserManagement: React.FC = () => {
                         {getRoleIcon(user.role)}
                       </div>
                       <div>
-                        <div className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium text-gray-900 dark:text-gray-100">{user.name}</span>
+                          {isDeleted ? (
+                            <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded-full bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                              Removido
+                            </span>
+                          ) : user.disabledAt ? (
+                            <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide rounded-full bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300">
+                              Desativado
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
                       </div>
                     </div>
@@ -1176,14 +1298,50 @@ const UserManagement: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
                     {new Date(user.createdAt).toLocaleDateString('pt-BR')}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button
-                      onClick={() => handleEdit(user)}
-                      className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all duration-200"
-                    >
-                      <Edit className="w-4 h-4 mr-1" />
-                      Editar
-                    </button>
+                  <td className="w-px px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex items-center gap-1">
+                      <button
+                        onClick={() => handleEdit(user)}
+                        disabled={isDeleted}
+                        title={isDeleted ? 'Usuário removido — não pode ser editado' : undefined}
+                        className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 flex items-center px-3 py-1.5 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                      >
+                        <Edit className="w-4 h-4 mr-1" />
+                        Editar
+                      </button>
+                      {!isDeleted && hasPermission(userProfile?.permissions || [], 'canManageUsers') && user.id !== userProfile?.id && (
+                        user.disabledAt ? (
+                          <button
+                            onClick={() => handleReactivateUser(user)}
+                            disabled={togglingUserId === user.id}
+                            className="text-emerald-600 dark:text-emerald-400 hover:text-emerald-800 dark:hover:text-emerald-300 flex items-center px-3 py-1.5 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <UserCheck className="w-4 h-4 mr-1" />
+                            {togglingUserId === user.id ? 'Reativando...' : 'Reativar'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleDeactivateUser(user)}
+                            disabled={togglingUserId === user.id}
+                            className="text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300 flex items-center px-3 py-1.5 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            <Ban className="w-4 h-4 mr-1" />
+                            {togglingUserId === user.id ? 'Desativando...' : 'Desativar'}
+                          </button>
+                        )
+                      )}
+                      {hasPermission(userProfile?.permissions || [], 'canDeleteUsers') && user.id !== userProfile?.id && (
+                        <button
+                          onClick={() => handleDeleteUser(user)}
+                          disabled={isDeleted || deletingUserId === user.id}
+                          title={isDeleted ? 'Usuário já foi removido' : undefined}
+                          className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 flex items-center px-3 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          {isDeleted ? 'Removido' : deletingUserId === user.id ? 'Removendo...' : 'Excluir'}
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               );

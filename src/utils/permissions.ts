@@ -21,6 +21,7 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canViewExpiration', label: 'Monitorar Vencimentos', group: 'Monitoramento' },
   { key: 'canViewChangelog', label: 'Visualizar Changelog', group: 'Monitoramento' },
   { key: 'canManageUsers', label: 'Gerenciar Usuários', group: 'Administração' },
+  { key: 'canDeleteUsers', label: 'Excluir Usuários', group: 'Administração' },
   { key: 'canManageSuppliers', label: 'Gerenciar Fornecedores', group: 'Administração' },
   { key: 'canManageQuotations', label: 'Gerenciar Cotações', group: 'Administração' },
   { key: 'canConfigureRequestPeriods', label: 'Configurar Períodos', group: 'Administração' },
@@ -76,7 +77,7 @@ export const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ALL_PERMISSION_KEYS.map(p => p.key),
   operator: ALL_PERMISSION_KEYS.map(p => p.key).filter(
-    k => !['canViewDashboard', 'canManageUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards'].includes(k)
+    k => !['canViewDashboard', 'canManageUsers', 'canDeleteUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards'].includes(k)
   ),
   requester: ['canViewRequests', 'canAddRequests'],
 };

@@ -204,6 +204,10 @@ export interface UserProfile {
   roleName?: string;
   /** custom_roles.board_id do cargo — ver src/modules/board/domain/resolveBoardAccess. */
   boardId?: string | null;
+  /** Desativação temporária (login bloqueado, dados intactos). NULL = ativo. Ver deactivate_user/reactivate_user. */
+  disabledAt?: string | null;
+  /** Remoção/anonimização definitiva. NULL = não removido. Ver soft_delete_user/restore_user. */
+  deletedAt?: string | null;
 }
 
 export interface CustomRole {
