@@ -82,7 +82,7 @@ VALUES (
                 Uso acima do limite em {{machine}}
               </p>
               <p style="margin:0 0 28px 0;font-size:15px;color:#6b7280;font-family:''Segoe UI'',Arial,sans-serif;line-height:1.6;">
-                A máquina <strong>{{machine}}</strong> ultrapassou os limites configurados. Métricas que dispararam o alerta:
+                Máquina(s): <strong>{{machine}}</strong>. As métricas abaixo ultrapassaram os limites configurados:
               </p>
 
               <!-- Caixa de destaque com as métricas -->
@@ -127,7 +127,7 @@ VALUES (
                     <p style="margin:0 0 4px 0;font-size:13px;font-weight:600;color:#374151;font-family:''Segoe UI'',Arial,sans-serif;">Flow LAB</p>
                     <p style="margin:0 0 12px 0;font-size:12px;color:#9ca3af;font-family:''Segoe UI'',Arial,sans-serif;line-height:1.5;">
                       Este é um e-mail automático de monitoramento. Por favor, não responda diretamente a esta mensagem.<br />
-                      Enviado pelo agente de hardware da máquina {{machine}}.
+                      Enviado pelo monitor de hardware do FlowLAB.
                     </p>
                     <p style="margin:0;font-size:11px;color:#d1d5db;font-family:''Segoe UI'',Arial,sans-serif;">
                       &copy; 2026 Flow LAB &bull; Todos os direitos reservados
