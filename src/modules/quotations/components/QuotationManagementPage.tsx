@@ -770,11 +770,7 @@ export const QuotationManagementPage: React.FC = () => {
 
               {/* Approval pending indicator + ação de aprovar, visível só para quem tem alçada */}
               {quotation.status === 'awaiting_approval' && (
-                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center justify-between gap-2">
-                  <span className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
-                    <Clock className="w-3.5 h-3.5" />
-                    Aguardando aprovação
-                  </span>
+                <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3">
                   {getPermissions(quotation).canApprove && (
                     <button
                       onClick={(e) => {
@@ -782,12 +778,16 @@ export const QuotationManagementPage: React.FC = () => {
                         handleOpenApproval(quotation);
                       }}
                       onKeyDown={(e) => e.stopPropagation()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 transition-colors shadow-sm flex-shrink-0"
+                      className="inline-flex items-center gap-2 px-4 py-2 bg-amber-600 text-white text-sm font-semibold rounded-lg hover:bg-amber-700 transition-colors shadow-sm flex-shrink-0"
                     >
-                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <ShieldCheck className="w-4 h-4" />
                       Aprovar
                     </button>
                   )}
+                  <span className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
+                    <Clock className="w-3.5 h-3.5" />
+                    Aguardando aprovação
+                  </span>
                 </div>
               )}
             </div>
