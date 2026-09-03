@@ -4,6 +4,8 @@
 // em vez de copiado: FaturasDashboard tinha uma cópia local, e uma terceira
 // (dashboard + títulos + modais) garantiria que uma delas divergisse.
 
+import type { AgingBucket } from '../types';
+
 export { formatCurrency } from '../../../utils/paymentUtils';
 
 /**
@@ -107,4 +109,46 @@ export const diasDeAtraso = (dataVencimento: string | null | undefined): number 
   if (Number.isNaN(venc)) return null;
   const hoje = Date.parse(`${hojeIso()}T00:00:00Z`);
   return Math.round((hoje - venc) / 86_400_000);
+};
+
+/** Desloca uma data ISO em dias corridos, em UTC — mesmo motivo do UTC fixo
+ *  em `diasDeAtraso`: sem isso, o range da faixa pode discordar em um dia do
+ *  atraso calculado por `diasDeAtraso` perto da virada do dia. */
+const deslocarDias = (iso: string, dias: number): string => {
+  const data = new Date(`${iso}T00:00:00Z`);
+  data.setUTCDate(data.getUTCDate() + dias);
+  return data.toISOString().slice(0, 10);
+};
+
+export interface FaixaAgingRange {
+  /** Início do range sobre `data_vencimento` (`.gte`), ou null quando a faixa não tem piso (+90 dias). */
+  desde: string | null;
+  /** Fim do range sobre `data_vencimento` (`.lte`), ou null quando a faixa não tem teto (a vencer). */
+  ate: string | null;
+  /** `a_vencer` também inclui título sem vencimento cadastrado — igual à RPC
+   *  `fat_dashboard_receber` (`atraso IS NULL OR atraso <= 0`, ver
+   *  20260903120000_aging_por_operadora.sql). Sem isso a lista do modal ficaria
+   *  menor do que o total que o gráfico mostra para essa faixa. */
+  incluirSemVencimento: boolean;
+}
+
+/**
+ * Traduz a faixa de aging clicada no gráfico (issue 41) num range sobre
+ * `data_vencimento` — o mesmo cálculo de `atraso = hoje - data_vencimento`
+ * que a RPC `fat_dashboard_receber` faz no banco, só que em cima da coluna
+ * real, para o modal de drill-down consultar `notas` direto sem RPC nova.
+ */
+export const faixaAgingParaRange = (bucket: AgingBucket, hoje: string = hojeIso()): FaixaAgingRange => {
+  switch (bucket) {
+    case 'a_vencer':
+      return { desde: hoje, ate: null, incluirSemVencimento: true };
+    case 'd1_30':
+      return { desde: deslocarDias(hoje, -30), ate: deslocarDias(hoje, -1), incluirSemVencimento: false };
+    case 'd31_60':
+      return { desde: deslocarDias(hoje, -60), ate: deslocarDias(hoje, -31), incluirSemVencimento: false };
+    case 'd61_90':
+      return { desde: deslocarDias(hoje, -90), ate: deslocarDias(hoje, -61), incluirSemVencimento: false };
+    case 'd90_mais':
+      return { desde: null, ate: deslocarDias(hoje, -91), incluirSemVencimento: false };
+  }
 };

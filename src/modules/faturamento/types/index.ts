@@ -477,6 +477,12 @@ export interface DashboardReceberFiltros {
   notas: string[];
 }
 
+/** Faixa de dias de atraso do aging da carteira — mesmas chaves de
+ *  `DashboardReceber.aging`/`agingPorOperadora`. Usada pelo modal de
+ *  drill-down (issue 41) para traduzir a faixa clicada num range sobre
+ *  `data_vencimento`. */
+export type AgingBucket = 'a_vencer' | 'd1_30' | 'd31_60' | 'd61_90' | 'd90_mais';
+
 /** Contrato de `fat_dashboard_receber`. Tudo já agregado no banco.
  *
  *  Os quatro valores de `kpis` saem do mesmo conjunto de títulos — os emitidos

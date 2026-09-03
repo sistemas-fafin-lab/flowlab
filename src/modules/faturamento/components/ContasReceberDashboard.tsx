@@ -8,6 +8,7 @@ import {
   Tooltip,
   XAxis,
   YAxis,
+  type BarRectangleItem,
 } from 'recharts';
 import {
   AlertTriangle,
@@ -42,7 +43,8 @@ import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
 import { formatCompetencia, formatCurrency } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import FiltrosReceber from './FiltrosReceber';
-import type { DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
+import AgingDetalheModal from './AgingDetalheModal';
+import type { AgingBucket, DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
 // RPC fat_dashboard_receber — nada é recalculado aqui.
@@ -79,13 +81,23 @@ const COR_RECEBIDO = '#059669'; // emerald-600
 const COR_GLOSADO = '#f43f5e'; // rose-500
 const COR_SALDO = '#3b82f6'; // blue-500
 
-const ROTULOS_AGING: Record<string, string> = {
+const ROTULOS_AGING: Record<AgingBucket, string> = {
   a_vencer: 'A vencer',
   d1_30: '1–30 dias',
   d31_60: '31–60 dias',
   d61_90: '61–90 dias',
   d90_mais: '+90 dias',
 };
+
+/** Uma linha do gráfico empilhado: a faixa (rótulo + chave crua) e o saldo de
+ *  cada operadora naquela faixa. A chave crua (`bucket`) viaja junto do rótulo
+ *  já formatado para o onClick do <Bar> (issue 41) traduzir o clique de volta
+ *  numa faixa que `faixaAgingParaRange` entende, sem parsear o texto do eixo. */
+interface LinhaAgingFaixa {
+  faixa: string;
+  bucket: AgingBucket;
+  [chaveOperadora: string]: string | number;
+}
 
 // Altura de um bloco de KPI = quantas LINHAS de card o Tailwind forma naquela
 // largura (4 → 2 → 1 coluna) × ~110px, mais o respiro do widget. Uma linha cabe
@@ -322,6 +334,24 @@ const ContasReceberDashboard: React.FC<Props> = ({
     localStorage.removeItem(LAYOUT_STORAGE_KEY);
   }, []);
 
+  // Drill-down do widget "Aging da carteira" (issue 41): clicar numa barra
+  // abre o modal com a lista por trás do agregado, sem mexer nos filtros da
+  // tela — ver comentário de topo do AgingDetalheModal sobre por que ele tem
+  // consulta própria em vez de reaproveitar useContasReceber.
+  const [detalheAging, setDetalheAging] = useState<{
+    bucket: AgingBucket;
+    rotulo: string;
+    operadoraId: string | null;
+    operadoraNome: string | null;
+  } | null>(null);
+
+  const abrirDetalheAging = useCallback(
+    (linha: LinhaAgingFaixa, operadoraId: string | null, operadoraNome: string | null) => {
+      setDetalheAging({ bucket: linha.bucket, rotulo: linha.faixa, operadoraId, operadoraNome });
+    },
+    [],
+  );
+
   const axisTick = { fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' };
   const gridColor = isDark ? 'rgba(51,65,85,0.4)' : 'rgba(226,232,240,0.8)';
   const tooltipStyle: React.CSSProperties = {
@@ -338,26 +368,31 @@ const ContasReceberDashboard: React.FC<Props> = ({
   // a cauda longa raramente muda a decisão de cobrança.
   const TOP_OPERADORAS_AGING = 7;
   const agingPorOperadora = useMemo(() => {
-    type Bucket = keyof typeof ROTULOS_AGING;
     const linhas = [...data.agingPorOperadora]
       .filter((o) => o.total > 0)
       .sort((a, b) => b.total - a.total);
     const principais = linhas.slice(0, TOP_OPERADORAS_AGING);
     const resto = linhas.slice(TOP_OPERADORAS_AGING);
 
-    const somaResto = (bucket: Bucket) => resto.reduce((soma, o) => soma + (o[bucket] ?? 0), 0);
+    const somaResto = (bucket: AgingBucket) => resto.reduce((soma, o) => soma + (o[bucket] ?? 0), 0);
 
     const series = [
       ...principais.map((o) => ({ chave: o.operadoraId, nome: o.nome })),
       ...(resto.length > 0 ? [{ chave: '__outras', nome: 'Outras' }] : []),
     ];
 
-    const linhasPorFaixa = Object.entries(ROTULOS_AGING).map(([bucket, rotulo]) => {
-      const linha: Record<string, string | number> = { faixa: rotulo };
+    // Object.entries() sempre larga a chave como `string` (limitação do lib.es
+    // do TS, não do objeto em si) — o cast aqui é o único lugar que precisa
+    // reafirmar que ROTULOS_AGING só tem chaves AgingBucket, então todo o resto
+    // da linha (inclusive o que o onClick do <Bar> recebe) fica tipado sem
+    // precisar repetir esse cast rio abaixo.
+    const entradas = Object.entries(ROTULOS_AGING) as [AgingBucket, string][];
+    const linhasPorFaixa: LinhaAgingFaixa[] = entradas.map(([bucket, rotulo]) => {
+      const linha: LinhaAgingFaixa = { faixa: rotulo, bucket };
       principais.forEach((o) => {
-        linha[o.operadoraId] = o[bucket as Bucket] ?? 0;
+        linha[o.operadoraId] = o[bucket] ?? 0;
       });
-      if (resto.length > 0) linha.__outras = somaResto(bucket as Bucket);
+      if (resto.length > 0) linha.__outras = somaResto(bucket);
       return linha;
     });
 
@@ -629,6 +664,23 @@ const ContasReceberDashboard: React.FC<Props> = ({
                       dataKey={serie.chave}
                       name={serie.nome}
                       stackId="aging"
+                      cursor="pointer"
+                      // "Outras" é a soma da cauda que não coube no gráfico — não dá
+                      // pra atribuir a lista a uma operadora só, então abre a faixa
+                      // inteira sem filtro de operadora (mesmo clique que cair fora
+                      // de qualquer segmento nomeado).
+                      // `data.payload` é a linha original de `linhasPorFaixa` — o único
+                      // dado do clique que sobrevive à geometria (x/y/width/height) que
+                      // o Recharts mistura no restante de BarRectangleItem. O Recharts
+                      // tipa `payload` como `any`; o cast reafirma o formato que este
+                      // gráfico sempre alimenta em `data={agingPorOperadora.linhasPorFaixa}`.
+                      onClick={(data: BarRectangleItem) =>
+                        abrirDetalheAging(
+                          data.payload as LinhaAgingFaixa,
+                          serie.chave === '__outras' ? null : serie.chave,
+                          serie.chave === '__outras' ? null : serie.nome,
+                        )
+                      }
                       fill={serie.chave === '__outras' ? COR_OUTRAS : CORES_OPERADORAS[i % CORES_OPERADORAS.length]}
                       radius={i === agingPorOperadora.series.length - 1 ? [6, 6, 0, 0] : undefined}
                     />
@@ -807,6 +859,17 @@ const ContasReceberDashboard: React.FC<Props> = ({
           </Widget>
         </div>
       </ResponsiveGridLayout>
+
+      {detalheAging && (
+        <AgingDetalheModal
+          bucket={detalheAging.bucket}
+          rotulo={detalheAging.rotulo}
+          operadoraId={detalheAging.operadoraId}
+          operadoraNome={detalheAging.operadoraNome}
+          operadoras={operadoras}
+          onFechar={() => setDetalheAging(null)}
+        />
+      )}
     </div>
   );
 };
