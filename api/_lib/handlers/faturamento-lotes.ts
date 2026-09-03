@@ -29,6 +29,7 @@ import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { listarLotes, MAX_BUSCA, MAX_TAMANHO, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
 import type { LoteFaturamento } from '../faturamento/bdLab.js';
+import { listarFontesConsideradasMeta } from '../faturamento/fontesConsideradas.js';
 import { getSupabaseAdminClient } from '../supabase.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -182,6 +183,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
 
+    // Distingue os dois leitores deste endpoint: a aba Faturas (lista/dashboard,
+    // onde a whitelist de meta se aplica) do modal de criação de título (que
+    // precisa continuar enxergando lotes de QUALQUER fonte pagadora — inclusive
+    // clínica parceira/particular fora da meta — porque a cobrança em si continua
+    // válida, só não conta no relatório de meta).
+    const somenteSemTitulo = primeiro(q.somenteSemTitulo) === '1';
+    const fontesConsideradas = somenteSemTitulo
+      ? undefined
+      : await listarFontesConsideradasMeta(getSupabaseAdminClient());
+
     const resultado = await listarLotes({
       periodoIni,
       periodoFim,
@@ -198,6 +209,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       comProtocoloDuplicado: true,
       somenteProtocoloDuplicado: primeiro(q.somenteProtocoloDuplicado) === '1',
       ignorarCache: primeiro(q.semCache) === '1',
+      fontesConsideradas,
     });
 
     if ('erro' in resultado) {
@@ -213,7 +225,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     // no filtro, para o modal não anunciar mais lotes utilizáveis do que existem —
     // filtrar antes de paginar exigiria excluir os aplis_id já faturados dentro da
     // própria consulta ao MySQL, o que colide com o cache de 3min do bdLab.
-    const somenteSemTitulo = primeiro(q.somenteSemTitulo) === '1';
     const lotes = somenteSemTitulo
       ? anotados.filter((lote) => lote.tituloId === null)
       : anotados;

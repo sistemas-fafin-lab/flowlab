@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { chamarLegadoApi } from './api';
+import { gravarCachePersistente, lerCachePersistente } from './cachePersistente';
 
 // Esqueleto comum das listagens legado (lotes de faturamento, glosas, recursos):
 // cache de sessão por chave de filtros, guarda de corrida para descartar respostas
@@ -7,6 +8,10 @@ import { chamarLegadoApi } from './api';
 // chave de cache e como extrair itens/meta do corpo da resposta — o cache em si
 // continua vivendo no módulo do hook específico, para não misturar entre listagens
 // diferentes.
+//
+// Além do Map em memória (perdido a cada F5), a mesma entrada é espelhada em
+// localStorage (cachePersistente) — o dado do MySQL de backup só muda no dia
+// seguinte, então recarregar a página no mesmo dia não precisa reconsultar.
 
 interface UseLegadoListagemOpts<TItem, TFiltros, TMeta, TBody extends { success?: boolean; error?: string }> {
   filtros: TFiltros;
@@ -50,6 +55,7 @@ export function useLegadoListagem<
   const buscaAtual = useRef(0);
 
   const chave = chaveCache(filtros);
+  const chavePersistente = `${rota}|${chave}`;
 
   const refetch = useCallback(async (force = false) => {
     if (!force && cache.has(chave)) {
@@ -59,6 +65,18 @@ export function useLegadoListagem<
       setLoading(false);
       setError(null);
       return;
+    }
+
+    if (!force) {
+      const persistido = lerCachePersistente<{ itens: TItem[]; meta: TMeta }>(chavePersistente);
+      if (persistido) {
+        cache.set(chave, persistido);
+        setItens(persistido.itens);
+        setMeta(persistido.meta);
+        setLoading(false);
+        setError(null);
+        return;
+      }
     }
 
     const reqId = ++buscaAtual.current;
@@ -75,7 +93,10 @@ export function useLegadoListagem<
       const m = extrairMeta(body);
       setItens(i);
       setMeta(m);
-      if (m) cache.set(chave, { itens: i, meta: m });
+      if (m) {
+        cache.set(chave, { itens: i, meta: m });
+        gravarCachePersistente(chavePersistente, { itens: i, meta: m });
+      }
     } catch (err) {
       if (reqId !== buscaAtual.current) return;
       setError(err instanceof Error ? err.message : mensagemErroPadrao);
@@ -87,7 +108,7 @@ export function useLegadoListagem<
     // `chave` já captura tudo em `filtros` que importa para o refetch — depender
     // do objeto `filtros` cru refetcharia em loop a cada literal novo do chamador.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rota, chave]);
+  }, [rota, chave, chavePersistente]);
 
   useEffect(() => {
     void refetch();

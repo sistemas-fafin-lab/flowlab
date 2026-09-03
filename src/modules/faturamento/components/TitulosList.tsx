@@ -86,6 +86,8 @@ interface Props {
   onGerenciarParceiras: () => void;
   /** Issue 31: abre o modal de gerenciamento da regra "NF só após pagamento". */
   onGerenciarRegraNf: () => void;
+  /** Abre o modal de gerenciamento da whitelist "fontes consideradas na meta". */
+  onGerenciarConsideradaMeta: () => void;
   onBaixa: (titulo: TituloReceber) => void;
   onGlosa: (titulo: TituloReceber) => void;
   onCancelar: (titulo: TituloReceber) => void;
@@ -128,6 +130,7 @@ const TitulosList: React.FC<Props> = ({
   onNovoTitulo,
   onGerenciarParceiras,
   onGerenciarRegraNf,
+  onGerenciarConsideradaMeta,
   onBaixa,
   onGlosa,
   onCancelar,
@@ -338,6 +341,16 @@ const TitulosList: React.FC<Props> = ({
             className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
           >
             <Settings className="w-4 h-4" /> Regra de NF
+          </button>
+        )}
+        {podeEditar && (
+          <button
+            type="button"
+            onClick={onGerenciarConsideradaMeta}
+            title="Gerenciar fontes consideradas na meta"
+            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <Settings className="w-4 h-4" /> Fontes na meta
           </button>
         )}
         {podeEditar && (

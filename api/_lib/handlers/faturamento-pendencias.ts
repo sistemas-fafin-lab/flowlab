@@ -12,6 +12,7 @@
  *   desde         YYYY-MM-DD — limite inferior
  *   ate           YYYY-MM-DD — limite superior (nunca ultrapassa o cutoff de M-1)
  *   operadoraId   fatinstituicao.IdInstituicao
+ *   status        Código STLOT — precisa estar em STATUS_PENDENCIA (bdLab.ts)
  *   pagina        default 1
  *   tamanho       1..200, default 50
  *
@@ -22,7 +23,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { listarLotesPendentes, MAX_TAMANHO, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
+import { listarLotesPendentes, MAX_TAMANHO, STATUS_PENDENCIA, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
+import { listarFontesConsideradasMeta } from '../faturamento/fontesConsideradas.js';
+import { getSupabaseAdminClient } from '../supabase.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -61,11 +64,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const desde = primeiro(q.desde)?.trim() || undefined;
     const ate = primeiro(q.ate)?.trim() || undefined;
     const operadoraId = inteiroNaFaixa(primeiro(q.operadoraId), 1, Number.MAX_SAFE_INTEGER);
+    const statusBruto = inteiroNaFaixa(primeiro(q.status), 1, Number.MAX_SAFE_INTEGER);
+    const status = statusBruto != null && !STATUS_PENDENCIA.includes(statusBruto) ? null : statusBruto;
     const pagina = inteiroNaFaixa(primeiro(q.pagina), 1, Number.MAX_SAFE_INTEGER);
     const tamanho = inteiroNaFaixa(primeiro(q.tamanho), 1, MAX_TAMANHO);
 
     const invalidos = [
       operadoraId === null ? 'operadoraId' : null,
+      status === null ? 'status' : null,
       pagina === null ? 'pagina' : null,
       tamanho === null ? `tamanho (1..${MAX_TAMANHO})` : null,
       desde !== undefined && !DATA_ISO_RE.test(desde) ? 'desde' : null,
@@ -79,13 +85,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    const fontesConsideradas = await listarFontesConsideradasMeta(getSupabaseAdminClient());
+
     const resultado = await listarLotesPendentes({
       desde,
       ate,
       operadoraId: operadoraId ?? undefined,
+      status: status ?? undefined,
       pagina,
       tamanho: tamanho ?? TAMANHO_PADRAO,
       ignorarCache: primeiro(q.semCache) === '1',
+      fontesConsideradas,
     });
 
     if ('erro' in resultado) {

@@ -25,6 +25,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { listarRequisicoesSemLote, MAX_TAMANHO, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
+import { listarFontesConsideradasMeta } from '../faturamento/fontesConsideradas.js';
+import { getSupabaseAdminClient } from '../supabase.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -81,6 +83,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    const fontesConsideradas = await listarFontesConsideradasMeta(getSupabaseAdminClient());
+
     const resultado = await listarRequisicoesSemLote({
       desde,
       ate,
@@ -88,6 +92,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       pagina,
       tamanho: tamanho ?? TAMANHO_PADRAO,
       ignorarCache: primeiro(q.semCache) === '1',
+      fontesConsideradas,
     });
 
     if ('erro' in resultado) {

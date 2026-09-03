@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
 import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
 import type { OperadoraResumo, RequisicaoPendencia } from '../types';
+import { STATUS_PENDENCIA, STLOT_LABELS } from '../types';
 import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
 import { formatCurrency, formatData } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
@@ -28,12 +29,14 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
   const [desde, setDesde] = useState('');
   const [ate, setAte] = useState('');
   const [operadoraId, setOperadoraId] = useState('');
+  const [status, setStatus] = useState('');
   const [pagina, setPagina] = useState(1);
 
   const { lotes, meta, loading, error, refetch, buscarRequisicoes } = usePendenciasNaoFaturadas({
     desde: desde || undefined,
     ate: ate || undefined,
     operadoraId: operadoraId ? Number(operadoraId) : undefined,
+    status: status ? Number(status) : undefined,
     pagina,
     tamanho: TAMANHO_PADRAO,
   });
@@ -113,10 +116,27 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
               { value: '', label: 'Todas' },
               ...operadoras
                 .filter((o): o is OperadoraResumo & { aplisId: string } => o.aplisId !== null)
+                .filter((o) => o.consideradaMeta)
                 .map((o) => ({ value: o.aplisId, label: o.nome })),
             ]}
             controlClass={CAMPO}
             wrapperClass="max-w-[220px]"
+          />
+        </label>
+        <label className="text-xs text-gray-500 dark:text-gray-400">
+          Status
+          <Select
+            value={status}
+            onChange={(v) => mudarFiltro(() => setStatus(v))}
+            options={[
+              { value: '', label: 'Todos' },
+              ...STATUS_PENDENCIA.map((codigo) => ({
+                value: String(codigo),
+                label: STLOT_LABELS[codigo] ?? `Status ${codigo}`,
+              })),
+            ]}
+            controlClass={CAMPO}
+            wrapperClass="max-w-[180px]"
           />
         </label>
         <button

@@ -14,6 +14,7 @@ import NovoTituloModal from './NovoTituloModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
 import RegraNfModal from './RegraNfModal';
+import ConsideradaMetaModal from './ConsideradaMetaModal';
 import EditarTituloModal from './EditarTituloModal';
 
 // ============================================================================
@@ -79,6 +80,7 @@ const ContasReceberPage: React.FC = () => {
   const [novoAberto, setNovoAberto] = useState(false);
   const [parceirasAberto, setParceirasAberto] = useState(false);
   const [regraNfAberto, setRegraNfAberto] = useState(false);
+  const [consideradaMetaAberto, setConsideradaMetaAberto] = useState(false);
   const [tituloBaixa, setTituloBaixa] = useState<TituloReceber | null>(null);
   const [tituloEditar, setTituloEditar] = useState<TituloReceber | null>(null);
   const [modoModal, setModoModal] = useState<'baixa' | 'glosa'>('baixa');
@@ -102,7 +104,7 @@ const ContasReceberPage: React.FC = () => {
   const {
     titulos, operadoras, total, loading, error, refetch, refetchOperadoras,
     buscarGuias, buscarEnvioLotes, criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
-    atualizarNumeroNota, marcarClinicaParceira, alternarNfAposPagamento,
+    atualizarNumeroNota, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
   } = useContasReceber(parametros);
 
   const aplicarFiltro = useCallback((patch: Partial<typeof filtros>) => {
@@ -269,6 +271,7 @@ const ContasReceberPage: React.FC = () => {
           onNovoTitulo={() => setNovoAberto(true)}
           onGerenciarParceiras={() => setParceirasAberto(true)}
           onGerenciarRegraNf={() => setRegraNfAberto(true)}
+          onGerenciarConsideradaMeta={() => setConsideradaMetaAberto(true)}
           onBaixa={abrirBaixa}
           onGlosa={abrirGlosa}
           onCancelar={(titulo) => void confirmarCancelamento(titulo)}
@@ -334,6 +337,13 @@ const ContasReceberPage: React.FC = () => {
         onFechar={() => setRegraNfAberto(false)}
         operadoras={operadoras}
         onAlternar={alternarNfAposPagamento}
+      />
+
+      <ConsideradaMetaModal
+        aberto={consideradaMetaAberto}
+        onFechar={() => setConsideradaMetaAberto(false)}
+        operadoras={operadoras}
+        onAlternar={marcarConsideradaMeta}
       />
 
       <EditarTituloModal

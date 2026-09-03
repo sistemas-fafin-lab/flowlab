@@ -543,7 +543,7 @@ const ModalFiltros: React.FC<ModalProps> = ({
             </p>
             <SelecaoMultipla
               valores={rascunho.operadoraIds}
-              opcoes={operadoras}
+              opcoes={operadoras.filter((o) => o.consideradaMeta)}
               onChange={(operadoraIds) => alterar({ operadoraIds })}
               placeholder="Todas"
               rotuloPlural="operadoras"

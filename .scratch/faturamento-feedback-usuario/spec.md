@@ -1,6 +1,6 @@
 # Faturamento: feedback do usuário (dashboard, faturas, contas a receber, glosas)
 
-Status: Fases 1, 2 e 4 implementadas (issues 02/03/04/07/08/09/10/11/13/15/16/18/19 done; 14/17 wontfix); issues 01/05/06/12 seguem adiadas. Fase 5 (terceiro relatório, 27/08) com issues 20-24, todas `done`; issue 24 desmembrou a issue 25 (`needs-triage`, feature de busca de título por NF, aguardando confirmação do setor — ver comentário de 27/08 nela). Fase 6 (quarto relatório, 27/08) com issues 26-30: 26/27/28 `done`; 29 `needs-triage` (esclarecimento/produto); 30 `needs-info` (provável fora do escopo do flowlab, apLIS legado). Issue 31 (28/08, pergunta direta do usuário na sessão, fora do relatório escrito): regra de NF antes/depois do pagamento por operadora, `done`. Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
+Status: Fases 1, 2 e 4 implementadas (issues 02/03/04/07/08/09/10/11/13/15/16/18/19 done; 14/17 wontfix); issues 01/05/06/12 seguem adiadas. Fase 5 (terceiro relatório, 27/08) com issues 20-24, todas `done`; issue 24 desmembrou a issue 25 (`needs-triage`, feature de busca de título por NF, aguardando confirmação do setor — ver comentário de 27/08 nela). Fase 6 (quarto relatório, 27/08) com issues 26-30: 26/27/28 `done`; 29 `needs-triage` (esclarecimento/produto); 30 `needs-info` (provável fora do escopo do flowlab, apLIS legado). Issue 31 (28/08, pergunta direta do usuário na sessão, fora do relatório escrito): regra de NF antes/depois do pagamento por operadora, `done`. Fase 7 (31/08, pergunta direta do usuário, fora do relatório escrito): título sem número da nota — issues 32-35, `ready-for-agent`. Issue 36 (03/09, pergunta direta do usuário, fora do relatório escrito): whitelist de fontes pagadoras consideradas para meta, `done` (migrations locais, não empurradas para produção — ver issue). Fase 8 (03/09, quinto insumo — áudio de reunião transcrito, levantamento amplo de requisitos, não um relatório de bug): issues 37-46; 37/38/39 `ready-for-agent` (gaps pontuais claros); 40/45 `needs-info` (perguntas diretas ao setor); 41/42/43/44/46 `needs-triage` (escopo a fechar). Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
 
 Spec resultante de sessão de grilling em 2026-08-18, a partir do relatório de análise do setor de faturamento. Cada item vira uma issue própria em `issues/`. Rodada 4 de grilling em 2026-08-24 revisou um segundo relatório do setor (pós-Fase 1/2 em produção) — ver seção própria abaixo.
 
@@ -146,6 +146,98 @@ flowlab.
   legado (apLIS), fora do alcance deste repositório → issue 30, `needs-info`
   pedindo confirmação de qual sistema antes de qualquer ação.
 
+### Rodada 7 (2026-08-31): pedido direto do usuário — título sem número da nota
+
+Pedido novo, fora de qualquer relatório do setor: poder criar um título em
+Contas a Receber sem o número da nota e completá-lo depois, já que às vezes a
+nota só sai depois do título. Grilling em duas rodadas fechou o desenho:
+
+- Fecha uma lacuna deixada pela issue 31 (regra de NF antes/depois do
+  pagamento por operadora): hoje número da nota é obrigatório em 3 camadas
+  (formulário, API, RPC `fat_criar_titulo`) e `NOT NULL` no banco
+  (`notas.numero_nota`) — inclusive para operadoras com `nf_apos_pagamento`,
+  que por definição não têm o número na hora de criar o título.
+- **Bloqueio de baixa**: baixa de título sem número é bloqueada, exceto
+  quando a operadora tem `nf_apos_pagamento` ativado (aí é o fluxo esperado).
+- **Editar depois**: não existe hoje nenhuma edição de título — nova ação
+  "Editar Título" (`canManageBilling`, mesma permissão do `RegraNfModal`),
+  restrita a esse único campo por enquanto, liberada em qualquer status
+  exceto `cancelada`. Permite corrigir um número já preenchido, mas não
+  apagar de volta pra vazio (só substituir).
+- **Badge "Aguardando nota"**: mesma condição do bloqueio de baixa (sem
+  número e sem `nf_apos_pagamento`) — evita alarme falso nas operadoras onde
+  a ausência do número é esperada.
+
+→ issues 32 (criação), 33 (editar/adicionar depois, bloqueada por 32), 34
+(bloqueio de baixa, bloqueada por 32) e 35 (badge, bloqueada por 32). 33/34/35
+são independentes entre si.
+
+### Rodada 8 (2026-09-03): levantamento amplo de requisitos (áudio de reunião transcrito)
+
+Insumo diferente de todas as rodadas anteriores: não é um relatório de bug do
+setor testando o que já está em produção, é a transcrição/síntese de uma
+reunião (Gabriel↔Raquel) levantando **por que** o setor precisa do módulo de
+faturamento, do zero — cobre praticamente a área inteira (Títulos, Pendências,
+Faturas, Glosas, Dashboard). Boa parte do que a reunião pede já existe (o
+módulo evoluiu bastante desde a Fase 1), então esta rodada foi investigação de
+código pura antes de abrir qualquer issue: 3 sub-agentes mapearam cada item do
+levantamento contra `TitulosList.tsx`/`FiltrosReceber.tsx`/`useContasReceber.ts`
+(lista de Títulos), detalhamento de lote/baixa/atrasados/meta, e integração
+Apelles/exceções — usando também o `git diff` do trabalho em andamento (ainda
+não commitado) nos handlers de glosas/recursos legado e pendências.
+
+**Já implementado, sem fato novo (não abriu issue):**
+- Detalhamento de lote (itens, status, NF, valores, datas) ao expandir —
+  cobre o pedido integralmente em `FaturasDashboard.tsx` e `TitulosList.tsx`.
+- Baixa com data + valor parcial + atualização de status — RPC
+  `fat_registrar_baixa` já grava tudo isso (só falta exibir o histórico, ver
+  issue 39).
+- "Não pode ser só gráfico" para pendências — já resolvido pelas listas
+  detalhadas de Pendências (issues 07/08/18/19/21/26).
+- Indicar o que vem do Apelles vs. o que foi lançado no flowlab — já é
+  explícito em toda a UI ("do apLIS" nos textos de ajuda).
+- "Baixa não precisa voltar pro Apelles" — já é assim por design (`bdLab.ts`
+  é só leitura, sem nenhum INSERT/UPDATE; documentado desde a issue 30).
+- "Trazer glosas do Apelles" — parcialmente coberto por "Histórico (apLIS) →
+  Glosas do legado"/"Recursos legado", com recorte deliberado (`Status = 3`,
+  confirmado com o cliente em 24/08, ver "Fora de escopo (parked)"); gap
+  residual (guia com glosa só no demonstrativo de pagamento) já está
+  documentado como risco conhecido no design doc, não é fato novo.
+
+**Decisões a confirmar da transcrição, já respondidas pela arquitetura atual
+(sem precisar de issue):**
+- *"Requisição é o mesmo que título, ou nível abaixo?"* → nível abaixo: a
+  hierarquia hoje é título → lote(s) → requisição(ões)/guia(s), confirmado
+  pela expansão de `TitulosList.tsx`.
+- *"1 NF vincula 1 ou vários lotes/títulos?"* → já é N lotes por 1 título,
+  decidido na criação do título (`NovoTituloModal`). Falta só a ação de
+  editar esse vínculo depois de criado — issue 46.
+- *"Quais são os status oficiais e o que cada um significa?"* → lista fechada
+  já existe no enum `TituloStatus` (`types/index.ts`): `aberta`,
+  `parcialmente_recebida`, `recebida`, `liquidada`, `glosada`, `cancelada`.
+
+**Gaps reais, viraram issue (37-46):**
+- Bug: filtro de Operadora em Títulos esconde fontes fora da whitelist de
+  meta da issue 36, mesmo tendo título real — issue 37.
+- Atalho "Somente pendentes" como padrão em Títulos — issue 38.
+- Histórico de baixas (recebimentos) não é exibido, só o agregado — issue 39.
+- Atalho de período mês/trimestre — bloqueado por decidir o campo de
+  referência (emissão atual vs. vencimento vs. competência) — issue 40,
+  `needs-info`.
+- Visão de atrasados/>90 dias é só o gráfico de aging, sem lista/filtro de
+  faixa/drill-down — issue 41.
+- Nenhuma exportação (CSV/Excel) existe em nenhuma tela do módulo — issue 42.
+- Meta mensal: só a whitelist de fontes existe (issue 36); falta o valor da
+  meta, o cálculo faturado×meta/quanto falta, e a lista por trás do número —
+  issue 43.
+- Exceções por operadora (clínica parceira, NF pós-pagamento, considerada
+  meta) não registram motivo/data/responsável — issue 44.
+- Esclarecer se "anexar NF" significa upload de arquivo (não existe hoje,
+  hoje é só o número) ou é confusão com o campo textual atual — issue 45,
+  `needs-info`.
+- Vincular/desvincular lote de um título já criado (hoje só na criação) —
+  issue 46.
+
 ## Entrega em fases
 
 ### Fase 1 — Investigações + ajustes rápidos do dashboard
@@ -211,6 +303,41 @@ esclarecimento com o setor antes de virar `task`.
 30. Poliame/clínicas travam inclusão em lote — issue 30, `needs-info`
     (provável fora do escopo do flowlab, apLIS legado).
 
+### Fase 7 — Pedido direto do usuário (2026-08-31): título sem número da nota
+
+32. Contas a Receber: criar título sem número da nota (relaxa obrigatoriedade
+    em formulário/API/RPC/banco, exibição com placeholder) — issue 32,
+    `ready-for-agent`.
+33. Contas a Receber: adicionar/corrigir número da nota depois da criação
+    (nova ação "Editar Título", `canManageBilling`) — issue 33 (bloqueada por
+    32), `ready-for-agent`.
+34. Contas a Receber: bloquear baixa de título sem número, exceto operadoras
+    com NF pós-pagamento — issue 34 (bloqueada por 32), `ready-for-agent`.
+35. Contas a Receber: badge "Aguardando nota", exceto operadoras com NF
+    pós-pagamento — issue 35 (bloqueada por 32), `ready-for-agent`.
+
+### Fase 8 — Levantamento amplo de requisitos (2026-09-03), áudio de reunião transcrito
+
+37. Bug: filtro de Operadora em Títulos esconde fontes fora da whitelist de
+    meta da issue 36 — issue 37, `ready-for-agent`.
+38. Atalho "Somente pendentes" como padrão na lista de Títulos — issue 38,
+    `ready-for-agent`.
+39. Histórico de baixas (recebimentos) visível por título — issue 39,
+    `ready-for-agent`.
+40. Atalho de período mês/trimestre — aguarda confirmação do campo de
+    referência (emissão/vencimento/competência) — issue 40, `needs-info`.
+41. Lista dedicada de atrasados/>90 dias (drill-down do aging) com filtro de
+    faixa — issue 41, `needs-triage`.
+42. Exportação (CSV/Excel) das listas do módulo — issue 42, `needs-triage`.
+43. Meta mensal: valor configurável, cálculo e lista por trás do número —
+    issue 43, `needs-triage`.
+44. Auditoria (motivo/data/responsável) nas exceções de operadora — issue 44,
+    `needs-triage`.
+45. Esclarecer necessidade de anexar arquivo de NF vs. campo textual atual —
+    issue 45, `needs-info`.
+46. Vincular/desvincular lote de um título já criado — issue 46,
+    `needs-triage`.
+
 ### Fase 3 — Aguardando insumos externos (sem issues ainda)
 
 - **2.1 Previsão de pagamento por operadora**: reconciliar o widget atual com o Mapa de Pagamento das Operadoras quando ele for encaminhado.
@@ -249,6 +376,20 @@ esclarecimento com o setor antes de virar `task`.
 - `issues/28-particulares-data-inicial-2026.md` — feature, needs-triage
 - `issues/29-dashboard-graficos-drilldown-lotes.md` — feature, needs-triage
 - `issues/30-poliame-trava-inclusao-lote-apLIS.md` — research, needs-info
+- `issues/32-titulo-criar-sem-numero-nota.md` — task, ready-for-agent
+- `issues/33-titulo-editar-adicionar-numero-nota.md` — task, ready-for-agent (bloqueada por 32)
+- `issues/34-titulo-bloquear-baixa-sem-numero-nota.md` — task, ready-for-agent (bloqueada por 32)
+- `issues/35-titulo-badge-aguardando-nota.md` — task, ready-for-agent (bloqueada por 32)
+- `issues/37-titulos-filtro-operadora-esconde-fora-whitelist-meta.md` — task, ready-for-agent
+- `issues/38-titulos-atalho-somente-pendentes.md` — task, ready-for-agent
+- `issues/39-titulos-historico-baixas.md` — task, ready-for-agent
+- `issues/40-titulos-filtro-periodo-atalho-mes-trimestre.md` — task, needs-info
+- `issues/41-atrasados-lista-dedicada-filtro-faixa.md` — feature, needs-triage
+- `issues/42-exportacao-csv-excel.md` — feature, needs-triage
+- `issues/43-meta-mensal-valor-calculo.md` — feature, needs-triage
+- `issues/44-auditoria-toggles-excecao-operadora.md` — feature, needs-triage
+- `issues/45-esclarecer-anexar-nf-arquivo.md` — research, needs-info
+- `issues/46-titulo-vincular-desvincular-lote-pos-criacao.md` — feature, needs-triage
 
 ## Fora de escopo (parked)
 

@@ -38,6 +38,8 @@ import {
   MAX_TAMANHO,
   TAMANHO_PADRAO,
 } from '../faturamento/bdLab.js';
+import { listarFontesConsideradasMeta } from '../faturamento/fontesConsideradas.js';
+import { getSupabaseAdminClient } from '../supabase.js';
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
   if (Array.isArray(valor)) return valor[0];
@@ -106,6 +108,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    const fontesConsideradas = await listarFontesConsideradasMeta(getSupabaseAdminClient());
+
     const resultado = await listarRecursosLegado({
       status: status ?? undefined,
       fontePagadoraId: fontePagadoraId ?? undefined,
@@ -113,6 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       tamanho: tamanho ?? TAMANHO_PADRAO,
       busca: primeiro(q.busca)?.trim().slice(0, MAX_BUSCA) || undefined,
       ignorarCache: primeiro(q.semCache) === '1',
+      fontesConsideradas,
     });
 
     if ('erro' in resultado) {

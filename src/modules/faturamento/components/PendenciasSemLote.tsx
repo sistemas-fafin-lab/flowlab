@@ -83,6 +83,7 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
               ...operadoras
                 .filter((o): o is OperadoraResumo & { aplisId: string } => o.aplisId !== null)
                 .filter((o) => o.aplisId !== ID_FONTE_PAGADORA_PARTICULAR && o.aplisId !== ID_FONTE_PAGADORA_CORTESIA)
+                .filter((o) => o.consideradaMeta)
                 .map((o) => ({ value: o.aplisId, label: o.nome })),
             ]}
             controlClass={CAMPO}

@@ -54,12 +54,13 @@ export function usePendenciasNaoFaturadas(filtros: PendenciasFiltros): UsePenden
     rota: 'pendencias-nao-faturadas',
     cache: cacheSessao,
     chaveCache: (f) =>
-      `${f.desde ?? ''}|${f.ate ?? ''}|${f.operadoraId ?? ''}|${f.pagina ?? 1}|${f.tamanho ?? 50}`,
+      `${f.desde ?? ''}|${f.ate ?? ''}|${f.operadoraId ?? ''}|${f.status ?? ''}|${f.pagina ?? 1}|${f.tamanho ?? 50}`,
     montarParams: (f, force) => {
       const params = new URLSearchParams();
       if (f.desde) params.set('desde', f.desde);
       if (f.ate) params.set('ate', f.ate);
       if (f.operadoraId) params.set('operadoraId', String(f.operadoraId));
+      if (f.status) params.set('status', String(f.status));
       if (f.pagina) params.set('pagina', String(f.pagina));
       if (f.tamanho) params.set('tamanho', String(f.tamanho));
       if (force) params.set('semCache', '1');

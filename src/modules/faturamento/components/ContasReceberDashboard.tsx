@@ -3,7 +3,6 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Cell,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -69,9 +68,12 @@ const LAYOUTS_ANTIGOS = [
   'flowLab_contas_receber_layout_v3',
 ];
 
-// Aging: a cor intensifica com o atraso. Sequencial, não categórica — a ordem dos
-// buckets É a informação.
-const CORES_AGING = ['#64748b', '#fbbf24', '#fb923c', '#f43f5e', '#9f1239'];
+// Aging por operadora: categórica, não sequencial — aqui cada cor identifica uma
+// operadora, não uma intensidade de atraso. "Outras" (a cauda que não coube no
+// gráfico) usa cinza neutro, fora da paleta, para não competir com nenhuma
+// operadora nomeada.
+const CORES_OPERADORAS = ['#3b82f6', '#8b5cf6', '#14b8a6', '#f59e0b', '#ec4899', '#06b6d4', '#84cc16'];
+const COR_OUTRAS = '#94a3b8'; // slate-400
 const COR_FATURADO = '#6366f1'; // indigo-500
 const COR_RECEBIDO = '#059669'; // emerald-600
 const COR_GLOSADO = '#f43f5e'; // rose-500
@@ -331,16 +333,37 @@ const ContasReceberDashboard: React.FC<Props> = ({
   const tooltipItem: React.CSSProperties = { color: isDark ? '#e2e8f0' : '#334155' };
   const tooltipLabel: React.CSSProperties = { color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 };
 
-  const buckets = data.aging;
-  const aging = useMemo(
-    () =>
-      Object.entries(ROTULOS_AGING).map(([chave, rotulo]) => ({
-        faixa: rotulo,
-        valor: buckets[chave as keyof typeof buckets] ?? 0,
-      })),
-    [buckets],
-  );
-  const temAging = aging.some((faixa) => faixa.valor > 0);
+  // Top 7 operadoras por saldo em aberto + "Outras" agrupando a cauda: um
+  // gráfico empilhado com uma cor por operadora perde legibilidade além disso, e
+  // a cauda longa raramente muda a decisão de cobrança.
+  const TOP_OPERADORAS_AGING = 7;
+  const agingPorOperadora = useMemo(() => {
+    type Bucket = keyof typeof ROTULOS_AGING;
+    const linhas = [...data.agingPorOperadora]
+      .filter((o) => o.total > 0)
+      .sort((a, b) => b.total - a.total);
+    const principais = linhas.slice(0, TOP_OPERADORAS_AGING);
+    const resto = linhas.slice(TOP_OPERADORAS_AGING);
+
+    const somaResto = (bucket: Bucket) => resto.reduce((soma, o) => soma + (o[bucket] ?? 0), 0);
+
+    const series = [
+      ...principais.map((o) => ({ chave: o.operadoraId, nome: o.nome })),
+      ...(resto.length > 0 ? [{ chave: '__outras', nome: 'Outras' }] : []),
+    ];
+
+    const linhasPorFaixa = Object.entries(ROTULOS_AGING).map(([bucket, rotulo]) => {
+      const linha: Record<string, string | number> = { faixa: rotulo };
+      principais.forEach((o) => {
+        linha[o.operadoraId] = o[bucket as Bucket] ?? 0;
+      });
+      if (resto.length > 0) linha.__outras = somaResto(bucket as Bucket);
+      return linha;
+    });
+
+    return { series, linhasPorFaixa };
+  }, [data.agingPorOperadora]);
+  const temAging = agingPorOperadora.series.length > 0;
 
   // Top 10 por saldo: a lista completa de operadoras não cabe legível num gráfico
   // de barras, e a cauda longa não muda nenhuma decisão de cobrança.
@@ -585,11 +608,11 @@ const ContasReceberDashboard: React.FC<Props> = ({
         <div key="aging" className="group">
           <Widget
             titulo="Aging da carteira"
-            sub="Saldo em aberto por tempo de atraso — inclui títulos de qualquer período"
+            sub="Saldo em aberto por tempo de atraso e operadora — inclui títulos de qualquer período"
           >
             {temAging ? (
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={aging} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
+                <BarChart data={agingPorOperadora.linhasPorFaixa} margin={{ top: 8, right: 8, left: 8, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke={gridColor} vertical={false} />
                   <XAxis dataKey="faixa" tick={axisTick} axisLine={false} tickLine={false} />
                   <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={eixoMoeda} />
@@ -597,13 +620,19 @@ const ContasReceberDashboard: React.FC<Props> = ({
                     contentStyle={tooltipStyle}
                     itemStyle={tooltipItem}
                     labelStyle={tooltipLabel}
-                    formatter={(valor: number) => [formatCurrency(valor), 'Saldo']}
+                    formatter={(valor: number, nome: string) => [formatCurrency(valor), nome]}
                   />
-                  <Bar dataKey="valor" radius={[6, 6, 0, 0]}>
-                    {aging.map((faixa, i) => (
-                      <Cell key={faixa.faixa} fill={CORES_AGING[i]} />
-                    ))}
-                  </Bar>
+                  <Legend wrapperStyle={{ fontSize: 11 }} />
+                  {agingPorOperadora.series.map((serie, i) => (
+                    <Bar
+                      key={serie.chave}
+                      dataKey={serie.chave}
+                      name={serie.nome}
+                      stackId="aging"
+                      fill={serie.chave === '__outras' ? COR_OUTRAS : CORES_OPERADORAS[i % CORES_OPERADORAS.length]}
+                      radius={i === agingPorOperadora.series.length - 1 ? [6, 6, 0, 0] : undefined}
+                    />
+                  ))}
                 </BarChart>
               </ResponsiveContainer>
             ) : (

@@ -157,6 +157,9 @@ interface UseContasReceberResult {
   marcarClinicaParceira: (operadoraId: string, valor: boolean) => Promise<string | null>;
   /** Issue 31: marca/desmarca a regra "NF só depois do pagamento" de uma operadora. */
   alternarNfAposPagamento: (operadoraId: string, valor: boolean) => Promise<string | null>;
+  /** Marca/desmarca uma operadora como considerada na meta (whitelist de
+   *  negócio, 03/09). */
+  marcarConsideradaMeta: (operadoraId: string, valor: boolean) => Promise<string | null>;
 }
 
 export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResult {
@@ -232,6 +235,19 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         }
       }
 
+      // Whitelist de negócio (03/09, sempre ativa — não é opção do usuário como
+      // ocultarParceiras acima): só título de operadora marcada is_considerada_meta
+      // conta. Antes de `operadoras` carregar (primeiro render) não filtra nada —
+      // o efeito abaixo depende de `operadoras` e reexecuta refetch assim que
+      // refetchOperadoras resolver, mesmo raciocínio de ordering do bloco acima.
+      if (operadoras.length > 0) {
+        const idsConsiderados = operadoras.filter((o) => o.consideradaMeta).map((o) => o.id);
+        query = query.in(
+          'operadora_id',
+          idsConsiderados.length > 0 ? idsConsiderados : ['00000000-0000-0000-0000-000000000000'],
+        );
+      }
+
       const { data, count, error: erro } = await query;
       if (reqId !== buscaAtual.current) return;
       if (erro) throw new Error(erro.message);
@@ -259,7 +275,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const refetchOperadoras = useCallback(async () => {
     const { data } = await supabase
       .from('operadoras')
-      .select('id_operadora, nome, aplis_id, is_clinica_parceira, nf_apos_pagamento')
+      .select('id_operadora, nome, aplis_id, is_clinica_parceira, nf_apos_pagamento, is_considerada_meta')
       .order('nome');
     setOperadoras((data ?? []).map((o) => ({
       id: o.id_operadora as string,
@@ -267,6 +283,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       aplisId: (o.aplis_id as string | null) ?? null,
       isClinicaParceira: Boolean(o.is_clinica_parceira),
       nfAposPagamento: Boolean(o.nf_apos_pagamento),
+      consideradaMeta: Boolean(o.is_considerada_meta),
     })));
   }, []);
 
@@ -476,6 +493,25 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }
   }, [refetchOperadoras]);
 
+  // Mesmo padrão de marcarClinicaParceira/alternarNfAposPagamento acima — UPDATE
+  // direto, mesma RLS (`_update_billing`), mesma marcação de negócio isolada.
+  const marcarConsideradaMeta = useCallback(async (
+    operadoraId: string,
+    valor: boolean,
+  ): Promise<string | null> => {
+    try {
+      const { error: erro } = await supabase
+        .from('operadoras')
+        .update({ is_considerada_meta: valor })
+        .eq('id_operadora', operadoraId);
+      if (erro) throw new Error(erro.message);
+      await refetchOperadoras();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Não foi possível atualizar a operadora.';
+    }
+  }, [refetchOperadoras]);
+
   return {
     titulos,
     operadoras,
@@ -493,5 +529,6 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     atualizarNumeroNota,
     marcarClinicaParceira,
     alternarNfAposPagamento,
+    marcarConsideradaMeta,
   };
 }

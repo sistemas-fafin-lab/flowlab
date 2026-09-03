@@ -22,6 +22,7 @@ const VAZIO: DashboardReceber = {
     prazoBaseTitulos: 0,
   },
   aging: { a_vencer: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90_mais: 0 },
+  agingPorOperadora: [],
   porOperadora: [],
   previsaoOperadoras: [],
   serieMensal: [],

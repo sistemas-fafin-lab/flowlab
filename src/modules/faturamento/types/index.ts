@@ -196,6 +196,11 @@ export interface LotesMeta {
 // vinculado e fora da janela normal de fechamento. Regra completa em
 // api/_lib/faturamento/bdLab.ts (listarLotesPendentes).
 
+/** Códigos STLOT que ainda podem virar uma NF — espelha STATUS_PENDENCIA de
+ *  api/_lib/faturamento/bdLab.ts (listarLotesPendentes já filtra por eles; o
+ *  filtro de status da tela só pode restringir dentro deste conjunto). */
+export const STATUS_PENDENCIA = [1, 2, 3, 6, 7] as const;
+
 export interface LotePendencia {
   idLote: number;
   status: number;
@@ -226,6 +231,8 @@ export interface PendenciasFiltros {
   /** YYYY-MM-DD — nunca ultrapassa o cutoff de M-1 devolvido em `PendenciasMeta`. */
   ate?: string;
   operadoraId?: number;
+  /** Código STLOT — só os valores em STATUS_PENDENCIA (servidor) fazem sentido aqui. */
+  status?: number;
   pagina?: number;
   tamanho?: number;
 }
@@ -480,6 +487,19 @@ export interface DashboardReceber {
     d61_90: number;
     d90_mais: number;
   };
+  /** O mesmo aging acima, quebrado por operadora — carteira inteira (não só o
+   *  período filtrado), ordenada pelo maior saldo total (`total` = soma dos 5
+   *  buckets). Quantas entram no gráfico é decisão do frontend. */
+  agingPorOperadora: {
+    operadoraId: string;
+    nome: string;
+    a_vencer: number;
+    d1_30: number;
+    d31_60: number;
+    d61_90: number;
+    d90_mais: number;
+    total: number;
+  }[];
   porOperadora: {
     operadoraId: string;
     nome: string;
@@ -541,6 +561,11 @@ export interface OperadoraResumo {
   /** Issue 31: só permite emitir a NF depois do pagamento — inverso do padrão
    *  do módulo (NF libera o pagamento). O apLIS não tem essa distinção. */
   nfAposPagamento: boolean;
+  /** Whitelist de negócio (lista fechada passada pelo setor de faturamento,
+   *  03/09): só fontes pagadoras marcadas aqui contam nas tabelas e no
+   *  dashboard do módulo Faturamento. Default false — fonte nova/desconhecida
+   *  fica de fora até alguém marcar. */
+  consideradaMeta: boolean;
 }
 
 /** Tela dona do formato de filtro salvo numa `ViewSalva` — ver comentário de

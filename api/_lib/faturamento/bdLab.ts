@@ -180,6 +180,11 @@ export interface ListarLotesParams {
    *  quando `somenteProtocoloDuplicado` é usado, senão o filtro não teria o que
    *  filtrar. */
   comProtocoloDuplicado?: boolean;
+  /** Whitelist de negócio (issue "fontes pagadoras consideradas para meta",
+   *  03/09): quando presente, só lotes de fonte pagadora com `IdFontePagadora`
+   *  nesta lista aparecem. Lista vazia não qualifica nenhum lote. Resolvida pelo
+   *  handler a partir de `operadoras.is_considerada_meta` (Supabase). */
+  fontesConsideradas?: number[];
 }
 
 // Discriminado pela PRESENÇA de `erro` (idiom de recepcaoAgendamento.ts): o tsconfig
@@ -300,7 +305,7 @@ const TTL_BUSCA = 60_000;      // 1 min quando há termo de busca
 const MAX_ENTRADAS = 128;
 
 function chaveListar(params: ListarLotesParams): string {
-  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${(params.idsLote ?? []).join('.')}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}|${params.somenteProtocoloDuplicado ? 1 : 0}|${params.comProtocoloDuplicado ? 1 : 0}`;
+  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${(params.idsLote ?? []).join('.')}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}|${params.somenteProtocoloDuplicado ? 1 : 0}|${params.comProtocoloDuplicado ? 1 : 0}|${(params.fontesConsideradas ?? []).join('.')}`;
 }
 
 function doCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, resultado: T): void {
@@ -424,6 +429,16 @@ function filtroLotes(
   if (params.statusLote !== undefined) {
     condicoes.push('l.Status = ?');
     valores.push(params.statusLote);
+  }
+  if (params.fontesConsideradas !== undefined) {
+    // Lista vazia = nenhuma fonte pagadora está na whitelist agora: `1 = 0` em vez
+    // de um `IN ()` vazio, que o mysql2 não aceita como SQL válido.
+    if (params.fontesConsideradas.length === 0) {
+      condicoes.push('1 = 0');
+    } else {
+      condicoes.push(`l.IdFontePagadora IN (${params.fontesConsideradas.map(() => '?').join(', ')})`);
+      valores.push(...params.fontesConsideradas);
+    }
   }
   if (params.somenteProtocoloDuplicado) {
     // Lista vazia = nenhum protocolo duplicado existe agora: `1 = 0` em vez de um
@@ -875,9 +890,15 @@ export interface ListarLotesPendentesParams {
    *  encurtar a janela (ver `ateEfetivo` em `listarLotesPendentes`). */
   ate?: string;
   operadoraId?: number;
+  /** Código STLOT — precisa estar em STATUS_PENDENCIA; validado no handler. */
+  status?: number;
   pagina?: number;
   tamanho?: number;
   ignorarCache?: boolean;
+  /** Whitelist de negócio (issue "fontes pagadoras consideradas para meta",
+   *  03/09): quando presente, só lotes de fonte pagadora com `IdFontePagadora`
+   *  nesta lista aparecem. Lista vazia não qualifica nenhum lote. */
+  fontesConsideradas?: number[];
 }
 
 export type ListarLotesPendentesResultado =
@@ -885,7 +906,7 @@ export type ListarLotesPendentesResultado =
   | { erro: { status: number; mensagem: string } };
 
 // Códigos STLOT que ainda podem virar uma NF — ver a nota da regra acima.
-const STATUS_PENDENCIA = [1, 2, 3, 6, 7];
+export const STATUS_PENDENCIA = [1, 2, 3, 6, 7];
 
 /** Fim de M-1, calculado no MySQL a partir de CURDATE(), e o `ate` efetivo pra
  *  janela de pendências: o `ate` do cliente só pode ENCURTAR a janela, nunca
@@ -907,7 +928,7 @@ async function cutoffEAteEfetivoM1(
 const cachePendencias = new Map<string, EntradaCache<ListarLotesPendentesResultado>>();
 
 function chavePendencias(params: ListarLotesPendentesParams): string {
-  return `pendencias|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}`;
+  return `pendencias|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.status ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
 }
 
 function normalizarLotePendencia(linha: mysql.RowDataPacket): LotePendencia {
@@ -955,6 +976,18 @@ export async function listarLotesPendentes(
     if (params.operadoraId !== undefined) {
       condicoes.push('l.IdFontePagadora = ?');
       valores.push(params.operadoraId);
+    }
+    if (params.status !== undefined) {
+      condicoes.push('l.Status = ?');
+      valores.push(params.status);
+    }
+    if (params.fontesConsideradas !== undefined) {
+      if (params.fontesConsideradas.length === 0) {
+        condicoes.push('1 = 0');
+      } else {
+        condicoes.push(`l.IdFontePagadora IN (${params.fontesConsideradas.map(() => '?').join(', ')})`);
+        valores.push(...params.fontesConsideradas);
+      }
     }
     const where = condicoes.join(' AND ');
 
@@ -1337,6 +1370,10 @@ export interface ListarRequisicoesSemLoteParams {
   pagina?: number;
   tamanho?: number;
   ignorarCache?: boolean;
+  /** Whitelist de negócio (issue "fontes pagadoras consideradas para meta",
+   *  03/09): quando presente, só requisições de fonte pagadora com
+   *  `IdFontePagadora` nesta lista aparecem. Lista vazia não qualifica nenhuma. */
+  fontesConsideradas?: number[];
 }
 
 export interface RequisicoesSemLoteMeta {
@@ -1358,7 +1395,7 @@ export type ListarRequisicoesSemLoteResultado =
 const cacheRequisicoesSemLote = new Map<string, EntradaCache<ListarRequisicoesSemLoteResultado>>();
 
 function chaveRequisicoesSemLote(params: ListarRequisicoesSemLoteParams): string {
-  return `requisicoesSemLote|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}`;
+  return `requisicoesSemLote|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
 }
 
 // `NOT EXISTS` de RPS/NFe individual: mesmo cuidado de
@@ -1424,6 +1461,14 @@ export async function listarRequisicoesSemLote(
     if (params.operadoraId !== undefined) {
       condicoes.push('r.IdFontePagadora = ?');
       valores.push(params.operadoraId);
+    }
+    if (params.fontesConsideradas !== undefined) {
+      if (params.fontesConsideradas.length === 0) {
+        condicoes.push('1 = 0');
+      } else {
+        condicoes.push(`r.IdFontePagadora IN (${params.fontesConsideradas.map(() => '?').join(', ')})`);
+        valores.push(...params.fontesConsideradas);
+      }
     }
     const where = condicoes.join(' AND ');
 
@@ -1529,6 +1574,10 @@ export interface ListarGlosasLegadoParams {
   tamanho?: number;
   busca?: string;
   ignorarCache?: boolean;
+  /** Whitelist de negócio (issue "fontes pagadoras consideradas para meta",
+   *  03/09): quando presente, só glosas de fonte pagadora com `IdFontePagadora`
+   *  nesta lista aparecem. Lista vazia não qualifica nenhuma. */
+  fontesConsideradas?: number[];
 }
 
 export type ListarGlosasLegadoResultado =
@@ -1538,7 +1587,7 @@ export type ListarGlosasLegadoResultado =
 const cacheGlosasLegado = new Map<string, EntradaCache<ListarGlosasLegadoResultado>>();
 
 function chaveGlosasLegado(params: ListarGlosasLegadoParams): string {
-  return `glosasLegado|${params.periodoIni}|${params.periodoFim}|${params.fontePagadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}`;
+  return `glosasLegado|${params.periodoIni}|${params.periodoFim}|${params.fontePagadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
 }
 
 /** Mesmo raciocínio de `filtroLotes`: sem EXISTS aqui porque paciente/fonte pagadora
@@ -1563,6 +1612,14 @@ function filtroGlosasLegado(
   if (params.fontePagadoraId !== undefined) {
     condicoes.push('r.IdFontePagadora = ?');
     valores.push(params.fontePagadoraId);
+  }
+  if (params.fontesConsideradas !== undefined) {
+    if (params.fontesConsideradas.length === 0) {
+      condicoes.push('1 = 0');
+    } else {
+      condicoes.push(`r.IdFontePagadora IN (${params.fontesConsideradas.map(() => '?').join(', ')})`);
+      valores.push(...params.fontesConsideradas);
+    }
   }
   if (params.busca !== undefined && params.busca.trim() !== '') {
     const termo = escaparLike(params.busca.trim().slice(0, MAX_BUSCA));
@@ -1739,6 +1796,10 @@ export interface ListarRecursosLegadoParams {
   pagina?: number;
   tamanho?: number;
   ignorarCache?: boolean;
+  /** Whitelist de negócio (issue "fontes pagadoras consideradas para meta",
+   *  03/09): quando presente, só recursos de fonte pagadora com `IdFontePagadora`
+   *  nesta lista aparecem. Lista vazia não qualifica nenhum. */
+  fontesConsideradas?: number[];
 }
 
 export type ListarRecursosLegadoResultado =
@@ -1753,7 +1814,7 @@ const cacheRecursosLegado = new Map<string, EntradaCache<ListarRecursosLegadoRes
 const cacheDetalheRecurso = new Map<string, EntradaCache<DetalharRecursoLegadoResultado>>();
 
 function chaveRecursosLegado(params: ListarRecursosLegadoParams): string {
-  return `recursosLegado|${params.status ?? ''}|${params.fontePagadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}`;
+  return `recursosLegado|${params.status ?? ''}|${params.fontePagadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
 }
 
 function filtroRecursosLegado(
@@ -1769,6 +1830,14 @@ function filtroRecursosLegado(
   if (params.fontePagadoraId !== undefined) {
     condicoes.push('lr.IdFontePagadora = ?');
     valores.push(params.fontePagadoraId);
+  }
+  if (params.fontesConsideradas !== undefined) {
+    if (params.fontesConsideradas.length === 0) {
+      condicoes.push('1 = 0');
+    } else {
+      condicoes.push(`lr.IdFontePagadora IN (${params.fontesConsideradas.map(() => '?').join(', ')})`);
+      valores.push(...params.fontesConsideradas);
+    }
   }
   if (params.busca !== undefined && params.busca.trim() !== '') {
     const termo = escaparLike(params.busca.trim().slice(0, MAX_BUSCA));
