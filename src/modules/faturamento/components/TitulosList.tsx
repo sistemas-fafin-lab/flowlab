@@ -20,7 +20,15 @@ import type {
   TituloStatus,
   TitulosViewFiltros,
 } from '../types';
-import { formatCompetencia, formatCurrency, formatData, formatDataHora } from '../utils/formato';
+import {
+  formatCompetencia,
+  formatCurrency,
+  formatData,
+  formatDataHora,
+  periodoEsteMes,
+  periodoEsteTrimestre,
+  periodoMesPassado,
+} from '../utils/formato';
 import { dataEnvioEfetiva } from '../utils/envioAoVivo';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
@@ -52,6 +60,14 @@ const STATUS_OPCOES = [
 ];
 
 const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
+
+// Issue 40: atalhos que preenchem o range de vencimento — não substituem os
+// DatePickers de range livre, só evitam abrir o calendário pro caso comum.
+const ATALHOS_PERIODO = [
+  { rotulo: 'Este mês', calcular: periodoEsteMes },
+  { rotulo: 'Mês passado', calcular: periodoMesPassado },
+  { rotulo: 'Este trimestre', calcular: periodoEsteTrimestre },
+] as const;
 
 const STATUS_CORES: Record<TituloStatus, string> = {
   aberta: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
@@ -310,7 +326,7 @@ const TitulosList: React.FC<Props> = ({
       {/* ── Filtros ──────────────────────────────────────────────────────── */}
       <div className="flex flex-wrap items-end gap-3">
         <label className="text-xs text-gray-500 dark:text-gray-400">
-          Emissão de
+          Vencimento de
           <DatePicker
             value={filtros.desde}
             onChange={(v) => onFiltrar({ desde: v, pagina: 1 })}
@@ -325,6 +341,18 @@ const TitulosList: React.FC<Props> = ({
             controlClass={CAMPO}
           />
         </label>
+        <div className="flex items-center gap-1 pb-2">
+          {ATALHOS_PERIODO.map(({ rotulo, calcular }) => (
+            <button
+              key={rotulo}
+              type="button"
+              onClick={() => onFiltrar({ ...calcular(), pagina: 1 })}
+              className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
         <label className="text-xs text-gray-500 dark:text-gray-400">
           Status
           <Select
@@ -453,8 +481,8 @@ const TitulosList: React.FC<Props> = ({
           {filtros.status
             ? ` com status "${STATUS_ROTULOS[filtros.status]}"`
             : filtros.somentePendentes && ' com o atalho "Somente pendentes" ativado'}.
-          {' '}Amplie o período de emissão acima — trocar o Status não muda a
-          lista se o período já não cobrir nenhum título.
+          {' '}Amplie o período de vencimento acima — trocar o Status não muda
+          a lista se o período já não cobrir nenhum título.
           {podeEditar && ' Use "Novo título" para agrupar lotes do apLIS numa cobrança.'}
         </div>
       ) : (

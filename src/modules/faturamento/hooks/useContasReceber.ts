@@ -200,8 +200,11 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
            nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes))`,
           { count: 'exact' },
         )
-        .gte('data_emissao', desde)
-        .lte('data_emissao', ate)
+        // Issue 40: referência do período é vencimento, não emissão — decisão do
+        // setor (2026-09-03). Nula não compara em gte/lte, então título sem
+        // vencimento definido fica fora de qualquer range, sem tratamento à parte.
+        .gte('data_vencimento', desde)
+        .lte('data_vencimento', ate)
         .order('data_vencimento', { ascending: true, nullsFirst: false })
         .order('data_emissao', { ascending: false })
         .range(inicio, inicio + porPagina - 1);

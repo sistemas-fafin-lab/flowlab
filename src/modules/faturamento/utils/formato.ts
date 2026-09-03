@@ -42,10 +42,45 @@ export const formatCompetencia = (competencia: string | null | undefined): strin
   return ano && mes ? `${mes}/${ano}` : competencia;
 };
 
+const paraIso = (data: Date): string =>
+  `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
+
 /** Data de hoje em ISO local (e não UTC, como faria toISOString). */
-export const hojeIso = (): string => {
+export const hojeIso = (): string => paraIso(new Date());
+
+export interface PeriodoRange {
+  desde: string;
+  ate: string;
+}
+
+/**
+ * Atalhos de período da aba Títulos (issue 40) — 1º ao último dia do mês/
+ * trimestre em cima de "hoje", sempre em ISO local. Independem da coluna que
+ * o filtro usa por baixo (vencimento): só preenchem o range da UI.
+ */
+export const periodoEsteMes = (): PeriodoRange => {
   const hoje = new Date();
-  return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+  return {
+    desde: paraIso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)),
+    ate: paraIso(new Date(hoje.getFullYear(), hoje.getMonth() + 1, 0)),
+  };
+};
+
+export const periodoMesPassado = (): PeriodoRange => {
+  const hoje = new Date();
+  return {
+    desde: paraIso(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)),
+    ate: paraIso(new Date(hoje.getFullYear(), hoje.getMonth(), 0)),
+  };
+};
+
+export const periodoEsteTrimestre = (): PeriodoRange => {
+  const hoje = new Date();
+  const inicioTrimestre = Math.floor(hoje.getMonth() / 3) * 3;
+  return {
+    desde: paraIso(new Date(hoje.getFullYear(), inicioTrimestre, 1)),
+    ate: paraIso(new Date(hoje.getFullYear(), inicioTrimestre + 3, 0)),
+  };
 };
 
 /**

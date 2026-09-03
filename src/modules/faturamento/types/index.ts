@@ -411,7 +411,7 @@ export interface TituloReceber {
 }
 
 export interface TitulosFiltros {
-  /** YYYY-MM-DD, sobre a data de emissão. */
+  /** YYYY-MM-DD, sobre a data de vencimento (issue 40 — antes era emissão). */
   desde: string;
   ate: string;
   status?: TituloStatus | '';
