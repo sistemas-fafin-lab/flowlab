@@ -20,6 +20,7 @@ import type { CuradoriaOcorrenciaInput, IndicadorOcorrenciasResposta, Ocorrencia
 import { supabase } from '../../lib/supabase';
 import { chamarQualidadeApi, ErroApiQualidade } from './qualidadeApi.js';
 import { agregarOcorrencias, type LinhaIndicadorOcorrencia } from './domain/ocorrenciasIndicadores.js';
+import { statusCuradoriaOcorrencia } from './domain/ocorrenciasRegras.js';
 
 export { ErroApiQualidade as ErroApi };
 
@@ -139,6 +140,9 @@ export async function buscarOcorrencia(id: string): Promise<OcorrenciaDTO> {
  * independente de quais campos foram preenchidos — mesma regra de
  * curadoria.ts original). Auditoria (P7) é gravada pelo trigger de
  * qa_ocorrencias, não aqui.
+ *
+ * `status_curadoria` (R5, ocorrenciasRegras.ts) é sempre recalculado aqui —
+ * Ocorrências não tem seletor manual de status como Cortesias/IHQ.
  */
 export async function salvarCuradoriaOcorrencia(id: string, input: CuradoriaOcorrenciaInput): Promise<void> {
   const {
@@ -153,6 +157,7 @@ export async function salvarCuradoriaOcorrencia(id: string, input: CuradoriaOcor
     motivo_id: input.motivoId ?? null,
     resumo_curado: input.resumoCurado ?? null,
     acao_curada: input.acaoCurada ?? null,
+    status_curadoria: statusCuradoriaOcorrencia(input),
     curado_por: user.id,
     curado_em: agora,
   };

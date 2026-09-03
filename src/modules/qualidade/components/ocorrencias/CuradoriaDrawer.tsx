@@ -272,7 +272,9 @@ export function CuradoriaDrawer({ id, canManage, onFechar }: CuradoriaDrawerProp
               </div>
 
               <div>
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Status (LIS)</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Status (automático — conclui quando responsável e motivo estão definidos)
+                </label>
                 <div className="mt-1">
                   {data && (
                     <span

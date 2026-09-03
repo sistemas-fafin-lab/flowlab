@@ -27,8 +27,8 @@ function incrementar(mapa: Map<string, { nome: string; total: number }>, id: str
   mapa.set(id, { nome, total: (atual?.total ?? 0) + 1 });
 }
 
-/** Status "concluída" reflete o LIS (`ocorrencia.Status`), não a curadoria. */
-function statusLisConcluido(linha: LinhaIndicadorOcorrencia): boolean {
+/** `status_curadoria` é campo de curadoria (R5, ocorrenciasRegras.ts) — nunca vem do LIS, que não expõe status de ocorrência. */
+function statusCuradoriaConcluida(linha: LinhaIndicadorOcorrencia): boolean {
   return linha.statusCuradoria === 'concluida';
 }
 
@@ -36,8 +36,8 @@ export function agregarOcorrencias(
   periodo: { inicio: string; fim: string },
   linhas: readonly LinhaIndicadorOcorrencia[],
 ): IndicadorOcorrenciasResposta {
-  const concluidas = linhas.filter(statusLisConcluido);
-  const aClassificar = linhas.filter((linha) => !statusLisConcluido(linha)).length;
+  const concluidas = linhas.filter(statusCuradoriaConcluida);
+  const aClassificar = linhas.filter((linha) => !statusCuradoriaConcluida(linha)).length;
 
   const porMotivo = new Map<string, { nome: string; total: number }>();
   const porSetor = new Map<string, { nome: string; total: number }>();
