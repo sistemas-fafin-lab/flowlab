@@ -85,6 +85,13 @@ export const periodoEsteTrimestre = (): PeriodoRange => {
   };
 };
 
+/** Ano/mês corrente (mês em 1-12) — usado pela meta mensal (issue 43), que
+ *  trava o mês/ano no que "hoje" é quando a tela monta. */
+export const anoMesAtual = (): { ano: number; mes: number } => {
+  const hoje = new Date();
+  return { ano: hoje.getFullYear(), mes: hoje.getMonth() + 1 };
+};
+
 /**
  * Texto do badge "protocolo duplicado" — lista os OUTROS lotes do mesmo grupo
  * (issue 13 do feedback: só a contagem não dizia quais; issue 22: precisa

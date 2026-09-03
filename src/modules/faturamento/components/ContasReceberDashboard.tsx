@@ -14,15 +14,19 @@ import {
   AlertTriangle,
   BarChart3,
   CalendarClock,
+  CheckCircle2,
   DollarSign,
   FileWarning,
   Gavel,
   GripVertical,
+  ListChecks,
   Lock,
+  Pencil,
   Receipt,
   RotateCcw,
   Scale,
   Scissors,
+  Target,
   Timer,
   TrendingUp,
   Unlock,
@@ -38,12 +42,14 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useTheme } from '../../../hooks/useTheme';
 import { useContasReceberDashboard } from '../hooks/useContasReceberDashboard';
+import { useMetaMensal } from '../hooks/useMetaMensal';
 import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
 import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
 import { formatCompetencia, formatCurrency } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import FiltrosReceber from './FiltrosReceber';
 import AgingDetalheModal from './AgingDetalheModal';
+import MetaMensalModal from './MetaMensalModal';
 import type { AgingBucket, DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
@@ -59,15 +65,15 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 const GRID_BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480 };
 const GRID_COLS = { lg: 12, md: 10, sm: 6, xs: 2 };
 const GRID_ROW_HEIGHT = 50;
-// v4: novo widget "kpis-pendencias" (resumo de Requisições não faturadas +
-// Particulares sem NF). Mesmo motivo do bump da v3: sem subir a versão, quem já
-// tinha um layout salvo receberia a chave nova autoposicionada num tamanho
-// mínimo, em vez do tamanho pensado no DEFAULT_LAYOUTS.
-const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v4';
+// v5: novo widget "meta-mensal" (issue 43). Mesmo motivo do bump da v4: sem
+// subir a versão, quem já tinha um layout salvo receberia a chave nova
+// autoposicionada num tamanho mínimo, em vez do tamanho pensado no DEFAULT_LAYOUTS.
+const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v5';
 const LAYOUTS_ANTIGOS = [
   'flowLab_contas_receber_layout_v1',
   'flowLab_contas_receber_layout_v2',
   'flowLab_contas_receber_layout_v3',
+  'flowLab_contas_receber_layout_v4',
 ];
 
 // Aging por operadora: categórica, não sequencial — aqui cada cor identifica uma
@@ -109,43 +115,47 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'kpis-valor', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2 },
     { i: 'kpis-prazo', x: 0, y: 3, w: 12, h: 3, minW: 4, minH: 2 },
     { i: 'kpis-pendencias', x: 0, y: 6, w: 12, h: 3, minW: 4, minH: 2 },
-    { i: 'aging', x: 0, y: 9, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'saldo-operadoras', x: 6, y: 9, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'previsao', x: 0, y: 16, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'serie', x: 0, y: 24, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'motivos-glosa', x: 0, y: 32, w: 12, h: 8, minW: 3, minH: 4 },
+    { i: 'meta-mensal', x: 0, y: 9, w: 12, h: 4, minW: 4, minH: 3 },
+    { i: 'aging', x: 0, y: 13, w: 6, h: 7, minW: 3, minH: 4 },
+    { i: 'saldo-operadoras', x: 6, y: 13, w: 6, h: 7, minW: 3, minH: 4 },
+    { i: 'previsao', x: 0, y: 20, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'serie', x: 0, y: 28, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'motivos-glosa', x: 0, y: 36, w: 12, h: 8, minW: 3, minH: 4 },
   ],
   md: [
     { i: 'kpis-valor', x: 0, y: 0, w: 10, h: 3 },
     { i: 'kpis-prazo', x: 0, y: 3, w: 10, h: 3 },
     { i: 'kpis-pendencias', x: 0, y: 6, w: 10, h: 3 },
-    { i: 'aging', x: 0, y: 9, w: 5, h: 7 },
-    { i: 'saldo-operadoras', x: 5, y: 9, w: 5, h: 7 },
-    { i: 'previsao', x: 0, y: 16, w: 10, h: 8 },
-    { i: 'serie', x: 0, y: 24, w: 10, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 32, w: 10, h: 8 },
+    { i: 'meta-mensal', x: 0, y: 9, w: 10, h: 4 },
+    { i: 'aging', x: 0, y: 13, w: 5, h: 7 },
+    { i: 'saldo-operadoras', x: 5, y: 13, w: 5, h: 7 },
+    { i: 'previsao', x: 0, y: 20, w: 10, h: 8 },
+    { i: 'serie', x: 0, y: 28, w: 10, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 36, w: 10, h: 8 },
   ],
   sm: [
     // 2 colunas: os quatro cards de valor viram duas linhas.
     { i: 'kpis-valor', x: 0, y: 0, w: 6, h: 5 },
     { i: 'kpis-prazo', x: 0, y: 5, w: 6, h: 3 },
     { i: 'kpis-pendencias', x: 0, y: 8, w: 6, h: 3 },
-    { i: 'aging', x: 0, y: 11, w: 6, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 18, w: 6, h: 7 },
-    { i: 'previsao', x: 0, y: 25, w: 6, h: 8 },
-    { i: 'serie', x: 0, y: 33, w: 6, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 41, w: 6, h: 8 },
+    { i: 'meta-mensal', x: 0, y: 11, w: 6, h: 6 },
+    { i: 'aging', x: 0, y: 17, w: 6, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 24, w: 6, h: 7 },
+    { i: 'previsao', x: 0, y: 31, w: 6, h: 8 },
+    { i: 'serie', x: 0, y: 39, w: 6, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 47, w: 6, h: 8 },
   ],
   xs: [
     // Empilhado: quatro linhas de card, três, e duas, respectivamente.
     { i: 'kpis-valor', x: 0, y: 0, w: 2, h: 8 },
     { i: 'kpis-prazo', x: 0, y: 8, w: 2, h: 6 },
     { i: 'kpis-pendencias', x: 0, y: 14, w: 2, h: 4 },
-    { i: 'aging', x: 0, y: 18, w: 2, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 25, w: 2, h: 7 },
-    { i: 'previsao', x: 0, y: 32, w: 2, h: 8 },
-    { i: 'serie', x: 0, y: 40, w: 2, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 48, w: 2, h: 8 },
+    { i: 'meta-mensal', x: 0, y: 18, w: 2, h: 9 },
+    { i: 'aging', x: 0, y: 27, w: 2, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 34, w: 2, h: 7 },
+    { i: 'previsao', x: 0, y: 41, w: 2, h: 8 },
+    { i: 'serie', x: 0, y: 49, w: 2, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 57, w: 2, h: 8 },
   ],
 };
 
@@ -271,8 +281,12 @@ interface Props {
   /** O mesmo padrão do "Limpar", para o modal zerar sem fechar. */
   padrao: DashboardReceberFiltros;
   operadoras: OperadoraResumo[];
+  /** Gate de escrita — mostra "Definir/Editar meta" no widget de meta mensal. */
+  podeEditar: boolean;
   /** Widgets-resumo de pendências → aba Pendências, já na sub-aba certa. */
   onNavegarPendencias: (subAba: SubAbaPendencias) => void;
+  /** Widget "Meta mensal" → aba Títulos, filtrada no mês/ano da meta (issue 43). */
+  onNavegarMeta: () => void;
 }
 
 const ContasReceberDashboard: React.FC<Props> = ({
@@ -281,9 +295,13 @@ const ContasReceberDashboard: React.FC<Props> = ({
   onLimpar,
   padrao,
   operadoras,
+  podeEditar,
   onNavegarPendencias,
+  onNavegarMeta,
 }) => {
   const { data, loading, error } = useContasReceberDashboard(filtros);
+  const { meta, loading: loadingMeta, error: errorMeta, salvarMeta } = useMetaMensal();
+  const [metaModalAberto, setMetaModalAberto] = useState(false);
   const { isDark } = useTheme();
 
   // Widgets-resumo das issues 07/08: mesmas rotas e cache da aba Pendências (sem
@@ -640,6 +658,95 @@ const ContasReceberDashboard: React.FC<Props> = ({
           </div>
         </div>
 
+        {/* ── Meta mensal (issue 43) ──────────────────────────────────────────
+            Faturado do mês × meta cadastrada, restrito às mesmas fontes da
+            whitelist (issue 36) — "não pode ser só gráfico/número": o botão
+            "Ver títulos do mês" leva à aba Títulos já filtrada, em vez de só
+            mostrar o valor agregado aqui. */}
+        <div key="meta-mensal" className="group">
+          <div className={`h-full ${VIDRO} rounded-3xl overflow-y-auto p-3 sm:p-4`}>
+            <Alca />
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 pr-8">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Meta mensal — {formatCompetencia(meta.competencia)}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Faturado no mês, restrito às fontes consideradas na meta
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onNavegarMeta}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-1.5"
+                >
+                  <ListChecks className="w-3.5 h-3.5" /> Ver títulos do mês
+                </button>
+                {podeEditar && (
+                  <button
+                    type="button"
+                    onClick={() => setMetaModalAberto(true)}
+                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-1.5"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> {meta.valorMeta === null ? 'Definir meta' : 'Editar meta'}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {loadingMeta ? (
+              <div className="flex justify-center py-6"><LoadingSpinner /></div>
+            ) : errorMeta ? (
+              <p className="text-sm text-red-600 dark:text-red-400 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                {errorMeta}
+              </p>
+            ) : meta.valorMeta === null ? (
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Meta não definida para este mês.
+                {podeEditar && ' Use "Definir meta" acima para cadastrar o valor.'}
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-white/60 dark:border-slate-700/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Target className="w-3.5 h-3.5" /> Meta
+                  </p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+                    {formatCurrency(meta.valorMeta)}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-white/60 dark:border-slate-700/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    Faturado no mês
+                  </p>
+                  <p className="text-lg font-bold text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+                    {formatCurrency(meta.faturado)}
+                  </p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                    {meta.qtdTitulos} título{meta.qtdTitulos === 1 ? '' : 's'}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-white/60 dark:border-slate-700/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                    {meta.metaBatida ? 'Meta batida' : 'Quanto falta'}
+                  </p>
+                  {meta.metaBatida ? (
+                    <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400 mt-1 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4" /> Meta batida
+                    </p>
+                  ) : (
+                    <p className="text-lg font-bold text-amber-600 dark:text-amber-400 mt-1 tabular-nums">
+                      {formatCurrency(meta.quantoFalta)}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div key="aging" className="group">
           <Widget
             titulo="Aging da carteira"
@@ -870,6 +977,13 @@ const ContasReceberDashboard: React.FC<Props> = ({
           onFechar={() => setDetalheAging(null)}
         />
       )}
+
+      <MetaMensalModal
+        aberto={metaModalAberto}
+        meta={meta}
+        onFechar={() => setMetaModalAberto(false)}
+        onSalvar={salvarMeta}
+      />
     </div>
   );
 };

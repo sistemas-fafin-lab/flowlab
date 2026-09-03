@@ -4,6 +4,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
 import { useContasReceber } from '../hooks/useContasReceber';
+import { periodoEsteMes } from '../utils/formato';
 import type { DashboardReceberFiltros, SubAbaPendencias, TituloReceber, TituloStatus } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
@@ -128,6 +129,21 @@ const ContasReceberPage: React.FC = () => {
   const navegarParaPendencias = useCallback((subAba: SubAbaPendencias) => {
     setAba('pendencias');
     setSubAbaPendencias(subAba);
+  }, []);
+
+  // Widget "Meta mensal" do Dashboard (issue 43) → aba Títulos, com o período
+  // travado no mês/ano calendário da meta (useMetaMensal usa o mesmo "hoje").
+  // A whitelist de fontes já é sempre aplicada pelo useContasReceber, então
+  // não precisa ser repetida aqui — só o período muda.
+  const navegarParaTitulosMeta = useCallback(() => {
+    setAba('titulos');
+    setFiltros((atual) => ({
+      ...atual,
+      ...periodoEsteMes(),
+      status: '',
+      somentePendentes: false,
+      pagina: 1,
+    }));
   }, []);
 
   // Recalculado só na montagem: as datas do padrão dependem de "hoje", e um
@@ -257,7 +273,9 @@ const ContasReceberPage: React.FC = () => {
           onLimpar={limparFiltroPainel}
           padrao={padraoPainel}
           operadoras={operadoras}
+          podeEditar={podeEditar}
           onNavegarPendencias={navegarParaPendencias}
+          onNavegarMeta={navegarParaTitulosMeta}
         />
       )}
 

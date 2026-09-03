@@ -553,6 +553,25 @@ export interface DashboardReceber {
   }[];
 }
 
+/** Meta mensal de faturamento (issue 43) — valor único global por mês/ano,
+ *  restrito às fontes marcadas `is_considerada_meta` (issue 36). Contrato de
+ *  `metas_faturamento` + `fat_meta_mensal_faturado`. */
+export interface MetaMensal {
+  ano: number;
+  mes: number;
+  /** "YYYY-MM" de `ano`/`mes` — mesmo formato de `TituloReceber.competencia`, pronto para `formatCompetencia`. */
+  competencia: string;
+  /** null = meta não cadastrada para este mês/ano — não repete o valor do mês anterior. */
+  valorMeta: number | null;
+  /** Soma de `valor_total` dos títulos emitidos no mês/ano, restrita à whitelist. */
+  faturado: number;
+  /** `max(valorMeta - faturado, 0)`; 0 também quando a meta não está definida. */
+  quantoFalta: number;
+  /** `faturado >= valorMeta`; sempre false quando a meta não está definida. */
+  metaBatida: boolean;
+  qtdTitulos: number;
+}
+
 /** Prazo prometido × prazo praticado por uma operadora, no período filtrado.
  *
  *  Os três prazos são NULL quando não há base: título sem data de envio do lote
