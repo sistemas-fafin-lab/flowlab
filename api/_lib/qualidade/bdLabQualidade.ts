@@ -197,11 +197,18 @@ export interface AutorizacaoCortesiaLis {
   exameNome: string | null;
   autorizadoPorLis: string | null;
   observacoesLis: string | null;
-  /** `fatrequisicaoprocedimento.ValorBruto` — preço cheio antes do desconto. */
+  /** `fatrequisicaoprocedimento.ValorBruto` — preço cheio do procedimento (já multiplicado por Quantidade). */
   valorParticular: number | null;
   /** `fatrequisicaoprocedimento.ValorCobrado`. */
   valorCobrado: number | null;
-  /** `fatrequisicaoprocedimento.ValorDesconto` — quanto foi concedido de cortesia. */
+  /**
+   * Sempre igual a `valorParticular` — uma cortesia é, por definição, a
+   * isenção integral do valor particular, nunca um desconto parcial.
+   * `fatrequisicaoprocedimento.ValorDesconto` nunca é preenchido neste banco
+   * (confirmado: 0 de 295.806 linhas com valor não-nulo/≠0) — usá-lo fazia
+   * R3/R4 de `cortesiasRegras.ts` disparar falso positivo em toda cortesia
+   * real (ver issue 01 em .scratch/qualidade-cortesias-valor-particular-concedido/).
+   */
   valorConcedido: number | null;
 }
 
@@ -226,7 +233,7 @@ export async function listarAutorizacoesCortesiaLis(inicio: string, fim: string)
               DATE_FORMAT(ra.DtaFinalizacao, '%Y-%m-%d') AS DtaAutorizacao,
               r.IdConvenio, fc.NomConvenio, ev.DesEvento,
               ra.Solicitante, ra.Observacao,
-              SUM(fp.ValorBruto) AS ValorBruto, SUM(fp.ValorCobrado) AS ValorCobrado, SUM(fp.ValorDesconto) AS ValorDesconto
+              SUM(fp.ValorBruto) AS ValorBruto, SUM(fp.ValorCobrado) AS ValorCobrado
          FROM requisicaoautorizacao ra
          JOIN requisicao r ON r.IdRequisicao = ra.IdRequisicao
          LEFT JOIN fatconvenio fc ON fc.IdConvenio = r.IdConvenio
@@ -250,7 +257,7 @@ export async function listarAutorizacoesCortesiaLis(inicio: string, fim: string)
         observacoesLis: texto(linha.Observacao),
         valorParticular: numero(linha.ValorBruto),
         valorCobrado: numero(linha.ValorCobrado),
-        valorConcedido: numero(linha.ValorDesconto),
+        valorConcedido: numero(linha.ValorBruto),
       })),
     };
   });
