@@ -33,8 +33,16 @@
 //    desconhecido) — `categoria_origem_lis` sai sempre `null` e
 //    `categoria_origem_generica` sempre `true` até essa tabela ser
 //    identificada.
-// 3. IHQ: não há uma coluna/flag direta que marque "esta requisição é uma
-//    solicitação de IHQ" — heurística: `evento.DesEvento LIKE '%IHQ%'`.
+// 3. [RESOLVIDO] IHQ: a heurística antiga (`evento.DesEvento LIKE '%IHQ%'`
+//    contra `requisicao.CodEvento`, o PASSO ATUAL do fluxo) nunca bateu com
+//    nada de verdade — os únicos eventos com "IHQ" no nome (CodEvento 34/35/
+//    1011) nunca aparecem em `requisicao` nem em `requisicaohistorico` (log
+//    completo, 2020→hoje) neste LIS. Resultado: `listarSolicitacoesIhqLis`
+//    sempre devolveu 0 linhas, em produção nunca sincronizou nada. Trocado
+//    por `requisicao.CodExame IN (6, 12, 13)` — os mesmos 3 códigos já
+//    confirmados ao vivo em 2026-09-01 pela seção IHQ/Parceiro de
+//    Indicadores (ver `COD_EVENTO_ENVIO_PARCEIRO` abaixo) e usados pelo
+//    projeto de origem (`bdLabIhq.ts`, `ihq.CodExame = ?`).
 //    `status_lis` só distingue concluído (`DtaFinalizacao` preenchida) de em
 //    andamento — não há sinal de cancelamento no schema, então "cancelado"
 //    nunca é inferido (evita marcar errado).
@@ -280,7 +288,16 @@ export interface SolicitacaoIhqLis {
 
 export type ListarIhqResultado = { solicitacoes: SolicitacaoIhqLis[] } | ErroConsultaLis;
 
-/** Heurística: requisição cujo exame (`evento.DesEvento`) contém "IHQ" — ver cabeçalho do arquivo. */
+// Mesmos 3 códigos confirmados ao vivo em 2026-09-01 pela seção IHQ/Parceiro
+// de Indicadores (ver COD_EVENTO_ENVIO_PARCEIRO abaixo) — 6 "IMUNOISTOQUÍMICA
+// INTERNA", 12 "IMUNOISTOQUÍMICA EXTERNA (BLOCO)", 13 "IMUNOISTOQUÍMICA
+// EXTERNA (BLOCO+LÂMINA)". Duplicado de CODS_EXAME_IHQ_PARCEIRO em
+// src/modules/qualidade/domain/ihqParceiroIndicadores.ts (mesmo motivo de
+// cortesiasRegras.ts: sem import cross-boundary api/ → src/ neste repo) — os
+// dois devem mudar juntos se a lista de códigos mudar.
+const CODIGOS_EXAME_IHQ = [6, 12, 13];
+
+/** Requisição cujo `CodExame` é de IHQ — ver cabeçalho do arquivo (ponto 3, [RESOLVIDO]). */
 export async function listarSolicitacoesIhqLis(inicio: string, fim: string): Promise<ListarIhqResultado> {
   return comConexao('listarSolicitacoesIhqLis', async (conn) => {
     const periodo = condicaoPeriodo('r.DtaSolicitacao', inicio, fim);
@@ -290,11 +307,10 @@ export async function listarSolicitacoesIhqLis(inicio: string, fim: string): Pro
               r.DtaFinalizacao, med.NomMedico,
               (SELECT COUNT(*) FROM requisicaopeca rp WHERE rp.IdRequisicao = r.IdRequisicao) AS QtdPeca
          FROM requisicao r
-         JOIN evento ev ON ev.CodEvento = r.CodEvento
          LEFT JOIN medico med ON med.CodMedico = r.CodMedico
-        WHERE ev.DesEvento LIKE '%IHQ%' AND ${periodo.sql}
+        WHERE r.CodExame IN (${CODIGOS_EXAME_IHQ.map(() => '?').join(', ')}) AND ${periodo.sql}
         ORDER BY r.DtaSolicitacao DESC`,
-      periodo.valores,
+      [...CODIGOS_EXAME_IHQ, ...periodo.valores],
     );
     return {
       solicitacoes: linhas.map((linha) => ({
