@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import {
   Search,
   Filter,
@@ -24,10 +25,15 @@ import ExamFormModal from './ExamFormModal';
 
 interface ExamsScreenProps {
   exams: Exam[];
-  addExam: (data: Omit<Exam, 'id'>) => void;
-  updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => void;
-  deleteExam: (id: string) => void;
+  addExam: (data: Omit<Exam, 'id'>) => Promise<void>;
+  updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
+  deleteExam: (id: string) => Promise<void>;
 }
+
+// O catálogo passa de 500 exames — sem paginação a tabela renderizava tudo de
+// uma vez, deixando a página com ~35 mil px de altura (a barra de rolagem
+// virava um fio, "voando" a qualquer toque na roda do mouse).
+const ITEMS_PER_PAGE = 25;
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STAT CARD
@@ -67,7 +73,7 @@ const StatCard: React.FC<{
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, deleteExam }) => {
-  const { notification, showSuccess, hideNotification } = useNotification();
+  const { notification, showSuccess, showError, hideNotification } = useNotification();
   const {
     confirmDialog,
     showConfirmDialog,
@@ -79,9 +85,13 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
   const [location, setLocation] = useState('all');
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Exam | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
 
   const locations = useMemo(
-    () => Array.from(new Set(exams.map(e => e.location))).sort(),
+    () => Array.from(new Set(exams.map(e => e.location).filter(Boolean))).sort(),
     [exams]
   );
 
@@ -90,12 +100,24 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
       exams.filter(e => {
         const q = search.toLowerCase();
         const matchesSearch =
-          !q || e.name.toLowerCase().includes(q) || e.code.toLowerCase().includes(q);
+          !q ||
+          e.name.toLowerCase().includes(q) ||
+          e.code.toLowerCase().includes(q) ||
+          e.tuss.toLowerCase().includes(q);
         const matchesLoc = location === 'all' || e.location === location;
         return matchesSearch && matchesLoc;
       }),
     [exams, search, location]
   );
+
+  // Reseta a paginação sempre que o recorte (busca/local) muda — senão o
+  // usuário pode ficar "preso" numa página 5 que não existe mais no recorte novo.
+  useEffect(() => {
+    setDisplayCount(ITEMS_PER_PAGE);
+  }, [search, location]);
+
+  const displayedExams = useMemo(() => filtered.slice(0, displayCount), [filtered, displayCount]);
+  const hasMoreExams = filtered.length > displayCount;
 
   const stats = useMemo(() => {
     const totalCost = exams.reduce((s, e) => s + e.direct + e.indirect, 0);
@@ -106,25 +128,39 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
     };
   }, [exams]);
 
-  const handleSave = (data: Omit<Exam, 'id'>) => {
-    if (editing) {
-      updateExam(editing.id, data);
-      showSuccess('Exame atualizado com sucesso!');
-    } else {
-      addExam(data);
-      showSuccess('Exame cadastrado com sucesso!');
+  const handleSave = async (data: Omit<Exam, 'id'>) => {
+    try {
+      if (editing) {
+        await updateExam(editing.id, data);
+        showSuccess('Exame atualizado com sucesso!');
+      } else {
+        await addExam(data);
+        showSuccess('Exame cadastrado com sucesso!');
+      }
+      setModalOpen(false);
+      setEditing(null);
+    } catch (err) {
+      showError('Erro ao salvar exame', err instanceof Error ? err.message : undefined);
     }
-    setModalOpen(false);
-    setEditing(null);
   };
 
   const handleDelete = (exam: Exam) => {
     showConfirmDialog(
       'Excluir exame',
       `Tem certeza que deseja excluir "${exam.name}"? Esta ação não pode ser desfeita.`,
-      () => {
-        deleteExam(exam.id);
-        showSuccess('Exame excluído com sucesso!');
+      async () => {
+        try {
+          await deleteExam(exam.id);
+          setSelectedIds(prev => {
+            if (!prev.has(exam.id)) return prev;
+            const next = new Set(prev);
+            next.delete(exam.id);
+            return next;
+          });
+          showSuccess('Exame excluído com sucesso!');
+        } catch (err) {
+          showError('Erro ao excluir exame', err instanceof Error ? err.message : undefined);
+        }
       },
       { type: 'danger', confirmText: 'Excluir' }
     );
@@ -133,13 +169,70 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
   const openNew = () => { setEditing(null); setModalOpen(true); };
   const openEdit = (exam: Exam) => { setEditing(exam); setModalOpen(true); };
 
+  const toggleOne = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    const allSelected = displayedExams.every(e => selectedIds.has(e.id));
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      displayedExams.forEach(e => (allSelected ? next.delete(e.id) : next.add(e.id)));
+      return next;
+    });
+  };
+
+  // Fecha o dropdown de exportação ao clicar fora dele.
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [exportMenuOpen]);
+
+  const handleExport = (scope: 'all' | 'selected') => {
+    const source = scope === 'selected' ? filtered.filter(e => selectedIds.has(e.id)) : filtered;
+    if (source.length === 0) {
+      showError(scope === 'selected' ? 'Nenhum exame selecionado' : 'Nenhum exame para exportar');
+      return;
+    }
+
+    const data = source.map(e => ({
+      CODIGO: e.code,
+      TUSS: e.tuss,
+      'NOME DO EXAME': e.name,
+      LOCAL: e.location,
+      'CUSTO DIRETO': e.direct,
+      'CUSTO INDIRETO': e.indirect,
+      'CUSTO TOTAL': e.direct + e.indirect,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Exames');
+
+    const suffix = scope === 'selected' ? 'selecionados' : 'todos';
+    const filename = `exames_controle_custos_${suffix}_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+    setExportMenuOpen(false);
+  };
+
   const btnGhost =
     'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 active:scale-[.98] transition-all';
 
   return (
     <div className="space-y-5">
       {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           icon={<FlaskConical className="w-5 h-5" />}
           label="Exames cadastrados"
@@ -193,9 +286,31 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
 
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            <button className={btnGhost}>
-              <Download className="w-4 h-4" /> Exportar
-            </button>
+            <div className="relative" ref={exportMenuRef}>
+              <button className={btnGhost} onClick={() => setExportMenuOpen(o => !o)}>
+                <Download className="w-4 h-4" /> Exportar
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {exportMenuOpen && (
+                <div className="absolute right-0 lg:left-0 mt-2 w-56 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-20 overflow-hidden">
+                  <button
+                    onClick={() => handleExport('all')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors"
+                  >
+                    Todos os valores
+                    <div className="text-xs text-gray-400 dark:text-gray-500">{filtered.length} exame{filtered.length !== 1 ? 's' : ''}</div>
+                  </button>
+                  <button
+                    onClick={() => handleExport('selected')}
+                    disabled={selectedIds.size === 0}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent border-t border-gray-100 dark:border-gray-700"
+                  >
+                    Somente selecionados
+                    <div className="text-xs text-gray-400 dark:text-gray-500">{selectedIds.size} selecionado{selectedIds.size !== 1 ? 's' : ''}</div>
+                  </button>
+                </div>
+              )}
+            </div>
             <button className={btnGhost}>
               <Upload className="w-4 h-4" /> Importar
             </button>
@@ -210,7 +325,29 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
       </div>
 
       {/* Table */}
-      <ExamTable exams={filtered} onEdit={openEdit} onDelete={handleDelete} />
+      <ExamTable
+        exams={displayedExams}
+        selectedIds={selectedIds}
+        onToggleOne={toggleOne}
+        onToggleAll={toggleAll}
+        onEdit={openEdit}
+        onDelete={handleDelete}
+      />
+
+      {/* Show more */}
+      {hasMoreExams && (
+        <div className="flex flex-col items-center gap-2">
+          <button
+            onClick={() => setDisplayCount(c => c + ITEMS_PER_PAGE)}
+            className="px-6 py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium text-sm"
+          >
+            Exibir mais {Math.min(ITEMS_PER_PAGE, filtered.length - displayCount)}
+          </button>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            Exibindo {displayedExams.length} de {filtered.length} exames
+          </span>
+        </div>
+      )}
 
       {/* Modal */}
       <ExamFormModal

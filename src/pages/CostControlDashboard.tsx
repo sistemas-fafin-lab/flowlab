@@ -56,7 +56,7 @@ const CostControlDashboard: React.FC = () => {
           </p>
 
           {/* Tab bar */}
-          <nav className="mt-5 flex gap-1 -mb-px overflow-x-auto">
+          <nav className="mt-5 flex gap-1 -mb-px overflow-x-auto overflow-y-hidden">
             {TABS.map(tab => {
               const active = activeTab === tab.key;
               return (

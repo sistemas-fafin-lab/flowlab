@@ -34,8 +34,10 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
   const [payorFilter, setPayorFilter] = useState('all');
   const [tableFilter, setTableFilter] = useState('all');
 
+  // Casa pelo código TUSS: é o dado que de fato relaciona a cobrança da fonte
+  // pagadora ao exame do catálogo (não há examId real vindo do APLIS).
   const examMap = useMemo(
-    () => Object.fromEntries(exams.map(e => [e.id, e])),
+    () => Object.fromEntries(exams.filter(e => e.tuss).map(e => [e.tuss, e])),
     [exams]
   );
 
@@ -52,7 +54,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
   const filtered = useMemo(
     () =>
       payors.filter(p => {
-        const ex = examMap[p.examId];
+        const ex = examMap[p.tus];
         const matchesSearch =
           !search ||
           ex?.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -151,7 +153,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
                 </tr>
               ) : (
                 filtered.map(p => {
-                  const ex = examMap[p.examId];
+                  const ex = examMap[p.tus];
                   return (
                     <tr key={p.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
                       <td className="px-5 py-3.5">

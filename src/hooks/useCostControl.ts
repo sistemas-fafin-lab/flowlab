@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '../lib/supabase';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -13,6 +14,7 @@ export interface IndirectCostItem {
 export interface Exam {
   id: string;
   code: string;
+  tuss: string;
   name: string;
   location: string;
   direct: number;
@@ -25,7 +27,6 @@ export interface Payor {
   payor: string;
   table: string;
   tus: string;
-  examId: string;
   price: number;
 }
 
@@ -33,9 +34,9 @@ export interface UseCostControlReturn {
   exams: Exam[];
   payors: Payor[];
   loading: boolean;
-  addExam: (data: Omit<Exam, 'id'>) => void;
-  updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => void;
-  deleteExam: (id: string) => void;
+  addExam: (data: Omit<Exam, 'id'>) => Promise<void>;
+  updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
+  deleteExam: (id: string) => Promise<void>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -48,70 +49,119 @@ export const formatBRL = (v: number): string =>
 export const formatPct = (v: number): string =>
   `${v.toFixed(1).replace('.', ',')}%`;
 
+// custo_exames guarda snake_case (schema Postgres); a tela usa o formato de Exam.
+const mapExamRow = (row: any): Exam => ({
+  id: row.id,
+  code: row.codigo ?? '',
+  tuss: row.tuss ?? '',
+  name: row.nome,
+  location: row.local ?? '',
+  direct: Number(row.custo_direto) || 0,
+  indirect: Number(row.custo_indireto) || 0,
+  indirectItems: row.custo_indireto_itens ?? [],
+});
+
+const toExamPayload = (data: Partial<Omit<Exam, 'id'>>) => {
+  const payload: Record<string, unknown> = {};
+  if (data.code !== undefined) payload.codigo = data.code;
+  if (data.tuss !== undefined) payload.tuss = data.tuss;
+  if (data.name !== undefined) payload.nome = data.name;
+  if (data.location !== undefined) payload.local = data.location;
+  if (data.direct !== undefined) payload.custo_direto = data.direct;
+  if (data.indirect !== undefined) payload.custo_indireto = data.indirect;
+  if (data.indirectItems !== undefined) payload.custo_indireto_itens = data.indirectItems;
+  return payload;
+};
+
 // ═══════════════════════════════════════════════════════════════════════════════
-// SEED DATA
+// SEED DATA — Fontes Pagadoras (mock; tela já rotula como "somente leitura,
+// espelhado do APLIS". Sem persistência própria até isso ser sincronizado de
+// verdade.)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const seedIndirect = (total: number): IndirectCostItem[] => [
-  { id: 'i1', label: 'Rateio de pessoal',                  value: +(total * 0.45).toFixed(2) },
-  { id: 'i2', label: 'Depreciação de equipamentos',         value: +(total * 0.25).toFixed(2) },
-  { id: 'i3', label: 'Insumos auxiliares (agulhas, tubos)', value: +(total * 0.18).toFixed(2) },
-  { id: 'i4', label: 'Rateio de espaço/energia',            value: +(total * 0.12).toFixed(2) },
-];
-
-export const SEED_EXAMS: Exam[] = [
-  { id: 'e1',  code: 'HMG-001', name: 'Hemograma Completo',         location: 'Hematologia',   direct: 4.20,  indirect: 3.80,  indirectItems: seedIndirect(3.80)  },
-  { id: 'e2',  code: 'GLI-014', name: 'Glicose em Jejum',           location: 'Bioquímica',    direct: 1.90,  indirect: 2.10,  indirectItems: seedIndirect(2.10)  },
-  { id: 'e3',  code: 'COL-022', name: 'Colesterol Total',           location: 'Bioquímica',    direct: 2.40,  indirect: 2.60,  indirectItems: seedIndirect(2.60)  },
-  { id: 'e4',  code: 'TSH-031', name: 'TSH Ultrassensível',         location: 'Hormônios',     direct: 6.10,  indirect: 5.90,  indirectItems: seedIndirect(5.90)  },
-  { id: 'e5',  code: 'CIT-050', name: 'Citologia Cervico-Vaginal',  location: 'Anatomia Pat.', direct: 11.20, indirect: 9.30,  indirectItems: seedIndirect(9.30)  },
-  { id: 'e6',  code: 'PRT-077', name: 'Proteínas Totais e Frações', location: 'Bioquímica',    direct: 3.10,  indirect: 4.40,  indirectItems: seedIndirect(4.40)  },
-  { id: 'e7',  code: 'URI-088', name: 'Urina Tipo I (EAS)',         location: 'Uroanálise',    direct: 1.40,  indirect: 1.80,  indirectItems: seedIndirect(1.80)  },
-  { id: 'e8',  code: 'BHC-101', name: 'Beta-HCG Quantitativo',     location: 'Hormônios',     direct: 7.80,  indirect: 6.20,  indirectItems: seedIndirect(6.20)  },
-  { id: 'e9',  code: 'VIT-115', name: 'Vitamina D 25-OH',          location: 'Imunologia',    direct: 14.50, indirect: 8.60,  indirectItems: seedIndirect(8.60)  },
-  { id: 'e10', code: 'FER-122', name: 'Ferritina',                  location: 'Imunologia',    direct: 5.40,  indirect: 4.10,  indirectItems: seedIndirect(4.10)  },
-  { id: 'e11', code: 'PCR-130', name: 'Proteína C Reativa',         location: 'Bioquímica',    direct: 4.80,  indirect: 4.20,  indirectItems: seedIndirect(4.20)  },
-  { id: 'e12', code: 'HBA-141', name: 'Hemoglobina Glicada',        location: 'Bioquímica',    direct: 6.20,  indirect: 4.80,  indirectItems: seedIndirect(4.80)  },
-];
-
+// tus casa com Exam.tuss (ver PayorsScreen/AnalyticsScreen) — os códigos abaixo
+// são TUSS reais que existem no catálogo semeado em custo_exames (migration
+// 20260903130000). Particular/SUS ficam com '—'/código SIGTAP de propósito:
+// não usam a tabela TUSS privada, então não têm com o que casar.
 export const SEED_PAYORS: Payor[] = [
-  { id: 'p1',  payor: 'Unimed',         table: 'Unimed Coop.',  tus: '40304361',   examId: 'e1',  price: 9.20  },
-  { id: 'p2',  payor: 'Unimed',         table: 'Unimed Coop.',  tus: '40301630',   examId: 'e2',  price: 4.80  },
-  { id: 'p3',  payor: 'Unimed',         table: 'Unimed Coop.',  tus: '40301516',   examId: 'e6',  price: 5.40  },
-  { id: 'p4',  payor: 'Bradesco Saúde', table: 'AMB 90',        tus: '40304361',   examId: 'e1',  price: 12.50 },
-  { id: 'p5',  payor: 'Bradesco Saúde', table: 'AMB 90',        tus: '40307336',   examId: 'e4',  price: 22.00 },
-  { id: 'p6',  payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          examId: 'e9',  price: 95.00 },
-  { id: 'p7',  payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          examId: 'e5',  price: 65.00 },
-  { id: 'p8',  payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          examId: 'e8',  price: 48.00 },
-  { id: 'p9',  payor: 'SUS',            table: 'Tabela SUS',    tus: '0202010317', examId: 'e1',  price: 3.20  },
-  { id: 'p10', payor: 'SUS',            table: 'Tabela SUS',    tus: '0202010317', examId: 'e6',  price: 1.80  },
-  { id: 'p11', payor: 'SulAmérica',     table: 'CBHPM',         tus: '40307336',   examId: 'e4',  price: 18.40 },
-  { id: 'p12', payor: 'SulAmérica',     table: 'CBHPM',         tus: '40310019',   examId: 'e9',  price: 38.00 },
-  { id: 'p13', payor: 'Hapvida',        table: 'Hapvida 2024',  tus: '40304361',   examId: 'e1',  price: 8.10  },
-  { id: 'p14', payor: 'Hapvida',        table: 'Hapvida 2024',  tus: '40301516',   examId: 'e6',  price: 4.10  },
-  { id: 'p15', payor: 'Hapvida',        table: 'Hapvida 2024',  tus: '40310353',   examId: 'e7',  price: 4.40  },
-  { id: 'p16', payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          examId: 'e12', price: 38.00 },
+  { id: 'p1',  payor: 'Unimed',         table: 'Unimed Coop.',  tus: '40304361',   price: 9.20  },
+  { id: 'p2',  payor: 'Unimed',         table: 'Unimed Coop.',  tus: '40302040',   price: 4.80  },
+  { id: 'p3',  payor: 'Unimed',         table: 'Unimed Coop.',  tus: '40304312',   price: 5.40  },
+  { id: 'p4',  payor: 'Bradesco Saúde', table: 'AMB 90',        tus: '40304361',   price: 12.50 },
+  { id: 'p5',  payor: 'Bradesco Saúde', table: 'AMB 90',        tus: '40316521',   price: 22.00 },
+  { id: 'p6',  payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          price: 95.00 },
+  { id: 'p7',  payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          price: 65.00 },
+  { id: 'p8',  payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          price: 48.00 },
+  { id: 'p9',  payor: 'SUS',            table: 'Tabela SUS',    tus: '0202010317', price: 3.20  },
+  { id: 'p10', payor: 'SUS',            table: 'Tabela SUS',    tus: '0202010317', price: 1.80  },
+  { id: 'p11', payor: 'SulAmérica',     table: 'CBHPM',         tus: '40316521',   price: 18.40 },
+  { id: 'p12', payor: 'SulAmérica',     table: 'CBHPM',         tus: '40302830',   price: 38.00 },
+  { id: 'p13', payor: 'Hapvida',        table: 'Hapvida 2024',  tus: '40304361',   price: 8.10  },
+  { id: 'p14', payor: 'Hapvida',        table: 'Hapvida 2024',  tus: '40304312',   price: 4.10  },
+  { id: 'p15', payor: 'Hapvida',        table: 'Hapvida 2024',  tus: '40311210',   price: 4.40  },
+  { id: 'p16', payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          price: 38.00 },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HOOK
+//
+// Exames persistem em public.custo_exames (migration 20260903130000), sob RLS
+// de canViewBilling/canManageBilling — mesmo gate da rota /cost-control.
+// Fontes Pagadoras seguem em memória (ver comentário acima do seed).
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export const useCostControl = (): UseCostControlReturn => {
-  const [exams, setExams] = useState<Exam[]>(SEED_EXAMS);
+  const [exams, setExams] = useState<Exam[]>([]);
   const [payors] = useState<Payor[]>(SEED_PAYORS);
+  const [loading, setLoading] = useState(true);
 
-  const addExam = useCallback((data: Omit<Exam, 'id'>) => {
-    setExams(prev => [{ ...data, id: `e${Date.now()}` }, ...prev]);
+  const fetchExams = useCallback(async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('custo_exames')
+        .select('*')
+        .order('nome', { ascending: true });
+
+      if (error) throw error;
+      setExams((data || []).map(mapExamRow));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const updateExam = useCallback((id: string, data: Partial<Omit<Exam, 'id'>>) => {
-    setExams(prev => prev.map(e => (e.id === id ? { ...e, ...data } : e)));
+  useEffect(() => {
+    fetchExams();
+  }, [fetchExams]);
+
+  const addExam = useCallback(async (data: Omit<Exam, 'id'>) => {
+    const { data: inserted, error } = await supabase
+      .from('custo_exames')
+      .insert(toExamPayload(data))
+      .select()
+      .single();
+
+    if (error) throw error;
+    setExams(prev => [mapExamRow(inserted), ...prev]);
   }, []);
 
-  const deleteExam = useCallback((id: string) => {
+  const updateExam = useCallback(async (id: string, data: Partial<Omit<Exam, 'id'>>) => {
+    const { data: updated, error } = await supabase
+      .from('custo_exames')
+      .update(toExamPayload(data))
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    setExams(prev => prev.map(e => (e.id === id ? mapExamRow(updated) : e)));
+  }, []);
+
+  const deleteExam = useCallback(async (id: string) => {
+    const { error } = await supabase.from('custo_exames').delete().eq('id', id);
+    if (error) throw error;
     setExams(prev => prev.filter(e => e.id !== id));
   }, []);
 
-  return { exams, payors, loading: false, addExam, updateExam, deleteExam };
+  return { exams, payors, loading, addExam, updateExam, deleteExam };
 };

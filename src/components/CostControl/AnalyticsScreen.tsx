@@ -190,7 +190,12 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
   const [dateFrom, setDateFrom] = useState('2026-04-01');
   const [dateTo, setDateTo] = useState('2026-04-30');
 
-  const examMap = useMemo(() => Object.fromEntries(exams.map(e => [e.id, e])), [exams]);
+  // Casa pelo código TUSS: é o dado que de fato relaciona a cobrança da fonte
+  // pagadora ao exame do catálogo (não há examId real vindo do APLIS).
+  const examMap = useMemo(
+    () => Object.fromEntries(exams.filter(e => e.tuss).map(e => [e.tuss, e])),
+    [exams]
+  );
 
   const payorList = useMemo(
     () => Array.from(new Set(payors.map(p => p.payor))).sort(),
@@ -201,7 +206,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
   const rows = useMemo<RentabilidadeRow[]>(() => {
     const filteredP = payors.filter(p => payorFilter === 'all' || p.payor === payorFilter);
     return filteredP.flatMap(p => {
-      const ex = examMap[p.examId];
+      const ex = examMap[p.tus];
       if (!ex) return [];
       const cost = ex.direct + ex.indirect;
       const revenue = p.price;
@@ -259,7 +264,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
   return (
     <div className="space-y-5">
       {/* Summary stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={<Layers className="w-5 h-5" />}
           label="Exames analisados"

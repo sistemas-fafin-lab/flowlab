@@ -1,7 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Pencil, Plus, X, Save } from 'lucide-react';
 import { Exam, IndirectCostItem, formatBRL } from '../../hooks/useCostControl';
-import IndirectComposer from './IndirectComposer';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -9,6 +8,7 @@ import IndirectComposer from './IndirectComposer';
 
 interface FormState {
   code: string;
+  tuss: string;
   name: string;
   location: string;
   direct: number;
@@ -28,7 +28,7 @@ interface ExamFormModalProps {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const EMPTY_FORM: FormState = {
-  code: '', name: '', location: '', direct: 0, indirect: 0, indirectItems: [],
+  code: '', tuss: '', name: '', location: '', direct: 0, indirect: 0, indirectItems: [],
 };
 
 const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSave }) => {
@@ -40,6 +40,7 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
         exam
           ? {
               code: exam.code,
+              tuss: exam.tuss,
               name: exam.name,
               location: exam.location,
               direct: exam.direct,
@@ -50,18 +51,6 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
       );
     }
   }, [open, exam]);
-
-  // Auto-sync indirect total when composer items change
-  const indirectFromItems = useMemo(
-    () => form.indirectItems.reduce((s, it) => s + (Number(it.value) || 0), 0),
-    [form.indirectItems]
-  );
-
-  useEffect(() => {
-    if (form.indirectItems.length > 0) {
-      setForm(f => ({ ...f, indirect: +indirectFromItems.toFixed(2) }));
-    }
-  }, [indirectFromItems]);
 
   if (!open) return null;
 
@@ -112,13 +101,12 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto">
           <div className="px-6 py-5 space-y-5">
             {/* Base fields */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
-                  Código <span className="text-red-500">*</span>
+                  Código
                 </label>
                 <input
-                  required
                   value={form.code}
                   onChange={e => setForm(f => ({ ...f, code: e.target.value }))}
                   placeholder="HMG-001"
@@ -126,6 +114,17 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
                 />
               </div>
               <div className="space-y-1.5">
+                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
+                  TUSS
+                </label>
+                <input
+                  value={form.tuss}
+                  onChange={e => setForm(f => ({ ...f, tuss: e.target.value }))}
+                  placeholder="40304361"
+                  className={inputCls}
+                />
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
                   Nome do exame <span className="text-red-500">*</span>
                 </label>
@@ -137,12 +136,11 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
                   className={inputCls}
                 />
               </div>
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
-                  Local de realização <span className="text-red-500">*</span>
+                  Local de realização
                 </label>
                 <input
-                  required
                   value={form.location}
                   onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
                   placeholder="Hematologia"
@@ -151,50 +149,45 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
               </div>
             </div>
 
-            {/* Direct costs */}
-            <div>
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                Custos Diretos
-              </h3>
-              <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-900/30 p-4 space-y-1.5">
-                <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
-                  Materiais diretos
-                </label>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Reagentes, descartáveis e insumos consumidos especificamente neste exame.
-                </p>
-                <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 font-medium pointer-events-none">
-                    R$
-                  </span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={form.direct}
-                    onChange={e => setForm(f => ({ ...f, direct: parseFloat(e.target.value) || 0 }))}
-                    className={`${inputCls} pl-8 tabular-nums`}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Indirect costs */}
-            <div>
-              <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
-                Custos Indiretos
-              </h3>
-              <IndirectComposer
-                items={form.indirectItems}
-                onChange={items => setForm(f => ({ ...f, indirectItems: items }))}
-              />
-              {form.indirectItems.length === 0 && (
-                <div className="mt-3 space-y-1.5">
+            {/* Direct & indirect costs */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                  Custos Diretos
+                </h3>
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-900/30 p-4 space-y-1.5">
                   <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
-                    Valor estimado (custo indireto)
+                    Materiais diretos
                   </label>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Preencha o valor estimado, ou expanda acima para detalhar.
+                    Reagentes, descartáveis e insumos consumidos especificamente neste exame.
+                  </p>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 font-medium pointer-events-none">
+                      R$
+                    </span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={form.direct}
+                      onChange={e => setForm(f => ({ ...f, direct: parseFloat(e.target.value) || 0 }))}
+                      className={`${inputCls} pl-8 tabular-nums`}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                  Custos Indiretos
+                </h3>
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-900/30 p-4 space-y-1.5">
+                  <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
+                    Valor estimado
+                  </label>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Rateio de pessoal, depreciação de equipamentos e demais custos indiretos, em um único valor.
                   </p>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 font-medium pointer-events-none">
@@ -210,7 +203,7 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
                     />
                   </div>
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Total summary card */}
