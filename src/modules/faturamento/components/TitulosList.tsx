@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import type {
   OperadoraResumo,
+  TituloBaixa,
   TituloGuia,
   TituloReceber,
   TituloStatus,
@@ -99,6 +100,8 @@ interface Props {
   buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
   /** `DtaEnvio` ao vivo dos lotes (issue 15) — chave = aplisId. Ver utils/envioAoVivo.ts. */
   buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
+  /** Issue 39: histórico de baixas do título, buscado ao expandir a linha. */
+  buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
 }
 
 /** Badge de atraso. Só aparece quando há vencimento e o título ainda tem saldo. */
@@ -140,6 +143,7 @@ const TitulosList: React.FC<Props> = ({
   onEditar,
   buscarGuias,
   buscarEnvioLotes,
+  buscarBaixas,
 }) => {
   const [expandido, setExpandido] = useState<string | null>(null);
   const [loteAberto, setLoteAberto] = useState<string | null>(null);
@@ -148,6 +152,15 @@ const TitulosList: React.FC<Props> = ({
   // carrega não pode piscar "Carregando guias…" no lote errado.
   const [carregandoGuias, setCarregandoGuias] = useState<Record<string, boolean>>({});
   const [erroGuias, setErroGuias] = useState<Record<string, string>>({});
+  // Issue 39: baixas do título, por id do título — mesmo padrão de `guias` acima.
+  const [baixas, setBaixas] = useState<Record<string, TituloBaixa[]>>({});
+  // `statusAtualizadoEm` usado na última busca: registrar uma nova baixa com a
+  // linha já expandida avança esse campo (trigger de recálculo do título) sem
+  // recriar `expandido` — sem essa versão o cache por id nunca invalidaria e a
+  // tabela continuaria mostrando só a baixa anterior até fechar e reabrir.
+  const [baixasVersao, setBaixasVersao] = useState<Record<string, string>>({});
+  const [carregandoBaixas, setCarregandoBaixas] = useState<Record<string, boolean>>({});
+  const [erroBaixas, setErroBaixas] = useState<Record<string, string>>({});
   const [busca, setBusca] = useState(filtros.busca);
   // Por título: DtaEnvio ao vivo dos seus lotes, chave = aplisId (issue 15).
   // Ausente = ainda não revalidado ou a consulta falhou — dataEnvioEfetiva cai
@@ -185,6 +198,42 @@ const TitulosList: React.FC<Props> = ({
     return () => { cancelado = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandido]);
+
+  // Issue 39: busca as baixas do título assim que ele é expandido, cacheadas
+  // por id — mas revalida se `statusAtualizadoEm` avançou desde a última busca
+  // (uma baixa registrada nesta sessão, com a linha ainda aberta).
+  useEffect(() => {
+    if (!expandido) return;
+    const titulo = titulos.find((t) => t.id === expandido);
+    if (!titulo) return;
+    if (baixas[expandido] && baixasVersao[expandido] === titulo.statusAtualizadoEm) return;
+    const notaId = expandido;
+    const versao = titulo.statusAtualizadoEm;
+
+    setCarregandoBaixas((atual) => ({ ...atual, [notaId]: true }));
+    setErroBaixas((atual) => ({ ...atual, [notaId]: '' }));
+    let cancelado = false;
+    void buscarBaixas(notaId)
+      .then((lista) => {
+        if (!cancelado) {
+          setBaixas((atual) => ({ ...atual, [notaId]: lista }));
+          setBaixasVersao((atual) => ({ ...atual, [notaId]: versao }));
+        }
+      })
+      .catch((err) => {
+        if (!cancelado) {
+          setErroBaixas((atual) => ({
+            ...atual,
+            [notaId]: err instanceof Error ? err.message : 'Não foi possível carregar as baixas.',
+          }));
+        }
+      })
+      .finally(() => {
+        if (!cancelado) setCarregandoBaixas((atual) => ({ ...atual, [notaId]: false }));
+      });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandido, titulos]);
 
   // Debounce: cada tecla dispararia uma consulta paginada ao Supabase.
   useEffect(() => {
@@ -554,6 +603,46 @@ const TitulosList: React.FC<Props> = ({
                                 {titulo.observacoes}
                               </p>
                             )}
+
+                            {/* Issue 39: histórico de baixas — cada lançamento de
+                                `recebimentos`, não só o total agregado da coluna Recebido. */}
+                            <div className="mb-3">
+                              <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                Baixas registradas
+                              </p>
+                              {carregandoBaixas[titulo.id] && !baixas[titulo.id] ? (
+                                <p className="text-xs text-gray-400">Carregando baixas…</p>
+                              ) : erroBaixas[titulo.id] ? (
+                                <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                                  {erroBaixas[titulo.id]}
+                                </p>
+                              ) : (baixas[titulo.id]?.length ?? 0) === 0 ? (
+                                <p className="text-xs text-gray-400">Nenhuma baixa registrada.</p>
+                              ) : (
+                                <table className="w-full text-xs">
+                                  <thead>
+                                    <tr className="text-left text-gray-400">
+                                      <th className="py-1">Data</th>
+                                      <th className="py-1 text-right">Valor</th>
+                                      <th className="py-1">Registrado por</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {baixas[titulo.id]?.map((baixa) => (
+                                      <tr key={baixa.id} className="text-gray-600 dark:text-gray-300">
+                                        <td className="py-1">{formatData(baixa.dataReceb)}</td>
+                                        <td className="py-1 text-right tabular-nums text-emerald-600 dark:text-emerald-400">
+                                          {formatCurrency(baixa.valorRecebido)}
+                                        </td>
+                                        <td className="py-1">{baixa.registradoPorNome ?? '—'}</td>
+                                      </tr>
+                                    ))}
+                                  </tbody>
+                                </table>
+                              )}
+                            </div>
+
                             <div className="space-y-1">
                               {titulo.lotes.length === 0 ? (
                                 <p className="text-xs text-gray-400">Título sem lotes vinculados.</p>

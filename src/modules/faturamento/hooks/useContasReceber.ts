@@ -5,6 +5,7 @@ import type {
   BaixaInput,
   GlosaLancamentoInput,
   OperadoraResumo,
+  TituloBaixa,
   TituloGuia,
   TituloReceber,
   TitulosFiltros,
@@ -141,6 +142,9 @@ interface UseContasReceberResult {
    *  Lança em falha de rede/túnel; quem chama decide o fallback (ver
    *  utils/envioAoVivo.ts), então nunca retorna silenciosamente vazio. */
   buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
+  /** Baixas (`recebimentos`) do título, mais recente primeiro, com o nome de
+   *  quem registrou já resolvido — issue 39. Sempre um array, nunca undefined. */
+  buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
   criarTitulo: (dados: {
     idsLote: number[];
     numeroNota: string;
@@ -324,6 +328,45 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       'Não foi possível revalidar o envio dos lotes.',
     );
     return body.envios ?? {};
+  }, []);
+
+  // Issue 39: histórico de baixas por título, sob demanda ao expandir a linha
+  // (mesmo padrão de buscarGuias). `registrado_por_id` referencia auth.users,
+  // não user_profiles — sem FK direta entre as duas tabelas o PostgREST não
+  // embeda o nome num select só, então resolve em duas idas: as baixas, depois
+  // os nomes dos ids distintos encontrados.
+  const buscarBaixas = useCallback(async (notaId: string): Promise<TituloBaixa[]> => {
+    const { data, error: erro } = await supabase
+      .from('recebimentos')
+      .select('id_receb, data_receb, valor_recebido, registrado_por_id, created_at')
+      .eq('nota_id', notaId)
+      .order('data_receb', { ascending: false, nullsFirst: false })
+      .order('created_at', { ascending: false });
+    if (erro) throw new Error(erro.message);
+    const linhas = data ?? [];
+
+    const idsUsuarios = [...new Set(
+      linhas.map((l) => l.registrado_por_id as string | null).filter((id): id is string => Boolean(id)),
+    )];
+    let nomePorId: Record<string, string> = {};
+    if (idsUsuarios.length > 0) {
+      const { data: perfis, error: erroPerfis } = await supabase
+        .from('user_profiles')
+        .select('id, name')
+        .in('id', idsUsuarios);
+      if (erroPerfis) throw new Error(erroPerfis.message);
+      nomePorId = Object.fromEntries((perfis ?? []).map((p) => [p.id as string, p.name as string]));
+    }
+
+    return linhas.map((linha) => ({
+      id: linha.id_receb as string,
+      dataReceb: (linha.data_receb as string | null) ?? null,
+      valorRecebido: num(linha.valor_recebido as number),
+      registradoPorNome: linha.registrado_por_id
+        ? (nomePorId[linha.registrado_por_id as string] ?? null)
+        : null,
+      createdAt: linha.created_at as string,
+    }));
   }, []);
 
   const criarTitulo = useCallback(async (dados: {
@@ -529,6 +572,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     refetchOperadoras,
     buscarGuias,
     buscarEnvioLotes,
+    buscarBaixas,
     criarTitulo,
     registrarBaixa,
     lancarGlosas,

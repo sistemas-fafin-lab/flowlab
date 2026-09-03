@@ -376,6 +376,17 @@ export interface TituloLote {
   guias?: TituloGuia[];
 }
 
+/** Uma baixa (linha de `recebimentos`) do título — issue 39: histórico de baixas. */
+export interface TituloBaixa {
+  id: string;
+  /** Data em que o valor entrou, YYYY-MM-DD. Null nas linhas legadas nunca baixadas. */
+  dataReceb: string | null;
+  valorRecebido: number;
+  /** Nome do usuário que registrou (`user_profiles.name`), null se não resolvido. */
+  registradoPorNome: string | null;
+  createdAt: string;
+}
+
 export interface TituloReceber {
   id: string;
   /** Pode ser null: operadoras nf_apos_pagamento criam o título antes de ter o número (issue 32). */
