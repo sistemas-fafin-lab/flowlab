@@ -50,7 +50,7 @@ import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import FiltrosReceber from './FiltrosReceber';
 import AgingDetalheModal from './AgingDetalheModal';
 import MetaMensalModal from './MetaMensalModal';
-import type { AgingBucket, DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
+import type { AgingBucket, AgingSelecao, DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
 // RPC fat_dashboard_receber — nada é recalculado aqui.
@@ -356,12 +356,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
   // abre o modal com a lista por trás do agregado, sem mexer nos filtros da
   // tela — ver comentário de topo do AgingDetalheModal sobre por que ele tem
   // consulta própria em vez de reaproveitar useContasReceber.
-  const [detalheAging, setDetalheAging] = useState<{
-    bucket: AgingBucket;
-    rotulo: string;
-    operadoraId: string | null;
-    operadoraNome: string | null;
-  } | null>(null);
+  const [detalheAging, setDetalheAging] = useState<AgingSelecao | null>(null);
 
   const abrirDetalheAging = useCallback(
     (linha: LinhaAgingFaixa, operadoraId: string | null, operadoraNome: string | null) => {
@@ -969,10 +964,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
 
       {detalheAging && (
         <AgingDetalheModal
-          bucket={detalheAging.bucket}
-          rotulo={detalheAging.rotulo}
-          operadoraId={detalheAging.operadoraId}
-          operadoraNome={detalheAging.operadoraNome}
+          {...detalheAging}
           operadoras={operadoras}
           onFechar={() => setDetalheAging(null)}
         />

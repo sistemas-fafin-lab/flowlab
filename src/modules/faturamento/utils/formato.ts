@@ -4,7 +4,7 @@
 // em vez de copiado: FaturasDashboard tinha uma cópia local, e uma terceira
 // (dashboard + títulos + modais) garantiria que uma delas divergisse.
 
-import type { AgingBucket } from '../types';
+import type { AgingBucket, OperadoraResumo } from '../types';
 
 export { formatCurrency } from '../../../utils/paymentUtils';
 
@@ -90,6 +90,22 @@ export const periodoEsteTrimestre = (): PeriodoRange => {
 export const anoMesAtual = (): { ano: number; mes: number } => {
   const hoje = new Date();
   return { ano: hoje.getFullYear(), mes: hoje.getMonth() + 1 };
+};
+
+/**
+ * `operadora_id`s da whitelist de negócio (issue 36, `is_considerada_meta`)
+ * para um `.in('operadora_id', ...)` — usada por useContasReceber.ts e
+ * AgingDetalheModal.tsx, que aplicam a mesma whitelist em consultas
+ * separadas ao Supabase.
+ *
+ * Sentinela (UUID que não existe) quando nenhuma operadora está marcada: um
+ * `.in()` com array vazio não filtra nada no PostgREST — devolveria a
+ * carteira inteira em vez de ficar vazio, que é o resultado correto de "a
+ * whitelist não tem ninguém dentro".
+ */
+export const idsOperadorasConsideradasMeta = (operadoras: OperadoraResumo[]): string[] => {
+  const ids = operadoras.filter((o) => o.consideradaMeta).map((o) => o.id);
+  return ids.length > 0 ? ids : ['00000000-0000-0000-0000-000000000000'];
 };
 
 /**

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { diasDeAtraso } from '../utils/formato';
+import { diasDeAtraso, idsOperadorasConsideradasMeta } from '../utils/formato';
 import type {
   BaixaInput,
   GlosaLancamentoInput,
@@ -255,11 +255,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       // o efeito abaixo depende de `operadoras` e reexecuta refetch assim que
       // refetchOperadoras resolver, mesmo raciocínio de ordering do bloco acima.
       if (operadoras.length > 0) {
-        const idsConsiderados = operadoras.filter((o) => o.consideradaMeta).map((o) => o.id);
-        query = query.in(
-          'operadora_id',
-          idsConsiderados.length > 0 ? idsConsiderados : ['00000000-0000-0000-0000-000000000000'],
-        );
+        query = query.in('operadora_id', idsOperadorasConsideradasMeta(operadoras));
       }
 
       const { data, count, error: erro } = await query;

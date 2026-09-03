@@ -483,6 +483,18 @@ export interface DashboardReceberFiltros {
  *  `data_vencimento`. */
 export type AgingBucket = 'a_vencer' | 'd1_30' | 'd31_60' | 'd61_90' | 'd90_mais';
 
+/** Faixa/segmento clicado no gráfico "Aging da carteira" (issue 41) — estado
+ *  compartilhado entre `ContasReceberDashboard` (dono do clique) e
+ *  `AgingDetalheModal` (Props). */
+export interface AgingSelecao {
+  bucket: AgingBucket;
+  /** Rótulo já formatado da faixa (ex. "31–60 dias"), o mesmo do eixo do gráfico. */
+  rotulo: string;
+  /** Segmento de operadora clicado, quando a barra permite — null mostra a faixa inteira. */
+  operadoraId: string | null;
+  operadoraNome: string | null;
+}
+
 /** Contrato de `fat_dashboard_receber`. Tudo já agregado no banco.
  *
  *  Os quatro valores de `kpis` saem do mesmo conjunto de títulos — os emitidos

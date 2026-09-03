@@ -1,9 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-import { diasDeAtraso, faixaAgingParaRange, formatCurrency, formatData } from '../utils/formato';
+import {
+  diasDeAtraso,
+  faixaAgingParaRange,
+  formatCurrency,
+  formatData,
+  idsOperadorasConsideradasMeta,
+} from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
-import type { AgingBucket, OperadoraResumo } from '../types';
+import type { AgingSelecao, OperadoraResumo, TituloStatus } from '../types';
 
 // Drill-down do widget "Aging da carteira" (issue 41): clicar numa faixa (ou
 // num segmento de operadora dentro dela) abre este modal com a lista de
@@ -34,8 +40,10 @@ interface LinhaAging {
 
 // Mesmo recorte de "título em aberto" que a RPC fat_dashboard_receber usa
 // para montar o aging (20260903120000_aging_por_operadora.sql): fora
-// cancelada/recebida/liquidada, com saldo positivo.
-const STATUS_ENCERRADOS = '(cancelada,recebida,liquidada)';
+// cancelada/recebida/liquidada, com saldo positivo. Tipado em cima de
+// TituloStatus (não uma string PostgREST solta) para um nome de status errado
+// virar erro de compilação em vez de silenciosamente não excluir nada.
+const STATUS_ENCERRADOS: readonly TituloStatus[] = ['cancelada', 'recebida', 'liquidada'];
 
 // Teto de linhas: o widget agrega a carteira inteira, e uma operadora com
 // centenas de títulos atrasados não precisa carregar tudo de uma vez só para
@@ -49,13 +57,7 @@ const rotuloAtraso = (dias: number | null): string => {
   return `vence em ${Math.abs(dias)}d`;
 };
 
-interface Props {
-  bucket: AgingBucket;
-  /** Rótulo já formatado da faixa (ex. "31–60 dias"), o mesmo do eixo do gráfico. */
-  rotulo: string;
-  /** Segmento de operadora clicado, quando a barra permite — null mostra a faixa inteira. */
-  operadoraId: string | null;
-  operadoraNome: string | null;
+interface Props extends AgingSelecao {
   /** Whitelist de operadoras consideradas na meta — mesmo recorte que o
    *  gráfico já aplica por trás (ver fat_dashboard_receber). */
   operadoras: OperadoraResumo[];
@@ -95,7 +97,7 @@ const AgingDetalheModal: React.FC<Props> = ({
         let query = supabase
           .from('notas')
           .select('id_nota, numero_nota, data_vencimento, valor_saldo, operadoras(nome)', { count: 'exact' })
-          .not('status', 'in', STATUS_ENCERRADOS)
+          .not('status', 'in', `(${STATUS_ENCERRADOS.join(',')})`)
           .gt('valor_saldo', 0)
           .order('data_vencimento', { ascending: true, nullsFirst: true })
           .limit(LIMITE_LINHAS);
@@ -106,11 +108,7 @@ const AgingDetalheModal: React.FC<Props> = ({
           // operadora considerada na meta).
           query = query.eq('operadora_id', operadoraId);
         } else {
-          const idsConsiderados = operadoras.filter((o) => o.consideradaMeta).map((o) => o.id);
-          query = query.in(
-            'operadora_id',
-            idsConsiderados.length > 0 ? idsConsiderados : ['00000000-0000-0000-0000-000000000000'],
-          );
+          query = query.in('operadora_id', idsOperadorasConsideradasMeta(operadoras));
         }
 
         if (incluirSemVencimento && desde) {
