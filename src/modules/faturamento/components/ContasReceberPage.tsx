@@ -68,6 +68,9 @@ const ContasReceberPage: React.FC = () => {
     operadoraId: '',
     busca: '',
     ocultarParceiras: false,
+    // Issue 38: atalho "Somente pendentes" — ligado por padrão, a usuária não
+    // precisa selecionar Status manualmente a cada visita pra ver o que falta receber.
+    somentePendentes: true,
     pagina: 1,
     tamanho: 25,
   });
@@ -97,6 +100,7 @@ const ContasReceberPage: React.FC = () => {
     operadoraId: filtros.operadoraId,
     busca: filtros.busca,
     ocultarParceiras: filtros.ocultarParceiras,
+    somentePendentes: filtros.somentePendentes,
     pagina: filtros.pagina,
     tamanho: filtros.tamanho,
   }), [filtros]);

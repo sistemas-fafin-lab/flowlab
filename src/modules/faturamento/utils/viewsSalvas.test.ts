@@ -21,6 +21,7 @@ const BASE_TITULOS: TitulosViewFiltros = {
   operadoraId: '',
   busca: '',
   ocultarParceiras: false,
+  somentePendentes: true,
 };
 
 describe('sanitizarFiltrosPainel', () => {
@@ -81,9 +82,11 @@ describe('sanitizarFiltrosTitulos', () => {
 
   it('status fora do union cai no status atual', () => {
     expect(sanitizarFiltrosTitulos({ status: 'paga' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
+    // status resolvido desliga somentePendentes (issue 38): os dois não convivem.
     expect(sanitizarFiltrosTitulos({ status: 'cancelada' }, BASE_TITULOS)).toEqual({
       ...BASE_TITULOS,
       status: 'cancelada',
+      somentePendentes: false,
     });
   });
 
@@ -95,6 +98,7 @@ describe('sanitizarFiltrosTitulos', () => {
       operadoraId: 'op1',
       busca: '123',
       ocultarParceiras: true,
+      somentePendentes: false,
     };
     expect(sanitizarFiltrosTitulos(view, BASE_TITULOS)).toEqual(view);
   });
@@ -111,6 +115,32 @@ describe('sanitizarFiltrosTitulos', () => {
 
   it('ocultarParceiras fora do tipo boolean cai na base', () => {
     expect(sanitizarFiltrosTitulos({ ocultarParceiras: 'sim' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
+  });
+
+  it('view antiga sem somentePendentes cai na base (issue 38)', () => {
+    expect(sanitizarFiltrosTitulos({ desde: '2025-07-01' }, BASE_TITULOS)).toEqual({
+      ...BASE_TITULOS,
+      desde: '2025-07-01',
+    });
+    expect(
+      sanitizarFiltrosTitulos({ desde: '2025-07-01' }, { ...BASE_TITULOS, somentePendentes: false }),
+    ).toEqual({ ...BASE_TITULOS, desde: '2025-07-01', somentePendentes: false });
+  });
+
+  it('somentePendentes fora do tipo boolean cai na base', () => {
+    expect(sanitizarFiltrosTitulos({ somentePendentes: 'sim' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
+  });
+
+  it('view antiga com status mas sem somentePendentes não reativa o atalho por cima do status (issue 38)', () => {
+    expect(
+      sanitizarFiltrosTitulos({ status: 'aberta' }, { ...BASE_TITULOS, somentePendentes: true }),
+    ).toEqual({ ...BASE_TITULOS, status: 'aberta', somentePendentes: false });
+  });
+
+  it('somentePendentes explícito não sobrevive junto de um status manual', () => {
+    expect(
+      sanitizarFiltrosTitulos({ status: 'recebida', somentePendentes: true }, BASE_TITULOS),
+    ).toEqual({ ...BASE_TITULOS, status: 'recebida', somentePendentes: false });
   });
 });
 

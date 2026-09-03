@@ -76,6 +76,9 @@ interface Props {
     busca: string;
     /** Issue 16: some da lista os títulos de operadoras marcadas como clínica parceira. */
     ocultarParceiras: boolean;
+    /** Issue 38: atalho "Somente pendentes" — preset de Status (aberta + parcialmente
+     *  recebida), só surte efeito quando `status` manual está vazio (ver conflito abaixo). */
+    somentePendentes: boolean;
     pagina: number;
     tamanho: number;
   };
@@ -237,8 +240,12 @@ const TitulosList: React.FC<Props> = ({
       operadoraId: filtros.operadoraId,
       busca,
       ocultarParceiras: filtros.ocultarParceiras,
+      somentePendentes: filtros.somentePendentes,
     }),
-    [filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca, filtros.ocultarParceiras],
+    [
+      filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca,
+      filtros.ocultarParceiras, filtros.somentePendentes,
+    ],
   );
 
   // A garantia de formato mora no sanitizador (utils/viewsSalvas.ts): a view
@@ -273,10 +280,27 @@ const TitulosList: React.FC<Props> = ({
           Status
           <Select
             value={filtros.status}
-            onChange={(v) => onFiltrar({ status: v as TituloStatus | '', pagina: 1 })}
+            // Selecionar um status manualmente é um recorte explícito — desliga o
+            // atalho "Somente pendentes" pra não conflitarem (issue 38).
+            onChange={(v) => onFiltrar({ status: v as TituloStatus | '', somentePendentes: false, pagina: 1 })}
             options={STATUS_OPCOES}
             controlClass={CAMPO}
           />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 pb-2">
+          <input
+            type="checkbox"
+            checked={filtros.somentePendentes}
+            onChange={(e) => onFiltrar({
+              somentePendentes: e.target.checked,
+              // Ligar o atalho sobrescreve uma seleção manual de Status anterior — os
+              // dois não fazem sentido juntos (issue 38).
+              status: e.target.checked ? '' : filtros.status,
+              pagina: 1,
+            })}
+            className="rounded border-gray-300 dark:border-gray-600"
+          />
+          Somente pendentes
         </label>
         <label className="text-xs text-gray-500 dark:text-gray-400">
           Operadora
@@ -377,7 +401,9 @@ const TitulosList: React.FC<Props> = ({
       ) : titulos.length === 0 ? (
         <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
           Nenhum título de {formatData(filtros.desde)} até {formatData(filtros.ate)}
-          {filtros.status && ` com status "${STATUS_ROTULOS[filtros.status]}"`}.
+          {filtros.status
+            ? ` com status "${STATUS_ROTULOS[filtros.status]}"`
+            : filtros.somentePendentes && ' com o atalho "Somente pendentes" ativado'}.
           {' '}Amplie o período de emissão acima — trocar o Status não muda a
           lista se o período já não cobrir nenhum título.
           {podeEditar && ' Use "Novo título" para agrupar lotes do apLIS numa cobrança.'}

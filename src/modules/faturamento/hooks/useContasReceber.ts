@@ -10,6 +10,7 @@ import type {
   TitulosFiltros,
   TituloLote,
 } from '../types';
+import { STATUS_TITULOS_PENDENTES } from '../types';
 
 // Títulos a receber, suas baixas e glosas.
 //
@@ -171,7 +172,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
 
   // Desestruturado para que as deps do useCallback sejam primitivas — com o
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
-  const { desde, ate, status, operadoraId, busca, ocultarParceiras, pagina, tamanho } = filtros;
+  const { desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, pagina, tamanho } = filtros;
 
   // Descarta respostas de buscas antigas: trocar de página/filtro rápido pode
   // devolver fora de ordem e sobrescrever o resultado novo com o velho.
@@ -201,7 +202,13 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         .order('data_emissao', { ascending: false })
         .range(inicio, inicio + porPagina - 1);
 
-      if (status) query = query.eq('status', status);
+      if (status) {
+        query = query.eq('status', status);
+      } else if (somentePendentes) {
+        // Issue 38: atalho "Somente pendentes" — preset em cima do filtro de Status,
+        // só entra quando não há status manual selecionado (ver conflito em TitulosList).
+        query = query.in('status', STATUS_TITULOS_PENDENTES);
+      }
       if (operadoraId) query = query.eq('operadora_id', operadoraId);
       if (busca?.trim()) {
         const termo = busca.trim();
@@ -262,7 +269,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [desde, ate, status, operadoraId, busca, ocultarParceiras, pagina, tamanho, operadoras]);
+  }, [desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, pagina, tamanho, operadoras]);
 
   useEffect(() => {
     void refetch();

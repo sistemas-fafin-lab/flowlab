@@ -348,6 +348,10 @@ export type TituloStatus =
   | 'glosada'
   | 'cancelada';
 
+/** Os dois status que representam "falta receber" — preset do atalho "Somente
+ *  pendentes" da aba Títulos (issue 38). */
+export const STATUS_TITULOS_PENDENTES: readonly TituloStatus[] = ['aberta', 'parcialmente_recebida'];
+
 /** Guia congelada dentro de um lote do título. Base do rateio de baixa e glosa. */
 export interface TituloGuia {
   id: string;
@@ -405,6 +409,9 @@ export interface TitulosFiltros {
   busca?: string;
   /** Issue 16: some da lista os títulos de operadoras marcadas `is_clinica_parceira`. */
   ocultarParceiras?: boolean;
+  /** Issue 38: atalho "Somente pendentes" — filtra por STATUS_TITULOS_PENDENTES quando
+   *  `status` manual está vazio. Preset em cima do filtro de Status, não substituto. */
+  somentePendentes?: boolean;
   pagina?: number;
   tamanho?: number;
 }
@@ -417,6 +424,7 @@ export interface TitulosViewFiltros {
   operadoraId: string;
   busca: string;
   ocultarParceiras: boolean;
+  somentePendentes: boolean;
 }
 
 /** Glosa lançada junto de uma baixa, no formato que `fat_registrar_baixa` espera

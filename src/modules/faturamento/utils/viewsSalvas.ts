@@ -95,13 +95,19 @@ export function sanitizarFiltrosTitulos(
   base: TitulosViewFiltros,
 ): TitulosViewFiltros {
   const obj = objetoDe(raw);
+  const status = statusTituloOu(obj.status, base.status);
   return {
     desde: dataOu(obj.desde, base.desde),
     ate: dataOu(obj.ate, base.ate),
-    status: statusTituloOu(obj.status, base.status),
+    status,
     operadoraId: textoOu(obj.operadoraId, base.operadoraId),
     busca: textoOu(obj.busca, ''),
     ocultarParceiras: boolOu(obj.ocultarParceiras, base.ocultarParceiras),
+    // Issue 38: status manual e o atalho não podem conviver (mesma regra de
+    // precedência do query builder em useContasReceber). Sem isto, uma view salva
+    // antes da issue 38 (sem a chave somentePendentes) herdava o valor de `base` e
+    // podia reativar o atalho por cima de um status que a própria view define.
+    somentePendentes: status ? false : boolOu(obj.somentePendentes, base.somentePendentes),
   };
 }
 
