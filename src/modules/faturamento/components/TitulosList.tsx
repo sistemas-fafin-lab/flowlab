@@ -727,9 +727,18 @@ const TitulosList: React.FC<Props> = ({
                                   // aqui), a RPC continua a autoridade: confirmarDesvincular exibe o
                                   // erro dela via setErroDesvincular quando o servidor rejeita algo
                                   // que o client achou permitido.
+                                  //
+                                  // "Baixa registrada" usa a lista de `baixas` (Issue 39), não
+                                  // `titulo.valorRecebido > 0` — uma baixa de glosa integral zera
+                                  // valorRecebido mas ainda é uma baixa registrada (mesma lacuna já
+                                  // corrigida na RPC). Enquanto a lista não carregou/falhou, trata
+                                  // como "tem baixa" (fail-safe) até confirmar que está vazia.
+                                  const baixasDoTitulo = baixas[titulo.id];
                                   const bloqueioDesvinculo = titulo.status === 'cancelada'
                                     ? 'Título cancelado não aceita edição de lotes.'
-                                    : titulo.valorRecebido > 0
+                                    : baixasDoTitulo === undefined
+                                    ? 'Verificando baixas do título…'
+                                    : baixasDoTitulo.length > 0
                                     ? 'Título já tem baixa registrada — não é possível alterar os lotes.'
                                     : titulo.lotes.length <= 1
                                     ? 'Não é possível remover o único lote do título.'
@@ -741,6 +750,10 @@ const TitulosList: React.FC<Props> = ({
                                       tabIndex={0}
                                       onClick={() => void abrirLote(lote.id)}
                                       onKeyDown={(e) => {
+                                        // Ignora keydown que borbulhou do botão "Desvincular" aninhado
+                                        // (e.target !== e.currentTarget) — sem isto, Enter/Espaço nesse
+                                        // botão também disparava abrirLote() por cima da própria ação.
+                                        if (e.target !== e.currentTarget) return;
                                         if (e.key === 'Enter' || e.key === ' ') {
                                           e.preventDefault();
                                           void abrirLote(lote.id);

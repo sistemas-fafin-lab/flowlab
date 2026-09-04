@@ -56,7 +56,6 @@ AS $$
 DECLARE
   v_status               TEXT;
   v_valor_total_anterior  DECIMAL(15, 2);
-  v_valor_recebido        DECIMAL(15, 2);
   v_valor_lote            DECIMAL(15, 2);
   v_qtd_lotes             INTEGER;
   v_motivo                TEXT;
@@ -72,8 +71,8 @@ BEGIN
 
   -- Trava a linha do título: duas remoções concorrentes no mesmo título não
   -- podem ler o mesmo valor_total de partida.
-  SELECT status, valor_total, valor_recebido
-    INTO v_status, v_valor_total_anterior, v_valor_recebido
+  SELECT status, valor_total
+    INTO v_status, v_valor_total_anterior
     FROM notas
    WHERE id_nota = p_id_nota
      FOR UPDATE;
@@ -85,17 +84,26 @@ BEGIN
     RAISE EXCEPTION 'Título cancelado não aceita edição de lotes.';
   END IF;
   -- Decisão da triagem: baixa já registrada bloqueia por completo (mudar o
-  -- total invalidaria um recebimento já confirmado). COALESCE porque
-  -- valor_recebido é NULLABLE (DEFAULT 0, sem NOT NULL) — mesma cautela de
-  -- valor_saldo em 20260807120000_contas_receber.sql; sem isto, um
-  -- valor_recebido NULL faria o IF avaliar como falso e pularia o bloqueio.
-  IF COALESCE(v_valor_recebido, 0) > 0 THEN
+  -- total invalidaria um recebimento já confirmado). Checa a EXISTÊNCIA de
+  -- uma linha em `recebimentos`, não `notas.valor_recebido > 0` — uma baixa
+  -- de glosa integral (fat_registrar_baixa aceita valorRecebido=0 desde que
+  -- tenha ao menos uma glosa) insere a linha em `recebimentos` sem nunca
+  -- fazer valor_recebido sair de 0, e passaria batida pela checagem antiga.
+  IF EXISTS (SELECT 1 FROM recebimentos WHERE nota_id = p_id_nota) THEN
     RAISE EXCEPTION 'Título já tem baixa registrada — não é possível alterar os lotes.';
   END IF;
 
   SELECT valor_total INTO v_valor_lote FROM lotes WHERE id_lote = p_id_lote;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Lote não encontrado.';
+  END IF;
+  -- `lotes.valor_total` é NULLABLE (DEFAULT 0, sem NOT NULL). Sem esta
+  -- checagem, um valor NULL faria a subtração abaixo (COALESCE(..., 0))
+  -- remover o lote sem descontar nada do título e gravar uma auditoria
+  -- mentindo "sem mudança de valor" — melhor recusar e forçar correção do
+  -- dado do que desvincular às cegas.
+  IF v_valor_lote IS NULL THEN
+    RAISE EXCEPTION 'Lote sem valor total definido — não é possível desvincular.';
   END IF;
 
   -- Verifica o vínculo com este título antes de checar "é o único lote?" —
