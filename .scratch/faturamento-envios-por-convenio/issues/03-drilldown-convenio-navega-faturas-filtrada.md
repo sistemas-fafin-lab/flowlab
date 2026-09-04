@@ -13,14 +13,27 @@ usar a capacidade de filtro/estado inicial que o ticket 02 adiciona.
 
 **Blocked by:** 01, 02
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Clicar numa linha de convênio na aba "Envios" navega para
+- [x] Clicar numa linha de convênio na aba "Envios" navega para
       `/faturamento/faturas`
-- [ ] A tela de destino já abre filtrada exatamente pelo convênio clicado
+- [x] A tela de destino já abre filtrada exatamente pelo convênio clicado
       (via `IdFontePagadora`, não busca aproximada) e pelo mesmo período que
       estava selecionado na aba "Envios"
-- [ ] O usuário não precisa reaplicar nenhum filtro manualmente após o
+- [x] O usuário não precisa reaplicar nenhum filtro manualmente após o
       clique
-- [ ] Acessar `/faturamento/faturas` direto pelo menu, sem vir do
+- [x] Acessar `/faturamento/faturas` direto pelo menu, sem vir do
       drill-down, continua funcionando exatamente como antes
+
+## Comments
+
+Implementado em `EnviosPorConvenio.tsx`: linha de convênio (com
+`fontePagadoraId` não nulo) fica clicável/focável (`role="button"`,
+`tabIndex`, `Enter`/`espaço`) e navega via `useNavigate` para a URL montada
+por `urlFaturasFiltradasPorConvenio` (novo utilitário puro em
+`utils/filtrosUrl.ts`, testado em `filtrosUrl.test.ts`), que monta
+`/faturamento/faturas?idFontePagadora=...&periodoIni=...&periodoFim=...` —
+os mesmos nomes de parâmetro já lidos por `FaturasDashboard.tsx` desde a
+issue 02 (`idFontePagadoraInicialDaUrl`/`periodoInicialDaUrl`). Convênios
+sem `fontePagadoraId` ("Não identificado") não têm drill-down, por não
+haver id exato para filtrar.
