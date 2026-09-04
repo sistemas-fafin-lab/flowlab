@@ -21,6 +21,12 @@ mkdir -p "$INSTALL_DIR"
 cp "$SCRIPT_DIR/flowlab_hw_alert.py" "$INSTALL_DIR/"
 
 echo "→ Criando unidades systemd (machine: $MACHINE_NAME)"
+
+GLANCE_ENV_LINE=""
+if [ -n "${GLANCE_AGENTS:-}" ]; then
+  GLANCE_ENV_LINE="Environment=GLANCE_AGENTS=$GLANCE_AGENTS"
+fi
+
 cat > /etc/systemd/system/flowlab-hw-alert.service <<EOF
 [Unit]
 Description=FlowLAB hardware alert (single check)
@@ -32,6 +38,7 @@ Type=oneshot
 Environment=FLOWLAB_API_URL=$FLOWLAB_API_URL
 Environment=ALERT_TO=$ALERT_TO
 Environment=MACHINE_NAME=$MACHINE_NAME
+$GLANCE_ENV_LINE
 ExecStart=$PYTHON_BIN $INSTALL_DIR/flowlab_hw_alert.py --once
 EOF
 
