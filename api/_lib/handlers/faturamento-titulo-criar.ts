@@ -28,6 +28,7 @@ import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { detalharVariosLotes, listarLotes, MAX_LOTES_TITULO, MAX_TAMANHO } from '../faturamento/bdLab.js';
 import type { LoteFaturamento, RequisicaoLote } from '../faturamento/bdLab.js';
+import { texto } from '../faturamento/texto.js';
 import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -52,10 +53,6 @@ interface CorpoTitulo {
   competencia?: unknown;
   dataVencimento?: unknown;
   observacoes?: unknown;
-}
-
-function texto(bruto: unknown): string | undefined {
-  return typeof bruto === 'string' && bruto.trim() !== '' ? bruto.trim() : undefined;
 }
 
 /**

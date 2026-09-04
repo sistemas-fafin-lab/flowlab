@@ -720,8 +720,13 @@ const TitulosList: React.FC<Props> = ({
                                 <p className="text-xs text-gray-400">Título sem lotes vinculados.</p>
                               ) : (
                                 titulo.lotes.map((lote) => {
-                                  // Issue 46: bloqueio espelha a RPC fat_desvincular_lote — cancelado,
-                                  // baixa já registrada ou único lote do título.
+                                  // Issue 46: bloqueio espelha as regras de fat_desvincular_lote
+                                  // (20260904100000_fat_desvincular_lote.sql) — cancelado, baixa já
+                                  // registrada ou único lote do título — só para desabilitar o botão
+                                  // de antemão. Se as duas regras divergirem (RPC mudar sem atualizar
+                                  // aqui), a RPC continua a autoridade: confirmarDesvincular exibe o
+                                  // erro dela via setErroDesvincular quando o servidor rejeita algo
+                                  // que o client achou permitido.
                                   const bloqueioDesvinculo = titulo.status === 'cancelada'
                                     ? 'Título cancelado não aceita edição de lotes.'
                                     : titulo.valorRecebido > 0
@@ -732,7 +737,15 @@ const TitulosList: React.FC<Props> = ({
                                   return (
                                   <div key={lote.id} className="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
                                     <div
+                                      role="button"
+                                      tabIndex={0}
                                       onClick={() => void abrirLote(lote.id)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === 'Enter' || e.key === ' ') {
+                                          e.preventDefault();
+                                          void abrirLote(lote.id);
+                                        }
+                                      }}
                                       className="w-full flex items-center gap-3 px-3 py-2 text-left text-xs cursor-pointer"
                                     >
                                       {loteAberto === lote.id

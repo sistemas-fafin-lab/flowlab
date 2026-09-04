@@ -21,16 +21,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
+import { texto } from '../faturamento/texto.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
 interface CorpoDesvincularLote {
   idNota?: unknown;
   idLote?: unknown;
   motivo?: unknown;
-}
-
-function texto(bruto: unknown): string | undefined {
-  return typeof bruto === 'string' && bruto.trim() !== '' ? bruto.trim() : undefined;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

@@ -98,6 +98,16 @@ BEGIN
     RAISE EXCEPTION 'Lote não encontrado.';
   END IF;
 
+  -- Verifica o vínculo com este título antes de checar "é o único lote?" —
+  -- na ordem inversa, um p_id_lote que existe em `lotes` mas não pertence a
+  -- este título acabava caindo no erro de "único lote" sempre que o título
+  -- só tivesse um lote de verdade vinculado, escondendo o problema real.
+  IF NOT EXISTS (
+    SELECT 1 FROM nota_lote WHERE id_nota = p_id_nota AND id_lote = p_id_lote
+  ) THEN
+    RAISE EXCEPTION 'Lote não pertence a este título.';
+  END IF;
+
   SELECT COUNT(*) INTO v_qtd_lotes FROM nota_lote WHERE id_nota = p_id_nota;
   IF v_qtd_lotes <= 1 THEN
     RAISE EXCEPTION 'Não é possível remover o único lote do título — cancele o título em vez disso.';
