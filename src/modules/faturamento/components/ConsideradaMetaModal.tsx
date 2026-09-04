@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Building2, Loader2, Search, X } from 'lucide-react';
 import type { OperadoraResumo } from '../types';
+import { useDesativacaoComMotivo } from '../hooks/useDesativacaoComMotivo';
+import MotivoDesativacaoBox from './MotivoDesativacaoBox';
 
 // Modal de gerenciamento da whitelist "fontes pagadoras consideradas para
 // meta" (feedback do setor de faturamento, 03/09): lista fechada passada pelo
@@ -15,13 +17,15 @@ interface Props {
   aberto: boolean;
   onFechar: () => void;
   operadoras: OperadoraResumo[];
-  onAlternar: (operadoraId: string, valor: boolean) => Promise<string | null>;
+  onAlternar: (operadoraId: string, valor: boolean, motivo?: string) => Promise<string | null>;
 }
 
 const ConsideradaMetaModal: React.FC<Props> = ({ aberto, onFechar, operadoras, onAlternar }) => {
   const [busca, setBusca] = useState('');
-  const [salvandoId, setSalvandoId] = useState<string | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const {
+    salvandoId, erro, pendente, motivo, setMotivo,
+    alternar, confirmarDesativacao, cancelarDesativacao, resetar,
+  } = useDesativacaoComMotivo(onAlternar);
 
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -33,17 +37,9 @@ const ConsideradaMetaModal: React.FC<Props> = ({ aberto, onFechar, operadoras, o
     });
   }, [operadoras, busca]);
 
-  const alternar = async (operadora: OperadoraResumo) => {
-    setErro(null);
-    setSalvandoId(operadora.id);
-    const erroRetornado = await onAlternar(operadora.id, !operadora.consideradaMeta);
-    setSalvandoId(null);
-    if (erroRetornado) setErro(erroRetornado);
-  };
-
   const fechar = () => {
     setBusca('');
-    setErro(null);
+    resetar();
     onFechar();
   };
 
@@ -88,6 +84,17 @@ const ConsideradaMetaModal: React.FC<Props> = ({ aberto, onFechar, operadoras, o
             </div>
           )}
 
+          {pendente && (
+            <MotivoDesativacaoBox
+              pergunta={<>Por que remover <strong>{pendente.nome}</strong> das fontes consideradas na meta?</>}
+              motivo={motivo}
+              onChangeMotivo={setMotivo}
+              onCancelar={cancelarDesativacao}
+              onConfirmar={() => void confirmarDesativacao()}
+              confirmando={salvandoId === pendente.id}
+            />
+          )}
+
           {operadoras.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Nenhuma fonte pagadora carregada. Use &quot;Sincronizar operadoras&quot; antes de gerenciar a meta.
@@ -104,8 +111,8 @@ const ConsideradaMetaModal: React.FC<Props> = ({ aberto, onFechar, operadoras, o
                     <input
                       type="checkbox"
                       checked={operadora.consideradaMeta}
-                      disabled={salvandoId === operadora.id}
-                      onChange={() => void alternar(operadora)}
+                      disabled={salvandoId === operadora.id || pendente?.id === operadora.id}
+                      onChange={() => void alternar(operadora, operadora.consideradaMeta)}
                       className="rounded border-gray-300 dark:border-gray-600"
                     />
                     <Building2 className="w-4 h-4 text-gray-400 shrink-0" />

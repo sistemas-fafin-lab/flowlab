@@ -31,6 +31,41 @@ async function getToken(): Promise<string | null> {
   return session?.access_token ?? null;
 }
 
+type CampoAuditoriaOperadora = 'is_clinica_parceira' | 'nf_apos_pagamento' | 'is_considerada_meta';
+
+/**
+ * Issue 44: registra em `operadoras_audit_logs` a mudança de uma das flags de
+ * exceção de operadora. Chamada só depois do UPDATE em `operadoras` ter
+ * sucesso — as três funções que alteram essas flags fazem UPDATE direto do
+ * client (sem RPC/handler de API no meio), então a auditoria também precisa
+ * acontecer aqui, como uma segunda chamada Supabase.
+ */
+async function registrarAuditoriaOperadora(
+  operadoraId: string,
+  campo: CampoAuditoriaOperadora,
+  valorNovo: boolean,
+  motivo?: string,
+): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) throw new Error('Sessão expirada — não foi possível registrar a auditoria.');
+  const { data: perfil } = await supabase
+    .from('user_profiles')
+    .select('name')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  const { error: erro } = await supabase.from('operadoras_audit_logs').insert({
+    operadora_id: operadoraId,
+    campo,
+    valor_anterior: !valorNovo,
+    valor_novo: valorNovo,
+    motivo: motivo ?? null,
+    performed_by: user.id,
+    performed_by_name: (perfil?.name as string | undefined) ?? user.email ?? 'Desconhecido',
+  });
+  if (erro) throw new Error(erro.message);
+}
+
 /**
  * Chamada autenticada a uma rota /api/faturamento/*: token da sessão, parsing
  * do corpo e checagem de `success` num lugar só — criarTitulo e
@@ -158,13 +193,15 @@ interface UseContasReceberResult {
   cancelarTitulo: (notaId: string) => Promise<string | null>;
   /** Issue 33: preenche/corrige o número da nota de um título já existente. */
   atualizarNumeroNota: (notaId: string, numeroNota: string) => Promise<string | null>;
-  /** Issue 16: marca/desmarca uma operadora como clínica parceira. */
-  marcarClinicaParceira: (operadoraId: string, valor: boolean) => Promise<string | null>;
-  /** Issue 31: marca/desmarca a regra "NF só depois do pagamento" de uma operadora. */
-  alternarNfAposPagamento: (operadoraId: string, valor: boolean) => Promise<string | null>;
+  /** Issue 16: marca/desmarca uma operadora como clínica parceira. `motivo`
+   *  é obrigatório (validado na UI) quando `valor` é `false`. */
+  marcarClinicaParceira: (operadoraId: string, valor: boolean, motivo?: string) => Promise<string | null>;
+  /** Issue 31: marca/desmarca a regra "NF só depois do pagamento" de uma operadora.
+   *  `motivo` é obrigatório (validado na UI) quando `valor` é `false`. */
+  alternarNfAposPagamento: (operadoraId: string, valor: boolean, motivo?: string) => Promise<string | null>;
   /** Marca/desmarca uma operadora como considerada na meta (whitelist de
-   *  negócio, 03/09). */
-  marcarConsideradaMeta: (operadoraId: string, valor: boolean) => Promise<string | null>;
+   *  negócio, 03/09). `motivo` é obrigatório (validado na UI) quando `valor` é `false`. */
+  marcarConsideradaMeta: (operadoraId: string, valor: boolean, motivo?: string) => Promise<string | null>;
 }
 
 export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResult {
@@ -509,6 +546,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const marcarClinicaParceira = useCallback(async (
     operadoraId: string,
     valor: boolean,
+    motivo?: string,
   ): Promise<string | null> => {
     try {
       const { error: erro } = await supabase
@@ -517,9 +555,18 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         .eq('id_operadora', operadoraId);
       if (erro) throw new Error(erro.message);
       await refetchOperadoras();
-      return null;
     } catch (err) {
       return err instanceof Error ? err.message : 'Não foi possível atualizar a operadora.';
+    }
+    // A marcação já foi persistida e refletida na tela acima — uma falha aqui
+    // é só do registro de auditoria, não deve ser reportada como se o toggle
+    // tivesse falhado.
+    try {
+      await registrarAuditoriaOperadora(operadoraId, 'is_clinica_parceira', valor, motivo);
+      return null;
+    } catch (err) {
+      const detalhe = err instanceof Error ? err.message : 'motivo desconhecido';
+      return `Operadora atualizada, mas o registro de auditoria falhou: ${detalhe}`;
     }
   }, [refetchOperadoras]);
 
@@ -528,6 +575,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const alternarNfAposPagamento = useCallback(async (
     operadoraId: string,
     valor: boolean,
+    motivo?: string,
   ): Promise<string | null> => {
     try {
       const { error: erro } = await supabase
@@ -536,9 +584,18 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         .eq('id_operadora', operadoraId);
       if (erro) throw new Error(erro.message);
       await refetchOperadoras();
-      return null;
     } catch (err) {
       return err instanceof Error ? err.message : 'Não foi possível atualizar a operadora.';
+    }
+    // A marcação já foi persistida e refletida na tela acima — uma falha aqui
+    // é só do registro de auditoria, não deve ser reportada como se o toggle
+    // tivesse falhado.
+    try {
+      await registrarAuditoriaOperadora(operadoraId, 'nf_apos_pagamento', valor, motivo);
+      return null;
+    } catch (err) {
+      const detalhe = err instanceof Error ? err.message : 'motivo desconhecido';
+      return `Operadora atualizada, mas o registro de auditoria falhou: ${detalhe}`;
     }
   }, [refetchOperadoras]);
 
@@ -547,6 +604,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const marcarConsideradaMeta = useCallback(async (
     operadoraId: string,
     valor: boolean,
+    motivo?: string,
   ): Promise<string | null> => {
     try {
       const { error: erro } = await supabase
@@ -555,9 +613,18 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         .eq('id_operadora', operadoraId);
       if (erro) throw new Error(erro.message);
       await refetchOperadoras();
-      return null;
     } catch (err) {
       return err instanceof Error ? err.message : 'Não foi possível atualizar a operadora.';
+    }
+    // A marcação já foi persistida e refletida na tela acima — uma falha aqui
+    // é só do registro de auditoria, não deve ser reportada como se o toggle
+    // tivesse falhado.
+    try {
+      await registrarAuditoriaOperadora(operadoraId, 'is_considerada_meta', valor, motivo);
+      return null;
+    } catch (err) {
+      const detalhe = err instanceof Error ? err.message : 'motivo desconhecido';
+      return `Operadora atualizada, mas o registro de auditoria falhou: ${detalhe}`;
     }
   }, [refetchOperadoras]);
 

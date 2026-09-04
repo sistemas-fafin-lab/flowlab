@@ -1,6 +1,8 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, Building2, Loader2, Search, X } from 'lucide-react';
 import type { OperadoraResumo } from '../types';
+import { useDesativacaoComMotivo } from '../hooks/useDesativacaoComMotivo';
+import MotivoDesativacaoBox from './MotivoDesativacaoBox';
 
 // Modal de gerenciamento da regra "NF só após pagamento" (issue 31): pra
 // algumas operadoras o convênio paga primeiro e a NF só pode ser emitida
@@ -14,13 +16,15 @@ interface Props {
   aberto: boolean;
   onFechar: () => void;
   operadoras: OperadoraResumo[];
-  onAlternar: (operadoraId: string, valor: boolean) => Promise<string | null>;
+  onAlternar: (operadoraId: string, valor: boolean, motivo?: string) => Promise<string | null>;
 }
 
 const RegraNfModal: React.FC<Props> = ({ aberto, onFechar, operadoras, onAlternar }) => {
   const [busca, setBusca] = useState('');
-  const [salvandoId, setSalvandoId] = useState<string | null>(null);
-  const [erro, setErro] = useState<string | null>(null);
+  const {
+    salvandoId, erro, pendente, motivo, setMotivo,
+    alternar, confirmarDesativacao, cancelarDesativacao, resetar,
+  } = useDesativacaoComMotivo(onAlternar);
 
   const filtradas = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -32,17 +36,9 @@ const RegraNfModal: React.FC<Props> = ({ aberto, onFechar, operadoras, onAlterna
     });
   }, [operadoras, busca]);
 
-  const alternar = async (operadora: OperadoraResumo) => {
-    setErro(null);
-    setSalvandoId(operadora.id);
-    const erroRetornado = await onAlternar(operadora.id, !operadora.nfAposPagamento);
-    setSalvandoId(null);
-    if (erroRetornado) setErro(erroRetornado);
-  };
-
   const fechar = () => {
     setBusca('');
-    setErro(null);
+    resetar();
     onFechar();
   };
 
@@ -87,6 +83,17 @@ const RegraNfModal: React.FC<Props> = ({ aberto, onFechar, operadoras, onAlterna
             </div>
           )}
 
+          {pendente && (
+            <MotivoDesativacaoBox
+              pergunta={<>Por que remover a regra de NF só após pagamento de <strong>{pendente.nome}</strong>?</>}
+              motivo={motivo}
+              onChangeMotivo={setMotivo}
+              onCancelar={cancelarDesativacao}
+              onConfirmar={() => void confirmarDesativacao()}
+              confirmando={salvandoId === pendente.id}
+            />
+          )}
+
           {operadoras.length === 0 ? (
             <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
               Nenhuma operadora carregada. Use &quot;Sincronizar operadoras&quot; antes de gerenciar a regra.
@@ -103,8 +110,8 @@ const RegraNfModal: React.FC<Props> = ({ aberto, onFechar, operadoras, onAlterna
                     <input
                       type="checkbox"
                       checked={operadora.nfAposPagamento}
-                      disabled={salvandoId === operadora.id}
-                      onChange={() => void alternar(operadora)}
+                      disabled={salvandoId === operadora.id || pendente?.id === operadora.id}
+                      onChange={() => void alternar(operadora, operadora.nfAposPagamento)}
                       className="rounded border-gray-300 dark:border-gray-600"
                     />
                     <Building2 className="w-4 h-4 text-gray-400 shrink-0" />
