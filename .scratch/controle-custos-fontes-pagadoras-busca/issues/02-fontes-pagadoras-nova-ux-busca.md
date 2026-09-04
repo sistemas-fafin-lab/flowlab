@@ -39,26 +39,26 @@ Rentabilidade" nem no cadastro de exames.
 
 **Blocked by:** 01 — depende das funções puras de busca/listagem por preço.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A listagem completa de fontes pagadoras e os filtros dropdown de
+- [x] A listagem completa de fontes pagadoras e os filtros dropdown de
       convênio/tabela associada não aparecem mais na tela
-- [ ] O cabeçalho não mostra mais "Atualizar do APLIS", "Exportar (Excel)"
+- [x] O cabeçalho não mostra mais "Atualizar do APLIS", "Exportar (Excel)"
       nem o badge "Sincronizado com APLIS"
-- [ ] Existe um único campo de busca por TUSS ou nome do exame, filtrando
+- [x] Existe um único campo de busca por TUSS ou nome do exame, filtrando
       em tempo real
-- [ ] Antes de digitar, aparece uma mensagem convidando a pesquisar
-- [ ] Busca por TUSS aceita correspondência parcial
-- [ ] Múltiplos exames encontrados → aparece dropdown com nome + TUSS por
+- [x] Antes de digitar, aparece uma mensagem convidando a pesquisar
+- [x] Busca por TUSS aceita correspondência parcial
+- [x] Múltiplos exames encontrados → aparece dropdown com nome + TUSS por
       linha
-- [ ] Exatamente um exame encontrado → pula direto pra lista de fontes
+- [x] Exatamente um exame encontrado → pula direto pra lista de fontes
       pagadoras/preços, sem exigir clique
-- [ ] Nenhum exame encontrado → mensagem "nenhum exame encontrado"
-- [ ] Selecionar um exame no dropdown troca o campo de busca por um chip do
+- [x] Nenhum exame encontrado → mensagem "nenhum exame encontrado"
+- [x] Selecionar um exame no dropdown troca o campo de busca por um chip do
       exame escolhido, com "x" pra limpar e voltar a pesquisar
-- [ ] Lista de fontes pagadoras do exame selecionado mostra Fonte Pagadora,
+- [x] Lista de fontes pagadoras do exame selecionado mostra Fonte Pagadora,
       Tabela Associada e Valor Cobrado, ordenada por valor crescente
-- [ ] A aba "Análise de Rentabilidade" e os dados subjacentes (fontes
+- [x] A aba "Análise de Rentabilidade" e os dados subjacentes (fontes
       pagadoras mockadas, catálogo de exames) continuam funcionando sem
       nenhuma mudança de comportamento
 
