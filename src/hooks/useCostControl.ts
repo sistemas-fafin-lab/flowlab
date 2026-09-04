@@ -74,66 +74,69 @@ const toExamPayload = (data: Partial<Omit<Exam, 'id'>>) => {
   return payload;
 };
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// SEED DATA — Fontes Pagadoras (mock; tela já rotula como "somente leitura,
-// espelhado do APLIS". Sem persistência própria até isso ser sincronizado de
-// verdade.)
-// ═══════════════════════════════════════════════════════════════════════════════
-
-// tus casa com Exam.tuss (ver PayorsScreen/AnalyticsScreen) — os códigos abaixo
-// são TUSS reais que existem no catálogo semeado em custo_exames (migration
-// 20260903130000). Particular/SUS ficam com '—'/código SIGTAP de propósito:
-// não usam a tabela TUSS privada, então não têm com o que casar.
-export const SEED_PAYORS: Payor[] = [
-  { id: 'p1',  payor: 'Unimed',         table: 'Unimed Coop.',  tus: '40304361',   price: 9.20  },
-  { id: 'p2',  payor: 'Unimed',         table: 'Unimed Coop.',  tus: '40302040',   price: 4.80  },
-  { id: 'p3',  payor: 'Unimed',         table: 'Unimed Coop.',  tus: '40304312',   price: 5.40  },
-  { id: 'p4',  payor: 'Bradesco Saúde', table: 'AMB 90',        tus: '40304361',   price: 12.50 },
-  { id: 'p5',  payor: 'Bradesco Saúde', table: 'AMB 90',        tus: '40316521',   price: 22.00 },
-  { id: 'p6',  payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          price: 95.00 },
-  { id: 'p7',  payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          price: 65.00 },
-  { id: 'p8',  payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          price: 48.00 },
-  { id: 'p9',  payor: 'SUS',            table: 'Tabela SUS',    tus: '0202010317', price: 3.20  },
-  { id: 'p10', payor: 'SUS',            table: 'Tabela SUS',    tus: '0202010317', price: 1.80  },
-  { id: 'p11', payor: 'SulAmérica',     table: 'CBHPM',         tus: '40316521',   price: 18.40 },
-  { id: 'p12', payor: 'SulAmérica',     table: 'CBHPM',         tus: '40302830',   price: 38.00 },
-  { id: 'p13', payor: 'Hapvida',        table: 'Hapvida 2024',  tus: '40304361',   price: 8.10  },
-  { id: 'p14', payor: 'Hapvida',        table: 'Hapvida 2024',  tus: '40304312',   price: 4.10  },
-  { id: 'p15', payor: 'Hapvida',        table: 'Hapvida 2024',  tus: '40311210',   price: 4.40  },
-  { id: 'p16', payor: 'Saldo de Caixa', table: 'Particular',    tus: '—',          price: 38.00 },
-];
+// custo_fontes_pagadoras guarda snake_case (schema Postgres); a tela usa o
+// formato de Payor. tus casa com Exam.tuss (ver PayorsScreen/AnalyticsScreen).
+const mapPayorRow = (row: any): Payor => ({
+  id: row.id,
+  payor: row.fonte_pagadora,
+  table: row.tabela_associada ?? '',
+  tus: row.tuss ?? '',
+  price: Number(row.valor) || 0,
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // HOOK
 //
-// Exames persistem em public.custo_exames (migration 20260903130000), sob RLS
-// de canViewBilling/canManageBilling — mesmo gate da rota /cost-control.
-// Fontes Pagadoras seguem em memória (ver comentário acima do seed).
+// Exames persistem em public.custo_exames (migration 20260903130000) e Fontes
+// Pagadoras em public.custo_fontes_pagadoras (migration 20260904110000),
+// ambas sob RLS de canViewBilling/canManageBilling — mesmo gate da rota
+// /cost-control.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 export const useCostControl = (): UseCostControlReturn => {
   const [exams, setExams] = useState<Exam[]>([]);
-  const [payors] = useState<Payor[]>(SEED_PAYORS);
+  const [payors, setPayors] = useState<Payor[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchExams = useCallback(async () => {
-    try {
-      setLoading(true);
+    const { data, error } = await supabase
+      .from('custo_exames')
+      .select('*')
+      .order('nome', { ascending: true });
+
+    if (error) throw error;
+    setExams((data || []).map(mapExamRow));
+  }, []);
+
+  const fetchPayors = useCallback(async () => {
+    // custo_fontes_pagadoras passa de 1000 linhas — acima do limite padrão de
+    // página do PostgREST, então precisa paginar em vez de um select único.
+    const pageSize = 1000;
+    const rows: any[] = [];
+    for (let from = 0; ; from += pageSize) {
       const { data, error } = await supabase
-        .from('custo_exames')
+        .from('custo_fontes_pagadoras')
         .select('*')
-        .order('nome', { ascending: true });
+        .order('fonte_pagadora', { ascending: true })
+        .range(from, from + pageSize - 1);
 
       if (error) throw error;
-      setExams((data || []).map(mapExamRow));
-    } finally {
-      setLoading(false);
+      rows.push(...(data || []));
+      if (!data || data.length < pageSize) break;
     }
+    setPayors(rows.map(mapPayorRow));
   }, []);
 
   useEffect(() => {
-    fetchExams();
-  }, [fetchExams]);
+    (async () => {
+      try {
+        setLoading(true);
+        await Promise.all([fetchExams(), fetchPayors()]);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [fetchExams, fetchPayors]);
 
   const addExam = useCallback(async (data: Omit<Exam, 'id'>) => {
     const { data: inserted, error } = await supabase

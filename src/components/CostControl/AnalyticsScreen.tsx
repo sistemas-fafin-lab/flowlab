@@ -186,7 +186,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
   const [filters, setFilters] = useState<AdvancedFilter[]>([
     { field: 'margin', op: 'lt', val: '0', val2: '0' },
   ]);
-  const [payorFilter, setPayorFilter] = useState('Saldo de Caixa');
+  const [payorFilter, setPayorFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('2026-04-01');
   const [dateTo, setDateTo] = useState('2026-04-30');
 
