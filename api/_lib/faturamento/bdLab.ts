@@ -839,6 +839,117 @@ export async function detalharLote(
 }
 
 // ============================================================================
+// ENVIOS POR CONVÊNIO — tabela agregada da aba "Envios" (issue 01)
+// ============================================================================
+// Uma linha por fonte pagadora com o total de lotes enviados a ela num período,
+// sem paginar lote a lote: a escala de lotes no backup (dezenas de milhares) não
+// permite somar na tela sobre páginas da listagem — a agregação roda no MySQL.
+
+export interface ConvenioEnvioResumo {
+  fontePagadoraId: number | null;
+  nome: string | null;
+  razaoSocial: string | null;
+  qtdLotes: number;
+  qtdRequisicoes: number;
+  valorTotal: number;
+}
+
+/** "Enviados" — status default da aba Envios (issue 01): Conciliação + Faturado.
+ *  Espelhado em src/modules/faturamento/types/index.ts, mesmo motivo de STLOT_LABELS
+ *  (SPA e functions não compartilham pacote de tipos). */
+export const STATUS_ENVIADOS_PADRAO = [2, 3];
+
+export interface ListarEnviosPorConvenioParams {
+  /** YYYY-MM-DD, sobre `fatlote.DtaCriacao` — mesmo campo que a aba Faturas filtra. */
+  periodoIni: string;
+  periodoFim: string;
+  /** Códigos STLOT a incluir. Convênio sem nenhum lote nesses status/período
+   *  simplesmente não aparece no resultado (não há linha "zerada" a filtrar). */
+  statusLotes: number[];
+  ignorarCache?: boolean;
+}
+
+export type ListarEnviosPorConvenioResultado =
+  | { convenios: ConvenioEnvioResumo[] }
+  | { erro: { status: number; mensagem: string } };
+
+const cacheEnviosPorConvenio = new Map<string, EntradaCache<ListarEnviosPorConvenioResultado>>();
+
+function chaveEnviosPorConvenio(params: ListarEnviosPorConvenioParams): string {
+  return `enviosPorConvenio|${params.periodoIni}|${params.periodoFim}|${[...params.statusLotes].sort((a, b) => a - b).join(',')}`;
+}
+
+/**
+ * Lotes do período/status agrupados por fonte pagadora, ordenado por valor total
+ * decrescente.
+ *
+ * Duas agregações em camada: a subconsulta `lp` traz qtd. de requisições e valor
+ * POR LOTE (mesmas subconsultas correlacionadas de `SQL_LISTA`, para não
+ * multiplicar linhas somando pelo LEFT JOIN direto de requisicao/fatrequisicaoprocedimento);
+ * a consulta externa soma isso por `IdFontePagadora`. Sem LIMIT — a tela mostra
+ * todos os convênios com movimentação, não uma página.
+ */
+export async function listarEnviosPorConvenio(
+  params: ListarEnviosPorConvenioParams,
+): Promise<ListarEnviosPorConvenioResultado> {
+  const chave = chaveEnviosPorConvenio(params);
+  const cacheHit = params.ignorarCache ? null : daCache(cacheEnviosPorConvenio, chave, false);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('listarEnviosPorConvenio', async (conn) => {
+    const condicoes = [
+      'l.DtaCriacao >= ?',
+      'l.DtaCriacao < DATE_ADD(?, INTERVAL 1 DAY)',
+      `l.Status IN (${params.statusLotes.map(() => '?').join(', ')})`,
+    ];
+    const valores: ParametroSql[] = [
+      `${params.periodoIni} 00:00:00`,
+      `${params.periodoFim} 00:00:00`,
+      ...params.statusLotes,
+    ];
+    const where = condicoes.join(' AND ');
+
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT lp.IdFontePagadora AS IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
+              COUNT(*) AS QtdLotes,
+              COALESCE(SUM(lp.QtdRequisicoes), 0) AS QtdRequisicoes,
+              COALESCE(SUM(lp.ValorLote), 0) AS ValorTotal
+         FROM (
+           SELECT l.IdLote, l.IdFontePagadora,
+                  (SELECT COUNT(*) FROM requisicao r
+                    WHERE r.Lote = l.IdLote
+                      AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f
+                                   WHERE f.IdRequisicao = r.IdRequisicao)) AS QtdRequisicoes,
+                  (SELECT COALESCE(SUM(frp.ValorLiquido), 0)
+                     FROM requisicao r
+                     JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+                    WHERE r.Lote = l.IdLote) AS ValorLote
+             FROM fatlote l
+            WHERE ${where}
+         ) lp
+         LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = lp.IdFontePagadora
+        GROUP BY lp.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial
+        ORDER BY ValorTotal DESC`,
+      valores,
+    );
+
+    return {
+      convenios: linhas.map((linha) => ({
+        fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
+        nome: texto(linha.NomFantasia),
+        razaoSocial: texto(linha.RazaoSocial),
+        qtdLotes: numero(linha.QtdLotes),
+        qtdRequisicoes: numero(linha.QtdRequisicoes),
+        valorTotal: numero(linha.ValorTotal),
+      })),
+    };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheEnviosPorConvenio, chave, resultado);
+    return resultado;
+  });
+}
+
+// ============================================================================
 // PENDÊNCIAS — lotes sem NF/RPS fora da janela normal (aba "Pendências")
 // ============================================================================
 // Regra decidida com o financeiro: lote em status ativo (1 Em Processamento, 2

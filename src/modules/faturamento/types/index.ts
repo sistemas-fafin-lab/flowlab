@@ -189,6 +189,41 @@ export interface LotesMeta {
 }
 
 // ============================================================================
+// ENVIOS POR CONVÊNIO (aba Contas a Receber → Envios)
+// ============================================================================
+// Contrato de GET /api/faturamento/envios-por-convenio — uma linha por fonte
+// pagadora com o total de lotes enviados a ela no período, já agregado no MySQL
+// de backup (não paginado/somado no cliente). Regra completa em
+// api/_lib/faturamento/bdLab.ts (listarEnviosPorConvenio).
+
+export interface ConvenioEnvioResumo {
+  fontePagadoraId: number | null;
+  nome: string | null;
+  razaoSocial: string | null;
+  qtdLotes: number;
+  qtdRequisicoes: number;
+  valorTotal: number;
+}
+
+/** "Enviados" — status default da aba Envios: Conciliação + Faturado. Espelha
+ *  STATUS_ENVIADOS_PADRAO de api/_lib/faturamento/bdLab.ts. */
+export const STATUS_ENVIADOS_PADRAO = [2, 3] as const;
+
+export interface EnviosPorConvenioFiltros {
+  /** YYYY-MM-DD, sobre `fatlote.DtaCriacao`. */
+  periodoIni: string;
+  periodoFim: string;
+  /** Códigos STLOT a incluir; default do servidor é [2, 3] ("enviados": Conciliação + Faturado). */
+  status?: number[];
+}
+
+export interface EnviosPorConvenioMeta {
+  periodoIni: string;
+  periodoFim: string;
+  status: number[];
+}
+
+// ============================================================================
 // PENDÊNCIAS (aba Contas a Receber → Pendências)
 // ============================================================================
 // Contrato de GET /api/faturamento/pendencias-nao-faturadas e

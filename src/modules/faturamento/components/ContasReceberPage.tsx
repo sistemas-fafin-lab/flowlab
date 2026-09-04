@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { AlertTriangle, BarChart3, ListChecks, RefreshCw, Wallet } from 'lucide-react';
+import { AlertTriangle, BarChart3, ListChecks, RefreshCw, Send, Wallet } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
@@ -8,6 +8,7 @@ import { periodoEsteMes } from '../utils/formato';
 import type { DashboardReceberFiltros, SubAbaPendencias, TituloReceber, TituloStatus } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
+import EnviosPorConvenio from './EnviosPorConvenio';
 import PendenciasNaoFaturadas from './PendenciasNaoFaturadas';
 import PendenciasParticulares from './PendenciasParticulares';
 import PendenciasSemLote from './PendenciasSemLote';
@@ -57,7 +58,7 @@ const filtrosPainelPadrao = (): DashboardReceberFiltros => ({
   notas: [],
 });
 
-type Aba = 'dashboard' | 'titulos' | 'pendencias';
+type Aba = 'dashboard' | 'titulos' | 'envios' | 'pendencias';
 
 const ContasReceberPage: React.FC = () => {
   const { userProfile } = useAuth();
@@ -260,6 +261,7 @@ const ContasReceberPage: React.FC = () => {
         {([
           { id: 'dashboard' as Aba, rotulo: 'Dashboard', icone: BarChart3 },
           { id: 'titulos' as Aba, rotulo: 'Títulos', icone: ListChecks },
+          { id: 'envios' as Aba, rotulo: 'Envios', icone: Send },
           { id: 'pendencias' as Aba, rotulo: 'Pendências', icone: AlertTriangle },
         ]).map(({ id, rotulo, icone: Icone }) => (
           <button
@@ -315,6 +317,8 @@ const ContasReceberPage: React.FC = () => {
           buscarBaixas={buscarBaixas}
         />
       )}
+
+      {aba === 'envios' && <EnviosPorConvenio />}
 
       {aba === 'pendencias' && (
         <div className="space-y-4">

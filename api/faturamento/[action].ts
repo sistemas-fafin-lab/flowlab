@@ -15,6 +15,7 @@
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import faturamentoLotes from '../_lib/handlers/faturamento-lotes.js';
+import faturamentoEnviosPorConvenio from '../_lib/handlers/faturamento-envios-por-convenio.js';
 import faturamentoLoteDetalhe from '../_lib/handlers/faturamento-lote-detalhe.js';
 import faturamentoPendencias from '../_lib/handlers/faturamento-pendencias.js';
 import faturamentoPendenciaDetalhe from '../_lib/handlers/faturamento-pendencia-detalhe.js';
@@ -35,6 +36,7 @@ type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 // Chave = segmento do path.
 const ROTAS: Record<string, Handler> = {
   lotes: faturamentoLotes,
+  'envios-por-convenio': faturamentoEnviosPorConvenio,
   'lote-detalhe': faturamentoLoteDetalhe,
   'pendencias-nao-faturadas': faturamentoPendencias,
   'pendencia-lote-detalhe': faturamentoPendenciaDetalhe,
