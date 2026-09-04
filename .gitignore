@@ -42,3 +42,10 @@ tsconfig.tsbuildinfo
 
 # Script local de emissão de JWT de sessão para testar rotas /api protegidas
 .gen-token.mjs
+
+# Artefatos locais do Playwright MCP (screenshots, logs de console de sessões manuais)
+.playwright-mcp/
+
+# Bytecode Python
+__pycache__/
+*.pyc
