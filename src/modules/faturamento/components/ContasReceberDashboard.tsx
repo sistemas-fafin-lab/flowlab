@@ -356,14 +356,14 @@ const ContasReceberDashboard: React.FC<Props> = ({
   // abre o modal com a lista por trás do agregado, sem mexer nos filtros da
   // tela — ver comentário de topo do AgingDetalheModal sobre por que ele tem
   // consulta própria em vez de reaproveitar useContasReceber.
+  // Sempre abre com todas as operadoras da faixa (sem filtrar por segmento
+  // clicado): a barra é empilhada por operadora só para dar contexto visual,
+  // mas o clique é na coluna/faixa como um todo, não num recorte por operadora.
   const [detalheAging, setDetalheAging] = useState<AgingSelecao | null>(null);
 
-  const abrirDetalheAging = useCallback(
-    (linha: LinhaAgingFaixa, operadoraId: string | null, operadoraNome: string | null) => {
-      setDetalheAging({ bucket: linha.bucket, rotulo: linha.faixa, operadoraId, operadoraNome });
-    },
-    [],
-  );
+  const abrirDetalheAging = useCallback((linha: LinhaAgingFaixa) => {
+    setDetalheAging({ bucket: linha.bucket, rotulo: linha.faixa });
+  }, []);
 
   const axisTick = { fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' };
   const gridColor = isDark ? 'rgba(51,65,85,0.4)' : 'rgba(226,232,240,0.8)';
@@ -767,22 +767,12 @@ const ContasReceberDashboard: React.FC<Props> = ({
                       name={serie.nome}
                       stackId="aging"
                       cursor="pointer"
-                      // "Outras" é a soma da cauda que não coube no gráfico — não dá
-                      // pra atribuir a lista a uma operadora só, então abre a faixa
-                      // inteira sem filtro de operadora (mesmo clique que cair fora
-                      // de qualquer segmento nomeado).
                       // `data.payload` é a linha original de `linhasPorFaixa` — o único
                       // dado do clique que sobrevive à geometria (x/y/width/height) que
                       // o Recharts mistura no restante de BarRectangleItem. O Recharts
                       // tipa `payload` como `any`; o cast reafirma o formato que este
                       // gráfico sempre alimenta em `data={agingPorOperadora.linhasPorFaixa}`.
-                      onClick={(data: BarRectangleItem) =>
-                        abrirDetalheAging(
-                          data.payload as LinhaAgingFaixa,
-                          serie.chave === '__outras' ? null : serie.chave,
-                          serie.chave === '__outras' ? null : serie.nome,
-                        )
-                      }
+                      onClick={(data: BarRectangleItem) => abrirDetalheAging(data.payload as LinhaAgingFaixa)}
                       fill={serie.chave === '__outras' ? COR_OUTRAS : CORES_OPERADORAS[i % CORES_OPERADORAS.length]}
                       radius={i === agingPorOperadora.series.length - 1 ? [6, 6, 0, 0] : undefined}
                     />

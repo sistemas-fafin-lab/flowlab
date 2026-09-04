@@ -11,10 +11,10 @@ import {
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import type { AgingSelecao, OperadoraResumo, TituloStatus } from '../types';
 
-// Drill-down do widget "Aging da carteira" (issue 41): clicar numa faixa (ou
-// num segmento de operadora dentro dela) abre este modal com a lista de
-// títulos por trás do agregado — "não pode ser só gráfico", pedido explícito
-// da usuária. Consulta própria, direto ao Supabase: NÃO reaproveita
+// Drill-down do widget "Aging da carteira" (issue 41): clicar numa faixa
+// abre este modal com a lista de títulos por trás do agregado, de todas as
+// operadoras da faixa — "não pode ser só gráfico", pedido explícito da
+// usuária. Consulta própria, direto ao Supabase: NÃO reaproveita
 // useContasReceber, porque aquele hook filtra por `data_vencimento` como um
 // range livre (issue 40) e pagina no servidor — aqui o range é derivado da
 // faixa clicada (faixaAgingParaRange) e a lista não precisa de paginação de
@@ -67,8 +67,6 @@ interface Props extends AgingSelecao {
 const AgingDetalheModal: React.FC<Props> = ({
   bucket,
   rotulo,
-  operadoraId,
-  operadoraNome,
   operadoras,
   onFechar,
 }) => {
@@ -102,14 +100,7 @@ const AgingDetalheModal: React.FC<Props> = ({
           .order('data_vencimento', { ascending: true, nullsFirst: true })
           .limit(LIMITE_LINHAS);
 
-        if (operadoraId) {
-          // Segmento de uma operadora nomeada: já veio filtrado pelo clique,
-          // não precisa repetir a whitelist (a série do gráfico já só mostra
-          // operadora considerada na meta).
-          query = query.eq('operadora_id', operadoraId);
-        } else {
-          query = query.in('operadora_id', idsOperadorasConsideradasMeta(operadoras));
-        }
+        query = query.in('operadora_id', idsOperadorasConsideradasMeta(operadoras));
 
         if (incluirSemVencimento && desde) {
           query = query.or(`data_vencimento.is.null,data_vencimento.gte.${desde}`);
@@ -142,7 +133,7 @@ const AgingDetalheModal: React.FC<Props> = ({
     })();
 
     return () => { cancelado = true; };
-  }, [bucket, operadoraId, operadoras]);
+  }, [bucket, operadoras]);
 
   return (
     <div
@@ -161,7 +152,6 @@ const AgingDetalheModal: React.FC<Props> = ({
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
               Aging da carteira — {rotulo}
-              {operadoraNome ? ` — ${operadoraNome}` : ''}
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
               Títulos em aberto nesta faixa, por vencimento
