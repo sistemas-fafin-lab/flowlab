@@ -18,6 +18,7 @@ import Notification from '../Notification';
 import ConfirmDialog from '../ConfirmDialog';
 import ExamTable from './ExamTable';
 import ExamFormModal from './ExamFormModal';
+import ExamImportModal from './ExamImportModal';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -28,6 +29,7 @@ interface ExamsScreenProps {
   addExam: (data: Omit<Exam, 'id'>) => Promise<void>;
   updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
   deleteExam: (id: string) => Promise<void>;
+  importExams: (rows: Omit<Exam, 'id'>[]) => Promise<number>;
 }
 
 // O catálogo passa de 500 exames — sem paginação a tabela renderizava tudo de
@@ -72,7 +74,7 @@ const StatCard: React.FC<{
 // EXAMS SCREEN
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, deleteExam }) => {
+const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, deleteExam, importExams }) => {
   const { notification, showSuccess, showError, hideNotification } = useNotification();
   const {
     confirmDialog,
@@ -87,6 +89,7 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
   const [editing, setEditing] = useState<Exam | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
 
@@ -311,7 +314,7 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
                 </div>
               )}
             </div>
-            <button className={btnGhost}>
+            <button className={btnGhost} onClick={() => setImportModalOpen(true)}>
               <Upload className="w-4 h-4" /> Importar
             </button>
             <button
@@ -355,6 +358,11 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
         exam={editing}
         onClose={() => { setModalOpen(false); setEditing(null); }}
         onSave={handleSave}
+      />
+      <ExamImportModal
+        open={importModalOpen}
+        onClose={() => setImportModalOpen(false)}
+        onImport={importExams}
       />
 
       {/* Feedback components */}

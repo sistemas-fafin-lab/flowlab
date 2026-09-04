@@ -37,6 +37,7 @@ export interface UseCostControlReturn {
   addExam: (data: Omit<Exam, 'id'>) => Promise<void>;
   updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
   deleteExam: (id: string) => Promise<void>;
+  importExams: (rows: Omit<Exam, 'id'>[]) => Promise<number>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -163,5 +164,18 @@ export const useCostControl = (): UseCostControlReturn => {
     setExams(prev => prev.filter(e => e.id !== id));
   }, []);
 
-  return { exams, payors, loading, addExam, updateExam, deleteExam };
+  const importExams = useCallback(async (rows: Omit<Exam, 'id'>[]) => {
+    if (rows.length === 0) return 0;
+    const { data: inserted, error } = await supabase
+      .from('custo_exames')
+      .insert(rows.map(toExamPayload))
+      .select();
+
+    if (error) throw error;
+    const mapped = (inserted || []).map(mapExamRow);
+    setExams(prev => [...mapped, ...prev]);
+    return mapped.length;
+  }, []);
+
+  return { exams, payors, loading, addExam, updateExam, deleteExam, importExams };
 };
