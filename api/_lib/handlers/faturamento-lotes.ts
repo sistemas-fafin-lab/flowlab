@@ -16,6 +16,8 @@
  *   periodoIni, periodoFim  YYYY-MM-DD — obrigatórios, salvo quando vem idLote
  *   idLote                  consulta um lote específico
  *   statusLote              código STLOT (1..8)
+ *   idFontePagadora         filtro exato por convênio (IdFontePagadora) — issue 02,
+ *                           diferente de `busca` (texto aproximado)
  *   pagina                  default 1
  *   tamanho                 1..200, default 50
  *   somenteProtocoloDuplicado  '1' filtra só lotes com protocolo duplicado (issue 10)
@@ -138,12 +140,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
     const idLote = inteiroNaFaixa(primeiro(q.idLote), 1, Number.MAX_SAFE_INTEGER);
     const statusLote = inteiroNaFaixa(primeiro(q.statusLote), 1, 8);
+    const idFontePagadora = inteiroNaFaixa(primeiro(q.idFontePagadora), 1, Number.MAX_SAFE_INTEGER);
     const pagina = inteiroNaFaixa(primeiro(q.pagina), 1, Number.MAX_SAFE_INTEGER);
     const tamanho = inteiroNaFaixa(primeiro(q.tamanho), 1, MAX_TAMANHO);
 
     const invalidos = [
       idLote === null ? 'idLote' : null,
       statusLote === null ? 'statusLote' : null,
+      idFontePagadora === null ? 'idFontePagadora' : null,
       pagina === null ? 'pagina' : null,
       tamanho === null ? `tamanho (1..${MAX_TAMANHO})` : null,
     ].filter((c): c is string => c !== null);
@@ -198,6 +202,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       periodoFim,
       idLote,
       statusLote,
+      idFontePagadora,
       pagina,
       tamanho: tamanho ?? TAMANHO_PADRAO,
       // Corta em vez de recusar: o operador colando um texto grande no campo de busca

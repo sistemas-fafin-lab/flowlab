@@ -167,6 +167,9 @@ export interface LotesFiltros {
   tamanho?: number;
   /** Código STLOT. */
   statusLote?: number;
+  /** Filtro exato por convênio (issue 02): só lotes com este `IdFontePagadora`.
+   *  Diferente de `busca`, que casa por texto aproximado. */
+  idFontePagadora?: number;
   /** Termo de busca textual (paciente, fonte pagadora, código da requisição, guia, lote). */
   busca?: string;
   /** Esconde os lotes que já pertencem a um título ativo. Usado pelo modal de

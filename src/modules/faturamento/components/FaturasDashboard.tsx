@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   FileText,
   DollarSign,
@@ -11,7 +12,8 @@ import {
   ChevronDown,
   ChevronLeft,
   Filter,
-  Search
+  Search,
+  X
 } from 'lucide-react';
 import { useFaturamentoLotes } from '../hooks/useFaturamentoLotes';
 import { STLOT_LABELS, LoteFaturamento, RequisicaoLote } from '../types';
@@ -23,6 +25,7 @@ import Tooltip from '../../../components/Tooltip';
 // passou a precisar das mesmas regras (inclusive o T00:00:00 do fuso).
 import { formatCurrency, formatData, protocoloDuplicadoLotesLabel } from '../utils/formato';
 import { dayKey, janelaDoPreset, janelaEfetiva, PeriodoPreset, statusIgnoraPeriodo } from '../utils/periodo';
+import { idFontePagadoraInicialDaUrl, periodoInicialDaUrl } from '../utils/filtrosUrl';
 
 // ============================================================================
 // COMPONENTE: FaturasDashboard
@@ -88,16 +91,42 @@ const StatusBadge: React.FC<{ lote: LoteFaturamento }> = ({ lote }) => (
 );
 
 const FaturasDashboard: React.FC = () => {
-  const [preset, setPreset] = useState<PeriodoPreset>('mes');
-  const [customIni, setCustomIni] = useState('');
-  const [customFim, setCustomFim] = useState('');
+  // Deep-link (issue 02): período e convênio iniciais, quando vêm na URL — hoje é o
+  // drill-down de Contas a Receber → Envios. Lidos só na montagem (useState
+  // preguiçoso); sem eles a tela segue com os padrões locais de sempre.
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Lido uma única vez (primeira renderização): os `useState` abaixo são
+  // preguiçosos, então closures subsequentes não reavaliam isto.
+  const periodoUrl = periodoInicialDaUrl(searchParams);
+
+  const [preset, setPreset] = useState<PeriodoPreset>(() => (periodoUrl ? 'custom' : 'mes'));
+  const [customIni, setCustomIni] = useState(() => periodoUrl?.periodoIni ?? '');
+  const [customFim, setCustomFim] = useState(() => periodoUrl?.periodoFim ?? '');
   const [filtroStatus, setFiltroStatus] = useState<number | 0>(0);
+  const [idFontePagadora, setIdFontePagadora] = useState<number | undefined>(() =>
+    idFontePagadoraInicialDaUrl(searchParams),
+  );
   const [somenteProtocoloDuplicado, setSomenteProtocoloDuplicado] = useState(false);
   const [pagina, setPagina] = useState(1);
   const [tamanho, setTamanho] = useState(50);
   const [busca, setBusca] = useState('');
   const [buscaDebounced, setBuscaDebounced] = useState('');
   const buscaTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Consumidos uma vez só: depois da montagem a tela passa a ser dona do próprio
+  // estado — não fica presa aos parâmetros da URL enquanto o usuário mexe nos
+  // filtros manualmente.
+  useEffect(() => {
+    if (!searchParams.has('periodoIni') && !searchParams.has('periodoFim') && !searchParams.has('idFontePagadora')) {
+      return;
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete('periodoIni');
+    next.delete('periodoFim');
+    next.delete('idFontePagadora');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (buscaTimer.current) clearTimeout(buscaTimer.current);
@@ -151,6 +180,7 @@ const FaturasDashboard: React.FC = () => {
     pagina,
     tamanho,
     statusLote: filtroStatus || undefined,
+    idFontePagadora,
     busca: buscaDebounced || undefined,
     somenteProtocoloDuplicado: somenteProtocoloDuplicado || undefined,
   });
@@ -189,7 +219,7 @@ const FaturasDashboard: React.FC = () => {
   // filtro raramente existe no outro, e a consulta devolveria lista vazia.
   useEffect(() => {
     setPagina(1);
-  }, [range.periodoIni, range.periodoFim, filtroStatus, tamanho, buscaDebounced, somenteProtocoloDuplicado]);
+  }, [range.periodoIni, range.periodoFim, filtroStatus, idFontePagadora, tamanho, buscaDebounced, somenteProtocoloDuplicado]);
 
   // Requisições são carregadas sob demanda: um lote pode ter dezenas, cada uma com
   // vários procedimentos.
@@ -254,6 +284,14 @@ const FaturasDashboard: React.FC = () => {
   }), [lotes]);
 
   const qtdPaginas = meta?.qtdPaginas ?? 0;
+
+  // Nome do convênio do filtro exato, para o badge — só existe depois que a lista
+  // carrega (a URL só carrega o id). Cai para o id cru enquanto isso ou se a página
+  // atual não tiver nenhum lote dessa fonte (ex.: filtro sem resultado nela).
+  const nomeConvenioFiltrado = useMemo(() => {
+    if (idFontePagadora === undefined) return null;
+    return lotes.find((l) => l.fontePagadora.id === idFontePagadora)?.fontePagadora.nome ?? `#${idFontePagadora}`;
+  }, [idFontePagadora, lotes]);
 
   return (
     <div className="space-y-6">
@@ -416,6 +454,20 @@ const FaturasDashboard: React.FC = () => {
           >
             Protocolos duplicados
           </button>
+
+          {idFontePagadora !== undefined && (
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 whitespace-nowrap">
+              Convênio: {nomeConvenioFiltrado}
+              <button
+                onClick={() => setIdFontePagadora(undefined)}
+                title="Remover filtro de convênio"
+                aria-label="Remover filtro de convênio"
+                className="hover:text-blue-900 dark:hover:text-blue-100"
+              >
+                <X size={14} />
+              </button>
+            </span>
+          )}
 
           <div className="relative flex-1 min-w-[200px] max-w-md">
             <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />

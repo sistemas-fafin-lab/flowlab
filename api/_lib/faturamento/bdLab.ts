@@ -185,6 +185,12 @@ export interface ListarLotesParams {
    *  nesta lista aparecem. Lista vazia não qualifica nenhum lote. Resolvida pelo
    *  handler a partir de `operadoras.is_considerada_meta` (Supabase). */
   fontesConsideradas?: number[];
+  /** Filtro exato por convênio (issue 02 — filtro estruturado + deep-link da aba
+   *  Envios): só lotes com este `IdFontePagadora`. Diferente de `busca`, que casa
+   *  por texto aproximado no nome/razão social. Combina em AND com
+   *  `fontesConsideradas` — um convênio fora da whitelist de meta continua sem
+   *  aparecer aqui mesmo filtrando por ele explicitamente. */
+  idFontePagadora?: number;
 }
 
 // Discriminado pela PRESENÇA de `erro` (idiom de recepcaoAgendamento.ts): o tsconfig
@@ -305,7 +311,7 @@ const TTL_BUSCA = 60_000;      // 1 min quando há termo de busca
 const MAX_ENTRADAS = 128;
 
 function chaveListar(params: ListarLotesParams): string {
-  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${(params.idsLote ?? []).join('.')}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}|${params.somenteProtocoloDuplicado ? 1 : 0}|${params.comProtocoloDuplicado ? 1 : 0}|${(params.fontesConsideradas ?? []).join('.')}`;
+  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${(params.idsLote ?? []).join('.')}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}|${params.somenteProtocoloDuplicado ? 1 : 0}|${params.comProtocoloDuplicado ? 1 : 0}|${(params.fontesConsideradas ?? []).join('.')}|${params.idFontePagadora ?? ''}`;
 }
 
 function doCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, resultado: T): void {
@@ -429,6 +435,10 @@ function filtroLotes(
   if (params.statusLote !== undefined) {
     condicoes.push('l.Status = ?');
     valores.push(params.statusLote);
+  }
+  if (params.idFontePagadora !== undefined) {
+    condicoes.push('l.IdFontePagadora = ?');
+    valores.push(params.idFontePagadora);
   }
   if (params.fontesConsideradas !== undefined) {
     // Lista vazia = nenhuma fonte pagadora está na whitelist agora: `1 = 0` em vez
