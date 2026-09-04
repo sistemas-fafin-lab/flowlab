@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 Blocked by: 32
 
@@ -27,3 +27,7 @@ Com a issue 32, títulos sem número da nota podem existir. Sem nenhum sinal vis
 ## Referência
 
 Sessão de grilling em 2026-08-31 (mesma sessão da issue 32) — decisão da rodada 2, Q7: badge de alerta condicionado à ausência de `nf_apos_pagamento`, pra evitar alarme falso exatamente nos casos em que a ausência de número é esperada.
+
+## Comments
+
+**Bookkeeping (2026-09-03)**: implementada e commitada (`49362a6 feat(faturamento): badge "Aguardando nota" para título sem número (issue 35)`) — o `Status` deste arquivo estava desatualizado (`ready-for-agent`), corrigido para `done`. Achado como efeito colateral da investigação das issues 43/44/45.

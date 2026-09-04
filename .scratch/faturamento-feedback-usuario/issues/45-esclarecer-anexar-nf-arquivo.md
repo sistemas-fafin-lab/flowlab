@@ -1,4 +1,4 @@
-Status: needs-info
+Status: done
 Type: research
 
 # Esclarecer se é necessário anexar arquivo de NF (PDF), ou se número já basta
@@ -26,13 +26,23 @@ item da transcrição só descreve o fluxo manual atual do setor (imprimir/
 guardar a NF em outro lugar) sem implicar que o flowlab precise armazenar o
 arquivo.
 
-## Pergunta para o setor
-
-Além do número da nota (já registrado), é necessário anexar o arquivo (PDF)
-da NF dentro do flowlab? Se sim, para quê especificamente (conferência,
-envio ao convênio, auditoria)?
-
 ## Referência
 
 Levantamento de requisitos com a usuária do setor (áudio transcrito,
 2026-09-03), ação "Anexar/selecionar NF" na lista de Títulos/Lotes.
+
+## Resolução (2026-09-03)
+
+Respondido pelo usuário: não é upload de arquivo — "anexar NF" descreve
+**adicionar o número da nota fiscal a um título já criado**, que hoje já
+existe como feature. Achado ao investigar: essa capacidade já foi
+implementada e commitada pela **issue 33** (`f05bbad`, ação "Editar Título"
+em `EditarTituloModal.tsx` + `api/_lib/handlers/faturamento-titulo-atualizar-numero-nota.ts`),
+cujo `Status` no arquivo estava desatualizado (`ready-for-agent`) e foi
+corrigido para `done` nesta mesma sessão.
+
+Fecha sem trabalho novo — "Anexar/selecionar NF" da transcrição já está
+coberto pela issue 33. Upload de arquivo PDF segue sem evidência de
+necessidade real; se o setor pedir isso especificamente no futuro, abrir
+issue nova (o precedente de storage já existe no projeto, bucket
+`request-attachments`, `docs/plans/CONFIGURAR_STORAGE_REQUESTS.md`).

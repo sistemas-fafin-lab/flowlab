@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 Blocked by: 32
 
@@ -37,3 +37,7 @@ Hoje não existe nenhuma forma de editar um título depois de criado. Com a issu
 ## Referência
 
 Sessão de grilling em 2026-08-31 (mesma sessão da issue 32) — decisões: escopo restrito a esse único campo (opção B da rodada 1, Q2), correção permitida mas sem apagar pra vazio (Q3/Q8), permissão reaproveitando `canManageBilling` (Q5), liberado em qualquer status exceto `cancelada` (Q6).
+
+## Comments
+
+**Bookkeeping (2026-09-03)**: implementada e commitada (`f05bbad feat(faturamento): permite editar número da nota após criação (issue 33)`, `EditarTituloModal.tsx` e `api/_lib/handlers/faturamento-titulo-atualizar-numero-nota.ts` existem no código) — o `Status` deste arquivo estava desatualizado (`ready-for-agent`), corrigido para `done`. Achado ao investigar a issue 45 (esta feature é exatamente a necessidade real por trás de "anexar NF" relatada na transcrição — ver comentário na issue 45).

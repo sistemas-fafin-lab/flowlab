@@ -1,6 +1,6 @@
 # Faturamento: feedback do usuário (dashboard, faturas, contas a receber, glosas)
 
-Status: Fases 1, 2 e 4 implementadas (issues 02/03/04/07/08/09/10/11/13/15/16/18/19 done; 14/17 wontfix); issues 01/05/06/12 seguem adiadas. Fase 5 (terceiro relatório, 27/08) com issues 20-24, todas `done`; issue 24 desmembrou a issue 25 (`needs-triage`, feature de busca de título por NF, aguardando confirmação do setor — ver comentário de 27/08 nela). Fase 6 (quarto relatório, 27/08) com issues 26-30: 26/27/28 `done`; 29 `needs-triage` (esclarecimento/produto); 30 `needs-info` (provável fora do escopo do flowlab, apLIS legado). Issue 31 (28/08, pergunta direta do usuário na sessão, fora do relatório escrito): regra de NF antes/depois do pagamento por operadora, `done`. Fase 7 (31/08, pergunta direta do usuário, fora do relatório escrito): título sem número da nota — issues 32-35, `ready-for-agent`. Issue 36 (03/09, pergunta direta do usuário, fora do relatório escrito): whitelist de fontes pagadoras consideradas para meta, `done` (migrations locais, não empurradas para produção — ver issue). Fase 8 (03/09, quinto insumo — áudio de reunião transcrito, levantamento amplo de requisitos, não um relatório de bug): issues 37-46; 37/38/39 `ready-for-agent` (gaps pontuais claros); 40/45 `needs-info` (perguntas diretas ao setor); 41/42/43/44/46 `needs-triage` (escopo a fechar). Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
+Status: Fases 1, 2 e 4 implementadas (issues 02/03/04/07/08/09/10/11/13/15/16/18/19 done; 14/17 wontfix); issues 01/05/06/12 seguem adiadas. Fase 5 (terceiro relatório, 27/08) com issues 20-24, todas `done`; issue 24 desmembrou a issue 25 (`needs-triage`, feature de busca de título por NF, aguardando confirmação do setor — ver comentário de 27/08 nela). Fase 6 (quarto relatório, 27/08) com issues 26-30: 26/27/28 `done`; 29 `needs-triage` (esclarecimento/produto); 30 `needs-info` (provável fora do escopo do flowlab, apLIS legado). Issue 31 (28/08, pergunta direta do usuário na sessão, fora do relatório escrito): regra de NF antes/depois do pagamento por operadora, `done`. Fase 7 (31/08, pergunta direta do usuário, fora do relatório escrito): título sem número da nota — issues 32-35, todas `done` (33/34/35 implementadas e commitadas, mas com `Status` desatualizado no arquivo até a correção de bookkeeping em 03/09 — ver Rodada 9). Issue 36 (03/09, pergunta direta do usuário, fora do relatório escrito): whitelist de fontes pagadoras consideradas para meta, `done` (migrations locais, não empurradas para produção — ver issue). Fase 8 (03/09, quinto insumo — áudio de reunião transcrito, levantamento amplo de requisitos, não um relatório de bug): issues 37-46; 37/38/39 `ready-for-agent` (gaps pontuais claros); 40/41 `ready-for-agent` (decisões de referência de data e drill-down em modal confirmadas pelo usuário em 03/09); 42 `needs-triage` (adiada a pedido do usuário); 46 `needs-triage` (escopo a fechar). Rodada 9 (03/09, mesmo dia, grilling adicional sobre 43/44/45): 43/44 promovidas a `ready-for-agent` (decisões fechadas com o usuário); 45 fechada `done` sem trabalho novo — a necessidade real já está coberta pela issue 33 (ver Rodada 9 abaixo). Fase 3 aguarda insumos externos (Mapa de Pagamento das Operadoras e documento de Glosas e Recursos).
 
 Spec resultante de sessão de grilling em 2026-08-18, a partir do relatório de análise do setor de faturamento. Cada item vira uma issue própria em `issues/`. Rodada 4 de grilling em 2026-08-24 revisou um segundo relatório do setor (pós-Fase 1/2 em produção) — ver seção própria abaixo.
 
@@ -221,11 +221,11 @@ não commitado) nos handlers de glosas/recursos legado e pendências.
   meta da issue 36, mesmo tendo título real — issue 37.
 - Atalho "Somente pendentes" como padrão em Títulos — issue 38.
 - Histórico de baixas (recebimentos) não é exibido, só o agregado — issue 39.
-- Atalho de período mês/trimestre — bloqueado por decidir o campo de
-  referência (emissão atual vs. vencimento vs. competência) — issue 40,
-  `needs-info`.
-- Visão de atrasados/>90 dias é só o gráfico de aging, sem lista/filtro de
-  faixa/drill-down — issue 41.
+- Atalho de período mês/trimestre — campo de referência decidido pelo
+  usuário em 03/09 (data de vencimento) — issue 40, `ready-for-agent`.
+- Visão de atrasados/>90 dias é só o gráfico de aging, sem drill-down —
+  resolvido como modal ao clicar no widget (decisão do usuário em 03/09) —
+  issue 41, `ready-for-agent`.
 - Nenhuma exportação (CSV/Excel) existe em nenhuma tela do módulo — issue 42.
 - Meta mensal: só a whitelist de fontes existe (issue 36); falta o valor da
   meta, o cálculo faturado×meta/quanto falta, e a lista por trás do número —
@@ -237,6 +237,38 @@ não commitado) nos handlers de glosas/recursos legado e pendências.
   `needs-info`.
 - Vincular/desvincular lote de um título já criado (hoje só na criação) —
   issue 46.
+
+### Rodada 9 (2026-09-03, mesmo dia): grilling adicional sobre 43/44/45
+
+Investigação de código + confirmação direta com o usuário para fechar o
+escopo das três issues da Fase 8 que tinham decisões de negócio em aberto,
+sem esperar um novo relatório do setor.
+
+- **Issue 43 (meta mensal)**: os KPIs atuais do dashboard somam sobre o
+  período livre do filtro da tela, não sobre "o mês corrente" — não existe
+  hoje nenhum conceito de mês calendário fixo em nenhum RPC do módulo, então
+  a meta precisa de fonte de dado e cálculo próprios. Usuário confirmou:
+  **meta é um valor único global** (soma das fontes já marcadas
+  `is_considerada_meta = true` pela issue 36), não quebrada por operadora.
+  → promovida a `ready-for-agent`.
+- **Issue 44 (auditoria)**: achado o padrão genérico que a issue cogitava
+  precisar desenhar do zero **já existe no repo** — `quotation_audit_logs`
+  (módulo de cotações), tabela append-only (ação, quem, quando, motivo em
+  JSON, RLS só INSERT/SELECT). Achado também que os 3 toggles de operadora
+  são `UPDATE` direto do client (`useContasReceber.ts`), sem handler de API
+  no meio — a captura de auditoria precisa acontecer no mesmo lugar. Usuário
+  confirmou: **tabela genérica clonando esse padrão** (`operadoras_audit_logs`),
+  compartilhada pelas 3 flags; **motivo obrigatório só ao desativar** uma
+  flag, não ao ativar. → promovida a `ready-for-agent`.
+- **Issue 45 (anexar NF)**: usuário esclareceu que "anexar NF" não é upload
+  de arquivo — é **adicionar o número da nota a um título já criado**.
+  Investigação achou que essa exata capacidade **já foi implementada e
+  commitada pela issue 33** (`f05bbad`, ação "Editar Título"), cujo `Status`
+  no arquivo estava desatualizado (`ready-for-agent`) havia dias — corrigido
+  para `done`. Mesmo achado de bookkeeping se aplicou às issues 34 (`5ce7461`)
+  e 35 (`49362a6`), também implementadas e commitadas na Fase 7 mas nunca
+  atualizadas para `done` no arquivo. → issue 45 fecha `done` sem trabalho
+  novo; issues 33/34/35 corrigidas para `done`.
 
 ## Entrega em fases
 
@@ -307,14 +339,14 @@ esclarecimento com o setor antes de virar `task`.
 
 32. Contas a Receber: criar título sem número da nota (relaxa obrigatoriedade
     em formulário/API/RPC/banco, exibição com placeholder) — issue 32,
-    `ready-for-agent`.
+    `done`.
 33. Contas a Receber: adicionar/corrigir número da nota depois da criação
     (nova ação "Editar Título", `canManageBilling`) — issue 33 (bloqueada por
-    32), `ready-for-agent`.
+    32), `done`.
 34. Contas a Receber: bloquear baixa de título sem número, exceto operadoras
-    com NF pós-pagamento — issue 34 (bloqueada por 32), `ready-for-agent`.
+    com NF pós-pagamento — issue 34 (bloqueada por 32), `done`.
 35. Contas a Receber: badge "Aguardando nota", exceto operadoras com NF
-    pós-pagamento — issue 35 (bloqueada por 32), `ready-for-agent`.
+    pós-pagamento — issue 35 (bloqueada por 32), `done`.
 
 ### Fase 8 — Levantamento amplo de requisitos (2026-09-03), áudio de reunião transcrito
 
@@ -324,17 +356,19 @@ esclarecimento com o setor antes de virar `task`.
     `ready-for-agent`.
 39. Histórico de baixas (recebimentos) visível por título — issue 39,
     `ready-for-agent`.
-40. Atalho de período mês/trimestre — aguarda confirmação do campo de
-    referência (emissão/vencimento/competência) — issue 40, `needs-info`.
-41. Lista dedicada de atrasados/>90 dias (drill-down do aging) com filtro de
-    faixa — issue 41, `needs-triage`.
-42. Exportação (CSV/Excel) das listas do módulo — issue 42, `needs-triage`.
-43. Meta mensal: valor configurável, cálculo e lista por trás do número —
-    issue 43, `needs-triage`.
+40. Atalho de período mês/trimestre, referência = data de vencimento —
+    issue 40, `ready-for-agent`.
+41. Modal de drill-down ao clicar no widget de aging (lista de títulos da
+    faixa clicada) — issue 41, `ready-for-agent`.
+42. Exportação (CSV/Excel) das listas do módulo — issue 42, `needs-triage`,
+    adiada a pedido do usuário (03/09).
+43. Meta mensal: valor único global, cálculo faturado × meta/"quanto falta"
+    e lista por trás do número — issue 43, `ready-for-agent` (decisões
+    fechadas com o usuário em 03/09, Rodada 9).
 44. Auditoria (motivo/data/responsável) nas exceções de operadora — issue 44,
-    `needs-triage`.
+    `ready-for-agent` (decisões fechadas com o usuário em 03/09, Rodada 9).
 45. Esclarecer necessidade de anexar arquivo de NF vs. campo textual atual —
-    issue 45, `needs-info`.
+    issue 45, `done` (era o fluxo da issue 33, sem trabalho novo).
 46. Vincular/desvincular lote de um título já criado — issue 46,
     `needs-triage`.
 
@@ -376,19 +410,19 @@ esclarecimento com o setor antes de virar `task`.
 - `issues/28-particulares-data-inicial-2026.md` — feature, needs-triage
 - `issues/29-dashboard-graficos-drilldown-lotes.md` — feature, needs-triage
 - `issues/30-poliame-trava-inclusao-lote-apLIS.md` — research, needs-info
-- `issues/32-titulo-criar-sem-numero-nota.md` — task, ready-for-agent
-- `issues/33-titulo-editar-adicionar-numero-nota.md` — task, ready-for-agent (bloqueada por 32)
-- `issues/34-titulo-bloquear-baixa-sem-numero-nota.md` — task, ready-for-agent (bloqueada por 32)
-- `issues/35-titulo-badge-aguardando-nota.md` — task, ready-for-agent (bloqueada por 32)
+- `issues/32-titulo-criar-sem-numero-nota.md` — task, done
+- `issues/33-titulo-editar-adicionar-numero-nota.md` — task, done (bloqueada por 32)
+- `issues/34-titulo-bloquear-baixa-sem-numero-nota.md` — task, done (bloqueada por 32)
+- `issues/35-titulo-badge-aguardando-nota.md` — task, done (bloqueada por 32)
 - `issues/37-titulos-filtro-operadora-esconde-fora-whitelist-meta.md` — task, ready-for-agent
 - `issues/38-titulos-atalho-somente-pendentes.md` — task, ready-for-agent
 - `issues/39-titulos-historico-baixas.md` — task, ready-for-agent
-- `issues/40-titulos-filtro-periodo-atalho-mes-trimestre.md` — task, needs-info
-- `issues/41-atrasados-lista-dedicada-filtro-faixa.md` — feature, needs-triage
-- `issues/42-exportacao-csv-excel.md` — feature, needs-triage
-- `issues/43-meta-mensal-valor-calculo.md` — feature, needs-triage
-- `issues/44-auditoria-toggles-excecao-operadora.md` — feature, needs-triage
-- `issues/45-esclarecer-anexar-nf-arquivo.md` — research, needs-info
+- `issues/40-titulos-filtro-periodo-atalho-mes-trimestre.md` — task, ready-for-agent
+- `issues/41-atrasados-lista-dedicada-filtro-faixa.md` — feature, ready-for-agent
+- `issues/42-exportacao-csv-excel.md` — feature, needs-triage (adiada)
+- `issues/43-meta-mensal-valor-calculo.md` — feature, ready-for-agent
+- `issues/44-auditoria-toggles-excecao-operadora.md` — feature, ready-for-agent
+- `issues/45-esclarecer-anexar-nf-arquivo.md` — research, done
 - `issues/46-titulo-vincular-desvincular-lote-pos-criacao.md` — feature, needs-triage
 
 ## Fora de escopo (parked)

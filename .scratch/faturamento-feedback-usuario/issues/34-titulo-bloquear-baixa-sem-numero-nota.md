@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 Blocked by: 32
 
@@ -30,3 +30,7 @@ Com a issue 32, um título pode existir sem número da nota. Para operadoras que
 ## Referência
 
 Sessão de grilling em 2026-08-31 (mesma sessão da issue 32) — decisão da rodada 1, Q1: bloquear baixa só quando a operadora não tiver `nf_apos_pagamento`, pra não contradizer a própria regra da issue 31.
+
+## Comments
+
+**Bookkeeping (2026-09-03)**: implementada e commitada (`5ce7461 feat(faturamento): bloqueia baixa de título sem número da nota (issue 34)`) — o `Status` deste arquivo estava desatualizado (`ready-for-agent`), corrigido para `done`. Achado como efeito colateral da investigação das issues 43/44/45.
