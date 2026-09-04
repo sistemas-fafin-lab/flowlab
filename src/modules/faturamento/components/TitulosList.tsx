@@ -368,145 +368,166 @@ const TitulosList: React.FC<Props> = ({
   return (
     <div className="space-y-4">
       {/* ── Filtros ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="text-xs text-gray-500 dark:text-gray-400">
-          Vencimento de
-          <DatePicker
-            value={filtros.desde}
-            onChange={(v) => onFiltrar({ desde: v, pagina: 1 })}
-            controlClass={CAMPO}
-          />
-        </label>
-        <label className="text-xs text-gray-500 dark:text-gray-400">
-          até
-          <DatePicker
-            value={filtros.ate}
-            onChange={(v) => onFiltrar({ ate: v, pagina: 1 })}
-            controlClass={CAMPO}
-          />
-        </label>
-        <div className="flex items-center gap-1 pb-2">
-          {ATALHOS_PERIODO.map(({ rotulo, calcular }) => (
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/40 p-4 space-y-3">
+        {/* Linha 1: período, status/operadora, checkboxes e views/atualizar. */}
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="text-xs text-gray-500 dark:text-gray-400">
+              Vencimento de
+              <DatePicker
+                value={filtros.desde}
+                onChange={(v) => onFiltrar({ desde: v, pagina: 1 })}
+                controlClass={CAMPO}
+              />
+            </label>
+            <label className="text-xs text-gray-500 dark:text-gray-400">
+              até
+              <DatePicker
+                value={filtros.ate}
+                onChange={(v) => onFiltrar({ ate: v, pagina: 1 })}
+                controlClass={CAMPO}
+              />
+            </label>
+            {/* Os três atalhos em bloco 2×2 (o terceiro ocupa a linha toda) em vez de
+                uma tira horizontal — cabe ao lado dos dois DatePickers sem esticar a
+                barra. */}
+            <div className="inline-grid grid-cols-2 gap-1">
+              {ATALHOS_PERIODO.map(({ rotulo, calcular }, indice) => (
+                <button
+                  key={rotulo}
+                  type="button"
+                  onClick={() => onFiltrar({ ...calcular(), pagina: 1 })}
+                  className={`px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 whitespace-nowrap ${
+                    indice === ATALHOS_PERIODO.length - 1 ? 'col-span-2' : ''
+                  }`}
+                >
+                  {rotulo}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="hidden lg:block w-px self-stretch bg-gray-100 dark:bg-gray-700" />
+
+          <label className="text-xs text-gray-500 dark:text-gray-400">
+            Status
+            <Select
+              value={filtros.status}
+              // Selecionar um status manualmente é um recorte explícito — desliga o
+              // atalho "Somente pendentes" pra não conflitarem (issue 38).
+              onChange={(v) => onFiltrar({ status: v as TituloStatus | '', somentePendentes: false, pagina: 1 })}
+              options={STATUS_OPCOES}
+              controlClass={CAMPO}
+            />
+          </label>
+          <label className="text-xs text-gray-500 dark:text-gray-400">
+            Operadora
+            <Select
+              value={filtros.operadoraId}
+              onChange={(v) => onFiltrar({ operadoraId: v, pagina: 1 })}
+              options={[
+                { value: '', label: 'Todas' },
+                ...operadoras.map((operadora) => ({ value: operadora.id, label: operadora.nome })),
+              ]}
+              controlClass={CAMPO}
+              wrapperClass="max-w-[220px]"
+            />
+          </label>
+
+          <div className="hidden lg:block w-px self-stretch bg-gray-100 dark:bg-gray-700" />
+
+          <div className="flex flex-col gap-1.5">
+            <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <input
+                type="checkbox"
+                checked={filtros.somentePendentes}
+                onChange={(e) => onFiltrar({
+                  somentePendentes: e.target.checked,
+                  // Ligar o atalho sobrescreve uma seleção manual de Status anterior — os
+                  // dois não fazem sentido juntos (issue 38).
+                  status: e.target.checked ? '' : filtros.status,
+                  pagina: 1,
+                })}
+                className="rounded border-gray-300 dark:border-gray-600"
+              />
+              Somente pendentes
+            </label>
+            <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+              <input
+                type="checkbox"
+                checked={filtros.ocultarParceiras}
+                onChange={(e) => onFiltrar({ ocultarParceiras: e.target.checked, pagina: 1 })}
+                className="rounded border-gray-300 dark:border-gray-600"
+              />
+              Ocultar clínicas parceiras
+            </label>
+          </div>
+
+          <div className="flex items-center gap-2 ml-auto">
+            <ViewsSalvasMenu
+              tela="titulos"
+              filtros={filtrosSalvaveis}
+              sanitizar={(cru) => sanitizarFiltrosTitulos(cru, filtrosSalvaveis)}
+              onAplicar={aplicarView}
+            />
             <button
-              key={rotulo}
               type="button"
-              onClick={() => onFiltrar({ ...calcular(), pagina: 1 })}
-              className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              onClick={onAtualizar}
+              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
             >
-              {rotulo}
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
             </button>
-          ))}
+          </div>
         </div>
-        <label className="text-xs text-gray-500 dark:text-gray-400">
-          Status
-          <Select
-            value={filtros.status}
-            // Selecionar um status manualmente é um recorte explícito — desliga o
-            // atalho "Somente pendentes" pra não conflitarem (issue 38).
-            onChange={(v) => onFiltrar({ status: v as TituloStatus | '', somentePendentes: false, pagina: 1 })}
-            options={STATUS_OPCOES}
-            controlClass={CAMPO}
-          />
-        </label>
-        <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 pb-2">
-          <input
-            type="checkbox"
-            checked={filtros.somentePendentes}
-            onChange={(e) => onFiltrar({
-              somentePendentes: e.target.checked,
-              // Ligar o atalho sobrescreve uma seleção manual de Status anterior — os
-              // dois não fazem sentido juntos (issue 38).
-              status: e.target.checked ? '' : filtros.status,
-              pagina: 1,
-            })}
-            className="rounded border-gray-300 dark:border-gray-600"
-          />
-          Somente pendentes
-        </label>
-        <label className="text-xs text-gray-500 dark:text-gray-400">
-          Operadora
-          <Select
-            value={filtros.operadoraId}
-            onChange={(v) => onFiltrar({ operadoraId: v, pagina: 1 })}
-            options={[
-              { value: '', label: 'Todas' },
-              ...operadoras.map((operadora) => ({ value: operadora.id, label: operadora.nome })),
-            ]}
-            controlClass={CAMPO}
-            wrapperClass="max-w-[220px]"
-          />
-        </label>
-        <label className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 pb-2">
-          <input
-            type="checkbox"
-            checked={filtros.ocultarParceiras}
-            onChange={(e) => onFiltrar({ ocultarParceiras: e.target.checked, pagina: 1 })}
-            className="rounded border-gray-300 dark:border-gray-600"
-          />
-          Ocultar clínicas parceiras
-        </label>
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input
-            type="text"
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar por nota, operadora, competência, observações…"
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
-          />
+
+        {/* Linha 2: busca livre + ações de gerenciamento + criação de título. */}
+        <div className="flex flex-wrap items-center gap-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar por nota, operadora, competência, observações…"
+              className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
+            />
+          </div>
+          {podeEditar && (
+            <>
+              <button
+                type="button"
+                onClick={onGerenciarParceiras}
+                title="Gerenciar clínicas parceiras"
+                className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" /> Clínicas parceiras
+              </button>
+              <button
+                type="button"
+                onClick={onGerenciarRegraNf}
+                title="Gerenciar regra de NF por operadora"
+                className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" /> Regra de NF
+              </button>
+              <button
+                type="button"
+                onClick={onGerenciarConsideradaMeta}
+                title="Gerenciar fontes consideradas na meta"
+                className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+              >
+                <Settings className="w-4 h-4" /> Fontes na meta
+              </button>
+              <button
+                type="button"
+                onClick={onNovoTitulo}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
+              >
+                <Plus className="w-4 h-4" /> Novo título
+              </button>
+            </>
+          )}
         </div>
-        <ViewsSalvasMenu
-          tela="titulos"
-          filtros={filtrosSalvaveis}
-          sanitizar={(cru) => sanitizarFiltrosTitulos(cru, filtrosSalvaveis)}
-          onAplicar={aplicarView}
-        />
-        <button
-          type="button"
-          onClick={onAtualizar}
-          className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
-        </button>
-        {podeEditar && (
-          <button
-            type="button"
-            onClick={onGerenciarParceiras}
-            title="Gerenciar clínicas parceiras"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-          >
-            <Settings className="w-4 h-4" /> Clínicas parceiras
-          </button>
-        )}
-        {podeEditar && (
-          <button
-            type="button"
-            onClick={onGerenciarRegraNf}
-            title="Gerenciar regra de NF por operadora"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-          >
-            <Settings className="w-4 h-4" /> Regra de NF
-          </button>
-        )}
-        {podeEditar && (
-          <button
-            type="button"
-            onClick={onGerenciarConsideradaMeta}
-            title="Gerenciar fontes consideradas na meta"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-          >
-            <Settings className="w-4 h-4" /> Fontes na meta
-          </button>
-        )}
-        {podeEditar && (
-          <button
-            type="button"
-            onClick={onNovoTitulo}
-            className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
-          >
-            <Plus className="w-4 h-4" /> Novo título
-          </button>
-        )}
       </div>
 
       {error && (
