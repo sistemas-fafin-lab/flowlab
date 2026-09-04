@@ -1,8 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { STATUS_ENVIADOS_PADRAO, STLOT_LABELS } from '../types';
 import { useEnviosPorConvenio } from '../hooks/useEnviosPorConvenio';
 import { formatCurrency, periodoEsteMes, periodoEsteTrimestre } from '../utils/formato';
+import { urlFaturasFiltradasPorConvenio } from '../utils/filtrosUrl';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
@@ -52,6 +54,18 @@ const EnviosPorConvenio: React.FC = () => {
     periodoFim: periodo.ate,
     status: statusLotes,
   });
+
+  // Drill-down (issue 03): clicar num convênio leva a Faturas já filtrada por ele
+  // (id exato, não busca aproximada) e pelo mesmo período selecionado aqui.
+  const navigate = useNavigate();
+  const irParaFaturasDoConvenio = useCallback(
+    (fontePagadoraId: number) => {
+      navigate(
+        urlFaturasFiltradasPorConvenio(fontePagadoraId, { periodoIni: periodo.desde, periodoFim: periodo.ate }),
+      );
+    },
+    [navigate, periodo.desde, periodo.ate],
+  );
 
   return (
     <div className="space-y-4">
@@ -138,27 +152,47 @@ const EnviosPorConvenio: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {convenios.map((convenio) => (
-                  <tr
-                    key={convenio.fontePagadoraId ?? `sem-id-${convenio.nome}`}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/30"
-                  >
-                    <td className="px-3 py-2 text-gray-900 dark:text-gray-100 truncate max-w-[320px]">
-                      <span title={convenio.razaoSocial ?? undefined}>
-                        {convenio.nome ?? 'Não identificado'}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                      {convenio.qtdLotes}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                      {convenio.qtdRequisicoes}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">
-                      {formatCurrency(convenio.valorTotal)}
-                    </td>
-                  </tr>
-                ))}
+                {convenios.map((convenio) => {
+                  const clicavel = convenio.fontePagadoraId !== null;
+                  const irParaFaturas = () => irParaFaturasDoConvenio(convenio.fontePagadoraId as number);
+                  return (
+                    <tr
+                      key={convenio.fontePagadoraId ?? `sem-id-${convenio.nome}`}
+                      onClick={clicavel ? irParaFaturas : undefined}
+                      onKeyDown={
+                        clicavel
+                          ? (e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                irParaFaturas();
+                              }
+                            }
+                          : undefined
+                      }
+                      role={clicavel ? 'button' : undefined}
+                      tabIndex={clicavel ? 0 : undefined}
+                      title={clicavel ? `Ver faturas de ${convenio.nome ?? 'convênio'} no período` : undefined}
+                      className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${
+                        clicavel ? 'cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-inset' : ''
+                      }`}
+                    >
+                      <td className="px-3 py-2 text-gray-900 dark:text-gray-100 truncate max-w-[320px]">
+                        <span title={convenio.razaoSocial ?? undefined}>
+                          {convenio.nome ?? 'Não identificado'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                        {convenio.qtdLotes}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                        {convenio.qtdRequisicoes}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">
+                        {formatCurrency(convenio.valorTotal)}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

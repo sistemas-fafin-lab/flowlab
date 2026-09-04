@@ -28,3 +28,17 @@ export function idFontePagadoraInicialDaUrl(searchParams: URLSearchParams): numb
   const n = Number(bruto);
   return Number.isInteger(n) && n > 0 ? n : undefined;
 }
+
+/** Rota + query string de `/faturamento/faturas` já filtrada por um convênio exato
+ *  e pelo mesmo período (issue 03 — drill-down de Contas a Receber → Envios). */
+export function urlFaturasFiltradasPorConvenio(
+  fontePagadoraId: number,
+  periodo: PeriodoUrl,
+): string {
+  const params = new URLSearchParams({
+    idFontePagadora: String(fontePagadoraId),
+    periodoIni: periodo.periodoIni,
+    periodoFim: periodo.periodoFim,
+  });
+  return `/faturamento/faturas?${params.toString()}`;
+}

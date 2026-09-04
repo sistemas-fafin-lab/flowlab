@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { idFontePagadoraInicialDaUrl, periodoInicialDaUrl } from './filtrosUrl';
+import { idFontePagadoraInicialDaUrl, periodoInicialDaUrl, urlFaturasFiltradasPorConvenio } from './filtrosUrl';
 
 describe('periodoInicialDaUrl', () => {
   it('lê período quando os dois parâmetros vêm em YYYY-MM-DD', () => {
@@ -47,5 +47,19 @@ describe('idFontePagadoraInicialDaUrl', () => {
 
   it('devolve undefined para valor decimal', () => {
     expect(idFontePagadoraInicialDaUrl(new URLSearchParams({ idFontePagadora: '10.5' }))).toBeUndefined();
+  });
+});
+
+describe('urlFaturasFiltradasPorConvenio', () => {
+  it('monta a rota de Faturas com convênio e período como query string', () => {
+    const url = urlFaturasFiltradasPorConvenio(1025, { periodoIni: '2026-01-01', periodoFim: '2026-01-31' });
+    expect(url).toBe('/faturamento/faturas?idFontePagadora=1025&periodoIni=2026-01-01&periodoFim=2026-01-31');
+  });
+
+  it('a URL gerada é lida de volta pelos parsers de estado inicial', () => {
+    const url = urlFaturasFiltradasPorConvenio(42, { periodoIni: '2026-03-01', periodoFim: '2026-03-31' });
+    const params = new URLSearchParams(url.split('?')[1]);
+    expect(idFontePagadoraInicialDaUrl(params)).toBe(42);
+    expect(periodoInicialDaUrl(params)).toEqual({ periodoIni: '2026-03-01', periodoFim: '2026-03-31' });
   });
 });
