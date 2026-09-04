@@ -296,7 +296,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
                           ) : (
                             <span
                               className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400"
-                              title="Lote ainda não foi enviado à operadora: o título nasce sem vencimento e fica de fora do aging até alguém preencher."
+                              title="Lote ainda não foi enviado à operadora: o vencimento é estimado a partir da emissão (prazo da operadora), não do envio real."
                             >
                               <AlertTriangle className="w-3.5 h-3.5" /> sem envio
                             </span>
@@ -349,7 +349,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
           {!carregando && !erroLista && lotesSemEnvio > 0 && (
             <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 text-xs text-amber-700 dark:text-amber-300">
               <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-              {lotesSemEnvio} lote{lotesSemEnvio === 1 ? '' : 's'} nesta página ainda não {lotesSemEnvio === 1 ? 'foi enviado' : 'foram enviados'} à operadora — se selecionado, o título nasce sem vencimento.
+              {lotesSemEnvio} lote{lotesSemEnvio === 1 ? '' : 's'} nesta página ainda não {lotesSemEnvio === 1 ? 'foi enviado' : 'foram enviados'} à operadora — se selecionado, o vencimento é estimado a partir da emissão (prazo da operadora), não do envio real.
             </div>
           )}
 

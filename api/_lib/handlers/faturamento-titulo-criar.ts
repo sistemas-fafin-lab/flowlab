@@ -197,16 +197,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     // ── Vencimento ────────────────────────────────────────────────────────────
-    // Na ordem que o financeiro usa:
+    // Na ordem que o financeiro usa (e que a tela promete: "usa o vencimento do
+    // RPS ou o prazo da operadora"):
     //   1. o vencimento do RPS, quando o lote virou nota fiscal;
-    //   2. senão, o último envio resolvido pela regra contratual da operadora
-    //      (fat_prever_vencimento — "dia 20 do mês subsequente", "20º dia útil"
-    //      etc.; a conta mora no banco para não haver duas implementações);
-    //   3. senão, nada: o título nasce sem vencimento e fica fora do aging até
-    //      alguém preencher. Chutar uma data inventaria atraso que não existe.
+    //   2. senão, a regra contratual da operadora (fat_prever_vencimento — "dia
+    //      20 do mês subsequente", "20º dia útil" etc.; a conta mora no banco
+    //      para não haver duas implementações) a partir do último envio;
+    //   3. sem envio ainda (lote não chegou à operadora — comum na AMHP-DF, que
+    //      nem grava DtaEnvio, issue 03), a MESMA regra a partir da emissão: é
+    //      uma estimativa sujeita a revisão quando o envio real acontecer, mas
+    //      cumpre a promessa da tela em vez de deixar o título sem vencimento e
+    //      invisível na lista (que filtra por data_vencimento).
+    const dataEmissaoResolvida = dataEmissao ?? hojeIsoLocal();
     let vencimento = dataVencimento ?? vencimentoDoRps(resultado.lotes);
-    const envio = vencimento ? null : ultimoEnvio(resultado.lotes);
-    if (envio) {
+    if (!vencimento) {
+      const base = ultimoEnvio(resultado.lotes) ?? dataEmissaoResolvida;
       // Com o cliente admin: a operadora pode não existir ainda (primeiro título
       // dela), e neste ponto ainda não há nada para o RLS ver. A RPC cai no
       // catálogo de regras pelo nome quando não acha a operadora.
@@ -214,7 +219,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         .rpc('fat_prever_vencimento', {
           p_aplis_id: aplisOperadora,
           p_nome: fonte.nome ?? fonte.razaoSocial ?? null,
-          p_base: envio,
+          p_base: base,
         });
       if (erroPrevisao) {
         // Um título sem vencimento é recuperável (o financeiro edita); recusar a
@@ -232,7 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         cnpj: fonte.cpfCnpj,
       },
       numeroNota,
-      dataEmissao: dataEmissao ?? hojeIsoLocal(),
+      dataEmissao: dataEmissaoResolvida,
       dataVencimento: vencimento,
       competencia: competencia ?? null,
       observacoes: texto(corpo.observacoes) ?? null,
