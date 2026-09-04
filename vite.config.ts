@@ -584,7 +584,7 @@ function apoioApiPlugin(env: Record<string, string>): Plugin {
 // como no apoioApiPlugin. O handler só precisa das credenciais do apLIS + Supabase.
 function faturamentoApiPlugin(env: Record<string, string>): Plugin {
   const FATURAMENTO_ACTIONS = new Set([
-    'lotes', 'lote-detalhe', 'titulo-criar', 'titulo-atualizar-numero-nota', 'operadoras-sync',
+    'lotes', 'lote-detalhe', 'titulo-criar', 'titulo-atualizar-numero-nota', 'titulo-desvincular-lote', 'operadoras-sync',
     'glosas-legado', 'recursos-legado',
     'pendencias-nao-faturadas', 'pendencia-lote-detalhe', 'pendencias-particulares',
     'pendencias-sem-lote',

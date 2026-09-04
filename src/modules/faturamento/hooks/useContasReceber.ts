@@ -193,6 +193,10 @@ interface UseContasReceberResult {
   cancelarTitulo: (notaId: string) => Promise<string | null>;
   /** Issue 33: preenche/corrige o número da nota de um título já existente. */
   atualizarNumeroNota: (notaId: string, numeroNota: string) => Promise<string | null>;
+  /** Issue 46: remove o vínculo de um lote a um título já existente, com motivo
+   *  obrigatório. Bloqueado pela RPC se o título já tem baixa registrada, está
+   *  cancelado, ou o lote é o único do título. */
+  desvincularLote: (notaId: string, loteId: string, motivo: string) => Promise<string | null>;
   /** Issue 16: marca/desmarca uma operadora como clínica parceira. `motivo`
    *  é obrigatório (validado na UI) quando `valor` é `false`. */
   marcarClinicaParceira: (operadoraId: string, valor: boolean, motivo?: string) => Promise<string | null>;
@@ -539,6 +543,31 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }
   }, [refetch]);
 
+  // Issue 46: via API (não supabase.rpc() direto), mesmo padrão de
+  // atualizarNumeroNota acima. Ao contrário de marcarClinicaParceira/etc., a
+  // RPC grava o log de auditoria na mesma transação — não há passo de
+  // auditoria separado a repetir aqui.
+  const desvincularLote = useCallback(async (
+    notaId: string,
+    loteId: string,
+    motivo: string,
+  ): Promise<string | null> => {
+    setError(null);
+    try {
+      await chamarApi(
+        '/api/faturamento/titulo-desvincular-lote',
+        'Não foi possível desvincular o lote.',
+        { method: 'POST', body: { idNota: notaId, idLote: loteId, motivo } },
+      );
+      await refetch();
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Não foi possível desvincular o lote.';
+      setError(msg);
+      return msg;
+    }
+  }, [refetch]);
+
   // Issue 16: UPDATE direto, sem RPC — é uma marcação de negócio isolada, sem
   // invariante cruzando outra tabela. Gate de canManageBilling já é a RLS de
   // `operadoras` (política `_update_billing` de 20260807120000); o front só
@@ -644,6 +673,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     lancarGlosas,
     cancelarTitulo,
     atualizarNumeroNota,
+    desvincularLote,
     marcarClinicaParceira,
     alternarNfAposPagamento,
     marcarConsideradaMeta,

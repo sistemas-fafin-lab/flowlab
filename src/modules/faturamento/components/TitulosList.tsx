@@ -11,11 +11,13 @@ import {
   Scissors,
   Search,
   Settings,
+  Unlink,
 } from 'lucide-react';
 import type {
   OperadoraResumo,
   TituloBaixa,
   TituloGuia,
+  TituloLote,
   TituloReceber,
   TituloStatus,
   TitulosViewFiltros,
@@ -35,6 +37,7 @@ import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
+import MotivoDesativacaoBox from './MotivoDesativacaoBox';
 
 // Lista de títulos a receber, com linha expansível: título → lotes → guias.
 // As guias só são buscadas quando o operador abre o lote — são dezenas por lote e
@@ -113,6 +116,9 @@ interface Props {
   onCancelar: (titulo: TituloReceber) => void;
   /** Issue 33: abre o modal de edição do número da nota. */
   onEditar: (titulo: TituloReceber) => void;
+  /** Issue 46: remove o vínculo de um lote a um título já existente. `motivo`
+   *  é sempre obrigatório (a UI já valida antes de chamar). */
+  onDesvincularLote: (notaId: string, loteId: string, motivo: string) => Promise<string | null>;
   buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
   /** `DtaEnvio` ao vivo dos lotes (issue 15) — chave = aplisId. Ver utils/envioAoVivo.ts. */
   buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
@@ -157,6 +163,7 @@ const TitulosList: React.FC<Props> = ({
   onGlosa,
   onCancelar,
   onEditar,
+  onDesvincularLote,
   buscarGuias,
   buscarEnvioLotes,
   buscarBaixas,
@@ -168,6 +175,12 @@ const TitulosList: React.FC<Props> = ({
   // carrega não pode piscar "Carregando guias…" no lote errado.
   const [carregandoGuias, setCarregandoGuias] = useState<Record<string, boolean>>({});
   const [erroGuias, setErroGuias] = useState<Record<string, string>>({});
+  // Issue 46: qual lote está com o painel de motivo aberto para desvincular —
+  // um só por vez, como `loteAberto` acima para guias.
+  const [loteParaDesvincular, setLoteParaDesvincular] = useState<{ tituloId: string; lote: TituloLote } | null>(null);
+  const [motivoDesvincular, setMotivoDesvincular] = useState('');
+  const [desvinculando, setDesvinculando] = useState(false);
+  const [erroDesvincular, setErroDesvincular] = useState<string | null>(null);
   // Issue 39: baixas do título, por id do título — mesmo padrão de `guias` acima.
   const [baixas, setBaixas] = useState<Record<string, TituloBaixa[]>>({});
   // `statusAtualizadoEm` usado na última busca: registrar uma nova baixa com a
@@ -283,6 +296,37 @@ const TitulosList: React.FC<Props> = ({
       }));
     } finally {
       setCarregandoGuias((atual) => ({ ...atual, [loteId]: false }));
+    }
+  };
+
+  // Issue 46: abre o painel de motivo para desvincular um lote específico do
+  // título. Fecha qualquer outro painel aberto — só um por vez.
+  const abrirDesvincular = (tituloId: string, lote: TituloLote) => {
+    setErroDesvincular(null);
+    setMotivoDesvincular('');
+    setLoteParaDesvincular({ tituloId, lote });
+  };
+
+  const cancelarDesvincular = () => {
+    setLoteParaDesvincular(null);
+    setMotivoDesvincular('');
+    setErroDesvincular(null);
+  };
+
+  const confirmarDesvincular = async () => {
+    if (!loteParaDesvincular || !motivoDesvincular.trim()) return;
+    setDesvinculando(true);
+    const erro = await onDesvincularLote(
+      loteParaDesvincular.tituloId,
+      loteParaDesvincular.lote.id,
+      motivoDesvincular.trim(),
+    );
+    setDesvinculando(false);
+    if (erro) {
+      setErroDesvincular(erro);
+    } else {
+      setLoteParaDesvincular(null);
+      setMotivoDesvincular('');
     }
   };
 
@@ -675,12 +719,21 @@ const TitulosList: React.FC<Props> = ({
                               {titulo.lotes.length === 0 ? (
                                 <p className="text-xs text-gray-400">Título sem lotes vinculados.</p>
                               ) : (
-                                titulo.lotes.map((lote) => (
+                                titulo.lotes.map((lote) => {
+                                  // Issue 46: bloqueio espelha a RPC fat_desvincular_lote — cancelado,
+                                  // baixa já registrada ou único lote do título.
+                                  const bloqueioDesvinculo = titulo.status === 'cancelada'
+                                    ? 'Título cancelado não aceita edição de lotes.'
+                                    : titulo.valorRecebido > 0
+                                    ? 'Título já tem baixa registrada — não é possível alterar os lotes.'
+                                    : titulo.lotes.length <= 1
+                                    ? 'Não é possível remover o único lote do título.'
+                                    : null;
+                                  return (
                                   <div key={lote.id} className="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                    <button
-                                      type="button"
+                                    <div
                                       onClick={() => void abrirLote(lote.id)}
-                                      className="w-full flex items-center gap-3 px-3 py-2 text-left text-xs"
+                                      className="w-full flex items-center gap-3 px-3 py-2 text-left text-xs cursor-pointer"
                                     >
                                       {loteAberto === lote.id
                                         ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
@@ -697,7 +750,34 @@ const TitulosList: React.FC<Props> = ({
                                       <span className="ml-auto text-gray-500 dark:text-gray-400 tabular-nums">
                                         {lote.qtdRequisicoes} guias · {formatCurrency(lote.valorTotal)}
                                       </span>
-                                    </button>
+                                      {podeEditar && (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => { e.stopPropagation(); abrirDesvincular(titulo.id, lote); }}
+                                          disabled={Boolean(bloqueioDesvinculo)}
+                                          title={bloqueioDesvinculo ?? 'Desvincular lote'}
+                                          className="p-1 rounded text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
+                                        >
+                                          <Unlink className="w-3.5 h-3.5" />
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    {loteParaDesvincular?.tituloId === titulo.id && loteParaDesvincular.lote.id === lote.id && (
+                                      <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2">
+                                        <MotivoDesativacaoBox
+                                          pergunta={`Remover o lote ${lote.codigoLote} deste título? O valor total do título será recalculado.`}
+                                          motivo={motivoDesvincular}
+                                          onChangeMotivo={setMotivoDesvincular}
+                                          onCancelar={cancelarDesvincular}
+                                          onConfirmar={() => void confirmarDesvincular()}
+                                          confirmando={desvinculando}
+                                        />
+                                        {erroDesvincular && (
+                                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">{erroDesvincular}</p>
+                                        )}
+                                      </div>
+                                    )}
 
                                     {loteAberto === lote.id && (
                                       <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2">
@@ -745,7 +825,8 @@ const TitulosList: React.FC<Props> = ({
                                       </div>
                                     )}
                                   </div>
-                                ))
+                                  );
+                                })
                               )}
                             </div>
                           </td>

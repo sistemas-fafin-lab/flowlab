@@ -109,7 +109,7 @@ const ContasReceberPage: React.FC = () => {
   const {
     titulos, operadoras, total, loading, error, refetch, refetchOperadoras,
     buscarGuias, buscarEnvioLotes, buscarBaixas, criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
-    atualizarNumeroNota, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
+    atualizarNumeroNota, desvincularLote, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
   } = useContasReceber(parametros);
 
   const aplicarFiltro = useCallback((patch: Partial<typeof filtros>) => {
@@ -298,6 +298,7 @@ const ContasReceberPage: React.FC = () => {
           onGlosa={abrirGlosa}
           onCancelar={(titulo) => void confirmarCancelamento(titulo)}
           onEditar={setTituloEditar}
+          onDesvincularLote={desvincularLote}
           buscarGuias={buscarGuias}
           buscarEnvioLotes={buscarEnvioLotes}
           buscarBaixas={buscarBaixas}
