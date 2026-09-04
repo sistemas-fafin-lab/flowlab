@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Filtro de Operadora em Títulos esconde fontes com título real só por não estarem na whitelist de meta
@@ -45,3 +45,26 @@ tem filtro de whitelist no backend.
 Investigação de 2026-09-03, comparando a lista de Títulos com o requisito
 "Convênio/Operadora/Fonte pagadora" do levantamento de requisitos com a
 usuária do setor (áudio transcrito, reunião Gabriel↔Raquel).
+
+## Comments
+
+**2026-09-04 — achado ao verificar status desatualizado (auditoria de
+issues 37-46):** o commit `dec4e32` (03/09, mesma sessão que abriu esta
+issue) já tinha corrigido o dropdown — removeu o filtro `consideradaMeta` da
+lista de opções em `TitulosList.tsx`, exatamente como pedido aqui. Mas o
+mesmo commit **introduziu, na query de Títulos** (`useContasReceber.ts`,
+então linhas 293-300), um filtro incondicional `query.in('operadora_id',
+idsOperadorasConsideradasMeta(operadoras))` que não existia antes. Como
+`useContasReceber` só é consumido por `ContasReceberPage.tsx` (a tela de
+Títulos), esse filtro escondia da lista inteira — não só do dropdown —
+qualquer título de operadora fora da whitelist de meta, o oposto do critério
+de aceite desta issue ("independente de `is_considerada_meta`").
+
+**2026-09-04 — corrigido:** removido o bloco do filtro incondicional (e o
+import agora não usado de `idsOperadorasConsideradasMeta`) de
+`useContasReceber.ts`. A lista de Títulos volta a mostrar título de qualquer
+operadora, dentro ou fora da whitelist — o dropdown (já correto desde
+`dec4e32`) e a query agora concordam. Os outros 4 lugares que a issue 36
+cobriu de propósito (Dashboard, Pendências não faturadas, Pendências sem
+lote, `AgingDetalheModal`) não foram tocados — continuam restritos à
+whitelist via suas próprias queries.

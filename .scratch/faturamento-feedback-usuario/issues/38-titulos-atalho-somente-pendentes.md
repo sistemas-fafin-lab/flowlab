@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Títulos: atalho "Somente pendentes" como filtro rápido (padrão ligado)
@@ -40,3 +40,14 @@ cima dele, não substituto.
 Levantamento de requisitos com a usuária do setor (áudio transcrito,
 2026-09-03), item "Encontrar rápido 'o que falta receber' (pendências)" —
 "Atalho: Somente pendentes (padrão)".
+
+## Comments
+
+**2026-09-04 — status corrigido (auditoria de issues 37-46):** já estava
+implementado, o `Status` no arquivo é que tinha ficado desatualizado. Todos
+os critérios de aceite confirmados no código: `somentePendentes` nasce
+`true` em `ContasReceberPage.tsx`, `useContasReceber.ts` aplica o preset de
+status via `STATUS_TITULOS_PENDENTES` só quando não há status manual
+selecionado, e `viewsSalvas.ts`/`viewsSalvas.test.ts` cobrem o conflito
+atalho↔status manual nos dois sentidos (ligar um desliga o outro), inclusive
+o caso de view salva antiga sem a chave `somentePendentes`.

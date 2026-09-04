@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Títulos: exibir histórico de baixas (recebimentos) por título
@@ -41,3 +41,12 @@ uma seção/lista dentro da expansão já existente em `TitulosList.tsx`.
 Levantamento de requisitos com a usuária do setor (áudio transcrito,
 2026-09-03), itens "Baixa como fonte de verdade" e coluna "Situação da
 baixa (data e valor)".
+
+## Comments
+
+**2026-09-04 — status corrigido (auditoria de issues 37-46):** já estava
+implementado, o `Status` no arquivo é que tinha ficado desatualizado.
+`TitulosList.tsx` busca `recebimentos` via `buscarBaixas` ao expandir o
+título (com cache por `statusAtualizadoEm`, loading e erro tratados) e
+renderiza tabela com data/valor/responsável, ou "Nenhuma baixa registrada."
+quando vazio — os dois critérios de aceite confirmados no código.

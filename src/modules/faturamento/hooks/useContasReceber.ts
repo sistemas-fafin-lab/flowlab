@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { diasDeAtraso, idsOperadorasConsideradasMeta } from '../utils/formato';
+import { diasDeAtraso } from '../utils/formato';
 import type {
   BaixaInput,
   GlosaLancamentoInput,
@@ -290,15 +290,12 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         }
       }
 
-      // Whitelist de negócio (03/09, sempre ativa — não é opção do usuário como
-      // ocultarParceiras acima): só título de operadora marcada is_considerada_meta
-      // conta. Antes de `operadoras` carregar (primeiro render) não filtra nada —
-      // o efeito abaixo depende de `operadoras` e reexecuta refetch assim que
-      // refetchOperadoras resolver, mesmo raciocínio de ordering do bloco acima.
-      if (operadoras.length > 0) {
-        query = query.in('operadora_id', idsOperadorasConsideradasMeta(operadoras));
-      }
-
+      // Issue 37: título é lançamento manual do setor, não uma agregação de
+      // meta — NÃO filtra por is_considerada_meta aqui (ao contrário do
+      // Dashboard/Pendências/AgingDetalheModal, que agregam só as fontes da
+      // whitelist). Removido: um filtro incondicional que tinha sido
+      // adicionado por engano nesta query, escondendo títulos reais de
+      // operadora fora da whitelist mesmo com o dropdown já corrigido.
       const { data, count, error: erro } = await query;
       if (reqId !== buscaAtual.current) return;
       if (erro) throw new Error(erro.message);
