@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { Exam, Payor } from '../../../hooks/useCostControl';
-import { buscarExamesPorTermo, fontesPagadorasPorTuss } from './busca';
+import {
+  buscarExamesPorTermo,
+  buscarUnificado,
+  examesPorFontePagadora,
+  fontesPagadorasPorTuss,
+} from './busca';
 
 const exame = (over: Partial<Exam>): Exam => ({
   id: 'e1',
@@ -76,6 +81,101 @@ describe('fontesPagadorasPorTuss', () => {
       fontes[3], // 8.10
       fontes[1], // 9.20
       fontes[0], // 12.50
+    ]);
+  });
+});
+
+describe('buscarUnificado', () => {
+  const exames = [
+    exame({ id: 'e1', name: 'Hemograma completo', tuss: '40304361' }),
+    exame({ id: 'e2', name: 'Glicemia de jejum', tuss: '40302040' }),
+    exame({ id: 'e3', name: 'Colesterol total', tuss: '40304312' }),
+  ];
+
+  const fontes = [
+    fonte({ id: 'p1', payor: 'Unimed', tus: '40304361' }),
+    fonte({ id: 'p2', payor: 'Unimed', tus: '40302040' }),
+    fonte({ id: 'p3', payor: 'Bradesco Saúde', tus: '40304312' }),
+    fonte({ id: 'p4', payor: 'Hemoprev', tus: '99999999' }),
+  ];
+
+  it('termo vazio devolve listas vazias', () => {
+    expect(buscarUnificado(exames, fontes, '')).toEqual({
+      exames: [],
+      fontesPagadoras: [],
+    });
+  });
+
+  it('termo sem nenhum match devolve listas vazias', () => {
+    expect(buscarUnificado(exames, fontes, 'inexistente')).toEqual({
+      exames: [],
+      fontesPagadoras: [],
+    });
+  });
+
+  it('match só de exame devolve exame e fontesPagadoras vazia', () => {
+    expect(buscarUnificado(exames, fontes, 'hemograma')).toEqual({
+      exames: [exames[0]],
+      fontesPagadoras: [],
+    });
+  });
+
+  it('match só de fonte pagadora devolve fonte e exames vazia', () => {
+    expect(buscarUnificado(exames, fontes, 'bradesco')).toEqual({
+      exames: [],
+      fontesPagadoras: ['Bradesco Saúde'],
+    });
+  });
+
+  it('match simultâneo dos dois tipos', () => {
+    expect(buscarUnificado(exames, fontes, 'hemo')).toEqual({
+      exames: [exames[0]], // Hemograma completo
+      fontesPagadoras: ['Hemoprev'],
+    });
+  });
+
+  it('deduplica fonte pagadora com múltiplas linhas pelo nome', () => {
+    expect(buscarUnificado(exames, fontes, 'unimed').fontesPagadoras).toEqual([
+      'Unimed',
+    ]);
+  });
+});
+
+describe('examesPorFontePagadora', () => {
+  const exames = [
+    exame({ id: 'e1', name: 'Hemograma completo', tuss: '40304361' }),
+    exame({ id: 'e2', name: 'Glicemia de jejum', tuss: '40302040' }),
+    exame({ id: 'e3', name: 'Colesterol total', tuss: '40304312' }),
+  ];
+
+  const fontes = [
+    fonte({ id: 'p1', payor: 'Unimed', table: 'Unimed Coop.', tus: '40304361', price: 12.5 }),
+    fonte({ id: 'p2', payor: 'Unimed', table: 'Unimed Nacional', tus: '40302040', price: 4.8 }),
+    fonte({ id: 'p3', payor: 'Bradesco Saúde', table: 'Bradesco Top', tus: '40304312', price: 20 }),
+  ];
+
+  it('nome vazio devolve lista vazia', () => {
+    expect(examesPorFontePagadora(exames, fontes, '')).toEqual([]);
+  });
+
+  it('nome sem nenhum match devolve lista vazia', () => {
+    expect(examesPorFontePagadora(exames, fontes, 'Inexistente')).toEqual([]);
+  });
+
+  it('devolve os exames da fonte pagadora, ordenados por valor crescente', () => {
+    expect(examesPorFontePagadora(exames, fontes, 'Unimed')).toEqual([
+      {
+        exame: 'Glicemia de jejum',
+        tuss: '40302040',
+        tabelaAssociada: 'Unimed Nacional',
+        valorCobrado: 4.8,
+      },
+      {
+        exame: 'Hemograma completo',
+        tuss: '40304361',
+        tabelaAssociada: 'Unimed Coop.',
+        valorCobrado: 12.5,
+      },
     ]);
   });
 });
