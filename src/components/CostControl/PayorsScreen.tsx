@@ -319,11 +319,13 @@ function TabelaExamesDaFonte({
   examesDaFonte,
   onSelectExame,
   onToggleAtendido,
+  podeEditarAtendido,
   mensagemVazia = 'Nenhum exame cadastrado para esta fonte pagadora.',
 }: {
   examesDaFonte: ExameDaFontePagadora[];
   onSelectExame: (tuss: string) => void;
   onToggleAtendido: (payorId: string, atendido: boolean) => void;
+  podeEditarAtendido: boolean;
   mensagemVazia?: string;
 }) {
   const [ordenacao, setOrdenacao] = useState<EstadoOrdenacao>(ORDENACAO_PADRAO);
@@ -405,13 +407,20 @@ function TabelaExamesDaFonte({
                     <button
                       type="button"
                       onClick={() => onToggleAtendido(e.payorId, !e.atendido)}
+                      disabled={!podeEditarAtendido}
                       aria-pressed={e.atendido}
-                      title={e.atendido ? 'Atendido pelo plano de saúde — clique para marcar como só particular' : 'Só atendido como particular — clique para marcar como atendido pelo plano'}
+                      title={
+                        podeEditarAtendido
+                          ? e.atendido
+                            ? 'Atendido pelo plano de saúde — clique para marcar como só particular'
+                            : 'Só atendido como particular — clique para marcar como atendido pelo plano'
+                          : 'Somente leitura — requer permissão para gerenciar contas a receber'
+                      }
                       className={`ml-auto flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${
                         e.atendido
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                           : 'bg-transparent border-gray-300 dark:border-gray-600 text-transparent'
-                      }`}
+                      } ${podeEditarAtendido ? '' : 'opacity-60 cursor-not-allowed'}`}
                     >
                       <Check className="w-3.5 h-3.5" />
                     </button>
@@ -428,7 +437,8 @@ function TabelaExamesDaFonte({
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Lock className="w-3 h-3" />
-          Valores somente leitura — espelhados do APLIS · Atendido é editável
+          Valores somente leitura — espelhados do APLIS
+          {podeEditarAtendido ? ' · Atendido é editável' : ''}
         </span>
       </div>
     </div>
@@ -441,7 +451,7 @@ function TabelaExamesDaFonte({
 
 const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorAtendido, importPayors }) => {
   const { userProfile } = useAuth();
-  const podeImportar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
+  const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
   const { notification, showError, hideNotification } = useNotification();
   const [termoFonte, setTermoFonte] = useState('');
   const [termoExame, setTermoExame] = useState('');
@@ -527,6 +537,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
   const handleToggleAtendido = (payorId: string, atendido: boolean) => {
     updatePayorAtendido(payorId, atendido).catch(err => {
       console.error('Falha ao atualizar Atendido da fonte pagadora', err);
+      showError('Erro ao atualizar Atendido', err instanceof Error ? err.message : undefined);
     });
   };
 
@@ -605,7 +616,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {podeImportar && (
+            {podeGerenciar && (
               <button
                 type="button"
                 onClick={() => setImportModalOpen(true)}
@@ -701,6 +712,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
           examesDaFonte={examesDaFonteFiltrados}
           onSelectExame={handleSelecionarExamePorTuss}
           onToggleAtendido={handleToggleAtendido}
+          podeEditarAtendido={podeGerenciar}
           mensagemVazia={
             exameSelecionado
               ? 'Este exame não está cadastrado para esta fonte pagadora.'
@@ -717,7 +729,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
         />
       )}
 
-      {podeImportar && (
+      {podeGerenciar && (
         <PayorImportModal
           open={importModalOpen}
           onClose={() => setImportModalOpen(false)}
