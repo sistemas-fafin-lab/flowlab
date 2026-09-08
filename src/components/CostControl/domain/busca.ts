@@ -5,11 +5,15 @@
 
 import type { Exam, Payor } from '../../../hooks/useCostControl';
 
+function normalizar(valor: string): string {
+  return valor.trim().toLowerCase();
+}
+
 /** Exames cujo nome OU código TUSS contém `termo` — correspondência parcial e
  *  case-insensitive. Termo vazio (ou só espaços) devolve lista vazia, não a
  *  lista inteira. */
 export function buscarExamesPorTermo(exams: Exam[], termo: string): Exam[] {
-  const termoNormalizado = termo.trim().toLowerCase();
+  const termoNormalizado = normalizar(termo);
   if (!termoNormalizado) return [];
 
   return exams.filter(
@@ -22,7 +26,7 @@ export function buscarExamesPorTermo(exams: Exam[], termo: string): Exam[] {
 /** Fontes pagadoras do código TUSS exato de um exame, ordenadas por valor
  *  cobrado crescente (mais barato primeiro). */
 export function fontesPagadorasPorTuss(payors: Payor[], tuss: string): Payor[] {
-  const tussNormalizado = tuss.trim().toLowerCase();
+  const tussNormalizado = normalizar(tuss);
   if (!tussNormalizado) return [];
 
   return payors
@@ -46,7 +50,7 @@ export function buscarUnificado(
   payors: Payor[],
   termo: string,
 ): ResultadoBuscaUnificada {
-  const termoNormalizado = termo.trim().toLowerCase();
+  const termoNormalizado = normalizar(termo);
   if (!termoNormalizado) return { exames: [], fontesPagadoras: [] };
 
   const exames = buscarExamesPorTermo(exams, termo);
@@ -75,7 +79,7 @@ export function examesPorFontePagadora(
   payors: Payor[],
   nomeFontePagadora: string,
 ): ExameDaFontePagadora[] {
-  const nomeNormalizado = nomeFontePagadora.trim().toLowerCase();
+  const nomeNormalizado = normalizar(nomeFontePagadora);
   if (!nomeNormalizado) return [];
 
   const examesPorTuss = new Map(exams.map((exame) => [exame.tuss, exame]));
