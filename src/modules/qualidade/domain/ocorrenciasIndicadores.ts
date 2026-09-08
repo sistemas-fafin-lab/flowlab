@@ -9,7 +9,7 @@ import type { IndicadorOcorrenciasResposta } from '../types';
 
 export interface LinhaIndicadorOcorrencia {
   dtaOcorrencia: string;
-  statusCuradoria: string;
+  statusCuradoria: string | null;
   motivoId: string | null;
   motivoNome: string | null;
   setorErroId: string | null;
@@ -27,7 +27,7 @@ function incrementar(mapa: Map<string, { nome: string; total: number }>, id: str
   mapa.set(id, { nome, total: (atual?.total ?? 0) + 1 });
 }
 
-/** `status_curadoria` é campo de curadoria (R5, ocorrenciasRegras.ts) — nunca vem do LIS, que não expõe status de ocorrência. */
+/** `status_curadoria` vem do apLIS (`ocorrencia.Status`, ver bdLabQualidade.ts) — `null` (código sem leitura confirmada) conta como "a classificar". */
 function statusCuradoriaConcluida(linha: LinhaIndicadorOcorrencia): boolean {
   return linha.statusCuradoria === 'concluida';
 }

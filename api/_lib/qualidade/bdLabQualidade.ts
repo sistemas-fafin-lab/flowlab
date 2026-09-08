@@ -53,6 +53,23 @@
 //    pessoa errada, na maioria dos IDs. Confirmado contra o Aplis:
 //    `IdPatologista=196` é Larissa Sena Teixeira Mendes em `autusuario`, mas
 //    `medico.CodMedico=196` é uma pessoa completamente diferente.
+// 5. [RESOLVIDO] Ocorrências: `ocorrencia.Status` (não `NumCod`, que é outra
+//    coluna) é o código de situação do fluxo de tratamento da ocorrência no
+//    apLIS. Não existe tabela de tradução no schema (não é `tabelacodigoitem`
+//    — sem `CodTabela` correspondente a "Ocorrência"/"Status"), então os
+//    rótulos vieram do próprio apLIS (dropdown de status) e a correlação foi
+//    confirmada ao vivo em 2026-09-04 cruzando a distribuição de `Status`
+//    com o preenchimento das colunas de workflow (`Apr*`=aprovação/decisão
+//    de RNC, `Imp*`=implementação, `Val*`=validação, `Efi*`=eficácia):
+//      1  = "Decidir sobre abertura de RNC" — só `AprResponsavel` setado,
+//           `AprResultado` nulo (decisão ainda não tomada).
+//      9  = "Concluído com eficácia" — tudo preenchido e finalizado,
+//           `AprResultado=1`, `ValResultado=1`, `EfiResultado=1`.
+//      11 = "Concluído sem RNC" — só a aprovação finalizada, com
+//           `AprResultado=0` (decisão: não abrir RNC).
+//    Demais códigos (4, 5 e outros não observados) não têm leitura
+//    confirmada — `statusLis` sai `null` para eles (decisão do dono do
+//    produto: melhor não classificar do que classificar errado).
 
 import mysql from 'mysql2/promise';
 
@@ -154,6 +171,17 @@ function maisCompleta<T extends { textoLaudo: string | null; descricaoTopografia
 
 // ── Ocorrências ─────────────────────────────────────────────────────────────
 
+/** Ver ponto 5 (RESOLVIDO) do cabeçalho: único código com leitura confirmada como "pendente". */
+const COD_STATUS_OCORRENCIA_PENDENTE = 1;
+/** Ver ponto 5 (RESOLVIDO) do cabeçalho: únicos códigos com leitura confirmada como "concluída". */
+const CODIGOS_STATUS_OCORRENCIA_CONCLUIDA = [9, 11];
+
+function statusOcorrenciaLis(codStatus: number | null): 'pendente' | 'concluida' | null {
+  if (codStatus === COD_STATUS_OCORRENCIA_PENDENTE) return 'pendente';
+  if (codStatus !== null && CODIGOS_STATUS_OCORRENCIA_CONCLUIDA.includes(codStatus)) return 'concluida';
+  return null;
+}
+
 export interface OcorrenciaLis {
   idOcorrenciaLis: number;
   numCod: number | null;
@@ -162,6 +190,9 @@ export interface OcorrenciaLis {
   descricaoLis: string | null;
   acaoImediataLis: string | null;
   cauDescricaoLis: string | null;
+  codStatusLis: number | null;
+  /** Ver ponto 5 (RESOLVIDO) do cabeçalho — `null` para códigos sem leitura confirmada (fica de fora da classificação). */
+  statusLis: 'pendente' | 'concluida' | null;
 }
 
 export type ListarOcorrenciasResultado = { ocorrencias: OcorrenciaLis[] } | ErroConsultaLis;
@@ -170,7 +201,7 @@ export async function listarOcorrenciasLis(inicio: string, fim: string): Promise
   return comConexao('listarOcorrenciasLis', async (conn) => {
     const periodo = condicaoPeriodo('o.DtaOcorrencia', inicio, fim);
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT o.IdOcorrencia, o.NumCod,
+      `SELECT o.IdOcorrencia, o.NumCod, o.Status,
               DATE_FORMAT(o.DtaOcorrencia, '%Y-%m-%d') AS DtaOcorrencia,
               r.CodRequisicao, o.Descricao, o.AcaoImediata, o.CauDescricao
          FROM ocorrencia o
@@ -180,15 +211,20 @@ export async function listarOcorrenciasLis(inicio: string, fim: string): Promise
       periodo.valores,
     );
     return {
-      ocorrencias: linhas.map((linha) => ({
-        idOcorrenciaLis: numero(linha.IdOcorrencia) ?? 0,
-        numCod: inteiroOuNulo(linha.NumCod),
-        dtaOcorrencia: dataIso(linha.DtaOcorrencia) ?? inicio,
-        codRequisicao: texto(linha.CodRequisicao),
-        descricaoLis: texto(linha.Descricao),
-        acaoImediataLis: texto(linha.AcaoImediata),
-        cauDescricaoLis: texto(linha.CauDescricao),
-      })),
+      ocorrencias: linhas.map((linha) => {
+        const codStatusLis = inteiroOuNulo(linha.Status);
+        return {
+          idOcorrenciaLis: numero(linha.IdOcorrencia) ?? 0,
+          numCod: inteiroOuNulo(linha.NumCod),
+          dtaOcorrencia: dataIso(linha.DtaOcorrencia) ?? inicio,
+          codRequisicao: texto(linha.CodRequisicao),
+          descricaoLis: texto(linha.Descricao),
+          acaoImediataLis: texto(linha.AcaoImediata),
+          cauDescricaoLis: texto(linha.CauDescricao),
+          codStatusLis,
+          statusLis: statusOcorrenciaLis(codStatusLis),
+        };
+      }),
     };
   });
 }
