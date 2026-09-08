@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { NovoRiscoInput, StatusCuradoriaOcorrencia } from '../../types';
+import type { NovoRiscoInput } from '../../types';
 import { AlertOctagon } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import {
@@ -22,9 +22,16 @@ interface CuradoriaDrawerProps {
   onFechar: () => void;
 }
 
-const BADGE_STATUS: Record<StatusCuradoriaOcorrencia, string> = {
+const BADGE_STATUS: Record<'pendente' | 'concluida' | 'outro', string> = {
   pendente: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
   concluida: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+  outro: 'bg-gray-50 text-gray-400 dark:bg-white/5 dark:text-slate-500',
+};
+
+const ROTULO_STATUS: Record<'pendente' | 'concluida' | 'outro', string> = {
+  pendente: 'Decidir sobre abertura de RNC',
+  concluida: 'Concluído',
+  outro: 'Outro status (apLIS)',
 };
 
 const campoInput =
@@ -273,14 +280,14 @@ export function CuradoriaDrawer({ id, canManage, onFechar }: CuradoriaDrawerProp
 
               <div>
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Status (automático — conclui quando responsável e motivo estão definidos)
+                  Status (definido pelo apLIS — não editável aqui)
                 </label>
                 <div className="mt-1">
                   {data && (
                     <span
-                      className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_STATUS[data.statusCuradoria]}`}
+                      className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_STATUS[data.statusCuradoria ?? 'outro']}`}
                     >
-                      {data.statusCuradoria}
+                      {ROTULO_STATUS[data.statusCuradoria ?? 'outro']}
                     </span>
                   )}
                 </div>
