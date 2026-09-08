@@ -28,21 +28,34 @@ validação → preview de válidos/inválidos → "Baixar modelo" → confirmar
 
 **Blocked by:** Nenhum — pode começar imediatamente.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Botão "Importar" visível na aba Fontes Pagadoras, para usuários com
+- [x] Botão "Importar" visível na aba Fontes Pagadoras, para usuários com
       `canManageBilling`
-- [ ] Modal exige a seleção de Fonte Pagadora (e opcionalmente Tabela
+- [x] Modal exige a seleção de Fonte Pagadora (e opcionalmente Tabela
       Associada) antes de permitir o upload
-- [ ] Aceita `.xlsx`, `.xls` e `.csv` com as colunas `TUSS | Nome do Exame
+- [x] Aceita `.xlsx`, `.xls` e `.csv` com as colunas `TUSS | Nome do Exame
       | Valor | Atendido`
-- [ ] Preview mostra separadamente linhas válidas e inválidas antes de
+- [x] Preview mostra separadamente linhas válidas e inválidas antes de
       confirmar a importação
-- [ ] Linha com `TUSS` que não existe em `custo_exames` aparece como
+- [x] Linha com `TUSS` que não existe em `custo_exames` aparece como
       inválida e não é gravada
-- [ ] Linha com `TUSS` já existente para aquela fonte pagadora atualiza
+- [x] Linha com `TUSS` já existente para aquela fonte pagadora atualiza
       (upsert) `valor` e `atendido` em vez de duplicar
-- [ ] Linha com `TUSS` novo para aquela fonte pagadora cria um novo
+- [x] Linha com `TUSS` novo para aquela fonte pagadora cria um novo
       registro em `custo_fontes_pagadoras`
-- [ ] Botão "Baixar modelo" disponível no modal
-- [ ] Usuário sem `canManageBilling` não vê/não consegue acionar o botão
+- [x] Botão "Baixar modelo" disponível no modal
+- [x] Usuário sem `canManageBilling` não vê/não consegue acionar o botão
+
+## Comments
+
+Implementado em `PayorImportModal.tsx` (clone de `ExamImportModal.tsx`) +
+`domain/importacaoFontesPagadoras.ts` (parsing/validação/upsert, testado em
+`importacaoFontesPagadoras.test.ts`) + `importPayors` em `useCostControl.ts`.
+
+Uma correção em relação ao texto original do ticket: o casamento de upsert
+usa fonte pagadora + **tabela associada** + TUSS (não só fonte + TUSS) —
+uma mesma fonte pagadora pode ter dezenas de tabelas associadas (convênios)
+compartilhando o mesmo TUSS com valores diferentes (ex.: AMHP-DF tem 37
+convênios, ver comentário na migration `20260904110000_custo_fontes_pagadoras.sql`),
+então casar só por fonte+TUSS arriscava atualizar o convênio errado.
