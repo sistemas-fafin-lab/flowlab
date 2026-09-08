@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Exam, Payor } from '../../../hooks/useCostControl';
 import {
   buscarExamesPorTermo,
-  buscarUnificado,
+  buscarFontesPagadorasPorTermo,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
 } from './busca';
@@ -25,6 +25,7 @@ const fonte = (over: Partial<Payor>): Payor => ({
   table: 'Unimed Coop.',
   tus: '40304361',
   price: 9.2,
+  atendido: true,
   ...over,
 });
 
@@ -85,13 +86,7 @@ describe('fontesPagadorasPorTuss', () => {
   });
 });
 
-describe('buscarUnificado', () => {
-  const exames = [
-    exame({ id: 'e1', name: 'Hemograma completo', tuss: '40304361' }),
-    exame({ id: 'e2', name: 'Glicemia de jejum', tuss: '40302040' }),
-    exame({ id: 'e3', name: 'Colesterol total', tuss: '40304312' }),
-  ];
-
+describe('buscarFontesPagadorasPorTermo', () => {
   const fontes = [
     fonte({ id: 'p1', payor: 'Unimed', tus: '40304361' }),
     fonte({ id: 'p2', payor: 'Unimed', tus: '40302040' }),
@@ -99,45 +94,20 @@ describe('buscarUnificado', () => {
     fonte({ id: 'p4', payor: 'Hemoprev', tus: '99999999' }),
   ];
 
-  it('termo vazio devolve listas vazias', () => {
-    expect(buscarUnificado(exames, fontes, '')).toEqual({
-      exames: [],
-      fontesPagadoras: [],
-    });
+  it('termo vazio devolve lista vazia', () => {
+    expect(buscarFontesPagadorasPorTermo(fontes, '')).toEqual([]);
   });
 
-  it('termo sem nenhum match devolve listas vazias', () => {
-    expect(buscarUnificado(exames, fontes, 'inexistente')).toEqual({
-      exames: [],
-      fontesPagadoras: [],
-    });
+  it('termo sem nenhum match devolve lista vazia', () => {
+    expect(buscarFontesPagadorasPorTermo(fontes, 'inexistente')).toEqual([]);
   });
 
-  it('match só de exame devolve exame e fontesPagadoras vazia', () => {
-    expect(buscarUnificado(exames, fontes, 'hemograma')).toEqual({
-      exames: [exames[0]],
-      fontesPagadoras: [],
-    });
-  });
-
-  it('match só de fonte pagadora devolve fonte e exames vazia', () => {
-    expect(buscarUnificado(exames, fontes, 'bradesco')).toEqual({
-      exames: [],
-      fontesPagadoras: ['Bradesco Saúde'],
-    });
-  });
-
-  it('match simultâneo dos dois tipos', () => {
-    expect(buscarUnificado(exames, fontes, 'hemo')).toEqual({
-      exames: [exames[0]], // Hemograma completo
-      fontesPagadoras: ['Hemoprev'],
-    });
+  it('casa por nome, parcial e case-insensitive', () => {
+    expect(buscarFontesPagadorasPorTermo(fontes, 'bradesco')).toEqual(['Bradesco Saúde']);
   });
 
   it('deduplica fonte pagadora com múltiplas linhas pelo nome', () => {
-    expect(buscarUnificado(exames, fontes, 'unimed').fontesPagadoras).toEqual([
-      'Unimed',
-    ]);
+    expect(buscarFontesPagadorasPorTermo(fontes, 'unimed')).toEqual(['Unimed']);
   });
 });
 
@@ -165,16 +135,45 @@ describe('examesPorFontePagadora', () => {
   it('devolve os exames da fonte pagadora, ordenados por valor crescente', () => {
     expect(examesPorFontePagadora(exames, fontes, 'Unimed')).toEqual([
       {
+        payorId: 'p2',
         exame: 'Glicemia de jejum',
         tuss: '40302040',
         tabelaAssociada: 'Unimed Nacional',
         valorCobrado: 4.8,
+        custo: 12,
+        dif: -7.2,
+        percentualCsp: 250,
+        atendido: true,
       },
       {
+        payorId: 'p1',
         exame: 'Hemograma completo',
         tuss: '40304361',
         tabelaAssociada: 'Unimed Coop.',
         valorCobrado: 12.5,
+        custo: 12,
+        dif: 0.5,
+        percentualCsp: 96,
+        atendido: true,
+      },
+    ]);
+  });
+
+  it('atendido reflete o flag da fonte pagadora, e custo/dif/%csp vêm do custo total do exame', () => {
+    const fontesComNaoAtendido = [
+      fonte({ id: 'p4', payor: 'Amil', table: 'Amil 400', tus: '40304361', price: 15, atendido: false }),
+    ];
+    expect(examesPorFontePagadora(exames, fontesComNaoAtendido, 'Amil')).toEqual([
+      {
+        payorId: 'p4',
+        exame: 'Hemograma completo',
+        tuss: '40304361',
+        tabelaAssociada: 'Amil 400',
+        valorCobrado: 15,
+        custo: 12,
+        dif: 3,
+        percentualCsp: 80,
+        atendido: false,
       },
     ]);
   });

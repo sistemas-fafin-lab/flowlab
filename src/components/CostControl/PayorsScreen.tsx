@@ -1,7 +1,13 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, Building2, FlaskConical, Lock, Search, X } from 'lucide-react';
-import { Exam, Payor, formatBRL } from '../../hooks/useCostControl';
-import { buscarUnificado, examesPorFontePagadora, fontesPagadorasPorTuss, type ExameDaFontePagadora } from './domain/busca';
+import { ArrowDown, ArrowUp, ArrowUpDown, Building2, Check, FlaskConical, Lock, Search, X } from 'lucide-react';
+import { Exam, Payor, formatBRL, formatPct } from '../../hooks/useCostControl';
+import {
+  buscarExamesPorTermo,
+  buscarFontesPagadorasPorTermo,
+  examesPorFontePagadora,
+  fontesPagadorasPorTuss,
+  type ExameDaFontePagadora,
+} from './domain/busca';
 import { ORDENACAO_PADRAO, alternarOrdenacao, ordenar, type EstadoOrdenacao } from './domain/ordenacao';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -11,11 +17,8 @@ import { ORDENACAO_PADRAO, alternarOrdenacao, ordenar, type EstadoOrdenacao } fr
 interface PayorsScreenProps {
   payors: Payor[];
   exams: Exam[];
+  updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
 }
-
-type Selecao =
-  | { tipo: 'exame'; exame: Exam }
-  | { tipo: 'fontePagadora'; nome: string };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ORDENAÇÃO DAS TABELAS DE RESULTADO
@@ -57,6 +60,121 @@ function CabecalhoOrdenavel<Coluna extends string>({
         <IconeOrdenacao ativo={ativo} direcao={ativo ? ordenacao.direcao : null} />
       </button>
     </th>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CAMPO DE BUSCA (combobox genérico — usado uma vez pra Fonte Pagadora,
+// outra pra Exame; cada um resolve pra um único item selecionado, com chip
+// e X pra limpar, igual o campo único de antes)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function CampoBusca<T>({
+  label,
+  placeholder,
+  itens,
+  termo,
+  onTermoChange,
+  selecionado,
+  onSelecionar,
+  onLimpar,
+  renderChip,
+  renderSugestao,
+  keyOf,
+}: {
+  label: string;
+  placeholder: string;
+  itens: T[];
+  termo: string;
+  onTermoChange: (v: string) => void;
+  selecionado: T | null;
+  onSelecionar: (item: T) => void;
+  onLimpar: () => void;
+  renderChip: (item: T) => React.ReactNode;
+  renderSugestao: (item: T) => React.ReactNode;
+  keyOf: (item: T) => string;
+}) {
+  const [indiceDestacado, setIndiceDestacado] = useState(0);
+
+  useEffect(() => {
+    setIndiceDestacado(0);
+  }, [termo]);
+
+  const termoDigitado = termo.trim().length > 0;
+  const mostrarDropdown = !selecionado && termoDigitado;
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!mostrarDropdown || itens.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndiceDestacado(i => (i + 1) % itens.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceDestacado(i => (i - 1 + itens.length) % itens.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      onSelecionar(itens[indiceDestacado]);
+    }
+  };
+
+  return (
+    <div className="flex-1 min-w-0">
+      <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">{label}</label>
+      <div className="relative">
+        {selecionado ? (
+          <div className="flex items-center gap-2 pl-9 pr-2 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
+            <span className="flex-1 min-w-0 text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
+              {renderChip(selecionado)}
+            </span>
+            <button
+              type="button"
+              onClick={onLimpar}
+              aria-label={`Limpar ${label}`}
+              className="shrink-0 p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-300"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ) : (
+          <>
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <input
+              value={termo}
+              onChange={e => onTermoChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={placeholder}
+              autoComplete="off"
+              className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+            />
+            {mostrarDropdown && (
+              <ul className="absolute z-10 mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-64 overflow-y-auto">
+                {itens.length === 0 ? (
+                  <li className="px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400">Nenhum resultado encontrado.</li>
+                ) : (
+                  itens.map((item, i) => (
+                    <li key={keyOf(item)}>
+                      <button
+                        type="button"
+                        onClick={() => onSelecionar(item)}
+                        onMouseEnter={() => setIndiceDestacado(i)}
+                        aria-selected={i === indiceDestacado}
+                        className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
+                          i === indiceDestacado ? 'bg-blue-50 dark:bg-blue-500/10' : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
+                        }`}
+                      >
+                        {renderSugestao(item)}
+                      </button>
+                    </li>
+                  ))
+                )}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -150,21 +268,37 @@ function TabelaFontesPagadoras({
   );
 }
 
-type ColunaExameDaFonte = 'exame' | 'tuss' | 'tabelaAssociada' | 'valorCobrado';
+type ColunaExameDaFonte =
+  | 'exame'
+  | 'tuss'
+  | 'tabelaAssociada'
+  | 'valorCobrado'
+  | 'custo'
+  | 'dif'
+  | 'percentualCsp'
+  | 'atendido';
 
 const VALOR_COLUNA_EXAME_DA_FONTE: Record<ColunaExameDaFonte, (item: ExameDaFontePagadora) => string | number> = {
   exame: item => item.exame,
   tuss: item => item.tuss,
   tabelaAssociada: item => item.tabelaAssociada,
   valorCobrado: item => item.valorCobrado,
+  custo: item => item.custo,
+  dif: item => item.dif,
+  percentualCsp: item => item.percentualCsp,
+  atendido: item => (item.atendido ? 1 : 0),
 };
 
 function TabelaExamesDaFonte({
   examesDaFonte,
   onSelectExame,
+  onToggleAtendido,
+  mensagemVazia = 'Nenhum exame cadastrado para esta fonte pagadora.',
 }: {
   examesDaFonte: ExameDaFontePagadora[];
   onSelectExame: (tuss: string) => void;
+  onToggleAtendido: (payorId: string, atendido: boolean) => void;
+  mensagemVazia?: string;
 }) {
   const [ordenacao, setOrdenacao] = useState<EstadoOrdenacao>(ORDENACAO_PADRAO);
   const alternar = (coluna: ColunaExameDaFonte) => setOrdenacao(atual => alternarOrdenacao(atual, coluna));
@@ -190,18 +324,22 @@ function TabelaExamesDaFonte({
               <CabecalhoOrdenavel coluna="tuss" titulo="TUSS" ordenacao={ordenacao} onClick={alternar} />
               <CabecalhoOrdenavel coluna="tabelaAssociada" titulo="Tabela Associada" ordenacao={ordenacao} onClick={alternar} />
               <CabecalhoOrdenavel coluna="valorCobrado" titulo="Valor Cobrado" ordenacao={ordenacao} onClick={alternar} align="right" />
+              <CabecalhoOrdenavel coluna="custo" titulo="Custo" ordenacao={ordenacao} onClick={alternar} align="right" />
+              <CabecalhoOrdenavel coluna="dif" titulo="Dif" ordenacao={ordenacao} onClick={alternar} align="right" />
+              <CabecalhoOrdenavel coluna="percentualCsp" titulo="%CSP" ordenacao={ordenacao} onClick={alternar} align="right" />
+              <CabecalhoOrdenavel coluna="atendido" titulo="Atendido" ordenacao={ordenacao} onClick={alternar} align="right" />
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {linhas.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
-                  Nenhum exame cadastrado para esta fonte pagadora.
+                <td colSpan={8} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                  {mensagemVazia}
                 </td>
               </tr>
             ) : (
               linhas.map(e => (
-                <tr key={`${e.tuss}-${e.tabelaAssociada}`} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
+                <tr key={`${e.payorId}-${e.tuss}-${e.tabelaAssociada}`} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
                   <td className="px-5 py-3.5">
                     <button
                       type="button"
@@ -224,6 +362,34 @@ function TabelaExamesDaFonte({
                   <td className="px-5 py-3.5 text-right tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
                     {formatBRL(e.valorCobrado)}
                   </td>
+                  <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                    {formatBRL(e.custo)}
+                  </td>
+                  <td
+                    className={`px-5 py-3.5 text-right tabular-nums font-semibold ${
+                      e.dif < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
+                    }`}
+                  >
+                    {formatBRL(e.dif)}
+                  </td>
+                  <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                    {formatPct(e.percentualCsp)}
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onToggleAtendido(e.payorId, !e.atendido)}
+                      aria-pressed={e.atendido}
+                      title={e.atendido ? 'Atendido pelo plano de saúde — clique para marcar como só particular' : 'Só atendido como particular — clique para marcar como atendido pelo plano'}
+                      className={`ml-auto flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${
+                        e.atendido
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                          : 'bg-transparent border-gray-300 dark:border-gray-600 text-transparent'
+                      }`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
                 </tr>
               ))
             )}
@@ -236,7 +402,7 @@ function TabelaExamesDaFonte({
         </span>
         <span className="inline-flex items-center gap-1.5">
           <Lock className="w-3 h-3" />
-          Dados somente leitura — espelhados do APLIS
+          Valores somente leitura — espelhados do APLIS · Atendido é editável
         </span>
       </div>
     </div>
@@ -247,51 +413,73 @@ function TabelaExamesDaFonte({
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
-  const [search, setSearch] = useState('');
-  const [selecao, setSelecao] = useState<Selecao | null>(null);
-  const [indiceDestacado, setIndiceDestacado] = useState(0);
+const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorAtendido }) => {
+  const [termoFonte, setTermoFonte] = useState('');
+  const [termoExame, setTermoExame] = useState('');
+  const [fontePagadoraSelecionada, setFontePagadoraSelecionada] = useState<string | null>(null);
+  const [exameSelecionado, setExameSelecionado] = useState<Exam | null>(null);
 
-  const termoDigitado = search.trim().length > 0;
-
-  useEffect(() => {
-    setIndiceDestacado(0);
-  }, [search]);
-
-  const resultado = useMemo(
-    () => (selecao ? { exames: [], fontesPagadoras: [] } : buscarUnificado(exams, payors, search)),
-    [exams, payors, search, selecao]
-  );
-
-  const totalMatches = resultado.exames.length + resultado.fontesPagadoras.length;
-
-  const fontesPagadoras = useMemo(
-    () =>
-      selecao?.tipo === 'exame'
-        ? fontesPagadorasPorTuss(payors, selecao.exame.tuss)
-        : [],
-    [payors, selecao]
-  );
-
+  // Exames cobertos pela fonte pagadora selecionada (base pros dois casos em
+  // que ela está preenchida: só fonte, ou fonte + exame).
   const examesDaFonte = useMemo(
-    () =>
-      selecao?.tipo === 'fontePagadora'
-        ? examesPorFontePagadora(exams, payors, selecao.nome)
-        : [],
-    [exams, payors, selecao]
+    () => (fontePagadoraSelecionada ? examesPorFontePagadora(exams, payors, fontePagadoraSelecionada) : []),
+    [exams, payors, fontePagadoraSelecionada]
   );
 
-  const handleSelectExam = (exame: Exam) => {
-    setSelecao({ tipo: 'exame', exame });
-    setSearch('');
+  const examesDaFonteFiltrados = useMemo(
+    () => (exameSelecionado ? examesDaFonte.filter(e => e.tuss === exameSelecionado.tuss) : examesDaFonte),
+    [examesDaFonte, exameSelecionado]
+  );
+
+  // Fontes pagadoras do exame selecionado — só relevante quando nenhuma
+  // fonte está fixada ainda (senão o caso acima já resolve).
+  const fontesDoExame = useMemo(
+    () =>
+      !fontePagadoraSelecionada && exameSelecionado
+        ? fontesPagadorasPorTuss(payors, exameSelecionado.tuss)
+        : [],
+    [payors, fontePagadoraSelecionada, exameSelecionado]
+  );
+
+  // Sugestões do campo Fonte Pagadora: se já tem exame fixado, restringe às
+  // fontes que efetivamente cobrem aquele exame.
+  const sugestoesFonte = useMemo(() => {
+    if (fontePagadoraSelecionada) return [];
+    const base = exameSelecionado ? payors.filter(p => p.tus === exameSelecionado.tuss) : payors;
+    return buscarFontesPagadorasPorTermo(base, termoFonte);
+  }, [payors, termoFonte, fontePagadoraSelecionada, exameSelecionado]);
+
+  // Sugestões do campo Exame: se já tem fonte fixada, restringe aos exames
+  // que aquela fonte realmente cobre.
+  const sugestoesExame = useMemo(() => {
+    if (exameSelecionado) return [];
+    const base = fontePagadoraSelecionada
+      ? exams.filter(e => examesDaFonte.some(x => x.tuss === e.tuss))
+      : exams;
+    return buscarExamesPorTermo(base, termoExame);
+  }, [exams, termoExame, exameSelecionado, fontePagadoraSelecionada, examesDaFonte]);
+
+  const handleSelecionarFonte = (nome: string) => {
+    setFontePagadoraSelecionada(nome);
+    setTermoFonte('');
   };
 
-  const handleSelectFontePagadora = (nome: string) => {
-    setSelecao({ tipo: 'fontePagadora', nome });
-    setSearch('');
+  const handleLimparFonte = () => {
+    setFontePagadoraSelecionada(null);
+    setTermoFonte('');
   };
 
-  const handleSelectExameByTuss = (tuss: string) => {
+  const handleSelecionarExame = (exame: Exam) => {
+    setExameSelecionado(exame);
+    setTermoExame('');
+  };
+
+  const handleLimparExame = () => {
+    setExameSelecionado(null);
+    setTermoExame('');
+  };
+
+  const handleSelecionarExamePorTuss = (tuss: string) => {
     // TUSS pode se repetir entre exames (sem examId confiável vindo do
     // APLIS) — mesma regra de "último vence" usada em examesPorFontePagadora,
     // pra bater com o exame que a tabela de origem realmente mostrou.
@@ -300,170 +488,96 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
       undefined,
     );
     if (!exame) return;
-    handleSelectExam(exame);
+    handleSelecionarExame(exame);
   };
 
-  const handleClear = () => {
-    setSelecao(null);
-    setSearch('');
+  const handleToggleAtendido = (payorId: string, atendido: boolean) => {
+    updatePayorAtendido(payorId, atendido).catch(err => {
+      console.error('Falha ao atualizar Atendido da fonte pagadora', err);
+    });
   };
 
-  const mostrarDropdown = !selecao && termoDigitado && totalMatches >= 1;
-
-  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!mostrarDropdown) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setIndiceDestacado(i => (i + 1) % totalMatches);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setIndiceDestacado(i => (i - 1 + totalMatches) % totalMatches);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      if (indiceDestacado < resultado.exames.length) {
-        handleSelectExam(resultado.exames[indiceDestacado]);
-      } else {
-        handleSelectFontePagadora(resultado.fontesPagadoras[indiceDestacado - resultado.exames.length]);
-      }
-    }
-  };
-
-  const mostrarNenhumEncontrado = !selecao && termoDigitado && totalMatches === 0;
-  const mostrarConvite = !selecao && !termoDigitado;
+  const mostrarConvite = !fontePagadoraSelecionada && !exameSelecionado;
 
   return (
     <div className="space-y-5">
-      {/* Header + search */}
+      {/* Header + campos de busca */}
       <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 p-5 shadow-sm">
         <div>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Fontes Pagadoras</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Busque por exame, código TUSS ou fonte pagadora para ver os valores cobrados.
+            Busque por fonte pagadora e/ou exame para ver os valores cobrados.
           </p>
         </div>
 
-        <div className="mt-5 relative">
-          {selecao ? (
-            <div className="flex items-center gap-2 pl-9 pr-2 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
-              <span className="flex-1 min-w-0 text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
-                <span className="text-blue-500 dark:text-blue-400">
-                  {selecao.tipo === 'exame' ? 'Exame: ' : 'Fonte Pagadora: '}
-                </span>
-                {selecao.tipo === 'exame' ? (
-                  <>
-                    {selecao.exame.name}
-                    <span className="ml-2 font-mono text-xs text-blue-500 dark:text-blue-400">
-                      {selecao.exame.tuss}
-                    </span>
-                  </>
-                ) : (
-                  selecao.nome
-                )}
-              </span>
-              <button
-                type="button"
-                onClick={handleClear}
-                aria-label="Limpar seleção"
-                className="shrink-0 p-1 rounded-full hover:bg-blue-100 dark:hover:bg-blue-500/20 text-blue-600 dark:text-blue-300"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-          ) : (
-            <>
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
-              <input
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                onKeyDown={handleSearchKeyDown}
-                placeholder="Buscar por exame, código TUSS ou fonte pagadora…"
-                autoComplete="on"
-                className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
-              />
-              {mostrarDropdown && (
-                <ul className="absolute z-10 mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-64 overflow-y-auto">
-                  {resultado.exames.length > 0 && (
-                    <>
-                      <li className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-slate-50 dark:bg-gray-900/40">
-                        Exames
-                      </li>
-                      {resultado.exames.map((exame, i) => (
-                        <li key={exame.id}>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectExam(exame)}
-                            onMouseEnter={() => setIndiceDestacado(i)}
-                            aria-selected={i === indiceDestacado}
-                            className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
-                              i === indiceDestacado ? 'bg-blue-50 dark:bg-blue-500/10' : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
-                            }`}
-                          >
-                            <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{exame.name}</span>
-                            <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0">{exame.tuss}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </>
-                  )}
-                  {resultado.fontesPagadoras.length > 0 && (
-                    <>
-                      <li className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-slate-50 dark:bg-gray-900/40">
-                        Fontes Pagadoras
-                      </li>
-                      {resultado.fontesPagadoras.map((nome, i) => {
-                        const idx = resultado.exames.length + i;
-                        return (
-                          <li key={nome}>
-                            <button
-                              type="button"
-                              onClick={() => handleSelectFontePagadora(nome)}
-                              onMouseEnter={() => setIndiceDestacado(idx)}
-                              aria-selected={idx === indiceDestacado}
-                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
-                                idx === indiceDestacado ? 'bg-blue-50 dark:bg-blue-500/10' : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
-                              }`}
-                            >
-                              <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{nome}</span>
-                            </button>
-                          </li>
-                        );
-                      })}
-                    </>
-                  )}
-                </ul>
-              )}
-            </>
-          )}
+        <div className="mt-5 flex flex-col sm:flex-row gap-4">
+          <CampoBusca
+            label="Fonte Pagadora"
+            placeholder="Buscar fonte pagadora…"
+            itens={sugestoesFonte}
+            termo={termoFonte}
+            onTermoChange={setTermoFonte}
+            selecionado={fontePagadoraSelecionada}
+            onSelecionar={handleSelecionarFonte}
+            onLimpar={handleLimparFonte}
+            renderChip={nome => <>{nome}</>}
+            renderSugestao={nome => (
+              <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{nome}</span>
+            )}
+            keyOf={nome => nome}
+          />
+
+          <CampoBusca
+            label="Exame"
+            placeholder="Buscar exame ou código TUSS…"
+            itens={sugestoesExame}
+            termo={termoExame}
+            onTermoChange={setTermoExame}
+            selecionado={exameSelecionado}
+            onSelecionar={handleSelecionarExame}
+            onLimpar={handleLimparExame}
+            renderChip={exame => (
+              <>
+                {exame.name}
+                <span className="ml-2 font-mono text-xs text-blue-500 dark:text-blue-400">{exame.tuss}</span>
+              </>
+            )}
+            renderSugestao={exame => (
+              <>
+                <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{exame.name}</span>
+                <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0">{exame.tuss}</span>
+              </>
+            )}
+            keyOf={exame => exame.id}
+          />
         </div>
       </div>
 
       {mostrarConvite && (
         <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 p-10 text-center text-sm text-gray-500 dark:text-gray-400">
-          Pesquise por um exame, código TUSS ou fonte pagadora para ver os dados.
+          Preencha ao menos um dos campos — fonte pagadora, exame, ou os dois — pra ver os dados.
         </div>
       )}
 
-      {mostrarNenhumEncontrado && (
-        <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 p-10 text-center text-sm text-gray-500 dark:text-gray-400">
-          Nenhum resultado encontrado.
-        </div>
-      )}
-
-      {selecao?.tipo === 'exame' && (
-        <TabelaFontesPagadoras
-          key={selecao.exame.tuss}
-          fontesPagadoras={fontesPagadoras}
-          onSelectFontePagadora={handleSelectFontePagadora}
+      {fontePagadoraSelecionada && (
+        <TabelaExamesDaFonte
+          key={`${fontePagadoraSelecionada}-${exameSelecionado?.tuss ?? ''}`}
+          examesDaFonte={examesDaFonteFiltrados}
+          onSelectExame={handleSelecionarExamePorTuss}
+          onToggleAtendido={handleToggleAtendido}
+          mensagemVazia={
+            exameSelecionado
+              ? 'Este exame não está cadastrado para esta fonte pagadora.'
+              : 'Nenhum exame cadastrado para esta fonte pagadora.'
+          }
         />
       )}
 
-      {selecao?.tipo === 'fontePagadora' && (
-        <TabelaExamesDaFonte
-          key={selecao.nome}
-          examesDaFonte={examesDaFonte}
-          onSelectExame={handleSelectExameByTuss}
+      {!fontePagadoraSelecionada && exameSelecionado && (
+        <TabelaFontesPagadoras
+          key={exameSelecionado.tuss}
+          fontesPagadoras={fontesDoExame}
+          onSelectFontePagadora={handleSelecionarFonte}
         />
       )}
     </div>

@@ -28,6 +28,7 @@ export interface Payor {
   table: string;
   tus: string;
   price: number;
+  atendido: boolean;
 }
 
 export interface UseCostControlReturn {
@@ -38,6 +39,7 @@ export interface UseCostControlReturn {
   updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
   deleteExam: (id: string) => Promise<void>;
   importExams: (rows: Omit<Exam, 'id'>[]) => Promise<number>;
+  updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -82,6 +84,7 @@ const mapPayorRow = (row: any): Payor => ({
   table: row.tabela_associada ?? '',
   tus: row.tuss ?? '',
   price: Number(row.valor) || 0,
+  atendido: row.atendido ?? true,
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -180,5 +183,15 @@ export const useCostControl = (): UseCostControlReturn => {
     return mapped.length;
   }, []);
 
-  return { exams, payors, loading, addExam, updateExam, deleteExam, importExams };
+  const updatePayorAtendido = useCallback(async (id: string, atendido: boolean) => {
+    const { error } = await supabase
+      .from('custo_fontes_pagadoras')
+      .update({ atendido })
+      .eq('id', id);
+
+    if (error) throw error;
+    setPayors(prev => prev.map(p => (p.id === id ? { ...p, atendido } : p)));
+  }, []);
+
+  return { exams, payors, loading, addExam, updateExam, deleteExam, importExams, updatePayorAtendido };
 };

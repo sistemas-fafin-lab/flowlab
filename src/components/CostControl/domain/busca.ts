@@ -34,42 +34,38 @@ export function fontesPagadorasPorTuss(payors: Payor[], tuss: string): Payor[] {
     .sort((a, b) => a.price - b.price);
 }
 
-/** Resultado da busca unificada: exames e fontes pagadoras que combinam
- *  com o termo, separados por tipo. */
-export interface ResultadoBuscaUnificada {
-  exames: Exam[];
-  fontesPagadoras: string[];
-}
-
-/** Busca exames (nome ou TUSS) e fontes pagadoras (nome) que combinam com
- *  `termo`, parcial e case-insensitive. Nomes de fonte pagadora saem
- *  deduplicados. Termo vazio (ou só espaços) devolve listas vazias, não a
- *  lista inteira. */
-export function buscarUnificado(
-  exams: Exam[],
-  payors: Payor[],
-  termo: string,
-): ResultadoBuscaUnificada {
+/** Nomes de fonte pagadora (deduplicados) cujo nome contém `termo` —
+ *  correspondência parcial e case-insensitive. Termo vazio (ou só espaços)
+ *  devolve lista vazia, não a lista inteira. */
+export function buscarFontesPagadorasPorTermo(payors: Payor[], termo: string): string[] {
   const termoNormalizado = normalizar(termo);
-  if (!termoNormalizado) return { exames: [], fontesPagadoras: [] };
+  if (!termoNormalizado) return [];
 
-  const exames = buscarExamesPorTermo(exams, termo);
-
-  const nomesFontesPagadoras = payors
+  const nomes = payors
     .map((fonte) => fonte.payor)
     .filter((nome) => nome.toLowerCase().includes(termoNormalizado));
-  const fontesPagadoras = Array.from(new Set(nomesFontesPagadoras));
 
-  return { exames, fontesPagadoras };
+  return Array.from(new Set(nomes));
 }
 
 /** Um exame coberto por uma fonte pagadora, com os campos exibidos na
- *  tabela de exames por fonte pagadora. */
+ *  tabela de exames por fonte pagadora.
+ *
+ *  custo vem do "Custo Total" (direct + indirect) cadastrado pro TUSS na
+ *  aba Exames; dif é valorCobrado - custo; percentualCsp é custo / valorCobrado
+ *  (em %) — quanto do valor cobrado é consumido pelo custo. atendido reflete
+ *  se aquele exame é atendido pelo plano de saúde da fonte pagadora ou só
+ *  como particular (Payor.atendido, editável na tela). */
 export interface ExameDaFontePagadora {
+  payorId: string;
   exame: string;
   tuss: string;
   tabelaAssociada: string;
   valorCobrado: number;
+  custo: number;
+  dif: number;
+  percentualCsp: number;
+  atendido: boolean;
 }
 
 /** Exames cobertos por uma fonte pagadora — join pelo TUSS
@@ -89,12 +85,18 @@ export function examesPorFontePagadora(
     .flatMap((fonte) => {
       const exame = examesPorTuss.get(fonte.tus);
       if (!exame) return [];
+      const custo = exame.direct + exame.indirect;
       return [
         {
+          payorId: fonte.id,
           exame: exame.name,
           tuss: exame.tuss,
           tabelaAssociada: fonte.table,
           valorCobrado: fonte.price,
+          custo,
+          dif: fonte.price - custo,
+          percentualCsp: fonte.price > 0 ? (custo / fonte.price) * 100 : 0,
+          atendido: fonte.atendido,
         },
       ];
     })
