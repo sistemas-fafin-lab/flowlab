@@ -1,5 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import {
+  separarUpsertFontePagadora,
+  type LinhaImportacaoFontePagadora,
+} from '../components/CostControl/domain/importacaoFontesPagadoras';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -40,6 +44,11 @@ export interface UseCostControlReturn {
   deleteExam: (id: string) => Promise<void>;
   importExams: (rows: Omit<Exam, 'id'>[]) => Promise<number>;
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
+  importPayors: (
+    fontePagadora: string,
+    tabelaAssociada: string,
+    rows: LinhaImportacaoFontePagadora[]
+  ) => Promise<number>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -200,5 +209,72 @@ export const useCostControl = (): UseCostControlReturn => {
     setPayors(prev => prev.map(p => (p.id === id ? { ...p, atendido } : p)));
   }, []);
 
-  return { exams, payors, loading, addExam, updateExam, deleteExam, importExams, updatePayorAtendido };
+  // Casamento (upsert) por fonte_pagadora + tabela_associada + tuss — uma
+  // mesma fonte pagadora pode ter dezenas de tabelas associadas (convênios)
+  // com o mesmo TUSS e valores diferentes (ex.: AMHP-DF tem 37), então casar
+  // só por fonte+TUSS colidiria com a linha errada. Ver
+  // domain/importacaoFontesPagadoras.ts e o ticket 02.
+  const importPayors = useCallback(
+    async (fontePagadora: string, tabelaAssociada: string, rows: LinhaImportacaoFontePagadora[]) => {
+      if (rows.length === 0) return 0;
+
+      const existentesPorTuss = new Map<string, string>();
+      payors.forEach(p => {
+        if (p.payor === fontePagadora && p.table === tabelaAssociada) existentesPorTuss.set(p.tus, p.id);
+      });
+
+      const { toInsert, toUpdate } = separarUpsertFontePagadora(rows, existentesPorTuss);
+
+      // Reflete cada gravação no estado local assim que ela é confirmada no
+      // banco — se uma atualização no meio do lote falhar, o que já foi
+      // gravado não fica invisível na tela nem é reinserido numa nova
+      // tentativa (existentesPorTuss seria recalculado a partir do state).
+      if (toInsert.length > 0) {
+        const { data, error } = await supabase
+          .from('custo_fontes_pagadoras')
+          .insert(
+            toInsert.map(r => ({
+              fonte_pagadora: fontePagadora,
+              tabela_associada: tabelaAssociada,
+              tuss: r.tuss,
+              valor: r.valor,
+              atendido: r.atendido,
+            }))
+          )
+          .select();
+
+        if (error) throw error;
+        const inseridos = (data || []).map(mapPayorRow);
+        setPayors(prev => [...inseridos, ...prev]);
+      }
+
+      for (const u of toUpdate) {
+        const { data, error } = await supabase
+          .from('custo_fontes_pagadoras')
+          .update({ valor: u.valor, atendido: u.atendido })
+          .eq('id', u.id)
+          .select()
+          .single();
+
+        if (error) throw error;
+        const atualizado = mapPayorRow(data);
+        setPayors(prev => prev.map(p => (p.id === atualizado.id ? atualizado : p)));
+      }
+
+      return toInsert.length + toUpdate.length;
+    },
+    [payors]
+  );
+
+  return {
+    exams,
+    payors,
+    loading,
+    addExam,
+    updateExam,
+    deleteExam,
+    importExams,
+    updatePayorAtendido,
+    importPayors,
+  };
 };

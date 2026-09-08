@@ -33,7 +33,8 @@ const TABS: Tab[] = [
 
 const CostControlDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabKey>('exams');
-  const { exams, payors, addExam, updateExam, deleteExam, importExams, updatePayorAtendido } = useCostControl();
+  const { exams, payors, addExam, updateExam, deleteExam, importExams, updatePayorAtendido, importPayors } =
+    useCostControl();
 
   return (
     <div className="min-h-full">
@@ -97,7 +98,12 @@ const CostControlDashboard: React.FC = () => {
           />
         )}
         {activeTab === 'payors' && (
-          <PayorsScreen payors={payors} exams={exams} updatePayorAtendido={updatePayorAtendido} />
+          <PayorsScreen
+            payors={payors}
+            exams={exams}
+            updatePayorAtendido={updatePayorAtendido}
+            importPayors={importPayors}
+          />
         )}
         {activeTab === 'analytics' && (
           <AnalyticsScreen exams={exams} payors={payors} />

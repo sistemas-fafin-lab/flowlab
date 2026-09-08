@@ -11,11 +11,15 @@ import {
   FlaskConical,
   Lock,
   Search,
+  Upload,
   X,
 } from 'lucide-react';
 import { Exam, Payor, buscarTodasFontesPagadoras, formatBRL, formatPct } from '../../hooks/useCostControl';
+import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
+import { hasPermission } from '../../utils/permissions';
 import Notification from '../Notification';
+import PayorImportModal from './PayorImportModal';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
@@ -24,6 +28,7 @@ import {
   type ExameDaFontePagadora,
 } from './domain/busca';
 import { linhasExportacaoExamesDaFonte, linhasExportacaoFontesPagadoras, type LinhaExportacao } from './domain/exportacao';
+import type { LinhaImportacaoFontePagadora } from './domain/importacaoFontesPagadoras';
 import { ORDENACAO_PADRAO, alternarOrdenacao, ordenar, type EstadoOrdenacao } from './domain/ordenacao';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -34,6 +39,11 @@ interface PayorsScreenProps {
   payors: Payor[];
   exams: Exam[];
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
+  importPayors: (
+    fontePagadora: string,
+    tabelaAssociada: string,
+    rows: LinhaImportacaoFontePagadora[]
+  ) => Promise<number>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -429,7 +439,9 @@ function TabelaExamesDaFonte({
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorAtendido }) => {
+const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorAtendido, importPayors }) => {
+  const { userProfile } = useAuth();
+  const podeImportar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
   const { notification, showError, hideNotification } = useNotification();
   const [termoFonte, setTermoFonte] = useState('');
   const [termoExame, setTermoExame] = useState('');
@@ -437,6 +449,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
   const [exameSelecionado, setExameSelecionado] = useState<Exam | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportando, setExportando] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Exames cobertos pela fonte pagadora selecionada (base pros dois casos em
@@ -591,34 +604,45 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
             </p>
           </div>
 
-          <div className="relative shrink-0" ref={exportMenuRef}>
-            <button
-              type="button"
-              onClick={() => setExportMenuOpen(o => !o)}
-              disabled={exportando}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 active:scale-[.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              <Download className="w-4 h-4" /> {exportando ? 'Exportando…' : 'Exportar'}
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-            {exportMenuOpen && (
-              <div className="absolute right-0 mt-2 w-48 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-20 overflow-hidden">
-                <button
-                  type="button"
-                  onClick={() => handleExport('xlsx')}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors"
-                >
-                  Exportar como .xlsx
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleExport('csv')}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors border-t border-gray-100 dark:border-gray-700"
-                >
-                  Exportar como .csv
-                </button>
-              </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {podeImportar && (
+              <button
+                type="button"
+                onClick={() => setImportModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 active:scale-[.98] transition-all"
+              >
+                <Upload className="w-4 h-4" /> Importar
+              </button>
             )}
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                type="button"
+                onClick={() => setExportMenuOpen(o => !o)}
+                disabled={exportando}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 active:scale-[.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                <Download className="w-4 h-4" /> {exportando ? 'Exportando…' : 'Exportar'}
+                <ChevronDown className="w-3.5 h-3.5" />
+              </button>
+              {exportMenuOpen && (
+                <div className="absolute right-0 mt-2 w-48 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-20 overflow-hidden">
+                  <button
+                    type="button"
+                    onClick={() => handleExport('xlsx')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors"
+                  >
+                    Exportar como .xlsx
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExport('csv')}
+                    className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors border-t border-gray-100 dark:border-gray-700"
+                  >
+                    Exportar como .csv
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -690,6 +714,16 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
           key={exameSelecionado.tuss}
           fontesPagadoras={fontesDoExame}
           onSelectFontePagadora={handleSelecionarFonte}
+        />
+      )}
+
+      {podeImportar && (
+        <PayorImportModal
+          open={importModalOpen}
+          onClose={() => setImportModalOpen(false)}
+          payors={payors}
+          exams={exams}
+          onImport={importPayors}
         />
       )}
 
