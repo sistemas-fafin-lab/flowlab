@@ -1,6 +1,21 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { ArrowDown, ArrowUp, ArrowUpDown, Building2, Check, FlaskConical, Lock, Search, X } from 'lucide-react';
-import { Exam, Payor, formatBRL, formatPct } from '../../hooks/useCostControl';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import * as XLSX from 'xlsx';
+import {
+  ArrowDown,
+  ArrowUp,
+  ArrowUpDown,
+  Building2,
+  Check,
+  ChevronDown,
+  Download,
+  FlaskConical,
+  Lock,
+  Search,
+  X,
+} from 'lucide-react';
+import { Exam, Payor, buscarTodasFontesPagadoras, formatBRL, formatPct } from '../../hooks/useCostControl';
+import { useNotification } from '../../hooks/useNotification';
+import Notification from '../Notification';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
@@ -8,6 +23,7 @@ import {
   fontesPagadorasPorTuss,
   type ExameDaFontePagadora,
 } from './domain/busca';
+import { linhasExportacaoExamesDaFonte, linhasExportacaoFontesPagadoras, type LinhaExportacao } from './domain/exportacao';
 import { ORDENACAO_PADRAO, alternarOrdenacao, ordenar, type EstadoOrdenacao } from './domain/ordenacao';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -414,10 +430,14 @@ function TabelaExamesDaFonte({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorAtendido }) => {
+  const { notification, showError, hideNotification } = useNotification();
   const [termoFonte, setTermoFonte] = useState('');
   const [termoExame, setTermoExame] = useState('');
   const [fontePagadoraSelecionada, setFontePagadoraSelecionada] = useState<string | null>(null);
   const [exameSelecionado, setExameSelecionado] = useState<Exam | null>(null);
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Exames cobertos pela fonte pagadora selecionada (base pros dois casos em
   // que ela está preenchida: só fonte, ou fonte + exame).
@@ -499,15 +519,107 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
 
   const mostrarConvite = !fontePagadoraSelecionada && !exameSelecionado;
 
+  // Fecha o dropdown de exportação ao clicar fora dele.
+  useEffect(() => {
+    if (!exportMenuOpen) return;
+    const handle = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [exportMenuOpen]);
+
+  const gerarArquivoExportacao = (linhas: LinhaExportacao[], nomeAba: string, formato: 'xlsx' | 'csv') => {
+    const worksheet = XLSX.utils.json_to_sheet(linhas);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, nomeAba);
+    const filename = `fontes_pagadoras_controle_custos_${new Date().toISOString().slice(0, 10)}.${formato}`;
+    XLSX.writeFile(workbook, filename);
+  };
+
+  // Exporta exatamente o recorte exibido na tela (mesma precedência de
+  // fontePagadoraSelecionada/exameSelecionado usada na renderização das
+  // tabelas abaixo). Sem nenhum filtro ativo — estado em que a tela não
+  // mostra tabela nenhuma — busca todas as linhas direto do Supabase, sem
+  // depender de nada estar renderizado.
+  const handleExport = async (formato: 'xlsx' | 'csv') => {
+    setExportMenuOpen(false);
+    try {
+      if (fontePagadoraSelecionada) {
+        if (examesDaFonteFiltrados.length === 0) {
+          showError('Nada para exportar', 'Nenhum exame no recorte atual desta fonte pagadora.');
+          return;
+        }
+        gerarArquivoExportacao(linhasExportacaoExamesDaFonte(examesDaFonteFiltrados), 'Exames', formato);
+        return;
+      }
+
+      if (exameSelecionado) {
+        if (fontesDoExame.length === 0) {
+          showError('Nada para exportar', 'Nenhuma fonte pagadora cadastrada para este exame.');
+          return;
+        }
+        gerarArquivoExportacao(linhasExportacaoFontesPagadoras(fontesDoExame), 'Fontes Pagadoras', formato);
+        return;
+      }
+
+      setExportando(true);
+      const todas = await buscarTodasFontesPagadoras();
+      if (todas.length === 0) {
+        showError('Nada para exportar', 'Nenhuma fonte pagadora cadastrada.');
+        return;
+      }
+      gerarArquivoExportacao(linhasExportacaoFontesPagadoras(todas), 'Fontes Pagadoras', formato);
+    } catch (err) {
+      showError('Erro ao exportar', err instanceof Error ? err.message : undefined);
+    } finally {
+      setExportando(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Header + campos de busca */}
       <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 p-5 shadow-sm">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Fontes Pagadoras</h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Busque por fonte pagadora e/ou exame para ver os valores cobrados.
-          </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Fontes Pagadoras</h2>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Busque por fonte pagadora e/ou exame para ver os valores cobrados.
+            </p>
+          </div>
+
+          <div className="relative shrink-0" ref={exportMenuRef}>
+            <button
+              type="button"
+              onClick={() => setExportMenuOpen(o => !o)}
+              disabled={exportando}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 active:scale-[.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              <Download className="w-4 h-4" /> {exportando ? 'Exportando…' : 'Exportar'}
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {exportMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg z-20 overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => handleExport('xlsx')}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors"
+                >
+                  Exportar como .xlsx
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExport('csv')}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700/60 transition-colors border-t border-gray-100 dark:border-gray-700"
+                >
+                  Exportar como .csv
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         <div className="mt-5 flex flex-col sm:flex-row gap-4">
@@ -580,6 +692,14 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
           onSelectFontePagadora={handleSelecionarFonte}
         />
       )}
+
+      <Notification
+        type={notification.type}
+        title={notification.title}
+        message={notification.message}
+        isVisible={notification.isVisible}
+        onClose={hideNotification}
+      />
     </div>
   );
 };

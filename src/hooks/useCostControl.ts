@@ -96,6 +96,28 @@ const mapPayorRow = (row: any): Payor => ({
 // /cost-control.
 // ═══════════════════════════════════════════════════════════════════════════════
 
+// custo_fontes_pagadoras passa de 1000 linhas — acima do limite padrão de
+// página do PostgREST, então precisa paginar em vez de um select único.
+// Exportada (não só usada dentro do hook) porque o botão Exportar de
+// PayorsScreen precisa buscar todas as linhas direto do Supabase quando
+// nenhum filtro está ativo na tela, sem depender do state `payors` do hook.
+export const buscarTodasFontesPagadoras = async (): Promise<Payor[]> => {
+  const pageSize = 1000;
+  const rows: any[] = [];
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await supabase
+      .from('custo_fontes_pagadoras')
+      .select('*')
+      .order('fonte_pagadora', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+    rows.push(...(data || []));
+    if (!data || data.length < pageSize) break;
+  }
+  return rows.map(mapPayorRow);
+};
+
 export const useCostControl = (): UseCostControlReturn => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [payors, setPayors] = useState<Payor[]>([]);
@@ -112,22 +134,7 @@ export const useCostControl = (): UseCostControlReturn => {
   }, []);
 
   const fetchPayors = useCallback(async () => {
-    // custo_fontes_pagadoras passa de 1000 linhas — acima do limite padrão de
-    // página do PostgREST, então precisa paginar em vez de um select único.
-    const pageSize = 1000;
-    const rows: any[] = [];
-    for (let from = 0; ; from += pageSize) {
-      const { data, error } = await supabase
-        .from('custo_fontes_pagadoras')
-        .select('*')
-        .order('fonte_pagadora', { ascending: true })
-        .range(from, from + pageSize - 1);
-
-      if (error) throw error;
-      rows.push(...(data || []));
-      if (!data || data.length < pageSize) break;
-    }
-    setPayors(rows.map(mapPayorRow));
+    setPayors(await buscarTodasFontesPagadoras());
   }, []);
 
   useEffect(() => {
