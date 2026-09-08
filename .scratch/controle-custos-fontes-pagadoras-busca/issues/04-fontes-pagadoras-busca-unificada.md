@@ -14,9 +14,11 @@ continuação do ticket 02. Usa as funções do ticket 03.
   duas seções com cabeçalho: "Exames" e "Fontes Pagadoras". Cada linha de
   exame mostra nome + TUSS (como hoje); cada linha de fonte pagadora
   mostra só o nome (já deduplicado pelo ticket 03).
-- Se houver exatamente um resultado no total (seja exame ou fonte
+- ~~Se houver exatamente um resultado no total (seja exame ou fonte
   pagadora), seleciona automaticamente, sem precisar clicar — mesmo
-  comportamento que já existe hoje pra exame, estendido pros dois tipos.
+  comportamento que já existe hoje pra exame, estendido pros dois tipos.~~
+  Revertido em 2026-09-08 (ver comentário): passou a exigir clique mesmo
+  com um único resultado.
 - Se não houver nenhum resultado, mantém a mensagem "nenhum exame
   encontrado" (ajustar o texto pra cobrir os dois tipos, ex.: "nenhum
   resultado encontrado").
@@ -42,8 +44,8 @@ fonte pagadora.
       por nome/TUSS de exame como já funciona hoje
 - [x] Dropdown com mais de um resultado agrupa em duas seções com
       cabeçalho: "Exames" e "Fontes Pagadoras"
-- [x] Total de exatamente 1 resultado (somando os dois tipos) autosseleciona
-      sem exigir clique
+- [x] ~~Total de exatamente 1 resultado (somando os dois tipos) autosseleciona
+      sem exigir clique~~ — revertido em 2026-09-08, ver comentário
 - [x] Nenhum resultado mostra mensagem apropriada
 - [x] Chip pós-seleção indica visualmente o tipo (exame ou fonte
       pagadora) além do nome, com "x" funcional pra limpar
@@ -55,3 +57,10 @@ fonte pagadora.
       funcionando sem nenhuma mudança de comportamento
 
 ## Comments
+
+**2026-09-08** — Usuário pediu remoção da auto-seleção quando há exatamente
+1 resultado (ex.: digitar "assefaz" selecionava a fonte pagadora sozinho,
+sem clique). Comportamento removido: `mostrarDropdown` agora exibe o
+dropdown a partir de 1 resultado (`totalMatches >= 1`, antes `> 1`), e a
+seleção passou a depender só de `selecao` (estado explícito via clique),
+sem fallback automático. Ver `src/components/CostControl/PayorsScreen.tsx`.

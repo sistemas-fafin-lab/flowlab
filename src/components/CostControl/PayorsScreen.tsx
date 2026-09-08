@@ -260,30 +260,20 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
 
   const totalMatches = resultado.exames.length + resultado.fontesPagadoras.length;
 
-  // Sem seleção explícita, um único match no total (exame ou fonte pagadora)
-  // já é a "seleção" — não exige clique.
-  const selecaoEfetiva: Selecao | null =
-    selecao ??
-    (totalMatches === 1
-      ? resultado.exames.length === 1
-        ? { tipo: 'exame', exame: resultado.exames[0] }
-        : { tipo: 'fontePagadora', nome: resultado.fontesPagadoras[0] }
-      : null);
-
   const fontesPagadoras = useMemo(
     () =>
-      selecaoEfetiva?.tipo === 'exame'
-        ? fontesPagadorasPorTuss(payors, selecaoEfetiva.exame.tuss)
+      selecao?.tipo === 'exame'
+        ? fontesPagadorasPorTuss(payors, selecao.exame.tuss)
         : [],
-    [payors, selecaoEfetiva]
+    [payors, selecao]
   );
 
   const examesDaFonte = useMemo(
     () =>
-      selecaoEfetiva?.tipo === 'fontePagadora'
-        ? examesPorFontePagadora(exams, payors, selecaoEfetiva.nome)
+      selecao?.tipo === 'fontePagadora'
+        ? examesPorFontePagadora(exams, payors, selecao.nome)
         : [],
-    [exams, payors, selecaoEfetiva]
+    [exams, payors, selecao]
   );
 
   const handleSelectExam = (exame: Exam) => {
@@ -313,7 +303,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
     setSearch('');
   };
 
-  const mostrarDropdown = !selecao && termoDigitado && totalMatches > 1;
+  const mostrarDropdown = !selecao && termoDigitado && totalMatches >= 1;
   const mostrarNenhumEncontrado = !selecao && termoDigitado && totalMatches === 0;
   const mostrarConvite = !selecao && !termoDigitado;
 
@@ -329,22 +319,22 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
         </div>
 
         <div className="mt-5 relative">
-          {selecaoEfetiva ? (
+          {selecao ? (
             <div className="flex items-center gap-2 pl-9 pr-2 py-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/30">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
               <span className="flex-1 min-w-0 text-sm font-medium text-blue-700 dark:text-blue-300 truncate">
                 <span className="text-blue-500 dark:text-blue-400">
-                  {selecaoEfetiva.tipo === 'exame' ? 'Exame: ' : 'Fonte Pagadora: '}
+                  {selecao.tipo === 'exame' ? 'Exame: ' : 'Fonte Pagadora: '}
                 </span>
-                {selecaoEfetiva.tipo === 'exame' ? (
+                {selecao.tipo === 'exame' ? (
                   <>
-                    {selecaoEfetiva.exame.name}
+                    {selecao.exame.name}
                     <span className="ml-2 font-mono text-xs text-blue-500 dark:text-blue-400">
-                      {selecaoEfetiva.exame.tuss}
+                      {selecao.exame.tuss}
                     </span>
                   </>
                 ) : (
-                  selecaoEfetiva.nome
+                  selecao.nome
                 )}
               </span>
               <button
@@ -424,17 +414,17 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
         </div>
       )}
 
-      {selecaoEfetiva?.tipo === 'exame' && (
+      {selecao?.tipo === 'exame' && (
         <TabelaFontesPagadoras
-          key={selecaoEfetiva.exame.tuss}
+          key={selecao.exame.tuss}
           fontesPagadoras={fontesPagadoras}
           onSelectFontePagadora={handleSelectFontePagadora}
         />
       )}
 
-      {selecaoEfetiva?.tipo === 'fontePagadora' && (
+      {selecao?.tipo === 'fontePagadora' && (
         <TabelaExamesDaFonte
-          key={selecaoEfetiva.nome}
+          key={selecao.nome}
           examesDaFonte={examesDaFonte}
           onSelectExame={handleSelectExameByTuss}
         />
