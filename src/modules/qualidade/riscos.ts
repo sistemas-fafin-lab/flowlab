@@ -11,6 +11,7 @@ import { calcularAlertasRiscos, type ContingenciaParaAlerta, type RiscoComHistor
 import { proximaDataPrevistaAtual } from './domain/riscosContingencia.js';
 import { listarPlanosContingencia, listarTestesContingenciaPorPlanos } from './contingencias.js';
 import { vincularRiscoOcorrencia } from './correlacaoRiscosOcorrencias.js';
+import type { PontoSerieLinha } from './components/ui/charts/LineChartMultiSerie.js';
 import type {
   AlertaRiscoDTO,
   AtualizarPlanoAcaoInput,
@@ -18,7 +19,6 @@ import type {
   EvidenciaPlanoAcao,
   FaixaClassificacaoRisco,
   IndicadoresRiscosDTO,
-  MapaRiscoLinhaDTO,
   NivelClassificacaoRisco,
   NovaReavaliacaoInput,
   NovoPlanoAcaoInput,
@@ -63,7 +63,7 @@ export async function buscarProcessosSugeridos(setorId: string): Promise<string[
 
 const SELECT_RISCO =
   'id, setor_id, processo, risco_identificado, causa, consequencia, controle_existente, ' +
-  'origem_risco, ocorrencia_origem_id, probabilidade, severidade, score, tratamento, criado_por, criado_em, ' +
+  'origem_risco, ocorrencia_origem_id, probabilidade, severidade, score, tratamento, cor, criado_por, criado_em, ' +
   'setor:qa_setores(nome)';
 
 interface LinhaBrutaRisco {
@@ -80,6 +80,7 @@ interface LinhaBrutaRisco {
   severidade: number | null;
   score: number | null;
   tratamento: TratamentoRisco | null;
+  cor: string | null;
   criado_por: string;
   criado_em: string;
   setor: { nome: string } | null;
@@ -102,6 +103,7 @@ function mapearRisco(linha: LinhaBrutaRisco, faixas: readonly FaixaClassificacao
     score: linha.score,
     nivel: classificarScore(linha.score, faixas),
     tratamento: linha.tratamento,
+    cor: linha.cor,
     criadoPor: linha.criado_por,
     criadoEm: linha.criado_em,
   };
@@ -188,16 +190,57 @@ export async function atualizarTratamentoRisco(riscoId: string, tratamento: Trat
   if (error) throw new ErroApiQualidade(error.code === '42501' ? 403 : 500, `Falha ao salvar tratamento: ${error.message}`);
 }
 
+/** Cor da série do risco no gráfico de incidência — compartilhada entre usuários (não é preferência local). `null` volta a usar a paleta default determinística. */
+export async function atualizarCorRisco(riscoId: string, cor: string | null): Promise<void> {
+  const { error } = await supabase.from('qa_riscos').update({ cor }).eq('id', riscoId);
+  if (error) throw new ErroApiQualidade(error.code === '42501' ? 403 : 500, `Falha ao salvar cor: ${error.message}`);
+}
+
 /**
- * Responsáveis elegíveis para um plano de ação — todo usuário do FlowLab,
- * sem filtro por cargo/board (diferente de useBoardUsers, que restringe a
- * quem tem `custom_roles.board_id`): não há um recorte equivalente para
- * Qualidade, e `user_profiles` já é de leitura livre para `authenticated`.
+ * Responsável de um plano de ação deve ser sempre um Supervisor — lista fixa
+ * (dono do produto, 2026-09-04); `user_profiles` não tem cargo/role que
+ * distinga isso hoje. Comparação por "todas as palavras do nome-alvo
+ * aparecem no nome do cadastro" (normalizado: sem acento, minúsculo) em vez
+ * de igualdade exata — absorve variação de maiúscula/espaço extra no
+ * cadastro (ex.: "mario gorini", "Lucas Moreira " com espaço no fim) sem
+ * quebrar. Typos reais no cadastro (e nomes ainda sem conta) não são
+ * cobertos — aparecem na lista assim que o cadastro for corrigido.
  */
+const SUPERVISORES_PLANO_ACAO = [
+  'Eduarda Fabri',
+  'Gabriel Queiroz',
+  'Louise Fontel',
+  'Luis Felipe',
+  'Lucas Moreira',
+  'Paulo Vitor',
+  'Cristiane Madeiro',
+  'Mario Gorini',
+  'Erika Gorini',
+];
+
+function normalizarNome(nome: string): string {
+  return nome
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .trim()
+    .toLowerCase();
+}
+
+function ehSupervisorAlvo(nomeCadastro: string): boolean {
+  const nomeNormalizado = normalizarNome(nomeCadastro);
+  return SUPERVISORES_PLANO_ACAO.some((alvo) =>
+    normalizarNome(alvo)
+      .split(' ')
+      .every((parte) => nomeNormalizado.includes(parte)),
+  );
+}
+
 export async function buscarResponsaveisPlanoAcao(): Promise<ItemCombobox[]> {
   const { data, error } = await supabase.from('user_profiles').select('id, name').order('name');
   if (error) throw new ErroApiQualidade(500, `Falha ao buscar responsáveis: ${error.message}`);
-  return (data ?? []).map((u) => ({ id: u.id as string, nome: u.name as string }));
+  return (data ?? [])
+    .filter((u) => ehSupervisorAlvo(u.name as string))
+    .map((u) => ({ id: u.id as string, nome: u.name as string }));
 }
 
 // ─── qa_reavaliacoes_risco — histórico de risco residual ───────────────────
@@ -437,20 +480,77 @@ export async function buscarUrlEvidencia(path: string): Promise<string> {
   return data.signedUrl;
 }
 
-// ─── Dashboard, mapa por setor e alertas — issue 04 ────────────────────────
+// ─── Dashboard e alertas — issue 04 ─────────────────────────────────────────
 
-/** Mapa de auditoria por setor: Processo | Risco | P | S | Nível | Status. */
-export async function buscarMapaRiscosPorSetor(setorId: string): Promise<MapaRiscoLinhaDTO[]> {
-  const riscos = await listarRiscos({ setorId });
-  return riscos.map((r) => ({
-    riscoId: r.id,
-    processo: r.processo,
-    riscoIdentificado: r.riscoIdentificado,
-    probabilidade: r.probabilidade,
-    severidade: r.severidade,
-    nivel: r.nivel,
-    tratamento: r.tratamento,
-  }));
+// ─── Incidência de ocorrências por risco — visão unificada (heatmap + gráficos por setor) ─
+
+/** Anos com pelo menos 1 ocorrência vinculada a algum risco, sistema todo (independe de busca/filtro de setor) — popula o seletor de ano global. */
+export async function buscarAnosComOcorrenciaRisco(): Promise<number[]> {
+  const { data, error } = await supabase.from('qa_riscos_ocorrencias').select('ocorrencia:qa_ocorrencias(dta_ocorrencia)');
+  if (error) throw new ErroApiQualidade(500, `Falha ao buscar anos com ocorrência: ${error.message}`);
+
+  const anos = new Set<number>();
+  for (const linha of (data ?? []) as unknown as { ocorrencia: { dta_ocorrencia: string } | null }[]) {
+    if (linha.ocorrencia) anos.add(Number(linha.ocorrencia.dta_ocorrencia.slice(0, 4)));
+  }
+  return [...anos].sort((a, b) => b - a);
+}
+
+function pontosVaziosDoAno(ano: number): PontoSerieLinha[] {
+  return Array.from({ length: 12 }, (_, i) => ({ x: `${ano}-${String(i + 1).padStart(2, '0')}`, y: 0 }));
+}
+
+function formatarDataCurta(dataIso: string): string {
+  const [ano, mes, dia] = dataIso.slice(0, 10).split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+/**
+ * Incidência mensal (contagem + datas exatas) de Ocorrências vinculadas a
+ * cada risco, no ano informado — 1 query batched (não N+1), agregada em
+ * memória. Usa só o vínculo N:N (`qa_riscos_ocorrencias`), nunca
+ * `buscarOcorrenciasCorrelacionadas`: essa função pública mescla a origem
+ * 1:N pra não duplicar linha na UI de detalhe, mas aqui é desnecessário —
+ * `criarRisco` já grava o vínculo N:N junto quando o risco nasce de uma
+ * ocorrência (ver comentário de `criarRisco` acima), então
+ * `qa_riscos_ocorrencias` sozinha já é superset suficiente.
+ */
+export async function buscarIncidenciaMensalPorRiscos(riscoIds: readonly string[], ano: number): Promise<Map<string, PontoSerieLinha[]>> {
+  const resultado = new Map<string, PontoSerieLinha[]>();
+  if (riscoIds.length === 0) return resultado;
+
+  const { data, error } = await supabase
+    .from('qa_riscos_ocorrencias')
+    .select('risco_id, ocorrencia:qa_ocorrencias(dta_ocorrencia)')
+    .in('risco_id', riscoIds);
+  if (error) throw new ErroApiQualidade(500, `Falha ao buscar incidência de ocorrências: ${error.message}`);
+
+  // riscoId -> mês ('01'..'12') -> { contagem, datas[] }
+  const porRiscoMes = new Map<string, Map<string, { contagem: number; datas: string[] }>>();
+  for (const linha of (data ?? []) as unknown as { risco_id: string; ocorrencia: { dta_ocorrencia: string } | null }[]) {
+    if (!linha.ocorrencia) continue;
+    const dta = linha.ocorrencia.dta_ocorrencia;
+    if (Number(dta.slice(0, 4)) !== ano) continue;
+    const mes = dta.slice(5, 7);
+    const porMes = porRiscoMes.get(linha.risco_id) ?? new Map<string, { contagem: number; datas: string[] }>();
+    const atual = porMes.get(mes) ?? { contagem: 0, datas: [] };
+    atual.contagem += 1;
+    atual.datas.push(formatarDataCurta(dta));
+    porMes.set(mes, atual);
+    porRiscoMes.set(linha.risco_id, porMes);
+  }
+
+  for (const riscoId of riscoIds) {
+    const porMes = porRiscoMes.get(riscoId);
+    const pontos = pontosVaziosDoAno(ano).map((ponto) => {
+      const mes = ponto.x.slice(5, 7);
+      const agregado = porMes?.get(mes);
+      return agregado ? { x: ponto.x, y: agregado.contagem, detalhes: agregado.datas } : ponto;
+    });
+    resultado.set(riscoId, pontos);
+  }
+
+  return resultado;
 }
 
 /**

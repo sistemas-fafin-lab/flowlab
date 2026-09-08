@@ -4,6 +4,8 @@ import { useState } from 'react';
 export interface PontoSerieLinha {
   x: string;
   y: number;
+  /** Detalhe opcional exibido no tooltip abaixo da contagem (ex: datas exatas que compõem o valor agregado). */
+  detalhes?: string[];
 }
 
 export interface SerieLinha {
@@ -17,6 +19,7 @@ interface LineChartMultiSerieProps {
   series: SerieLinha[];
   tema: 'light' | 'dark';
   formatarX?: (x: string) => string;
+  ariaLabel?: string;
 }
 
 const LARGURA = 640;
@@ -66,7 +69,12 @@ function caminhoSuave(pontosXY: { x: number; y: number }[]): string {
  * crosshair + tooltip ao passar o mouse, e alternância para tabela (leitura
  * sem depender de cor).
  */
-export function LineChartMultiSerie({ series, tema, formatarX = formatarMesPadrao }: LineChartMultiSerieProps) {
+export function LineChartMultiSerie({
+  series,
+  tema,
+  formatarX = formatarMesPadrao,
+  ariaLabel = 'Número de cortesias por autorizador ao longo do tempo',
+}: LineChartMultiSerieProps) {
   const [indiceFoco, setIndiceFoco] = useState<number | null>(null);
   const [verTabela, setVerTabela] = useState(false);
 
@@ -80,6 +88,8 @@ export function LineChartMultiSerie({ series, tema, formatarX = formatarMesPadra
     const mapa = new Map(s.pontos.map((p) => [p.x, p.y]));
     return categorias.map((c) => mapa.get(c) ?? 0);
   });
+  // Guarda o ponto inteiro (não só `y`) por categoria — o tooltip precisa de `detalhes`, que `valoresPorSerie` não carrega.
+  const pontosPorSerie = series.map((s) => new Map(s.pontos.map((p) => [p.x, p])));
 
   const maiorValor = Math.max(1, ...valoresPorSerie.flat());
   const areaLargura = LARGURA - MARGEM.esquerda - MARGEM.direita;
@@ -161,7 +171,7 @@ export function LineChartMultiSerie({ series, tema, formatarX = formatarMesPadra
             viewBox={`0 0 ${LARGURA} ${ALTURA}`}
             className="w-full"
             role="img"
-            aria-label="Número de cortesias por autorizador ao longo do tempo"
+            aria-label={ariaLabel}
             onMouseLeave={() => setIndiceFoco(null)}
           >
             <defs>
@@ -269,16 +279,24 @@ export function LineChartMultiSerie({ series, tema, formatarX = formatarMesPadra
               style={{ left: `min(${(coordX(indiceFoco) / LARGURA) * 100}%, 70%)` }}
             >
               <p className="mb-1 font-semibold text-slate-800 dark:text-slate-100">{formatarX(categorias[indiceFoco]!)}</p>
-              {series.map((s, indiceSerie) => (
-                <p key={s.id} className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{ backgroundColor: tema === 'dark' ? s.cor.dark : s.cor.light }}
-                    aria-hidden
-                  />
-                  {s.nome}: <span className="font-medium text-slate-900 dark:text-white">{valoresPorSerie[indiceSerie]![indiceFoco]}</span>
-                </p>
-              ))}
+              {series.map((s, indiceSerie) => {
+                const detalhes = pontosPorSerie[indiceSerie]!.get(categorias[indiceFoco]!)?.detalhes;
+                return (
+                  <div key={s.id}>
+                    <p className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                      <span
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: tema === 'dark' ? s.cor.dark : s.cor.light }}
+                        aria-hidden
+                      />
+                      {s.nome}: <span className="font-medium text-slate-900 dark:text-white">{valoresPorSerie[indiceSerie]![indiceFoco]}</span>
+                    </p>
+                    {detalhes && detalhes.length > 0 && (
+                      <p className="pl-3.5 text-[10px] text-slate-500 dark:text-slate-400">{detalhes.join(', ')}</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>

@@ -2,12 +2,17 @@
 // Ação `sync-ocorrencias` — espelha `ocorrencia` (+ `requisicao`) do MySQL do
 // laboratório em `qa_ocorrencias`, via service_role (bypassa RLS). NUNCA
 // escreve coluna de curadoria (colaborador_id/setor_erro_id/motivo_id/
-// resumo_curado/acao_curada/curado_por/curado_em/status_curadoria) — só as
-// colunas de espelho entram no payload de upsert, então um conflito só
-// atualiza essas colunas (semântica padrão do upsert do PostgREST); o
-// trigger `qa_ocorrencias_auditoria_trigger` (20260820120000) confirma isso
-// do lado do banco: só audita quando uma coluna de curadoria muda E
-// `auth.uid()` não é nulo — uma conexão service_role nunca dispara auditoria.
+// resumo_curado/acao_curada/curado_por/curado_em) — só as colunas de espelho
+// entram no payload de upsert, então um conflito só atualiza essas colunas
+// (semântica padrão do upsert do PostgREST); o trigger
+// `qa_ocorrencias_auditoria_trigger` (20260820120000) confirma isso do lado
+// do banco: só audita quando uma coluna de curadoria muda E `auth.uid()` não
+// é nulo — uma conexão service_role nunca dispara auditoria.
+//
+// `status_curadoria`/`cod_status_lis` SÃO colunas de espelho (migration
+// 20260904110000) — apesar do nome, `status_curadoria` não é mais editável
+// via curadoria manual: só este sync escreve nela, a partir do código de
+// `ocorrencia.Status` do apLIS (ver ponto 5 do cabeçalho de bdLabQualidade.ts).
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
@@ -61,6 +66,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       // cabeçalho de bdLabQualidade.ts. Nunca inventa uma categoria.
       categoria_origem_lis: null,
       categoria_origem_generica: true,
+      cod_status_lis: o.codStatusLis,
+      status_curadoria: o.statusLis,
     }));
 
     if (linhas.length === 0) {
