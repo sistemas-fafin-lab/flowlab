@@ -29,21 +29,21 @@ Contexto: resultado de sessão de grilling com o usuário em 2026-09-08.
 **Blocked by:** 04 — precisa das duas tabelas de resultado e da lógica de
 seleção/chip já existindo.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Nome da fonte pagadora, na tabela de um exame, é clicável e pivota a
+- [x] Nome da fonte pagadora, na tabela de um exame, é clicável e pivota a
       busca pra aquela fonte pagadora
-- [ ] Nome do exame, na tabela de uma fonte pagadora, é clicável e pivota
+- [x] Nome do exame, na tabela de uma fonte pagadora, é clicável e pivota
       a busca pra aquele exame
-- [ ] Colunas que não são o nome da entidade (TUSS, Tabela Associada,
+- [x] Colunas que não são o nome da entidade (TUSS, Tabela Associada,
       Valor Cobrado) não disparam navegação ao clicar
-- [ ] Após pivotar, o chip do campo de busca reflete a nova seleção (tipo
+- [x] Após pivotar, o chip do campo de busca reflete a nova seleção (tipo
       + nome), igual a uma seleção feita via dropdown
-- [ ] Após pivotar, a tabela de resultado exibida corresponde à nova
+- [x] Após pivotar, a tabela de resultado exibida corresponde à nova
       seleção (tipo certo de colunas)
-- [ ] Nenhum histórico de navegação/breadcrumb/botão voltar foi
+- [x] Nenhum histórico de navegação/breadcrumb/botão voltar foi
       adicionado — pivotar substitui a seleção atual diretamente
-- [ ] Ordenação da tabela (ticket 05, se já implementado) volta ao padrão
+- [x] Ordenação da tabela (ticket 05, se já implementado) volta ao padrão
       após pivotar, mesma regra de troca de seleção
 
 ## Comments

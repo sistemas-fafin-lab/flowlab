@@ -68,7 +68,13 @@ const VALOR_COLUNA_FONTE_PAGADORA: Record<ColunaFontePagadora, (item: Payor) => 
   price: item => item.price,
 };
 
-function TabelaFontesPagadoras({ fontesPagadoras }: { fontesPagadoras: Payor[] }) {
+function TabelaFontesPagadoras({
+  fontesPagadoras,
+  onSelectFontePagadora,
+}: {
+  fontesPagadoras: Payor[];
+  onSelectFontePagadora: (nome: string) => void;
+}) {
   const [ordenacao, setOrdenacao] = useState<EstadoOrdenacao>(ORDENACAO_PADRAO);
   const alternar = (coluna: ColunaFontePagadora) => setOrdenacao(atual => alternarOrdenacao(atual, coluna));
 
@@ -105,12 +111,16 @@ function TabelaFontesPagadoras({ fontesPagadoras }: { fontesPagadoras: Payor[] }
               linhas.map(p => (
                 <tr key={p.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
                   <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSelectFontePagadora(p.payor)}
+                      className="flex items-center gap-2 text-left hover:underline"
+                    >
                       <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
                         <Building2 className="w-3.5 h-3.5" />
                       </div>
                       <span className="font-semibold text-gray-800 dark:text-gray-100">{p.payor}</span>
-                    </div>
+                    </button>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold rounded-full border bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
@@ -149,7 +159,13 @@ const VALOR_COLUNA_EXAME_DA_FONTE: Record<ColunaExameDaFonte, (item: ExameDaFont
   valorCobrado: item => item.valorCobrado,
 };
 
-function TabelaExamesDaFonte({ examesDaFonte }: { examesDaFonte: ExameDaFontePagadora[] }) {
+function TabelaExamesDaFonte({
+  examesDaFonte,
+  onSelectExame,
+}: {
+  examesDaFonte: ExameDaFontePagadora[];
+  onSelectExame: (tuss: string) => void;
+}) {
   const [ordenacao, setOrdenacao] = useState<EstadoOrdenacao>(ORDENACAO_PADRAO);
   const alternar = (coluna: ColunaExameDaFonte) => setOrdenacao(atual => alternarOrdenacao(atual, coluna));
 
@@ -187,12 +203,16 @@ function TabelaExamesDaFonte({ examesDaFonte }: { examesDaFonte: ExameDaFontePag
               linhas.map(e => (
                 <tr key={`${e.tuss}-${e.tabelaAssociada}`} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
                   <td className="px-5 py-3.5">
-                    <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSelectExame(e.tuss)}
+                      className="flex items-center gap-2 text-left hover:underline"
+                    >
                       <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
                         <FlaskConical className="w-3.5 h-3.5" />
                       </div>
                       <span className="font-semibold text-gray-800 dark:text-gray-100">{e.exame}</span>
-                    </div>
+                    </button>
                   </td>
                   <td className="px-5 py-3.5 font-mono text-xs text-gray-500 dark:text-gray-400">{e.tuss}</td>
                   <td className="px-5 py-3.5">
@@ -276,6 +296,18 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
     setSearch('');
   };
 
+  const handleSelectExameByTuss = (tuss: string) => {
+    // TUSS pode se repetir entre exames (sem examId confiável vindo do
+    // APLIS) — mesma regra de "último vence" usada em examesPorFontePagadora,
+    // pra bater com o exame que a tabela de origem realmente mostrou.
+    const exame = exams.reduce<Exam | undefined>(
+      (ultimo, atual) => (atual.tuss === tuss ? atual : ultimo),
+      undefined,
+    );
+    if (!exame) return;
+    handleSelectExam(exame);
+  };
+
   const handleClear = () => {
     setSelecao(null);
     setSearch('');
@@ -331,6 +363,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
                 value={search}
                 onChange={e => setSearch(e.target.value)}
                 placeholder="Buscar por exame, código TUSS ou fonte pagadora…"
+                autoComplete="off"
                 className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
               />
               {mostrarDropdown && (
@@ -392,11 +425,19 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
       )}
 
       {selecaoEfetiva?.tipo === 'exame' && (
-        <TabelaFontesPagadoras key={selecaoEfetiva.exame.tuss} fontesPagadoras={fontesPagadoras} />
+        <TabelaFontesPagadoras
+          key={selecaoEfetiva.exame.tuss}
+          fontesPagadoras={fontesPagadoras}
+          onSelectFontePagadora={handleSelectFontePagadora}
+        />
       )}
 
       {selecaoEfetiva?.tipo === 'fontePagadora' && (
-        <TabelaExamesDaFonte key={selecaoEfetiva.nome} examesDaFonte={examesDaFonte} />
+        <TabelaExamesDaFonte
+          key={selecaoEfetiva.nome}
+          examesDaFonte={examesDaFonte}
+          onSelectExame={handleSelectExameByTuss}
+        />
       )}
     </div>
   );
