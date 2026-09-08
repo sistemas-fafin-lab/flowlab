@@ -206,6 +206,12 @@ export interface ConvenioEnvioResumo {
   qtdLotes: number;
   qtdRequisicoes: number;
   valorTotal: number;
+  /** Soma de fatrequisicaoprocedimento.ValorRecebido (NULL/não retornado conta como 0). */
+  valorRecebido: number;
+  /** Soma de GREATEST(ValorLiquido - ValorRecebido, 0) por procedimento, não
+   *  valorTotal - valorRecebido (isso mascararia pendência quando outro procedimento
+   *  do mesmo convênio foi pago a mais). */
+  valorPendente: number;
 }
 
 /** "Enviados" — status default da aba Envios: Conciliação + Faturado. Espelha

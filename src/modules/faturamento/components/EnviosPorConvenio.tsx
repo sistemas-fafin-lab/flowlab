@@ -149,6 +149,8 @@ const EnviosPorConvenio: React.FC = () => {
                   <th className="px-3 py-2 text-right">Lotes</th>
                   <th className="px-3 py-2 text-right">Requisições</th>
                   <th className="px-3 py-2 text-right">Valor total</th>
+                  <th className="px-3 py-2 text-right">Valor recebido</th>
+                  <th className="px-3 py-2 text-right">Pendente</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -189,6 +191,18 @@ const EnviosPorConvenio: React.FC = () => {
                       </td>
                       <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">
                         {formatCurrency(convenio.valorTotal)}
+                      </td>
+                      <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                        {formatCurrency(convenio.valorRecebido)}
+                      </td>
+                      <td
+                        className={`px-3 py-2 text-right tabular-nums font-medium ${
+                          convenio.valorPendente > 0
+                            ? 'text-amber-600 dark:text-amber-400'
+                            : 'text-gray-500 dark:text-gray-400'
+                        }`}
+                      >
+                        {formatCurrency(convenio.valorPendente)}
                       </td>
                     </tr>
                   );

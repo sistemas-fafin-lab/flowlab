@@ -862,6 +862,13 @@ export interface ConvenioEnvioResumo {
   qtdLotes: number;
   qtdRequisicoes: number;
   valorTotal: number;
+  /** Soma de fatrequisicaoprocedimento.ValorRecebido (NULL/não retornado conta como 0). */
+  valorRecebido: number;
+  /** Soma de GREATEST(ValorLiquido - ValorRecebido, 0) por procedimento (mesma regra de
+   *  calcularPendenciaProcedimento, aplicada por procedimento e depois somada — não é
+   *  valorTotal - valorRecebido, que erra quando um procedimento é pago a mais e mascara
+   *  a pendência de outro no mesmo convênio). */
+  valorPendente: number;
 }
 
 /** "Enviados" — status default da aba Envios (issue 01): Conciliação + Faturado.
@@ -934,16 +941,22 @@ export async function listarEnviosPorConvenio(
       `SELECT lp.IdFontePagadora AS IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
               COUNT(*) AS QtdLotes,
               COALESCE(SUM(lp.QtdRequisicoes), 0) AS QtdRequisicoes,
-              COALESCE(SUM(lp.ValorLote), 0) AS ValorTotal
+              COALESCE(SUM(lp.ValorLote), 0) AS ValorTotal,
+              COALESCE(SUM(lp.ValorRecebidoLote), 0) AS ValorRecebido,
+              COALESCE(SUM(lp.ValorPendenteLote), 0) AS ValorPendente
          FROM (
            SELECT l.IdLote, l.IdFontePagadora,
                   COALESCE(rq.QtdRequisicoes, 0) AS QtdRequisicoes,
-                  COALESCE(rq.ValorLote, 0) AS ValorLote
+                  COALESCE(rq.ValorLote, 0) AS ValorLote,
+                  COALESCE(rq.ValorRecebidoLote, 0) AS ValorRecebidoLote,
+                  COALESCE(rq.ValorPendenteLote, 0) AS ValorPendenteLote
              FROM fatlote l
              LEFT JOIN (
                SELECT r.Lote,
                       COUNT(DISTINCT CASE WHEN frp.IdRequisicao IS NOT NULL THEN r.IdRequisicao END) AS QtdRequisicoes,
-                      COALESCE(SUM(frp.ValorLiquido), 0) AS ValorLote
+                      COALESCE(SUM(frp.ValorLiquido), 0) AS ValorLote,
+                      COALESCE(SUM(frp.ValorRecebido), 0) AS ValorRecebidoLote,
+                      COALESCE(SUM(GREATEST(frp.ValorLiquido - COALESCE(frp.ValorRecebido, 0), 0)), 0) AS ValorPendenteLote
                  FROM requisicao r
                  JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
                 WHERE r.Lote IN (SELECT IdLote FROM fatlote l WHERE ${where})
@@ -958,14 +971,18 @@ export async function listarEnviosPorConvenio(
     );
 
     return {
-      convenios: linhas.map((linha) => ({
-        fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
-        nome: texto(linha.NomFantasia),
-        razaoSocial: texto(linha.RazaoSocial),
-        qtdLotes: numero(linha.QtdLotes),
-        qtdRequisicoes: numero(linha.QtdRequisicoes),
-        valorTotal: numero(linha.ValorTotal),
-      })),
+      convenios: linhas.map((linha) => {
+        return {
+          fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
+          nome: texto(linha.NomFantasia),
+          razaoSocial: texto(linha.RazaoSocial),
+          qtdLotes: numero(linha.QtdLotes),
+          qtdRequisicoes: numero(linha.QtdRequisicoes),
+          valorTotal: numero(linha.ValorTotal),
+          valorRecebido: numero(linha.ValorRecebido),
+          valorPendente: numero(linha.ValorPendente),
+        };
+      }),
     };
   }).then((resultado) => {
     if (!('erro' in resultado)) doCache(cacheEnviosPorConvenio, chave, resultado);
