@@ -39,6 +39,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import type { ChaveIndicador } from '../requisicoes';
 import type {
   IndicadorBiologiaMolecularResposta,
   IndicadorHistologiaCitologiaResposta,
@@ -62,6 +63,7 @@ import { usePeriodoCompartilhado } from '../providers/PeriodoProvider.js';
 import { BarChartHorizontal } from './ui/charts/BarChartHorizontal.js';
 import { TopLista } from './ui/charts/TopLista.js';
 import { CuradoriaRetificacaoDrawer } from './requisicoes/CuradoriaRetificacaoDrawer.js';
+import { ModalItensIndicador } from './requisicoes/ModalItensIndicador.js';
 import { ErrorState } from './ui/ErrorState.js';
 import { SeletorPeriodoPorMes } from './ui/SeletorPeriodoPorMes.js';
 import { Skeleton } from './ui/Skeleton.js';
@@ -133,10 +135,42 @@ function SecaoIndicador({
   );
 }
 
-function Kpi({ rotulo, valor, icone: Icone, cor }: { rotulo: string; valor: string | number; icone: LucideIcon; cor: CorSecao }) {
+/** `onClick` presente = KPI vira drill-down (abre `ModalItensIndicador`): cursor de mãozinha, leve elevação no hover, foco por teclado. */
+function Kpi({
+  rotulo,
+  valor,
+  icone: Icone,
+  cor,
+  onClick,
+}: {
+  rotulo: string;
+  valor: string | number;
+  icone: LucideIcon;
+  cor: CorSecao;
+  onClick?: () => void;
+}) {
   const paleta = CORES_SECAO[cor];
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-white/[0.03]">
+    <div
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onClick={onClick}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                onClick();
+              }
+            }
+          : undefined
+      }
+      className={`rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-white/5 dark:bg-white/[0.03] ${
+        onClick
+          ? 'cursor-pointer transition-all hover:-translate-y-0.5 hover:shadow-md hover:ring-1 hover:ring-blue-400/40 dark:hover:ring-blue-500/30'
+          : ''
+      }`}
+    >
       <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl shadow-lg ${paleta.badge} ${paleta.brilho}`}>
         <Icone className="h-5 w-5 text-white" aria-hidden />
       </div>
@@ -289,10 +323,12 @@ function SecaoBiologiaMolecular({
   filtro,
   periodoCompleto,
   tema,
+  onAbrirIndicador,
 }: {
   filtro: { inicio: string; fim: string };
   periodoCompleto: boolean;
   tema: 'light' | 'dark';
+  onAbrirIndicador: (chave: ChaveIndicador, titulo: string) => void;
 }) {
   const query = useQuery<IndicadorBiologiaMolecularResposta>({
     queryKey: ['indicadores-requisicoes', 'biologia-molecular', filtro],
@@ -323,9 +359,21 @@ function SecaoBiologiaMolecular({
         <div className="space-y-6">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             <Kpi rotulo="Requisições" valor={query.data.totalRequisicoes} icone={Dna} cor={COR_BIOLOGIA_MOLECULAR} />
-            <Kpi rotulo="Laudos liberados" valor={query.data.laudosLiberados} icone={FileCheck2} cor={COR_BIOLOGIA_MOLECULAR} />
+            <Kpi
+              rotulo="Laudos liberados"
+              valor={query.data.laudosLiberados}
+              icone={FileCheck2}
+              cor={COR_BIOLOGIA_MOLECULAR}
+              onClick={() => onAbrirIndicador('biomol_laudos_liberados', 'Laudos liberados — Biologia Molecular')}
+            />
             <Kpi rotulo="TAT médio" valor={formatarTat(query.data.tatMedioDias)} icone={Clock} cor={COR_BIOLOGIA_MOLECULAR} />
-            <Kpi rotulo="Laudos fora do prazo" valor={query.data.laudosForaDoPrazo} icone={ShieldAlert} cor={COR_BIOLOGIA_MOLECULAR} />
+            <Kpi
+              rotulo="Laudos fora do prazo"
+              valor={query.data.laudosForaDoPrazo}
+              icone={ShieldAlert}
+              cor={COR_BIOLOGIA_MOLECULAR}
+              onClick={() => onAbrirIndicador('biomol_fora_prazo', 'Laudos fora do prazo — Biologia Molecular')}
+            />
           </div>
 
           <div>
@@ -353,7 +401,15 @@ const COR_PATOLOGIA_AP: CorSecao = 'roxo';
  * prazo OPERACIONAL do setor, não o prazo ao cliente). Mesmo padrão de
  * `SecaoBiologiaMolecular` acima.
  */
-function SecaoPatologiaAp({ filtro, periodoCompleto }: { filtro: { inicio: string; fim: string }; periodoCompleto: boolean }) {
+function SecaoPatologiaAp({
+  filtro,
+  periodoCompleto,
+  onAbrirIndicador,
+}: {
+  filtro: { inicio: string; fim: string };
+  periodoCompleto: boolean;
+  onAbrirIndicador: (chave: ChaveIndicador, titulo: string) => void;
+}) {
   const query = useQuery<IndicadorPatologiaApResposta>({
     queryKey: ['indicadores-requisicoes', 'patologia-ap', filtro],
     queryFn: () => buscarIndicadoresPatologiaAp(filtro),
@@ -382,10 +438,34 @@ function SecaoPatologiaAp({ filtro, periodoCompleto }: { filtro: { inicio: strin
       {query.data && (
         <div className="space-y-3">
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Kpi rotulo="Casos atrasados" valor={query.data.casosAtrasados} icone={AlertTriangle} cor={COR_PATOLOGIA_AP} />
-            <Kpi rotulo="Recorte / nova coloração" valor={query.data.recorteColoracao} icone={Scissors} cor={COR_PATOLOGIA_AP} />
-            <Kpi rotulo="Consenso pendente" valor={query.data.consensoPendente} icone={Users} cor={COR_PATOLOGIA_AP} />
-            <Kpi rotulo="Blocos refeitos" valor={query.data.blocosRefeitos} icone={PackageX} cor={COR_PATOLOGIA_AP} />
+            <Kpi
+              rotulo="Casos atrasados"
+              valor={query.data.casosAtrasados}
+              icone={AlertTriangle}
+              cor={COR_PATOLOGIA_AP}
+              onClick={() => onAbrirIndicador('pat_casos_atrasados', 'Casos atrasados — Patologia/AP')}
+            />
+            <Kpi
+              rotulo="Recorte / nova coloração"
+              valor={query.data.recorteColoracao}
+              icone={Scissors}
+              cor={COR_PATOLOGIA_AP}
+              onClick={() => onAbrirIndicador('pat_recorte_coloracao', 'Recorte / nova coloração — Patologia/AP')}
+            />
+            <Kpi
+              rotulo="Consenso pendente"
+              valor={query.data.consensoPendente}
+              icone={Users}
+              cor={COR_PATOLOGIA_AP}
+              onClick={() => onAbrirIndicador('pat_consenso_pendente', 'Consenso pendente — Patologia/AP')}
+            />
+            <Kpi
+              rotulo="Blocos refeitos"
+              valor={query.data.blocosRefeitos}
+              icone={PackageX}
+              cor={COR_PATOLOGIA_AP}
+              onClick={() => onAbrirIndicador('pat_blocos_refeitos', 'Blocos refeitos — Patologia/AP')}
+            />
           </div>
           <p className="text-xs text-gray-500 dark:text-slate-400">
             Blocos refeitos é raro neste LIS — só houve 1 registro em ~4 anos de histórico, então 0 é o valor esperado na
@@ -407,7 +487,15 @@ const COR_HISTOLOGIA_CITOLOGIA: CorSecao = 'ambar';
  * Insatisfatórias" ficaram de fora desta fase — sinal quase inexistente no
  * LIS (ver migration 20260901140000). Mesmo padrão de `SecaoPatologiaAp`.
  */
-function SecaoHistologiaCitologia({ filtro, periodoCompleto }: { filtro: { inicio: string; fim: string }; periodoCompleto: boolean }) {
+function SecaoHistologiaCitologia({
+  filtro,
+  periodoCompleto,
+  onAbrirIndicador,
+}: {
+  filtro: { inicio: string; fim: string };
+  periodoCompleto: boolean;
+  onAbrirIndicador: (chave: ChaveIndicador, titulo: string) => void;
+}) {
   const query = useQuery<IndicadorHistologiaCitologiaResposta>({
     queryKey: ['indicadores-requisicoes', 'histologia-citologia', filtro],
     queryFn: () => buscarIndicadoresHistologiaCitologia(filtro),
@@ -438,13 +526,26 @@ function SecaoHistologiaCitologia({ filtro, periodoCompleto }: { filtro: { inici
           <Kpi rotulo="Blocos produzidos" valor={query.data.blocosProduzidos} icone={Layers} cor={COR_HISTOLOGIA_CITOLOGIA} />
           <Kpi rotulo="Lâminas produzidas" valor={query.data.laminasProduzidas} icone={LayoutGrid} cor={COR_HISTOLOGIA_CITOLOGIA} />
           <Kpi rotulo="Tempo de processamento" valor={formatarTat(query.data.tatProcessamentoDias)} icone={Clock} cor={COR_HISTOLOGIA_CITOLOGIA} />
-          <Kpi rotulo="Microscopia aguardando" valor={query.data.microscopiaAguardando} icone={Microscope} cor={COR_HISTOLOGIA_CITOLOGIA} />
-          <Kpi rotulo="Amostras não recebidas" valor={query.data.amostrasNaoRecebidas} icone={Ban} cor={COR_HISTOLOGIA_CITOLOGIA} />
+          <Kpi
+            rotulo="Microscopia aguardando"
+            valor={query.data.microscopiaAguardando}
+            icone={Microscope}
+            cor={COR_HISTOLOGIA_CITOLOGIA}
+            onClick={() => onAbrirIndicador('hist_microscopia_aguardando', 'Microscopia aguardando — Histologia/Citologia')}
+          />
+          <Kpi
+            rotulo="Amostras não recebidas"
+            valor={query.data.amostrasNaoRecebidas}
+            icone={Ban}
+            cor={COR_HISTOLOGIA_CITOLOGIA}
+            onClick={() => onAbrirIndicador('hist_amostra_nao_recebida', 'Amostras não recebidas — Histologia/Citologia')}
+          />
           <Kpi
             rotulo="Material devolvido não conforme"
             valor={query.data.materialDevolvidoNaoConforme}
             icone={PackageX}
             cor={COR_HISTOLOGIA_CITOLOGIA}
+            onClick={() => onAbrirIndicador('hist_material_devolvido', 'Material devolvido não conforme — Histologia/Citologia')}
           />
         </div>
       )}
@@ -458,6 +559,8 @@ export function Indicadores() {
   const { periodo, definirPeriodo } = usePeriodoCompartilhado();
   const queryClient = useQueryClient();
   const [itemSelecionado, setItemSelecionado] = useState<RequisicaoRetificadaDTO | null>(null);
+  const [indicadorAberto, setIndicadorAberto] = useState<{ chave: ChaveIndicador; titulo: string } | null>(null);
+  const abrirIndicador = (chave: ChaveIndicador, titulo: string) => setIndicadorAberto({ chave, titulo });
 
   const periodoCompleto = Boolean(periodo.inicio && periodo.fim);
   const filtro = { inicio: periodo.inicio, fim: periodo.fim };
@@ -535,9 +638,22 @@ export function Indicadores() {
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
                   <Kpi rotulo="Amostras recebidas" valor={geral.data.amostrasRecebidas} icone={Inbox} cor="azul" />
                   <Kpi rotulo="Amostras admitidas" valor={geral.data.amostrasAdmitidas} icone={UserCheck} cor="azul" />
-                  <Kpi rotulo="Laudos liberados" valor={geral.data.laudosLiberados} icone={FileCheck2} cor="azul" />
+                  <Kpi
+                    rotulo="Laudos liberados"
+                    valor={geral.data.laudosLiberados}
+                    icone={FileCheck2}
+                    cor="azul"
+                    onClick={() => abrirIndicador('geral_laudos_liberados', 'Laudos liberados — Indicadores Gerais')}
+                  />
                   <Kpi rotulo="TAT médio" valor={formatarTat(geral.data.tatMedioDias)} icone={Clock} cor="azul" />
-                  <Kpi rotulo="Fora do prazo" valor={geral.data.laudosForaDoPrazo} icone={ShieldAlert} cor="azul" />
+                  <Kpi
+                    rotulo="Fora do prazo"
+                    valor={geral.data.laudosForaDoPrazo}
+                    icone={ShieldAlert}
+                    cor="azul"
+                    onClick={() => abrirIndicador('geral_fora_prazo', 'Fora do prazo — Indicadores Gerais')}
+                  />
+                  {/* "Laudos retificados" fica sem onClick de propósito — já tem tabela própria + drawer de curadoria logo abaixo nesta mesma seção. */}
                   <Kpi rotulo="Laudos retificados" valor={geral.data.laudosRetificados} icone={RefreshCw} cor="azul" />
                 </div>
 
@@ -592,11 +708,11 @@ export function Indicadores() {
             )}
           </SecaoIndicador>
 
-          <SecaoBiologiaMolecular filtro={filtro} periodoCompleto={periodoCompleto} tema={tema} />
+          <SecaoBiologiaMolecular filtro={filtro} periodoCompleto={periodoCompleto} tema={tema} onAbrirIndicador={abrirIndicador} />
 
-          <SecaoPatologiaAp filtro={filtro} periodoCompleto={periodoCompleto} />
+          <SecaoPatologiaAp filtro={filtro} periodoCompleto={periodoCompleto} onAbrirIndicador={abrirIndicador} />
 
-          <SecaoHistologiaCitologia filtro={filtro} periodoCompleto={periodoCompleto} />
+          <SecaoHistologiaCitologia filtro={filtro} periodoCompleto={periodoCompleto} onAbrirIndicador={abrirIndicador} />
 
           <SecaoIhqParceiro filtro={filtro} periodoCompleto={periodoCompleto} />
         </div>
@@ -608,6 +724,15 @@ export function Indicadores() {
           nomPacienteConhecido={itemSelecionado.nomPaciente}
           canManage={canManage}
           onFechar={() => setItemSelecionado(null)}
+        />
+      )}
+
+      {indicadorAberto && (
+        <ModalItensIndicador
+          titulo={indicadorAberto.titulo}
+          chave={indicadorAberto.chave}
+          periodo={filtro}
+          onFechar={() => setIndicadorAberto(null)}
         />
       )}
     </div>

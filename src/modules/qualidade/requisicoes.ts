@@ -15,12 +15,13 @@ import type {
   IndicadorIhqParceiroResposta,
   IndicadorPatologiaApResposta,
   RequisicaoRetificadaDTO,
+  SecaoRequisicao,
   StatusCuradoriaRetificacao,
 } from './types';
 import { supabase } from '../../lib/supabase';
 import { chamarQualidadeApi, ErroApiQualidade } from './qualidadeApi.js';
 import { buscarIndicadoresOcorrencias } from './ocorrencias.js';
-import { agregarIndicadoresGerais, type LinhaIndicadorRequisicao } from './domain/requisicoesIndicadores.js';
+import { agregarIndicadoresGerais, diasEntre, type LinhaIndicadorRequisicao } from './domain/requisicoesIndicadores.js';
 import { agregarBiologiaMolecular } from './domain/biologiaMolecularIndicadores.js';
 import { agregarPatologiaAp } from './domain/patologiaIndicadores.js';
 import { agregarHistologiaCitologia } from './domain/histologiaCitologiaIndicadores.js';
@@ -229,13 +230,212 @@ function mapearRetificacaoParaDTO(linha: LinhaBrutaRetificacao, nomPaciente: str
   };
 }
 
-/** PII sob demanda (P10) — nunca persistida; buscada em lote via dispatcher, mesmo padrão de cortesias.ts. */
-function buscarNomesPacientesRequisicoes(codigosRequisicao: string[]): Promise<Record<string, string>> {
-  return chamarQualidadeApi<Record<string, string>>(
-    'buscar-pii-requisicoes',
-    { codigosRequisicao },
-    'Falha ao buscar nomes de pacientes.',
-  );
+/** Espelha `MAX_CODIGOS` em `api/_lib/handlers/qualidade-buscar-pii-requisicoes.ts` — acima disso o handler recusa a chamada inteira (400). */
+const MAX_CODIGOS_POR_CHAMADA_PII = 500;
+
+/**
+ * PII sob demanda (P10) — nunca persistida; buscada em lote via dispatcher,
+ * mesmo padrão de cortesias.ts. Faz mais de uma chamada quando a lista passa
+ * de `MAX_CODIGOS_POR_CHAMADA_PII` (achado ao vivo: listas de indicador como
+ * "Laudos liberados" facilmente passam de 500 requisições no período) — sem
+ * isso, o handler rejeitava a chamada inteira e todo mundo ficava sem nome.
+ */
+async function buscarNomesPacientesRequisicoes(codigosRequisicao: string[]): Promise<Record<string, string>> {
+  const codigosUnicos = [...new Set(codigosRequisicao)];
+  const nomes: Record<string, string> = {};
+  for (let i = 0; i < codigosUnicos.length; i += MAX_CODIGOS_POR_CHAMADA_PII) {
+    const lote = codigosUnicos.slice(i, i + MAX_CODIGOS_POR_CHAMADA_PII);
+    const resultado = await chamarQualidadeApi<Record<string, string>>(
+      'buscar-pii-requisicoes',
+      { codigosRequisicao: lote },
+      'Falha ao buscar nomes de pacientes.',
+    );
+    Object.assign(nomes, resultado);
+  }
+  return nomes;
+}
+
+// ─── Itens individuais por trás de um KPI de Indicadores (drill-down em modal) ──
+
+/**
+ * Uma chave por KPI clicável da aba Indicadores — espelha exatamente as
+ * condições já usadas pelos agregadores em domain/*Indicadores.ts (nunca
+ * reimplementadas aqui, só a mesma leitura aplicada linha a linha em vez de
+ * contada). "Laudos retificados" (Indicadores Gerais) fica de fora de
+ * propósito — já tem lista própria (`buscarRequisicoesRetificadas`) com
+ * tabela e drawer de curadoria, não precisa deste modal genérico.
+ */
+export type ChaveIndicador =
+  | 'geral_laudos_liberados'
+  | 'geral_fora_prazo'
+  | 'biomol_laudos_liberados'
+  | 'biomol_fora_prazo'
+  | 'pat_casos_atrasados'
+  | 'pat_recorte_coloracao'
+  | 'pat_consenso_pendente'
+  | 'pat_blocos_refeitos'
+  | 'hist_microscopia_aguardando'
+  | 'hist_amostra_nao_recebida'
+  | 'hist_material_devolvido';
+
+export interface ItemIndicadorRequisicaoDTO {
+  id: string;
+  codRequisicao: string;
+  nomPaciente: string | null;
+  exameTipoNomeLis: string | null;
+  /** Rótulo da coluna `data` abaixo — varia por indicador (ex: "Liberado em", "Aguardando desde"). */
+  rotuloData: string;
+  data: string | null;
+  /** Só preenchido nos indicadores de atraso (diferença entre o prazo e `data`). */
+  diasAtraso: number | null;
+}
+
+interface ConfigItemIndicador {
+  secaoLis?: SecaoRequisicao;
+  /** Coluna (snake_case) com a data mostrada na linha. */
+  colunaData: string;
+  rotuloData: string;
+  /** Quando setado, filtra `.eq(colunaFlag, true)` no servidor. Ausente = filtra `colunaData IS NOT NULL`. */
+  colunaFlag?: string;
+  /** Quando setado, o indicador é "atraso": exige `colunaPrazoParaAtraso` e `colunaData` preenchidos e `diasEntre(prazo, data) > 0` — mesma condição dos agregadores. */
+  colunaPrazoParaAtraso?: string;
+}
+
+const CONFIG_ITEM_INDICADOR: Record<ChaveIndicador, ConfigItemIndicador> = {
+  geral_laudos_liberados: { colunaData: 'dta_liberacao', rotuloData: 'Liberado em' },
+  geral_fora_prazo: { colunaData: 'dta_liberacao', rotuloData: 'Liberado em', colunaPrazoParaAtraso: 'dta_prevista' },
+  biomol_laudos_liberados: { secaoLis: 'biologia_molecular', colunaData: 'dta_liberacao', rotuloData: 'Liberado em' },
+  biomol_fora_prazo: {
+    secaoLis: 'biologia_molecular',
+    colunaData: 'dta_liberacao',
+    rotuloData: 'Liberado em',
+    colunaPrazoParaAtraso: 'dta_prevista',
+  },
+  pat_casos_atrasados: {
+    secaoLis: 'patologia_ap',
+    colunaData: 'dta_liberacao',
+    rotuloData: 'Liberado em',
+    colunaPrazoParaAtraso: 'dta_prevista_setor',
+  },
+  pat_recorte_coloracao: {
+    secaoLis: 'patologia_ap',
+    colunaData: 'dta_recorte_coloracao',
+    rotuloData: 'Recorte/coloração em',
+    colunaFlag: 'recorte_coloracao',
+  },
+  pat_consenso_pendente: {
+    secaoLis: 'patologia_ap',
+    colunaData: 'dta_consenso_criado',
+    rotuloData: 'Consenso criado em',
+    colunaFlag: 'consenso_pendente',
+  },
+  pat_blocos_refeitos: {
+    secaoLis: 'patologia_ap',
+    colunaData: 'dta_bloco_danificado',
+    rotuloData: 'Registrado em',
+    colunaFlag: 'bloco_danificado',
+  },
+  hist_microscopia_aguardando: {
+    secaoLis: 'histologia_citologia',
+    colunaData: 'dta_microscopia_aguardando',
+    rotuloData: 'Aguardando desde',
+  },
+  hist_amostra_nao_recebida: {
+    secaoLis: 'histologia_citologia',
+    colunaData: 'dta_amostra_nao_recebida',
+    rotuloData: 'Registrado em',
+    colunaFlag: 'amostra_nao_recebida',
+  },
+  hist_material_devolvido: {
+    secaoLis: 'histologia_citologia',
+    colunaData: 'dta_material_devolvido',
+    rotuloData: 'Devolvido em',
+    colunaFlag: 'material_devolvido_nao_conforme',
+  },
+};
+
+interface LinhaBrutaItemIndicador {
+  id: string;
+  cod_requisicao: string;
+  exame_tipo_nome_lis: string | null;
+  [coluna: string]: unknown;
+}
+
+/**
+ * Item a item por trás de um KPI da aba Indicadores — mesma condição do
+ * agregador correspondente (ver `CONFIG_ITEM_INDICADOR`), só aplicada linha a
+ * linha em vez de contada. Nome de paciente é enriquecimento sob demanda
+ * (P10), mesmo padrão de `buscarRequisicoesRetificadas` — nunca bloqueia a
+ * lista se o LIS estiver indisponível.
+ */
+export async function buscarItensIndicador(
+  chave: ChaveIndicador,
+  periodo: { inicio: string; fim: string },
+): Promise<ItemIndicadorRequisicaoDTO[]> {
+  const config = CONFIG_ITEM_INDICADOR[chave];
+  const colunas = new Set(['id', 'cod_requisicao', 'exame_tipo_nome_lis', config.colunaData]);
+  if (config.colunaPrazoParaAtraso) colunas.add(config.colunaPrazoParaAtraso);
+  const selectColunas = [...colunas].join(', ');
+
+  function construirQuery() {
+    let query = supabase
+      .from('qa_requisicoes')
+      .select(selectColunas)
+      .gte('dta_solicitacao', periodo.inicio)
+      .lte('dta_solicitacao', periodo.fim);
+    if (config.secaoLis) query = query.eq('secao_lis', config.secaoLis);
+    if (config.colunaFlag) query = query.eq(config.colunaFlag, true);
+    else query = query.not(config.colunaData, 'is', null);
+    if (config.colunaPrazoParaAtraso) query = query.not(config.colunaPrazoParaAtraso, 'is', null);
+    return query.order('dta_solicitacao', { ascending: false });
+  }
+
+  // PostgREST devolve no máximo 1000 linhas por chamada por padrão — sem
+  // paginar, um período com mais de 1000 requisições cortava linhas
+  // legítimas do meio da lista (achado ao vivo: "Fora do prazo" contava 1 no
+  // KPI mas o modal vinha vazio, porque a única linha que batia a condição
+  // ficava fora das primeiras 1000 retornadas pela ordenação). Cada página
+  // exige uma nova instância do query builder — reaproveitar a mesma
+  // instância com `.range()` em loop não refaz os filtros.
+  const TAMANHO_PAGINA = 1000;
+  let linhas: LinhaBrutaItemIndicador[] = [];
+  for (let offset = 0; ; offset += TAMANHO_PAGINA) {
+    const { data, error } = await construirQuery().range(offset, offset + TAMANHO_PAGINA - 1);
+    if (error) throw new ErroApiQualidade(500, `Falha ao buscar itens do indicador: ${error.message}`);
+    const pagina = (data ?? []) as unknown as LinhaBrutaItemIndicador[];
+    linhas = linhas.concat(pagina);
+    if (pagina.length < TAMANHO_PAGINA) break;
+  }
+
+  if (config.colunaPrazoParaAtraso) {
+    const colunaPrazo = config.colunaPrazoParaAtraso;
+    linhas = linhas.filter((l) => {
+      const prazo = l[colunaPrazo] as string | null;
+      const dataVal = l[config.colunaData] as string | null;
+      return prazo !== null && dataVal !== null && diasEntre(prazo, dataVal) > 0;
+    });
+  }
+
+  let nomes: Record<string, string> = {};
+  try {
+    nomes = await buscarNomesPacientesRequisicoes(linhas.map((l) => l.cod_requisicao));
+  } catch {
+    // Nome de paciente é enriquecimento (PII sob demanda) — não bloqueia a lista se o LIS estiver indisponível.
+  }
+
+  return linhas.map((l) => {
+    const dataVal = l[config.colunaData] as string | null;
+    const prazo = config.colunaPrazoParaAtraso ? (l[config.colunaPrazoParaAtraso] as string | null) : null;
+    return {
+      id: l.id,
+      codRequisicao: l.cod_requisicao,
+      nomPaciente: nomes[l.cod_requisicao] ?? null,
+      exameTipoNomeLis: l.exame_tipo_nome_lis,
+      rotuloData: config.rotuloData,
+      data: dataVal,
+      diasAtraso: prazo && dataVal ? diasEntre(prazo, dataVal) : null,
+    };
+  });
 }
 
 export async function buscarRequisicoesRetificadas(periodo: {
