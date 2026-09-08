@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown, Building2, FlaskConical, Lock, Search, X } from 'lucide-react';
 import { Exam, Payor, formatBRL } from '../../hooks/useCostControl';
 import { buscarUnificado, examesPorFontePagadora, fontesPagadorasPorTuss, type ExameDaFontePagadora } from './domain/busca';
@@ -250,8 +250,13 @@ function TabelaExamesDaFonte({
 const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
   const [search, setSearch] = useState('');
   const [selecao, setSelecao] = useState<Selecao | null>(null);
+  const [indiceDestacado, setIndiceDestacado] = useState(0);
 
   const termoDigitado = search.trim().length > 0;
+
+  useEffect(() => {
+    setIndiceDestacado(0);
+  }, [search]);
 
   const resultado = useMemo(
     () => (selecao ? { exames: [], fontesPagadoras: [] } : buscarUnificado(exams, payors, search)),
@@ -304,6 +309,26 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
   };
 
   const mostrarDropdown = !selecao && termoDigitado && totalMatches >= 1;
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!mostrarDropdown) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndiceDestacado(i => (i + 1) % totalMatches);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceDestacado(i => (i - 1 + totalMatches) % totalMatches);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (indiceDestacado < resultado.exames.length) {
+        handleSelectExam(resultado.exames[indiceDestacado]);
+      } else {
+        handleSelectFontePagadora(resultado.fontesPagadoras[indiceDestacado - resultado.exames.length]);
+      }
+    }
+  };
+
   const mostrarNenhumEncontrado = !selecao && termoDigitado && totalMatches === 0;
   const mostrarConvite = !selecao && !termoDigitado;
 
@@ -352,6 +377,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
               <input
                 value={search}
                 onChange={e => setSearch(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
                 placeholder="Buscar por exame, código TUSS ou fonte pagadora…"
                 autoComplete="on"
                 className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
@@ -363,12 +389,16 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
                       <li className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-slate-50 dark:bg-gray-900/40">
                         Exames
                       </li>
-                      {resultado.exames.map(exame => (
+                      {resultado.exames.map((exame, i) => (
                         <li key={exame.id}>
                           <button
                             type="button"
                             onClick={() => handleSelectExam(exame)}
-                            className="w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+                            onMouseEnter={() => setIndiceDestacado(i)}
+                            aria-selected={i === indiceDestacado}
+                            className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
+                              i === indiceDestacado ? 'bg-blue-50 dark:bg-blue-500/10' : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
+                            }`}
                           >
                             <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{exame.name}</span>
                             <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0">{exame.tuss}</span>
@@ -382,17 +412,24 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams }) => {
                       <li className="px-4 py-1.5 text-[11px] font-bold uppercase tracking-wider text-gray-400 dark:text-gray-500 bg-slate-50 dark:bg-gray-900/40">
                         Fontes Pagadoras
                       </li>
-                      {resultado.fontesPagadoras.map(nome => (
-                        <li key={nome}>
-                          <button
-                            type="button"
-                            onClick={() => handleSelectFontePagadora(nome)}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
-                          >
-                            <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{nome}</span>
-                          </button>
-                        </li>
-                      ))}
+                      {resultado.fontesPagadoras.map((nome, i) => {
+                        const idx = resultado.exames.length + i;
+                        return (
+                          <li key={nome}>
+                            <button
+                              type="button"
+                              onClick={() => handleSelectFontePagadora(nome)}
+                              onMouseEnter={() => setIndiceDestacado(idx)}
+                              aria-selected={idx === indiceDestacado}
+                              className={`w-full flex items-center gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
+                                idx === indiceDestacado ? 'bg-blue-50 dark:bg-blue-500/10' : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
+                              }`}
+                            >
+                              <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{nome}</span>
+                            </button>
+                          </li>
+                        );
+                      })}
                     </>
                   )}
                 </ul>
