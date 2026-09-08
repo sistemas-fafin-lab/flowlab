@@ -21,6 +21,7 @@ function risco(sobras: Partial<RiscoDTO> = {}): RiscoDTO {
     score: 15,
     nivel: 'alto',
     tratamento: 'reduzir',
+    cor: null,
     criadoPor: 'u1',
     criadoEm: '2026-01-01T00:00:00Z',
     ...sobras,

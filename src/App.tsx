@@ -46,7 +46,6 @@ import {
   IndicadoresPage as QualidadeIndicadoresPage,
   RiscosDashboardPage,
   RiscosMatrizPage,
-  MapaRiscosPorSetorPage,
   ContingenciasPage,
   CorrelacaoRiscosOcorrenciasPage,
 } from './modules/qualidade';
@@ -448,16 +447,7 @@ const AuthenticatedApp: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        <Route
-          path="/qualidade/riscos/mapa"
-          element={
-            <ProtectedRoute anyOf={['canViewQualidade', 'canManageQualidade']} permissions={userPermissions}>
-              <QualidadeProviders>
-                <MapaRiscosPorSetorPage />
-              </QualidadeProviders>
-            </ProtectedRoute>
-          }
-        />
+        <Route path="/qualidade/riscos/mapa" element={<Navigate to="/qualidade/riscos/matriz" replace />} />
         <Route
           path="/qualidade/riscos/contingencias"
           element={

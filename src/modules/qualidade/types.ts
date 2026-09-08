@@ -79,7 +79,8 @@ export interface OcorrenciaDTO {
   motivoNome: string | null;
   resumoCurado: string | null;
   acaoCurada: string | null;
-  statusCuradoria: StatusCuradoriaOcorrencia;
+  /** Vem do apLIS (`ocorrencia.Status`), não da curadoria — `null` quando o código não tem leitura confirmada (ver bdLabQualidade.ts). */
+  statusCuradoria: StatusCuradoriaOcorrencia | null;
   revisaoPendente: boolean;
   curadoPor: string | null;
   curadoEm: string | null;
@@ -540,6 +541,8 @@ export interface RiscoDTO {
   nivel: NivelClassificacaoRisco | null;
   /** Aceitar/Monitorar/Reduzir/Eliminar/Transferir — `null` até a decisão de tratamento ser tomada (issue 02). */
   tratamento: TratamentoRisco | null;
+  /** Cor escolhida manualmente para a série de incidência do risco (hex) — compartilhada entre usuários. `null` até alguém escolher; usa paleta default determinística até lá (ver `corDoRisco` em `components/riscos/rotulos.ts`). */
+  cor: string | null;
   criadoPor: string;
   criadoEm: string;
 }
@@ -780,17 +783,6 @@ export interface IndicadoresRiscosDTO {
   aguardandoReavaliacao: number;
   contingenciasAtivas: number;
   alertas: AlertaRiscoDTO[];
-}
-
-/** Uma linha do mapa de riscos por setor (visão de auditoria): Processo | Risco | P | S | Nível | Status. */
-export interface MapaRiscoLinhaDTO {
-  riscoId: string;
-  processo: string;
-  riscoIdentificado: string;
-  probabilidade: number | null;
-  severidade: number | null;
-  nivel: NivelClassificacaoRisco | null;
-  tratamento: TratamentoRisco | null;
 }
 
 // ─── Riscos: correlação N:N com Ocorrências — .scratch/qualidade-riscos-indicadores/issues/05-riscos-correlacao-ocorrencias.md ──
