@@ -19,6 +19,7 @@ import ConfirmDialog from '../ConfirmDialog';
 import ExamTable from './ExamTable';
 import ExamFormModal from './ExamFormModal';
 import ExamImportModal from './ExamImportModal';
+import { casaFuzzy } from './domain/busca';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -101,12 +102,11 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
   const filtered = useMemo(
     () =>
       exams.filter(e => {
-        const q = search.toLowerCase();
         const matchesSearch =
-          !q ||
-          e.name.toLowerCase().includes(q) ||
-          e.code.toLowerCase().includes(q) ||
-          e.tuss.toLowerCase().includes(q);
+          !search.trim() ||
+          casaFuzzy(e.name, search) ||
+          casaFuzzy(e.code, search) ||
+          casaFuzzy(e.tuss, search);
         const matchesLoc = location === 'all' || e.location === location;
         return matchesSearch && matchesLoc;
       }),
