@@ -42,6 +42,7 @@ const CostControlDashboard: React.FC = () => {
     importExams,
     updatePayorAtendido,
     updatePayor,
+    createPayor,
     deletePayor,
     importPayors,
   } = useCostControl();
@@ -113,6 +114,7 @@ const CostControlDashboard: React.FC = () => {
             exams={exams}
             updatePayorAtendido={updatePayorAtendido}
             updatePayor={updatePayor}
+            createPayor={createPayor}
             deletePayor={deletePayor}
             importPayors={importPayors}
           />

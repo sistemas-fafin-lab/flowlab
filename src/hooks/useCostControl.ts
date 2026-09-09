@@ -49,6 +49,7 @@ export interface UseCostControlReturn {
   importExams: (rows: Omit<Exam, 'id'>[]) => Promise<number>;
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
   updatePayor: (id: string, data: PayorEditData) => Promise<void>;
+  createPayor: (data: PayorEditData) => Promise<void>;
   deletePayor: (id: string) => Promise<void>;
   importPayors: (
     fontePagadora: string,
@@ -100,6 +101,13 @@ const mapPayorRow = (row: any): Payor => ({
   tus: row.tuss ?? '',
   price: Number(row.valor) || 0,
   atendido: row.atendido ?? true,
+});
+
+const toPayorRow = (data: PayorEditData) => ({
+  fonte_pagadora: data.payor,
+  tabela_associada: data.table,
+  tuss: data.tus,
+  valor: data.price,
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -218,12 +226,7 @@ export const useCostControl = (): UseCostControlReturn => {
   const updatePayor = useCallback(async (id: string, data: PayorEditData) => {
     const { data: updated, error } = await supabase
       .from('custo_fontes_pagadoras')
-      .update({
-        fonte_pagadora: data.payor,
-        tabela_associada: data.table,
-        tuss: data.tus,
-        valor: data.price,
-      })
+      .update(toPayorRow(data))
       .eq('id', id)
       .select()
       .single();
@@ -231,6 +234,17 @@ export const useCostControl = (): UseCostControlReturn => {
     if (error) throw error;
     const mapped = mapPayorRow(updated);
     setPayors(prev => prev.map(p => (p.id === id ? mapped : p)));
+  }, []);
+
+  const createPayor = useCallback(async (data: PayorEditData) => {
+    const { data: inserted, error } = await supabase
+      .from('custo_fontes_pagadoras')
+      .insert(toPayorRow(data))
+      .select()
+      .single();
+
+    if (error) throw error;
+    setPayors(prev => [mapPayorRow(inserted), ...prev]);
   }, []);
 
   const deletePayor = useCallback(async (id: string) => {
@@ -306,6 +320,7 @@ export const useCostControl = (): UseCostControlReturn => {
     importExams,
     updatePayorAtendido,
     updatePayor,
+    createPayor,
     deletePayor,
     importPayors,
   };

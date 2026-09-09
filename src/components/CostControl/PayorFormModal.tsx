@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Pencil, X, Save } from 'lucide-react';
+import { Pencil, Plus, X, Save } from 'lucide-react';
 import type { PayorEditData } from '../../hooks/useCostControl';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -8,6 +8,7 @@ import type { PayorEditData } from '../../hooks/useCostControl';
 
 interface PayorFormModalProps {
   open: boolean;
+  mode: 'edit' | 'create';
   payor: PayorEditData | null;
   onClose: () => void;
   onSave: (data: PayorEditData) => void;
@@ -19,7 +20,7 @@ interface PayorFormModalProps {
 
 const EMPTY_FORM: PayorEditData = { payor: '', table: '', tus: '', price: 0 };
 
-const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, payor, onClose, onSave }) => {
+const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, onClose, onSave }) => {
   const [form, setForm] = useState<PayorEditData>(EMPTY_FORM);
 
   useEffect(() => {
@@ -32,6 +33,7 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, payor, onClose, o
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.payor.trim()) return;
     onSave(form);
   };
 
@@ -51,12 +53,16 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, payor, onClose, o
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center shadow-md shadow-blue-500/25">
-              <Pencil className="w-5 h-5" />
+              {mode === 'create' ? <Plus className="w-5 h-5" /> : <Pencil className="w-5 h-5" />}
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Editar fonte pagadora</h2>
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                {mode === 'create' ? 'Nova linha de fonte pagadora' : 'Editar fonte pagadora'}
+              </h2>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                Ajuste os dados desta linha. A próxima reimportação pode sobrescrever esta edição.
+                {mode === 'create'
+                  ? 'Preencha os dados da nova linha.'
+                  : 'Ajuste os dados desta linha. A próxima reimportação pode sobrescrever esta edição.'}
               </p>
             </div>
           </div>

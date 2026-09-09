@@ -11,6 +11,7 @@ import {
   FlaskConical,
   Lock,
   Pencil,
+  Plus,
   Search,
   Trash2,
   Upload,
@@ -45,6 +46,7 @@ interface PayorsScreenProps {
   exams: Exam[];
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
   updatePayor: (id: string, data: PayorEditData) => Promise<void>;
+  createPayor: (data: PayorEditData) => Promise<void>;
   deletePayor: (id: string) => Promise<void>;
   importPayors: (
     fontePagadora: string,
@@ -328,6 +330,7 @@ function TabelaExamesDaFonte({
   onToggleAtendido,
   onEditLinha,
   onDeleteLinha,
+  onNovaLinha,
   podeGerenciar,
   mensagemVazia = 'Nenhum exame cadastrado para esta fonte pagadora.',
 }: {
@@ -336,6 +339,7 @@ function TabelaExamesDaFonte({
   onToggleAtendido: (payorId: string, atendido: boolean) => void;
   onEditLinha: (item: ExameDaFontePagadora) => void;
   onDeleteLinha: (item: ExameDaFontePagadora) => void;
+  onNovaLinha: () => void;
   podeGerenciar: boolean;
   mensagemVazia?: string;
 }) {
@@ -355,6 +359,17 @@ function TabelaExamesDaFonte({
 
   return (
     <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+      {podeGerenciar && (
+        <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-end">
+          <button
+            type="button"
+            onClick={onNovaLinha}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors"
+          >
+            <Plus className="w-4 h-4" /> Novo
+          </button>
+        </div>
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -496,12 +511,13 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   exams,
   updatePayorAtendido,
   updatePayor,
+  createPayor,
   deletePayor,
   importPayors,
 }) => {
   const { userProfile } = useAuth();
   const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
-  const { notification, showSuccess, showError, hideNotification } = useNotification();
+  const { notification, showSuccess, showWarning, showError, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
   const [termoFonte, setTermoFonte] = useState('');
   const [termoExame, setTermoExame] = useState('');
@@ -511,6 +527,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const [exportando, setExportando] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingLinha, setEditingLinha] = useState<ExameDaFontePagadora | null>(null);
+  const [creatingNovaLinha, setCreatingNovaLinha] = useState(false);
   const [payorFormOpen, setPayorFormOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -598,19 +615,42 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     setPayorFormOpen(true);
   };
 
+  const handleNovaLinha = () => {
+    setCreatingNovaLinha(true);
+    setPayorFormOpen(true);
+  };
+
   const handleCloseFormModal = () => {
     setPayorFormOpen(false);
     setEditingLinha(null);
+    setCreatingNovaLinha(false);
   };
 
   const handleSavePayorEdit = async (data: PayorEditData) => {
-    if (!editingLinha) return;
     try {
-      await updatePayor(editingLinha.payorId, data);
-      showSuccess('Fonte pagadora atualizada com sucesso!');
+      if (editingLinha) {
+        await updatePayor(editingLinha.payorId, data);
+      } else {
+        await createPayor(data);
+      }
+
+      // examesPorFontePagadora casa a linha com um exame pelo TUSS — se o
+      // TUSS informado não estiver cadastrado na aba Exames, a linha é
+      // gravada mas não aparece em nenhuma tabela até isso ser corrigido.
+      if (exams.some(e => e.tuss === data.tus)) {
+        showSuccess(editingLinha ? 'Fonte pagadora atualizada com sucesso!' : 'Linha criada com sucesso!');
+      } else {
+        showWarning(
+          editingLinha ? 'Fonte pagadora atualizada' : 'Linha criada',
+          `TUSS "${data.tus}" não está cadastrado na aba Exames — a linha foi salva, mas não vai aparecer aqui até um exame com esse TUSS existir.`
+        );
+      }
       handleCloseFormModal();
     } catch (err) {
-      showError('Erro ao atualizar fonte pagadora', err instanceof Error ? err.message : undefined);
+      showError(
+        editingLinha ? 'Erro ao atualizar fonte pagadora' : 'Erro ao criar linha',
+        err instanceof Error ? err.message : undefined
+      );
     }
   };
 
@@ -803,6 +843,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           onToggleAtendido={handleToggleAtendido}
           onEditLinha={handleEditLinha}
           onDeleteLinha={handleDeleteLinha}
+          onNovaLinha={handleNovaLinha}
           podeGerenciar={podeGerenciar}
           mensagemVazia={
             exameSelecionado
@@ -833,6 +874,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       {podeGerenciar && (
         <PayorFormModal
           open={payorFormOpen}
+          mode={editingLinha ? 'edit' : 'create'}
           payor={
             editingLinha
               ? {
@@ -841,6 +883,8 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
                   tus: editingLinha.tuss,
                   price: editingLinha.valorCobrado,
                 }
+              : creatingNovaLinha
+              ? { payor: fontePagadoraSelecionada ?? '', table: '', tus: '', price: 0 }
               : null
           }
           onClose={handleCloseFormModal}
