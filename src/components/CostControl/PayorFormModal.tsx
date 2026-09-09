@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Pencil, Plus, X, Save } from 'lucide-react';
-import type { PayorEditData } from '../../hooks/useCostControl';
+import type { Exam, PayorEditData } from '../../hooks/useCostControl';
+import { buscarExamesPorTermo } from './domain/busca';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -10,6 +11,7 @@ interface PayorFormModalProps {
   open: boolean;
   mode: 'edit' | 'create';
   payor: PayorEditData | null;
+  exams: Exam[];
   onClose: () => void;
   onSave: (data: PayorEditData) => void;
 }
@@ -20,16 +22,60 @@ interface PayorFormModalProps {
 
 const EMPTY_FORM: PayorEditData = { payor: '', table: '', tus: '', price: 0 };
 
-const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, onClose, onSave }) => {
+const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exams, onClose, onSave }) => {
   const [form, setForm] = useState<PayorEditData>(EMPTY_FORM);
+  const [sugestoesTussAbertas, setSugestoesTussAbertas] = useState(false);
+  const [indiceTussDestacado, setIndiceTussDestacado] = useState(0);
+  const tussFieldRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (open) {
       setForm(payor ?? EMPTY_FORM);
+      setSugestoesTussAbertas(false);
     }
   }, [open, payor]);
 
+  useEffect(() => {
+    setIndiceTussDestacado(0);
+  }, [form.tus]);
+
+  // Fecha o dropdown de sugestões de TUSS ao clicar fora do campo.
+  useEffect(() => {
+    if (!sugestoesTussAbertas) return;
+    const handle = (e: MouseEvent) => {
+      if (tussFieldRef.current && !tussFieldRef.current.contains(e.target as Node)) {
+        setSugestoesTussAbertas(false);
+      }
+    };
+    document.addEventListener('mousedown', handle);
+    return () => document.removeEventListener('mousedown', handle);
+  }, [sugestoesTussAbertas]);
+
+  const sugestoesTuss = useMemo(() => buscarExamesPorTermo(exams, form.tus), [exams, form.tus]);
+
   if (!open) return null;
+
+  const handleSelecionarTuss = (exame: Exam) => {
+    setForm(f => ({ ...f, tus: exame.tuss }));
+    setSugestoesTussAbertas(false);
+  };
+
+  const handleTussKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!sugestoesTussAbertas || sugestoesTuss.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setIndiceTussDestacado(i => (i + 1) % sugestoesTuss.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setIndiceTussDestacado(i => (i - 1 + sugestoesTuss.length) % sugestoesTuss.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      handleSelecionarTuss(sugestoesTuss[indiceTussDestacado]);
+    } else if (e.key === 'Escape') {
+      setSugestoesTussAbertas(false);
+    }
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,16 +147,50 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, onCl
                 className={inputCls}
               />
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" ref={tussFieldRef}>
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
                 TUSS
               </label>
-              <input
-                value={form.tus}
-                onChange={e => setForm(f => ({ ...f, tus: e.target.value }))}
-                placeholder="40304361"
-                className={inputCls}
-              />
+              <div className="relative">
+                <input
+                  value={form.tus}
+                  onChange={e => {
+                    setForm(f => ({ ...f, tus: e.target.value }));
+                    setSugestoesTussAbertas(true);
+                  }}
+                  onFocus={() => setSugestoesTussAbertas(true)}
+                  onKeyDown={handleTussKeyDown}
+                  placeholder="40304361"
+                  autoComplete="off"
+                  className={inputCls}
+                />
+                {sugestoesTussAbertas && form.tus.trim().length > 0 && (
+                  <ul className="absolute z-10 mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-56 overflow-y-auto">
+                    {sugestoesTuss.length === 0 ? (
+                      <li className="px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400">
+                        Nenhum exame encontrado — TUSS será salvo como digitado.
+                      </li>
+                    ) : (
+                      sugestoesTuss.map((exame, i) => (
+                        <li key={exame.id}>
+                          <button
+                            type="button"
+                            onClick={() => handleSelecionarTuss(exame)}
+                            onMouseEnter={() => setIndiceTussDestacado(i)}
+                            aria-selected={i === indiceTussDestacado}
+                            className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
+                              i === indiceTussDestacado ? 'bg-blue-50 dark:bg-blue-500/10' : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
+                            }`}
+                          >
+                            <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{exame.name}</span>
+                            <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0">{exame.tuss}</span>
+                          </button>
+                        </li>
+                      ))
+                    )}
+                  </ul>
+                )}
+              </div>
             </div>
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">

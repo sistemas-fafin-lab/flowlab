@@ -925,6 +925,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         <PayorFormModal
           open={payorFormOpen}
           mode={editingLinha ? 'edit' : 'create'}
+          exams={exams}
           payor={
             editingLinha
               ? {
