@@ -862,6 +862,13 @@ export interface ConvenioEnvioResumo {
   qtdLotes: number;
   qtdRequisicoes: number;
   valorTotal: number;
+  /** Soma de fatrequisicaoprocedimento.ValorRecebido (NULL/não retornado conta como 0). */
+  valorRecebido: number;
+  /** Soma de GREATEST(ValorLiquido - ValorRecebido, 0) por procedimento (mesma regra de
+   *  calcularPendenciaProcedimento, aplicada por procedimento e depois somada — não é
+   *  valorTotal - valorRecebido, que erra quando um procedimento é pago a mais e mascara
+   *  a pendência de outro no mesmo convênio). */
+  valorPendente: number;
 }
 
 /** "Enviados" — status default da aba Envios (issue 01): Conciliação + Faturado.
@@ -894,10 +901,18 @@ function chaveEnviosPorConvenio(params: ListarEnviosPorConvenioParams): string {
  * decrescente.
  *
  * Duas agregações em camada: a subconsulta `lp` traz qtd. de requisições e valor
- * POR LOTE (mesmas subconsultas correlacionadas de `SQL_LISTA`, para não
- * multiplicar linhas somando pelo LEFT JOIN direto de requisicao/fatrequisicaoprocedimento);
- * a consulta externa soma isso por `IdFontePagadora`. Sem LIMIT — a tela mostra
- * todos os convênios com movimentação, não uma página.
+ * POR LOTE; a consulta externa soma isso por `IdFontePagadora`. Sem LIMIT — a tela
+ * mostra todos os convênios com movimentação, não uma página.
+ *
+ * Diferente de `SQL_LISTA` (que usa subconsultas correlacionadas por lote, medidas
+ * em 635ms para uma página de 200), aqui `rq` pré-agrega requisicao/
+ * fatrequisicaoprocedimento por `Lote` numa ÚNICA consulta agrupada, restrita aos
+ * lotes do período via `WHERE r.Lote IN (SELECT IdLote FROM fatlote WHERE ...)` —
+ * sem isso, o custo de 2 subconsultas × N lotes do período (aqui sem paginação,
+ * podendo ser milhares) escala mal o bastante para estourar o timeout da function
+ * (era a causa provável do "Não foi possível consultar os envios por convênio.").
+ * `COUNT(DISTINCT ... CASE ...)` reproduz a mesma regra de `SQL_LISTA`: só conta
+ * requisição com ao menos uma linha em fatrequisicaoprocedimento.
  */
 export async function listarEnviosPorConvenio(
   params: ListarEnviosPorConvenioParams,
@@ -918,40 +933,56 @@ export async function listarEnviosPorConvenio(
       ...params.statusLotes,
     ];
     const where = condicoes.join(' AND ');
+    // `where` aparece duas vezes no texto (filtro de `rq` e filtro externo de `l`) —
+    // os valores entram na mesma ordem posicional dos `?` no SQL final.
+    const valoresRepetidos = [...valores, ...valores];
 
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT lp.IdFontePagadora AS IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
               COUNT(*) AS QtdLotes,
               COALESCE(SUM(lp.QtdRequisicoes), 0) AS QtdRequisicoes,
-              COALESCE(SUM(lp.ValorLote), 0) AS ValorTotal
+              COALESCE(SUM(lp.ValorLote), 0) AS ValorTotal,
+              COALESCE(SUM(lp.ValorRecebidoLote), 0) AS ValorRecebido,
+              COALESCE(SUM(lp.ValorPendenteLote), 0) AS ValorPendente
          FROM (
            SELECT l.IdLote, l.IdFontePagadora,
-                  (SELECT COUNT(*) FROM requisicao r
-                    WHERE r.Lote = l.IdLote
-                      AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f
-                                   WHERE f.IdRequisicao = r.IdRequisicao)) AS QtdRequisicoes,
-                  (SELECT COALESCE(SUM(frp.ValorLiquido), 0)
-                     FROM requisicao r
-                     JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
-                    WHERE r.Lote = l.IdLote) AS ValorLote
+                  COALESCE(rq.QtdRequisicoes, 0) AS QtdRequisicoes,
+                  COALESCE(rq.ValorLote, 0) AS ValorLote,
+                  COALESCE(rq.ValorRecebidoLote, 0) AS ValorRecebidoLote,
+                  COALESCE(rq.ValorPendenteLote, 0) AS ValorPendenteLote
              FROM fatlote l
+             LEFT JOIN (
+               SELECT r.Lote,
+                      COUNT(DISTINCT CASE WHEN frp.IdRequisicao IS NOT NULL THEN r.IdRequisicao END) AS QtdRequisicoes,
+                      COALESCE(SUM(frp.ValorLiquido), 0) AS ValorLote,
+                      COALESCE(SUM(frp.ValorRecebido), 0) AS ValorRecebidoLote,
+                      COALESCE(SUM(GREATEST(frp.ValorLiquido - COALESCE(frp.ValorRecebido, 0), 0)), 0) AS ValorPendenteLote
+                 FROM requisicao r
+                 JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+                WHERE r.Lote IN (SELECT IdLote FROM fatlote l WHERE ${where})
+                GROUP BY r.Lote
+             ) rq ON rq.Lote = l.IdLote
             WHERE ${where}
          ) lp
          LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = lp.IdFontePagadora
         GROUP BY lp.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial
         ORDER BY ValorTotal DESC`,
-      valores,
+      valoresRepetidos,
     );
 
     return {
-      convenios: linhas.map((linha) => ({
-        fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
-        nome: texto(linha.NomFantasia),
-        razaoSocial: texto(linha.RazaoSocial),
-        qtdLotes: numero(linha.QtdLotes),
-        qtdRequisicoes: numero(linha.QtdRequisicoes),
-        valorTotal: numero(linha.ValorTotal),
-      })),
+      convenios: linhas.map((linha) => {
+        return {
+          fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
+          nome: texto(linha.NomFantasia),
+          razaoSocial: texto(linha.RazaoSocial),
+          qtdLotes: numero(linha.QtdLotes),
+          qtdRequisicoes: numero(linha.QtdRequisicoes),
+          valorTotal: numero(linha.ValorTotal),
+          valorRecebido: numero(linha.ValorRecebido),
+          valorPendente: numero(linha.ValorPendente),
+        };
+      }),
     };
   }).then((resultado) => {
     if (!('erro' in resultado)) doCache(cacheEnviosPorConvenio, chave, resultado);
