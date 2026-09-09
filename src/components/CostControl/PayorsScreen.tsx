@@ -528,6 +528,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingLinha, setEditingLinha] = useState<ExameDaFontePagadora | null>(null);
   const [creatingNovaLinha, setCreatingNovaLinha] = useState(false);
+  const [creatingNovaFontePagadora, setCreatingNovaFontePagadora] = useState(false);
   const [payorFormOpen, setPayorFormOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -620,10 +621,16 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     setPayorFormOpen(true);
   };
 
+  const handleNovaFontePagadora = () => {
+    setCreatingNovaFontePagadora(true);
+    setPayorFormOpen(true);
+  };
+
   const handleCloseFormModal = () => {
     setPayorFormOpen(false);
     setEditingLinha(null);
     setCreatingNovaLinha(false);
+    setCreatingNovaFontePagadora(false);
   };
 
   const handleSavePayorEdit = async (data: PayorEditData) => {
@@ -632,6 +639,9 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         await updatePayor(editingLinha.payorId, data);
       } else {
         await createPayor(data);
+        if (creatingNovaFontePagadora) {
+          handleSelecionarFonte(data.payor);
+        }
       }
 
       // examesPorFontePagadora casa a linha com um exame pelo TUSS — se o
@@ -745,6 +755,15 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {podeGerenciar && (
+              <button
+                type="button"
+                onClick={handleNovaFontePagadora}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 active:scale-[.98] transition-all"
+              >
+                <Plus className="w-4 h-4" /> Nova Fonte Pagadora
+              </button>
+            )}
             {podeGerenciar && (
               <button
                 type="button"
@@ -885,6 +904,8 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
                 }
               : creatingNovaLinha
               ? { payor: fontePagadoraSelecionada ?? '', table: '', tus: '', price: 0 }
+              : creatingNovaFontePagadora
+              ? { payor: '', table: '', tus: '', price: 0 }
               : null
           }
           onClose={handleCloseFormModal}
