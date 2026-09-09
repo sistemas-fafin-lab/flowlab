@@ -68,6 +68,16 @@ export interface ExameDaFontePagadora {
   atendido: boolean;
 }
 
+/** Exame cujo TUSS bate com `tuss` — TUSS pode se repetir entre exames (sem
+ *  examId confiável vindo do APLIS), então usa a mesma regra de "último
+ *  vence" adotada em examesPorFontePagadora. */
+export function examePorTuss(exams: Exam[], tuss: string): Exam | undefined {
+  return exams.reduce<Exam | undefined>(
+    (ultimo, atual) => (atual.tuss === tuss ? atual : ultimo),
+    undefined,
+  );
+}
+
 /** Exames cobertos por uma fonte pagadora — join pelo TUSS
  *  (`Payor.tus` ↔ `Exam.tuss`), ordenados por valor cobrado crescente. */
 export function examesPorFontePagadora(

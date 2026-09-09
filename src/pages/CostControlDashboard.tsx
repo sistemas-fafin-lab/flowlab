@@ -117,6 +117,7 @@ const CostControlDashboard: React.FC = () => {
             createPayor={createPayor}
             deletePayor={deletePayor}
             importPayors={importPayors}
+            updateExam={updateExam}
           />
         )}
         {activeTab === 'analytics' && (

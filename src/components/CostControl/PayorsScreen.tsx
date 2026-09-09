@@ -24,11 +24,13 @@ import { useDialog } from '../../hooks/useDialog';
 import { hasPermission } from '../../utils/permissions';
 import ConfirmDialog from '../ConfirmDialog';
 import Notification from '../Notification';
+import ExamFormModal from './ExamFormModal';
 import PayorFormModal from './PayorFormModal';
 import PayorImportModal from './PayorImportModal';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
+  examePorTuss,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
   type ExameDaFontePagadora,
@@ -48,6 +50,7 @@ interface PayorsScreenProps {
   updatePayor: (id: string, data: PayorEditData) => Promise<void>;
   createPayor: (data: PayorEditData) => Promise<void>;
   deletePayor: (id: string) => Promise<void>;
+  updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
   importPayors: (
     fontePagadora: string,
     tabelaAssociada: string,
@@ -327,6 +330,7 @@ const VALOR_COLUNA_EXAME_DA_FONTE: Record<ColunaExameDaFonte, (item: ExameDaFont
 function TabelaExamesDaFonte({
   examesDaFonte,
   onSelectExame,
+  onEditExame,
   onToggleAtendido,
   onEditLinha,
   onDeleteLinha,
@@ -336,6 +340,7 @@ function TabelaExamesDaFonte({
 }: {
   examesDaFonte: ExameDaFontePagadora[];
   onSelectExame: (tuss: string) => void;
+  onEditExame: (tuss: string) => void;
   onToggleAtendido: (payorId: string, atendido: boolean) => void;
   onEditLinha: (item: ExameDaFontePagadora) => void;
   onDeleteLinha: (item: ExameDaFontePagadora) => void;
@@ -396,16 +401,28 @@ function TabelaExamesDaFonte({
               linhas.map(e => (
                 <tr key={`${e.payorId}-${e.tuss}-${e.tabelaAssociada}`} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
                   <td className="px-5 py-3.5">
-                    <button
-                      type="button"
-                      onClick={() => onSelectExame(e.tuss)}
-                      className="flex items-center gap-2 text-left hover:underline"
-                    >
-                      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
-                        <FlaskConical className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="font-semibold text-gray-800 dark:text-gray-100">{e.exame}</span>
-                    </button>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => onSelectExame(e.tuss)}
+                        className="flex items-center gap-2 text-left hover:underline"
+                      >
+                        <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                          <FlaskConical className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="font-semibold text-gray-800 dark:text-gray-100">{e.exame}</span>
+                      </button>
+                      {podeGerenciar && (
+                        <button
+                          type="button"
+                          onClick={() => onEditExame(e.tuss)}
+                          title="Editar exame"
+                          className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-500/10 transition-colors"
+                        >
+                          <Pencil className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="px-5 py-3.5 font-mono text-xs text-gray-500 dark:text-gray-400">{e.tuss}</td>
                   <td className="px-5 py-3.5">
@@ -514,6 +531,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   createPayor,
   deletePayor,
   importPayors,
+  updateExam,
 }) => {
   const { userProfile } = useAuth();
   const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
@@ -530,6 +548,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const [creatingNovaLinha, setCreatingNovaLinha] = useState(false);
   const [creatingNovaFontePagadora, setCreatingNovaFontePagadora] = useState(false);
   const [payorFormOpen, setPayorFormOpen] = useState(false);
+  const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Exames cobertos pela fonte pagadora selecionada (base pros dois casos em
@@ -593,15 +612,26 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   };
 
   const handleSelecionarExamePorTuss = (tuss: string) => {
-    // TUSS pode se repetir entre exames (sem examId confiável vindo do
-    // APLIS) — mesma regra de "último vence" usada em examesPorFontePagadora,
-    // pra bater com o exame que a tabela de origem realmente mostrou.
-    const exame = exams.reduce<Exam | undefined>(
-      (ultimo, atual) => (atual.tuss === tuss ? atual : ultimo),
-      undefined,
-    );
+    const exame = examePorTuss(exams, tuss);
     if (!exame) return;
     handleSelecionarExame(exame);
+  };
+
+  const handleEditExame = (tuss: string) => {
+    const exame = examePorTuss(exams, tuss);
+    if (!exame) return;
+    setEditingExam(exame);
+  };
+
+  const handleSaveExame = async (data: Omit<Exam, 'id'>) => {
+    if (!editingExam) return;
+    try {
+      await updateExam(editingExam.id, data);
+      showSuccess('Exame atualizado com sucesso!');
+      setEditingExam(null);
+    } catch (err) {
+      showError('Erro ao atualizar exame', err instanceof Error ? err.message : undefined);
+    }
   };
 
   const handleToggleAtendido = (payorId: string, atendido: boolean) => {
@@ -859,6 +889,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           key={`${fontePagadoraSelecionada}-${exameSelecionado?.tuss ?? ''}`}
           examesDaFonte={examesDaFonteFiltrados}
           onSelectExame={handleSelecionarExamePorTuss}
+          onEditExame={handleEditExame}
           onToggleAtendido={handleToggleAtendido}
           onEditLinha={handleEditLinha}
           onDeleteLinha={handleDeleteLinha}
@@ -910,6 +941,15 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           }
           onClose={handleCloseFormModal}
           onSave={handleSavePayorEdit}
+        />
+      )}
+
+      {podeGerenciar && (
+        <ExamFormModal
+          open={editingExam !== null}
+          exam={editingExam}
+          onClose={() => setEditingExam(null)}
+          onSave={handleSaveExame}
         />
       )}
 

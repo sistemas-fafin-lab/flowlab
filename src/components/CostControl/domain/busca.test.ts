@@ -3,6 +3,7 @@ import type { Exam, Payor } from '../../../hooks/useCostControl';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
+  examePorTuss,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
 } from './busca';
@@ -108,6 +109,29 @@ describe('buscarFontesPagadorasPorTermo', () => {
 
   it('deduplica fonte pagadora com múltiplas linhas pelo nome', () => {
     expect(buscarFontesPagadorasPorTermo(fontes, 'unimed')).toEqual(['Unimed']);
+  });
+});
+
+describe('examePorTuss', () => {
+  const exames = [
+    exame({ id: 'e1', name: 'Hemograma completo', tuss: '40304361' }),
+    exame({ id: 'e2', name: 'Glicemia de jejum', tuss: '40302040' }),
+  ];
+
+  it('tuss sem match devolve undefined', () => {
+    expect(examePorTuss(exames, '00000000')).toBeUndefined();
+  });
+
+  it('devolve o exame cujo tuss bate', () => {
+    expect(examePorTuss(exames, '40302040')).toEqual(exames[1]);
+  });
+
+  it('tuss repetido entre exames: último vence', () => {
+    const duplicados = [
+      exame({ id: 'e1', name: 'Nome antigo', tuss: '40304361' }),
+      exame({ id: 'e2', name: 'Nome novo', tuss: '40304361' }),
+    ];
+    expect(examePorTuss(duplicados, '40304361')).toEqual(duplicados[1]);
   });
 });
 
