@@ -6,20 +6,41 @@
 import type { Exam, Payor } from '../../../hooks/useCostControl';
 
 function normalizar(valor: string): string {
-  return valor.trim().toLowerCase();
+  return removerAcentos(valor.trim().toLowerCase());
 }
 
-/** Exames cujo nome OU código TUSS contém `termo` — correspondência parcial e
- *  case-insensitive. Termo vazio (ou só espaços) devolve lista vazia, não a
- *  lista inteira. */
-export function buscarExamesPorTermo(exams: Exam[], termo: string): Exam[] {
+function removerAcentos(valor: string): string {
+  return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+/** Compara `texto` com `termo` ignorando acentos e maiúsculas/minúsculas, e
+ *  casando de forma fuzzy: basta os caracteres de `termo` aparecerem em
+ *  `texto`, em ordem, não necessariamente contíguos (ex.: termo "bsd" casa
+ *  com "Bradesco Saúde"). Termo vazio nunca casa — quem quiser tratar termo
+ *  vazio como "casa com tudo" decide isso antes de chamar. */
+export function casaFuzzy(texto: string, termo: string): boolean {
+  const textoNormalizado = normalizar(texto);
   const termoNormalizado = normalizar(termo);
-  if (!termoNormalizado) return [];
+  if (!termoNormalizado) return false;
+
+  let posicao = 0;
+  for (const caractere of termoNormalizado) {
+    posicao = textoNormalizado.indexOf(caractere, posicao);
+    if (posicao === -1) return false;
+    posicao += 1;
+  }
+  return true;
+}
+
+/** Exames cujo nome OU código TUSS casam com `termo` — ignora acentos e
+ *  maiúsculas/minúsculas, e a correspondência é fuzzy (não precisa ser
+ *  substring contígua). Termo vazio (ou só espaços) devolve lista vazia, não
+ *  a lista inteira. */
+export function buscarExamesPorTermo(exams: Exam[], termo: string): Exam[] {
+  if (!normalizar(termo)) return [];
 
   return exams.filter(
-    (exame) =>
-      exame.name.toLowerCase().includes(termoNormalizado) ||
-      exame.tuss.toLowerCase().includes(termoNormalizado),
+    (exame) => casaFuzzy(exame.name, termo) || casaFuzzy(exame.tuss, termo),
   );
 }
 
@@ -30,34 +51,34 @@ export function fontesPagadorasPorTuss(payors: Payor[], tuss: string): Payor[] {
   if (!tussNormalizado) return [];
 
   return payors
-    .filter((fonte) => fonte.tus.toLowerCase() === tussNormalizado)
+    .filter((fonte) => normalizar(fonte.tus) === tussNormalizado)
     .sort((a, b) => a.price - b.price);
 }
 
-/** Nomes de fonte pagadora (deduplicados) cujo nome contém `termo` —
- *  correspondência parcial e case-insensitive. Termo vazio (ou só espaços)
- *  devolve lista vazia, não a lista inteira. */
+/** Nomes de fonte pagadora (deduplicados) cujo nome casa com `termo` —
+ *  ignora acentos e maiúsculas/minúsculas, e a correspondência é fuzzy (não
+ *  precisa ser substring contígua). Termo vazio (ou só espaços) devolve
+ *  lista vazia, não a lista inteira. */
 export function buscarFontesPagadorasPorTermo(payors: Payor[], termo: string): string[] {
-  const termoNormalizado = normalizar(termo);
-  if (!termoNormalizado) return [];
+  if (!normalizar(termo)) return [];
 
   const nomes = payors
     .map((fonte) => fonte.payor)
-    .filter((nome) => nome.toLowerCase().includes(termoNormalizado));
+    .filter((nome) => casaFuzzy(nome, termo));
 
   return Array.from(new Set(nomes));
 }
 
-/** Nomes de tabela associada (deduplicados) cujo nome contém `termo` —
- *  correspondência parcial e case-insensitive. Termo vazio (ou só espaços)
- *  devolve lista vazia, não a lista inteira. */
+/** Nomes de tabela associada (deduplicados) cujo nome casa com `termo` —
+ *  ignora acentos e maiúsculas/minúsculas, e a correspondência é fuzzy (não
+ *  precisa ser substring contígua). Termo vazio (ou só espaços) devolve
+ *  lista vazia, não a lista inteira. */
 export function buscarTabelasAssociadasPorTermo(payors: Payor[], termo: string): string[] {
-  const termoNormalizado = normalizar(termo);
-  if (!termoNormalizado) return [];
+  if (!normalizar(termo)) return [];
 
   const tabelas = payors
     .map((fonte) => fonte.table)
-    .filter((tabela) => tabela.toLowerCase().includes(termoNormalizado));
+    .filter((tabela) => casaFuzzy(tabela, termo));
 
   return Array.from(new Set(tabelas));
 }
@@ -105,7 +126,7 @@ export function examesPorFontePagadora(
   const examesPorTuss = new Map(exams.map((exame) => [exame.tuss, exame]));
 
   return payors
-    .filter((fonte) => fonte.payor.toLowerCase() === nomeNormalizado)
+    .filter((fonte) => normalizar(fonte.payor) === nomeNormalizado)
     .flatMap((fonte) => {
       const exame = examesPorTuss.get(fonte.tus);
       if (!exame) return [];

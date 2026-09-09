@@ -58,6 +58,11 @@ interface PayorsScreenProps {
   ) => Promise<number>;
 }
 
+// Dados de uma linha em edição no PayorFormModal — comum às duas tabelas de
+// resultado (TabelaExamesDaFonte e TabelaFontesPagadoras), que expõem campos
+// diferentes pra mesma linha de Payor.
+type LinhaEditavel = PayorEditData & { payorId: string };
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // ORDENAÇÃO DAS TABELAS DE RESULTADO
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -216,20 +221,34 @@ function CampoBusca<T>({
   );
 }
 
-type ColunaFontePagadora = 'payor' | 'table' | 'price';
+type ColunaFontePagadora = 'payor' | 'table' | 'price' | 'atendido';
 
 const VALOR_COLUNA_FONTE_PAGADORA: Record<ColunaFontePagadora, (item: Payor) => string | number> = {
   payor: item => item.payor,
   table: item => item.table,
   price: item => item.price,
+  atendido: item => (item.atendido ? 1 : 0),
 };
 
 function TabelaFontesPagadoras({
   fontesPagadoras,
+  custo,
   onSelectFontePagadora,
+  onToggleAtendido,
+  onEditLinha,
+  onDeleteLinha,
+  podeGerenciar,
 }: {
   fontesPagadoras: Payor[];
+  // Custo Total (direct + indirect) do exame selecionado, cadastrado na aba
+  // Exames — igual pra todas as linhas aqui, já que a tabela é fixada num
+  // único exame.
+  custo: number;
   onSelectFontePagadora: (nome: string) => void;
+  onToggleAtendido: (payorId: string, atendido: boolean) => void;
+  onEditLinha: (item: Payor) => void;
+  onDeleteLinha: (item: Payor) => void;
+  podeGerenciar: boolean;
 }) {
   const [ordenacao, setOrdenacao] = useState<EstadoOrdenacao>(ORDENACAO_PADRAO);
   const alternar = (coluna: ColunaFontePagadora) => setOrdenacao(atual => alternarOrdenacao(atual, coluna));
@@ -254,12 +273,15 @@ function TabelaFontesPagadoras({
               <CabecalhoOrdenavel coluna="payor" titulo="Fonte Pagadora" ordenacao={ordenacao} onClick={alternar} />
               <CabecalhoOrdenavel coluna="table" titulo="Tabela Associada" ordenacao={ordenacao} onClick={alternar} />
               <CabecalhoOrdenavel coluna="price" titulo="Valor Cobrado" ordenacao={ordenacao} onClick={alternar} align="right" />
+              <th className="px-5 py-3 text-right font-bold">Custo</th>
+              <CabecalhoOrdenavel coluna="atendido" titulo="Atendido" ordenacao={ordenacao} onClick={alternar} align="right" />
+              {podeGerenciar && <th className="px-5 py-3 text-right font-bold w-24">Ações</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {linhas.length === 0 ? (
               <tr>
-                <td colSpan={3} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                <td colSpan={podeGerenciar ? 6 : 5} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                   Nenhuma fonte pagadora cadastrada para este exame.
                 </td>
               </tr>
@@ -287,6 +309,53 @@ function TabelaFontesPagadoras({
                   <td className="px-5 py-3.5 text-right tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
                     {formatBRL(p.price)}
                   </td>
+                  <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
+                    {formatBRL(custo)}
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <button
+                      type="button"
+                      onClick={() => onToggleAtendido(p.id, !p.atendido)}
+                      disabled={!podeGerenciar}
+                      aria-pressed={p.atendido}
+                      title={
+                        podeGerenciar
+                          ? p.atendido
+                            ? 'Atendido pelo plano de saúde — clique para marcar como só particular'
+                            : 'Só atendido como particular — clique para marcar como atendido pelo plano'
+                          : 'Somente leitura — requer permissão para gerenciar contas a receber'
+                      }
+                      className={`ml-auto flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${
+                        p.atendido
+                          ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                          : 'bg-transparent border-gray-300 dark:border-gray-600 text-transparent'
+                      } ${podeGerenciar ? '' : 'opacity-60 cursor-not-allowed'}`}
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                    </button>
+                  </td>
+                  {podeGerenciar && (
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onEditLinha(p)}
+                          title="Editar"
+                          className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-500/10 transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteLinha(p)}
+                          title="Excluir"
+                          className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-500/10 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -298,8 +367,17 @@ function TabelaFontesPagadoras({
           {linhas.length} {linhas.length === 1 ? 'fonte pagadora' : 'fontes pagadoras'}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <Lock className="w-3 h-3" />
-          Dados somente leitura — espelhados do APLIS
+          {podeGerenciar ? (
+            <>
+              <Pencil className="w-3 h-3" />
+              Editável manualmente — reimportação pode sobrescrever alterações
+            </>
+          ) : (
+            <>
+              <Lock className="w-3 h-3" />
+              Somente leitura — requer permissão para gerenciar contas a receber
+            </>
+          )}
         </span>
       </div>
     </div>
@@ -544,7 +622,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
-  const [editingLinha, setEditingLinha] = useState<ExameDaFontePagadora | null>(null);
+  const [editingLinha, setEditingLinha] = useState<LinhaEditavel | null>(null);
   const [creatingNovaLinha, setCreatingNovaLinha] = useState(false);
   const [creatingNovaFontePagadora, setCreatingNovaFontePagadora] = useState(false);
   const [payorFormOpen, setPayorFormOpen] = useState(false);
@@ -641,10 +719,22 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     });
   };
 
-  const handleEditLinha = (item: ExameDaFontePagadora) => {
+  const handleEditLinha = (item: LinhaEditavel) => {
     setEditingLinha(item);
     setPayorFormOpen(true);
   };
+
+  const handleEditExameDaFonte = (item: ExameDaFontePagadora) =>
+    handleEditLinha({
+      payorId: item.payorId,
+      payor: fontePagadoraSelecionada ?? '',
+      table: item.tabelaAssociada,
+      tus: item.tuss,
+      price: item.valorCobrado,
+    });
+
+  const handleEditFontePagadora = (item: Payor) =>
+    handleEditLinha({ payorId: item.id, payor: item.payor, table: item.table, tus: item.tus, price: item.price });
 
   const handleNovaLinha = () => {
     setCreatingNovaLinha(true);
@@ -694,13 +784,13 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     }
   };
 
-  const handleDeleteLinha = (item: ExameDaFontePagadora) => {
+  const handleDeleteLinha = (payorId: string, descricao: string) => {
     showConfirmDialog(
       'Excluir linha',
-      `Tem certeza que deseja excluir a linha de "${item.exame}" (TUSS ${item.tuss})? Esta ação não pode ser desfeita.`,
+      `Tem certeza que deseja excluir a linha de "${descricao}"? Esta ação não pode ser desfeita.`,
       async () => {
         try {
-          await deletePayor(item.payorId);
+          await deletePayor(payorId);
           showSuccess('Linha excluída com sucesso!');
         } catch (err) {
           showError('Erro ao excluir linha', err instanceof Error ? err.message : undefined);
@@ -709,6 +799,12 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       { type: 'danger', confirmText: 'Excluir' }
     );
   };
+
+  const handleDeleteExameDaFonte = (item: ExameDaFontePagadora) =>
+    handleDeleteLinha(item.payorId, `${item.exame} (TUSS ${item.tuss})`);
+
+  const handleDeleteFontePagadora = (item: Payor) =>
+    handleDeleteLinha(item.id, `${item.payor} (${item.table})`);
 
   const mostrarConvite = !fontePagadoraSelecionada && !exameSelecionado;
 
@@ -891,8 +987,8 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           onSelectExame={handleSelecionarExamePorTuss}
           onEditExame={handleEditExame}
           onToggleAtendido={handleToggleAtendido}
-          onEditLinha={handleEditLinha}
-          onDeleteLinha={handleDeleteLinha}
+          onEditLinha={handleEditExameDaFonte}
+          onDeleteLinha={handleDeleteExameDaFonte}
           onNovaLinha={handleNovaLinha}
           podeGerenciar={podeGerenciar}
           mensagemVazia={
@@ -907,7 +1003,12 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         <TabelaFontesPagadoras
           key={exameSelecionado.tuss}
           fontesPagadoras={fontesDoExame}
+          custo={exameSelecionado.direct + exameSelecionado.indirect}
           onSelectFontePagadora={handleSelecionarFonte}
+          onToggleAtendido={handleToggleAtendido}
+          onEditLinha={handleEditFontePagadora}
+          onDeleteLinha={handleDeleteFontePagadora}
+          podeGerenciar={podeGerenciar}
         />
       )}
 
@@ -929,12 +1030,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           payors={payors}
           payor={
             editingLinha
-              ? {
-                  payor: fontePagadoraSelecionada ?? '',
-                  table: editingLinha.tabelaAssociada,
-                  tus: editingLinha.tuss,
-                  price: editingLinha.valorCobrado,
-                }
+              ? { payor: editingLinha.payor, table: editingLinha.table, tus: editingLinha.tus, price: editingLinha.price }
               : creatingNovaLinha
               ? { payor: fontePagadoraSelecionada ?? '', table: '', tus: '', price: 0 }
               : creatingNovaFontePagadora

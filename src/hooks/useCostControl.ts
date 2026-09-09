@@ -132,6 +132,7 @@ export const buscarTodasFontesPagadoras = async (): Promise<Payor[]> => {
       .from('custo_fontes_pagadoras')
       .select('*')
       .order('fonte_pagadora', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, from + pageSize - 1);
 
     if (error) throw error;

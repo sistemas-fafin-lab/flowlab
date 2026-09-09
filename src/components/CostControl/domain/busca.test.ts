@@ -54,6 +54,15 @@ describe('buscarExamesPorTermo', () => {
     expect(buscarExamesPorTermo(exames, 'HEMOgrama')).toEqual([exames[0]]);
   });
 
+  it('casa ignorando acentos', () => {
+    const comAcento = [exame({ id: 'e4', name: 'Colesterol LDL — avaliação', tuss: '40304399' })];
+    expect(buscarExamesPorTermo(comAcento, 'avaliacao')).toEqual(comAcento);
+  });
+
+  it('casa de forma fuzzy, sem precisar ser substring contígua', () => {
+    expect(buscarExamesPorTermo(exames, 'hmgcmplt')).toEqual([exames[0]]);
+  });
+
   it('casa por código TUSS, parcial, não precisa ser o código completo', () => {
     expect(buscarExamesPorTermo(exames, '403043')).toEqual([exames[0], exames[2]]);
   });
@@ -111,6 +120,15 @@ describe('buscarFontesPagadorasPorTermo', () => {
   it('deduplica fonte pagadora com múltiplas linhas pelo nome', () => {
     expect(buscarFontesPagadorasPorTermo(fontes, 'unimed')).toEqual(['Unimed']);
   });
+
+  it('casa ignorando acentos, nos dois sentidos', () => {
+    expect(buscarFontesPagadorasPorTermo(fontes, 'saude')).toEqual(['Bradesco Saúde']);
+    expect(buscarFontesPagadorasPorTermo(fontes, 'sAÚDE')).toEqual(['Bradesco Saúde']);
+  });
+
+  it('casa de forma fuzzy, sem precisar ser substring contígua', () => {
+    expect(buscarFontesPagadorasPorTermo(fontes, 'brdscsaude')).toEqual(['Bradesco Saúde']);
+  });
 });
 
 describe('buscarTabelasAssociadasPorTermo', () => {
@@ -135,6 +153,10 @@ describe('buscarTabelasAssociadasPorTermo', () => {
 
   it('deduplica tabela associada com múltiplas linhas pelo nome', () => {
     expect(buscarTabelasAssociadasPorTermo(fontes, 'unimed')).toEqual(['Unimed Coop.', 'Unimed Nacional']);
+  });
+
+  it('casa de forma fuzzy, sem precisar ser substring contígua', () => {
+    expect(buscarTabelasAssociadasPorTermo(fontes, 'unmdnac')).toEqual(['Unimed Nacional']);
   });
 });
 
