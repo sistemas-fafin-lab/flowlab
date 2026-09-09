@@ -10,15 +10,20 @@ import {
   Download,
   FlaskConical,
   Lock,
+  Pencil,
   Search,
+  Trash2,
   Upload,
   X,
 } from 'lucide-react';
-import { Exam, Payor, buscarTodasFontesPagadoras, formatBRL, formatPct } from '../../hooks/useCostControl';
+import { Exam, Payor, PayorEditData, buscarTodasFontesPagadoras, formatBRL, formatPct } from '../../hooks/useCostControl';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
+import { useDialog } from '../../hooks/useDialog';
 import { hasPermission } from '../../utils/permissions';
+import ConfirmDialog from '../ConfirmDialog';
 import Notification from '../Notification';
+import PayorFormModal from './PayorFormModal';
 import PayorImportModal from './PayorImportModal';
 import {
   buscarExamesPorTermo,
@@ -39,6 +44,8 @@ interface PayorsScreenProps {
   payors: Payor[];
   exams: Exam[];
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
+  updatePayor: (id: string, data: PayorEditData) => Promise<void>;
+  deletePayor: (id: string) => Promise<void>;
   importPayors: (
     fontePagadora: string,
     tabelaAssociada: string,
@@ -319,13 +326,17 @@ function TabelaExamesDaFonte({
   examesDaFonte,
   onSelectExame,
   onToggleAtendido,
-  podeEditarAtendido,
+  onEditLinha,
+  onDeleteLinha,
+  podeGerenciar,
   mensagemVazia = 'Nenhum exame cadastrado para esta fonte pagadora.',
 }: {
   examesDaFonte: ExameDaFontePagadora[];
   onSelectExame: (tuss: string) => void;
   onToggleAtendido: (payorId: string, atendido: boolean) => void;
-  podeEditarAtendido: boolean;
+  onEditLinha: (item: ExameDaFontePagadora) => void;
+  onDeleteLinha: (item: ExameDaFontePagadora) => void;
+  podeGerenciar: boolean;
   mensagemVazia?: string;
 }) {
   const [ordenacao, setOrdenacao] = useState<EstadoOrdenacao>(ORDENACAO_PADRAO);
@@ -356,12 +367,13 @@ function TabelaExamesDaFonte({
               <CabecalhoOrdenavel coluna="dif" titulo="Dif" ordenacao={ordenacao} onClick={alternar} align="right" />
               <CabecalhoOrdenavel coluna="percentualCsp" titulo="%CSP" ordenacao={ordenacao} onClick={alternar} align="right" />
               <CabecalhoOrdenavel coluna="atendido" titulo="Atendido" ordenacao={ordenacao} onClick={alternar} align="right" />
+              {podeGerenciar && <th className="px-5 py-3 text-right font-bold w-24">Ações</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {linhas.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                <td colSpan={podeGerenciar ? 9 : 8} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
                   {mensagemVazia}
                 </td>
               </tr>
@@ -407,10 +419,10 @@ function TabelaExamesDaFonte({
                     <button
                       type="button"
                       onClick={() => onToggleAtendido(e.payorId, !e.atendido)}
-                      disabled={!podeEditarAtendido}
+                      disabled={!podeGerenciar}
                       aria-pressed={e.atendido}
                       title={
-                        podeEditarAtendido
+                        podeGerenciar
                           ? e.atendido
                             ? 'Atendido pelo plano de saúde — clique para marcar como só particular'
                             : 'Só atendido como particular — clique para marcar como atendido pelo plano'
@@ -420,11 +432,33 @@ function TabelaExamesDaFonte({
                         e.atendido
                           ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
                           : 'bg-transparent border-gray-300 dark:border-gray-600 text-transparent'
-                      } ${podeEditarAtendido ? '' : 'opacity-60 cursor-not-allowed'}`}
+                      } ${podeGerenciar ? '' : 'opacity-60 cursor-not-allowed'}`}
                     >
                       <Check className="w-3.5 h-3.5" />
                     </button>
                   </td>
+                  {podeGerenciar && (
+                    <td className="px-5 py-3.5">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          type="button"
+                          onClick={() => onEditLinha(e)}
+                          title="Editar"
+                          className="p-2 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-500/10 transition-colors"
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => onDeleteLinha(e)}
+                          title="Excluir"
+                          className="p-2 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-500/10 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))
             )}
@@ -436,9 +470,17 @@ function TabelaExamesDaFonte({
           {linhas.length} {linhas.length === 1 ? 'exame' : 'exames'}
         </span>
         <span className="inline-flex items-center gap-1.5">
-          <Lock className="w-3 h-3" />
-          Valores somente leitura — espelhados do APLIS
-          {podeEditarAtendido ? ' · Atendido é editável' : ''}
+          {podeGerenciar ? (
+            <>
+              <Pencil className="w-3 h-3" />
+              Editável manualmente — reimportação pode sobrescrever alterações
+            </>
+          ) : (
+            <>
+              <Lock className="w-3 h-3" />
+              Somente leitura — requer permissão para gerenciar contas a receber
+            </>
+          )}
         </span>
       </div>
     </div>
@@ -449,10 +491,18 @@ function TabelaExamesDaFonte({
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorAtendido, importPayors }) => {
+const PayorsScreen: React.FC<PayorsScreenProps> = ({
+  payors,
+  exams,
+  updatePayorAtendido,
+  updatePayor,
+  deletePayor,
+  importPayors,
+}) => {
   const { userProfile } = useAuth();
   const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
-  const { notification, showError, hideNotification } = useNotification();
+  const { notification, showSuccess, showError, hideNotification } = useNotification();
+  const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
   const [termoFonte, setTermoFonte] = useState('');
   const [termoExame, setTermoExame] = useState('');
   const [fontePagadoraSelecionada, setFontePagadoraSelecionada] = useState<string | null>(null);
@@ -460,6 +510,8 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportando, setExportando] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [editingLinha, setEditingLinha] = useState<ExameDaFontePagadora | null>(null);
+  const [payorFormOpen, setPayorFormOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Exames cobertos pela fonte pagadora selecionada (base pros dois casos em
@@ -539,6 +591,43 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
       console.error('Falha ao atualizar Atendido da fonte pagadora', err);
       showError('Erro ao atualizar Atendido', err instanceof Error ? err.message : undefined);
     });
+  };
+
+  const handleEditLinha = (item: ExameDaFontePagadora) => {
+    setEditingLinha(item);
+    setPayorFormOpen(true);
+  };
+
+  const handleCloseFormModal = () => {
+    setPayorFormOpen(false);
+    setEditingLinha(null);
+  };
+
+  const handleSavePayorEdit = async (data: PayorEditData) => {
+    if (!editingLinha) return;
+    try {
+      await updatePayor(editingLinha.payorId, data);
+      showSuccess('Fonte pagadora atualizada com sucesso!');
+      handleCloseFormModal();
+    } catch (err) {
+      showError('Erro ao atualizar fonte pagadora', err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleDeleteLinha = (item: ExameDaFontePagadora) => {
+    showConfirmDialog(
+      'Excluir linha',
+      `Tem certeza que deseja excluir a linha de "${item.exame}" (TUSS ${item.tuss})? Esta ação não pode ser desfeita.`,
+      async () => {
+        try {
+          await deletePayor(item.payorId);
+          showSuccess('Linha excluída com sucesso!');
+        } catch (err) {
+          showError('Erro ao excluir linha', err instanceof Error ? err.message : undefined);
+        }
+      },
+      { type: 'danger', confirmText: 'Excluir' }
+    );
   };
 
   const mostrarConvite = !fontePagadoraSelecionada && !exameSelecionado;
@@ -712,7 +801,9 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
           examesDaFonte={examesDaFonteFiltrados}
           onSelectExame={handleSelecionarExamePorTuss}
           onToggleAtendido={handleToggleAtendido}
-          podeEditarAtendido={podeGerenciar}
+          onEditLinha={handleEditLinha}
+          onDeleteLinha={handleDeleteLinha}
+          podeGerenciar={podeGerenciar}
           mensagemVazia={
             exameSelecionado
               ? 'Este exame não está cadastrado para esta fonte pagadora.'
@@ -739,12 +830,40 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({ payors, exams, updatePayorA
         />
       )}
 
+      {podeGerenciar && (
+        <PayorFormModal
+          open={payorFormOpen}
+          payor={
+            editingLinha
+              ? {
+                  payor: fontePagadoraSelecionada ?? '',
+                  table: editingLinha.tabelaAssociada,
+                  tus: editingLinha.tuss,
+                  price: editingLinha.valorCobrado,
+                }
+              : null
+          }
+          onClose={handleCloseFormModal}
+          onSave={handleSavePayorEdit}
+        />
+      )}
+
       <Notification
         type={notification.type}
         title={notification.title}
         message={notification.message}
         isVisible={notification.isVisible}
         onClose={hideNotification}
+      />
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        confirmText={confirmDialog.confirmText}
+        cancelText={confirmDialog.cancelText}
+        type={confirmDialog.type}
+        onConfirm={handleConfirmDialogConfirm}
+        onCancel={hideConfirmDialog}
       />
     </div>
   );

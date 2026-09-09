@@ -35,6 +35,10 @@ export interface Payor {
   atendido: boolean;
 }
 
+// Campos editáveis de uma linha de fonte pagadora via PayorFormModal — não
+// inclui `atendido` (editado via toggle inline, updatePayorAtendido).
+export type PayorEditData = Pick<Payor, 'payor' | 'table' | 'tus' | 'price'>;
+
 export interface UseCostControlReturn {
   exams: Exam[];
   payors: Payor[];
@@ -44,6 +48,8 @@ export interface UseCostControlReturn {
   deleteExam: (id: string) => Promise<void>;
   importExams: (rows: Omit<Exam, 'id'>[]) => Promise<number>;
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
+  updatePayor: (id: string, data: PayorEditData) => Promise<void>;
+  deletePayor: (id: string) => Promise<void>;
   importPayors: (
     fontePagadora: string,
     tabelaAssociada: string,
@@ -209,6 +215,30 @@ export const useCostControl = (): UseCostControlReturn => {
     setPayors(prev => prev.map(p => (p.id === id ? { ...p, atendido } : p)));
   }, []);
 
+  const updatePayor = useCallback(async (id: string, data: PayorEditData) => {
+    const { data: updated, error } = await supabase
+      .from('custo_fontes_pagadoras')
+      .update({
+        fonte_pagadora: data.payor,
+        tabela_associada: data.table,
+        tuss: data.tus,
+        valor: data.price,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    const mapped = mapPayorRow(updated);
+    setPayors(prev => prev.map(p => (p.id === id ? mapped : p)));
+  }, []);
+
+  const deletePayor = useCallback(async (id: string) => {
+    const { error } = await supabase.from('custo_fontes_pagadoras').delete().eq('id', id);
+    if (error) throw error;
+    setPayors(prev => prev.filter(p => p.id !== id));
+  }, []);
+
   // Casamento (upsert) por fonte_pagadora + tabela_associada + tuss — uma
   // mesma fonte pagadora pode ter dezenas de tabelas associadas (convênios)
   // com o mesmo TUSS e valores diferentes (ex.: AMHP-DF tem 37), então casar
@@ -275,6 +305,8 @@ export const useCostControl = (): UseCostControlReturn => {
     deleteExam,
     importExams,
     updatePayorAtendido,
+    updatePayor,
+    deletePayor,
     importPayors,
   };
 };
