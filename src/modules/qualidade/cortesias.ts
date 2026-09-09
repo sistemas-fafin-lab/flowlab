@@ -58,7 +58,7 @@ export function buscarColaboradoresCortesia(): Promise<ItemVocabularioCortesia[]
 
 const SELECT_CORTESIA =
   'id, cod_requisicao, dta_solicitacao, dta_autorizacao, clinica_id_lis, clinica_nome, exame_nome, ' +
-  'valor_particular, valor_particular_corrigido, valor_cobrado, valor_concedido, valor_concedido_corrigido, autorizado_por_lis, observacoes_lis, parsing_falhou, ' +
+  'valor_particular, valor_particular_corrigido, valor_cobrado, valor_concedido, valor_concedido_corrigido, autorizado_por_lis, solicitado_por_lis, observacoes_lis, parsing_falhou, ' +
   'dias_ate_autorizacao, situacao_prazo, aprovada_fora_do_prazo, divergencia_valores, preco_cortesia_nao_cadastrado, ' +
   'motivo_id, classificacao_id, autorizado_por_corrigido, observacoes_curadas, status_curadoria, revisao_pendente, ' +
   'curado_por, curado_em, ' +
@@ -78,6 +78,7 @@ interface LinhaBrutaCortesia {
   valor_concedido: number | null;
   valor_concedido_corrigido: number | null;
   autorizado_por_lis: string | null;
+  solicitado_por_lis: string | null;
   observacoes_lis: string | null;
   parsing_falhou: boolean;
   dias_ate_autorizacao: number | null;
@@ -113,6 +114,7 @@ function mapearParaDTO(linha: LinhaBrutaCortesia, nomePacienteLis: string | null
     valorConcedido: linha.valor_concedido,
     valorConcedidoCorrigido: linha.valor_concedido_corrigido,
     autorizadoPorLis: linha.autorizado_por_lis,
+    solicitadoPorLis: linha.solicitado_por_lis,
     observacoesLis: linha.observacoes_lis,
     parsingFalhou: linha.parsing_falhou,
     diasAteAutorizacao: linha.dias_ate_autorizacao,

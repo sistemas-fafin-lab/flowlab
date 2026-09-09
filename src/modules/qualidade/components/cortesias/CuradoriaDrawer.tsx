@@ -212,6 +212,12 @@ export function CuradoriaDrawer({ id, canManage, onFechar }: CuradoriaDrawerProp
                 </dd>
               </div>
               <div>
+                <dt className="font-medium text-slate-700 dark:text-slate-300">Solicitado por (LIS)</dt>
+                <dd className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-slate-400">
+                  {data.solicitadoPorLis || '—'}
+                </dd>
+              </div>
+              <div>
                 <dt className="font-medium text-slate-700 dark:text-slate-300">Observações (LIS)</dt>
                 <dd className="mt-1 whitespace-pre-wrap text-gray-600 dark:text-slate-400">
                   {data.observacoesLis || '—'}

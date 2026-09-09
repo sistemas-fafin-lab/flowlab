@@ -19,15 +19,21 @@
 //               + requisicaopeca + topografia + paciente
 //
 // ── Pontos em aberto (revisar com dado real antes de confiar 100%) ─────────
-// 1. Cortesias: `requisicaoautorizacao` tem chave composta (IdRequisicao,
-//    Tipo) e não existe, no schema, uma tabela de descrição para `Tipo`/
-//    `IdMotivo` que confirme qual valor identifica espificamente uma
-//    autorização de CORTESIA (vs. outros tipos de autorização que a mesma
-//    tabela pode guardar). Filtrado por `APLIS_CORTESIA_TIPO_AUTORIZACAO`
-//    (opcional) — sem essa env, o sync traz TODAS as autorizações do
-//    período; a curadoria (status "descartada") é a rede de segurança para
-//    quem não for cortesia de fato. Configurar a env assim que o valor
-//    correto for confirmado com o time do LIS.
+// 1. [RESOLVIDO] Cortesias — dois achados confirmados ao vivo em 2026-09-09:
+//    a. `ra.Tipo` não é o problema: tem um único valor possível no banco
+//       inteiro (3, 622/622 linhas) — não existe nada pra filtrar aí, então
+//       `APLIS_CORTESIA_TIPO_AUTORIZACAO` nunca teria efeito. Mantido como
+//       filtro opcional só por segurança caso o LIS venha a usar outros
+//       valores de `Tipo` no futuro.
+//    b. O bug real: `autorizadoPorLis` vinha de `ra.Solicitante` (quem digitou
+//       o pedido — qualquer atendente de qualquer setor, sempre igual ao
+//       `IdUsuario` que criou a linha), não de quem de fato autoriza. Trocado
+//       para `ra.IdAutorizador` (join `autusuario`) — só 8 pessoas distintas
+//       no LIS inteiro, dominado por 3 (98% das 622 linhas). `Solicitante`
+//       continua exposto, mas como `solicitadoPorLis`, campo separado.
+//    c. Query agora filtra `ra.Autorizado = 1` — sem isso, autorizações
+//       rejeitadas (`=0`, 9 linhas) e sem decisão (`NULL`, 27 linhas) também
+//       apareciam na aba como se fossem cortesias concedidas.
 // 2. Ocorrências: não foi encontrada, no schema, uma tabela de descrição
 //    para `ocorrencia.Origem` (não é `tabelacodigoitem` — CodTabela
 //    desconhecido) — `categoria_origem_lis` sai sempre `null` e
@@ -239,7 +245,10 @@ export interface AutorizacaoCortesiaLis {
   clinicaIdLis: number | null;
   clinicaNome: string | null;
   exameNome: string | null;
+  /** `ra.IdAutorizador` (via `autusuario`) — quem de fato aprovou, não quem digitou o pedido. Ver ponto 1 do cabeçalho. */
   autorizadoPorLis: string | null;
+  /** `ra.Solicitante` — quem deu entrada no pedido (qualquer atendente/setor); informativo, nunca "autorizador". */
+  solicitadoPorLis: string | null;
   observacoesLis: string | null;
   /** `fatrequisicaoprocedimento.ValorBruto` — preço cheio do procedimento (já multiplicado por Quantidade). */
   valorParticular: number | null;
@@ -276,15 +285,16 @@ export async function listarAutorizacoesCortesiaLis(inicio: string, fim: string)
               DATE_FORMAT(ra.DtaCriacao, '%Y-%m-%d') AS DtaSolicitacao,
               DATE_FORMAT(ra.DtaFinalizacao, '%Y-%m-%d') AS DtaAutorizacao,
               r.IdConvenio, fc.NomConvenio, ev.DesEvento,
-              ra.Solicitante, ra.Observacao,
+              au.NomUsuario AS AutorizadoPor, ra.Solicitante, ra.Observacao,
               SUM(fp.ValorBruto) AS ValorBruto, SUM(fp.ValorCobrado) AS ValorCobrado
          FROM requisicaoautorizacao ra
          JOIN requisicao r ON r.IdRequisicao = ra.IdRequisicao
          LEFT JOIN fatconvenio fc ON fc.IdConvenio = r.IdConvenio
          LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
          LEFT JOIN fatrequisicaoprocedimento fp ON fp.IdRequisicao = ra.IdRequisicao
-        WHERE ${periodo.sql} ${filtroTipo}
-        GROUP BY r.IdRequisicao, r.CodRequisicao, ra.DtaCriacao, ra.DtaFinalizacao, r.IdConvenio, fc.NomConvenio, ev.DesEvento, ra.Solicitante, ra.Observacao
+         LEFT JOIN autusuario au ON au.IdUsuario = ra.IdAutorizador
+        WHERE ${periodo.sql} ${filtroTipo} AND ra.Autorizado = 1
+        GROUP BY r.IdRequisicao, r.CodRequisicao, ra.DtaCriacao, ra.DtaFinalizacao, r.IdConvenio, fc.NomConvenio, ev.DesEvento, au.NomUsuario, ra.Solicitante, ra.Observacao
         ORDER BY ra.DtaCriacao DESC`,
       valores,
     );
@@ -297,7 +307,8 @@ export async function listarAutorizacoesCortesiaLis(inicio: string, fim: string)
         clinicaIdLis: inteiroOuNulo(linha.IdConvenio),
         clinicaNome: texto(linha.NomConvenio),
         exameNome: texto(linha.DesEvento),
-        autorizadoPorLis: texto(linha.Solicitante),
+        autorizadoPorLis: texto(linha.AutorizadoPor),
+        solicitadoPorLis: texto(linha.Solicitante),
         observacoesLis: texto(linha.Observacao),
         valorParticular: numero(linha.ValorBruto),
         valorCobrado: numero(linha.ValorCobrado),

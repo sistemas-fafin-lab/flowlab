@@ -190,6 +190,14 @@ const colunas: ColunaTabela<CortesiaDTO>[] = [
     filtravel: true,
     larguraMin: 'min-w-[10rem]',
   },
+  {
+    chave: 'solicitadoPor',
+    titulo: 'Solicitado por',
+    valor: (item) => item.solicitadoPorLis ?? '',
+    quebrarLinha: true,
+    filtravel: true,
+    larguraMin: 'min-w-[10rem]',
+  },
   // Observações (LIS) deixa as rows muito altas e já está disponível por
   // completo no CuradoriaDrawer (clique na linha) — não repetir na tabela.
   {

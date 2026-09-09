@@ -139,7 +139,10 @@ export interface CortesiaDTO {
   valorConcedido: number | null;
   /** Curadoria: ajuste manual quando o LIS não tem o preço cadastrado. Ganha de `valorConcedido` na exibição quando presente. */
   valorConcedidoCorrigido: number | null;
+  /** `requisicaoautorizacao.IdAutorizador` (join `autusuario`) — quem de fato autorizou, não quem digitou o pedido. */
   autorizadoPorLis: string | null;
+  /** `requisicaoautorizacao.Solicitante` — quem deu entrada no pedido (qualquer setor); informativo, nunca "autorizador". */
+  solicitadoPorLis: string | null;
   observacoesLis: string | null;
   parsingFalhou: boolean;
   diasAteAutorizacao: number | null;

@@ -118,6 +118,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         valor_cobrado: c.valorCobrado,
         valor_concedido: c.valorConcedido,
         autorizado_por_lis: c.autorizadoPorLis,
+        solicitado_por_lis: c.solicitadoPorLis,
         observacoes_lis: c.observacoesLis,
         parsing_falhou: false,
         dias_ate_autorizacao: diasAteAutorizacao,
