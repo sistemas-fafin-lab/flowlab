@@ -1,8 +1,8 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Pencil, Plus, X, Save } from 'lucide-react';
-import type { Exam, PayorEditData } from '../../hooks/useCostControl';
-import { buscarExamesPorTermo } from './domain/busca';
+import type { Exam, Payor, PayorEditData } from '../../hooks/useCostControl';
+import AutocompleteInput from './AutocompleteInput';
+import { buscarExamesPorTermo, buscarFontesPagadorasPorTermo, buscarTabelasAssociadasPorTermo } from './domain/busca';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -13,6 +13,7 @@ interface PayorFormModalProps {
   mode: 'edit' | 'create';
   payor: PayorEditData | null;
   exams: Exam[];
+  payors: Payor[];
   onClose: () => void;
   onSave: (data: PayorEditData) => void;
 }
@@ -23,90 +24,20 @@ interface PayorFormModalProps {
 
 const EMPTY_FORM: PayorEditData = { payor: '', table: '', tus: '', price: 0 };
 
-const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exams, onClose, onSave }) => {
+const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exams, payors, onClose, onSave }) => {
   const [form, setForm] = useState<PayorEditData>(EMPTY_FORM);
-  const [sugestoesTussAbertas, setSugestoesTussAbertas] = useState(false);
-  const [indiceTussDestacado, setIndiceTussDestacado] = useState(0);
-  const [posicaoDropdownTuss, setPosicaoDropdownTuss] = useState<{ top: number; left: number; width: number } | null>(null);
-  const tussFieldRef = useRef<HTMLDivElement>(null);
-  const tussInputRef = useRef<HTMLInputElement>(null);
-  const tussDropdownRef = useRef<HTMLUListElement>(null);
 
   useEffect(() => {
     if (open) {
       setForm(payor ?? EMPTY_FORM);
-      setSugestoesTussAbertas(false);
     }
   }, [open, payor]);
 
-  useEffect(() => {
-    setIndiceTussDestacado(0);
-  }, [form.tus]);
-
-  // Dropdown é renderizado via portal (foge do overflow-y-auto do corpo do
-  // modal, que cortava a lista) — precisa recalcular a posição do input
-  // sempre que abrir e acompanhar scroll/resize enquanto estiver aberto.
-  useEffect(() => {
-    if (!sugestoesTussAbertas) return;
-
-    const atualizarPosicao = () => {
-      const rect = tussInputRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setPosicaoDropdownTuss({ top: rect.bottom + 4, left: rect.left, width: rect.width });
-    };
-
-    atualizarPosicao();
-    window.addEventListener('scroll', atualizarPosicao, true);
-    window.addEventListener('resize', atualizarPosicao);
-    return () => {
-      window.removeEventListener('scroll', atualizarPosicao, true);
-      window.removeEventListener('resize', atualizarPosicao);
-    };
-  }, [sugestoesTussAbertas]);
-
-  // Fecha o dropdown de sugestões de TUSS ao clicar fora do campo — inclui
-  // o dropdown em si, já que ele vive num portal fora da árvore de tussFieldRef.
-  useEffect(() => {
-    if (!sugestoesTussAbertas) return;
-    const handle = (e: MouseEvent) => {
-      const alvo = e.target as Node;
-      if (
-        tussFieldRef.current &&
-        !tussFieldRef.current.contains(alvo) &&
-        !tussDropdownRef.current?.contains(alvo)
-      ) {
-        setSugestoesTussAbertas(false);
-      }
-    };
-    document.addEventListener('mousedown', handle);
-    return () => document.removeEventListener('mousedown', handle);
-  }, [sugestoesTussAbertas]);
-
+  const sugestoesFonte = useMemo(() => buscarFontesPagadorasPorTermo(payors, form.payor), [payors, form.payor]);
+  const sugestoesTabela = useMemo(() => buscarTabelasAssociadasPorTermo(payors, form.table), [payors, form.table]);
   const sugestoesTuss = useMemo(() => buscarExamesPorTermo(exams, form.tus), [exams, form.tus]);
 
   if (!open) return null;
-
-  const handleSelecionarTuss = (exame: Exam) => {
-    setForm(f => ({ ...f, tus: exame.tuss }));
-    setSugestoesTussAbertas(false);
-  };
-
-  const handleTussKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (!sugestoesTussAbertas || sugestoesTuss.length === 0) return;
-
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setIndiceTussDestacado(i => (i + 1) % sugestoesTuss.length);
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setIndiceTussDestacado(i => (i - 1 + sugestoesTuss.length) % sugestoesTuss.length);
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      handleSelecionarTuss(sugestoesTuss[indiceTussDestacado]);
-    } else if (e.key === 'Escape') {
-      setSugestoesTussAbertas(false);
-    }
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -159,10 +90,15 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
                 Fonte Pagadora <span className="text-red-500">*</span>
               </label>
-              <input
+              <AutocompleteInput
                 required
                 value={form.payor}
-                onChange={e => setForm(f => ({ ...f, payor: e.target.value }))}
+                onValueChange={v => setForm(f => ({ ...f, payor: v }))}
+                onSelect={nome => setForm(f => ({ ...f, payor: nome }))}
+                suggestions={sugestoesFonte}
+                renderSuggestion={nome => <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{nome}</span>}
+                keyOf={nome => nome}
+                emptyLabel="Nenhuma fonte pagadora encontrada — será salva como digitada."
                 placeholder="Unimed"
                 className={inputCls}
               />
@@ -171,61 +107,38 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
                 Tabela Associada
               </label>
-              <input
+              <AutocompleteInput
                 value={form.table}
-                onChange={e => setForm(f => ({ ...f, table: e.target.value }))}
+                onValueChange={v => setForm(f => ({ ...f, table: v }))}
+                onSelect={tabela => setForm(f => ({ ...f, table: tabela }))}
+                suggestions={sugestoesTabela}
+                renderSuggestion={tabela => <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{tabela}</span>}
+                keyOf={tabela => tabela}
+                emptyLabel="Nenhuma tabela associada encontrada — será salva como digitada."
                 placeholder="CBHPM 2022"
                 className={inputCls}
               />
             </div>
-            <div className="space-y-1.5" ref={tussFieldRef}>
+            <div className="space-y-1.5">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
                 TUSS
               </label>
-              <input
-                ref={tussInputRef}
+              <AutocompleteInput
                 value={form.tus}
-                onChange={e => {
-                  setForm(f => ({ ...f, tus: e.target.value }));
-                  setSugestoesTussAbertas(true);
-                }}
-                onFocus={() => setSugestoesTussAbertas(true)}
-                onKeyDown={handleTussKeyDown}
+                onValueChange={v => setForm(f => ({ ...f, tus: v }))}
+                onSelect={exame => setForm(f => ({ ...f, tus: exame.tuss }))}
+                suggestions={sugestoesTuss}
+                renderSuggestion={exame => (
+                  <>
+                    <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{exame.name}</span>
+                    <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0">{exame.tuss}</span>
+                  </>
+                )}
+                keyOf={exame => exame.id}
+                emptyLabel="Nenhum exame encontrado — TUSS será salvo como digitado."
                 placeholder="40304361"
-                autoComplete="off"
                 className={inputCls}
               />
-              {sugestoesTussAbertas && form.tus.trim().length > 0 && posicaoDropdownTuss && createPortal(
-                <ul
-                  ref={tussDropdownRef}
-                  style={{ top: posicaoDropdownTuss.top, left: posicaoDropdownTuss.left, width: posicaoDropdownTuss.width }}
-                  className="fixed z-[60] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-56 overflow-y-auto"
-                >
-                  {sugestoesTuss.length === 0 ? (
-                    <li className="px-4 py-2.5 text-sm text-gray-500 dark:text-gray-400">
-                      Nenhum exame encontrado — TUSS será salvo como digitado.
-                    </li>
-                  ) : (
-                    sugestoesTuss.map((exame, i) => (
-                      <li key={exame.id}>
-                        <button
-                          type="button"
-                          onClick={() => handleSelecionarTuss(exame)}
-                          onMouseEnter={() => setIndiceTussDestacado(i)}
-                          aria-selected={i === indiceTussDestacado}
-                          className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left text-sm transition-colors ${
-                            i === indiceTussDestacado ? 'bg-blue-50 dark:bg-blue-500/10' : 'hover:bg-blue-50 dark:hover:bg-blue-500/10'
-                          }`}
-                        >
-                          <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{exame.name}</span>
-                          <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0">{exame.tuss}</span>
-                        </button>
-                      </li>
-                    ))
-                  )}
-                </ul>,
-                document.body
-              )}
             </div>
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">

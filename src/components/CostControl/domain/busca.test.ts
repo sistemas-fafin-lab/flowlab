@@ -3,6 +3,7 @@ import type { Exam, Payor } from '../../../hooks/useCostControl';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
+  buscarTabelasAssociadasPorTermo,
   examePorTuss,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
@@ -109,6 +110,31 @@ describe('buscarFontesPagadorasPorTermo', () => {
 
   it('deduplica fonte pagadora com múltiplas linhas pelo nome', () => {
     expect(buscarFontesPagadorasPorTermo(fontes, 'unimed')).toEqual(['Unimed']);
+  });
+});
+
+describe('buscarTabelasAssociadasPorTermo', () => {
+  const fontes = [
+    fonte({ id: 'p1', table: 'Unimed Coop.', tus: '40304361' }),
+    fonte({ id: 'p2', table: 'Unimed Nacional', tus: '40302040' }),
+    fonte({ id: 'p3', table: 'Bradesco Top', tus: '40304312' }),
+    fonte({ id: 'p4', table: 'Unimed Coop.', tus: '99999999' }),
+  ];
+
+  it('termo vazio devolve lista vazia', () => {
+    expect(buscarTabelasAssociadasPorTermo(fontes, '')).toEqual([]);
+  });
+
+  it('termo sem nenhum match devolve lista vazia', () => {
+    expect(buscarTabelasAssociadasPorTermo(fontes, 'inexistente')).toEqual([]);
+  });
+
+  it('casa por nome, parcial e case-insensitive', () => {
+    expect(buscarTabelasAssociadasPorTermo(fontes, 'bradesco')).toEqual(['Bradesco Top']);
+  });
+
+  it('deduplica tabela associada com múltiplas linhas pelo nome', () => {
+    expect(buscarTabelasAssociadasPorTermo(fontes, 'unimed')).toEqual(['Unimed Coop.', 'Unimed Nacional']);
   });
 });
 
