@@ -2,29 +2,16 @@
 // Helpers compartilhados pelas funções de integração com o LAB-HUB
 // (api/analises-clinicas/*). Comunicação server-to-server apenas.
 
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHmac } from 'node:crypto';
 import type { VercelRequest } from '@vercel/node';
+import { isBearerApiKeyValid } from './bearerAuth.js';
 
 /**
  * Valida o header `Authorization: Bearer <token>` contra FLOWLAB_API_KEY.
- * Comparação em tempo constante para não vazar o segredo por timing.
  * Retorna true se a chave confere.
  */
 export function isFlowlabApiKeyValid(req: VercelRequest): boolean {
-  const expected = process.env.FLOWLAB_API_KEY;
-  if (!expected) {
-    throw new Error('Variável de ambiente obrigatória ausente: FLOWLAB_API_KEY');
-  }
-
-  const authHeader = req.headers.authorization ?? '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
-  if (!token) return false;
-
-  const received = Buffer.from(token);
-  const computed = Buffer.from(expected);
-  // timingSafeEqual exige buffers do mesmo tamanho.
-  if (received.length !== computed.length) return false;
-  return timingSafeEqual(received, computed);
+  return isBearerApiKeyValid(req, 'FLOWLAB_API_KEY');
 }
 
 /**
