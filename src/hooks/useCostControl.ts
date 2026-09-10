@@ -33,10 +33,15 @@ export interface Payor {
   tus: string;
   price: number;
   atendido: boolean;
+  // Só tem efeito real pra fonte pagadora "Particular" (Tabela Particular) —
+  // nas outras 37 fica sempre FALSE e é ignorada. Ver migration
+  // 20260910090000_custo_fontes_pagadoras_elegivel_desconto_particular.
+  elegivelDescontoParticular: boolean;
 }
 
 // Campos editáveis de uma linha de fonte pagadora via PayorFormModal — não
-// inclui `atendido` (editado via toggle inline, updatePayorAtendido).
+// inclui `atendido` nem `elegivelDescontoParticular` (editados via toggle
+// inline, updatePayorAtendido / updatePayorElegivelDescontoParticular).
 export type PayorEditData = Pick<Payor, 'payor' | 'table' | 'tus' | 'price'>;
 
 export interface UseCostControlReturn {
@@ -48,6 +53,7 @@ export interface UseCostControlReturn {
   deleteExam: (id: string) => Promise<void>;
   importExams: (rows: Omit<Exam, 'id'>[]) => Promise<number>;
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
+  updatePayorElegivelDescontoParticular: (id: string, elegivel: boolean) => Promise<void>;
   updatePayor: (id: string, data: PayorEditData) => Promise<void>;
   createPayor: (data: PayorEditData) => Promise<void>;
   deletePayor: (id: string) => Promise<void>;
@@ -101,6 +107,7 @@ const mapPayorRow = (row: any): Payor => ({
   tus: row.tuss ?? '',
   price: Number(row.valor) || 0,
   atendido: row.atendido ?? true,
+  elegivelDescontoParticular: row.elegivel_desconto_particular ?? false,
 });
 
 const toPayorRow = (data: PayorEditData) => ({
@@ -224,6 +231,16 @@ export const useCostControl = (): UseCostControlReturn => {
     setPayors(prev => prev.map(p => (p.id === id ? { ...p, atendido } : p)));
   }, []);
 
+  const updatePayorElegivelDescontoParticular = useCallback(async (id: string, elegivel: boolean) => {
+    const { error } = await supabase
+      .from('custo_fontes_pagadoras')
+      .update({ elegivel_desconto_particular: elegivel })
+      .eq('id', id);
+
+    if (error) throw error;
+    setPayors(prev => prev.map(p => (p.id === id ? { ...p, elegivelDescontoParticular: elegivel } : p)));
+  }, []);
+
   const updatePayor = useCallback(async (id: string, data: PayorEditData) => {
     const { data: updated, error } = await supabase
       .from('custo_fontes_pagadoras')
@@ -320,6 +337,7 @@ export const useCostControl = (): UseCostControlReturn => {
     deleteExam,
     importExams,
     updatePayorAtendido,
+    updatePayorElegivelDescontoParticular,
     updatePayor,
     createPayor,
     deletePayor,

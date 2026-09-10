@@ -101,6 +101,9 @@ export interface ExameDaFontePagadora {
   dif: number;
   percentualCsp: number;
   atendido: boolean;
+  // Só tem sentido pra fonte pagadora "Particular" — reflete
+  // Payor.elegivelDescontoParticular, editável na tela via PayorsScreen.
+  elegivelDescontoParticular: boolean;
 }
 
 /** Exame cujo TUSS bate com `tuss` — TUSS pode se repetir entre exames (sem
@@ -142,6 +145,7 @@ export function examesPorFontePagadora(
           dif: fonte.price - custo,
           percentualCsp: fonte.price > 0 ? (custo / fonte.price) * 100 : 0,
           atendido: fonte.atendido,
+          elegivelDescontoParticular: fonte.elegivelDescontoParticular,
         },
       ];
     })

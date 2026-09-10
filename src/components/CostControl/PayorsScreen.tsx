@@ -39,6 +39,11 @@ import { linhasExportacaoExamesDaFonte, linhasExportacaoFontesPagadoras, type Li
 import type { LinhaImportacaoFontePagadora } from './domain/importacaoFontesPagadoras';
 import { ORDENACAO_PADRAO, alternarOrdenacao, ordenar, type EstadoOrdenacao } from './domain/ordenacao';
 
+// Mesmo valor usado pelo backend (api/_lib/orcamentoParticular.ts,
+// FONTE_PARTICULAR) pra identificar a fonte pagadora "Particular" — só ela
+// usa elegivel_desconto_particular; nas outras 37 a coluna é sempre FALSE.
+const FONTE_PARTICULAR = 'Particular';
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -47,6 +52,7 @@ interface PayorsScreenProps {
   payors: Payor[];
   exams: Exam[];
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
+  updatePayorElegivelDescontoParticular: (id: string, elegivel: boolean) => Promise<void>;
   updatePayor: (id: string, data: PayorEditData) => Promise<void>;
   createPayor: (data: PayorEditData) => Promise<void>;
   deletePayor: (id: string) => Promise<void>;
@@ -392,7 +398,8 @@ type ColunaExameDaFonte =
   | 'custo'
   | 'dif'
   | 'percentualCsp'
-  | 'atendido';
+  | 'atendido'
+  | 'elegivelDescontoParticular';
 
 const VALOR_COLUNA_EXAME_DA_FONTE: Record<ColunaExameDaFonte, (item: ExameDaFontePagadora) => string | number> = {
   exame: item => item.exame,
@@ -403,6 +410,7 @@ const VALOR_COLUNA_EXAME_DA_FONTE: Record<ColunaExameDaFonte, (item: ExameDaFont
   dif: item => item.dif,
   percentualCsp: item => item.percentualCsp,
   atendido: item => (item.atendido ? 1 : 0),
+  elegivelDescontoParticular: item => (item.elegivelDescontoParticular ? 1 : 0),
 };
 
 function TabelaExamesDaFonte({
@@ -410,6 +418,8 @@ function TabelaExamesDaFonte({
   onSelectExame,
   onEditExame,
   onToggleAtendido,
+  onToggleElegivelDescontoParticular,
+  mostrarColunaElegibilidade,
   onEditLinha,
   onDeleteLinha,
   onNovaLinha,
@@ -420,6 +430,10 @@ function TabelaExamesDaFonte({
   onSelectExame: (tuss: string) => void;
   onEditExame: (tuss: string) => void;
   onToggleAtendido: (payorId: string, atendido: boolean) => void;
+  onToggleElegivelDescontoParticular: (payorId: string, elegivel: boolean) => void;
+  // Coluna só faz sentido pra fonte pagadora "Particular" — nas outras 37 a
+  // coluna elegivel_desconto_particular é sempre FALSE e ignorada.
+  mostrarColunaElegibilidade: boolean;
   onEditLinha: (item: ExameDaFontePagadora) => void;
   onDeleteLinha: (item: ExameDaFontePagadora) => void;
   onNovaLinha: () => void;
@@ -465,13 +479,25 @@ function TabelaExamesDaFonte({
               <CabecalhoOrdenavel coluna="dif" titulo="Dif" ordenacao={ordenacao} onClick={alternar} align="right" />
               <CabecalhoOrdenavel coluna="percentualCsp" titulo="%CSP" ordenacao={ordenacao} onClick={alternar} align="right" />
               <CabecalhoOrdenavel coluna="atendido" titulo="Atendido" ordenacao={ordenacao} onClick={alternar} align="right" />
+              {mostrarColunaElegibilidade && (
+                <CabecalhoOrdenavel
+                  coluna="elegivelDescontoParticular"
+                  titulo="Elegível p/ desconto"
+                  ordenacao={ordenacao}
+                  onClick={alternar}
+                  align="right"
+                />
+              )}
               {podeGerenciar && <th className="px-5 py-3 text-right font-bold w-24">Ações</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {linhas.length === 0 ? (
               <tr>
-                <td colSpan={podeGerenciar ? 9 : 8} className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400">
+                <td
+                  colSpan={8 + (mostrarColunaElegibilidade ? 1 : 0) + (podeGerenciar ? 1 : 0)}
+                  className="px-5 py-12 text-center text-sm text-gray-500 dark:text-gray-400"
+                >
                   {mensagemVazia}
                 </td>
               </tr>
@@ -547,6 +573,30 @@ function TabelaExamesDaFonte({
                       <Check className="w-3.5 h-3.5" />
                     </button>
                   </td>
+                  {mostrarColunaElegibilidade && (
+                    <td className="px-5 py-3.5 text-right">
+                      <button
+                        type="button"
+                        onClick={() => onToggleElegivelDescontoParticular(e.payorId, !e.elegivelDescontoParticular)}
+                        disabled={!podeGerenciar}
+                        aria-pressed={e.elegivelDescontoParticular}
+                        title={
+                          podeGerenciar
+                            ? e.elegivelDescontoParticular
+                              ? 'Elegível para desconto automático — clique para desmarcar'
+                              : 'Não elegível para desconto automático — clique para marcar'
+                            : 'Somente leitura — requer permissão para gerenciar contas a receber'
+                        }
+                        className={`ml-auto flex items-center justify-center w-6 h-6 rounded-md border transition-colors ${
+                          e.elegivelDescontoParticular
+                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-transparent border-gray-300 dark:border-gray-600 text-transparent'
+                        } ${podeGerenciar ? '' : 'opacity-60 cursor-not-allowed'}`}
+                      >
+                        <Check className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  )}
                   {podeGerenciar && (
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-1">
@@ -605,6 +655,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   payors,
   exams,
   updatePayorAtendido,
+  updatePayorElegivelDescontoParticular,
   updatePayor,
   createPayor,
   deletePayor,
@@ -716,6 +767,13 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     updatePayorAtendido(payorId, atendido).catch(err => {
       console.error('Falha ao atualizar Atendido da fonte pagadora', err);
       showError('Erro ao atualizar Atendido', err instanceof Error ? err.message : undefined);
+    });
+  };
+
+  const handleToggleElegivelDescontoParticular = (payorId: string, elegivel: boolean) => {
+    updatePayorElegivelDescontoParticular(payorId, elegivel).catch(err => {
+      console.error('Falha ao atualizar elegibilidade de desconto particular', err);
+      showError('Erro ao atualizar elegibilidade de desconto', err instanceof Error ? err.message : undefined);
     });
   };
 
@@ -987,6 +1045,8 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           onSelectExame={handleSelecionarExamePorTuss}
           onEditExame={handleEditExame}
           onToggleAtendido={handleToggleAtendido}
+          onToggleElegivelDescontoParticular={handleToggleElegivelDescontoParticular}
+          mostrarColunaElegibilidade={fontePagadoraSelecionada === FONTE_PARTICULAR}
           onEditLinha={handleEditExameDaFonte}
           onDeleteLinha={handleDeleteExameDaFonte}
           onNovaLinha={handleNovaLinha}

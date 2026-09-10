@@ -28,6 +28,7 @@ const fonte = (over: Partial<Payor>): Payor => ({
   tus: '40304361',
   price: 9.2,
   atendido: true,
+  elegivelDescontoParticular: false,
   ...over,
 });
 
@@ -216,6 +217,7 @@ describe('examesPorFontePagadora', () => {
         dif: -7.2,
         percentualCsp: 250,
         atendido: true,
+        elegivelDescontoParticular: false,
       },
       {
         payorId: 'p1',
@@ -227,6 +229,7 @@ describe('examesPorFontePagadora', () => {
         dif: 0.5,
         percentualCsp: 96,
         atendido: true,
+        elegivelDescontoParticular: false,
       },
     ]);
   });
@@ -246,6 +249,34 @@ describe('examesPorFontePagadora', () => {
         dif: 3,
         percentualCsp: 80,
         atendido: false,
+        elegivelDescontoParticular: false,
+      },
+    ]);
+  });
+
+  it('elegivelDescontoParticular reflete o flag da fonte pagadora', () => {
+    const fontesParticular = [
+      fonte({
+        id: 'p5',
+        payor: 'Particular',
+        table: 'Tabela Particular',
+        tus: '40304361',
+        price: 24,
+        elegivelDescontoParticular: true,
+      }),
+    ];
+    expect(examesPorFontePagadora(exames, fontesParticular, 'Particular')).toEqual([
+      {
+        payorId: 'p5',
+        exame: 'Hemograma completo',
+        tuss: '40304361',
+        tabelaAssociada: 'Tabela Particular',
+        valorCobrado: 24,
+        custo: 12,
+        dif: 12,
+        percentualCsp: 50,
+        atendido: true,
+        elegivelDescontoParticular: true,
       },
     ]);
   });

@@ -13,6 +13,7 @@ const exameDaFonte = (over: Partial<ExameDaFontePagadora>): ExameDaFontePagadora
   dif: 0.5,
   percentualCsp: 96,
   atendido: true,
+  elegivelDescontoParticular: false,
   ...over,
 });
 
@@ -23,6 +24,7 @@ const fonte = (over: Partial<Payor>): Payor => ({
   tus: '40304361',
   price: 12.5,
   atendido: true,
+  elegivelDescontoParticular: false,
   ...over,
 });
 
