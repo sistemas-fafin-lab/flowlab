@@ -40,7 +40,7 @@ esse mesmo padrão de "app externo chama com uma API key dedicada").
 **Blocked by:** 01 (a coluna `elegivel_desconto_particular` precisa existir
 antes do endpoint poder retorná-la)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] `GET api/integracoes/orcamento-particular` (ou nome equivalente) exige
       `Authorization: Bearer <TABELA_PARTICULAR_API_KEY>`, retorna 401 sem
@@ -54,7 +54,7 @@ antes do endpoint poder retorná-la)
       `custo: null` (documentado em `api/_lib/orcamentoParticular.ts`)
 - [x] Testado via curl/Postman contra o projeto de teste antes de configurar
       a env var em produção
-- [ ] `TABELA_PARTICULAR_API_KEY` configurada no Vercel do flowlab
+- [x] `TABELA_PARTICULAR_API_KEY` configurada no Vercel do flowlab
       (Production + Preview, mesmo padrão de `FLOWLAB_API_KEY`)
 
 ## Comments
@@ -89,3 +89,14 @@ como exemplo de "coluna que só importa pra um subconjunto de linhas"
 Falta só configurar `TABELA_PARTICULAR_API_KEY` no dashboard do Vercel
 (Production + Preview) e aplicar a migration 01 em produção antes de apontar
 a integração pra lá — nenhum dos dois está ao meu alcance neste ambiente.
+
+**Atualização final:** ambos concluídos pelo usuário —
+`TABELA_PARTICULAR_API_KEY` configurada no Vercel do flowlab (Production +
+Preview) e migration 01 aplicada em produção. Validei em produção via curl
+contra `https://flow-lab.vercel.app/api/integracoes/orcamento-particular`
+com a chave real: 200, 360 itens (= linhas `fonte_pagadora='Particular'` em
+produção), payload no formato esperado (`elegivelDescontoParticular`,
+`conveniosAceitos`, etc.). Também confirmei ponta a ponta pelo lado da
+Tabela Particular: `GET https://tabela-particular.vercel.app/api/orcamento-particular`
+(rota deles, que chama esta) também devolve 200 com os mesmos dados. Ticket
+concluído.

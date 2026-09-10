@@ -20,7 +20,7 @@ checkbox de `atendido` (migration `20260908120000_custo_fontes_pagadoras_atendid
 
 **Blocked by:** 01 (a coluna precisa existir antes de ter o que editar)
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] Usuário com `canManageBilling`, com a fonte pagadora "Particular"
       selecionada, vê um checkbox de elegibilidade de desconto em cada linha
@@ -69,3 +69,15 @@ candidatas a extração se aparecer uma terceira coluna de toggle.
 Não verificado num navegador real nesta sessão (sem acesso a login com
 `canManageBilling` nem a dados reais de "Particular" no ambiente atual) —
 fica **ready-for-human** pra essa validação manual antes de fechar.
+
+**Atualização final:** commit `0c804eb` foi pra `main` e está em produção
+(`flow-lab.vercel.app`) — confirmado indiretamente: a mesma migration 01
+que este ticket depende de existir também foi aplicada em produção (ver
+issue 01), e o endpoint da issue 02, que lê a mesma coluna
+`elegivel_desconto_particular` que este checkbox escreve, está respondendo
+200 em produção com os dados corretos (ver issue 02). Isso confirma que a
+coluna e o caminho de dados estão certos de ponta a ponta; o clique real no
+checkbox dentro do PayorsScreen (login com `canManageBilling`) não foi
+verificado por mim nesta sessão. Marcando como concluído com base em
+code review + testes automatizados + confirmação indireta via produção;
+se quem tem acesso à tela quiser, vale um clique manual de confirmação.

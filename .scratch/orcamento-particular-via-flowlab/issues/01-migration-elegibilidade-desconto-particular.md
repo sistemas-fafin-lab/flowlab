@@ -48,7 +48,7 @@ em produção sem confirmação explícita de quem tem acesso.
 
 **Blocked by:** Nenhum — pode começar imediatamente.
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] Migration criada em `supabase/migrations/`, idempotente (`ADD COLUMN IF
       NOT EXISTS`) — `supabase/migrations/20260910090000_custo_fontes_pagadoras_elegivel_desconto_particular.sql`
@@ -63,6 +63,7 @@ em produção sem confirmação explícita de quem tem acesso.
       'Particular' and elegivel_desconto_particular` retorna 48 (ou o número
       de linhas Particular que casam com os 48 TUSS, caso algum TUSS da lista
       não exista mais na tabela)
+- [x] Migration aplicada em **produção** (`jqxeqmeikqclmmongclj`)
 
 ## Comments
 
@@ -86,3 +87,9 @@ coluna existe, 361 linhas `fonte_pagadora='Particular'` no total, exatamente
 migration, conferido um a um) e 0 linhas fora de `Particular` com a flag
 `TRUE`. Falta só aplicar em **produção**, com confirmação explícita de quem
 tem acesso — fora do escopo deste agente.
+
+**Atualização final:** usuário aplicou a migration em **produção**
+(`jqxeqmeikqclmmongclj`) — confirmei indiretamente via
+`GET /api/integracoes/orcamento-particular` (issue 02) parando de devolver
+`column custo_fontes_pagadoras.elegivel_desconto_particular does not exist`
+e passando a responder 200 com 360 itens. Ticket concluído.
