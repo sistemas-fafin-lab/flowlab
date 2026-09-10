@@ -57,9 +57,9 @@ em produção sem confirmação explícita de quem tem acesso.
 - [x] Backfill marca `TRUE` exatamente nas linhas `fonte_pagadora='Particular'`
       com um dos 48 TUSS listados acima; todas as outras linhas (Particular ou
       não) ficam `FALSE`
-- [ ] Migration aplicada em teste e validada por query antes de aplicar em
+- [x] Migration aplicada em teste e validada por query antes de aplicar em
       produção
-- [ ] `select count(*) from custo_fontes_pagadoras where fonte_pagadora =
+- [x] `select count(*) from custo_fontes_pagadoras where fonte_pagadora =
       'Particular' and elegivel_desconto_particular` retorna 48 (ou o número
       de linhas Particular que casam com os 48 TUSS, caso algum TUSS da lista
       não exista mais na tabela)
@@ -78,3 +78,11 @@ quem tem acesso:
 2. Validar com a query de contagem acima (checklist final).
 3. Repetir em **produção** (`jqxeqmeikqclmmongclj`), com confirmação
    explícita antes de rodar (fora do escopo deste agente sem isso).
+
+**Atualização:** usuário aplicou a migration em teste. Validei por query via
+service role key (`custo_fontes_pagadoras.elegivel_desconto_particular`):
+coluna existe, 361 linhas `fonte_pagadora='Particular'` no total, exatamente
+48 com `elegivel_desconto_particular=TRUE` (batendo com os 48 TUSS da
+migration, conferido um a um) e 0 linhas fora de `Particular` com a flag
+`TRUE`. Falta só aplicar em **produção**, com confirmação explícita de quem
+tem acesso — fora do escopo deste agente.

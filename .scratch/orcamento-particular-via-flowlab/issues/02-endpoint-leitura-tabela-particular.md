@@ -52,22 +52,40 @@ antes do endpoint poder retorná-la)
 - [x] Item sem correspondência em `custo_exames` (tuss não encontrado) não
       quebra a resposta — decisão tomada: mantém o item com `nome: null` e
       `custo: null` (documentado em `api/_lib/orcamentoParticular.ts`)
-- [ ] Testado via curl/Postman contra o projeto de teste antes de configurar
+- [x] Testado via curl/Postman contra o projeto de teste antes de configurar
       a env var em produção
 - [ ] `TABELA_PARTICULAR_API_KEY` configurada no Vercel do flowlab
       (Production + Preview, mesmo padrão de `FLOWLAB_API_KEY`)
 
 ## Comments
 
-Endpoint e lógica de agregação implementados e cobertos por 14 testes
+Endpoint e lógica de agregação implementados e cobertos por 16 testes
 (`api/_lib/orcamentoParticular.test.ts` + `api/integracoes/orcamento-particular.test.ts`),
-todos passando, junto com o resto da suíte (467/467). Lint e typecheck de
-`api/` limpos nos arquivos novos.
+todos passando, junto com o resto da suíte (469/469). Lint e typecheck de
+`api/` limpos nos arquivos novos. Code review encontrou 4 pontos: coerção
+`Number()` nas colunas NUMERIC (PostgREST pode devolver string — corrigido),
+duplicação da lógica de validação Bearer com `labhubIntegration.ts`
+(extraída pra `api/_lib/bearerAuth.ts` — corrigido), falta de dedup por
+`tuss` já que a tabela não tem `UNIQUE(tuss)` (corrigido com `Map`), e um
+quarto ponto sobre filtrar a própria linha Particular por `atendido` — não
+apliquei: contradiz a premissa da issue 01, que usa `atendido` justamente
+como exemplo de "coluna que só importa pra um subconjunto de linhas"
+(o subconjunto não-Particular).
 
-Faltam os dois últimos itens, que exigem acesso que não tenho neste
-ambiente: testar contra o Supabase de teste de verdade (sem `DATABASE_URL`/
-`psql` aqui, só a service role key via REST, que não expõe este endpoint) e
-configurar `TABELA_PARTICULAR_API_KEY` no dashboard do Vercel. Também
-depende da migration 01 já estar aplicada em teste/produção (ainda
-pendente, ver comentário na issue 01) — sem a coluna
-`elegivel_desconto_particular`, a query de `custo_fontes_pagadoras` falha.
+**Atualização:** usuário aplicou a migration 01 em teste e configurou
+`TABELA_PARTICULAR_API_KEY` em `.env`. Testei de ponta a ponta: subi
+`vercel dev` local (porta 3111) contra o Supabase de teste
+(`eqzqkztgzcngnxmihdom`) e chamei o endpoint de verdade via curl —
+
+- sem header / chave errada → 401 (2/2)
+- `POST` → 405
+- chave certa → 200, 361 itens (= total de linhas `fonte_pagadora='Particular'`
+  em teste), sem `tuss` duplicado, `preco`/`custo` vindo como número (não
+  string — confirma a coerção), 48 itens com `elegivelDescontoParticular:
+  true` batendo exatamente com a lista de TUSS da migration 01, e
+  `conveniosAceitos` populado com nomes reais de convênio pros TUSS
+  atendidos.
+
+Falta só configurar `TABELA_PARTICULAR_API_KEY` no dashboard do Vercel
+(Production + Preview) e aplicar a migration 01 em produção antes de apontar
+a integração pra lá — nenhum dos dois está ao meu alcance neste ambiente.
