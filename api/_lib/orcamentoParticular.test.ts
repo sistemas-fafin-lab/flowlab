@@ -204,6 +204,57 @@ describe('buildOrcamentoParticular', () => {
     ]);
   });
 
+  it('tuss compartilhado por exames com nomes diferentes: devolve um item por nome distinto (mesmo preço/tuss/elegibilidade)', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        {
+          fonte_pagadora: 'Particular',
+          tuss: '40301931',
+          valor: 13,
+          atendido: true,
+          elegivel_desconto_particular: false,
+        },
+      ],
+      custo_exames: [
+        { tuss: '40301931', nome: 'FÓSFORO - S', custo_direto: 5, custo_indireto: 2 },
+        { tuss: '40301931', nome: 'FÓSFORO - U', custo_direto: 6, custo_indireto: 3 },
+      ],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens).toHaveLength(2);
+    expect(itens.map(i => i.nome).sort()).toEqual(['FÓSFORO - S', 'FÓSFORO - U']);
+    expect(itens.every(i => i.tuss === '40301931' && i.preco === 13)).toBe(true);
+    const porNome = new Map(itens.map(i => [i.nome, i]));
+    expect(porNome.get('FÓSFORO - S')?.custo).toBe(7);
+    expect(porNome.get('FÓSFORO - U')?.custo).toBe(9);
+  });
+
+  it('tuss compartilhado por exames com o MESMO nome (duplicata literal): devolve um item só, com a ÚLTIMA entrada', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        {
+          fonte_pagadora: 'Particular',
+          tuss: '40301060',
+          valor: 100,
+          atendido: true,
+          elegivel_desconto_particular: true,
+        },
+      ],
+      custo_exames: [
+        { tuss: '40301060', nome: 'Hemograma', custo_direto: 10, custo_indireto: 5 },
+        { tuss: '40301060', nome: 'Hemograma', custo_direto: 999, custo_indireto: 999 },
+      ],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens).toHaveLength(1);
+    expect(itens[0].nome).toBe('Hemograma');
+    expect(itens[0].custo).toBe(1998);
+  });
+
   it('duas linhas Particular pro mesmo tuss: mantém só a primeira, sem duplicar item', async () => {
     const supabase = criarSupabaseMock({
       custo_fontes_pagadoras: [

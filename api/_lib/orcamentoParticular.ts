@@ -10,6 +10,15 @@ import { isBearerApiKeyValid } from './bearerAuth.js';
 const PAGE_SIZE = 1000; // espelha max_rows do PostgREST (supabase/config.toml)
 const FONTE_PARTICULAR = 'Particular';
 
+/**
+ * `tuss` NÃO é mais garantidamente único no array de resposta (desde a
+ * issue 12): um TUSS coberto por exames com nomes diferentes em
+ * custo_exames vira um item por nome distinto, todos com o mesmo
+ * `tuss`/`preco`/`elegivelDescontoParticular`/`conveniosAceitos` — só
+ * `nome`/`custo` mudam entre eles. Consumidores que indexem/deduplicem a
+ * resposta por `tuss` (em vez de por `tuss`+`nome`, ou simplesmente
+ * consumindo o array como está) vão perder itens.
+ */
 export interface OrcamentoParticularItem {
   tuss: string;
   /** null quando o tuss não tem correspondência em custo_exames. */
@@ -86,9 +95,25 @@ export async function buildOrcamentoParticular(
   // NUMERIC(12,2) do Postgres pode voltar como string via PostgREST — mesmo
   // cuidado já tomado em src/hooks/useCostControl.ts (Number(row.valor) etc.)
   // pras mesmas colunas.
-  const exameByTuss = new Map<string, ExameRow>();
+  //
+  // Um TUSS pode ser compartilhado por exames com nomes diferentes (sem
+  // examId confiável vindo do APLIS — mesma limitação documentada em
+  // src/components/CostControl/domain/busca.ts) — agrupa por tuss,
+  // deduplicando por nome, pra virar um item por nome distinto em vez de
+  // escolher arbitrariamente só um.
+  const examesPorTuss = new Map<string, ExameRow[]>();
   for (const exame of exames) {
-    if (!exameByTuss.has(exame.tuss)) exameByTuss.set(exame.tuss, exame);
+    const grupo = examesPorTuss.get(exame.tuss);
+    if (!grupo) {
+      examesPorTuss.set(exame.tuss, [exame]);
+      continue;
+    }
+    // Duplicata literal (mesmo tuss E mesmo nome): a entrada mais recente
+    // vence, mesma semântica de "último vence" já usada antes desta função
+    // passar a agrupar por tuss em vez de escolher só um exame.
+    const indice = grupo.findIndex(e => e.nome === exame.nome);
+    if (indice === -1) grupo.push(exame);
+    else grupo[indice] = exame;
   }
 
   const conveniosPorTuss = new Map<string, Set<string>>();
@@ -98,21 +123,31 @@ export async function buildOrcamentoParticular(
     conveniosPorTuss.get(fonte.tuss)!.add(fonte.fonte_pagadora);
   }
 
-  // Map em vez de array: garante um item por tuss (não há UNIQUE(tuss) em
-  // custo_fontes_pagadoras) — se houver linhas Particular duplicadas pro
-  // mesmo tuss, a primeira encontrada vence.
-  const itensPorTuss = new Map<string, OrcamentoParticularItem>();
+  // Map em vez de array: garante um grupo de itens por tuss (não há
+  // UNIQUE(tuss) em custo_fontes_pagadoras) — se houver linhas Particular
+  // duplicadas pro mesmo tuss, a primeira encontrada vence. TUSS com nomes
+  // diferentes em custo_exames vira múltiplos itens (mesmo tuss/preço/
+  // elegibilidade — é a mesma linha de preço), um por nome distinto.
+  const itensPorTuss = new Map<string, OrcamentoParticularItem[]>();
   for (const fonte of fontes) {
     if (fonte.fonte_pagadora !== FONTE_PARTICULAR || itensPorTuss.has(fonte.tuss)) continue;
-    const exame = exameByTuss.get(fonte.tuss);
-    itensPorTuss.set(fonte.tuss, {
+    const grupo = examesPorTuss.get(fonte.tuss);
+    const base = {
       tuss: fonte.tuss,
-      nome: exame?.nome ?? null,
       preco: Number(fonte.valor),
-      custo: exame ? Number(exame.custo_direto) + Number(exame.custo_indireto) : null,
       elegivelDescontoParticular: fonte.elegivel_desconto_particular,
       conveniosAceitos: Array.from(conveniosPorTuss.get(fonte.tuss) ?? []),
-    });
+    };
+    itensPorTuss.set(
+      fonte.tuss,
+      grupo
+        ? grupo.map(exame => ({
+            ...base,
+            nome: exame.nome,
+            custo: Number(exame.custo_direto) + Number(exame.custo_indireto),
+          }))
+        : [{ ...base, nome: null, custo: null }],
+    );
   }
-  return Array.from(itensPorTuss.values());
+  return Array.from(itensPorTuss.values()).flat();
 }

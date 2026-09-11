@@ -4,7 +4,6 @@ import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
   buscarTabelasAssociadasPorTermo,
-  examePorTuss,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
 } from './busca';
@@ -161,29 +160,6 @@ describe('buscarTabelasAssociadasPorTermo', () => {
   });
 });
 
-describe('examePorTuss', () => {
-  const exames = [
-    exame({ id: 'e1', name: 'Hemograma completo', tuss: '40304361' }),
-    exame({ id: 'e2', name: 'Glicemia de jejum', tuss: '40302040' }),
-  ];
-
-  it('tuss sem match devolve undefined', () => {
-    expect(examePorTuss(exames, '00000000')).toBeUndefined();
-  });
-
-  it('devolve o exame cujo tuss bate', () => {
-    expect(examePorTuss(exames, '40302040')).toEqual(exames[1]);
-  });
-
-  it('tuss repetido entre exames: último vence', () => {
-    const duplicados = [
-      exame({ id: 'e1', name: 'Nome antigo', tuss: '40304361' }),
-      exame({ id: 'e2', name: 'Nome novo', tuss: '40304361' }),
-    ];
-    expect(examePorTuss(duplicados, '40304361')).toEqual(duplicados[1]);
-  });
-});
-
 describe('examesPorFontePagadora', () => {
   const exames = [
     exame({ id: 'e1', name: 'Hemograma completo', tuss: '40304361' }),
@@ -209,6 +185,7 @@ describe('examesPorFontePagadora', () => {
     expect(examesPorFontePagadora(exames, fontes, 'Unimed')).toEqual([
       {
         payorId: 'p2',
+        exameId: 'e2',
         exame: 'Glicemia de jejum',
         tuss: '40302040',
         tabelaAssociada: 'Unimed Nacional',
@@ -221,6 +198,7 @@ describe('examesPorFontePagadora', () => {
       },
       {
         payorId: 'p1',
+        exameId: 'e1',
         exame: 'Hemograma completo',
         tuss: '40304361',
         tabelaAssociada: 'Unimed Coop.',
@@ -241,6 +219,7 @@ describe('examesPorFontePagadora', () => {
     expect(examesPorFontePagadora(exames, fontesComNaoAtendido, 'Amil')).toEqual([
       {
         payorId: 'p4',
+        exameId: 'e1',
         exame: 'Hemograma completo',
         tuss: '40304361',
         tabelaAssociada: 'Amil 400',
@@ -268,6 +247,7 @@ describe('examesPorFontePagadora', () => {
     expect(examesPorFontePagadora(exames, fontesParticular, 'Particular')).toEqual([
       {
         payorId: 'p5',
+        exameId: 'e1',
         exame: 'Hemograma completo',
         tuss: '40304361',
         tabelaAssociada: 'Tabela Particular',
@@ -279,5 +259,38 @@ describe('examesPorFontePagadora', () => {
         elegivelDescontoParticular: true,
       },
     ]);
+  });
+
+  it('TUSS compartilhado por exames com nomes diferentes: devolve uma linha por nome distinto, não só o primeiro/último', () => {
+    const examesComTussDuplicado = [
+      exame({ id: 'e10', name: 'FÓSFORO - S', tuss: '40301931' }),
+      exame({ id: 'e11', name: 'FÓSFORO - U', tuss: '40301931' }),
+    ];
+    const fontesParticular = [
+      fonte({ id: 'p10', payor: 'Particular', table: 'Tabela Particular', tus: '40301931', price: 13 }),
+    ];
+
+    const resultado = examesPorFontePagadora(examesComTussDuplicado, fontesParticular, 'Particular');
+
+    expect(resultado).toHaveLength(2);
+    expect(resultado.map((r) => r.exame).sort()).toEqual(['FÓSFORO - S', 'FÓSFORO - U']);
+    // Mesma linha de preço (payorId) reaproveitada pros dois nomes — é o
+    // mesmo registro de custo_fontes_pagadoras, só sem como saber a qual
+    // dos dois exames ele realmente se refere.
+    expect(resultado.every((r) => r.payorId === 'p10' && r.valorCobrado === 13)).toBe(true);
+    expect(resultado.map((r) => r.exameId).sort()).toEqual(['e10', 'e11']);
+  });
+
+  it('TUSS compartilhado por exames com o MESMO nome (duplicata literal): devolve uma linha só, com a ÚLTIMA entrada (mesma semântica de antes da issue 12)', () => {
+    const examesDuplicadosMesmoNome = [
+      exame({ id: 'e20', name: 'Hemograma completo', tuss: '40304361' }),
+      exame({ id: 'e21', name: 'Hemograma completo', tuss: '40304361' }),
+    ];
+
+    const resultado = examesPorFontePagadora(examesDuplicadosMesmoNome, fontes, 'Unimed');
+
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].exame).toBe('Hemograma completo');
+    expect(resultado[0].exameId).toBe('e21');
   });
 });

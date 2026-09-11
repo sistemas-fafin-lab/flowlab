@@ -93,6 +93,10 @@ export function buscarTabelasAssociadasPorTermo(payors: Payor[], termo: string):
  *  como particular (Payor.atendido, editável na tela). */
 export interface ExameDaFontePagadora {
   payorId: string;
+  // Id do Exam cujo nome está em `exame` — necessário porque um mesmo TUSS
+  // pode render múltiplas linhas (ver examesPorFontePagadora); é o que
+  // permite editar/selecionar o exame certo em vez do primeiro que bater.
+  exameId: string;
   exame: string;
   tuss: string;
   tabelaAssociada: string;
@@ -106,18 +110,18 @@ export interface ExameDaFontePagadora {
   elegivelDescontoParticular: boolean;
 }
 
-/** Exame cujo TUSS bate com `tuss` — TUSS pode se repetir entre exames (sem
- *  examId confiável vindo do APLIS), então usa a mesma regra de "último
- *  vence" adotada em examesPorFontePagadora. */
-export function examePorTuss(exams: Exam[], tuss: string): Exam | undefined {
-  return exams.reduce<Exam | undefined>(
-    (ultimo, atual) => (atual.tuss === tuss ? atual : ultimo),
-    undefined,
-  );
-}
-
 /** Exames cobertos por uma fonte pagadora — join pelo TUSS
- *  (`Payor.tus` ↔ `Exam.tuss`), ordenados por valor cobrado crescente. */
+ *  (`Payor.tus` ↔ `Exam.tuss`), ordenados por valor cobrado crescente (e,
+ *  entre linhas de mesmo valor, por nome do exame).
+ *
+ *  Um TUSS pode ser compartilhado por exames com nomes diferentes (sem
+ *  examId confiável vindo do APLIS) — nesse caso, `custo_fontes_pagadoras`
+ *  só tem UMA linha de preço pro TUSS, mas ela vira uma linha de resultado
+ *  POR NOME DISTINTO de exame que compartilha aquele TUSS (mesmo payorId/
+ *  valorCobrado/atendido/elegibilidade nas duas, só o exame/custo mudam) —
+ *  em vez de esconder todos os nomes menos um. Duas linhas de `custo_exames`
+ *  com o mesmo TUSS *e* o mesmo nome (duplicata literal) geram só uma linha
+ *  de resultado. */
 export function examesPorFontePagadora(
   exams: Exam[],
   payors: Payor[],
@@ -126,17 +130,31 @@ export function examesPorFontePagadora(
   const nomeNormalizado = normalizar(nomeFontePagadora);
   if (!nomeNormalizado) return [];
 
-  const examesPorTuss = new Map(exams.map((exame) => [exame.tuss, exame]));
+  const examesPorTuss = new Map<string, Exam[]>();
+  for (const exame of exams) {
+    const grupo = examesPorTuss.get(exame.tuss);
+    if (!grupo) {
+      examesPorTuss.set(exame.tuss, [exame]);
+      continue;
+    }
+    // Duplicata literal (mesmo tuss E mesmo nome): a entrada mais recente
+    // vence, mesma semântica de "último vence" já usada antes desta função
+    // passar a agrupar por tuss em vez de escolher só um exame.
+    const indice = grupo.findIndex((e) => e.name === exame.name);
+    if (indice === -1) grupo.push(exame);
+    else grupo[indice] = exame;
+  }
 
   return payors
     .filter((fonte) => normalizar(fonte.payor) === nomeNormalizado)
     .flatMap((fonte) => {
-      const exame = examesPorTuss.get(fonte.tus);
-      if (!exame) return [];
-      const custo = exame.direct + exame.indirect;
-      return [
-        {
+      const grupo = examesPorTuss.get(fonte.tus);
+      if (!grupo) return [];
+      return grupo.map((exame) => {
+        const custo = exame.direct + exame.indirect;
+        return {
           payorId: fonte.id,
+          exameId: exame.id,
           exame: exame.name,
           tuss: exame.tuss,
           tabelaAssociada: fonte.table,
@@ -146,8 +164,8 @@ export function examesPorFontePagadora(
           percentualCsp: fonte.price > 0 ? (custo / fonte.price) * 100 : 0,
           atendido: fonte.atendido,
           elegivelDescontoParticular: fonte.elegivelDescontoParticular,
-        },
-      ];
+        };
+      });
     })
-    .sort((a, b) => a.valorCobrado - b.valorCobrado);
+    .sort((a, b) => a.valorCobrado - b.valorCobrado || a.exame.localeCompare(b.exame));
 }

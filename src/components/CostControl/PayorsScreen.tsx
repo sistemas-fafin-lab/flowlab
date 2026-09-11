@@ -9,6 +9,7 @@ import {
   ChevronDown,
   Download,
   FlaskConical,
+  Link2,
   Lock,
   Pencil,
   Plus,
@@ -30,7 +31,6 @@ import PayorImportModal from './PayorImportModal';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
-  examePorTuss,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
   type ExameDaFontePagadora,
@@ -427,8 +427,8 @@ function TabelaExamesDaFonte({
   mensagemVazia = 'Nenhum exame cadastrado para esta fonte pagadora.',
 }: {
   examesDaFonte: ExameDaFontePagadora[];
-  onSelectExame: (tuss: string) => void;
-  onEditExame: (tuss: string) => void;
+  onSelectExame: (exameId: string) => void;
+  onEditExame: (exameId: string) => void;
   onToggleAtendido: (payorId: string, atendido: boolean) => void;
   onToggleElegivelDescontoParticular: (payorId: string, elegivel: boolean) => void;
   // Coluna só faz sentido pra fonte pagadora "Particular" — nas outras 37 a
@@ -453,6 +453,18 @@ function TabelaExamesDaFonte({
       ),
     [examesDaFonte, ordenacao],
   );
+
+  // Nomes de exame que compartilham o mesmo payorId (mesmo registro de
+  // custo_fontes_pagadoras) — um TUSS pode cobrir vários exames com nomes
+  // diferentes (ver examesPorFontePagadora). Alterar atendido/elegibilidade
+  // ou excluir uma dessas linhas afeta todas as outras que aparecem aqui.
+  const nomesIrmaosPorPayorId = useMemo(() => {
+    const porPayorId = new Map<string, string[]>();
+    for (const e of examesDaFonte) {
+      porPayorId.set(e.payorId, [...(porPayorId.get(e.payorId) ?? []), e.exame]);
+    }
+    return porPayorId;
+  }, [examesDaFonte]);
 
   return (
     <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
@@ -502,13 +514,15 @@ function TabelaExamesDaFonte({
                 </td>
               </tr>
             ) : (
-              linhas.map(e => (
-                <tr key={`${e.payorId}-${e.tuss}-${e.tabelaAssociada}`} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
+              linhas.map(e => {
+                const irmaos = (nomesIrmaosPorPayorId.get(e.payorId) ?? []).filter(nome => nome !== e.exame);
+                return (
+                <tr key={`${e.payorId}-${e.exameId}`} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
                   <td className="px-5 py-3.5">
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => onSelectExame(e.tuss)}
+                        onClick={() => onSelectExame(e.exameId)}
                         className="flex items-center gap-2 text-left hover:underline"
                       >
                         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
@@ -516,10 +530,18 @@ function TabelaExamesDaFonte({
                         </div>
                         <span className="font-semibold text-gray-800 dark:text-gray-100">{e.exame}</span>
                       </button>
+                      {irmaos.length > 0 && (
+                        <span
+                          title={`Mesmo TUSS/preço de: ${irmaos.join(', ')}. Editar, excluir ou alternar atendido/elegibilidade aqui afeta essas linhas também.`}
+                          className="shrink-0 text-amber-500 dark:text-amber-400"
+                        >
+                          <Link2 className="w-3.5 h-3.5" />
+                        </span>
+                      )}
                       {podeGerenciar && (
                         <button
                           type="button"
-                          onClick={() => onEditExame(e.tuss)}
+                          onClick={() => onEditExame(e.exameId)}
                           title="Editar exame"
                           className="shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-500/10 transition-colors"
                         >
@@ -620,7 +642,8 @@ function TabelaExamesDaFonte({
                     </td>
                   )}
                 </tr>
-              ))
+                );
+              })
             )}
           </tbody>
         </table>
@@ -688,7 +711,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   );
 
   const examesDaFonteFiltrados = useMemo(
-    () => (exameSelecionado ? examesDaFonte.filter(e => e.tuss === exameSelecionado.tuss) : examesDaFonte),
+    () => (exameSelecionado ? examesDaFonte.filter(e => e.exameId === exameSelecionado.id) : examesDaFonte),
     [examesDaFonte, exameSelecionado]
   );
 
@@ -740,14 +763,18 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     setTermoExame('');
   };
 
-  const handleSelecionarExamePorTuss = (tuss: string) => {
-    const exame = examePorTuss(exams, tuss);
+  // Por id, não por TUSS: um TUSS pode ser compartilhado por vários exames
+  // com nomes diferentes (ver examesPorFontePagadora), então resolver pelo
+  // id garante que a linha clicada seleciona/edita o exame certo, não
+  // qualquer um que bata o TUSS.
+  const handleSelecionarExamePorId = (exameId: string) => {
+    const exame = exams.find(e => e.id === exameId);
     if (!exame) return;
     handleSelecionarExame(exame);
   };
 
-  const handleEditExame = (tuss: string) => {
-    const exame = examePorTuss(exams, tuss);
+  const handleEditExame = (exameId: string) => {
+    const exame = exams.find(e => e.id === exameId);
     if (!exame) return;
     setEditingExam(exame);
   };
@@ -858,8 +885,20 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     );
   };
 
-  const handleDeleteExameDaFonte = (item: ExameDaFontePagadora) =>
-    handleDeleteLinha(item.payorId, `${item.exame} (TUSS ${item.tuss})`);
+  const handleDeleteExameDaFonte = (item: ExameDaFontePagadora) => {
+    // Um TUSS pode ser compartilhado por exames com nomes diferentes (ver
+    // examesPorFontePagadora) — nesse caso várias linhas exibidas têm o
+    // MESMO payorId (é o mesmo registro de custo_fontes_pagadoras). Excluir
+    // qualquer uma delas exclui esse registro por inteiro, então avisa
+    // explicitamente antes, em vez de deixar as outras linhas sumirem sem
+    // explicação.
+    const irmaos = examesDaFonte.filter(e => e.payorId === item.payorId && e.exameId !== item.exameId);
+    const descricao =
+      irmaos.length > 0
+        ? `${item.exame} (TUSS ${item.tuss}) — este preço é COMPARTILHADO com ${irmaos.map(i => `"${i.exame}"`).join(', ')}; excluir remove a linha de todos eles, não só desta`
+        : `${item.exame} (TUSS ${item.tuss})`;
+    handleDeleteLinha(item.payorId, descricao);
+  };
 
   const handleDeleteFontePagadora = (item: Payor) =>
     handleDeleteLinha(item.id, `${item.payor} (${item.table})`);
@@ -1042,7 +1081,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         <TabelaExamesDaFonte
           key={`${fontePagadoraSelecionada}-${exameSelecionado?.tuss ?? ''}`}
           examesDaFonte={examesDaFonteFiltrados}
-          onSelectExame={handleSelecionarExamePorTuss}
+          onSelectExame={handleSelecionarExamePorId}
           onEditExame={handleEditExame}
           onToggleAtendido={handleToggleAtendido}
           onToggleElegivelDescontoParticular={handleToggleElegivelDescontoParticular}
