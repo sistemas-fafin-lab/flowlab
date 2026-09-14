@@ -10,6 +10,8 @@ const exameDaFonte = (over: Partial<ExameDaFontePagadora>): ExameDaFontePagadora
   tuss: '40304361',
   tabelaAssociada: 'Unimed Coop.',
   valorCobrado: 12.5,
+  valorPadraoTuss: 12.5,
+  temValorPersonalizado: false,
   custo: 12,
   dif: 0.5,
   percentualCsp: 96,

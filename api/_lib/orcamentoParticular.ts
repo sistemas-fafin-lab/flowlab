@@ -14,10 +14,11 @@ const FONTE_PARTICULAR = 'Particular';
  * `tuss` NÃO é mais garantidamente único no array de resposta (desde a
  * issue 12): um TUSS coberto por exames com nomes diferentes em
  * custo_exames vira um item por nome distinto, todos com o mesmo
- * `tuss`/`preco`/`elegivelDescontoParticular`/`conveniosAceitos` — só
- * `nome`/`custo` mudam entre eles. Consumidores que indexem/deduplicem a
- * resposta por `tuss` (em vez de por `tuss`+`nome`, ou simplesmente
- * consumindo o array como está) vão perder itens.
+ * `tuss`/`elegivelDescontoParticular`/`conveniosAceitos` — `nome`/`custo`
+ * mudam entre eles, e `preco` também pode mudar quando um exame tem valor
+ * personalizado (ver custo_fontes_pagadoras_valores_exame). Consumidores que
+ * indexem/dedupliquem a resposta por `tuss` (em vez de por `tuss`+`nome`, ou
+ * simplesmente consumindo o array como está) vão perder itens.
  */
 export interface OrcamentoParticularItem {
   tuss: string;
@@ -51,6 +52,12 @@ interface ExameRow {
 interface ExclusaoRow {
   payor_id: string;
   exame_id: string;
+}
+
+interface ValorPersonalizadoRow {
+  payor_id: string;
+  exame_id: string;
+  valor: number;
 }
 
 /**
@@ -90,7 +97,7 @@ async function buscarTodasPaginado<T>(
 export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
 ): Promise<OrcamentoParticularItem[]> {
-  const [fontes, exames, exclusoes] = await Promise.all([
+  const [fontes, exames, exclusoes, valoresPersonalizados] = await Promise.all([
     buscarTodasPaginado<FonteRow>(
       supabase,
       'custo_fontes_pagadoras',
@@ -98,12 +105,24 @@ export async function buildOrcamentoParticular(
     ),
     buscarTodasPaginado<ExameRow>(supabase, 'custo_exames', 'id, tuss, nome, custo_direto, custo_indireto'),
     buscarTodasPaginado<ExclusaoRow>(supabase, 'custo_fontes_pagadoras_exclusoes', 'payor_id, exame_id'),
+    buscarTodasPaginado<ValorPersonalizadoRow>(
+      supabase,
+      'custo_fontes_pagadoras_valores_exame',
+      'payor_id, exame_id, valor',
+    ),
   ]);
 
   // Exame explicitamente excluído desta linha de preço (ver PayorsScreen —
   // "excluir" numa linha de TUSS compartilhado) não deve aparecer aqui,
   // mesmo que o TUSS continue tendo preço Particular via os exames irmãos.
   const exclusoesPorChave = new Set(exclusoes.map(e => `${e.payor_id}:${e.exame_id}`));
+
+  // Valor de venda que sobrescreve, só pra um exame específico, o preço
+  // padrão da linha Particular do TUSS compartilhado (ver PayorsScreen —
+  // "valor deste exame"). Mesma chave payorId:exameId usada em exclusoesPorChave.
+  const valoresPersonalizadosPorChave = new Map(
+    valoresPersonalizados.map(v => [`${v.payor_id}:${v.exame_id}`, Number(v.valor)]),
+  );
 
   // NUMERIC(12,2) do Postgres pode voltar como string via PostgREST — mesmo
   // cuidado já tomado em src/hooks/useCostControl.ts (Number(row.valor) etc.)
@@ -162,6 +181,9 @@ export async function buildOrcamentoParticular(
         ? [{ ...base, nome: null, custo: null }]
         : (grupo ?? []).map(exame => ({
             ...base,
+            // Irmãos do mesmo TUSS podem ter um valor próprio, diferente do
+            // preço padrão da linha (ver custo_fontes_pagadoras_valores_exame).
+            preco: valoresPersonalizadosPorChave.get(`${fonte.id}:${exame.id}`) ?? base.preco,
             nome: exame.nome,
             custo: Number(exame.custo_direto) + Number(exame.custo_indireto),
           })),

@@ -52,6 +52,11 @@ export interface UseCostControlReturn {
   // linha de fonte pagadora com TUSS compartilhado (ver
   // custo_fontes_pagadoras_exclusoes / examesPorFontePagadora em domain/busca.ts).
   exameExclusions: Set<string>;
+  // Chaves chaveExclusaoExame(payorId, exameId) → valor — overrides de valor
+  // de venda por exame, pra quando um TUSS compartilhado precisa cobrar
+  // diferente entre os irmãos pra mesma fonte pagadora (ver
+  // custo_fontes_pagadoras_valores_exame / examesPorFontePagadora).
+  exameValoresPersonalizados: Map<string, number>;
   loading: boolean;
   addExam: (data: Omit<Exam, 'id'>) => Promise<void>;
   updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
@@ -63,6 +68,8 @@ export interface UseCostControlReturn {
   createPayor: (data: PayorEditData) => Promise<void>;
   deletePayor: (id: string) => Promise<void>;
   excludeExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
+  setValorExameDaFontePagadora: (payorId: string, exameId: string, valor: number) => Promise<void>;
+  restaurarValorPadraoExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
   importPayors: (
     fontePagadora: string,
     tabelaAssociada: string,
@@ -159,6 +166,7 @@ export const useCostControl = (): UseCostControlReturn => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [payors, setPayors] = useState<Payor[]>([]);
   const [exameExclusions, setExameExclusions] = useState<Set<string>>(new Set());
+  const [exameValoresPersonalizados, setExameValoresPersonalizados] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
 
   const fetchExams = useCallback(async () => {
@@ -181,16 +189,26 @@ export const useCostControl = (): UseCostControlReturn => {
     setExameExclusions(new Set((data || []).map(row => chaveExclusaoExame(row.payor_id, row.exame_id))));
   }, []);
 
+  const fetchExameValoresPersonalizados = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('custo_fontes_pagadoras_valores_exame')
+      .select('payor_id, exame_id, valor');
+    if (error) throw error;
+    setExameValoresPersonalizados(
+      new Map((data || []).map(row => [chaveExclusaoExame(row.payor_id, row.exame_id), Number(row.valor) || 0]))
+    );
+  }, []);
+
   useEffect(() => {
     (async () => {
       try {
         setLoading(true);
-        await Promise.all([fetchExams(), fetchPayors(), fetchExameExclusions()]);
+        await Promise.all([fetchExams(), fetchPayors(), fetchExameExclusions(), fetchExameValoresPersonalizados()]);
       } finally {
         setLoading(false);
       }
     })();
-  }, [fetchExams, fetchPayors, fetchExameExclusions]);
+  }, [fetchExams, fetchPayors, fetchExameExclusions, fetchExameValoresPersonalizados]);
 
   const addExam = useCallback(async (data: Omit<Exam, 'id'>) => {
     const { data: inserted, error } = await supabase
@@ -295,6 +313,34 @@ export const useCostControl = (): UseCostControlReturn => {
     setExameExclusions(prev => new Set(prev).add(chaveExclusaoExame(payorId, exameId)));
   }, []);
 
+  // Usado quando o TUSS da linha é compartilhado por mais de um exame (ver
+  // examesPorFontePagadora): grava um valor de venda só pra esse exame,
+  // sem mexer no valor padrão da linha (que continua valendo pros irmãos
+  // sem override).
+  const setValorExameDaFontePagadora = useCallback(async (payorId: string, exameId: string, valor: number) => {
+    const { error } = await supabase
+      .from('custo_fontes_pagadoras_valores_exame')
+      .upsert({ payor_id: payorId, exame_id: exameId, valor }, { onConflict: 'payor_id,exame_id' });
+    if (error) throw error;
+    setExameValoresPersonalizados(prev => new Map(prev).set(chaveExclusaoExame(payorId, exameId), valor));
+  }, []);
+
+  // Reverte um exame que tinha valor personalizado pra voltar a usar o
+  // valor padrão do TUSS (o mesmo dos irmãos).
+  const restaurarValorPadraoExameDaFontePagadora = useCallback(async (payorId: string, exameId: string) => {
+    const { error } = await supabase
+      .from('custo_fontes_pagadoras_valores_exame')
+      .delete()
+      .eq('payor_id', payorId)
+      .eq('exame_id', exameId);
+    if (error) throw error;
+    setExameValoresPersonalizados(prev => {
+      const next = new Map(prev);
+      next.delete(chaveExclusaoExame(payorId, exameId));
+      return next;
+    });
+  }, []);
+
   // Casamento (upsert) por fonte_pagadora + tabela_associada + tuss — uma
   // mesma fonte pagadora pode ter dezenas de tabelas associadas (convênios)
   // com o mesmo TUSS e valores diferentes (ex.: AMHP-DF tem 37), então casar
@@ -380,6 +426,7 @@ export const useCostControl = (): UseCostControlReturn => {
     exams,
     payors,
     exameExclusions,
+    exameValoresPersonalizados,
     loading,
     addExam,
     updateExam,
@@ -391,6 +438,8 @@ export const useCostControl = (): UseCostControlReturn => {
     createPayor,
     deletePayor,
     excludeExameDaFontePagadora,
+    setValorExameDaFontePagadora,
+    restaurarValorPadraoExameDaFontePagadora,
     importPayors,
   };
 };

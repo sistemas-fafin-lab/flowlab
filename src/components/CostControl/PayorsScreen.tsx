@@ -28,6 +28,7 @@ import Notification from '../Notification';
 import ExamFormModal from './ExamFormModal';
 import PayorFormModal from './PayorFormModal';
 import PayorImportModal from './PayorImportModal';
+import ValorExameFormModal from './ValorExameFormModal';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
@@ -52,12 +53,15 @@ interface PayorsScreenProps {
   payors: Payor[];
   exams: Exam[];
   exameExclusions: Set<string>;
+  exameValoresPersonalizados: Map<string, number>;
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
   updatePayorElegivelDescontoParticular: (id: string, elegivel: boolean) => Promise<void>;
   updatePayor: (id: string, data: PayorEditData) => Promise<void>;
   createPayor: (data: PayorEditData) => Promise<void>;
   deletePayor: (id: string) => Promise<void>;
   excludeExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
+  setValorExameDaFontePagadora: (payorId: string, exameId: string, valor: number) => Promise<void>;
+  restaurarValorPadraoExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
   updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
   importPayors: (
     fontePagadora: string,
@@ -534,7 +538,7 @@ function TabelaExamesDaFonte({
                       </button>
                       {irmaos.length > 0 && (
                         <span
-                          title={`Mesmo TUSS/preço de: ${irmaos.join(', ')}. Editar ou alternar atendido/elegibilidade aqui afeta essas linhas também; excluir remove só esta.`}
+                          title={`Mesmo TUSS de: ${irmaos.join(', ')}. Atendido/elegibilidade aqui afeta essas linhas também; valor e exclusão são só deste exame.`}
                           className="shrink-0 text-amber-500 dark:text-amber-400"
                         >
                           <Link2 className="w-3.5 h-3.5" />
@@ -560,7 +564,15 @@ function TabelaExamesDaFonte({
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-right tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
-                    {formatBRL(e.valorCobrado)}
+                    <span className="inline-flex items-center gap-1.5">
+                      {e.temValorPersonalizado && (
+                        <span
+                          title={`Valor personalizado pra este exame — o padrão do TUSS (e dos irmãos) é ${formatBRL(e.valorPadraoTuss)}.`}
+                          className="shrink-0 w-1.5 h-1.5 rounded-full bg-blue-500 dark:bg-blue-400"
+                        />
+                      )}
+                      {formatBRL(e.valorCobrado)}
+                    </span>
                   </td>
                   <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
                     {formatBRL(e.custo)}
@@ -680,12 +692,15 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   payors,
   exams,
   exameExclusions,
+  exameValoresPersonalizados,
   updatePayorAtendido,
   updatePayorElegivelDescontoParticular,
   updatePayor,
   createPayor,
   deletePayor,
   excludeExameDaFontePagadora,
+  setValorExameDaFontePagadora,
+  restaurarValorPadraoExameDaFontePagadora,
   importPayors,
   updateExam,
 }) => {
@@ -705,6 +720,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const [creatingNovaFontePagadora, setCreatingNovaFontePagadora] = useState(false);
   const [payorFormOpen, setPayorFormOpen] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
+  const [editingValorExame, setEditingValorExame] = useState<ExameDaFontePagadora | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // Exames cobertos pela fonte pagadora selecionada (base pros dois casos em
@@ -712,9 +728,9 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const examesDaFonte = useMemo(
     () =>
       fontePagadoraSelecionada
-        ? examesPorFontePagadora(exams, payors, fontePagadoraSelecionada, exameExclusions)
+        ? examesPorFontePagadora(exams, payors, fontePagadoraSelecionada, exameExclusions, exameValoresPersonalizados)
         : [],
-    [exams, payors, fontePagadoraSelecionada, exameExclusions]
+    [exams, payors, fontePagadoraSelecionada, exameExclusions, exameValoresPersonalizados]
   );
 
   const examesDaFonteFiltrados = useMemo(
@@ -816,7 +832,17 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     setPayorFormOpen(true);
   };
 
-  const handleEditExameDaFonte = (item: ExameDaFontePagadora) =>
+  // Com irmãos (mesmo TUSS compartilhado por mais de um exame), editar aqui
+  // não pode mexer direto no valor padrão da linha de custo_fontes_pagadoras
+  // (isso mudaria o preço de todos os irmãos junto) — abre o modal de valor
+  // personalizado por exame em vez do PayorFormModal. Sem irmãos, não há
+  // ambiguidade: edita a linha inteira (fonte/tabela/TUSS/valor) normalmente.
+  const handleEditExameDaFonte = (item: ExameDaFontePagadora) => {
+    const temIrmaos = examesDaFonte.some(e => e.payorId === item.payorId && e.exameId !== item.exameId);
+    if (temIrmaos) {
+      setEditingValorExame(item);
+      return;
+    }
     handleEditLinha({
       payorId: item.payorId,
       payor: fontePagadoraSelecionada ?? '',
@@ -824,6 +850,29 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       tus: item.tuss,
       price: item.valorCobrado,
     });
+  };
+
+  const handleSaveValorExame = async (valor: number) => {
+    if (!editingValorExame) return;
+    try {
+      await setValorExameDaFontePagadora(editingValorExame.payorId, editingValorExame.exameId, valor);
+      showSuccess('Valor deste exame atualizado com sucesso!');
+      setEditingValorExame(null);
+    } catch (err) {
+      showError('Erro ao atualizar valor do exame', err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleRestaurarValorPadraoExame = async () => {
+    if (!editingValorExame) return;
+    try {
+      await restaurarValorPadraoExameDaFontePagadora(editingValorExame.payorId, editingValorExame.exameId);
+      showSuccess('Valor restaurado ao padrão do TUSS!');
+      setEditingValorExame(null);
+    } catch (err) {
+      showError('Erro ao restaurar valor padrão', err instanceof Error ? err.message : undefined);
+    }
+  };
 
   const handleEditFontePagadora = (item: Payor) =>
     handleEditLinha({ payorId: item.id, payor: item.payor, table: item.table, tus: item.tus, price: item.price });
@@ -1169,6 +1218,16 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           exam={editingExam}
           onClose={() => setEditingExam(null)}
           onSave={handleSaveExame}
+        />
+      )}
+
+      {podeGerenciar && (
+        <ValorExameFormModal
+          open={editingValorExame !== null}
+          item={editingValorExame}
+          onClose={() => setEditingValorExame(null)}
+          onSave={handleSaveValorExame}
+          onRestaurarPadrao={handleRestaurarValorPadraoExame}
         />
       )}
 

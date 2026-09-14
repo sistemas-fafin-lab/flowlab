@@ -92,7 +92,18 @@ export interface ExameDaFontePagadora {
   exame: string;
   tuss: string;
   tabelaAssociada: string;
+  // Valor efetivo desta linha: valor personalizado do exame (ver
+  // valoresPersonalizados) quando existir, senão o valor padrão do TUSS
+  // (Payor.price) — ver valorPadraoTuss/temValorPersonalizado.
   valorCobrado: number;
+  // Valor padrão da linha de custo_fontes_pagadoras (Payor.price),
+  // compartilhado por todos os irmãos do mesmo TUSS — independe de
+  // `valorCobrado` ter sido personalizado ou não. Usado pra oferecer
+  // "restaurar valor padrão" na tela.
+  valorPadraoTuss: number;
+  // true quando `valorCobrado` veio de custo_fontes_pagadoras_valores_exame
+  // (um valor só pra este exame, diferente dos irmãos), não do padrão do TUSS.
+  temValorPersonalizado: boolean;
   custo: number;
   dif: number;
   percentualCsp: number;
@@ -102,9 +113,11 @@ export interface ExameDaFontePagadora {
   elegivelDescontoParticular: boolean;
 }
 
-/** Chave de `excluidos` em `examesPorFontePagadora` — identifica um par
- *  (linha de preço, exame) marcado como não oferecido via
- *  custo_fontes_pagadoras_exclusoes. */
+/** Chave de `excluidos`/`valoresPersonalizados` em `examesPorFontePagadora` —
+ *  identifica um par (linha de preço, exame), usada tanto por
+ *  custo_fontes_pagadoras_exclusoes quanto por
+ *  custo_fontes_pagadoras_valores_exame (mesma forma de chave, tabelas
+ *  diferentes). */
 export const chaveExclusaoExame = (payorId: string, exameId: string): string => `${payorId}:${exameId}`;
 
 /** Exames cobertos por uma fonte pagadora — join pelo TUSS
@@ -123,12 +136,20 @@ export const chaveExclusaoExame = (payorId: string, exameId: string): string => 
  *  `excluidos` (chaveExclusaoExame(payorId, exameId)) tira da lista um nome
  *  específico marcado como "não oferecido por esta fonte pagadora" — sem
  *  afetar o preço nem os demais nomes que compartilham o mesmo TUSS. Ver
- *  custo_fontes_pagadoras_exclusoes (migration 20260914120000). */
+ *  custo_fontes_pagadoras_exclusoes (migration 20260914120000).
+ *
+ *  `valoresPersonalizados` (mesma chave chaveExclusaoExame(payorId, exameId))
+ *  sobrescreve `valorCobrado` só pra aquele par — permite que exames irmãos
+ *  do mesmo TUSS cobrem valores diferentes pra mesma fonte pagadora, sem
+ *  mexer no valor padrão da linha (que continua valendo pros irmãos sem
+ *  override). Ver custo_fontes_pagadoras_valores_exame (migration
+ *  20260914130000). */
 export function examesPorFontePagadora(
   exams: Exam[],
   payors: Payor[],
   nomeFontePagadora: string,
   excluidos: Set<string> = new Set(),
+  valoresPersonalizados: Map<string, number> = new Map(),
 ): ExameDaFontePagadora[] {
   const nomeNormalizado = normalizar(nomeFontePagadora);
   if (!nomeNormalizado) return [];
@@ -157,16 +178,20 @@ export function examesPorFontePagadora(
         .filter((exame) => !excluidos.has(chaveExclusaoExame(fonte.id, exame.id)))
         .map((exame) => {
           const custo = exame.direct + exame.indirect;
+          const valorPersonalizado = valoresPersonalizados.get(chaveExclusaoExame(fonte.id, exame.id));
+          const valorCobrado = valorPersonalizado ?? fonte.price;
           return {
             payorId: fonte.id,
             exameId: exame.id,
             exame: exame.name,
             tuss: exame.tuss,
             tabelaAssociada: fonte.table,
-            valorCobrado: fonte.price,
+            valorCobrado,
+            valorPadraoTuss: fonte.price,
+            temValorPersonalizado: valorPersonalizado !== undefined,
             custo,
-            dif: fonte.price - custo,
-            percentualCsp: fonte.price > 0 ? (custo / fonte.price) * 100 : 0,
+            dif: valorCobrado - custo,
+            percentualCsp: valorCobrado > 0 ? (custo / valorCobrado) * 100 : 0,
             atendido: fonte.atendido,
             elegivelDescontoParticular: fonte.elegivelDescontoParticular,
           };

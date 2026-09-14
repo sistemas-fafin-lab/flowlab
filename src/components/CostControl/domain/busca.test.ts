@@ -191,6 +191,8 @@ describe('examesPorFontePagadora', () => {
         tuss: '40302040',
         tabelaAssociada: 'Unimed Nacional',
         valorCobrado: 4.8,
+        valorPadraoTuss: 4.8,
+        temValorPersonalizado: false,
         custo: 12,
         dif: -7.2,
         percentualCsp: 250,
@@ -204,6 +206,8 @@ describe('examesPorFontePagadora', () => {
         tuss: '40304361',
         tabelaAssociada: 'Unimed Coop.',
         valorCobrado: 12.5,
+        valorPadraoTuss: 12.5,
+        temValorPersonalizado: false,
         custo: 12,
         dif: 0.5,
         percentualCsp: 96,
@@ -225,6 +229,8 @@ describe('examesPorFontePagadora', () => {
         tuss: '40304361',
         tabelaAssociada: 'Amil 400',
         valorCobrado: 15,
+        valorPadraoTuss: 15,
+        temValorPersonalizado: false,
         custo: 12,
         dif: 3,
         percentualCsp: 80,
@@ -253,6 +259,8 @@ describe('examesPorFontePagadora', () => {
         tuss: '40304361',
         tabelaAssociada: 'Tabela Particular',
         valorCobrado: 24,
+        valorPadraoTuss: 24,
+        temValorPersonalizado: false,
         custo: 12,
         dif: 12,
         percentualCsp: 50,
@@ -296,6 +304,38 @@ describe('examesPorFontePagadora', () => {
 
     expect(resultado).toHaveLength(1);
     expect(resultado[0].exameId).toBe('e11');
+  });
+
+  it('valor personalizado (valoresPersonalizados) sobrescreve só o exame dono da chave; o irmão continua no valor padrão do TUSS', () => {
+    const examesComTussDuplicado = [
+      exame({ id: 'e10', name: 'FÓSFORO - S', tuss: '40301931' }),
+      exame({ id: 'e11', name: 'FÓSFORO - U', tuss: '40301931' }),
+    ];
+    const fontesParticular = [
+      fonte({ id: 'p10', payor: 'Particular', table: 'Tabela Particular', tus: '40301931', price: 13 }),
+    ];
+    const valoresPersonalizados = new Map([[chaveExclusaoExame('p10', 'e10'), 20]]);
+
+    const resultado = examesPorFontePagadora(
+      examesComTussDuplicado,
+      fontesParticular,
+      'Particular',
+      new Set(),
+      valoresPersonalizados,
+    );
+
+    const s = resultado.find((r) => r.exameId === 'e10')!;
+    const u = resultado.find((r) => r.exameId === 'e11')!;
+
+    expect(s.valorCobrado).toBe(20);
+    expect(s.valorPadraoTuss).toBe(13);
+    expect(s.temValorPersonalizado).toBe(true);
+    // custo/dif/%csp do exame personalizado usam o valor personalizado, não o padrão
+    expect(s.dif).toBe(20 - s.custo);
+
+    expect(u.valorCobrado).toBe(13);
+    expect(u.valorPadraoTuss).toBe(13);
+    expect(u.temValorPersonalizado).toBe(false);
   });
 
   it('TUSS compartilhado por exames com o MESMO nome (duplicata literal): devolve uma linha só, com a ÚLTIMA entrada (mesma semântica de antes da issue 12)', () => {

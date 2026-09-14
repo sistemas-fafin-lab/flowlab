@@ -65,10 +65,17 @@ interface ExclusaoRow {
   exame_id: string;
 }
 
+interface ValorPersonalizadoRow {
+  payor_id: string;
+  exame_id: string;
+  valor: number | string;
+}
+
 function criarSupabaseMock(dados: {
   custo_fontes_pagadoras: FonteRow[];
   custo_exames: ExameRow[];
   custo_fontes_pagadoras_exclusoes?: ExclusaoRow[];
+  custo_fontes_pagadoras_valores_exame?: ValorPersonalizadoRow[];
 }) {
   return {
     from: (tabela: string) => ({
@@ -265,6 +272,32 @@ describe('buildOrcamentoParticular', () => {
 
     expect(itens).toHaveLength(1);
     expect(itens[0].nome).toBe('INSULINA BASAL');
+  });
+
+  it('valor personalizado (custo_fontes_pagadoras_valores_exame) sobrescreve o preço só pro exame dono da chave; o irmão continua no preço padrão', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        {
+          id: 'payor-1',
+          fonte_pagadora: 'Particular',
+          tuss: '40316360',
+          valor: 30,
+          atendido: true,
+          elegivel_desconto_particular: false,
+        },
+      ],
+      custo_exames: [
+        { id: 'exame-insulina', tuss: '40316360', nome: 'INSULINA', custo_direto: 5, custo_indireto: 2 },
+        { id: 'exame-insulina-basal', tuss: '40316360', nome: 'INSULINA BASAL', custo_direto: 6, custo_indireto: 3 },
+      ],
+      custo_fontes_pagadoras_valores_exame: [{ payor_id: 'payor-1', exame_id: 'exame-insulina', valor: 45 }],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+    const porNome = new Map(itens.map(i => [i.nome, i]));
+
+    expect(porNome.get('INSULINA')?.preco).toBe(45);
+    expect(porNome.get('INSULINA BASAL')?.preco).toBe(30);
   });
 
   it('todos os exames de um tuss excluídos: não gera item nenhum pro tuss', async () => {
