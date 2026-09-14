@@ -48,6 +48,7 @@ import {
   BarChart3,
   Send,
   AlertOctagon,
+  UserCog,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -106,7 +107,7 @@ const DEFAULT_CATEGORIES: CategoryConfig[] = [
     id: 'administracao',
     name: 'ADMINISTRAÇÃO',
     sort_order: 2,
-    items: ['Usuários', 'Sistema'],
+    items: ['Usuários', 'Sistema', 'RH'],
   },
 ];
 
@@ -671,6 +672,13 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         href: '/users',
         icon: Users,
         permission: 'canManageUsers',
+        category: 'ADMINISTRAÇÃO',
+      },
+      {
+        name: 'RH',
+        href: '/rh/colaboradores',
+        icon: UserCog,
+        permission: 'canViewColaboradores',
         category: 'ADMINISTRAÇÃO',
       },
       {

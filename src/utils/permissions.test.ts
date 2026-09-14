@@ -26,3 +26,20 @@ describe('getPermissionsForLegacyRole — chaves do módulo Qualidade', () => {
     expect(permissoes).toContain('canManageQualidade');
   });
 });
+
+describe('getPermissionsForLegacyRole — canViewColaboradores (módulo RH)', () => {
+  it('não concede canViewColaboradores a operator legado', () => {
+    const permissoes = getPermissionsForLegacyRole('operator');
+    expect(permissoes).not.toContain('canViewColaboradores');
+  });
+
+  it('não concede canViewColaboradores a requester legado', () => {
+    const permissoes = getPermissionsForLegacyRole('requester');
+    expect(permissoes).not.toContain('canViewColaboradores');
+  });
+
+  it('mantém canViewColaboradores para admin legado (role=admin é reconhecida pelo RLS)', () => {
+    const permissoes = getPermissionsForLegacyRole('admin');
+    expect(permissoes).toContain('canViewColaboradores');
+  });
+});

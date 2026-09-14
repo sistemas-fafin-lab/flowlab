@@ -50,6 +50,7 @@ import {
   CorrelacaoRiscosOcorrenciasPage,
 } from './modules/qualidade';
 import { BoardPage } from './modules/board';
+import { ColaboradoresPage } from './modules/rh';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -472,6 +473,15 @@ const AuthenticatedApp: React.FC = () => {
             componente (depende de custom_roles.board_id, não só de uma
             permission string), por isso não usa <ProtectedRoute>. */}
         <Route path="/board" element={<BoardPage />} />
+        {/* RH Routes */}
+        <Route
+          path="/rh/colaboradores"
+          element={
+            <ProtectedRoute permission="canViewColaboradores" permissions={userPermissions}>
+              <ColaboradoresPage />
+            </ProtectedRoute>
+          }
+        />
         {/* IT Module Routes */}
         <Route
           path="/it/dashboard"
