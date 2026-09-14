@@ -121,7 +121,7 @@ describe('separarUpsertFontePagadora', () => {
     const existentes = new Map([['40304361', 'payor-id-1']]);
     const { toInsert, toUpdate } = separarUpsertFontePagadora(linhas, existentes);
     expect(toInsert).toEqual([]);
-    expect(toUpdate).toEqual([{ id: 'payor-id-1', valor: 30, atendido: false }]);
+    expect(toUpdate).toEqual([{ id: 'payor-id-1', tuss: '40304361', valor: 30, atendido: false }]);
   });
 
   it('separa corretamente uma mistura de TUSS novos e já cadastrados', () => {
@@ -132,7 +132,7 @@ describe('separarUpsertFontePagadora', () => {
     const existentes = new Map([['40304361', 'payor-id-1']]);
     const { toInsert, toUpdate } = separarUpsertFontePagadora(linhas, existentes);
     expect(toInsert).toEqual([{ tuss: '40302040', valor: 12, atendido: true }]);
-    expect(toUpdate).toEqual([{ id: 'payor-id-1', valor: 30, atendido: false }]);
+    expect(toUpdate).toEqual([{ id: 'payor-id-1', tuss: '40304361', valor: 30, atendido: false }]);
   });
 
   it('TUSS novo repetido na própria planilha: último vence, só uma inserção (sem constraint de unicidade no banco pra pegar isso)', () => {
@@ -153,6 +153,6 @@ describe('separarUpsertFontePagadora', () => {
     const existentes = new Map([['40304361', 'payor-id-1']]);
     const { toInsert, toUpdate } = separarUpsertFontePagadora(linhas, existentes);
     expect(toInsert).toEqual([]);
-    expect(toUpdate).toEqual([{ id: 'payor-id-1', valor: 20, atendido: false }]);
+    expect(toUpdate).toEqual([{ id: 'payor-id-1', tuss: '40304361', valor: 20, atendido: false }]);
   });
 });

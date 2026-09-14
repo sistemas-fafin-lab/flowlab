@@ -318,6 +318,30 @@ export const useCostControl = (): UseCostControlReturn => {
           .select()
           .single();
 
+        // PGRST116 = UPDATE não afetou nenhuma linha (0 rows no retorno de
+        // .single()). Acontece quando o id ficou obsoleto no state local —
+        // a linha que existia quando a tela carregou já foi apagada no
+        // banco (por esta ou outra sessão). Em vez de estourar um 406 cru e
+        // abortar o lote inteiro, trata como TUSS novo e insere.
+        if (error?.code === 'PGRST116') {
+          const { data: inserted, error: insertError } = await supabase
+            .from('custo_fontes_pagadoras')
+            .insert({
+              fonte_pagadora: fontePagadora,
+              tabela_associada: tabelaAssociada,
+              tuss: u.tuss,
+              valor: u.valor,
+              atendido: u.atendido,
+            })
+            .select()
+            .single();
+
+          if (insertError) throw insertError;
+          const inseridoAoInvesDeAtualizado = mapPayorRow(inserted);
+          setPayors(prev => [inseridoAoInvesDeAtualizado, ...prev.filter(p => p.id !== u.id)]);
+          continue;
+        }
+
         if (error) throw error;
         const atualizado = mapPayorRow(data);
         setPayors(prev => prev.map(p => (p.id === atualizado.id ? atualizado : p)));

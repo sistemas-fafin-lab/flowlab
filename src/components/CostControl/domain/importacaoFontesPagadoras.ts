@@ -75,6 +75,7 @@ export function validarLinhasImportacaoFontePagadora(
 
 export interface AtualizacaoFontePagadora {
   id: string;
+  tuss: string;
   valor: number;
   atendido: boolean;
 }
@@ -104,7 +105,7 @@ export function separarUpsertFontePagadora(
   porTuss.forEach(linha => {
     const id = existentesPorTuss.get(linha.tuss);
     if (id) {
-      toUpdate.push({ id, valor: linha.valor, atendido: linha.atendido });
+      toUpdate.push({ id, tuss: linha.tuss, valor: linha.valor, atendido: linha.atendido });
     } else {
       toInsert.push(linha);
     }
