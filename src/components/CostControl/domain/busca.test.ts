@@ -4,6 +4,7 @@ import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
   buscarTabelasAssociadasPorTermo,
+  chaveExclusaoExame,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
 } from './busca';
@@ -279,6 +280,22 @@ describe('examesPorFontePagadora', () => {
     // dos dois exames ele realmente se refere.
     expect(resultado.every((r) => r.payorId === 'p10' && r.valorCobrado === 13)).toBe(true);
     expect(resultado.map((r) => r.exameId).sort()).toEqual(['e10', 'e11']);
+  });
+
+  it('exame excluído (chaveExclusaoExame) some da lista, mas o irmão de mesmo TUSS continua', () => {
+    const examesComTussDuplicado = [
+      exame({ id: 'e10', name: 'FÓSFORO - S', tuss: '40301931' }),
+      exame({ id: 'e11', name: 'FÓSFORO - U', tuss: '40301931' }),
+    ];
+    const fontesParticular = [
+      fonte({ id: 'p10', payor: 'Particular', table: 'Tabela Particular', tus: '40301931', price: 13 }),
+    ];
+    const excluidos = new Set([chaveExclusaoExame('p10', 'e10')]);
+
+    const resultado = examesPorFontePagadora(examesComTussDuplicado, fontesParticular, 'Particular', excluidos);
+
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].exameId).toBe('e11');
   });
 
   it('TUSS compartilhado por exames com o MESMO nome (duplicata literal): devolve uma linha só, com a ÚLTIMA entrada (mesma semântica de antes da issue 12)', () => {

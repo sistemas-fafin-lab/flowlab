@@ -32,6 +32,7 @@ export interface OrcamentoParticularItem {
 }
 
 interface FonteRow {
+  id: string;
   fonte_pagadora: string;
   tuss: string;
   valor: number;
@@ -40,10 +41,16 @@ interface FonteRow {
 }
 
 interface ExameRow {
+  id: string;
   tuss: string;
   nome: string;
   custo_direto: number;
   custo_indireto: number;
+}
+
+interface ExclusaoRow {
+  payor_id: string;
+  exame_id: string;
 }
 
 /**
@@ -83,14 +90,20 @@ async function buscarTodasPaginado<T>(
 export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
 ): Promise<OrcamentoParticularItem[]> {
-  const [fontes, exames] = await Promise.all([
+  const [fontes, exames, exclusoes] = await Promise.all([
     buscarTodasPaginado<FonteRow>(
       supabase,
       'custo_fontes_pagadoras',
-      'fonte_pagadora, tuss, valor, atendido, elegivel_desconto_particular',
+      'id, fonte_pagadora, tuss, valor, atendido, elegivel_desconto_particular',
     ),
-    buscarTodasPaginado<ExameRow>(supabase, 'custo_exames', 'tuss, nome, custo_direto, custo_indireto'),
+    buscarTodasPaginado<ExameRow>(supabase, 'custo_exames', 'id, tuss, nome, custo_direto, custo_indireto'),
+    buscarTodasPaginado<ExclusaoRow>(supabase, 'custo_fontes_pagadoras_exclusoes', 'payor_id, exame_id'),
   ]);
+
+  // Exame explicitamente excluído desta linha de preço (ver PayorsScreen —
+  // "excluir" numa linha de TUSS compartilhado) não deve aparecer aqui,
+  // mesmo que o TUSS continue tendo preço Particular via os exames irmãos.
+  const exclusoesPorChave = new Set(exclusoes.map(e => `${e.payor_id}:${e.exame_id}`));
 
   // NUMERIC(12,2) do Postgres pode voltar como string via PostgREST — mesmo
   // cuidado já tomado em src/hooks/useCostControl.ts (Number(row.valor) etc.)
@@ -131,22 +144,27 @@ export async function buildOrcamentoParticular(
   const itensPorTuss = new Map<string, OrcamentoParticularItem[]>();
   for (const fonte of fontes) {
     if (fonte.fonte_pagadora !== FONTE_PARTICULAR || itensPorTuss.has(fonte.tuss)) continue;
-    const grupo = examesPorTuss.get(fonte.tuss);
+    const grupoOriginal = examesPorTuss.get(fonte.tuss);
     const base = {
       tuss: fonte.tuss,
       preco: Number(fonte.valor),
       elegivelDescontoParticular: fonte.elegivel_desconto_particular,
       conveniosAceitos: Array.from(conveniosPorTuss.get(fonte.tuss) ?? []),
     };
+    // grupoOriginal === undefined: tuss sem correspondência em custo_exames —
+    // mantém o item avulso (nome/custo null). Já com correspondência, exames
+    // excluídos desta linha de preço saem da lista — se todos saírem, esse
+    // tuss simplesmente não gera item nenhum (preço sem exame pra expor).
+    const grupo = grupoOriginal?.filter(exame => !exclusoesPorChave.has(`${fonte.id}:${exame.id}`));
     itensPorTuss.set(
       fonte.tuss,
-      grupo
-        ? grupo.map(exame => ({
+      grupoOriginal === undefined
+        ? [{ ...base, nome: null, custo: null }]
+        : (grupo ?? []).map(exame => ({
             ...base,
             nome: exame.nome,
             custo: Number(exame.custo_direto) + Number(exame.custo_indireto),
-          }))
-        : [{ ...base, nome: null, custo: null }],
+          })),
     );
   }
   return Array.from(itensPorTuss.values()).flat();

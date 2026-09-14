@@ -51,11 +51,13 @@ const FONTE_PARTICULAR = 'Particular';
 interface PayorsScreenProps {
   payors: Payor[];
   exams: Exam[];
+  exameExclusions: Set<string>;
   updatePayorAtendido: (id: string, atendido: boolean) => Promise<void>;
   updatePayorElegivelDescontoParticular: (id: string, elegivel: boolean) => Promise<void>;
   updatePayor: (id: string, data: PayorEditData) => Promise<void>;
   createPayor: (data: PayorEditData) => Promise<void>;
   deletePayor: (id: string) => Promise<void>;
+  excludeExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
   updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
   importPayors: (
     fontePagadora: string,
@@ -532,7 +534,7 @@ function TabelaExamesDaFonte({
                       </button>
                       {irmaos.length > 0 && (
                         <span
-                          title={`Mesmo TUSS/preço de: ${irmaos.join(', ')}. Editar, excluir ou alternar atendido/elegibilidade aqui afeta essas linhas também.`}
+                          title={`Mesmo TUSS/preço de: ${irmaos.join(', ')}. Editar ou alternar atendido/elegibilidade aqui afeta essas linhas também; excluir remove só esta.`}
                           className="shrink-0 text-amber-500 dark:text-amber-400"
                         >
                           <Link2 className="w-3.5 h-3.5" />
@@ -677,11 +679,13 @@ function TabelaExamesDaFonte({
 const PayorsScreen: React.FC<PayorsScreenProps> = ({
   payors,
   exams,
+  exameExclusions,
   updatePayorAtendido,
   updatePayorElegivelDescontoParticular,
   updatePayor,
   createPayor,
   deletePayor,
+  excludeExameDaFontePagadora,
   importPayors,
   updateExam,
 }) => {
@@ -706,8 +710,11 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   // Exames cobertos pela fonte pagadora selecionada (base pros dois casos em
   // que ela está preenchida: só fonte, ou fonte + exame).
   const examesDaFonte = useMemo(
-    () => (fontePagadoraSelecionada ? examesPorFontePagadora(exams, payors, fontePagadoraSelecionada) : []),
-    [exams, payors, fontePagadoraSelecionada]
+    () =>
+      fontePagadoraSelecionada
+        ? examesPorFontePagadora(exams, payors, fontePagadoraSelecionada, exameExclusions)
+        : [],
+    [exams, payors, fontePagadoraSelecionada, exameExclusions]
   );
 
   const examesDaFonteFiltrados = useMemo(
@@ -888,16 +895,31 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const handleDeleteExameDaFonte = (item: ExameDaFontePagadora) => {
     // Um TUSS pode ser compartilhado por exames com nomes diferentes (ver
     // examesPorFontePagadora) — nesse caso várias linhas exibidas têm o
-    // MESMO payorId (é o mesmo registro de custo_fontes_pagadoras). Excluir
-    // qualquer uma delas exclui esse registro por inteiro, então avisa
-    // explicitamente antes, em vez de deixar as outras linhas sumirem sem
-    // explicação.
+    // MESMO payorId (é o mesmo registro de custo_fontes_pagadoras). Nesse
+    // caso, excluir marca só ESTE exame como não oferecido por essa fonte
+    // pagadora (custo_fontes_pagadoras_exclusoes) — o preço e os exames
+    // irmãos continuam intactos. Sem irmãos, não há preço compartilhado pra
+    // preservar, então exclui a linha de preço de verdade.
     const irmaos = examesDaFonte.filter(e => e.payorId === item.payorId && e.exameId !== item.exameId);
-    const descricao =
-      irmaos.length > 0
-        ? `${item.exame} (TUSS ${item.tuss}) — este preço é COMPARTILHADO com ${irmaos.map(i => `"${i.exame}"`).join(', ')}; excluir remove a linha de todos eles, não só desta`
-        : `${item.exame} (TUSS ${item.tuss})`;
-    handleDeleteLinha(item.payorId, descricao);
+
+    if (irmaos.length > 0) {
+      showConfirmDialog(
+        'Excluir exame desta fonte pagadora',
+        `Tem certeza que deseja excluir "${item.exame}" (TUSS ${item.tuss}) desta fonte pagadora? O preço continua valendo para ${irmaos.map(i => `"${i.exame}"`).join(', ')}, que compartilha${irmaos.length > 1 ? 'm' : ''} o mesmo TUSS.`,
+        async () => {
+          try {
+            await excludeExameDaFontePagadora(item.payorId, item.exameId);
+            showSuccess('Exame excluído desta fonte pagadora!');
+          } catch (err) {
+            showError('Erro ao excluir exame', err instanceof Error ? err.message : undefined);
+          }
+        },
+        { type: 'danger', confirmText: 'Excluir' }
+      );
+      return;
+    }
+
+    handleDeleteLinha(item.payorId, `${item.exame} (TUSS ${item.tuss})`);
   };
 
   const handleDeleteFontePagadora = (item: Payor) =>

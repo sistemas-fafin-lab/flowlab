@@ -110,6 +110,11 @@ export interface ExameDaFontePagadora {
   elegivelDescontoParticular: boolean;
 }
 
+/** Chave de `excluidos` em `examesPorFontePagadora` — identifica um par
+ *  (linha de preço, exame) marcado como não oferecido via
+ *  custo_fontes_pagadoras_exclusoes. */
+export const chaveExclusaoExame = (payorId: string, exameId: string): string => `${payorId}:${exameId}`;
+
 /** Exames cobertos por uma fonte pagadora — join pelo TUSS
  *  (`Payor.tus` ↔ `Exam.tuss`), ordenados por valor cobrado crescente (e,
  *  entre linhas de mesmo valor, por nome do exame).
@@ -121,11 +126,17 @@ export interface ExameDaFontePagadora {
  *  valorCobrado/atendido/elegibilidade nas duas, só o exame/custo mudam) —
  *  em vez de esconder todos os nomes menos um. Duas linhas de `custo_exames`
  *  com o mesmo TUSS *e* o mesmo nome (duplicata literal) geram só uma linha
- *  de resultado. */
+ *  de resultado.
+ *
+ *  `excluidos` (chaveExclusaoExame(payorId, exameId)) tira da lista um nome
+ *  específico marcado como "não oferecido por esta fonte pagadora" — sem
+ *  afetar o preço nem os demais nomes que compartilham o mesmo TUSS. Ver
+ *  custo_fontes_pagadoras_exclusoes (migration 20260914120000). */
 export function examesPorFontePagadora(
   exams: Exam[],
   payors: Payor[],
   nomeFontePagadora: string,
+  excluidos: Set<string> = new Set(),
 ): ExameDaFontePagadora[] {
   const nomeNormalizado = normalizar(nomeFontePagadora);
   if (!nomeNormalizado) return [];
@@ -150,22 +161,24 @@ export function examesPorFontePagadora(
     .flatMap((fonte) => {
       const grupo = examesPorTuss.get(fonte.tus);
       if (!grupo) return [];
-      return grupo.map((exame) => {
-        const custo = exame.direct + exame.indirect;
-        return {
-          payorId: fonte.id,
-          exameId: exame.id,
-          exame: exame.name,
-          tuss: exame.tuss,
-          tabelaAssociada: fonte.table,
-          valorCobrado: fonte.price,
-          custo,
-          dif: fonte.price - custo,
-          percentualCsp: fonte.price > 0 ? (custo / fonte.price) * 100 : 0,
-          atendido: fonte.atendido,
-          elegivelDescontoParticular: fonte.elegivelDescontoParticular,
-        };
-      });
+      return grupo
+        .filter((exame) => !excluidos.has(chaveExclusaoExame(fonte.id, exame.id)))
+        .map((exame) => {
+          const custo = exame.direct + exame.indirect;
+          return {
+            payorId: fonte.id,
+            exameId: exame.id,
+            exame: exame.name,
+            tuss: exame.tuss,
+            tabelaAssociada: fonte.table,
+            valorCobrado: fonte.price,
+            custo,
+            dif: fonte.price - custo,
+            percentualCsp: fonte.price > 0 ? (custo / fonte.price) * 100 : 0,
+            atendido: fonte.atendido,
+            elegivelDescontoParticular: fonte.elegivelDescontoParticular,
+          };
+        });
     })
     .sort((a, b) => a.valorCobrado - b.valorCobrado || a.exame.localeCompare(b.exame));
 }

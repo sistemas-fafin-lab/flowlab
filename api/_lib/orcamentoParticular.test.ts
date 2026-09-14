@@ -43,6 +43,7 @@ describe('isTabelaParticularApiKeyValid', () => {
 });
 
 interface FonteRow {
+  id?: string;
   fonte_pagadora: string;
   tuss: string;
   // number | string: PostgREST pode devolver NUMERIC como string.
@@ -52,13 +53,23 @@ interface FonteRow {
 }
 
 interface ExameRow {
+  id?: string;
   tuss: string;
   nome: string;
   custo_direto: number | string;
   custo_indireto: number | string;
 }
 
-function criarSupabaseMock(dados: { custo_fontes_pagadoras: FonteRow[]; custo_exames: ExameRow[] }) {
+interface ExclusaoRow {
+  payor_id: string;
+  exame_id: string;
+}
+
+function criarSupabaseMock(dados: {
+  custo_fontes_pagadoras: FonteRow[];
+  custo_exames: ExameRow[];
+  custo_fontes_pagadoras_exclusoes?: ExclusaoRow[];
+}) {
   return {
     from: (tabela: string) => ({
       select: () => ({
@@ -229,6 +240,52 @@ describe('buildOrcamentoParticular', () => {
     const porNome = new Map(itens.map(i => [i.nome, i]));
     expect(porNome.get('FÓSFORO - S')?.custo).toBe(7);
     expect(porNome.get('FÓSFORO - U')?.custo).toBe(9);
+  });
+
+  it('exame excluído desta linha de preço (custo_fontes_pagadoras_exclusoes) não gera item, mas o irmão continua', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        {
+          id: 'payor-1',
+          fonte_pagadora: 'Particular',
+          tuss: '40316360',
+          valor: 30,
+          atendido: true,
+          elegivel_desconto_particular: false,
+        },
+      ],
+      custo_exames: [
+        { id: 'exame-insulina', tuss: '40316360', nome: 'INSULINA', custo_direto: 5, custo_indireto: 2 },
+        { id: 'exame-insulina-basal', tuss: '40316360', nome: 'INSULINA BASAL', custo_direto: 6, custo_indireto: 3 },
+      ],
+      custo_fontes_pagadoras_exclusoes: [{ payor_id: 'payor-1', exame_id: 'exame-insulina' }],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens).toHaveLength(1);
+    expect(itens[0].nome).toBe('INSULINA BASAL');
+  });
+
+  it('todos os exames de um tuss excluídos: não gera item nenhum pro tuss', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        {
+          id: 'payor-1',
+          fonte_pagadora: 'Particular',
+          tuss: '40316360',
+          valor: 30,
+          atendido: true,
+          elegivel_desconto_particular: false,
+        },
+      ],
+      custo_exames: [{ id: 'exame-insulina', tuss: '40316360', nome: 'INSULINA', custo_direto: 5, custo_indireto: 2 }],
+      custo_fontes_pagadoras_exclusoes: [{ payor_id: 'payor-1', exame_id: 'exame-insulina' }],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens).toEqual([]);
   });
 
   it('tuss compartilhado por exames com o MESMO nome (duplicata literal): devolve um item só, com a ÚLTIMA entrada', async () => {
