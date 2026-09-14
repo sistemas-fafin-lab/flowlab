@@ -19,7 +19,7 @@ import ConfirmDialog from '../ConfirmDialog';
 import ExamTable from './ExamTable';
 import ExamFormModal from './ExamFormModal';
 import ExamImportModal from './ExamImportModal';
-import { casaFuzzy } from './domain/busca';
+import { casaTermo } from './domain/busca';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -104,9 +104,9 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
       exams.filter(e => {
         const matchesSearch =
           !search.trim() ||
-          casaFuzzy(e.name, search) ||
-          casaFuzzy(e.code, search) ||
-          casaFuzzy(e.tuss, search);
+          casaTermo(e.name, search) ||
+          casaTermo(e.code, search) ||
+          casaTermo(e.tuss, search);
         const matchesLoc = location === 'all' || e.location === location;
         return matchesSearch && matchesLoc;
       }),

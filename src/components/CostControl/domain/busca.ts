@@ -13,34 +13,26 @@ function removerAcentos(valor: string): string {
   return valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-/** Compara `texto` com `termo` ignorando acentos e maiúsculas/minúsculas, e
- *  casando de forma fuzzy: basta os caracteres de `termo` aparecerem em
- *  `texto`, em ordem, não necessariamente contíguos (ex.: termo "bsd" casa
- *  com "Bradesco Saúde"). Termo vazio nunca casa — quem quiser tratar termo
- *  vazio como "casa com tudo" decide isso antes de chamar. */
-export function casaFuzzy(texto: string, termo: string): boolean {
-  const textoNormalizado = normalizar(texto);
+/** Compara `texto` com `termo` ignorando acentos e maiúsculas/minúsculas —
+ *  `termo` precisa aparecer em `texto` como substring contígua (não é fuzzy:
+ *  "bsd" NÃO casa com "Bradesco Saúde", só "brad" ou "saude" casariam).
+ *  Termo vazio nunca casa — quem quiser tratar termo vazio como "casa com
+ *  tudo" decide isso antes de chamar. */
+export function casaTermo(texto: string, termo: string): boolean {
   const termoNormalizado = normalizar(termo);
   if (!termoNormalizado) return false;
 
-  let posicao = 0;
-  for (const caractere of termoNormalizado) {
-    posicao = textoNormalizado.indexOf(caractere, posicao);
-    if (posicao === -1) return false;
-    posicao += 1;
-  }
-  return true;
+  return normalizar(texto).includes(termoNormalizado);
 }
 
 /** Exames cujo nome OU código TUSS casam com `termo` — ignora acentos e
- *  maiúsculas/minúsculas, e a correspondência é fuzzy (não precisa ser
- *  substring contígua). Termo vazio (ou só espaços) devolve lista vazia, não
- *  a lista inteira. */
+ *  maiúsculas/minúsculas; `termo` precisa aparecer como substring contígua.
+ *  Termo vazio (ou só espaços) devolve lista vazia, não a lista inteira. */
 export function buscarExamesPorTermo(exams: Exam[], termo: string): Exam[] {
   if (!normalizar(termo)) return [];
 
   return exams.filter(
-    (exame) => casaFuzzy(exame.name, termo) || casaFuzzy(exame.tuss, termo),
+    (exame) => casaTermo(exame.name, termo) || casaTermo(exame.tuss, termo),
   );
 }
 
@@ -56,29 +48,29 @@ export function fontesPagadorasPorTuss(payors: Payor[], tuss: string): Payor[] {
 }
 
 /** Nomes de fonte pagadora (deduplicados) cujo nome casa com `termo` —
- *  ignora acentos e maiúsculas/minúsculas, e a correspondência é fuzzy (não
- *  precisa ser substring contígua). Termo vazio (ou só espaços) devolve
- *  lista vazia, não a lista inteira. */
+ *  ignora acentos e maiúsculas/minúsculas; `termo` precisa aparecer como
+ *  substring contígua. Termo vazio (ou só espaços) devolve lista vazia, não
+ *  a lista inteira. */
 export function buscarFontesPagadorasPorTermo(payors: Payor[], termo: string): string[] {
   if (!normalizar(termo)) return [];
 
   const nomes = payors
     .map((fonte) => fonte.payor)
-    .filter((nome) => casaFuzzy(nome, termo));
+    .filter((nome) => casaTermo(nome, termo));
 
   return Array.from(new Set(nomes));
 }
 
 /** Nomes de tabela associada (deduplicados) cujo nome casa com `termo` —
- *  ignora acentos e maiúsculas/minúsculas, e a correspondência é fuzzy (não
- *  precisa ser substring contígua). Termo vazio (ou só espaços) devolve
- *  lista vazia, não a lista inteira. */
+ *  ignora acentos e maiúsculas/minúsculas; `termo` precisa aparecer como
+ *  substring contígua. Termo vazio (ou só espaços) devolve lista vazia, não
+ *  a lista inteira. */
 export function buscarTabelasAssociadasPorTermo(payors: Payor[], termo: string): string[] {
   if (!normalizar(termo)) return [];
 
   const tabelas = payors
     .map((fonte) => fonte.table)
-    .filter((tabela) => casaFuzzy(tabela, termo));
+    .filter((tabela) => casaTermo(tabela, termo));
 
   return Array.from(new Set(tabelas));
 }

@@ -60,8 +60,8 @@ describe('buscarExamesPorTermo', () => {
     expect(buscarExamesPorTermo(comAcento, 'avaliacao')).toEqual(comAcento);
   });
 
-  it('casa de forma fuzzy, sem precisar ser substring contígua', () => {
-    expect(buscarExamesPorTermo(exames, 'hmgcmplt')).toEqual([exames[0]]);
+  it('NÃO casa de forma fuzzy — precisa ser substring contígua', () => {
+    expect(buscarExamesPorTermo(exames, 'hmgcmplt')).toEqual([]);
   });
 
   it('casa por código TUSS, parcial, não precisa ser o código completo', () => {
@@ -127,8 +127,8 @@ describe('buscarFontesPagadorasPorTermo', () => {
     expect(buscarFontesPagadorasPorTermo(fontes, 'sAÚDE')).toEqual(['Bradesco Saúde']);
   });
 
-  it('casa de forma fuzzy, sem precisar ser substring contígua', () => {
-    expect(buscarFontesPagadorasPorTermo(fontes, 'brdscsaude')).toEqual(['Bradesco Saúde']);
+  it('NÃO casa de forma fuzzy — precisa ser substring contígua', () => {
+    expect(buscarFontesPagadorasPorTermo(fontes, 'brdscsaude')).toEqual([]);
   });
 });
 
@@ -156,8 +156,8 @@ describe('buscarTabelasAssociadasPorTermo', () => {
     expect(buscarTabelasAssociadasPorTermo(fontes, 'unimed')).toEqual(['Unimed Coop.', 'Unimed Nacional']);
   });
 
-  it('casa de forma fuzzy, sem precisar ser substring contígua', () => {
-    expect(buscarTabelasAssociadasPorTermo(fontes, 'unmdnac')).toEqual(['Unimed Nacional']);
+  it('NÃO casa de forma fuzzy — precisa ser substring contígua', () => {
+    expect(buscarTabelasAssociadasPorTermo(fontes, 'unmdnac')).toEqual([]);
   });
 });
 
