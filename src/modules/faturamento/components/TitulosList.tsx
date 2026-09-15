@@ -488,7 +488,7 @@ const TitulosList: React.FC<Props> = ({
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por nota, operadora, competência, observações…"
+              placeholder="Buscar por nota, lote, operadora, competência, observações…"
               className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
             />
           </div>
@@ -558,6 +558,7 @@ const TitulosList: React.FC<Props> = ({
                 <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
                   <th className="px-3 py-2 w-8" />
                   <th className="px-3 py-2">Nota</th>
+                  <th className="px-3 py-2">Lote</th>
                   <th className="px-3 py-2">Operadora</th>
                   <th className="px-3 py-2">Competência</th>
                   <th className="px-3 py-2">Vencimento</th>
@@ -611,6 +612,16 @@ const TitulosList: React.FC<Props> = ({
                               Aguardando nota
                             </span>
                           )}
+                        </td>
+                        {/* Código do lote já na linha, sem precisar expandir — o clique
+                            aqui ainda propaga pro <tr> e abre o dropdown normalmente. */}
+                        <td
+                          className="px-3 py-2 text-gray-500 dark:text-gray-400 tabular-nums truncate max-w-[140px]"
+                          title={titulo.lotes.map((lote) => lote.codigoLote).join(', ') || undefined}
+                        >
+                          {titulo.lotes.length === 0
+                            ? '—'
+                            : titulo.lotes.map((lote) => lote.codigoLote).join(', ')}
                         </td>
                         <td className="px-3 py-2 text-gray-600 dark:text-gray-300 truncate max-w-[200px]">
                           {titulo.operadoraNome ?? '—'}
@@ -699,7 +710,7 @@ const TitulosList: React.FC<Props> = ({
 
                       {aberto && (
                         <tr className="bg-gray-50/70 dark:bg-gray-700/20">
-                          <td colSpan={podeEditar ? 11 : 10} className="px-6 py-3">
+                          <td colSpan={podeEditar ? 12 : 11} className="px-6 py-3">
                             {titulo.observacoes && (
                               <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
                                 {titulo.observacoes}

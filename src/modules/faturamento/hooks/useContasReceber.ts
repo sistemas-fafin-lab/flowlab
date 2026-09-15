@@ -277,6 +277,18 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         if (idsOperadora.length > 0) {
           condicoes.push(`operadora_id.in.(${idsOperadora.join(',')})`);
         }
+        // Código do lote também mora numa tabela à parte (nota_lote é N:N com
+        // lotes) — mesma resolução em dois passos usada acima pra operadora:
+        // busca os títulos vinculados a lotes cujo código bate e inclui os ids
+        // no or() como `id_nota.in.(...)`.
+        const { data: lotesBatidos } = await supabase
+          .from('nota_lote')
+          .select('id_nota, lotes!inner(codigo_lote)')
+          .ilike('lotes.codigo_lote', `%${termoLike}%`);
+        const idsPorLote = [...new Set((lotesBatidos ?? []).map((l) => l.id_nota as string))];
+        if (idsPorLote.length > 0) {
+          condicoes.push(`id_nota.in.(${idsPorLote.join(',')})`);
+        }
         query = query.or(condicoes.join(','));
       }
       if (ocultarParceiras) {
