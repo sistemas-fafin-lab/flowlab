@@ -16,6 +16,7 @@ interface PayorFormModalProps {
   payors: Payor[];
   onClose: () => void;
   onSave: (data: PayorEditData) => void;
+  saving?: boolean;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -24,7 +25,7 @@ interface PayorFormModalProps {
 
 const EMPTY_FORM: PayorEditData = { payor: '', table: '', tus: '', price: 0 };
 
-const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exams, payors, onClose, onSave }) => {
+const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exams, payors, onClose, onSave, saving = false }) => {
   const [form, setForm] = useState<PayorEditData>(EMPTY_FORM);
 
   useEffect(() => {
@@ -41,7 +42,7 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.payor.trim()) return;
+    if (saving || !form.payor.trim()) return;
     onSave(form);
   };
 
@@ -51,7 +52,9 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
   return (
     <div
       className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-      onClick={onClose}
+      onClick={() => {
+        if (!saving) onClose();
+      }}
     >
       <div
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[92vh] flex flex-col"
@@ -77,7 +80,8 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 dark:hover:text-gray-200 transition-colors"
+            disabled={saving}
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 dark:hover:text-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <X className="w-5 h-5" />
           </button>
@@ -165,15 +169,17 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 active:scale-[.98] transition-all"
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/60 active:scale-[.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-md shadow-blue-500/25 active:scale-[.98] transition-all"
+              disabled={saving}
+              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-md shadow-blue-500/25 active:scale-[.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:from-blue-500 disabled:hover:to-blue-600"
             >
-              <Save className="w-4 h-4" /> Salvar
+              <Save className="w-4 h-4" /> {saving ? 'Salvando…' : 'Salvar'}
             </button>
           </div>
         </form>

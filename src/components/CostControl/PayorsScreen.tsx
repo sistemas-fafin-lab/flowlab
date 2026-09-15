@@ -719,6 +719,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const [creatingNovaLinha, setCreatingNovaLinha] = useState(false);
   const [creatingNovaFontePagadora, setCreatingNovaFontePagadora] = useState(false);
   const [payorFormOpen, setPayorFormOpen] = useState(false);
+  const [savingPayor, setSavingPayor] = useState(false);
   const [editingExam, setEditingExam] = useState<Exam | null>(null);
   const [editingValorExame, setEditingValorExame] = useState<ExameDaFontePagadora | null>(null);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -888,6 +889,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   };
 
   const handleCloseFormModal = () => {
+    if (savingPayor) return;
     setPayorFormOpen(false);
     setEditingLinha(null);
     setCreatingNovaLinha(false);
@@ -895,6 +897,8 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   };
 
   const handleSavePayorEdit = async (data: PayorEditData) => {
+    if (savingPayor) return;
+    setSavingPayor(true);
     try {
       if (editingLinha) {
         await updatePayor(editingLinha.payorId, data);
@@ -916,8 +920,10 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           `TUSS "${data.tus}" não está cadastrado na aba Exames — a linha foi salva, mas não vai aparecer aqui até um exame com esse TUSS existir.`
         );
       }
+      setSavingPayor(false);
       handleCloseFormModal();
     } catch (err) {
+      setSavingPayor(false);
       showError(
         editingLinha ? 'Erro ao atualizar fonte pagadora' : 'Erro ao criar linha',
         err instanceof Error ? err.message : undefined
@@ -1209,6 +1215,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           }
           onClose={handleCloseFormModal}
           onSave={handleSavePayorEdit}
+          saving={savingPayor}
         />
       )}
 
