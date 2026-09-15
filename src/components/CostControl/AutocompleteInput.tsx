@@ -23,6 +23,11 @@ interface AutocompleteInputProps<T> {
   placeholder?: string;
   required?: boolean;
   className: string;
+  // Abre o dropdown com `suggestions` já ao focar, mesmo com o campo vazio
+  // — pro caso de uso "combobox pra navegar tudo" (ex.: filtro de Exame em
+  // PayorsScreen). Nos campos de PayorFormModal fica desligado de propósito:
+  // digitar 0 caracteres não deve despejar milhares de fontes/exames.
+  showAllWhenEmpty?: boolean;
 }
 
 function AutocompleteInput<T>({
@@ -36,6 +41,7 @@ function AutocompleteInput<T>({
   placeholder,
   required,
   className,
+  showAllWhenEmpty = false,
 }: AutocompleteInputProps<T>) {
   const [aberto, setAberto] = useState(false);
   const [indiceDestacado, setIndiceDestacado] = useState(0);
@@ -142,7 +148,7 @@ function AutocompleteInput<T>({
         className={className}
       />
       {aberto &&
-        value.trim().length > 0 &&
+        (value.trim().length > 0 || showAllWhenEmpty) &&
         posicao &&
         createPortal(
           <ul

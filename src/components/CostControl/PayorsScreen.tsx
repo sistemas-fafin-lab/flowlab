@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import {
   ArrowDown,
@@ -27,11 +27,13 @@ import ConfirmDialog from '../ConfirmDialog';
 import Notification from '../Notification';
 import ExamFormModal from './ExamFormModal';
 import PayorFormModal from './PayorFormModal';
+import AutocompleteInput from './AutocompleteInput';
 import PayorImportModal from './PayorImportModal';
 import ValorExameFormModal from './ValorExameFormModal';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
+  casaTermo,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
   type ExameDaFontePagadora,
@@ -710,6 +712,10 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
   const [termoFonte, setTermoFonte] = useState('');
   const [termoExame, setTermoExame] = useState('');
+  // O input mostra termoExame direto (sem delay); só o filtro/render da
+  // tabela (potencialmente muitas linhas) usa a versão adiada, pra digitar
+  // continuar instantâneo mesmo com a lista grande recalculando por trás.
+  const termoExameDiferido = useDeferredValue(termoExame);
   const [fontePagadoraSelecionada, setFontePagadoraSelecionada] = useState<string | null>(null);
   const [exameSelecionado, setExameSelecionado] = useState<Exam | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
@@ -734,9 +740,18 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     [exams, payors, fontePagadoraSelecionada, exameExclusions, exameValoresPersonalizados]
   );
 
+  // Filtro livre por nome/TUSS (igual à aba Exames) — não depende de
+  // exameSelecionado: digitar "painel" mostra todos os exames da fonte que
+  // batem, em vez de exigir escolher um só. Clicar no nome de um exame na
+  // tabela (onSelectExame) seta termoExame com o nome exato, então acaba
+  // isolando aquele exame pelo mesmo mecanismo, sem precisar de um filtro
+  // por id separado.
   const examesDaFonteFiltrados = useMemo(
-    () => (exameSelecionado ? examesDaFonte.filter(e => e.exameId === exameSelecionado.id) : examesDaFonte),
-    [examesDaFonte, exameSelecionado]
+    () =>
+      termoExameDiferido.trim()
+        ? examesDaFonte.filter(e => casaTermo(e.exame, termoExameDiferido) || casaTermo(e.tuss, termoExameDiferido))
+        : examesDaFonte,
+    [examesDaFonte, termoExameDiferido]
   );
 
   // Fontes pagadoras do exame selecionado — só relevante quando nenhuma
@@ -757,15 +772,20 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     return buscarFontesPagadorasPorTermo(base, termoFonte);
   }, [payors, termoFonte, fontePagadoraSelecionada, exameSelecionado]);
 
-  // Sugestões do campo Exame: se já tem fonte fixada, restringe aos exames
-  // que aquela fonte realmente cobre.
+  // Sugestões do campo Exame: campo sempre livre (não trava num chip depois
+  // de selecionar, ver AutocompleteInput) — continua filtrando pelo texto
+  // atual mesmo com um exame já selecionado, pra permitir buscar de novo sem
+  // precisar limpar antes. Se já tem fonte fixada, restringe aos exames que
+  // aquela fonte realmente cobre. Campo vazio mostra a base inteira (em vez
+  // da lista vazia que buscarExamesPorTermo devolve pra termo vazio) porque
+  // aqui o campo funciona como combobox de navegação (showAllWhenEmpty),
+  // não só autocomplete de formulário.
   const sugestoesExame = useMemo(() => {
-    if (exameSelecionado) return [];
     const base = fontePagadoraSelecionada
       ? exams.filter(e => examesDaFonte.some(x => x.tuss === e.tuss))
       : exams;
-    return buscarExamesPorTermo(base, termoExame);
-  }, [exams, termoExame, exameSelecionado, fontePagadoraSelecionada, examesDaFonte]);
+    return termoExameDiferido.trim() ? buscarExamesPorTermo(base, termoExameDiferido) : base;
+  }, [exams, termoExameDiferido, fontePagadoraSelecionada, examesDaFonte]);
 
   const handleSelecionarFonte = (nome: string) => {
     setFontePagadoraSelecionada(nome);
@@ -779,7 +799,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
 
   const handleSelecionarExame = (exame: Exam) => {
     setExameSelecionado(exame);
-    setTermoExame('');
+    setTermoExame(exame.name);
   };
 
   const handleLimparExame = () => {
@@ -1122,29 +1142,39 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
             keyOf={nome => nome}
           />
 
-          <CampoBusca
-            label="Exame"
-            placeholder="Buscar exame ou código TUSS…"
-            itens={sugestoesExame}
-            termo={termoExame}
-            onTermoChange={setTermoExame}
-            selecionado={exameSelecionado}
-            onSelecionar={handleSelecionarExame}
-            onLimpar={handleLimparExame}
-            renderChip={exame => (
-              <>
-                {exame.name}
-                <span className="ml-2 font-mono text-xs text-blue-500 dark:text-blue-400">{exame.tuss}</span>
-              </>
-            )}
-            renderSugestao={exame => (
-              <>
-                <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{exame.name}</span>
-                <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0">{exame.tuss}</span>
-              </>
-            )}
-            keyOf={exame => exame.id}
-          />
+          <div className="flex-1 min-w-0">
+            <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Exame</label>
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none z-10" />
+              <AutocompleteInput
+                value={termoExame}
+                onValueChange={setTermoExame}
+                onSelect={handleSelecionarExame}
+                suggestions={sugestoesExame}
+                renderSuggestion={exame => (
+                  <>
+                    <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{exame.name}</span>
+                    <span className="font-mono text-xs text-gray-500 dark:text-gray-400 shrink-0">{exame.tuss}</span>
+                  </>
+                )}
+                keyOf={exame => exame.id}
+                emptyLabel="Nenhum exame encontrado."
+                placeholder="Buscar exame ou código TUSS…"
+                className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                showAllWhenEmpty
+              />
+              {termoExame.trim().length > 0 && (
+                <button
+                  type="button"
+                  onClick={handleLimparExame}
+                  aria-label="Limpar Exame"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1156,7 +1186,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
 
       {fontePagadoraSelecionada && (
         <TabelaExamesDaFonte
-          key={`${fontePagadoraSelecionada}-${exameSelecionado?.tuss ?? ''}`}
+          key={fontePagadoraSelecionada}
           examesDaFonte={examesDaFonteFiltrados}
           onSelectExame={handleSelecionarExamePorId}
           onEditExame={handleEditExame}
@@ -1168,8 +1198,8 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           onNovaLinha={handleNovaLinha}
           podeGerenciar={podeGerenciar}
           mensagemVazia={
-            exameSelecionado
-              ? 'Este exame não está cadastrado para esta fonte pagadora.'
+            termoExameDiferido.trim()
+              ? 'Nenhum exame desta fonte pagadora bate com essa busca.'
               : 'Nenhum exame cadastrado para esta fonte pagadora.'
           }
         />
