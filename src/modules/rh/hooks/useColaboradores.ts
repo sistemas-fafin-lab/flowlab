@@ -68,7 +68,9 @@ export function useColaboradores(): UseColaboradoresResult {
     try {
       const { data, error: fetchError } = await supabase
         .from('colaboradores')
-        .select('*, user_profiles(name, email), gestor:colaboradores!colaboradores_gestor_id_fkey(id, nome)')
+        // PostgREST não resolve auto-referência (colaboradores -> colaboradores) pelo
+        // nome da constraint — só pelo nome da coluna da FK (gestor_id) como hint.
+        .select('*, user_profiles(name, email), gestor:colaboradores!gestor_id(id, nome)')
         .order('nome', { ascending: true });
 
       if (fetchError) throw fetchError;
