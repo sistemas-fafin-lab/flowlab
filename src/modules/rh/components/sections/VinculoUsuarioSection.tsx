@@ -15,7 +15,7 @@ const VinculoUsuarioSection: React.FC<VinculoUsuarioSectionProps> = ({ colaborad
   const [busca, setBusca] = useState('');
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
 
-  const { userProfiles, loading, error: erroCarregamento } = useUserProfilesDisponiveis();
+  const { userProfiles, loading, error: erroCarregamento, refetch: refetchDisponiveis } = useUserProfilesDisponiveis();
 
   const disponiveisFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -34,6 +34,11 @@ const VinculoUsuarioSection: React.FC<VinculoUsuarioSectionProps> = ({ colaborad
     setSalvando(false);
     if (resultado) {
       setErro(resultado);
+    } else {
+      // O usuário recém-desvinculado passa a ser candidato a um novo vínculo
+      // (aqui ou em outro colaborador) — sem isso ele fica ausente da lista
+      // até o modal ser remontado.
+      refetchDisponiveis();
     }
   };
 

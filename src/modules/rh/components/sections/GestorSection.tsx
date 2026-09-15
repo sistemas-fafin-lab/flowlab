@@ -35,10 +35,18 @@ const GestorSection: React.FC<GestorSectionProps> = ({ colaborador, colaboradore
     };
 
     return colaboradores
-      .filter((c) => c.id !== colaborador.id && !criariCiclo(c))
+      .filter(
+        (c) =>
+          c.id !== colaborador.id &&
+          // Desligados não podem ser escolhidos como novo gestor, mas o gestor
+          // já atribuído (mesmo desligado) continua aparecendo na lista para a
+          // seleção atual não "sumir" do Select.
+          (c.status === 'ativo' || c.id === colaborador.gestorId) &&
+          !criariCiclo(c)
+      )
       .slice()
       .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
-  }, [colaboradores, colaborador.id]);
+  }, [colaboradores, colaborador.id, colaborador.gestorId]);
 
   const options: SelectOption[] = [
     { value: SEM_GESTOR, label: 'Sem gestor' },

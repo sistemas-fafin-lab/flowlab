@@ -90,7 +90,11 @@ export function useColaboradores(): UseColaboradoresResult {
 
   const atualizarCadastro = useCallback(async (id: string, dados: AtualizarCadastroInput): Promise<string | null> => {
     if (dados.dataAdmissao) {
-      const hoje = new Date().toISOString().slice(0, 10);
+      // Data local (não UTC) — mesmo critério de "hoje" usado na validação de
+      // EditarCadastroSection, para não divergir perto da virada do dia num
+      // fuso atrás de UTC (ex.: America/Sao_Paulo).
+      const agora = new Date();
+      const hoje = `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}-${String(agora.getDate()).padStart(2, '0')}`;
       if (dados.dataAdmissao > hoje) {
         return 'Data de admissão não pode ser futura.';
       }
