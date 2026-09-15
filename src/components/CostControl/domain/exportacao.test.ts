@@ -28,6 +28,7 @@ const fonte = (over: Partial<Payor>): Payor => ({
   price: 12.5,
   atendido: true,
   elegivelDescontoParticular: false,
+  exameId: null,
   ...over,
 });
 

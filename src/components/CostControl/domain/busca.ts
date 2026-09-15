@@ -154,8 +154,17 @@ export function examesPorFontePagadora(
   const nomeNormalizado = normalizar(nomeFontePagadora);
   if (!nomeNormalizado) return [];
 
+  // Só agrupa por TUSS quando ele existe de verdade — TUSS vazio NÃO é um
+  // código compartilhado, é "esse exame não tem código". Sem essa distinção,
+  // toda linha de fonte pagadora sem TUSS casaria com TODOS os exames sem
+  // TUSS do catálogo inteiro (bug real encontrado em produção: uma linha
+  // "Particular" sem TUSS estava exibindo os 20 exames sem código, todos
+  // pelo mesmo preço). Ver migration 20260916100000_custo_fontes_pagadoras_exame_id.
   const examesPorTuss = new Map<string, Exam[]>();
+  const examesPorId = new Map<string, Exam>();
   for (const exame of exams) {
+    examesPorId.set(exame.id, exame);
+    if (!exame.tuss) continue;
     const grupo = examesPorTuss.get(exame.tuss);
     if (!grupo) {
       examesPorTuss.set(exame.tuss, [exame]);
@@ -172,7 +181,19 @@ export function examesPorFontePagadora(
   return payors
     .filter((fonte) => normalizar(fonte.payor) === nomeNormalizado)
     .flatMap((fonte) => {
-      const grupo = examesPorTuss.get(fonte.tus);
+      // TUSS preenchido: casamento por texto, compartilhável entre exames
+      // (comportamento de sempre). TUSS vazio: só casa com o exame
+      // explicitamente vinculado via exameId — nunca com "todo exame sem
+      // TUSS". Sem exameId (dado legado ainda não migrado), a linha não
+      // aparece em lugar nenhum em vez de aparecer errada.
+      const grupo = fonte.tus
+        ? examesPorTuss.get(fonte.tus)
+        : fonte.exameId
+          ? (() => {
+              const exame = examesPorId.get(fonte.exameId!);
+              return exame ? [exame] : undefined;
+            })()
+          : undefined;
       if (!grupo) return [];
       return grupo
         .filter((exame) => !excluidos.has(chaveExclusaoExame(fonte.id, exame.id)))

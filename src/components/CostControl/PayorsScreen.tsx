@@ -864,12 +864,18 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       setEditingValorExame(item);
       return;
     }
+    // item.exameId é o exame exibido NESTA linha — não necessariamente o
+    // exameId gravado no registro de custo_fontes_pagadoras (que só existe
+    // pra desambiguar linhas sem TUSS). Sem irmãos os dois coincidem, mas o
+    // valor de verdade vem do Payor (`payors`), não do item de exibição.
+    const fonte = payors.find(p => p.id === item.payorId);
     handleEditLinha({
       payorId: item.payorId,
       payor: fontePagadoraSelecionada ?? '',
       table: item.tabelaAssociada,
       tus: item.tuss,
       price: item.valorCobrado,
+      exameId: fonte?.exameId ?? null,
     });
   };
 
@@ -896,7 +902,14 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   };
 
   const handleEditFontePagadora = (item: Payor) =>
-    handleEditLinha({ payorId: item.id, payor: item.payor, table: item.table, tus: item.tus, price: item.price });
+    handleEditLinha({
+      payorId: item.id,
+      payor: item.payor,
+      table: item.table,
+      tus: item.tus,
+      price: item.price,
+      exameId: item.exameId,
+    });
 
   const handleNovaLinha = () => {
     setCreatingNovaLinha(true);
@@ -929,15 +942,21 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         }
       }
 
-      // examesPorFontePagadora casa a linha com um exame pelo TUSS — se o
-      // TUSS informado não estiver cadastrado na aba Exames, a linha é
-      // gravada mas não aparece em nenhuma tabela até isso ser corrigido.
-      if (exams.some(e => e.tuss === data.tus)) {
+      // examesPorFontePagadora casa a linha pelo TUSS (se preenchido) ou
+      // pelo exameId vinculado (se TUSS vazio) — em ambos os casos, se o
+      // alvo não existir mais em Exames, a linha é gravada mas não aparece
+      // em nenhuma tabela até isso ser corrigido.
+      const linhaVaiAparecer = data.tus.trim()
+        ? exams.some(e => e.tuss === data.tus)
+        : exams.some(e => e.id === data.exameId);
+      if (linhaVaiAparecer) {
         showSuccess(editingLinha ? 'Fonte pagadora atualizada com sucesso!' : 'Linha criada com sucesso!');
       } else {
         showWarning(
           editingLinha ? 'Fonte pagadora atualizada' : 'Linha criada',
-          `TUSS "${data.tus}" não está cadastrado na aba Exames — a linha foi salva, mas não vai aparecer aqui até um exame com esse TUSS existir.`
+          data.tus.trim()
+            ? `TUSS "${data.tus}" não está cadastrado na aba Exames — a linha foi salva, mas não vai aparecer aqui até um exame com esse TUSS existir.`
+            : 'O exame vinculado não foi encontrado na aba Exames — a linha foi salva, mas não vai aparecer aqui até isso ser corrigido.'
         );
       }
       setSavingPayor(false);
@@ -1236,11 +1255,17 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           payors={payors}
           payor={
             editingLinha
-              ? { payor: editingLinha.payor, table: editingLinha.table, tus: editingLinha.tus, price: editingLinha.price }
+              ? {
+                  payor: editingLinha.payor,
+                  table: editingLinha.table,
+                  tus: editingLinha.tus,
+                  price: editingLinha.price,
+                  exameId: editingLinha.exameId,
+                }
               : creatingNovaLinha
-              ? { payor: fontePagadoraSelecionada ?? '', table: '', tus: '', price: 0 }
+              ? { payor: fontePagadoraSelecionada ?? '', table: '', tus: '', price: 0, exameId: null }
               : creatingNovaFontePagadora
-              ? { payor: '', table: '', tus: '', price: 0 }
+              ? { payor: '', table: '', tus: '', price: 0, exameId: null }
               : null
           }
           onClose={handleCloseFormModal}

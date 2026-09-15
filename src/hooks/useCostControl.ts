@@ -38,12 +38,21 @@ export interface Payor {
   // nas outras 37 fica sempre FALSE e é ignorada. Ver migration
   // 20260910090000_custo_fontes_pagadoras_elegivel_desconto_particular.
   elegivelDescontoParticular: boolean;
+  // Vínculo direto com um Exam específico — só é usado (e só faz sentido)
+  // quando `tus` está vazio: um TUSS preenchido já identifica os exames por
+  // texto (ver examesPorFontePagadora), mas TUSS vazio não tem essa garantia
+  // — sem `exameId`, uma linha sem TUSS "casaria" com QUALQUER exame sem
+  // TUSS, misturando preços de exames sem relação nenhuma entre si (era
+  // exatamente esse o bug corrigido pela migration
+  // 20260916100000_custo_fontes_pagadoras_exame_id). Null pra linhas com
+  // TUSS preenchido ou pra dado legado ainda não migrado.
+  exameId: string | null;
 }
 
 // Campos editáveis de uma linha de fonte pagadora via PayorFormModal — não
 // inclui `atendido` nem `elegivelDescontoParticular` (editados via toggle
 // inline, updatePayorAtendido / updatePayorElegivelDescontoParticular).
-export type PayorEditData = Pick<Payor, 'payor' | 'table' | 'tus' | 'price'>;
+export type PayorEditData = Pick<Payor, 'payor' | 'table' | 'tus' | 'price' | 'exameId'>;
 
 export interface UseCostControlReturn {
   exams: Exam[];
@@ -121,6 +130,7 @@ const mapPayorRow = (row: any): Payor => ({
   price: Number(row.valor) || 0,
   atendido: row.atendido ?? true,
   elegivelDescontoParticular: row.elegivel_desconto_particular ?? false,
+  exameId: row.exame_id ?? null,
 });
 
 const toPayorRow = (data: PayorEditData) => ({
@@ -128,6 +138,7 @@ const toPayorRow = (data: PayorEditData) => ({
   tabela_associada: data.table,
   tuss: data.tus,
   valor: data.price,
+  exame_id: data.exameId ?? null,
 });
 
 // ═══════════════════════════════════════════════════════════════════════════════

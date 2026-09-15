@@ -29,6 +29,7 @@ const fonte = (over: Partial<Payor>): Payor => ({
   price: 9.2,
   atendido: true,
   elegivelDescontoParticular: false,
+  exameId: null,
   ...over,
 });
 
@@ -336,6 +337,50 @@ describe('examesPorFontePagadora', () => {
     expect(u.valorCobrado).toBe(13);
     expect(u.valorPadraoTuss).toBe(13);
     expect(u.temValorPersonalizado).toBe(false);
+  });
+
+  it('exame sem TUSS: linha só casa com o exame vinculado por exameId, nunca com outros exames sem TUSS', () => {
+    const examesSemTuss = [
+      exame({ id: 'e30', name: 'Painel de Trombofilias', tuss: '' }),
+      exame({ id: 'e31', name: 'Painel Lactobacillus', tuss: '' }),
+    ];
+    const fontesParticular = [
+      fonte({ id: 'p30', payor: 'Particular', table: 'Particular', tus: '', price: 8700, exameId: 'e30' }),
+    ];
+
+    const resultado = examesPorFontePagadora(examesSemTuss, fontesParticular, 'Particular');
+
+    expect(resultado).toHaveLength(1);
+    expect(resultado[0].exameId).toBe('e30');
+    expect(resultado[0].exame).toBe('Painel de Trombofilias');
+  });
+
+  it('exame sem TUSS e sem exameId (dado legado não migrado): não aparece em lugar nenhum, em vez de casar com tudo', () => {
+    const examesSemTuss = [
+      exame({ id: 'e30', name: 'Painel de Trombofilias', tuss: '' }),
+      exame({ id: 'e31', name: 'Painel Lactobacillus', tuss: '' }),
+    ];
+    const fontesParticular = [
+      fonte({ id: 'p30', payor: 'Particular', table: 'Particular', tus: '', price: 900, exameId: null }),
+    ];
+
+    expect(examesPorFontePagadora(examesSemTuss, fontesParticular, 'Particular')).toEqual([]);
+  });
+
+  it('duas linhas sem TUSS pra exames diferentes não se misturam', () => {
+    const examesSemTuss = [
+      exame({ id: 'e30', name: 'Painel de Trombofilias', tuss: '' }),
+      exame({ id: 'e31', name: 'Painel Lactobacillus', tuss: '' }),
+    ];
+    const fontesParticular = [
+      fonte({ id: 'p30', payor: 'Particular', table: 'Particular', tus: '', price: 8700, exameId: 'e30' }),
+      fonte({ id: 'p31', payor: 'Particular', table: 'Particular', tus: '', price: 350, exameId: 'e31' }),
+    ];
+
+    const resultado = examesPorFontePagadora(examesSemTuss, fontesParticular, 'Particular');
+
+    expect(resultado).toHaveLength(2);
+    expect(resultado.map((r) => r.exame).sort()).toEqual(['Painel Lactobacillus', 'Painel de Trombofilias']);
   });
 
   it('TUSS compartilhado por exames com o MESMO nome (duplicata literal): devolve uma linha só, com a ÚLTIMA entrada (mesma semântica de antes da issue 12)', () => {
