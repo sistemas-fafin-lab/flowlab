@@ -16,4 +16,13 @@ export interface Colaborador {
   createdAt: string;
   updatedAt: string;
   usuarioVinculado: { nome: string; email: string } | null;
+  gestor: { id: string; nome: string } | null;
+}
+
+/** Campos editáveis pela issue 02 — cadastro (cargo/admissão/matrícula/departamento). */
+export interface AtualizarCadastroInput {
+  cargo?: string | null;
+  dataAdmissao?: string | null;
+  matricula?: string | null;
+  departamento?: string | null;
 }

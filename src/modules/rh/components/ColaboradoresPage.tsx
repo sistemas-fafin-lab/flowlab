@@ -3,6 +3,7 @@ import { Users, UserCheck, Search } from 'lucide-react';
 import { useColaboradores } from '../hooks/useColaboradores';
 import { formatCPF, normalizeCPF } from '../../../utils/cpf';
 import { SkeletonFilters, SkeletonTableRow } from '../../../components/PageLoadingSkeleton';
+import ColaboradorDetalheModal from './ColaboradorDetalheModal';
 import type { ColaboradorStatus } from '../types';
 
 const STATUS_CONFIG: Record<ColaboradorStatus, { label: string; badge: string }> = {
@@ -11,9 +12,20 @@ const STATUS_CONFIG: Record<ColaboradorStatus, { label: string; badge: string }>
 };
 
 const ColaboradoresPage: React.FC = () => {
-  const { colaboradores, loading, error, refetch } = useColaboradores();
+  const {
+    colaboradores,
+    loading,
+    error,
+    refetch,
+    atualizarCadastro,
+    vincularUsuario,
+    desvincularUsuario,
+    definirGestor,
+  } = useColaboradores();
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<'todos' | ColaboradorStatus>('todos');
+  const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
+  const colaboradorSelecionado = selecionadoId ? colaboradores.find((c) => c.id === selecionadoId) ?? null : null;
 
   const colaboradoresFiltrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -105,7 +117,11 @@ const ColaboradoresPage: React.FC = () => {
 
               {!loading &&
                 colaboradoresFiltrados.map((colaborador) => (
-                  <tr key={colaborador.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+                  <tr
+                    key={colaborador.id}
+                    onClick={() => setSelecionadoId(colaborador.id)}
+                    className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors cursor-pointer"
+                  >
                     <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{colaborador.nome}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{formatCPF(colaborador.cpf)}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{colaborador.departamento || '—'}</td>
@@ -133,6 +149,18 @@ const ColaboradoresPage: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {colaboradorSelecionado && (
+        <ColaboradorDetalheModal
+          colaborador={colaboradorSelecionado}
+          colaboradores={colaboradores}
+          onClose={() => setSelecionadoId(null)}
+          atualizarCadastro={atualizarCadastro}
+          vincularUsuario={vincularUsuario}
+          desvincularUsuario={desvincularUsuario}
+          definirGestor={definirGestor}
+        />
+      )}
     </div>
   );
 };
