@@ -1,6 +1,6 @@
 // api/_lib/rh/holeritesStorage.ts
 // Convenções de path do bucket privado `colaborador-holerites` (migration
-// 20260916100000_rh_holerites.sql), compartilhadas entre os handlers de
+// 20260916120000_rh_holerites.sql), compartilhadas entre os handlers de
 // preview e confirmação.
 
 export const BUCKET_HOLERITES = 'colaborador-holerites';

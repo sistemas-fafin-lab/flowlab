@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- RH — Holerites: upload consolidado (auto-split) e autoatendimento (issue 05)
--- Migration: 20260916100000_rh_holerites.sql
+-- Migration: 20260916120000_rh_holerites.sql
 --
 -- Ver .scratch/rh-colaboradores/issues/05-holerites-autoatendimento.md.
 -- Cria `colaborador_holerites` (um PDF individual por colaborador+competência,
