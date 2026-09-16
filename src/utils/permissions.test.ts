@@ -43,3 +43,20 @@ describe('getPermissionsForLegacyRole — canViewColaboradores (módulo RH)', ()
     expect(permissoes).toContain('canViewColaboradores');
   });
 });
+
+describe('getPermissionsForLegacyRole — canManageHolerites (issue 05)', () => {
+  it('não concede canManageHolerites a operator legado', () => {
+    const permissoes = getPermissionsForLegacyRole('operator');
+    expect(permissoes).not.toContain('canManageHolerites');
+  });
+
+  it('não concede canManageHolerites a requester legado', () => {
+    const permissoes = getPermissionsForLegacyRole('requester');
+    expect(permissoes).not.toContain('canManageHolerites');
+  });
+
+  it('mantém canManageHolerites para admin legado (role=admin é reconhecida pelo RLS)', () => {
+    const permissoes = getPermissionsForLegacyRole('admin');
+    expect(permissoes).toContain('canManageHolerites');
+  });
+});

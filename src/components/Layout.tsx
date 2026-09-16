@@ -473,6 +473,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
     if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias', '/qualidade/indicadores'].includes(path)) return ['Qualidade'];
+    if (['/rh/colaboradores', '/rh/holerites'].includes(path)) return ['RH'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -676,10 +677,23 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       },
       {
         name: 'RH',
-        href: '/rh/colaboradores',
+        // href aponta para /rh/holerites (não /rh/colaboradores): é a única
+        // sub-aba acessível a TODO usuário autenticado (issue 05) — clicar no
+        // rótulo do item pai não pode cair numa tela de "Acesso Negado" para
+        // quem não tem canViewColaboradores. Sem permission/anyOf no item pai de
+        // propósito: canAccessItem() esconderia a aba inteira (Holerites
+        // incluso) para quem não tem nenhuma das duas permissions — o gate fica
+        // só nos subItems.
+        href: '/rh/holerites',
         icon: UserCog,
-        permission: 'canViewColaboradores',
         category: 'ADMINISTRAÇÃO',
+        subItems: [
+          { name: 'Colaboradores', href: '/rh/colaboradores', icon: UserCog, permission: 'canViewColaboradores' },
+          // Sem gate de permissão de propósito (issue 05): visível a todo usuário
+          // autenticado — o conteúdo da página muda conforme canManageHolerites
+          // (gestão vs. autoatendimento), não o acesso à aba.
+          { name: 'Holerites', href: '/rh/holerites', icon: FileText },
+        ],
       },
       {
         name: 'Sistema',

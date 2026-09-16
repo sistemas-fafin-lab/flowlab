@@ -50,7 +50,7 @@ import {
   CorrelacaoRiscosOcorrenciasPage,
 } from './modules/qualidade';
 import { BoardPage } from './modules/board';
-import { ColaboradoresPage } from './modules/rh';
+import { ColaboradoresPage, HoleritesPage } from './modules/rh';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -482,6 +482,10 @@ const AuthenticatedApp: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        {/* Sem ProtectedRoute de propósito (issue 05): visível a todo usuário
+            autenticado — o conteúdo (gestão vs. autoatendimento) é decidido
+            dentro do próprio componente, conforme canManageHolerites. */}
+        <Route path="/rh/holerites" element={<HoleritesPage />} />
         {/* IT Module Routes */}
         <Route
           path="/it/dashboard"
