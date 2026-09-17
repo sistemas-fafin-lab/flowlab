@@ -16,8 +16,8 @@ const HoleritesEnviadosList = React.forwardRef<HoleritesEnviadosListRef>((_props
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    if (!termo) return holerites;
-    return holerites.filter((h) => h.colaboradorNome.toLowerCase().includes(termo));
+    const base = !termo ? holerites : holerites.filter((h) => h.colaboradorNome.toLowerCase().includes(termo));
+    return [...base].sort((a, b) => a.colaboradorNome.localeCompare(b.colaboradorNome, 'pt-BR'));
   }, [holerites, busca]);
 
   const handleBaixar = async (id: string, path: string) => {
