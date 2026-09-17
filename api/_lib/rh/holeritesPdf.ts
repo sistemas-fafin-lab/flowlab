@@ -5,6 +5,13 @@
 // pura, testável sem um PDF de verdade).
 
 import { PDFDocument } from 'pdf-lib';
+// Precisa ser importado antes de 'pdf-parse' (troubleshooting oficial do pacote,
+// caso 1 e 3): sem isso, o require dinâmico de @napi-rs/canvas dentro do
+// pdfjs-dist não é rastreado pelo bundler do Vercel (Node File Trace), e o
+// runtime quebra com "Cannot find module '@napi-rs/canvas'" /
+// "DOMMatrix is not defined" em produção — mesmo funcionando local, onde o
+// pacote está instalado mas é resolvido em runtime, não estaticamente.
+import { CanvasFactory } from 'pdf-parse/worker';
 import { PDFParse } from 'pdf-parse';
 
 /**
@@ -12,7 +19,7 @@ import { PDFParse } from 'pdf-parse';
  * `pages[i].num` é 1-based (mesma convenção de `numero` em PaginaExtraida).
  */
 export async function extrairTextoPorPagina(bytes: Buffer): Promise<string[]> {
-  const parser = new PDFParse({ data: bytes });
+  const parser = new PDFParse({ data: bytes, CanvasFactory });
   try {
     const resultado = await parser.getText();
     return resultado.pages
