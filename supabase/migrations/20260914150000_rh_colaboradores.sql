@@ -186,44 +186,121 @@ $$;
 COMMENT ON FUNCTION public.rh_resolver_dados_colaborador(public.user_profiles) IS 'Resolve nome/email/cpf/departamento de um user_profile para o backfill de colaboradores, priorizando deleted_snapshot para nome/email quando deleted_at está preenchido (soft_delete_user não zera essas duas colunas, só as anonimiza com um sentinela).';
 
 -- ═══════════════════════════════════════════════════════════════════════════════
--- 5. BACKFILL — a partir de todo user_profile com CPF válido
+-- 5. SYNC — cria/atualiza o colaborador correspondente a um user_profile
 --
--- status = 'desligado' quando deleted_at OU disabled_at estiver preenchido
--- (ambas as formas de saída de acesso viram "desligado" na granularidade
--- ativo/desligado deste v1).
+-- Função compartilhada entre o trigger (PARTE 5a, mantém colaboradores em
+-- sync daqui pra frente) e o backfill (PARTE 5b, aplica a mesma regra aos
+-- user_profiles já existentes). status = 'desligado' quando deleted_at OU
+-- disabled_at estiver preenchido (ambas as formas de saída de acesso viram
+-- "desligado" na granularidade ativo/desligado deste v1).
 --
--- ON CONFLICT (cpf) DO NOTHING: torna o backfill idempotente ao reaplicar a
--- migration, e é uma rede de segurança defensiva contra o caso (não observado
--- na inspeção de produção documentada na spec, mas não impossível) de duas
--- linhas de user_profiles resolverem para o mesmo CPF — a migration não falha
--- inteira por causa de uma linha assim, só não insere a segunda (fica visível
--- no relatório da PARTE 6, que não depende de recalcular a validação de CPF).
+-- Nunca troca um vínculo já ativo por outro — só resolve o caso de
+-- readmissão (perfil ativo assume o vínculo de um colaborador hoje desligado
+-- com o mesmo CPF; colisão entre dois perfis ATIVOS com o mesmo CPF é
+-- duplicidade de verdade, fica visível na PARTE 6 para curadoria manual em
+-- vez de a migration decidir sozinha por ordem arbitrária de scan).
 -- ═══════════════════════════════════════════════════════════════════════════════
 
-INSERT INTO public.colaboradores (nome, email, cpf, departamento, status, user_profile_id)
-SELECT
-  r.nome,
-  r.email,
-  r.cpf,
-  r.departamento,
-  CASE WHEN up.deleted_at IS NOT NULL OR up.disabled_at IS NOT NULL THEN 'desligado' ELSE 'ativo' END AS status,
-  up.id AS user_profile_id
-FROM public.user_profiles up
-CROSS JOIN LATERAL public.rh_resolver_dados_colaborador(up) AS r
-WHERE public.cpf_valido(r.cpf)
-ON CONFLICT (cpf) DO NOTHING;
+CREATE OR REPLACE FUNCTION public.rh_sync_colaborador(up public.user_profiles)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  r           record;
+  v_status    text;
+  v_existente record;
+BEGIN
+  SELECT * INTO r FROM public.rh_resolver_dados_colaborador(up);
+
+  IF r.cpf IS NULL OR NOT public.cpf_valido(r.cpf) THEN
+    RETURN; -- fica pendente (PARTE 6), tratamento manual
+  END IF;
+
+  v_status := CASE WHEN up.deleted_at IS NOT NULL OR up.disabled_at IS NOT NULL THEN 'desligado' ELSE 'ativo' END;
+
+  SELECT * INTO v_existente FROM public.colaboradores WHERE cpf = r.cpf;
+
+  IF NOT FOUND THEN
+    INSERT INTO public.colaboradores (nome, email, cpf, departamento, status, user_profile_id)
+    VALUES (r.nome, r.email, r.cpf, r.departamento, v_status, up.id)
+    ON CONFLICT (cpf) DO NOTHING;
+    RETURN;
+  END IF;
+
+  IF v_existente.user_profile_id = up.id THEN
+    UPDATE public.colaboradores
+       SET nome = r.nome, email = r.email, departamento = r.departamento, status = v_status
+     WHERE id = v_existente.id;
+    RETURN;
+  END IF;
+
+  IF v_status = 'ativo' AND v_existente.status = 'desligado' THEN
+    UPDATE public.colaboradores
+       SET user_profile_id = up.id, nome = r.nome, email = r.email,
+           departamento = r.departamento, status = v_status
+     WHERE id = v_existente.id;
+  END IF;
+END;
+$$;
+
+COMMENT ON FUNCTION public.rh_sync_colaborador(public.user_profiles) IS 'Cria ou atualiza o colaborador correspondente a um user_profile (CPF válido). Compartilhada pelo trigger de sync (PARTE 5a) e pelo backfill (PARTE 5b) — nunca troca um vínculo já ativo por outro, só resolve readmissão (ativo assume vínculo de um desligado com mesmo CPF).';
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 5a. TRIGGER — mantém colaboradores em sync para todo user_profile criado
+-- daqui pra frente. Sem isso, todo hire futuro (CPF válido, sem duplicidade
+-- nenhuma) cairia na PARTE 6 rotulado como 'cpf_duplicado' só por falta de
+-- colaborador — não por duplicidade real (achado de code review).
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+CREATE OR REPLACE FUNCTION public.rh_colaboradores_sync_trigger()
+RETURNS trigger
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  PERFORM public.rh_sync_colaborador(NEW);
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trigger_user_profiles_sync_colaborador ON public.user_profiles;
+CREATE TRIGGER trigger_user_profiles_sync_colaborador
+  AFTER INSERT ON public.user_profiles
+  FOR EACH ROW EXECUTE FUNCTION public.rh_colaboradores_sync_trigger();
+
+-- ═══════════════════════════════════════════════════════════════════════════════
+-- 5b. BACKFILL — aplica o sync a todo user_profile já existente
+--
+-- Ordem determinística (ativo antes de desligado, mais recente antes de mais
+-- antigo) em vez de ordem arbitrária de scan: garante que, numa colisão de
+-- CPF entre um desligado e um recontratado, é o perfil ativo que fica com o
+-- vínculo (via a regra de readmissão da PARTE 5), não quem o Postgres
+-- processou primeiro por acaso (achado de code review).
+-- ═══════════════════════════════════════════════════════════════════════════════
+
+DO $$
+DECLARE
+  rec public.user_profiles%ROWTYPE;
+BEGIN
+  FOR rec IN
+    SELECT * FROM public.user_profiles
+    ORDER BY (deleted_at IS NULL AND disabled_at IS NULL) DESC, created_at DESC
+  LOOP
+    PERFORM public.rh_sync_colaborador(rec);
+  END LOOP;
+END $$;
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 6. RELATÓRIO — user_profiles sem colaborador correspondente
 --
 -- Baseado em "não existe colaborador para este user_profile" (não em
 -- recalcular a validação de CPF) de propósito: cobre tanto CPF nulo/inválido
--- quanto o caso de dois user_profiles resolverem para o MESMO CPF válido,
--- onde o ON CONFLICT (cpf) DO NOTHING da PARTE 5 silenciosamente descarta o
--- segundo — sem isso, aquele descarte não teria nenhum rastro para a
--- curadoria manual encontrar (achado de code review). Por ser uma view (não
--- uma foto do momento do backfill), continua correta conforme colaboradores
--- for editado nos tickets seguintes (vínculo manual, etc.).
+-- quanto o caso de dois user_profiles ATIVOS resolverem para o MESMO CPF
+-- válido — rh_sync_colaborador (PARTE 5) nunca troca um vínculo já ativo por
+-- outro, então o perdedor dessa colisão real fica sem colaborador, e é aqui
+-- que a curadoria manual encontra o rastro (achado de code review). Por ser
+-- uma view (não uma foto do momento do backfill/sync), continua correta
+-- conforme colaboradores for editado nos tickets seguintes (vínculo manual,
+-- etc.) e conforme o trigger da PARTE 5a for processando novos hires.
 --
 -- Gate por canViewColaboradores no WHERE: é o mesmo dado sensível (nome/
 -- email/cpf) protegido por RLS em colaboradores (PARTE 3) — sem o filtro,
