@@ -1,6 +1,10 @@
 import React from 'react';
 import { Pencil, Trash2, SearchX } from 'lucide-react';
 import { Exam, formatBRL } from '../../hooks/useCostControl';
+import { CabecalhoOrdenavel } from './domain/CabecalhoOrdenavel';
+import type { EstadoOrdenacao } from './domain/ordenacao';
+
+export type ColunaExame = 'code' | 'tuss' | 'name' | 'location' | 'direct' | 'indirect' | 'total';
 
 interface ExamTableProps {
   exams: Exam[];
@@ -9,6 +13,8 @@ interface ExamTableProps {
   onToggleAll: () => void;
   onEdit: (exam: Exam) => void;
   onDelete: (exam: Exam) => void;
+  ordenacao: EstadoOrdenacao;
+  onSort: (coluna: ColunaExame) => void;
 }
 
 const ExamTable: React.FC<ExamTableProps> = ({
@@ -18,6 +24,8 @@ const ExamTable: React.FC<ExamTableProps> = ({
   onToggleAll,
   onEdit,
   onDelete,
+  ordenacao,
+  onSort,
 }) => {
   if (exams.length === 0) {
     return (
@@ -48,13 +56,13 @@ const ExamTable: React.FC<ExamTableProps> = ({
                   aria-label="Selecionar todos"
                 />
               </th>
-              <th className="px-5 py-3 text-left font-bold">Código</th>
-              <th className="px-5 py-3 text-left font-bold">TUSS</th>
-              <th className="px-5 py-3 text-left font-bold">Nome do Exame</th>
-              <th className="px-5 py-3 text-left font-bold">Local</th>
-              <th className="px-5 py-3 text-right font-bold">Custo Direto</th>
-              <th className="px-5 py-3 text-right font-bold">Custo Indireto</th>
-              <th className="px-5 py-3 text-right font-bold">Custo Total</th>
+              <CabecalhoOrdenavel coluna="code" titulo="Código" ordenacao={ordenacao} onClick={onSort} />
+              <CabecalhoOrdenavel coluna="tuss" titulo="TUSS" ordenacao={ordenacao} onClick={onSort} />
+              <CabecalhoOrdenavel coluna="name" titulo="Nome do Exame" ordenacao={ordenacao} onClick={onSort} />
+              <CabecalhoOrdenavel coluna="location" titulo="Local" ordenacao={ordenacao} onClick={onSort} />
+              <CabecalhoOrdenavel coluna="direct" titulo="Custo Direto" ordenacao={ordenacao} onClick={onSort} align="right" />
+              <CabecalhoOrdenavel coluna="indirect" titulo="Custo Indireto" ordenacao={ordenacao} onClick={onSort} align="right" />
+              <CabecalhoOrdenavel coluna="total" titulo="Custo Total" ordenacao={ordenacao} onClick={onSort} align="right" />
               <th className="px-5 py-3 text-right font-bold w-28">Ações</th>
             </tr>
           </thead>

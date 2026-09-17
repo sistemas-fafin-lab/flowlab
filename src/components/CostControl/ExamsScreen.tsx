@@ -20,6 +20,8 @@ import ExamTable from './ExamTable';
 import ExamFormModal from './ExamFormModal';
 import ExamImportModal from './ExamImportModal';
 import { casaTermo } from './domain/busca';
+import { ORDENACAO_PADRAO, alternarOrdenacao, ordenar, type EstadoOrdenacao } from './domain/ordenacao';
+import type { ColunaExame } from './ExamTable';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -93,6 +95,8 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
   const [importModalOpen, setImportModalOpen] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
   const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
+  const [ordenacao, setOrdenacao] = useState<EstadoOrdenacao>(ORDENACAO_PADRAO);
+  const alternar = (coluna: ColunaExame) => setOrdenacao(atual => alternarOrdenacao(atual, coluna));
 
   const locations = useMemo(
     () => Array.from(new Set(exams.map(e => e.location).filter(Boolean))).sort(),
@@ -117,9 +121,31 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
   // usuário pode ficar "preso" numa página 5 que não existe mais no recorte novo.
   useEffect(() => {
     setDisplayCount(ITEMS_PER_PAGE);
-  }, [search, location]);
+  }, [search, location, ordenacao]);
 
-  const displayedExams = useMemo(() => filtered.slice(0, displayCount), [filtered, displayCount]);
+  const sorted = useMemo(
+    () =>
+      ordenar(
+        filtered,
+        ordenacao,
+        (exam, coluna) => {
+          switch (coluna as ColunaExame) {
+            case 'code': return exam.code;
+            case 'tuss': return exam.tuss;
+            case 'name': return exam.name;
+            case 'location': return exam.location ?? '';
+            case 'direct': return exam.direct;
+            case 'indirect': return exam.indirect;
+            case 'total': return exam.direct + exam.indirect;
+            default: return '';
+          }
+        },
+        (a, b) => a.name.localeCompare(b.name)
+      ),
+    [filtered, ordenacao]
+  );
+
+  const displayedExams = useMemo(() => sorted.slice(0, displayCount), [sorted, displayCount]);
   const hasMoreExams = filtered.length > displayCount;
 
   const stats = useMemo(() => {
@@ -335,6 +361,8 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
         onToggleAll={toggleAll}
         onEdit={openEdit}
         onDelete={handleDelete}
+        ordenacao={ordenacao}
+        onSort={alternar}
       />
 
       {/* Show more */}
