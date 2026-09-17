@@ -6,9 +6,36 @@
 //   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY (via getSupabaseAdminClient)
 
-import nodemailer from 'nodemailer';
+import nodemailer, { type Transporter } from 'nodemailer';
 import { getSupabaseAdminClient } from './supabase.js';
 import { describeError } from './errors.js';
+
+// Transporter compartilhado entre chamadas (mesmo processo/instância serverless):
+// sem isso, um lote (ex. confirmação de holerites notificando N colaboradores em
+// paralelo) abre N conexões SMTP simultâneas do zero — o Gmail derruba/rejeita
+// parte delas sob esse tipo de rajada, e o envio falha silenciosamente pra quem
+// caiu na conexão recusada (achado: RH confirmou lote de 38 e pelo menos 1
+// colaborador não recebeu a notificação). `pool: true` faz o nodemailer reutilizar
+// até `maxConnections` conexões e filar o resto — mesmo ganho de um envio
+// sequencial, sem o custo de abrir handshake TLS+auth novo a cada e-mail.
+let transporterCache: { key: string; transporter: Transporter } | null = null;
+
+function getTransporter(host: string, port: number, user: string, pass: string): Transporter {
+  const key = `${host}:${port}:${user}`;
+  if (transporterCache?.key === key) return transporterCache.transporter;
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465, // true para 465 (SSL), false para 587 (STARTTLS)
+    auth: { user, pass },
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
+  });
+  transporterCache = { key, transporter };
+  return transporter;
+}
 
 export interface SendTemplatedEmailParams {
   to: string;
@@ -83,12 +110,7 @@ export async function sendTemplatedEmail(
 
   // Envia via nodemailer
   try {
-    const transporter = nodemailer.createTransport({
-      host: SMTP_HOST,
-      port: Number(SMTP_PORT),
-      secure: Number(SMTP_PORT) === 465, // true para 465 (SSL), false para 587 (STARTTLS)
-      auth: { user: SMTP_USER, pass: SMTP_PASS },
-    });
+    const transporter = getTransporter(SMTP_HOST, Number(SMTP_PORT), SMTP_USER, SMTP_PASS);
 
     const info = await transporter.sendMail({
       from: SMTP_FROM,
