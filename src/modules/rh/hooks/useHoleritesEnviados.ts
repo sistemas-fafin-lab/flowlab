@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { gerarSignedUrlHolerite } from '../holeritesStorage';
+import { BUCKET_HOLERITES, gerarSignedUrlHolerite } from '../holeritesStorage';
 import type { ColaboradorHolerite } from '../types';
 
 interface HoleriteRow {
@@ -28,6 +28,8 @@ interface UseHoleritesEnviadosResult {
   refetch: () => Promise<void>;
   /** Gera signed URL de curta duração (60s) pra baixar — nunca expõe o path direto. */
   baixar: (arquivoPath: string) => Promise<string | null>;
+  /** Remove o arquivo do bucket e a linha da tabela; retorna mensagem de erro, ou `null` em sucesso. */
+  remover: (id: string, arquivoPath: string) => Promise<string | null>;
 }
 
 /** Histórico de holerites já enviados (visão RH, `canManageHolerites` via RLS) — filtro por colaborador feito em memória, mesmo padrão de ColaboradoresPage. */
@@ -58,5 +60,20 @@ export function useHoleritesEnviados(): UseHoleritesEnviadosResult {
     fetchHolerites();
   }, [fetchHolerites]);
 
-  return { holerites, loading, error, refetch: fetchHolerites, baixar: gerarSignedUrlHolerite };
+  const remover = useCallback(async (id: string, arquivoPath: string): Promise<string | null> => {
+    const { error: storageError } = await supabase.storage.from(BUCKET_HOLERITES).remove([arquivoPath]);
+    if (storageError) {
+      console.error('Erro ao remover arquivo do holerite:', storageError);
+      return storageError.message;
+    }
+    const { error: deleteError } = await supabase.from('colaborador_holerites').delete().eq('id', id);
+    if (deleteError) {
+      console.error('Erro ao remover holerite:', deleteError);
+      return deleteError.message;
+    }
+    setHolerites((prev) => prev.filter((h) => h.id !== id));
+    return null;
+  }, []);
+
+  return { holerites, loading, error, refetch: fetchHolerites, baixar: gerarSignedUrlHolerite, remover };
 }

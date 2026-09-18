@@ -30,9 +30,15 @@ interface DatePickerProps {
   ariaLabel?: string;
   /** mostra um botão para limpar a data (campos opcionais, ex.: vencimento) */
   allowClear?: boolean;
+  /**
+   * 'month' esconde os dias e deixa escolher só mês/ano (ex.: competência).
+   * O valor de troca continua ISO `YYYY-MM-DD`, sempre com dia 01.
+   */
+  granularity?: 'day' | 'month';
 }
 
 const PANEL_MAX_PX = 320;
+const PANEL_WIDTH_PX = 288; // w-72
 
 // Mesma lógica do Select: encontra o ancestral que corta o painel (corpo do
 // modal, por exemplo) para decidir se o calendário abre para cima.
@@ -87,9 +93,12 @@ const DatePicker: React.FC<DatePickerProps> = ({
   disabled,
   ariaLabel,
   allowClear = false,
+  granularity = 'day',
 }) => {
+  const modoMes = granularity === 'month';
   const [open, setOpen] = useState(false);
   const [dropUp, setDropUp] = useState(false);
+  const [alignRight, setAlignRight] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
 
@@ -120,12 +129,19 @@ const DatePicker: React.FC<DatePickerProps> = ({
       const espacoAbaixo = Math.min(window.innerHeight, limites.bottom) - rect.bottom;
       const espacoAcima = rect.top - Math.max(0, limites.top);
       setDropUp(espacoAbaixo < PANEL_MAX_PX && espacoAcima > espacoAbaixo);
+      setAlignRight(rect.left + PANEL_WIDTH_PX > window.innerWidth);
     }
     setOpen(true);
   };
 
   const escolher = (dia: Date) => {
     onChange(paraIso(dia));
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  const escolherMes = (mes: number, ano: number) => {
+    onChange(paraIso(new Date(ano, mes, 1)));
     setOpen(false);
     triggerRef.current?.focus();
   };
@@ -163,7 +179,11 @@ const DatePicker: React.FC<DatePickerProps> = ({
       >
         <span className={`truncate flex items-center gap-2 ${selecionado ? '' : 'text-gray-400 dark:text-gray-500'}`}>
           <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
-          {selecionado ? selecionado.toLocaleDateString('pt-BR') : placeholder}
+          {selecionado
+            ? modoMes
+              ? `${MESES[selecionado.getMonth()]} de ${selecionado.getFullYear()}`
+              : selecionado.toLocaleDateString('pt-BR')
+            : placeholder}
         </span>
         {allowClear && selecionado && !disabled && (
           <X
@@ -177,65 +197,100 @@ const DatePicker: React.FC<DatePickerProps> = ({
         <div
           role="dialog"
           aria-label="Selecionar data"
-          className={`absolute left-0 z-50 w-72 p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40 ${
-            dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
-          }`}
+          className={`absolute z-50 w-72 p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40 ${
+            alignRight ? 'right-0' : 'left-0'
+          } ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
         >
           <div className="flex items-center justify-between mb-2">
             <button
               type="button"
-              onClick={() => setMesVisivel((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1))}
+              onClick={() =>
+                setMesVisivel((m) =>
+                  modoMes ? new Date(m.getFullYear() - 1, m.getMonth(), 1) : new Date(m.getFullYear(), m.getMonth() - 1, 1)
+                )
+              }
               className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-              aria-label="Mês anterior"
+              aria-label={modoMes ? 'Ano anterior' : 'Mês anterior'}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <span className="text-sm font-medium text-gray-800 dark:text-gray-100 tabular-nums">
-              {MESES[mesVisivel.getMonth()]} {mesVisivel.getFullYear()}
+              {modoMes ? mesVisivel.getFullYear() : `${MESES[mesVisivel.getMonth()]} ${mesVisivel.getFullYear()}`}
             </span>
             <button
               type="button"
-              onClick={() => setMesVisivel((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1))}
+              onClick={() =>
+                setMesVisivel((m) =>
+                  modoMes ? new Date(m.getFullYear() + 1, m.getMonth(), 1) : new Date(m.getFullYear(), m.getMonth() + 1, 1)
+                )
+              }
               className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
-              aria-label="Próximo mês"
+              aria-label={modoMes ? 'Próximo ano' : 'Próximo mês'}
             >
               <ChevronRight className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="grid grid-cols-7 gap-0.5 mb-1">
-            {DIAS_SEMANA.map((d, i) => (
-              <span key={i} className="text-[11px] text-center text-gray-400 dark:text-gray-500 py-1">
-                {d}
-              </span>
-            ))}
-          </div>
-
-          <div className="grid grid-cols-7 gap-0.5">
-            {grid.map((dia) => {
-              const foraDoMes = dia.getMonth() !== mesVisivel.getMonth();
-              const ativo = !!selecionado && mesmoDia(dia, selecionado);
-              const ehHoje = mesmoDia(dia, hoje);
-              return (
-                <button
-                  key={dia.toISOString()}
-                  type="button"
-                  onClick={() => escolher(dia)}
-                  className={`aspect-square rounded-lg text-xs tabular-nums transition-colors ${
-                    ativo
-                      ? 'bg-blue-600 text-white font-medium'
-                      : ehHoje
-                        ? 'text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                        : foraDoMes
-                          ? 'text-gray-300 dark:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+          {modoMes ? (
+            <div className="grid grid-cols-3 gap-1">
+              {MESES.map((nomeMes, i) => {
+                const ativo = !!selecionado && selecionado.getFullYear() === mesVisivel.getFullYear() && selecionado.getMonth() === i;
+                const ehMesAtual = hoje.getFullYear() === mesVisivel.getFullYear() && hoje.getMonth() === i;
+                return (
+                  <button
+                    key={nomeMes}
+                    type="button"
+                    onClick={() => escolherMes(i, mesVisivel.getFullYear())}
+                    className={`rounded-lg py-2 text-xs transition-colors ${
+                      ativo
+                        ? 'bg-blue-600 text-white font-medium'
+                        : ehMesAtual
+                          ? 'text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30'
                           : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {dia.getDate()}
-                </button>
-              );
-            })}
-          </div>
+                    }`}
+                  >
+                    {nomeMes.slice(0, 3)}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-7 gap-0.5 mb-1">
+                {DIAS_SEMANA.map((d, i) => (
+                  <span key={i} className="text-[11px] text-center text-gray-400 dark:text-gray-500 py-1">
+                    {d}
+                  </span>
+                ))}
+              </div>
+
+              <div className="grid grid-cols-7 gap-0.5">
+                {grid.map((dia) => {
+                  const foraDoMes = dia.getMonth() !== mesVisivel.getMonth();
+                  const ativo = !!selecionado && mesmoDia(dia, selecionado);
+                  const ehHoje = mesmoDia(dia, hoje);
+                  return (
+                    <button
+                      key={dia.toISOString()}
+                      type="button"
+                      onClick={() => escolher(dia)}
+                      className={`aspect-square rounded-lg text-xs tabular-nums transition-colors ${
+                        ativo
+                          ? 'bg-blue-600 text-white font-medium'
+                          : ehHoje
+                            ? 'text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                            : foraDoMes
+                              ? 'text-gray-300 dark:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                              : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                    >
+                      {dia.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
 
           <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
             {allowClear ? (
@@ -250,10 +305,10 @@ const DatePicker: React.FC<DatePickerProps> = ({
             ) : <span />}
             <button
               type="button"
-              onClick={() => escolher(hoje)}
+              onClick={() => (modoMes ? escolherMes(hoje.getMonth(), hoje.getFullYear()) : escolher(hoje))}
               className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
             >
-              Hoje
+              {modoMes ? 'Este mês' : 'Hoje'}
             </button>
           </div>
         </div>

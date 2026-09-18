@@ -46,6 +46,7 @@ const GROUP_COLORS: Record<string, {
   'Administração':  { dot: 'bg-rose-500',    activePill: 'bg-rose-100 dark:bg-rose-900/40 border-rose-300 dark:border-rose-700',      activeText: 'text-rose-700 dark:text-rose-300',      groupHeader: 'text-rose-600 dark:text-rose-400',      groupBg: 'border-l-2 border-rose-300 dark:border-rose-700 pl-3' },
   'Tecnologia':     { dot: 'bg-violet-500',  activePill: 'bg-violet-100 dark:bg-violet-900/40 border-violet-300 dark:border-violet-700',  activeText: 'text-violet-700 dark:text-violet-300',  groupHeader: 'text-violet-600 dark:text-violet-400',  groupBg: 'border-l-2 border-violet-300 dark:border-violet-700 pl-3' },
   'Sistemas Externos': { dot: 'bg-slate-500', activePill: 'bg-slate-100 dark:bg-slate-900/40 border-slate-300 dark:border-slate-700', activeText: 'text-slate-700 dark:text-slate-300', groupHeader: 'text-slate-600 dark:text-slate-400', groupBg: 'border-l-2 border-slate-300 dark:border-slate-700 pl-3' },
+  'RH':             { dot: 'bg-teal-500',    activePill: 'bg-teal-100 dark:bg-teal-900/40 border-teal-300 dark:border-teal-700',      activeText: 'text-teal-700 dark:text-teal-300',      groupHeader: 'text-teal-600 dark:text-teal-400',      groupBg: 'border-l-2 border-teal-300 dark:border-teal-700 pl-3' },
 };
 
 const UserManagement: React.FC = () => {

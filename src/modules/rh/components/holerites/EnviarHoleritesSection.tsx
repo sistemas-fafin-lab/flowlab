@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, FileUp, Loader2, RefreshCcw, Upload } from 'lucide-react';
 import { supabase } from '../../../../lib/supabase';
+import DatePicker from '../../../../components/DatePicker';
 import { chamarRhApi, ErroApiRh } from '../../rhApi';
 import { formatCPF } from '../../../../utils/cpf';
 import { formatCompetenciaExtenso } from '../../utils/holeritesFormato';
@@ -116,13 +117,16 @@ const EnviarHoleritesSection: React.FC<EnviarHoleritesSectionProps> = ({ onConcl
         </p>
       </div>
 
-      <label className="block text-xs text-gray-500 dark:text-gray-400 max-w-xs">
+      <label className="block text-xs text-gray-500 dark:text-gray-400 max-w-[180px]">
         Competência de referência
-        <input
-          type="month"
+        <DatePicker
           value={competenciaSelecionada}
-          onChange={(e) => setCompetenciaSelecionada(e.target.value)}
-          className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
+          onChange={setCompetenciaSelecionada}
+          controlClass="w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+          wrapperClass="mt-1"
+          ariaLabel="Competência de referência"
+          granularity="month"
+          allowClear
         />
         <span className="mt-1 block text-[11px] text-gray-400">
           Usada só pra conferência — a competência gravada é sempre a impressa em cada página ("Ref.:")
@@ -184,7 +188,7 @@ const TelaConferencia: React.FC<{
       ) : (
         <div className="rounded-xl border border-gray-200 dark:border-gray-600 divide-y divide-gray-100 dark:divide-gray-700 max-h-72 overflow-y-auto">
           {preview.blocosIdentificados.map((bloco) => {
-            const divergente = competenciaSelecionada && bloco.competencia.slice(0, 7) !== competenciaSelecionada;
+            const divergente = competenciaSelecionada && bloco.competencia.slice(0, 7) !== competenciaSelecionada.slice(0, 7);
             return (
               <div key={`${bloco.colaboradorId}-${bloco.competencia}`} className="px-3 py-2.5 flex items-center justify-between gap-3">
                 <div className="min-w-0">

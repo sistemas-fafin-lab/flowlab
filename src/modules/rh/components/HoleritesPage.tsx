@@ -25,15 +25,17 @@ const HoleritesPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="animate-fade-in-up">
+    <div className="flex flex-col gap-6 h-[calc(100vh-96px)] lg:h-[calc(100vh-24px)]">
+      <div className="animate-fade-in-up shrink-0">
         <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
           Holerites
         </h2>
         <p className="text-gray-500 dark:text-gray-400">Envio consolidado mensal e histórico por colaborador</p>
       </div>
 
-      <EnviarHoleritesSection onConcluido={() => listaRef.current?.refetch()} />
+      <div className="shrink-0">
+        <EnviarHoleritesSection onConcluido={() => listaRef.current?.refetch()} />
+      </div>
       <HoleritesEnviadosList ref={listaRef} />
     </div>
   );
