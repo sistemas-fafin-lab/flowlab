@@ -12,9 +12,14 @@ export interface HoleritesEnviadosListRef {
   refetch: () => Promise<void>;
 }
 
+interface HoleritesEnviadosListProps {
+  /** Sem `canManageHolerites`, quem só tem `canViewAllHolerites` vê e baixa, mas não remove. */
+  podeRemover: boolean;
+}
+
 const CAMPO = 'px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30';
 
-const HoleritesEnviadosList = React.forwardRef<HoleritesEnviadosListRef>((_props, ref) => {
+const HoleritesEnviadosList = React.forwardRef<HoleritesEnviadosListRef, HoleritesEnviadosListProps>(({ podeRemover }, ref) => {
   const { holerites, loading, error, refetch, baixar, remover } = useHoleritesEnviados();
   const { colaboradores } = useColaboradores();
   const [busca, setBusca] = useState('');
@@ -173,16 +178,18 @@ const HoleritesEnviadosList = React.forwardRef<HoleritesEnviadosListRef>((_props
                   <Download className="w-3.5 h-3.5" />
                   {baixando === holerite.id ? 'Gerando link...' : 'Baixar'}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => handleRemover(holerite.id, holerite.arquivoPath, holerite.colaboradorNome, holerite.competencia)}
-                  disabled={removendo === holerite.id || baixando === holerite.id}
-                  aria-label={`Remover holerite de ${holerite.colaboradorNome}`}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  {removendo === holerite.id ? 'Removendo...' : 'Remover'}
-                </button>
+                {podeRemover && (
+                  <button
+                    type="button"
+                    onClick={() => handleRemover(holerite.id, holerite.arquivoPath, holerite.colaboradorNome, holerite.competencia)}
+                    disabled={removendo === holerite.id || baixando === holerite.id}
+                    aria-label={`Remover holerite de ${holerite.colaboradorNome}`}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 transition-colors"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    {removendo === holerite.id ? 'Removendo...' : 'Remover'}
+                  </button>
+                )}
               </div>
             </div>
           ))}

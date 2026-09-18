@@ -64,6 +64,10 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // RH pode querer restringir quem sobe/gerencia holerite independente de quem só
   // visualiza/edita o cadastro de colaboradores.
   { key: 'canManageHolerites', label: 'Gerenciar Holerites', group: 'RH' },
+  // canViewAllHolerites é somente-leitura: vê a lista completa e baixa qualquer
+  // holerite, mas não envia nem remove. Quem tem canManageHolerites já enxerga
+  // tudo isso (é um superset), então essa chave só importa pra quem NÃO gerencia.
+  { key: 'canViewAllHolerites', label: 'Visualizar Todos os Holerites', group: 'RH' },
 ];
 
 // ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────
@@ -83,7 +87,7 @@ export const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ALL_PERMISSION_KEYS.map(p => p.key),
   operator: ALL_PERMISSION_KEYS.map(p => p.key).filter(
-    k => !['canViewDashboard', 'canManageUsers', 'canDeleteUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards', 'canViewColaboradores', 'canManageHolerites'].includes(k)
+    k => !['canViewDashboard', 'canManageUsers', 'canDeleteUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards', 'canViewColaboradores', 'canManageHolerites', 'canViewAllHolerites'].includes(k)
   ),
   requester: ['canViewRequests', 'canAddRequests'],
 };

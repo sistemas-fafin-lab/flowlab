@@ -8,9 +8,12 @@ import MeusHoleritesSection from './holerites/MeusHoleritesSection';
 const HoleritesPage: React.FC = () => {
   const { userProfile } = useAuth();
   const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageHolerites');
+  // canViewAllHolerites é somente-leitura (vê tudo, baixa, mas não envia/remove);
+  // canManageHolerites já é um superset dela.
+  const podeVerTodos = podeGerenciar || hasPermission(userProfile?.permissions || [], 'canViewAllHolerites');
   const listaRef = useRef<HoleritesEnviadosListRef>(null);
 
-  if (!podeGerenciar) {
+  if (!podeVerTodos) {
     return (
       <div className="space-y-6">
         <div className="animate-fade-in-up">
@@ -30,13 +33,17 @@ const HoleritesPage: React.FC = () => {
         <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
           Holerites
         </h2>
-        <p className="text-gray-500 dark:text-gray-400">Envio consolidado mensal e histórico por colaborador</p>
+        <p className="text-gray-500 dark:text-gray-400">
+          {podeGerenciar ? 'Envio consolidado mensal e histórico por colaborador' : 'Histórico de holerites por colaborador'}
+        </p>
       </div>
 
-      <div className="shrink-0">
-        <EnviarHoleritesSection onConcluido={() => listaRef.current?.refetch()} />
-      </div>
-      <HoleritesEnviadosList ref={listaRef} />
+      {podeGerenciar && (
+        <div className="shrink-0">
+          <EnviarHoleritesSection onConcluido={() => listaRef.current?.refetch()} />
+        </div>
+      )}
+      <HoleritesEnviadosList ref={listaRef} podeRemover={podeGerenciar} />
     </div>
   );
 };
