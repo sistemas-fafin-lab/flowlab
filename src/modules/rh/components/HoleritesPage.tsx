@@ -8,12 +8,16 @@ import MeusHoleritesSection from './holerites/MeusHoleritesSection';
 const HoleritesPage: React.FC = () => {
   const { userProfile } = useAuth();
   const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageHolerites');
-  // canViewAllHolerites é somente-leitura (vê tudo, baixa, mas não envia/remove);
-  // canManageHolerites já é um superset dela.
-  const podeVerTodos = podeGerenciar || hasPermission(userProfile?.permissions || [], 'canViewAllHolerites');
+  // canViewAllHolerites (todos, sem escopo) e canViewHoleritesEquipe (só quem o
+  // usuário gerencia, via gestor_id) são somente-leitura; canManageHolerites já
+  // é um superset de ambas. O RLS de colaborador_holerites decide o recorte —
+  // aqui só decidimos se a lista aparece e se vem com botão de remover/enviar.
+  const temPermissaoVerTodos = hasPermission(userProfile?.permissions || [], 'canViewAllHolerites');
+  const temPermissaoVerEquipe = hasPermission(userProfile?.permissions || [], 'canViewHoleritesEquipe');
+  const podeVerLista = podeGerenciar || temPermissaoVerTodos || temPermissaoVerEquipe;
   const listaRef = useRef<HoleritesEnviadosListRef>(null);
 
-  if (!podeVerTodos) {
+  if (!podeVerLista) {
     return (
       <div className="space-y-6">
         <div className="animate-fade-in-up">
@@ -34,7 +38,11 @@ const HoleritesPage: React.FC = () => {
           Holerites
         </h2>
         <p className="text-gray-500 dark:text-gray-400">
-          {podeGerenciar ? 'Envio consolidado mensal e histórico por colaborador' : 'Histórico de holerites por colaborador'}
+          {podeGerenciar
+            ? 'Envio consolidado mensal e histórico por colaborador'
+            : temPermissaoVerTodos
+              ? 'Histórico de holerites por colaborador'
+              : 'Histórico de holerites da sua equipe'}
         </p>
       </div>
 

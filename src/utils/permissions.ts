@@ -68,6 +68,11 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // holerite, mas não envia nem remove. Quem tem canManageHolerites já enxerga
   // tudo isso (é um superset), então essa chave só importa pra quem NÃO gerencia.
   { key: 'canViewAllHolerites', label: 'Visualizar Todos os Holerites', group: 'RH' },
+  // canViewHoleritesEquipe é escopada: só vê/baixa holerites de colaboradores cujo
+  // gestor_id aponta pro colaborador vinculado ao usuário logado (RLS por
+  // hierarquia, não por texto livre de departamento). Não é superset nem
+  // subconjunto de canViewAllHolerites — são dois escopos independentes.
+  { key: 'canViewHoleritesEquipe', label: 'Visualizar Holerites da Equipe (Gestor)', group: 'RH' },
 ];
 
 // ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────
@@ -87,7 +92,7 @@ export const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ALL_PERMISSION_KEYS.map(p => p.key),
   operator: ALL_PERMISSION_KEYS.map(p => p.key).filter(
-    k => !['canViewDashboard', 'canManageUsers', 'canDeleteUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards', 'canViewColaboradores', 'canManageHolerites', 'canViewAllHolerites'].includes(k)
+    k => !['canViewDashboard', 'canManageUsers', 'canDeleteUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards', 'canViewColaboradores', 'canManageHolerites', 'canViewAllHolerites', 'canViewHoleritesEquipe'].includes(k)
   ),
   requester: ['canViewRequests', 'canAddRequests'],
 };
