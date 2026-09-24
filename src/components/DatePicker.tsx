@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 /**
@@ -39,21 +40,32 @@ interface DatePickerProps {
 
 const PANEL_MAX_PX = 320;
 const PANEL_WIDTH_PX = 288; // w-72
+const MARGEM_PX = 8; // distância mínima da borda da janela
+const GAP_PX = 4; // entre o campo e o painel
 
-// Mesma lógica do Select: encontra o ancestral que corta o painel (corpo do
-// modal, por exemplo) para decidir se o calendário abre para cima.
-const limitesDoContainer = (el: HTMLElement | null): { top: number; bottom: number } => {
-  let node = el?.parentElement ?? null;
-  while (node) {
-    const { overflowY } = getComputedStyle(node);
-    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
-      const rect = node.getBoundingClientRect();
-      return { top: rect.top, bottom: rect.bottom };
-    }
-    node = node.parentElement;
-  }
-  return { top: 0, bottom: window.innerHeight };
-};
+/** Posição do painel na janela (position: fixed). */
+interface PosicaoPainel {
+  left: number;
+  top?: number;
+  bottom?: number;
+}
+
+// O painel vai por portal para o <body> com position: fixed. Com `absolute`
+// dentro do campo, ele era cortado por qualquer ancestral com overflow — o corpo
+// rolável dos modais (ex.: Filtros de Contas a Receber): com o campo no topo do
+// modal não havia espaço nem acima nem abaixo, e o calendário sumia atrás da
+// borda. Fora da árvore do modal, só a janela limita, então a decisão de abrir
+// para cima/baixo e o alinhamento horizontal olham só para ela.
+function calcularPosicao(rect: DOMRect): PosicaoPainel {
+  const espacoAbaixo = window.innerHeight - rect.bottom;
+  const espacoAcima = rect.top;
+  const paraCima = espacoAbaixo < PANEL_MAX_PX && espacoAcima > espacoAbaixo;
+  const maxLeft = window.innerWidth - PANEL_WIDTH_PX - MARGEM_PX;
+  const left = Math.max(MARGEM_PX, Math.min(rect.left, maxLeft));
+  return paraCima
+    ? { left, bottom: window.innerHeight - rect.top + GAP_PX }
+    : { left, top: rect.bottom + GAP_PX };
+}
 
 /** `YYYY-MM-DD` → Date local à meia-noite (evita o desvio de fuso do parse UTC). */
 function paraDataLocal(iso: string): Date | null {
@@ -97,10 +109,10 @@ const DatePicker: React.FC<DatePickerProps> = ({
 }) => {
   const modoMes = granularity === 'month';
   const [open, setOpen] = useState(false);
-  const [dropUp, setDropUp] = useState(false);
-  const [alignRight, setAlignRight] = useState(false);
+  const [posicao, setPosicao] = useState<PosicaoPainel | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const selecionado = useMemo(() => paraDataLocal(value), [value]);
   const hoje = useMemo(() => new Date(), []);
@@ -114,23 +126,37 @@ const DatePicker: React.FC<DatePickerProps> = ({
 
   useEffect(() => {
     if (!open) return;
+    // O painel não é mais filho do wrapper (portal), então conta como "dentro"
+    // um clique em qualquer um dos dois.
     const aoClicarFora = (e: MouseEvent) => {
-      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false);
+      const alvo = e.target as Node;
+      if (!wrapperRef.current?.contains(alvo) && !panelRef.current?.contains(alvo)) setOpen(false);
     };
     document.addEventListener('mousedown', aoClicarFora);
     return () => document.removeEventListener('mousedown', aoClicarFora);
   }, [open]);
 
+  const reposicionar = useCallback(() => {
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) setPosicao(calcularPosicao(rect));
+  }, []);
+
+  // Com position: fixed o painel não acompanha a rolagem sozinho: rolar o corpo
+  // do modal (ou a página) e redimensionar a janela recalculam a posição.
+  // `capture` pega a rolagem de qualquer ancestral, não só da janela.
+  useLayoutEffect(() => {
+    if (!open) return;
+    reposicionar();
+    window.addEventListener('scroll', reposicionar, true);
+    window.addEventListener('resize', reposicionar);
+    return () => {
+      window.removeEventListener('scroll', reposicionar, true);
+      window.removeEventListener('resize', reposicionar);
+    };
+  }, [open, reposicionar]);
+
   const abrir = () => {
     if (disabled) return;
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) {
-      const limites = limitesDoContainer(triggerRef.current);
-      const espacoAbaixo = Math.min(window.innerHeight, limites.bottom) - rect.bottom;
-      const espacoAcima = rect.top - Math.max(0, limites.top);
-      setDropUp(espacoAbaixo < PANEL_MAX_PX && espacoAcima > espacoAbaixo);
-      setAlignRight(rect.left + PANEL_WIDTH_PX > window.innerWidth);
-    }
     setOpen(true);
   };
 
@@ -193,13 +219,21 @@ const DatePicker: React.FC<DatePickerProps> = ({
         )}
       </button>
 
-      {open && (
+      {open && posicao && createPortal(
         <div
+          ref={panelRef}
           role="dialog"
           aria-label="Selecionar data"
-          className={`absolute z-50 w-72 p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40 ${
-            alignRight ? 'right-0' : 'left-0'
-          } ${dropUp ? 'bottom-full mb-1' : 'top-full mt-1'}`}
+          // z acima de qualquer modal do app (o maior usa z-[9999]).
+          style={{ position: 'fixed', left: posicao.left, top: posicao.top, bottom: posicao.bottom }}
+          className="z-[10000] w-72 p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40"
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') {
+              e.stopPropagation();
+              setOpen(false);
+              triggerRef.current?.focus();
+            }
+          }}
         >
           <div className="flex items-center justify-between mb-2">
             <button
@@ -311,7 +345,8 @@ const DatePicker: React.FC<DatePickerProps> = ({
               {modoMes ? 'Este mês' : 'Hoje'}
             </button>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
