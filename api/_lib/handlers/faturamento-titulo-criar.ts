@@ -206,8 +206,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     //   3. sem envio ainda (lote não chegou à operadora — comum na AMHP-DF, que
     //      nem grava DtaEnvio, issue 03), a MESMA regra a partir da emissão: é
     //      uma estimativa sujeita a revisão quando o envio real acontecer, mas
-    //      cumpre a promessa da tela em vez de deixar o título sem vencimento e
-    //      invisível na lista (que filtra por data_vencimento).
+    //      cumpre a promessa da tela em vez de deixar o título sem vencimento
+    //      (a lista filtra por emissão, mas o aging e os atrasados dependem de
+    //      data_vencimento).
     const dataEmissaoResolvida = dataEmissao ?? hojeIsoLocal();
     let vencimento = dataVencimento ?? vencimentoDoRps(resultado.lotes);
     if (!vencimento) {

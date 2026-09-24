@@ -64,7 +64,7 @@ const STATUS_OPCOES = [
 
 const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 
-// Issue 40: atalhos que preenchem o range de vencimento — não substituem os
+// Issue 40: atalhos que preenchem o range de emissão — não substituem os
 // DatePickers de range livre, só evitam abrir o calendário pro caso comum.
 const ATALHOS_PERIODO = [
   { rotulo: 'Este mês', calcular: periodoEsteMes },
@@ -373,7 +373,7 @@ const TitulosList: React.FC<Props> = ({
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-wrap items-end gap-2">
             <label className="text-xs text-gray-500 dark:text-gray-400">
-              Vencimento de
+              Emissão de
               <DatePicker
                 value={filtros.desde}
                 onChange={(v) => onFiltrar({ desde: v, pagina: 1 })}
@@ -546,7 +546,7 @@ const TitulosList: React.FC<Props> = ({
           {filtros.status
             ? ` com status "${STATUS_ROTULOS[filtros.status]}"`
             : filtros.somentePendentes && ' com o atalho "Somente pendentes" ativado'}.
-          {' '}Amplie o período de vencimento acima — trocar o Status não muda
+          {' '}Amplie o período de emissão acima — trocar o Status não muda
           a lista se o período já não cobrir nenhum título.
           {podeEditar && ' Use "Novo título" para agrupar lotes do apLIS numa cobrança.'}
         </div>

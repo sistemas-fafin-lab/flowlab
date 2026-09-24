@@ -95,3 +95,9 @@ atalhos ("Este mês", "Mês passado", "Este trimestre") que preenchem
 (`utils/formato.ts: periodoEsteMes/periodoMesPassado/periodoEsteTrimestre`).
 Não precisou de mudança nos atalhos por causa de nenhum ajuste extra de
 comportamento — item já estava confirmado no comment anterior.
+
+- 2026-09-24 — Revisão da decisão, a pedido do usuário: o período da aba Títulos
+  voltou a filtrar por **data de emissão** (`data_emissao`). Com vencimento, títulos
+  emitidos em agosto não apareciam ao pesquisar agosto. Emissão escolhida em vez de
+  competência porque nunca é nula. Default da página passou a ir até o fim do mês
+  corrente (não precisa mais olhar 3 meses à frente). Atalhos de mês/trimestre mantidos.

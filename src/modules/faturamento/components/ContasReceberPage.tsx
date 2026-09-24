@@ -42,13 +42,6 @@ function fimDoMes(): string {
   return `${ultimo.getFullYear()}-${String(ultimo.getMonth() + 1).padStart(2, '0')}-${String(ultimo.getDate()).padStart(2, '0')}`;
 }
 
-/** Último dia do mês de N meses à frente, em ISO local. */
-function fimMesesAFrente(n: number): string {
-  const hoje = new Date();
-  const ultimo = new Date(hoje.getFullYear(), hoje.getMonth() + n + 1, 0);
-  return `${ultimo.getFullYear()}-${String(ultimo.getMonth() + 1).padStart(2, '0')}-${String(ultimo.getDate()).padStart(2, '0')}`;
-}
-
 /** Estado inicial do painel, e também o alvo do "Limpar" — uma definição só. */
 const filtrosPainelPadrao = (): DashboardReceberFiltros => ({
   desde: mesesAtras(3),
@@ -69,14 +62,12 @@ const ContasReceberPage: React.FC = () => {
   const [aba, setAba] = useState<Aba>('dashboard');
   const [subAbaPendencias, setSubAbaPendencias] = useState<SubAbaPendencias>('lotes');
   const [filtros, setFiltros] = useState({
-    // O período filtra por VENCIMENTO (issue 40), não emissão — um título
-    // recém-criado normalmente vence semanas ou meses à frente (prazo de
-    // convênio, 20 a 90 dias). `ate` precisa olhar pra frente também, senão um
-    // título criado hoje mesmo já nasce fora do período padrão e some da
-    // lista. Três meses pra cada lado cobrem o ciclo típico de pagamento sem
-    // trazer a base inteira na primeira abertura.
+    // O período filtra por EMISSÃO (revisão de 2026-09-24 sobre a issue 40).
+    // A emissão não fica no futuro, então basta ir até o fim do mês corrente;
+    // três meses para trás cobrem o ciclo típico de pagamento sem trazer a
+    // base inteira na primeira abertura.
     desde: mesesAtras(3),
-    ate: fimMesesAFrente(3),
+    ate: fimDoMes(),
     status: '' as TituloStatus | '',
     operadoraId: '',
     busca: '',
