@@ -205,6 +205,8 @@ export interface LotesMeta {
   /** Só quando somenteSemTitulo=1: quantos lotes desta página foram ocultados por
    *  já ter título. `registros`/`qtdPaginas` continuam contando SEM esse filtro. */
   filtrados?: number;
+  /** Busca por número de lote que já está num título (modal de criação). */
+  loteBuscadoComTitulo?: { idLote: number; tituloNumero: string | null } | null;
 }
 
 // ============================================================================

@@ -236,7 +236,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
                 type="text"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar por operadora, paciente, guia…"
+                placeholder="Nº do lote, operadora, paciente, guia…"
                 className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
               />
             </div>
@@ -320,6 +320,19 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
               </div>
             )}
           </div>
+
+          {/* Buscou o número de um lote que já está num título: sem este aviso ele
+              só não aparece na lista, e parece que a busca falhou. */}
+          {!carregando && !erroLista && meta?.loteBuscadoComTitulo && (
+            <div className="p-3 rounded-xl border border-blue-200 dark:border-blue-900/50 bg-blue-50 dark:bg-blue-900/20 text-xs text-blue-800 dark:text-blue-300 flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>
+                O lote {meta.loteBuscadoComTitulo.idLote} já está no título
+                {meta.loteBuscadoComTitulo.tituloNumero ? ` NF ${meta.loteBuscadoComTitulo.tituloNumero}` : ' (ainda sem número de nota)'}
+                {' '}— por isso não aparece para seleção.
+              </span>
+            </div>
+          )}
 
           {!carregando && !erroLista && lotes.length > 0 && (
             <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">

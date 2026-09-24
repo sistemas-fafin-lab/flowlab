@@ -31,7 +31,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { listarLotes, MAX_BUSCA, MAX_TAMANHO, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
+import { idLoteDaBusca, listarLotes, MAX_BUSCA, MAX_TAMANHO, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
 import type { LoteFaturamento } from '../faturamento/bdLab.js';
 import { listarFontesConsideradasMeta } from '../faturamento/fontesConsideradas.js';
 import { getSupabaseAdminClient } from '../supabase.js';
@@ -239,12 +239,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ? anotados.filter((lote) => lote.tituloId === null)
       : anotados;
     const filtrados = anotados.length - lotes.length;
+    // Buscou o número de um lote que já está num título: sem isto ele só some
+    // da lista do modal, e o operador fica procurando.
+    const idBuscado = somenteSemTitulo ? idLoteDaBusca(primeiro(q.busca)) : null;
+    const buscadoComTitulo = idBuscado !== null
+      ? anotados.find((lote) => lote.idLote === idBuscado && lote.tituloId !== null) ?? null
+      : null;
 
     // Dado financeiro: não deixa ficar em cache de navegador nem de proxy.
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
       success: true,
-      meta: { ...resultado.meta, filtrados: somenteSemTitulo ? filtrados : 0 },
+      meta: {
+        ...resultado.meta,
+        filtrados: somenteSemTitulo ? filtrados : 0,
+        loteBuscadoComTitulo: buscadoComTitulo
+          ? { idLote: buscadoComTitulo.idLote, tituloNumero: buscadoComTitulo.tituloNumero }
+          : null,
+      },
       lotes,
     });
   } catch (err) {

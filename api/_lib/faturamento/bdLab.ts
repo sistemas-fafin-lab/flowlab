@@ -159,6 +159,9 @@ export interface LotesMeta {
   /** Só quando somenteSemTitulo=1: quantos lotes desta página foram ocultados por
    *  já ter título. `registros`/`qtdPaginas` continuam contando SEM esse filtro. */
   filtrados?: number;
+  /** Só quando somenteSemTitulo=1 e a busca é um número de lote que já está num
+   *  título: o modal avisa em vez de o lote simplesmente não aparecer. */
+  loteBuscadoComTitulo?: { idLote: number; tituloNumero: string | null } | null;
 }
 
 export interface ListarLotesParams {
@@ -425,6 +428,25 @@ function filtroEventoFatur(): string {
   return 'EXISTS (SELECT 1 FROM requisicao rf WHERE rf.Lote = l.IdLote AND rf.CodEventoFatur = ?)';
 }
 
+/** A busca é um número de lote? Só dígitos, 4 ou mais (os lotes atuais têm 4;
+ *  com menos, "65" digitado no meio do caminho puxaria o lote 65 de 2020). O
+ *  número entra interpolado no ORDER BY, então o regex é a validação. */
+export function idLoteDaBusca(busca: string | undefined): number | null {
+  const termo = busca?.trim() ?? '';
+  return /^\d{4,9}$/.test(termo) ? Number(termo) : null;
+}
+
+/** Ordem da listagem. Com busca por número de lote, o lote exato vem primeiro,
+ *  depois os que COMEÇAM com os dígitos e só então o resto (que casou por guia,
+ *  requisição ou paciente) — antes era só por data, e buscar "6700" trazia 35
+ *  lotes com o 6700 na 33ª posição. */
+function ordemLotes(params: ListarLotesParams): string {
+  const id = idLoteDaBusca(params.busca);
+  const porData = 'l.DtaCriacao DESC, l.IdLote DESC';
+  if (id === null) return porData;
+  return `(l.IdLote = ${id}) DESC, (CAST(l.IdLote AS CHAR) LIKE '${id}%') DESC, ${porData}`;
+}
+
 /**
  * Cláusula WHERE + parâmetros comuns à listagem e à contagem.
  * `periodoFim` é inclusivo: `< periodoFim + 1 dia` pega o dia inteiro sem depender de
@@ -446,10 +468,16 @@ function filtroLotes(
     condicoes.push('l.IdLote = ?');
     valores.push(params.idLote);
   } else {
-    condicoes.push('l.DtaCriacao >= ?');
-    valores.push(`${params.periodoIni} 00:00:00`);
-    condicoes.push('l.DtaCriacao < DATE_ADD(?, INTERVAL 1 DAY)');
-    valores.push(`${params.periodoFim} 00:00:00`);
+    // Busca por número de lote acha o lote exato mesmo fora do período: quem
+    // digita o número sabe qual lote quer, e o período padrão (mês corrente)
+    // escondia lotes do mês anterior — no lugar deles vinham lotes do período
+    // que só casavam por guia/requisição.
+    const idExato = idLoteDaBusca(params.busca);
+    condicoes.push(
+      `((l.DtaCriacao >= ? AND l.DtaCriacao < DATE_ADD(?, INTERVAL 1 DAY))${idExato !== null ? ' OR l.IdLote = ?' : ''})`,
+    );
+    valores.push(`${params.periodoIni} 00:00:00`, `${params.periodoFim} 00:00:00`);
+    if (idExato !== null) valores.push(idExato);
   }
   if (params.statusLote !== undefined) {
     condicoes.push('l.Status = ?');
@@ -570,7 +598,7 @@ const SQL_LISTA = `
     LEFT JOIN fatinstituicao lab ON lab.IdInstituicao = l.IdLaboratorio
     LEFT JOIN fatrps rps         ON rps.IdRPS         = l.IdRPS
    WHERE %WHERE%
-   ORDER BY l.DtaCriacao DESC, l.IdLote DESC
+   ORDER BY %ORDER%
    LIMIT %LIMIT% OFFSET %OFFSET%`;
 
 function normalizarLote(
@@ -686,6 +714,7 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
       SQL_LISTA
         .replace('%WHERE%', where)
+        .replace('%ORDER%', ordemLotes(params))
         .replace('%LIMIT%', String(limite))
         .replace('%OFFSET%', String(deslocamento)),
       valores,

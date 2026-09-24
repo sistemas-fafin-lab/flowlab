@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   calcularPendenciaProcedimento,
+  idLoteDaBusca,
   procedimentoTemGlosa,
   protocoloEhData,
   resolverCodigoGlosa,
@@ -154,5 +155,23 @@ describe('procedimentoTemGlosa', () => {
 
   it('sem motivo nem demonstrativo não é glosa', () => {
     expect(procedimentoTemGlosa(base)).toBe(false);
+  });
+});
+
+describe('idLoteDaBusca', () => {
+  it('reconhece número de lote (4+ dígitos), ignorando espaços', () => {
+    expect(idLoteDaBusca('6700')).toBe(6700);
+    expect(idLoteDaBusca(' 6485 ')).toBe(6485);
+  });
+
+  it('ignora números curtos, digitados no meio do caminho', () => {
+    expect(idLoteDaBusca('65')).toBeNull();
+    expect(idLoteDaBusca('670')).toBeNull();
+  });
+
+  it('ignora texto e termos mistos', () => {
+    expect(idLoteDaBusca('cassi')).toBeNull();
+    expect(idLoteDaBusca('6700a')).toBeNull();
+    expect(idLoteDaBusca(undefined)).toBeNull();
   });
 });
