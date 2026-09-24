@@ -223,8 +223,27 @@ export function bdLabConfigurado(): boolean {
   return Boolean(process.env.DB_HOST?.trim() && process.env.DB_USER?.trim());
 }
 
-async function conectar(): Promise<mysql.Connection> {
-  return mysql.createConnection({
+// ── Conexões ────────────────────────────────────────────────────────────────
+// Pool em vez de uma conexão nova por consulta: pelo túnel ngrok, abrir a
+// conexão MySQL custava ~850 ms (medido 24/09), mais que a consulta. O pool vive
+// no módulo, então sobrevive entre requisições enquanto o processo estiver de pé
+// (servidor de dev do Vite, instância "quente" da Vercel) e só a primeira busca
+// paga o handshake.
+//
+// Cuidados com o túnel:
+//   - keep-alive de TCP, para o ngrok não derrubar a conexão parada;
+//   - `idleTimeout` fecha a conexão ociosa por conta própria antes disso;
+//   - se mesmo assim uma conexão do pool chegar morta, `comConexao` a descarta e
+//     tenta de novo UMA vez com outra (só leitura, repetir é seguro).
+// Poucas conexões: são no máximo 2–3 consultas simultâneas por tela, e o servidor
+// aceita 151 no total.
+const POOL_LIMITE = 3;
+const POOL_OCIOSO_MS = 60_000;
+
+let pool: mysql.Pool | null = null;
+
+function obterPool(): mysql.Pool {
+  pool ??= mysql.createPool({
     host: (process.env.DB_HOST ?? '').trim(),
     port: Number((process.env.DB_PORT ?? '3306').trim()),
     user: (process.env.DB_USER ?? '').trim(),
@@ -232,12 +251,26 @@ async function conectar(): Promise<mysql.Connection> {
     database: (process.env.DB_NAME ?? 'lab').trim(),
     charset: 'utf8mb4',
     connectTimeout: CONNECT_TIMEOUT_MS,
+    connectionLimit: POOL_LIMITE,
+    maxIdle: POOL_LIMITE,
+    idleTimeout: POOL_OCIOSO_MS,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10_000,
   });
+  return pool;
+}
+
+/** Erro de conexão caída (túnel reiniciado, conexão ociosa derrubada), não de SQL. */
+function conexaoCaiu(err: unknown): boolean {
+  const codigo = (err as { code?: string } | null)?.code ?? '';
+  return ['PROTOCOL_CONNECTION_LOST', 'ECONNRESET', 'EPIPE', 'ETIMEDOUT', 'ECONNREFUSED']
+    .includes(codigo) || /closed state|connection lost/i.test(String((err as Error)?.message ?? ''));
 }
 
 /**
- * Roda `consulta` com uma conexão dedicada e sempre a encerra. Nunca lança: erro de
- * túnel/consulta volta como `{ erro }`, mesmo contrato do cliente antigo.
+ * Roda `consulta` com uma conexão do pool e sempre a devolve. Nunca lança: erro de
+ * túnel/consulta volta como `{ erro }`, mesmo contrato do cliente antigo. Conexão
+ * que caiu é destruída (não volta ao pool) e a consulta roda de novo uma vez.
  */
 async function comConexao<T>(
   rotulo: string,
@@ -246,17 +279,48 @@ async function comConexao<T>(
   if (!bdLabConfigurado()) {
     return { erro: { status: 502, mensagem: 'Banco do laboratório não configurado (DB_HOST/DB_USER).' } };
   }
-  let conn: mysql.Connection | null = null;
-  try {
-    conn = await conectar();
-    return await consulta(conn);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error(`[faturamento/bdLab] ${rotulo}: ${msg}`);
-    return { erro: { status: 502, mensagem: `Não foi possível consultar o banco do laboratório: ${msg}` } };
-  } finally {
-    if (conn) await conn.end().catch(() => undefined);
+  for (let tentativa = 1; ; tentativa += 1) {
+    let conn: mysql.PoolConnection | null = null;
+    try {
+      conn = await obterPool().getConnection();
+      const resultado = await consulta(conn);
+      conn.release();
+      return resultado;
+    } catch (err) {
+      const caiu = conexaoCaiu(err);
+      if (conn) {
+        if (caiu) conn.destroy();
+        else conn.release();
+      }
+      if (caiu && tentativa === 1) continue;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[faturamento/bdLab] ${rotulo}: ${msg}`);
+      return { erro: { status: 502, mensagem: `Não foi possível consultar o banco do laboratório: ${msg}` } };
+    }
   }
+}
+
+// "Data do dado mais recente" de cada tabela (o rodapé "backup atualizado até…"):
+// o backup roda uma vez por dia, então não precisa de uma ida ao túnel a cada
+// listagem. Cache por tabela, 30 min.
+const TTL_DADO_ATE = 30 * 60_000;
+const cacheDadoAte = new Map<string, { valor: string | null; ts: number }>();
+
+async function dadoAte(
+  conn: mysql.Connection,
+  tabela: 'fatlote' | 'requisicao' | 'fatloterecurso',
+  coluna: 'DtaCriacao' | 'DtaSolicitacao',
+): Promise<string | null> {
+  const chave = `${tabela}.${coluna}`;
+  const cache = cacheDadoAte.get(chave);
+  if (cache && Date.now() - cache.ts <= TTL_DADO_ATE) return cache.valor;
+  const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+    `SELECT DATE_FORMAT(MAX(${coluna}), '%Y-%m-%d') AS mx FROM ${tabela}`,
+    [],
+  );
+  const valor = dataIso(linhas[0]?.mx);
+  cacheDadoAte.set(chave, { valor, ts: Date.now() });
+  return valor;
 }
 
 /** DECIMAL/BIGINT vêm como string no mysql2. */
@@ -574,7 +638,8 @@ const SQL_RESUMO_EVENTO_FATUR = `(SELECT GROUP_CONCAT(CONCAT(t.CodEventoFatur, '
      ) t)`;
 
 const SQL_LISTA = `
-  SELECT l.IdLote, l.Status, l.IdFontePagadora,
+  SELECT (SELECT COUNT(*) FROM fatlote l WHERE %WHERE%) AS TotalRegistros,
+         l.IdLote, l.Status, l.IdFontePagadora,
          DATE_FORMAT(l.DtaCriacao,      '%Y-%m-%d') AS DtaCriacao,
          DATE_FORMAT(l.DtaFechamento,   '%Y-%m-%d') AS DtaFechamento,
          DATE_FORMAT(l.DtaEnvio,        '%Y-%m-%d') AS DtaEnvio,
@@ -698,12 +763,6 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
     const { where, valores } = filtroLotes(params, [...duplicados.keys()]);
     const rotulosEventoFatur = await eventosFaturamento(conn, Boolean(params.ignorarCache));
 
-    // Diferente do apLIS, que saturava o total em 2000: aqui a contagem é exata.
-    const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT COUNT(*) AS n FROM fatlote l WHERE ${where}`,
-      valores,
-    );
-    const registros = numero(contagem[0]?.n);
 
     // LIMIT/OFFSET entram interpolados, não como placeholder: em prepared statement o
     // mysql2 manda os dois como string e o MySQL responde "Incorrect arguments to
@@ -711,20 +770,31 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
     // fecha a porta de qualquer forma — nenhum texto do cliente chega aqui.
     const limite = Math.trunc(tamanho);
     const deslocamento = Math.trunc((pagina - 1) * tamanho);
+    // Contagem e página numa ida só ao túnel: o total vem como subconsulta escalar
+    // (TotalRegistros) com o mesmo WHERE — o alias `l` interno sombreia o externo.
+    // Os `?` aparecem duas vezes no texto (contagem, depois a lista), então os
+    // valores também. Medido 24/09 (12 meses): 230 ms contra 460 ms das duas
+    // consultas; COUNT(*) OVER() ficou em 1,1 s por calcular as subconsultas de
+    // todas as linhas do período antes do LIMIT. Diferente do apLIS, que saturava
+    // o total em 2000: aqui a contagem é exata.
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
       SQL_LISTA
-        .replace('%WHERE%', where)
+        .replaceAll('%WHERE%', where)
         .replace('%ORDER%', ordemLotes(params))
         .replace('%LIMIT%', String(limite))
         .replace('%OFFSET%', String(deslocamento)),
-      valores,
+      [...valores, ...valores],
     );
-
-    // Mostra ao operador até quando o backup está atualizado (a réplica atrasa ~1 dia).
-    const [recente] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT DATE_FORMAT(MAX(DtaCriacao), '%Y-%m-%d') AS mx FROM fatlote`,
-      [],
-    );
+    // Página além da última volta vazia, sem linha para carregar o total — só
+    // nesse caso raro a contagem vai à parte.
+    let registros = numero(linhas[0]?.TotalRegistros);
+    if (linhas.length === 0 && pagina > 1) {
+      const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT COUNT(*) AS n FROM fatlote l WHERE ${where}`,
+        valores,
+      );
+      registros = numero(contagem[0]?.n);
+    }
 
     return {
       lotes: linhas.map((linha) => normalizarLote(linha, duplicados, rotulosEventoFatur)),
@@ -733,7 +803,8 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
         tamanho,
         qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
         registros,
-        dadoAte: dataIso(recente[0]?.mx),
+        // Até quando o backup está atualizado (a réplica atrasa ~1 dia).
+        dadoAte: await dadoAte(conn, 'fatlote', 'DtaCriacao'),
       },
     };
   }).then((resultado) => {
@@ -2272,10 +2343,6 @@ export async function listarGlosasLegado(
       linhas.map((linha) => numero(linha.IdRequisicao)),
     );
 
-    const [recente] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT DATE_FORMAT(MAX(DtaSolicitacao), '%Y-%m-%d') AS mx FROM requisicao`,
-      [],
-    );
 
     return {
       glosas: linhas.map((linha) => normalizarGlosaLegado(linha, demonstrativo)),
@@ -2284,7 +2351,7 @@ export async function listarGlosasLegado(
         tamanho,
         qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
         registros,
-        dadoAte: dataIso(recente[0]?.mx),
+        dadoAte: await dadoAte(conn, 'requisicao', 'DtaSolicitacao'),
       },
     };
   }).then((resultado) => {
@@ -2476,10 +2543,6 @@ export async function listarRecursosLegado(
       valores,
     );
 
-    const [recente] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT DATE_FORMAT(MAX(DtaCriacao), '%Y-%m-%d') AS mx FROM fatloterecurso`,
-      [],
-    );
 
     return {
       recursos: linhas.map(normalizarRecursoLegado),
@@ -2488,7 +2551,7 @@ export async function listarRecursosLegado(
         tamanho,
         qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
         registros,
-        dadoAte: dataIso(recente[0]?.mx),
+        dadoAte: await dadoAte(conn, 'fatloterecurso', 'DtaCriacao'),
       },
     };
   }).then((resultado) => {
