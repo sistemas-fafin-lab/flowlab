@@ -17,7 +17,8 @@
  *   idsLote         number[]  obrigatório — IdLote no apLIS
  *   numeroNota      string    opcional — operadoras nf_apos_pagamento criam o
  *                             título antes de ter o número (issue 32)
- *   dataEmissao     YYYY-MM-DD (default: hoje)
+ *   dataEmissao     YYYY-MM-DD (default: data de criação do lote mais antigo;
+ *                   sem ela, hoje — ver emissaoDosLotes)
  *   competencia     "YYYY-MM"
  *   dataVencimento  YYYY-MM-DD — quando omitido, é resolvido aqui (ver abaixo)
  *   observacoes     string
@@ -63,6 +64,14 @@ interface CorpoTitulo {
  */
 function vencimentoDoRps(lotes: LoteFaturamento[]): string | null {
   const datas = lotes.map((l) => l.dtaVencimento).filter((d): d is string => Boolean(d)).sort();
+  return datas.length > 0 ? datas[0] : null;
+}
+
+/** Emissão padrão: a data de criação do lote mais antigo do grupo — a "data de
+ *  faturamento" da planilha do setor e a convenção do backfill de 11/09. Mesma
+ *  regra do modal (emissaoPadrao em src/modules/faturamento/utils/emissaoTitulo.ts). */
+function emissaoDosLotes(lotes: LoteFaturamento[]): string | null {
+  const datas = lotes.map((l) => l.dtaCriacao).filter((d): d is string => Boolean(d)).sort();
   return datas.length > 0 ? datas[0] : null;
 }
 
@@ -209,7 +218,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     //      cumpre a promessa da tela em vez de deixar o título sem vencimento
     //      (a lista filtra por emissão, mas o aging e os atrasados dependem de
     //      data_vencimento).
-    const dataEmissaoResolvida = dataEmissao ?? hojeIsoLocal();
+    const dataEmissaoResolvida = dataEmissao ?? emissaoDosLotes(resultado.lotes) ?? hojeIsoLocal();
     let vencimento = dataVencimento ?? vencimentoDoRps(resultado.lotes);
     if (!vencimento) {
       const base = ultimoEnvio(resultado.lotes) ?? dataEmissaoResolvida;

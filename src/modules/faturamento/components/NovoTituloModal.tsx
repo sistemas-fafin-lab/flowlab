@@ -4,6 +4,7 @@ import DatePicker from '../../../components/DatePicker';
 import { supabase } from '../../../lib/supabase';
 import type { LotesMeta, LoteFaturamento } from '../types';
 import { formatCurrency, formatData, hojeIso } from '../utils/formato';
+import { emissaoPadrao } from '../utils/emissaoTitulo';
 
 // Modal de criação de título: o operador escolhe lotes do apLIS ainda não
 // faturados e os agrupa numa cobrança.
@@ -62,7 +63,10 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
 
   const [selecionados, setSelecionados] = useState<Map<number, LoteFaturamento>>(new Map());
   const [numeroNota, setNumeroNota] = useState('');
-  const [dataEmissao, setDataEmissao] = useState(hojeIso);
+  // null = segue a data do lote (ver emissaoPadrao); preenchida só quando o
+  // operador escolhe outra data à mão — aí a escolha dele não é mais sobrescrita
+  // ao marcar/desmarcar lotes.
+  const [emissaoManual, setEmissaoManual] = useState<string | null>(null);
   const [competencia, setCompetencia] = useState('');
   const [dataVencimento, setDataVencimento] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -94,7 +98,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
     setErroForm(null);
     setPeriodoIni(inicioDoMes());
     setPeriodoFim(hojeIso());
-    setDataEmissao(hojeIso());
+    setEmissaoManual(null);
     onFechar();
   }, [onFechar]);
 
@@ -147,6 +151,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
   };
 
   const marcados = useMemo(() => [...selecionados.values()], [selecionados]);
+  const dataEmissao = emissaoManual ?? emissaoPadrao(marcados);
   const totalSelecionado = marcados.reduce((soma, lote) => soma + lote.valor, 0);
 
   // Um título cobra uma operadora só. Avisar aqui evita o 400 da rota depois de
@@ -393,7 +398,12 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Emissão
-              <DatePicker value={dataEmissao} onChange={setDataEmissao} controlClass={CAMPO_FULL} />
+              <DatePicker value={dataEmissao} onChange={setEmissaoManual} controlClass={CAMPO_FULL} />
+              <span className="mt-1 block text-[11px] text-gray-400">
+                {emissaoManual
+                  ? 'Data escolhida manualmente'
+                  : 'Padrão: data de criação do lote (a mais antiga, se houver vários)'}
+              </span>
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
               Competência
