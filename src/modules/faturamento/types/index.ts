@@ -133,6 +133,16 @@ export interface ProcedimentoRequisicao {
    *  código numérico (ex.: "1001"), sem texto; usar em tooltip para mostrar o
    *  motivo completo mesmo nesses casos. */
   motivoGlosaDescricao: string | null;
+  /** Glosa com o código resolvido no servidor (demonstrativo do convênio →
+   *  catálogo → texto), ou null quando não houve glosa de fato. Opcional: resposta
+   *  de versão anterior da API não traz. */
+  glosa?: {
+    codigo: string | null;
+    descricao: string | null;
+    /** Valor glosado (demonstrativo do convênio; sem ele, cobrado − recebido após o
+     *  retorno). null quando a operadora ainda não retornou. */
+    valor?: number | null;
+  } | null;
   /** `fatrequisicaoprocedimento.ValorRecebido` — 0 quando glosado integralmente. */
   valorRecebido: number;
   dtaRecebido: string | null;
@@ -750,6 +760,12 @@ export interface GlosaRequisicaoLegado {
   motivoDescricao: string | null;
   /** Texto lançado na própria requisição. */
   desMotivoGlosa: string | null;
+  /** Código de glosa do demonstrativo de pagamento do convênio — o que a
+   *  operadora de fato devolveu; pode diferir de `motivoCodigo`. */
+  codigoDemonstrativo?: string | null;
+  /** Valor glosado segundo o demonstrativo; null sem demonstrativo. `valor` é o
+   *  valor COBRADO do procedimento. */
+  valorGlosado?: number | null;
   fontePagadora: { id: number | null; nome: string | null };
 }
 

@@ -705,6 +705,14 @@ const FaturasDashboard: React.FC = () => {
                                           </span>
                                         </Tooltip>
                                       )}
+                                      {(() => {
+                                        const glosado = req.procedimentos.reduce((soma, p) => soma + (p.glosa?.valor ?? 0), 0);
+                                        return glosado > 0 ? (
+                                          <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 whitespace-nowrap">
+                                            Glosado {formatCurrency(Math.round(glosado * 100) / 100)}
+                                          </span>
+                                        ) : null;
+                                      })()}
                                       {req.numGuiaConvenio && (
                                         <span className="text-xs text-gray-500 dark:text-gray-400">
                                           Guia {req.numGuiaConvenio}
@@ -742,10 +750,12 @@ const FaturasDashboard: React.FC = () => {
                                               ? `Recebido ${formatCurrency(proc.valorRecebido)} · Pendente ${formatCurrency(proc.valorPendente)}`
                                               : 'Recebido'}
                                           </span>
-                                          {proc.motivoGlosa && (
-                                            <Tooltip label={proc.motivoGlosaDescricao}>
+                                          {proc.glosa && (
+                                            <Tooltip label={proc.glosa.descricao}>
                                               <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 cursor-help">
-                                                Glosa: {proc.motivoGlosa}
+                                                Glosa {proc.glosa.codigo ?? 'sem código'}
+                                                {proc.glosa.valor != null && ` · ${formatCurrency(proc.glosa.valor)}`}
+                                                {proc.glosa.descricao && ` · ${proc.glosa.descricao}`}
                                               </span>
                                             </Tooltip>
                                           )}

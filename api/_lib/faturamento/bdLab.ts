@@ -118,6 +118,9 @@ export interface ProcedimentoRequisicao {
    *  vezes vem só com o código numérico (ex.: "1001"), sem texto nenhum; isto dá o
    *  texto completo pra exibir em tooltip mesmo nesses casos. */
   motivoGlosaDescricao: string | null;
+  /** Glosa do procedimento com o código resolvido (ver `resolverCodigoGlosa`), ou
+   *  null quando não há glosa de fato (ver `procedimentoTemGlosa`). */
+  glosa: GlosaResolvida | null;
   /** `fatrequisicaoprocedimento.ValorRecebido` — 0 quando glosado integralmente. */
   valorRecebido: number;
   dtaRecebido: string | null;
@@ -735,6 +738,7 @@ const SQL_DETALHE = `
          frp.Quantidade, frp.ValorUnitario, frp.ValorLiquido,
          frp.ValorRecebido, DATE_FORMAT(frp.DtaRecebido, '%Y-%m-%d') AS DtaRecebido,
          frp.DesMotivoGlosa, fmg.Descricao AS MotivoGlosaDescricao,
+         frp.IdMotivoGlosa, fmg.Codigo AS MotivoGlosaCodigo,
          r.CodEventoFatur, ef.DesEvento AS DesEventoFatur,
          COALESCE(
            (SELECT fra.NumGuia FROM fatrequisicaoautorizacao fra
@@ -758,6 +762,149 @@ const SQL_DETALHE = `
     LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = frp.IdMotivoGlosa
    WHERE r.Lote = ?
    ORDER BY r.CodRequisicao, tp.Codigo`;
+
+// ── Código da glosa ─────────────────────────────────────────────────────────
+// O apLIS guarda a glosa em dois lugares (achado de 24/09, lote 6485 da CASSI):
+//   1. na requisição — fatrequisicaoprocedimento.IdMotivoGlosa (catálogo
+//      `fatmotivoglosa`, com Codigo/Descricao) e DesMotivoGlosa (texto livre);
+//   2. no demonstrativo de pagamento importado do convênio —
+//      fatdemonstrativoguiaprocedimento.CodGlosa/DesGlosa/VlrGlosa.
+// Na prática o (1) vem incompleto: no 6485 as 3 glosas têm IdMotivoGlosa NULL e
+// só "3292" digitado no texto, código que nem existe no catálogo; o 3292 certo
+// está no demonstrativo. Por isso o código é resolvido nesta ordem.
+
+export interface GlosaResolvida {
+  /** Código da glosa (ex.: "3292"), ou null quando nenhuma fonte tem. */
+  codigo: string | null;
+  descricao: string | null;
+  /** Valor glosado: `VlrGlosa` do demonstrativo; sem demonstrativo, o que ficou
+   *  sem receber depois do retorno da operadora (cobrado − recebido). null quando
+   *  a operadora ainda não retornou — aí não dá para separar glosa de atraso. */
+  valor: number | null;
+}
+
+/** Glosa do demonstrativo de um procedimento: códigos distintos, a descrição e o
+ *  valor glosado (do demonstrativo mais recente — ver `glosasDoDemonstrativo`). */
+interface GlosaDemonstrativo {
+  codigos: string;
+  descricao: string | null;
+  valor: number;
+}
+
+const SO_DIGITOS = /^\d+$/;
+
+/** Resolve código e descrição da glosa: código do demonstrativo → código do
+ *  catálogo → texto livre quando ele é só um número. A descrição prefere o
+ *  catálogo, depois o texto livre (se não for só o código), depois o demonstrativo.
+ *  Pura, exportada para teste. */
+export function resolverCodigoGlosa(fontes: {
+  demonstrativo: GlosaDemonstrativo | null;
+  motivoCodigo: number | null;
+  motivoDescricao: string | null;
+  desMotivoGlosa: string | null;
+  /** `valor − valorRecebido` quando a operadora já retornou; senão null. */
+  valorNaoRecebido?: number | null;
+}): GlosaResolvida {
+  const des = fontes.desMotivoGlosa;
+  const desEhCodigo = des !== null && SO_DIGITOS.test(des);
+  const desDemonstrativo = fontes.demonstrativo?.descricao ?? null;
+  return {
+    codigo:
+      fontes.demonstrativo?.codigos
+      ?? (fontes.motivoCodigo !== null ? String(fontes.motivoCodigo) : null)
+      ?? (desEhCodigo ? des : null),
+    descricao:
+      fontes.motivoDescricao
+      ?? (des !== null && !desEhCodigo ? des : null)
+      ?? (desDemonstrativo !== null && !SO_DIGITOS.test(desDemonstrativo) ? desDemonstrativo : null),
+    valor: fontes.demonstrativo?.valor ?? fontes.valorNaoRecebido ?? null,
+  };
+}
+
+/** Houve glosa de fato no procedimento? Demonstrativo com valor glosado sempre
+ *  conta. Motivo/texto na requisição só conta se o procedimento NÃO foi recebido
+ *  integralmente — o apLIS deixa texto de glosa em procedimento pago por inteiro
+ *  (no 6485, "QUANTIDADE SOLICITADA… ACIMA DA AUTORIZADA" com 100% recebido), e
+ *  mostrar isso como glosa é alarme falso. Pura, exportada para teste. */
+export function procedimentoTemGlosa(p: {
+  temDemonstrativo: boolean;
+  idMotivoGlosa: number | null;
+  desMotivoGlosa: string | null;
+  valor: number;
+  valorRecebido: number;
+  dtaRecebido: string | null;
+}): boolean {
+  if (p.temDemonstrativo) return true;
+  if (p.idMotivoGlosa === null && p.desMotivoGlosa === null) return false;
+  const recebidoIntegral = p.dtaRecebido !== null && p.valorRecebido >= p.valor;
+  return !recebidoIntegral;
+}
+
+function chaveGlosaDemonstrativo(idRequisicao: number, codigoProcedimento: string | null): string {
+  return `${idRequisicao}|${codigoProcedimento ?? ''}`;
+}
+
+/**
+ * Glosas do demonstrativo de pagamento das requisições informadas, por
+ * requisição + código do procedimento (o demonstrativo não guarda o
+ * IdRequisicaoProcedimento; o par casa 1:1 nos casos conferidos).
+ *
+ * Uma consulta só para a lista inteira, nunca subconsulta por linha:
+ * fatdemonstrativoguia.IdRequisicao não tem índice (~240 mil guias), então cada
+ * consulta é uma varredura da tabela — ~0,8 s medido, aceitável uma vez por
+ * lote/página (e cacheado junto), inviável por procedimento.
+ *
+ * Só guia com glosa de valor (`VlrGlosa > 0`) de demonstrativo ativo. O mesmo
+ * demonstrativo costuma ser reimportado (10 mil pares repetidos), quase sempre
+ * com o mesmo código; os ~340 que divergem saem com os códigos juntos.
+ */
+async function glosasDoDemonstrativo(
+  conn: mysql.Connection,
+  idsRequisicao: number[],
+): Promise<Map<string, GlosaDemonstrativo>> {
+  const mapa = new Map<string, GlosaDemonstrativo>();
+  const ids = [...new Set(idsRequisicao.map((n) => Math.trunc(n)))];
+  if (ids.length === 0) return mapa;
+  // Linhas cruas, mais recente primeiro: o valor soma só as linhas do
+  // demonstrativo mais recente de cada procedimento — somar as reimportações
+  // contaria a mesma glosa duas vezes. Os códigos juntam todos os demonstrativos.
+  const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+    `SELECT g.IdRequisicao, p.Codigo, p.CodGlosa, NULLIF(TRIM(p.DesGlosa), '') AS DesGlosa,
+            p.VlrGlosa, g.IdDemonstrativo
+       FROM fatdemonstrativoguia g
+       JOIN fatdemonstrativo d ON d.IdDemonstrativo = g.IdDemonstrativo
+       JOIN fatdemonstrativoguiaprocedimento p ON p.IdGuia = g.IdGuia
+      WHERE g.IdRequisicao IN (${ids.map(() => '?').join(', ')})
+        AND p.CodGlosa IS NOT NULL
+        AND p.VlrGlosa > 0
+        AND COALESCE(d.Inativo, 0) = 0
+      ORDER BY d.DtaImportacao DESC, g.IdDemonstrativo DESC`,
+    ids,
+  );
+  const acumulado = new Map<string, { codigos: Set<string>; descricao: string | null; valor: number; demonstrativo: number }>();
+  for (const linha of linhas) {
+    const chave = chaveGlosaDemonstrativo(numero(linha.IdRequisicao), texto(linha.Codigo));
+    const idDemonstrativo = numero(linha.IdDemonstrativo);
+    let item = acumulado.get(chave);
+    if (!item) {
+      item = { codigos: new Set(), descricao: null, valor: 0, demonstrativo: idDemonstrativo };
+      acumulado.set(chave, item);
+    }
+    item.codigos.add(String(numero(linha.CodGlosa)));
+    item.descricao ??= texto(linha.DesGlosa);
+    if (idDemonstrativo === item.demonstrativo) {
+      item.valor = Math.round((item.valor + numero(linha.VlrGlosa)) * 100) / 100;
+    }
+  }
+  for (const [chave, item] of acumulado) {
+    mapa.set(chave, {
+      codigos: [...item.codigos].sort((a, b) => Number(a) - Number(b)).join(', '),
+      descricao: item.descricao,
+      valor: item.valor,
+    });
+  }
+  return mapa;
+}
 
 function novaRequisicaoLote(linha: mysql.RowDataPacket): RequisicaoLote {
   return {
@@ -788,8 +935,14 @@ export function calcularPendenciaProcedimento(
   return { pendente, valorPendente };
 }
 
-/** Acumula um procedimento (linha de SQL_DETALHE) na requisição, mutando `req`. */
-function acumularProcedimento(req: RequisicaoLote, linha: mysql.RowDataPacket): void {
+/** Acumula um procedimento (linha de SQL_DETALHE) na requisição, mutando `req`.
+ *  `demonstrativo` = glosas do demonstrativo do lote (ver `glosasDoDemonstrativo`);
+ *  vazio quando o chamador não precisa do código (criação de título). */
+function acumularProcedimento(
+  req: RequisicaoLote,
+  linha: mysql.RowDataPacket,
+  demonstrativo: Map<string, GlosaDemonstrativo>,
+): void {
   const valor = numero(linha.ValorLiquido);
   // `numero()` trata NULL como 0 — aqui isso funde dois estados do apLIS (ValorRecebido
   // ainda NULL, operadora não retornou; e ValorRecebido = 0, glosa integral já
@@ -806,17 +959,39 @@ function acumularProcedimento(req: RequisicaoLote, linha: mysql.RowDataPacket): 
     req.pendente = true;
     req.valorPendente = Math.round((req.valorPendente + valorPendente) * 100) / 100;
   }
+  const codigo = texto(linha.Codigo);
+  const desMotivoGlosa = texto(linha.DesMotivoGlosa);
+  const idMotivoGlosa = inteiroOuNulo(linha.IdMotivoGlosa);
+  const dtaRecebido = dataIso(linha.DtaRecebido);
+  const glosaDemonstrativo = demonstrativo.get(chaveGlosaDemonstrativo(req.idRequisicao, codigo)) ?? null;
+  const temGlosa = procedimentoTemGlosa({
+    temDemonstrativo: glosaDemonstrativo !== null,
+    idMotivoGlosa,
+    desMotivoGlosa,
+    valor,
+    valorRecebido,
+    dtaRecebido,
+  });
   req.procedimentos.push({
-    codigo: texto(linha.Codigo),
+    codigo,
     descricao: texto(linha.Descricao),
     quantidade: numero(linha.Quantidade),
     valorUnitario: numero(linha.ValorUnitario),
     valor,
     numGuia: texto(linha.NumGuia),
-    motivoGlosa: texto(linha.DesMotivoGlosa),
+    motivoGlosa: desMotivoGlosa,
     motivoGlosaDescricao: texto(linha.MotivoGlosaDescricao),
+    glosa: temGlosa
+      ? resolverCodigoGlosa({
+        demonstrativo: glosaDemonstrativo,
+        motivoCodigo: inteiroOuNulo(linha.MotivoGlosaCodigo),
+        motivoDescricao: texto(linha.MotivoGlosaDescricao),
+        desMotivoGlosa,
+        valorNaoRecebido: dtaRecebido !== null ? valorPendente : null,
+      })
+      : null,
     valorRecebido,
-    dtaRecebido: dataIso(linha.DtaRecebido),
+    dtaRecebido,
     pendente,
     valorPendente,
   });
@@ -858,7 +1033,9 @@ export async function detalharVariosLotes(idsLote: number[]): Promise<DetalharVa
         porRequisicao.set(idRequisicao, req);
         (porLote[idLote] ??= []).push(req);
       }
-      acumularProcedimento(req, linha);
+      // Sem o código da glosa: o título só congela guias/valores, e a busca no
+      // demonstrativo custaria ~0,8 s a mais em cada criação.
+      acumularProcedimento(req, linha, new Map());
     }
 
     return { porLote };
@@ -876,6 +1053,10 @@ export async function detalharLote(
 
   return comConexao('detalharLote', async (conn) => {
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(SQL_DETALHE, [idLote]);
+    const demonstrativo = await glosasDoDemonstrativo(
+      conn,
+      linhas.map((linha) => numero(linha.IdRequisicao)),
+    );
 
     const porRequisicao = new Map<number, RequisicaoLote>();
     for (const linha of linhas) {
@@ -885,7 +1066,7 @@ export async function detalharLote(
         req = novaRequisicaoLote(linha);
         porRequisicao.set(idRequisicao, req);
       }
-      acumularProcedimento(req, linha);
+      acumularProcedimento(req, linha, demonstrativo);
     }
 
     return { requisicoes: [...porRequisicao.values()] };
@@ -1876,6 +2057,13 @@ export interface GlosaRequisicaoLegado {
   motivoDescricao: string | null;
   /** Texto lançado na própria requisição, geralmente mais operacional/específico. */
   desMotivoGlosa: string | null;
+  /** Código de glosa do demonstrativo de pagamento do convênio (`CodGlosa`) — o
+   *  código que a operadora de fato devolveu; pode diferir do catálogo acima.
+   *  Vários separados por vírgula quando reimportações divergem. */
+  codigoDemonstrativo: string | null;
+  /** Valor glosado segundo o demonstrativo do convênio; null sem demonstrativo
+   *  (`valor` acima é o valor COBRADO do procedimento, não o glosado). */
+  valorGlosado: number | null;
   fontePagadora: { id: number | null; nome: string | null };
 }
 
@@ -1978,7 +2166,10 @@ const SQL_LISTA_GLOSAS_LEGADO = `
    ORDER BY r.DtaSolicitacao DESC, frp.IdRequisicaoProcedimento DESC
    LIMIT %LIMIT% OFFSET %OFFSET%`;
 
-function normalizarGlosaLegado(linha: mysql.RowDataPacket): GlosaRequisicaoLegado {
+function normalizarGlosaLegado(
+  linha: mysql.RowDataPacket,
+  demonstrativo: Map<string, GlosaDemonstrativo>,
+): GlosaRequisicaoLegado {
   return {
     idRequisicaoProcedimento: numero(linha.IdRequisicaoProcedimento),
     idRequisicao: numero(linha.IdRequisicao),
@@ -1993,6 +2184,10 @@ function normalizarGlosaLegado(linha: mysql.RowDataPacket): GlosaRequisicaoLegad
     motivoCodigo: inteiroOuNulo(linha.MotivoCodigo),
     motivoDescricao: texto(linha.MotivoDescricao),
     desMotivoGlosa: texto(linha.DesMotivoGlosa),
+    ...(() => {
+      const glosa = demonstrativo.get(chaveGlosaDemonstrativo(numero(linha.IdRequisicao), texto(linha.ProcCodigo)));
+      return { codigoDemonstrativo: glosa?.codigos ?? null, valorGlosado: glosa?.valor ?? null };
+    })(),
     fontePagadora: {
       id: inteiroOuNulo(linha.IdFontePagadora),
       nome: texto(linha.NomFantasia) ?? texto(linha.RazaoSocial),
@@ -2043,13 +2238,18 @@ export async function listarGlosasLegado(
       valores,
     );
 
+    const demonstrativo = await glosasDoDemonstrativo(
+      conn,
+      linhas.map((linha) => numero(linha.IdRequisicao)),
+    );
+
     const [recente] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT DATE_FORMAT(MAX(DtaSolicitacao), '%Y-%m-%d') AS mx FROM requisicao`,
       [],
     );
 
     return {
-      glosas: linhas.map(normalizarGlosaLegado),
+      glosas: linhas.map((linha) => normalizarGlosaLegado(linha, demonstrativo)),
       meta: {
         pagina,
         tamanho,

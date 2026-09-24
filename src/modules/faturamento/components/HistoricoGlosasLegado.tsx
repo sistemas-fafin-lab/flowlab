@@ -198,7 +198,7 @@ const HistoricoGlosasLegado: React.FC = () => {
                     <th className="px-3 py-3">Data</th>
                     <th className="px-3 py-3">Procedimento</th>
                     <th className="px-3 py-3">Motivo</th>
-                    <th className="px-4 py-3 text-right">Valor</th>
+                    <th className="px-4 py-3 text-right">Valor glosado</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -239,6 +239,17 @@ const HistoricoGlosasLegado: React.FC = () => {
                       </td>
                       <td className="px-3 py-3 text-gray-700 dark:text-gray-300 max-w-xs">
                         <div>{g.desMotivoGlosa ?? '—'}</div>
+                        {/* Código do demonstrativo do convênio: o que a operadora
+                            devolveu de fato. Só aparece quando difere do catálogo,
+                            que já vai no chip abaixo. */}
+                        {g.codigoDemonstrativo && g.codigoDemonstrativo !== String(g.motivoCodigo ?? '') && (
+                          <span
+                            title="Código de glosa do demonstrativo de pagamento do convênio"
+                            className="inline-flex items-center mt-1 mr-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-600 text-white"
+                          >
+                            Cód. convênio {g.codigoDemonstrativo}
+                          </span>
+                        )}
                         {g.motivoDescricao && (
                           <span className="inline-flex items-center mt-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
                             {g.motivoCodigo != null ? `${g.motivoCodigo} · ` : ''}
@@ -246,8 +257,15 @@ const HistoricoGlosasLegado: React.FC = () => {
                           </span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-right font-semibold text-red-600 dark:text-red-400 whitespace-nowrap">
-                        {formatCurrency(g.valor)}
+                      {/* Valor glosado vem do demonstrativo do convênio; sem ele não há
+                          como saber quanto foi glosado, e o cobrado fica como referência. */}
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        {g.valorGlosado != null ? (
+                          <div className="font-semibold text-red-600 dark:text-red-400">{formatCurrency(g.valorGlosado)}</div>
+                        ) : (
+                          <div className="text-gray-400" title="Sem demonstrativo do convênio para este procedimento">—</div>
+                        )}
+                        <div className="text-xs text-gray-500 dark:text-gray-400">cobrado {formatCurrency(g.valor)}</div>
                       </td>
                     </tr>
                   ))}

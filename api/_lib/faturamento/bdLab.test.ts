@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { calcularPendenciaProcedimento, protocoloEhData } from './bdLab.js';
+import {
+  calcularPendenciaProcedimento,
+  procedimentoTemGlosa,
+  protocoloEhData,
+  resolverCodigoGlosa,
+} from './bdLab.js';
 
 // Casos vêm da issue 10 (.scratch/faturamento-feedback-usuario/issues/10-lotes-protocolo-duplicado.md):
 // achados reais do banco em 2026-08-18.
@@ -69,5 +74,85 @@ describe('calcularPendenciaProcedimento', () => {
 
   it('não marca pendente quando o recebido excede o líquido (nunca fica negativo)', () => {
     expect(calcularPendenciaProcedimento(50, 55)).toEqual({ pendente: false, valorPendente: 0 });
+  });
+});
+
+// Casos reais do lote 6485 (CASSI), conferidos no banco em 2026-09-24: glosa com
+// IdMotivoGlosa NULL e só "3292" no texto livre; o código certo no demonstrativo.
+describe('resolverCodigoGlosa', () => {
+  const semFontes = { demonstrativo: null, motivoCodigo: null, motivoDescricao: null, desMotivoGlosa: null };
+
+  it('prefere o código do demonstrativo do convênio', () => {
+    expect(resolverCodigoGlosa({
+      ...semFontes,
+      demonstrativo: { codigos: '3292', descricao: '3292', valor: 127.22 },
+      desMotivoGlosa: '3292',
+      valorNaoRecebido: 127.22,
+    })).toEqual({ codigo: '3292', descricao: null, valor: 127.22 });
+  });
+
+  it('cai no código do catálogo quando não há demonstrativo', () => {
+    expect(resolverCodigoGlosa({
+      ...semFontes,
+      motivoCodigo: 1006,
+      motivoDescricao: 'ATENDIMENTO APÓS O DESLIGAMENTO DO BENEFICIÁRIO',
+      desMotivoGlosa: 'texto do operador',
+    })).toEqual({ codigo: '1006', descricao: 'ATENDIMENTO APÓS O DESLIGAMENTO DO BENEFICIÁRIO', valor: null });
+  });
+
+  it('usa o texto livre como código quando ele é só um número', () => {
+    expect(resolverCodigoGlosa({ ...semFontes, desMotivoGlosa: '3292' }))
+      .toEqual({ codigo: '3292', descricao: null, valor: null });
+  });
+
+  it('usa o texto livre como descrição quando não é só número', () => {
+    expect(resolverCodigoGlosa({ ...semFontes, desMotivoGlosa: 'QUANTIDADE ACIMA DA AUTORIZADA' }))
+      .toEqual({ codigo: null, descricao: 'QUANTIDADE ACIMA DA AUTORIZADA', valor: null });
+  });
+
+  it('valor: demonstrativo tem prioridade sobre o não recebido', () => {
+    expect(resolverCodigoGlosa({
+      ...semFontes,
+      demonstrativo: { codigos: '1705', descricao: null, valor: 469.34 },
+      valorNaoRecebido: 500,
+    }).valor).toBe(469.34);
+  });
+
+  it('valor: sem demonstrativo, usa o que não foi recebido após o retorno', () => {
+    expect(resolverCodigoGlosa({ ...semFontes, desMotivoGlosa: '1705', valorNaoRecebido: 234.68 }).valor)
+      .toBe(234.68);
+  });
+});
+
+describe('procedimentoTemGlosa', () => {
+  const base = {
+    temDemonstrativo: false, idMotivoGlosa: null, desMotivoGlosa: null,
+    valor: 100, valorRecebido: 0, dtaRecebido: null,
+  };
+
+  it('demonstrativo com valor glosado sempre conta', () => {
+    expect(procedimentoTemGlosa({ ...base, temDemonstrativo: true, valorRecebido: 100, dtaRecebido: '2026-09-01' }))
+      .toBe(true);
+  });
+
+  it('texto de glosa em procedimento recebido por inteiro não é glosa (alarme falso do 6485)', () => {
+    expect(procedimentoTemGlosa({
+      ...base, desMotivoGlosa: 'QUANTIDADE SOLICITADA ACIMA DA AUTORIZADA',
+      valor: 131.01, valorRecebido: 131.01, dtaRecebido: '2026-09-01',
+    })).toBe(false);
+  });
+
+  it('motivo em procedimento recebido a menor conta', () => {
+    expect(procedimentoTemGlosa({
+      ...base, desMotivoGlosa: '3292', valor: 146.88, valorRecebido: 73.44, dtaRecebido: '2026-09-01',
+    })).toBe(true);
+  });
+
+  it('motivo sem retorno da operadora ainda conta', () => {
+    expect(procedimentoTemGlosa({ ...base, idMotivoGlosa: 6 })).toBe(true);
+  });
+
+  it('sem motivo nem demonstrativo não é glosa', () => {
+    expect(procedimentoTemGlosa(base)).toBe(false);
   });
 });

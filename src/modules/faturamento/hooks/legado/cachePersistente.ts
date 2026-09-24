@@ -13,7 +13,9 @@ const PREFIXO = 'flowlab:faturamento:legado:';
 // continua sendo servida sem o campo novo até a virada do dia (foi o que quebrou
 // a aba Faturas quando `statusFaturamento` entrou no lote).
 //   2 — `statusFaturamento` em LoteFaturamento (aba Faturas).
-const VERSAO = 2;
+//   3 — `codigoDemonstrativo` em GlosaRequisicaoLegado (Histórico de Glosas).
+//   4 — `valorGlosado` em GlosaRequisicaoLegado.
+const VERSAO = 4;
 
 interface Envelope<T> { dia: string; versao?: number; valor: T; }
 
