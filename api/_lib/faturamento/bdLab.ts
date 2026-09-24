@@ -88,6 +88,10 @@ export interface LoteFaturamento {
     razaoSocial: string | null;
     cpfCnpj: string | null;
   };
+  /** Resumo do "Status Faturamento" (`eventofatur`, por REQUISIÇÃO — não confundir
+   *  com `status`/`statusLabel`, que é o STLOT do LOTE) das requisições do lote,
+   *  mais frequente primeiro. Mesma forma de `LotePendencia.statusFaturamento`. */
+  statusFaturamento: StatusFaturamentoResumo[];
 }
 
 /** Fonte pagadora do apLIS, espelhada em `operadoras`. */
@@ -191,6 +195,10 @@ export interface ListarLotesParams {
    *  `fontesConsideradas` — um convênio fora da whitelist de meta continua sem
    *  aparecer aqui mesmo filtrando por ele explicitamente. */
   idFontePagadora?: number;
+  /** "Status Faturamento" do apLIS (`eventofatur.CodEvento`): só lotes com ao menos
+   *  uma requisição (`requisicao.CodEventoFatur`) nesse status. O status é POR
+   *  REQUISIÇÃO e um lote mistura vários, por isso "ao menos uma". */
+  codEventoFatur?: number;
 }
 
 // Discriminado pela PRESENÇA de `erro` (idiom de recepcaoAgendamento.ts): o tsconfig
@@ -311,7 +319,7 @@ const TTL_BUSCA = 60_000;      // 1 min quando há termo de busca
 const MAX_ENTRADAS = 128;
 
 function chaveListar(params: ListarLotesParams): string {
-  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${(params.idsLote ?? []).join('.')}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}|${params.somenteProtocoloDuplicado ? 1 : 0}|${params.comProtocoloDuplicado ? 1 : 0}|${(params.fontesConsideradas ?? []).join('.')}|${params.idFontePagadora ?? ''}`;
+  return `lotes|${params.periodoIni ?? ''}|${params.periodoFim ?? ''}|${params.idLote ?? ''}|${(params.idsLote ?? []).join('.')}|${params.statusLote ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${params.busca ?? ''}|${params.somenteProtocoloDuplicado ? 1 : 0}|${params.comProtocoloDuplicado ? 1 : 0}|${(params.fontesConsideradas ?? []).join('.')}|${params.idFontePagadora ?? ''}|${params.codEventoFatur ?? ''}`;
 }
 
 function doCache<T>(cache: Map<string, EntradaCache<T>>, chave: string, resultado: T): void {
@@ -406,6 +414,14 @@ function like(expressao: string): string {
   return `${expressao} COLLATE utf8mb4_unicode_ci LIKE CONCAT('%', ?, '%') ESCAPE '${ESCAPE_BUSCA}'`;
 }
 
+/** Predicado "o lote `l` tem ao menos uma requisição neste Status Faturamento"
+ *  (`requisicao.CodEventoFatur`). Consome um `?`. Entra pelo índice de
+ *  requisicao.Lote, como os EXISTS da busca textual. Compartilhado pela aba
+ *  Faturas (`filtroLotes`) e pela de Pendências (`listarLotesPendentes`). */
+function filtroEventoFatur(): string {
+  return 'EXISTS (SELECT 1 FROM requisicao rf WHERE rf.Lote = l.IdLote AND rf.CodEventoFatur = ?)';
+}
+
 /**
  * Cláusula WHERE + parâmetros comuns à listagem e à contagem.
  * `periodoFim` é inclusivo: `< periodoFim + 1 dia` pega o dia inteiro sem depender de
@@ -439,6 +455,10 @@ function filtroLotes(
   if (params.idFontePagadora !== undefined) {
     condicoes.push('l.IdFontePagadora = ?');
     valores.push(params.idFontePagadora);
+  }
+  if (params.codEventoFatur !== undefined) {
+    condicoes.push(filtroEventoFatur());
+    valores.push(params.codEventoFatur);
   }
   if (params.fontesConsideradas !== undefined) {
     // Lista vazia = nenhuma fonte pagadora está na whitelist agora: `1 = 0` em vez
@@ -502,6 +522,26 @@ function filtroLotes(
 // expandir a linha. Existem requisições no lote sem nenhuma linha em
 // fatrequisicaoprocedimento (2 em 4.598 em julho/2026); elas valem R$ 0 na cobrança, e
 // contá-las faria o lote 6193 anunciar "1 requisição" e abrir vazio.
+// Resumo do "Status Faturamento" do lote `l`: 'codigo:qtd' por status, separados
+// por vírgula, mais frequente primeiro — decodificado por `statusFaturamentoResumo`.
+// Conta só requisição com procedimento cobrado, como QtdRequisicoes, então as
+// quantidades somam o mesmo número da coluna Requisições. Compartilhado pela aba
+// Faturas (SQL_LISTA) e pela de Pendências (listarLotesPendentes).
+//
+// COALESCE(...,0): requisicao.CodEventoFatur é nulável; sem isto o GROUP_CONCAT
+// descarta silenciosamente o grupo NULL (comportamento padrão do MySQL) e a soma
+// das quantidades divergiria de QtdRequisicoes. 0 nunca é um CodEvento real (a
+// tabela começa em 1). ~33 status × 'cc:nnnn,' cabem folgados no
+// group_concat_max_len padrão (1024).
+const SQL_RESUMO_EVENTO_FATUR = `(SELECT GROUP_CONCAT(CONCAT(t.CodEventoFatur, ':', t.Qtd) ORDER BY t.Qtd DESC SEPARATOR ',')
+     FROM (
+       SELECT COALESCE(r.CodEventoFatur, 0) AS CodEventoFatur, COUNT(*) AS Qtd
+         FROM requisicao r
+        WHERE r.Lote = l.IdLote
+          AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
+        GROUP BY COALESCE(r.CodEventoFatur, 0)
+     ) t)`;
+
 const SQL_LISTA = `
   SELECT l.IdLote, l.Status, l.IdFontePagadora,
          DATE_FORMAT(l.DtaCriacao,      '%Y-%m-%d') AS DtaCriacao,
@@ -520,7 +560,8 @@ const SQL_LISTA = `
          (SELECT COALESCE(SUM(frp.ValorLiquido), 0)
             FROM requisicao r
             JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
-           WHERE r.Lote = l.IdLote) AS Valor
+           WHERE r.Lote = l.IdLote) AS Valor,
+         ${SQL_RESUMO_EVENTO_FATUR} AS StatusFaturamentoResumoBruto
     FROM fatlote l
     LEFT JOIN fatinstituicao fp  ON fp.IdInstituicao  = l.IdFontePagadora
     LEFT JOIN fatinstituicao lab ON lab.IdInstituicao = l.IdLaboratorio
@@ -529,7 +570,11 @@ const SQL_LISTA = `
    ORDER BY l.DtaCriacao DESC, l.IdLote DESC
    LIMIT %LIMIT% OFFSET %OFFSET%`;
 
-function normalizarLote(linha: mysql.RowDataPacket, duplicados: Map<string, number[]>): LoteFaturamento {
+function normalizarLote(
+  linha: mysql.RowDataPacket,
+  duplicados: Map<string, number[]>,
+  rotulosEventoFatur: Map<number, string>,
+): LoteFaturamento {
   const status = inteiroOuNulo(linha.Status) ?? 0;
   const protocolo = texto(linha.Protocolo);
   const idLote = numero(linha.IdLote);
@@ -564,6 +609,7 @@ function normalizarLote(linha: mysql.RowDataPacket, duplicados: Map<string, numb
       razaoSocial: texto(linha.RazaoSocial),
       cpfCnpj: texto(linha.CNPJ),
     },
+    statusFaturamento: statusFaturamentoResumo(linha.StatusFaturamentoResumoBruto, rotulosEventoFatur),
   };
 }
 
@@ -619,6 +665,7 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
       ? await protocolosDuplicados(conn, Boolean(params.ignorarCache))
       : new Map<string, number[]>();
     const { where, valores } = filtroLotes(params, [...duplicados.keys()]);
+    const rotulosEventoFatur = await eventosFaturamento(conn, Boolean(params.ignorarCache));
 
     // Diferente do apLIS, que saturava o total em 2000: aqui a contagem é exata.
     const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
@@ -648,7 +695,7 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
     );
 
     return {
-      lotes: linhas.map((linha) => normalizarLote(linha, duplicados)),
+      lotes: linhas.map((linha) => normalizarLote(linha, duplicados, rotulosEventoFatur)),
       meta: {
         pagina,
         tamanho,
@@ -1013,6 +1060,15 @@ export async function listarEnviosPorConvenio(
 // request na virada do mês poderia decidir um cutoff diferente dependendo de onde
 // rodou.
 
+/** Um dos valores de `requisicao.CodEventoFatur` ("Status Faturamento" do apLIS,
+ *  campo `autStatusFat` na tela de lá) presentes nas requisições do lote, com
+ *  quantas requisições têm esse valor — ver `statusFaturamento` em `LotePendencia`. */
+export interface StatusFaturamentoResumo {
+  codigo: number;
+  label: string;
+  qtd: number;
+}
+
 export interface LotePendencia {
   idLote: number;
   status: number;
@@ -1021,6 +1077,12 @@ export interface LotePendencia {
   valor: number;
   qtdRequisicoes: number;
   fontePagadora: { id: number | null; nome: string | null; razaoSocial: string | null };
+  /** Resumo do "Status Faturamento" (`eventofatur`, por REQUISIÇÃO — não confundir
+   *  com `status`/`statusLabel` acima, que é o STLOT do LOTE) das requisições do
+   *  lote, mais frequente primeiro. Um lote pendente comumente mistura valores
+   *  (ex.: a maioria "RECEBIDO" e algumas "GLOSA DEFINITIVA"), por isso é uma
+   *  lista de contagens em vez de um valor único. */
+  statusFaturamento: StatusFaturamentoResumo[];
 }
 
 export interface PendenciasMeta {
@@ -1044,6 +1106,9 @@ export interface ListarLotesPendentesParams {
   operadoraId?: number;
   /** Código STLOT — precisa estar em STATUS_PENDENCIA; validado no handler. */
   status?: number;
+  /** "Status Faturamento" (`eventofatur.CodEvento`) — mesmo filtro de
+   *  `ListarLotesParams.codEventoFatur`. */
+  codEventoFatur?: number;
   pagina?: number;
   tamanho?: number;
   ignorarCache?: boolean;
@@ -1080,10 +1145,90 @@ async function cutoffEAteEfetivoM1(
 const cachePendencias = new Map<string, EntradaCache<ListarLotesPendentesResultado>>();
 
 function chavePendencias(params: ListarLotesPendentesParams): string {
-  return `pendencias|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.status ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
+  return `pendencias|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.status ?? ''}|${params.codEventoFatur ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
 }
 
-function normalizarLotePendencia(linha: mysql.RowDataPacket): LotePendencia {
+// Rótulos de `eventofatur` — "Status Faturamento" do apLIS (`autStatusFat`),
+// POR REQUISIÇÃO. Não confundir com STLOT_LABELS acima, que é `fatlote.Status`
+// (por lote). Tabela pequena (~44 linhas, ativas + inativas — só as ativas
+// aparecem no <select> da tela de lá, mas um evento antigo pode ter sido
+// gravado antes de virar inativo, então não filtra Inativo aqui); cacheada com
+// o mesmo TTL do resto do módulo em vez de hardcoded feito STLOT_LABELS, porque
+// é config editável pelo cliente no apLIS, não um enum fixo do sistema.
+/** Um valor de `eventofatur` — opção do filtro "Status Faturamento". */
+export interface EventoFaturamento {
+  codigo: number;
+  label: string;
+  /** `eventofatur.Inativo`: o apLIS esconde do <select>, mas requisições antigas
+   *  podem continuar com ele gravado. */
+  inativo: boolean;
+}
+
+let cacheEventosFatur: { lista: EventoFaturamento[]; ts: number } | null = null;
+
+async function listaEventosFaturamento(
+  conn: mysql.Connection,
+  ignorarCache: boolean,
+): Promise<EventoFaturamento[]> {
+  if (!ignorarCache && cacheEventosFatur && Date.now() - cacheEventosFatur.ts <= TTL_PADRAO) {
+    return cacheEventosFatur.lista;
+  }
+  const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+    'SELECT CodEvento, DesEvento, Inativo FROM eventofatur ORDER BY DesEvento',
+    [],
+  );
+  const lista: EventoFaturamento[] = [];
+  for (const linha of linhas) {
+    const codigo = inteiroOuNulo(linha.CodEvento);
+    const label = texto(linha.DesEvento);
+    if (codigo !== null && label) lista.push({ codigo, label, inativo: numero(linha.Inativo) === 1 });
+  }
+  cacheEventosFatur = { lista, ts: Date.now() };
+  return lista;
+}
+
+async function eventosFaturamento(
+  conn: mysql.Connection,
+  ignorarCache: boolean,
+): Promise<Map<number, string>> {
+  const lista = await listaEventosFaturamento(conn, ignorarCache);
+  return new Map(lista.map((e) => [e.codigo, e.label]));
+}
+
+/** Todos os valores de `eventofatur` (ativos e inativos), em ordem alfabética —
+ *  opções do filtro "Status Faturamento" das abas Faturas e Pendências. */
+export async function listarEventosFaturamento(
+  ignorarCache = false,
+): Promise<{ eventos: EventoFaturamento[] } | { erro: { status: number; mensagem: string } }> {
+  return comConexao('listarEventosFaturamento', async (conn) => ({
+    eventos: await listaEventosFaturamento(conn, ignorarCache),
+  }));
+}
+
+/** Decodifica o `GROUP_CONCAT('codigo:qtd')` de `StatusFaturamentoResumoBruto` em
+ *  `StatusFaturamentoResumo[]`, mais frequente primeiro (o SQL já ordena por
+ *  Qtd DESC, então só precisa preservar a ordem de chegada). */
+function statusFaturamentoResumo(
+  bruto: unknown,
+  rotulos: Map<number, string>,
+): StatusFaturamentoResumo[] {
+  const bruta = String(bruto ?? '').trim();
+  if (!bruta) return [];
+  return bruta.split(',').map((par) => {
+    const [codigoBruto, qtdBruto] = par.split(':');
+    const codigo = Number(codigoBruto);
+    return {
+      codigo,
+      label: codigo === 0 ? 'Sem status faturamento' : (rotulos.get(codigo) ?? `Status ${codigo}`),
+      qtd: Number(qtdBruto) || 0,
+    };
+  });
+}
+
+function normalizarLotePendencia(
+  linha: mysql.RowDataPacket,
+  rotulosEventoFatur: Map<number, string>,
+): LotePendencia {
   const status = inteiroOuNulo(linha.Status) ?? 0;
   return {
     idLote: numero(linha.IdLote),
@@ -1097,6 +1242,7 @@ function normalizarLotePendencia(linha: mysql.RowDataPacket): LotePendencia {
       nome: texto(linha.NomFantasia),
       razaoSocial: texto(linha.RazaoSocial),
     },
+    statusFaturamento: statusFaturamentoResumo(linha.StatusFaturamentoResumoBruto, rotulosEventoFatur),
   };
 }
 
@@ -1114,6 +1260,7 @@ export async function listarLotesPendentes(
 
   return comConexao('listarLotesPendentes', async (conn) => {
     const { cutoff, ateEfetivo } = await cutoffEAteEfetivoM1(conn, params.ate);
+    const rotulosEventoFatur = await eventosFaturamento(conn, Boolean(params.ignorarCache));
 
     const condicoes = [
       'l.IdRPS IS NULL',
@@ -1132,6 +1279,10 @@ export async function listarLotesPendentes(
     if (params.status !== undefined) {
       condicoes.push('l.Status = ?');
       valores.push(params.status);
+    }
+    if (params.codEventoFatur !== undefined) {
+      condicoes.push(filtroEventoFatur());
+      valores.push(params.codEventoFatur);
     }
     if (params.fontesConsideradas !== undefined) {
       if (params.fontesConsideradas.length === 0) {
@@ -1175,7 +1326,8 @@ export async function listarLotesPendentes(
               (SELECT COALESCE(SUM(frp.ValorLiquido), 0)
                  FROM requisicao r
                  JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
-                WHERE r.Lote = l.IdLote) AS Valor
+                WHERE r.Lote = l.IdLote) AS Valor,
+              ${SQL_RESUMO_EVENTO_FATUR} AS StatusFaturamentoResumoBruto
          FROM fatlote l
          LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora
         WHERE ${where}
@@ -1185,7 +1337,7 @@ export async function listarLotesPendentes(
     );
 
     return {
-      lotes: linhas.map(normalizarLotePendencia),
+      lotes: linhas.map((linha) => normalizarLotePendencia(linha, rotulosEventoFatur)),
       meta: {
         pagina,
         tamanho,
@@ -1215,6 +1367,11 @@ export interface RequisicaoPendencia {
    *  antes de cobrar de novo. */
   numeroRPS: number | null;
   nfeNumero: string | null;
+  /** `requisicao.CodEventoFatur` — "Status Faturamento" do apLIS (`autStatusFat`),
+   *  por REQUISIÇÃO. Ver `LotePendencia.statusFaturamento` para o resumo agregado
+   *  por lote. */
+  codEventoFatur: number | null;
+  eventoFaturLabel: string | null;
 }
 
 export type DetalharLotePendenciaResultado =
@@ -1245,9 +1402,11 @@ const SQL_DETALHE_PENDENCIA = `
            ORDER BY rps.DataEmissao DESC LIMIT 1) AS NumeroRPS,
          (SELECT rps.NFeNumero FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps
            WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL
-           ORDER BY rps.DataEmissao DESC LIMIT 1) AS NFeNumero
+           ORDER BY rps.DataEmissao DESC LIMIT 1) AS NFeNumero,
+         r.CodEventoFatur, ef.DesEvento AS DesEventoFatur
     FROM requisicao r
     LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
+    LEFT JOIN eventofatur ef ON ef.CodEvento = r.CodEventoFatur
    WHERE r.Lote = ?
      AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
    ORDER BY r.CodRequisicao`;
@@ -1277,6 +1436,8 @@ export async function detalharLotePendencia(
       valor: numero(linha.Valor),
       numeroRPS: inteiroOuNulo(linha.NumeroRPS),
       nfeNumero: texto(linha.NFeNumero),
+      codEventoFatur: inteiroOuNulo(linha.CodEventoFatur),
+      eventoFaturLabel: texto(linha.DesEventoFatur),
     }));
     return { requisicoes };
   }).then((resultado) => {

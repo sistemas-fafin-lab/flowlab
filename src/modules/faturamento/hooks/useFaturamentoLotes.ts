@@ -65,7 +65,7 @@ export function useFaturamentoLotes(filtros: LotesFiltros): UseFaturamentoLotesR
     rota: 'lotes',
     cache: cacheSessao,
     chaveCache: (f) =>
-      `${f.periodoIni}|${f.periodoFim}|${f.pagina ?? 1}|${f.tamanho ?? 50}|${f.statusLote ?? ''}|${f.idFontePagadora ?? ''}|${f.busca ?? ''}|${f.somenteProtocoloDuplicado ? 1 : 0}`,
+      `${f.periodoIni}|${f.periodoFim}|${f.pagina ?? 1}|${f.tamanho ?? 50}|${f.statusLote ?? ''}|${f.idFontePagadora ?? ''}|${f.busca ?? ''}|${f.somenteProtocoloDuplicado ? 1 : 0}|${f.codEventoFatur ?? ''}`,
     montarParams: (f, force) => {
       const params = new URLSearchParams({ periodoIni: f.periodoIni, periodoFim: f.periodoFim });
       if (f.pagina) params.set('pagina', String(f.pagina));
@@ -74,6 +74,7 @@ export function useFaturamentoLotes(filtros: LotesFiltros): UseFaturamentoLotesR
       if (f.idFontePagadora) params.set('idFontePagadora', String(f.idFontePagadora));
       if (f.busca) params.set('busca', f.busca);
       if (f.somenteProtocoloDuplicado) params.set('somenteProtocoloDuplicado', '1');
+      if (f.codEventoFatur) params.set('codEventoFatur', String(f.codEventoFatur));
       if (force) {
         // O servidor também cacheia (TTL 3 min). Sem furar os dois, o "Atualizar"
         // devolveria exatamente a mesma resposta e o botão não faria nada.

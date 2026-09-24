@@ -114,7 +114,10 @@ export interface LoteFaturamento {
   /** Título de contas a receber que já cobra este lote; null = disponível.
    *  Preenchido pelo servidor fora do cache do apLIS (ver faturamento-lotes.ts). */
   tituloId?: string | null;
-  tituloNumero?: string | null;
+  tituloNumero?: string | null;  /** Resumo do "Status Faturamento" (`eventofatur`, por REQUISIÇÃO) das
+   *  requisições do lote, mais frequente primeiro — mesma forma de
+   *  `LotePendencia.statusFaturamento`. */
+  statusFaturamento: StatusFaturamentoResumo[];
 }
 
 /** Item cobrado de uma requisição. A descrição vem da tabela de preço do convênio. */
@@ -177,6 +180,9 @@ export interface LotesFiltros {
   somenteSemTitulo?: boolean;
   /** Só lotes com protocolo duplicado (ver `LoteFaturamento.protocoloDuplicado`). */
   somenteProtocoloDuplicado?: boolean;
+  /** "Status Faturamento" (`eventofatur.CodEvento`): só lotes com ao menos uma
+   *  requisição nesse status. */
+  codEventoFatur?: number;
 }
 
 export interface LotesMeta {
@@ -245,6 +251,25 @@ export interface EnviosPorConvenioMeta {
  *  filtro de status da tela só pode restringir dentro deste conjunto). */
 export const STATUS_PENDENCIA = [1, 2, 3, 6, 7] as const;
 
+/** Um valor de `eventofatur` — opção do filtro "Status Faturamento", lida de
+ *  /api/faturamento/status-faturamento (config editável no apLIS, sem enum fixo). */
+export interface EventoFaturamento {
+  codigo: number;
+  label: string;
+  /** O apLIS esconde os inativos do <select>; o rótulo segue valendo para
+   *  requisições antigas que o têm gravado. */
+  inativo: boolean;
+}
+
+/** Um dos valores de `requisicao.CodEventoFatur` ("Status Faturamento" do apLIS,
+ *  campo `autStatusFat` na tela de lá) presentes nas requisições do lote, com
+ *  quantas requisições têm esse valor. */
+export interface StatusFaturamentoResumo {
+  codigo: number;
+  label: string;
+  qtd: number;
+}
+
 export interface LotePendencia {
   idLote: number;
   status: number;
@@ -253,6 +278,10 @@ export interface LotePendencia {
   valor: number;
   qtdRequisicoes: number;
   fontePagadora: { id: number | null; nome: string | null; razaoSocial: string | null };
+  /** Resumo do "Status Faturamento" (por REQUISIÇÃO — não confundir com `status`/
+   *  `statusLabel` acima, que é o STLOT do LOTE) das requisições do lote, mais
+   *  frequente primeiro. Um lote pendente comumente mistura valores. */
+  statusFaturamento: StatusFaturamentoResumo[];
 }
 
 /** Requisição de um lote pendente, com a situação de NF individual quando existe
@@ -267,6 +296,9 @@ export interface RequisicaoPendencia {
   valor: number;
   numeroRPS: number | null;
   nfeNumero: string | null;
+  /** "Status Faturamento" do apLIS (`autStatusFat`), por requisição. */
+  codEventoFatur: number | null;
+  eventoFaturLabel: string | null;
 }
 
 export interface PendenciasFiltros {
@@ -277,6 +309,8 @@ export interface PendenciasFiltros {
   operadoraId?: number;
   /** Código STLOT — só os valores em STATUS_PENDENCIA (servidor) fazem sentido aqui. */
   status?: number;
+  /** "Status Faturamento" (`eventofatur.CodEvento`) — mesmo filtro de `LotesFiltros`. */
+  codEventoFatur?: number;
   pagina?: number;
   tamanho?: number;
 }

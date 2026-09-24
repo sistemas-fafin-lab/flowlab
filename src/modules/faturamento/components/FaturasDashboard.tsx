@@ -16,6 +16,8 @@ import {
   X
 } from 'lucide-react';
 import { useFaturamentoLotes } from '../hooks/useFaturamentoLotes';
+import { useStatusFaturamento } from '../hooks/useStatusFaturamento';
+import StatusFaturamentoChips from './StatusFaturamentoChips';
 import { STLOT_LABELS, LoteFaturamento, RequisicaoLote } from '../types';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
@@ -103,6 +105,10 @@ const FaturasDashboard: React.FC = () => {
   const [customIni, setCustomIni] = useState(() => periodoUrl?.periodoIni ?? '');
   const [customFim, setCustomFim] = useState(() => periodoUrl?.periodoFim ?? '');
   const [filtroStatus, setFiltroStatus] = useState<number | 0>(0);
+  // "Status Faturamento" do apLIS (eventofatur, por requisição) — independente do
+  // status do LOTE acima (STLOT). 0 = todos.
+  const [codEventoFatur, setCodEventoFatur] = useState(0);
+  const { ativos: statusFaturamento } = useStatusFaturamento();
   const [idFontePagadora, setIdFontePagadora] = useState<number | undefined>(() =>
     idFontePagadoraInicialDaUrl(searchParams),
   );
@@ -183,6 +189,7 @@ const FaturasDashboard: React.FC = () => {
     idFontePagadora,
     busca: buscaDebounced || undefined,
     somenteProtocoloDuplicado: somenteProtocoloDuplicado || undefined,
+    codEventoFatur: codEventoFatur || undefined,
   });
 
   // Pré-preenche os campos de data com o intervalo real dos lotes encontrados (não o
@@ -219,7 +226,7 @@ const FaturasDashboard: React.FC = () => {
   // filtro raramente existe no outro, e a consulta devolveria lista vazia.
   useEffect(() => {
     setPagina(1);
-  }, [range.periodoIni, range.periodoFim, filtroStatus, idFontePagadora, tamanho, buscaDebounced, somenteProtocoloDuplicado]);
+  }, [range.periodoIni, range.periodoFim, filtroStatus, codEventoFatur, idFontePagadora, tamanho, buscaDebounced, somenteProtocoloDuplicado]);
 
   // Requisições são carregadas sob demanda: um lote pode ter dezenas, cada uma com
   // vários procedimentos.
@@ -443,6 +450,16 @@ const FaturasDashboard: React.FC = () => {
             controlClass={`${CAMPO_FILTRO} min-w-[180px]`}
           />
 
+          <Select
+            value={String(codEventoFatur)}
+            onChange={(v) => setCodEventoFatur(Number(v))}
+            options={[
+              { value: '0', label: 'Todos os Status Faturamento' },
+              ...statusFaturamento.map((s) => ({ value: String(s.codigo), label: s.label })),
+            ]}
+            controlClass={`${CAMPO_FILTRO} min-w-[220px]`}
+          />
+
           <button
             onClick={() => setSomenteProtocoloDuplicado((v) => !v)}
             title="Lotes cujo protocolo de envio se repete em outro lote (exceto protocolo em formato de data)"
@@ -555,6 +572,7 @@ const FaturasDashboard: React.FC = () => {
                     <th className="px-3 py-3">Criação</th>
                     <th className="px-3 py-3">Fechamento</th>
                     <th className="px-3 py-3">Status</th>
+                    <th className="px-3 py-3">Status Faturamento</th>
                     <th className="px-3 py-3 text-right">Requisições</th>
                     <th className="px-3 py-3">NF / RPS</th>
                     <th className="px-5 py-3 text-right">Valor</th>
@@ -620,6 +638,9 @@ const FaturasDashboard: React.FC = () => {
                         <td className="px-3 py-4">
                           <StatusBadge lote={lote} />
                         </td>
+                        <td className="px-3 py-4">
+                          <StatusFaturamentoChips resumo={lote.statusFaturamento} />
+                        </td>
                         <td className="px-3 py-4 text-right text-gray-700 dark:text-gray-300 tabular-nums">
                           {lote.qtdRequisicoes}
                         </td>
@@ -635,7 +656,7 @@ const FaturasDashboard: React.FC = () => {
 
                       {expandido === lote.idLote && (
                         <tr className="bg-gray-50 dark:bg-gray-700/30">
-                          <td colSpan={9} className="px-5 py-4">
+                          <td colSpan={10} className="px-5 py-4">
                             {carregandoDet === lote.idLote ? (
                               <p className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-2">
                                 <RefreshCw size={14} className="animate-spin" />

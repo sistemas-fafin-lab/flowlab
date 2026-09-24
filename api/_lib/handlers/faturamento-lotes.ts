@@ -21,6 +21,8 @@
  *   pagina                  default 1
  *   tamanho                 1..200, default 50
  *   somenteProtocoloDuplicado  '1' filtra só lotes com protocolo duplicado (issue 10)
+ *   codEventoFatur          "Status Faturamento" (eventofatur.CodEvento) — lotes com
+ *                           ao menos uma requisição nesse status
  *
  * Variáveis de ambiente: DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME
  *   + SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY para validar a sessão.
@@ -141,6 +143,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const idLote = inteiroNaFaixa(primeiro(q.idLote), 1, Number.MAX_SAFE_INTEGER);
     const statusLote = inteiroNaFaixa(primeiro(q.statusLote), 1, 8);
     const idFontePagadora = inteiroNaFaixa(primeiro(q.idFontePagadora), 1, Number.MAX_SAFE_INTEGER);
+    const codEventoFatur = inteiroNaFaixa(primeiro(q.codEventoFatur), 1, Number.MAX_SAFE_INTEGER);
     const pagina = inteiroNaFaixa(primeiro(q.pagina), 1, Number.MAX_SAFE_INTEGER);
     const tamanho = inteiroNaFaixa(primeiro(q.tamanho), 1, MAX_TAMANHO);
 
@@ -148,6 +151,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       idLote === null ? 'idLote' : null,
       statusLote === null ? 'statusLote' : null,
       idFontePagadora === null ? 'idFontePagadora' : null,
+      codEventoFatur === null ? 'codEventoFatur' : null,
       pagina === null ? 'pagina' : null,
       tamanho === null ? `tamanho (1..${MAX_TAMANHO})` : null,
     ].filter((c): c is string => c !== null);
@@ -203,6 +207,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       idLote,
       statusLote,
       idFontePagadora,
+      codEventoFatur,
       pagina,
       tamanho: tamanho ?? TAMANHO_PADRAO,
       // Corta em vez de recusar: o operador colando um texto grande no campo de busca

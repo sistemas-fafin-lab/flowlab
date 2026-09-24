@@ -13,6 +13,8 @@
  *   ate           YYYY-MM-DD — limite superior (nunca ultrapassa o cutoff de M-1)
  *   operadoraId   fatinstituicao.IdInstituicao
  *   status        Código STLOT — precisa estar em STATUS_PENDENCIA (bdLab.ts)
+ *   codEventoFatur  "Status Faturamento" (eventofatur.CodEvento) — lotes com ao
+ *                 menos uma requisição nesse status
  *   pagina        default 1
  *   tamanho       1..200, default 50
  *
@@ -66,12 +68,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const operadoraId = inteiroNaFaixa(primeiro(q.operadoraId), 1, Number.MAX_SAFE_INTEGER);
     const statusBruto = inteiroNaFaixa(primeiro(q.status), 1, Number.MAX_SAFE_INTEGER);
     const status = statusBruto != null && !STATUS_PENDENCIA.includes(statusBruto) ? null : statusBruto;
+    const codEventoFatur = inteiroNaFaixa(primeiro(q.codEventoFatur), 1, Number.MAX_SAFE_INTEGER);
     const pagina = inteiroNaFaixa(primeiro(q.pagina), 1, Number.MAX_SAFE_INTEGER);
     const tamanho = inteiroNaFaixa(primeiro(q.tamanho), 1, MAX_TAMANHO);
 
     const invalidos = [
       operadoraId === null ? 'operadoraId' : null,
       status === null ? 'status' : null,
+      codEventoFatur === null ? 'codEventoFatur' : null,
       pagina === null ? 'pagina' : null,
       tamanho === null ? `tamanho (1..${MAX_TAMANHO})` : null,
       desde !== undefined && !DATA_ISO_RE.test(desde) ? 'desde' : null,
@@ -92,6 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       ate,
       operadoraId: operadoraId ?? undefined,
       status: status ?? undefined,
+      codEventoFatur: codEventoFatur ?? undefined,
       pagina,
       tamanho: tamanho ?? TAMANHO_PADRAO,
       ignorarCache: primeiro(q.semCache) === '1',

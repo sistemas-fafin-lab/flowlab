@@ -3,6 +3,9 @@ import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw } from 'lucide-reac
 import type { OperadoraResumo, RequisicaoPendencia } from '../types';
 import { STATUS_PENDENCIA, STLOT_LABELS } from '../types';
 import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
+import { useStatusFaturamento } from '../hooks/useStatusFaturamento';
+import StatusFaturamentoChips from './StatusFaturamentoChips';
+import { corStatusFaturamento } from '../utils/corStatusFaturamento';
 import { formatCurrency, formatData } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
@@ -30,13 +33,16 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
   const [ate, setAte] = useState('');
   const [operadoraId, setOperadoraId] = useState('');
   const [status, setStatus] = useState('');
+  const [codEventoFatur, setCodEventoFatur] = useState('');
   const [pagina, setPagina] = useState(1);
+  const { ativos: statusFaturamento } = useStatusFaturamento();
 
   const { lotes, meta, loading, error, refetch, buscarRequisicoes } = usePendenciasNaoFaturadas({
     desde: desde || undefined,
     ate: ate || undefined,
     operadoraId: operadoraId ? Number(operadoraId) : undefined,
     status: status ? Number(status) : undefined,
+    codEventoFatur: codEventoFatur ? Number(codEventoFatur) : undefined,
     pagina,
     tamanho: TAMANHO_PADRAO,
   });
@@ -139,6 +145,19 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
             wrapperClass="max-w-[180px]"
           />
         </label>
+        <label className="text-xs text-gray-500 dark:text-gray-400">
+          Status faturamento
+          <Select
+            value={codEventoFatur}
+            onChange={(v) => mudarFiltro(() => setCodEventoFatur(v))}
+            options={[
+              { value: '', label: 'Todos' },
+              ...statusFaturamento.map((s) => ({ value: String(s.codigo), label: s.label })),
+            ]}
+            controlClass={CAMPO}
+            wrapperClass="max-w-[260px]"
+          />
+        </label>
         <button
           type="button"
           onClick={() => void atualizar()}
@@ -180,6 +199,12 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
                   <th className="px-3 py-2">Fonte pagadora</th>
                   <th className="px-3 py-2">Criação</th>
                   <th className="px-3 py-2">Status</th>
+                  {/* Issue: status do LOTE (fatlote.Status/STLOT) acima é bem mais
+                      raso que o "Status Faturamento" (autStatusFat/eventofatur) que o
+                      apLIS mostra por REQUISIÇÃO — um lote pendente comumente mistura
+                      vários. Resumo em badges aqui; o valor de cada guia sai na tabela
+                      de requisições ao expandir a linha. */}
+                  <th className="px-3 py-2">Status faturamento</th>
                   <th className="px-3 py-2 text-right">Requisições</th>
                   <th className="px-3 py-2 text-right">Valor</th>
                 </tr>
@@ -212,6 +237,9 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
                             {lote.statusLabel}
                           </span>
                         </td>
+                        <td className="px-3 py-2">
+                          <StatusFaturamentoChips resumo={lote.statusFaturamento} />
+                        </td>
                         <td className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">
                           {lote.qtdRequisicoes}
                         </td>
@@ -222,7 +250,7 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
 
                       {aberto && (
                         <tr className="bg-gray-50/70 dark:bg-gray-700/20">
-                          <td colSpan={7} className="px-6 py-3">
+                          <td colSpan={8} className="px-6 py-3">
                             {carregandoDet === lote.idLote ? (
                               <p className="text-xs text-gray-400 flex items-center gap-2">
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -245,6 +273,7 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
                                     <th className="py-1">Paciente</th>
                                     <th className="py-1">Guia</th>
                                     <th className="py-1">Solicitação</th>
+                                    <th className="py-1">Status faturamento</th>
                                     <th className="py-1">NF / RPS</th>
                                     <th className="py-1 text-right">Valor</th>
                                   </tr>
@@ -256,6 +285,15 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
                                       <td className="py-1 truncate max-w-[200px]">{req.paciente ?? '—'}</td>
                                       <td className="py-1">{req.numGuiaConvenio ?? '—'}</td>
                                       <td className="py-1 tabular-nums">{formatData(req.dtaSolicitacao)}</td>
+                                      <td className="py-1">
+                                        {req.eventoFaturLabel ? (
+                                          <span
+                                            className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${corStatusFaturamento(req.codEventoFatur, req.eventoFaturLabel)}`}
+                                          >
+                                            {req.eventoFaturLabel}
+                                          </span>
+                                        ) : '—'}
+                                      </td>
                                       <td className="py-1">
                                         {req.nfeNumero
                                           ? (
