@@ -20,6 +20,7 @@ import { sendTemplatedEmail } from '../email.js';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { describeError } from '../errors.js';
 import { APP_BASE_URL } from '../appUrl.js';
+import { buildRequestsUrl } from '../requestsRoutes.js';
 import {
   buildRequestCreatedEmailVariables,
   parseRecipientList,
@@ -27,7 +28,7 @@ import {
 } from '../requestCreatedEmail.js';
 
 const TEMPLATE_SLUG = 'purchase_request_created';
-const ACTION_URL = `${APP_BASE_URL}/requests/purchases`;
+const ACTION_URL = buildRequestsUrl(APP_BASE_URL, 'pending');
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'POST') {

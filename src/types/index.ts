@@ -1,3 +1,5 @@
+import type { RequestStatus } from '../../api/_lib/requestsRoutes.js';
+
 export interface Product {
   id: string;
   name: string;
@@ -72,7 +74,7 @@ export interface Request {
   reason: string;
   requestedBy: string;
   requestDate: string;
-  status: 'pending' | 'approved' | 'rejected' | 'completed';
+  status: RequestStatus;
   priority: 'standard' | 'priority' | 'urgent';
   approvedBy?: string;
   approvalDate?: string;

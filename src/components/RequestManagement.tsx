@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
+import { useSearchParams } from 'react-router-dom';
 import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image, Clock, CheckCircle2, XCircle, Play, ChevronDown } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useAuth } from '../hooks/useAuth';
@@ -18,6 +19,7 @@ import StockWithdrawalModal from './StockWithdrawalModal';
 import { PenTool, Loader2 } from 'lucide-react';
 import { RequestManagementSkeleton } from './PageLoadingSkeleton';
 import { formatDate } from '../modules/quotations/utils/formatDate';
+import { REQUESTS_STATUS_QUERY_PARAM, parseRequestStatusParam } from '../../api/_lib/requestsRoutes.js';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -142,7 +144,12 @@ const RequestManagement: React.FC = () => {
   const [showAddRequest, setShowAddRequest] = useState(false);
   const [showTypeSelectionModal, setShowTypeSelectionModal] = useState(false);
   const [selectedRequestType, setSelectedRequestType] = useState<'SC' | 'SM'>('SM');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [searchParams] = useSearchParams();
+  // Pré-aplica o filtro de status vindo da URL (?status=pending), usado pelos
+  // e-mails de notificação; ausente ou inválido → sem filtro, como antes.
+  const [statusFilter, setStatusFilter] = useState<string>(
+    () => parseRequestStatusParam(searchParams.get(REQUESTS_STATUS_QUERY_PARAM)) ?? 'all'
+  );
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
