@@ -1,8 +1,8 @@
 /**
  * API Route: POST /api/notifications/email
  *
- * Vercel Serverless Function — Envio de email via SMTP (nodemailer)
- * com suporte a templates dinâmicos armazenados no Supabase.
+ * Envio de email via SMTP (nodemailer) com suporte a templates dinâmicos
+ * armazenados no Supabase. Servido pelo dispatcher api/notifications/[action].ts.
  *
  * Variáveis de ambiente necessárias:
  *   SMTP_HOST                → ex: smtp.gmail.com
@@ -15,7 +15,7 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { sendTemplatedEmail } from '../_lib/email.js';
+import { sendTemplatedEmail } from '../email.js';
 
 interface EmailRequestBody {
   to: string;

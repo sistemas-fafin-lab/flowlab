@@ -1,119 +1,75 @@
 import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import nodemailer from 'nodemailer';
-import { createClient } from '@supabase/supabase-js';
-// ── Dev-only middleware para POST /api/notifications/email ───────────────────
-function emailApiPlugin(env: Record<string, string>): Plugin {
+// ── Dev-only middleware para POST /api/notifications/{action} ────────────────
+// Espelha api/notifications/[action].ts (email + request-created) via
+// ssrLoadModule, como o rhApiPlugin — sem reimplementar os handlers aqui.
+function notificationsApiPlugin(env: Record<string, string>): Plugin {
+  const NOTIFICATIONS_ACTIONS = new Set(['email', 'request-created']);
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',
+    'APP_URL', 'REQUESTS_STOCK_ALERT_TO',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
   return {
-    name: 'email-dev-api',
+    name: 'notifications-dev-api',
     configureServer(server) {
       server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
-        if (req.url !== '/api/notifications/email' || req.method !== 'POST') return next();
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        const match = url.pathname.match(/^\/api\/notifications\/([^/]+)$/);
+        const action = match?.[1];
+        if (!action || !NOTIFICATIONS_ACTIONS.has(action) || req.method !== 'POST') return next();
 
-        const send = (status: number, body: unknown) => {
-          res.statusCode = status;
-          res.setHeader('Content-Type', 'application/json');
-          res.end(JSON.stringify(body));
-        };
-
-        // Lê body JSON
         let body: Record<string, unknown> = {};
         try {
           await new Promise<void>((resolve, reject) => {
             let raw = '';
             req.on('data', (chunk) => { raw += chunk; });
             req.on('end', () => {
-              try { body = JSON.parse(raw); resolve(); }
+              try { body = raw ? JSON.parse(raw) : {}; resolve(); }
               catch { reject(new Error('JSON inválido')); }
             });
             req.on('error', reject);
           });
         } catch {
-          return send(400, { success: false, error: 'Body inválido' });
+          res.statusCode = 400;
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify({ success: false, error: 'Body inválido' }));
+          return;
         }
 
-        const { to, templateSlug, variables } = body as {
-          to?: string;
-          templateSlug?: string;
-          variables?: Record<string, string>;
-        };
-
-        if (!to || !templateSlug || !variables) {
-          return send(400, { success: false, error: 'Campos obrigatórios ausentes: to, templateSlug, variables' });
-        }
-
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
-          return send(400, { success: false, error: 'Endereço de email inválido' });
-        }
-
-        // Busca template no Supabase
-        const supabaseUrl = env.VITE_SUPABASE_URL;
-        const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
-
-        if (!supabaseUrl || !serviceRoleKey) {
-          console.error('[dev/email] VITE_SUPABASE_URL ou SUPABASE_SERVICE_ROLE_KEY não configurados no .env');
-          return send(500, { success: false, error: 'Configuração Supabase ausente no .env' });
-        }
-
-        let finalSubject: string;
-        let finalHtml: string;
+        const vReq = Object.assign(req, { body, query: { action } });
+        const vRes = Object.assign(res, {
+          status(code: number) { res.statusCode = code; return vRes; },
+          json(payload: unknown) {
+            if (!res.headersSent) res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(payload));
+            return vRes;
+          },
+        });
 
         try {
-          const supabase = createClient(supabaseUrl, serviceRoleKey, {
-            auth: { persistSession: false, autoRefreshToken: false },
-          });
-
-          const { data: template, error } = await supabase
-            .from('notification_templates')
-            .select('subject_template, body_html')
-            .eq('slug', templateSlug)
-            .single();
-
-          if (error || !template) {
-            console.error('[dev/email] Template não encontrado:', templateSlug, error?.message);
-            return send(404, { success: false, error: 'Template not found' });
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule(`/api/_lib/handlers/notifications-${action}.ts`);
+          await mod.default(vReq, vRes);
+        } catch (err) {
+          console.error(`[dev/notifications/${action}]`, err);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Erro interno' }));
           }
-
-          const render = (str: string) =>
-            str.replace(/{{(\w+)}}/g, (_m: string, k: string) => variables[k] ?? '');
-
-          finalSubject = render(template.subject_template);
-          finalHtml    = render(template.body_html);
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'Erro desconhecido';
-          console.error('[dev/email] Erro ao buscar template:', message);
-          return send(500, { success: false, error: 'Erro interno ao carregar template' });
-        }
-
-        const { SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM } = env;
-
-        if (!SMTP_HOST || !SMTP_PORT || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
-          console.error('[dev/email] Variáveis SMTP não configuradas no .env');
-          return send(500, { success: false, error: 'Configuração SMTP ausente' });
-        }
-
-        try {
-          const transporter = nodemailer.createTransport({
-            host: SMTP_HOST,
-            port: Number(SMTP_PORT),
-            secure: Number(SMTP_PORT) === 465,
-            auth: { user: SMTP_USER, pass: SMTP_PASS },
-          });
-
-          const info = await transporter.sendMail({
-            from: SMTP_FROM,
-            to,
-            subject: finalSubject,
-            html: finalHtml,
-          });
-
-          console.log('[dev/email] Enviado:', info.messageId);
-          send(200, { success: true, messageId: info.messageId });
-        } catch (err) {
-          const message = err instanceof Error ? err.message : 'Erro desconhecido';
-          console.error('[dev/email] Falha:', message);
-          send(500, { success: false, error: message });
         }
       });
     },
@@ -849,7 +805,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), emailApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env), qualidadeApiPlugin(env), rhApiPlugin(env)],
+    plugins: [react(), notificationsApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env), qualidadeApiPlugin(env), rhApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },

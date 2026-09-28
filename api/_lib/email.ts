@@ -123,7 +123,7 @@ export async function sendTemplatedEmail(
     return { success: true, messageId: info.messageId };
   } catch (err) {
     console.error('[email] Falha ao enviar email:', describeError(err));
-    // `error` chega ao cliente via api/notifications/email.ts: mantém a mensagem
+    // `error` chega ao cliente via api/_lib/handlers/notifications-email.ts: mantém a mensagem
     // enxuta do nodemailer, sem os extras de diagnóstico do describeError.
     const message = err instanceof Error ? err.message : 'Erro desconhecido';
     return { success: false, errorCode: 'send_failed', error: message };

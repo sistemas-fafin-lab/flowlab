@@ -26,6 +26,28 @@ const ITEMS_PER_PAGE = 25;
 // do produto (que soma também os departamentos setoriais).
 const CENTRAL_STOCK_DEPARTMENT = 'Estoque';
 
+// Avisa o estoque por e-mail de uma SC/SM recém-criada. O servidor lê a
+// solicitação pelo id e resolve o destinatário (ver
+// api/_lib/handlers/notifications-request-created.ts). Nunca lança: falha no
+// envio não pode afetar a criação.
+async function notifyStockOfNewRequest(requestId: string | undefined): Promise<void> {
+  if (!requestId) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+
+    const res = await fetch('/api/notifications/request-created', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id: requestId }),
+    });
+    if (!res.ok) console.warn('[notifyStockOfNewRequest] falha ao avisar o estoque:', res.status);
+  } catch (err) {
+    console.warn('[notifyStockOfNewRequest] falha ao avisar o estoque:', err);
+  }
+}
+
 const RequestManagement: React.FC = () => {
   const { user, userProfile } = useAuth();
   const {
@@ -591,7 +613,7 @@ useEffect(() => {
     try {
       const requestDate = new Date().toISOString().split('T')[0];
 
-      await addRequest({
+      const createdRequest = await addRequest({
         type: newRequest.type,
         items: newRequest.items,
         reason: newRequest.reason,
@@ -603,6 +625,9 @@ useEffect(() => {
         supplierName: newRequest.supplierId ? suppliers.find(s => s.id === newRequest.supplierId)?.name : undefined,
         status: 'pending'
       }, attachments);
+
+      // Aviso ao estoque por e-mail (melhor esforço — não bloqueia a criação)
+      void notifyStockOfNewRequest(createdRequest?.id);
 
       setNewRequest({
         type: 'SM',

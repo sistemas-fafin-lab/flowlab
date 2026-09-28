@@ -104,7 +104,8 @@ const HANDLERS = new Map<string, () => Promise<{ default: (req: VercelLikeReques
 
 HANDLERS.set('GET /api/umami/dashboard',        () => import('./_lib/handlers/umami-dashboard.js'));
 HANDLERS.set('GET /api/umami/inatividade-cron', () => import('./_lib/handlers/umami-inatividade-cron.js'));
-HANDLERS.set('POST /api/notifications/email', () => import('./notifications/email.js'));
+HANDLERS.set('POST /api/notifications/email',           () => import('./_lib/handlers/notifications-email.js'));
+HANDLERS.set('POST /api/notifications/request-created', () => import('./_lib/handlers/notifications-request-created.js'));
 HANDLERS.set('POST /api/users/create', () => import('./users/create.js'));
 HANDLERS.set('POST /api/analises-clinicas/deliver-coleta',     () => import('./_lib/handlers/deliver-coleta.js'));
 HANDLERS.set('POST /api/analises-clinicas/deliver-resultado',  () => import('./_lib/handlers/deliver-resultado.js'));
