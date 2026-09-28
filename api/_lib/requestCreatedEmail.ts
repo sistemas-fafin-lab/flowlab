@@ -52,7 +52,7 @@ const PRIORITY_LABELS: Record<RequestCreatedRow['priority'], string> = {
 
 // Espelha DepartmentLabels (src/types/index.ts) — `requests.department` guarda o
 // código do departamento do solicitante; valores fora do mapa saem como estão.
-const DEPARTMENT_LABELS: Record<string, string> = {
+export const DEPARTMENT_LABELS: Record<string, string> = {
   TRANSPORTE: 'Transporte',
   ESTOQUE: 'Estoque',
   FINANCEIRO: 'Financeiro',

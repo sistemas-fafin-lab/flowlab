@@ -3,6 +3,7 @@
     { "source": "/((?!api/).*)", "destination": "/" }
   ],
   "crons": [
-    { "path": "/api/umami/inatividade-cron", "schedule": "0 11 * * 1" }
+    { "path": "/api/umami/inatividade-cron", "schedule": "0 11 * * 1" },
+    { "path": "/api/notifications/requests-digest-cron", "schedule": "0 20 * * *" }
   ]
 }
