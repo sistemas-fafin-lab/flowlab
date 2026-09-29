@@ -952,12 +952,15 @@ export const useInventory = () => {
     requestedQuantity: number;
   }) => {
     try {
-      // Verificar se já existe cotação para este request + produto
+      // Verificar se já existe cotação ativa para este request + produto
+      // (canceladas/rejeitadas não bloqueiam uma nova cotação)
       const { data: existingQuotation } = await supabase
         .from('quotations')
         .select('id')
         .eq('request_id', quotationData.requestId)
         .eq('product_id', quotationData.productId)
+        .not('status', 'in', '(cancelled,rejected)')
+        .limit(1)
         .maybeSingle();
 
       if (existingQuotation) {
