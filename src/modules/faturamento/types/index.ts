@@ -463,6 +463,8 @@ export interface TituloLote {
   dataEnvio: string | null;
   valorTotal: number;
   qtdRequisicoes: number;
+  /** Quem fechou o lote no apLIS (`lotes.responsavel_fechamento`); null se não registrado. */
+  responsavelFechamento: string | null;
   guias?: TituloGuia[];
 }
 

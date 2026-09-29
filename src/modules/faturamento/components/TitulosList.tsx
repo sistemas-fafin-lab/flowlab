@@ -30,6 +30,7 @@ import {
   periodoEsteMes,
   periodoEsteTrimestre,
   periodoMesPassado,
+  responsaveisDoTitulo,
 } from '../utils/formato';
 import { dataEnvioEfetiva } from '../utils/envioAoVivo';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
@@ -560,6 +561,7 @@ const TitulosList: React.FC<Props> = ({
                   <th className="px-3 py-2">Nota</th>
                   <th className="px-3 py-2">Lote</th>
                   <th className="px-3 py-2">Operadora</th>
+                  <th className="px-3 py-2" title="Quem fechou a fatura (lote) no apLIS">Responsável</th>
                   <th className="px-3 py-2">Competência</th>
                   <th className="px-3 py-2">Vencimento</th>
                   <th className="px-3 py-2 text-right">Total</th>
@@ -574,6 +576,7 @@ const TitulosList: React.FC<Props> = ({
                 {titulos.map((titulo) => {
                   const aberto = expandido === titulo.id;
                   const encerrado = titulo.status === 'cancelada' || titulo.valorSaldo <= 0;
+                  const responsaveis = responsaveisDoTitulo(titulo.lotes);
                   return (
                     <React.Fragment key={titulo.id}>
                       <tr
@@ -633,6 +636,12 @@ const TitulosList: React.FC<Props> = ({
                               NF após pagamento
                             </span>
                           )}
+                        </td>
+                        <td
+                          className="px-3 py-2 text-gray-600 dark:text-gray-300 truncate max-w-[160px]"
+                          title={responsaveis.completo ?? undefined}
+                        >
+                          {responsaveis.curto}
                         </td>
                         <td className="px-3 py-2 text-gray-500 dark:text-gray-400 tabular-nums">
                           {formatCompetencia(titulo.competencia)}
@@ -710,7 +719,7 @@ const TitulosList: React.FC<Props> = ({
 
                       {aberto && (
                         <tr className="bg-gray-50/70 dark:bg-gray-700/20">
-                          <td colSpan={podeEditar ? 12 : 11} className="px-6 py-3">
+                          <td colSpan={podeEditar ? 13 : 12} className="px-6 py-3">
                             {titulo.observacoes && (
                               <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
                                 {titulo.observacoes}

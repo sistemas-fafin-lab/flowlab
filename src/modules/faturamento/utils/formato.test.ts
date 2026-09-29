@@ -1,5 +1,45 @@
 import { describe, expect, it } from 'vitest';
-import { diasDeAtraso, faixaAgingParaRange, formatDataHora, protocoloDuplicadoLotesLabel } from './formato';
+import {
+  diasDeAtraso,
+  faixaAgingParaRange,
+  formatDataHora,
+  protocoloDuplicadoLotesLabel,
+  responsaveisDoTitulo,
+} from './formato';
+
+describe('responsaveisDoTitulo', () => {
+  it('encurta para primeiro nome + último sobrenome e mantém o nome completo', () => {
+    expect(responsaveisDoTitulo([{ responsavelFechamento: 'Rívia Freire Araujo Barretos Borba' }])).toEqual({
+      curto: 'Rívia Borba',
+      completo: 'Rívia Freire Araujo Barretos Borba',
+    });
+  });
+
+  it('lista cada responsável uma vez só, na ordem dos lotes', () => {
+    expect(
+      responsaveisDoTitulo([
+        { responsavelFechamento: 'Renata Queiroz Bento' },
+        { responsavelFechamento: 'Ana Lúcia Tavares' },
+        { responsavelFechamento: 'Renata Queiroz Bento' },
+      ]),
+    ).toEqual({
+      curto: 'Renata Bento, Ana Tavares',
+      completo: 'Renata Queiroz Bento, Ana Lúcia Tavares',
+    });
+  });
+
+  it('mantém nome de uma palavra e ignora lote sem responsável', () => {
+    expect(responsaveisDoTitulo([{ responsavelFechamento: null }, { responsavelFechamento: ' Financeiro ' }])).toEqual({
+      curto: 'Financeiro',
+      completo: 'Financeiro',
+    });
+  });
+
+  it('devolve travessão quando nenhum lote tem responsável', () => {
+    expect(responsaveisDoTitulo([])).toEqual({ curto: '—', completo: null });
+    expect(responsaveisDoTitulo([{ responsavelFechamento: null }])).toEqual({ curto: '—', completo: null });
+  });
+});
 
 describe('formatDataHora', () => {
   it('formata timestamptz em data + hora no padrão brasileiro', () => {

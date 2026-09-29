@@ -1142,6 +1142,47 @@ export async function detalharVariosLotes(idsLote: number[]): Promise<DetalharVa
   });
 }
 
+export type ResponsaveisFechamentoResultado =
+  | { porLote: Record<number, string> }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Quem fechou cada lote: o usuário do ÚLTIMO evento de mudança para Faturado
+ * (fathistorico Tipo 54, StatusLote 3; os eventos do lote têm IdRequisicao
+ * NULL). Não é `fatlote.IdLogin` — esse é quem criou o lote, e difere de quem
+ * fechou em ~12% dos lotes de 2026.
+ *
+ * Lote sem esse evento (ainda aberto, ou fechado antes de o apLIS registrar
+ * histórico) fica fora do mapa. O índice de fathistorico começa por
+ * DtaHistorico, então a consulta filtra pelo de IdRequisicao (~140 mil linhas
+ * de eventos de lote): ~2 s pelo túnel, uma vez por criação de título.
+ */
+export async function responsaveisFechamento(idsLote: number[]): Promise<ResponsaveisFechamentoResultado> {
+  const ids = idsLote.map((n) => Math.trunc(n));
+  if (ids.length === 0) return { porLote: {} };
+
+  return comConexao('responsaveisFechamento', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT h.IdLote, u.NomUsuario
+         FROM fathistorico h
+         JOIN (SELECT IdLote, MAX(IdHistorico) AS IdHistorico
+                 FROM fathistorico
+                WHERE Tipo = 54 AND StatusLote = 3 AND IdRequisicao IS NULL
+                  AND IdLote IN (${ids.map(() => '?').join(', ')})
+                GROUP BY IdLote) ultimo ON ultimo.IdHistorico = h.IdHistorico
+         JOIN autusuario u ON u.IdUsuario = h.IdUsuario`,
+      ids,
+    );
+
+    const porLote: Record<number, string> = {};
+    for (const linha of linhas) {
+      const nome = texto(linha.NomUsuario);
+      if (nome) porLote[numero(linha.IdLote)] = nome;
+    }
+    return { porLote };
+  });
+}
+
 /** Requisições de um lote, cada uma com seus procedimentos cobrados. */
 export async function detalharLote(
   idLote: number,

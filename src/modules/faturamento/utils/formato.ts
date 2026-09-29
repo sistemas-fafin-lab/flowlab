@@ -123,6 +123,26 @@ export const protocoloDuplicadoLotesLabel = (
 };
 
 /**
+ * Coluna "Responsável" da aba Títulos: quem fechou cada lote no apLIS, uma vez
+ * por pessoa. Na célula, primeiro nome + último sobrenome ("Rívia Borba") —
+ * os nomes do apLIS são longos demais para a tabela; o completo vai no title.
+ */
+export const responsaveisDoTitulo = (
+  lotes: { responsavelFechamento: string | null }[],
+): { curto: string; completo: string | null } => {
+  const nomes = [
+    ...new Set(lotes.map((lote) => lote.responsavelFechamento?.trim()).filter((nome): nome is string => Boolean(nome))),
+  ];
+  if (nomes.length === 0) return { curto: '—', completo: null };
+
+  const curto = nomes.map((nome) => {
+    const partes = nome.split(/\s+/);
+    return partes.length > 1 ? `${partes[0]} ${partes[partes.length - 1]}` : partes[0];
+  });
+  return { curto: curto.join(', '), completo: nomes.join(', ') };
+};
+
+/**
  * Dias entre hoje e o vencimento. Positivo = atrasado, null = sem vencimento.
  * Calculado em UTC nos dois lados para não sofrer com horário de verão.
  */

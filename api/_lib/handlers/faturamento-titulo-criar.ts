@@ -27,7 +27,13 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { detalharVariosLotes, listarLotes, MAX_LOTES_TITULO, MAX_TAMANHO } from '../faturamento/bdLab.js';
+import {
+  detalharVariosLotes,
+  listarLotes,
+  MAX_LOTES_TITULO,
+  MAX_TAMANHO,
+  responsaveisFechamento,
+} from '../faturamento/bdLab.js';
 import type { LoteFaturamento, RequisicaoLote } from '../faturamento/bdLab.js';
 import { texto } from '../faturamento/texto.js';
 import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
@@ -205,6 +211,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    // Quem fechou cada lote é informativo (coluna Responsável da aba Títulos):
+    // falhar aqui não pode impedir a cobrança — o lote fica sem o nome.
+    const responsaveis = await responsaveisFechamento(idsLote);
+    if ('erro' in responsaveis) {
+      console.error('[faturamento/titulo-criar] responsáveis:', responsaveis.erro.mensagem);
+    }
+    const responsavelPorLote = 'erro' in responsaveis ? {} : responsaveis.porLote;
+
     // ── Vencimento ────────────────────────────────────────────────────────────
     // Na ordem que o financeiro usa (e que a tela promete: "usa o vencimento do
     // RPS ou o prazo da operadora"):
@@ -264,6 +278,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         dataVencimentoRps: lote.dtaVencimento,
         valorTotal: lote.valor,
         qtdRequisicoes: lote.qtdRequisicoes,
+        responsavelFechamento: responsavelPorLote[lote.idLote] ?? null,
         requisicoes: montarRequisicoes(detalhe.porLote[lote.idLote] ?? []),
       })),
     };

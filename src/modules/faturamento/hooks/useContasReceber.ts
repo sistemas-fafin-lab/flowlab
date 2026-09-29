@@ -117,6 +117,7 @@ interface LinhaTitulo {
       data_envio: string | null;
       valor_total: number | string;
       qtd_requisicoes: number | null;
+      responsavel_fechamento: string | null;
     } | null;
   }[] | null;
 }
@@ -138,6 +139,7 @@ function normalizar(linha: LinhaTitulo): TituloReceber {
       dataEnvio: lote.data_envio,
       valorTotal: num(lote.valor_total),
       qtdRequisicoes: lote.qtd_requisicoes ?? 0,
+      responsavelFechamento: lote.responsavel_fechamento,
     }));
 
   return {
@@ -238,7 +240,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
           `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
            valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes, updated_at,
            operadoras(nome),
-           nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes))`,
+           nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes, responsavel_fechamento))`,
           { count: 'exact' },
         )
         // Referência do período é a EMISSÃO (revisão de 2026-09-24 sobre a
