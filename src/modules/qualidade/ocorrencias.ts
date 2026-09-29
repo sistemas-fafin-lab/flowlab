@@ -144,7 +144,7 @@ export async function buscarOcorrencia(id: string): Promise<OcorrenciaDTO> {
  * curadoria.ts original). Auditoria (P7) é gravada pelo trigger de
  * qa_ocorrencias, não aqui.
  *
- * `status_curadoria` NÃO é escrito aqui (migration 20260904110000) — vem do
+ * `status_curadoria` NÃO é escrito aqui (migration 20260904110001) — vem do
  * apLIS (`ocorrencia.Status`) e só o sync grava essa coluna.
  */
 export async function salvarCuradoriaOcorrencia(id: string, input: CuradoriaOcorrenciaInput): Promise<void> {

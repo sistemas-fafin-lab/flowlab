@@ -10,7 +10,7 @@
 // é nulo — uma conexão service_role nunca dispara auditoria.
 //
 // `status_curadoria`/`cod_status_lis` SÃO colunas de espelho (migration
-// 20260904110000) — apesar do nome, `status_curadoria` não é mais editável
+// 20260904110001) — apesar do nome, `status_curadoria` não é mais editável
 // via curadoria manual: só este sync escreve nela, a partir do código de
 // `ocorrencia.Status` do apLIS (ver ponto 5 do cabeçalho de bdLabQualidade.ts).
 
