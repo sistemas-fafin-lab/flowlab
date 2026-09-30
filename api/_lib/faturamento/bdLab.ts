@@ -1360,6 +1360,91 @@ export async function listarEnviosPorConvenio(
 }
 
 // ============================================================================
+// RECEBIDOS NO MÊS — widget "Recebido no mês" do Dashboard de Contas a Receber
+// ============================================================================
+// Fonte: `fatrequisicaostatus.DtaRecebido`/`VlrRecebido` — as colunas "Data Rec.
+// / Valor Rec." da tela de recebimento do apLIS, por requisição. É o recebimento
+// MAIS NOVO de cada requisição: `DtaRecebido` é a data da última baixa e
+// `VlrRecebido` o total recebido até ela (conferido 30/09 no lote 6053: bate
+// linha a linha com a tela, inclusive a guia glosada que recebeu 383,93 de
+// 818,77). `fathistorico` NÃO serve para isso: é log de evento e repete o valor
+// acumulado a cada mudança de status.
+//
+// Consequência de usar o mais novo: uma requisição paga em duas vezes (ex.:
+// recurso de glosa pago depois) entra inteira no mês da última baixa — é a
+// regra pedida pelo setor, igual ao que a tela do apLIS mostra.
+//
+// Fonte pagadora pela REQUISIÇÃO (`requisicao.IdFontePagadora`), não pelo lote:
+// assim particular/sem lote também aparece, e o cliente decide pela whitelist.
+// Nas requisições com lote, as duas batem (3 divergências em 2026 inteiro).
+// Agregado por (fonte, lote) — sem nome de paciente, nada de PII sai daqui.
+
+export interface RecebidoLoteMes {
+  /** `fatinstituicao.IdInstituicao` — casa com `operadoras.aplis_id`. */
+  fontePagadoraId: number | null;
+  fontePagadoraNome: string | null;
+  /** `fatlote.IdLote`; null para requisições sem lote (particular etc.). */
+  idLote: number | null;
+  qtdRequisicoes: number;
+  valorRecebido: number;
+  /** YYYY-MM-DD da baixa mais recente entre as requisições do grupo. */
+  ultimoRecebimento: string | null;
+}
+
+export interface ListarRecebidosMesParams {
+  /** YYYY-MM-DD, primeiro e último dia do recorte sobre `DtaRecebido`. */
+  desde: string;
+  ate: string;
+  ignorarCache?: boolean;
+}
+
+export type ListarRecebidosMesResultado =
+  | { lotes: RecebidoLoteMes[] }
+  | { erro: { status: number; mensagem: string } };
+
+const cacheRecebidosMes = new Map<string, EntradaCache<ListarRecebidosMesResultado>>();
+
+export async function listarRecebidosMes(params: ListarRecebidosMesParams): Promise<ListarRecebidosMesResultado> {
+  const chave = `recebidosMes|${params.desde}|${params.ate}`;
+  const cacheHit = params.ignorarCache ? null : daCache(cacheRecebidosMes, chave, false);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('listarRecebidosMes', async (conn) => {
+    // Medido 30/09 (setembro/2026, ~2.300 requisições): ~1,7 s pelo túnel.
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT r.IdFontePagadora, fp.NomFantasia,
+              NULLIF(r.Lote, 0) AS IdLote,
+              COUNT(*) AS QtdRequisicoes,
+              SUM(s.VlrRecebido) AS ValorRecebido,
+              DATE_FORMAT(MAX(s.DtaRecebido), '%Y-%m-%d') AS UltimoRecebimento
+         FROM fatrequisicaostatus s
+         JOIN requisicao r ON r.IdRequisicao = s.IdRequisicao
+         LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = r.IdFontePagadora
+        WHERE s.DtaRecebido >= ?
+          AND s.DtaRecebido < DATE_ADD(?, INTERVAL 1 DAY)
+          AND s.VlrRecebido > 0
+        GROUP BY r.IdFontePagadora, fp.NomFantasia, NULLIF(r.Lote, 0)
+        ORDER BY ValorRecebido DESC`,
+      [`${params.desde} 00:00:00`, `${params.ate} 00:00:00`],
+    );
+
+    return {
+      lotes: linhas.map((linha) => ({
+        fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
+        fontePagadoraNome: texto(linha.NomFantasia),
+        idLote: inteiroOuNulo(linha.IdLote),
+        qtdRequisicoes: numero(linha.QtdRequisicoes),
+        valorRecebido: numero(linha.ValorRecebido),
+        ultimoRecebimento: texto(linha.UltimoRecebimento),
+      })),
+    };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheRecebidosMes, chave, resultado);
+    return resultado;
+  });
+}
+
+// ============================================================================
 // PENDÊNCIAS — lotes sem NF/RPS fora da janela normal (aba "Pendências")
 // ============================================================================
 // Regra decidida com o financeiro: lote em status ativo (1 Em Processamento, 2

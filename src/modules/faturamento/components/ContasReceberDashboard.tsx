@@ -31,6 +31,7 @@ import {
   TrendingUp,
   Unlock,
   UserCircle,
+  Wallet,
 } from 'lucide-react';
 import {
   WidthProvider,
@@ -45,11 +46,13 @@ import { useContasReceberDashboard } from '../hooks/useContasReceberDashboard';
 import { useMetaMensal } from '../hooks/useMetaMensal';
 import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
 import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
-import { formatCompetencia, formatCurrency } from '../utils/formato';
+import { useRecebimentosMes } from '../hooks/useRecebimentosMes';
+import { formatCompetencia, formatCurrency, hojeIso } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import FiltrosReceber from './FiltrosReceber';
 import AgingDetalheModal from './AgingDetalheModal';
 import MetaMensalModal from './MetaMensalModal';
+import RecebimentosMesModal from './RecebimentosMesModal';
 import type { AgingBucket, AgingSelecao, DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
@@ -65,15 +68,19 @@ const ResponsiveGridLayout = WidthProvider(Responsive);
 const GRID_BREAKPOINTS = { lg: 1200, md: 996, sm: 768, xs: 480 };
 const GRID_COLS = { lg: 12, md: 10, sm: 6, xs: 2 };
 const GRID_ROW_HEIGHT = 50;
-// v5: novo widget "meta-mensal" (issue 43). Mesmo motivo do bump da v4: sem
+// v9 (v6–v8): alturas dos widgets "meta-mensal" e "recebimentos-mes" (v6/v7) ajustadas ao conteúdo. Mesmo motivo do bump da v4/v5: sem
 // subir a versão, quem já tinha um layout salvo receberia a chave nova
 // autoposicionada num tamanho mínimo, em vez do tamanho pensado no DEFAULT_LAYOUTS.
-const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v5';
+const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v9';
 const LAYOUTS_ANTIGOS = [
   'flowLab_contas_receber_layout_v1',
   'flowLab_contas_receber_layout_v2',
   'flowLab_contas_receber_layout_v3',
   'flowLab_contas_receber_layout_v4',
+  'flowLab_contas_receber_layout_v5',
+  'flowLab_contas_receber_layout_v6',
+  'flowLab_contas_receber_layout_v7',
+  'flowLab_contas_receber_layout_v8',
 ];
 
 // Aging por operadora: categórica, não sequencial — aqui cada cor identifica uma
@@ -86,6 +93,10 @@ const COR_FATURADO = '#6366f1'; // indigo-500
 const COR_RECEBIDO = '#059669'; // emerald-600
 const COR_GLOSADO = '#f43f5e'; // rose-500
 const COR_SALDO = '#3b82f6'; // blue-500
+
+// Linhas da lista "Por operadora" do widget Recebido no mês: é o que cabe na
+// altura fixa dele (h4 no desktop); o resto fica no modal "Ver lotes".
+const MAX_OPERADORAS_RECEBIDO = 5;
 
 const ROTULOS_AGING: Record<AgingBucket, string> = {
   a_vencer: 'A vencer',
@@ -115,23 +126,25 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'kpis-valor', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2 },
     { i: 'kpis-prazo', x: 0, y: 3, w: 12, h: 3, minW: 4, minH: 2 },
     { i: 'kpis-pendencias', x: 0, y: 6, w: 12, h: 3, minW: 4, minH: 2 },
-    { i: 'meta-mensal', x: 0, y: 9, w: 12, h: 4, minW: 4, minH: 3 },
-    { i: 'aging', x: 0, y: 13, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'saldo-operadoras', x: 6, y: 13, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'previsao', x: 0, y: 20, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'serie', x: 0, y: 28, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'motivos-glosa', x: 0, y: 36, w: 12, h: 8, minW: 3, minH: 4 },
+    { i: 'meta-mensal', x: 0, y: 9, w: 12, h: 3, minW: 4, minH: 3 },
+    { i: 'recebimentos-mes', x: 0, y: 12, w: 12, h: 4, minW: 4, minH: 4 },
+    { i: 'aging', x: 0, y: 16, w: 6, h: 7, minW: 3, minH: 4 },
+    { i: 'saldo-operadoras', x: 6, y: 16, w: 6, h: 7, minW: 3, minH: 4 },
+    { i: 'previsao', x: 0, y: 23, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'serie', x: 0, y: 31, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'motivos-glosa', x: 0, y: 39, w: 12, h: 8, minW: 3, minH: 4 },
   ],
   md: [
     { i: 'kpis-valor', x: 0, y: 0, w: 10, h: 3 },
     { i: 'kpis-prazo', x: 0, y: 3, w: 10, h: 3 },
     { i: 'kpis-pendencias', x: 0, y: 6, w: 10, h: 3 },
-    { i: 'meta-mensal', x: 0, y: 9, w: 10, h: 4 },
-    { i: 'aging', x: 0, y: 13, w: 5, h: 7 },
-    { i: 'saldo-operadoras', x: 5, y: 13, w: 5, h: 7 },
-    { i: 'previsao', x: 0, y: 20, w: 10, h: 8 },
-    { i: 'serie', x: 0, y: 28, w: 10, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 36, w: 10, h: 8 },
+    { i: 'meta-mensal', x: 0, y: 9, w: 10, h: 3 },
+    { i: 'recebimentos-mes', x: 0, y: 12, w: 10, h: 4 },
+    { i: 'aging', x: 0, y: 16, w: 5, h: 7 },
+    { i: 'saldo-operadoras', x: 5, y: 16, w: 5, h: 7 },
+    { i: 'previsao', x: 0, y: 23, w: 10, h: 8 },
+    { i: 'serie', x: 0, y: 31, w: 10, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 39, w: 10, h: 8 },
   ],
   sm: [
     // 2 colunas: os quatro cards de valor viram duas linhas.
@@ -139,11 +152,12 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'kpis-prazo', x: 0, y: 5, w: 6, h: 3 },
     { i: 'kpis-pendencias', x: 0, y: 8, w: 6, h: 3 },
     { i: 'meta-mensal', x: 0, y: 11, w: 6, h: 6 },
-    { i: 'aging', x: 0, y: 17, w: 6, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 24, w: 6, h: 7 },
-    { i: 'previsao', x: 0, y: 31, w: 6, h: 8 },
-    { i: 'serie', x: 0, y: 39, w: 6, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 47, w: 6, h: 8 },
+    { i: 'recebimentos-mes', x: 0, y: 17, w: 6, h: 6 },
+    { i: 'aging', x: 0, y: 23, w: 6, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 30, w: 6, h: 7 },
+    { i: 'previsao', x: 0, y: 37, w: 6, h: 8 },
+    { i: 'serie', x: 0, y: 45, w: 6, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 53, w: 6, h: 8 },
   ],
   xs: [
     // Empilhado: quatro linhas de card, três, e duas, respectivamente.
@@ -151,11 +165,12 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'kpis-prazo', x: 0, y: 8, w: 2, h: 6 },
     { i: 'kpis-pendencias', x: 0, y: 14, w: 2, h: 4 },
     { i: 'meta-mensal', x: 0, y: 18, w: 2, h: 9 },
-    { i: 'aging', x: 0, y: 27, w: 2, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 34, w: 2, h: 7 },
-    { i: 'previsao', x: 0, y: 41, w: 2, h: 8 },
-    { i: 'serie', x: 0, y: 49, w: 2, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 57, w: 2, h: 8 },
+    { i: 'recebimentos-mes', x: 0, y: 27, w: 2, h: 7 },
+    { i: 'aging', x: 0, y: 34, w: 2, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 41, w: 2, h: 7 },
+    { i: 'previsao', x: 0, y: 48, w: 2, h: 8 },
+    { i: 'serie', x: 0, y: 56, w: 2, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 64, w: 2, h: 8 },
   ],
 };
 
@@ -302,6 +317,20 @@ const ContasReceberDashboard: React.FC<Props> = ({
   const { data, loading, error } = useContasReceberDashboard(filtros);
   const { meta, loading: loadingMeta, error: errorMeta, salvarMeta } = useMetaMensal();
   const [metaModalAberto, setMetaModalAberto] = useState(false);
+
+  // Widget "Recebido no mês": mês próprio, independente do período do filtro
+  // (que é sobre a EMISSÃO do título) — aqui o recorte é a data de recebimento
+  // no apLIS. Operadoras: o filtro da tela dentro da whitelist da meta, o mesmo
+  // universo que fat_dashboard_receber considera.
+  const [mesRecebimento, setMesRecebimento] = useState(() => hojeIso().slice(0, 7));
+  const [recebimentosAberto, setRecebimentosAberto] = useState(false);
+  const operadorasRecebimento = useMemo(
+    () => operadoras.filter(
+      (o) => o.consideradaMeta && (filtros.operadoraIds.length === 0 || filtros.operadoraIds.includes(o.id)),
+    ),
+    [operadoras, filtros.operadoraIds],
+  );
+  const recebimentosMes = useRecebimentosMes(mesRecebimento, operadorasRecebimento);
   const { isDark } = useTheme();
 
   // Widgets-resumo das issues 07/08: mesmas rotas e cache da aba Pendências (sem
@@ -742,6 +771,95 @@ const ContasReceberDashboard: React.FC<Props> = ({
           </div>
         </div>
 
+        {/* ── Recebido no mês ─────────────────────────────────────────────────
+            Pelo apLIS: data e valor do recebimento mais novo de cada requisição
+            ("Data Rec. / Valor Rec." de lá), não pela emissão do título nem
+            pelas baixas lançadas no FlowLab. Por isso tem seletor de mês
+            próprio em vez de seguir o período do filtro. */}
+        <div key="recebimentos-mes" className="group">
+          <div className={`h-full ${VIDRO} rounded-3xl overflow-y-auto p-3 sm:p-4`}>
+            <Alca />
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pr-8">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                  Recebido no mês — {formatCompetencia(mesRecebimento)}
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Pelo apLIS — data e valor do recebimento mais novo de cada requisição
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="month"
+                  value={mesRecebimento}
+                  onChange={(e) => e.target.value && setMesRecebimento(e.target.value)}
+                  aria-label="Mês de recebimento"
+                  className="px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => setRecebimentosAberto(true)}
+                  disabled={recebimentosMes.loading || Boolean(recebimentosMes.error)}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  <ListChecks className="w-3.5 h-3.5" /> Ver lotes
+                </button>
+              </div>
+            </div>
+
+            {recebimentosMes.loading ? (
+              <div className="flex justify-center py-6"><LoadingSpinner /></div>
+            ) : recebimentosMes.error ? (
+              <p className="text-sm text-red-600 dark:text-red-400 flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                {recebimentosMes.error}
+              </p>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div className="rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-white/60 dark:border-slate-700/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                    <Wallet className="w-3.5 h-3.5" /> Recebido
+                  </p>
+                  <p className="text-2xl font-extrabold text-emerald-600 dark:text-emerald-400 mt-1 tabular-nums">
+                    {formatCurrency(recebimentosMes.total)}
+                  </p>
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5">
+                    {recebimentosMes.qtdRequisicoes} requisiç{recebimentosMes.qtdRequisicoes === 1 ? 'ão' : 'ões'} ·{' '}
+                    {recebimentosMes.lotes.length} lote{recebimentosMes.lotes.length === 1 ? '' : 's'}
+                  </p>
+                </div>
+                <div className="md:col-span-2 rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-white/60 dark:border-slate-700/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                    Por operadora
+                    {recebimentosMes.porOperadora.length > MAX_OPERADORAS_RECEBIDO && (
+                      <span className="normal-case tracking-normal font-normal text-slate-400 dark:text-slate-500">
+                        {' '}· {MAX_OPERADORAS_RECEBIDO} maiores de {recebimentosMes.porOperadora.length} — demais em “Ver lotes”
+                      </span>
+                    )}
+                  </p>
+                  {recebimentosMes.porOperadora.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">Nenhum recebimento neste mês.</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {recebimentosMes.porOperadora.slice(0, MAX_OPERADORAS_RECEBIDO).map((op) => (
+                        <li key={op.chave} className="flex items-center gap-3 text-sm">
+                          <span className="flex-1 min-w-0 truncate text-slate-700 dark:text-slate-200">{op.nome}</span>
+                          <span className="text-xs text-slate-400 dark:text-slate-500 tabular-nums">
+                            {percentual(op.valor, recebimentosMes.total)}%
+                          </span>
+                          <span className="w-28 text-right font-medium tabular-nums text-slate-900 dark:text-slate-100">
+                            {formatCurrency(op.valor)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         <div key="aging" className="group">
           <Widget
             titulo="Aging da carteira"
@@ -957,6 +1075,19 @@ const ContasReceberDashboard: React.FC<Props> = ({
           {...detalheAging}
           operadoras={operadoras}
           onFechar={() => setDetalheAging(null)}
+        />
+      )}
+
+      {recebimentosAberto && (
+        <RecebimentosMesModal
+          competencia={mesRecebimento}
+          lotes={recebimentosMes.lotes}
+          total={recebimentosMes.total}
+          qtdRequisicoes={recebimentosMes.qtdRequisicoes}
+          loading={recebimentosMes.loading}
+          error={recebimentosMes.error}
+          onMudarCompetencia={setMesRecebimento}
+          onFechar={() => setRecebimentosAberto(false)}
         />
       )}
 
