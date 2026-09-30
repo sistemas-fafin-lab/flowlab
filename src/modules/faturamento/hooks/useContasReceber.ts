@@ -71,7 +71,7 @@ async function registrarAuditoriaOperadora(
  * do corpo e checagem de `success` num lugar só — criarTitulo e
  * buscarEnvioLotes repetiam esse mesmo bloco ponta a ponta.
  */
-async function chamarApi<T = unknown>(
+export async function chamarApi<T = unknown>(
   path: string,
   mensagemPadrao: string,
   init: { method?: string; body?: unknown } = {},
