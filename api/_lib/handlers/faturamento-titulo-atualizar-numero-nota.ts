@@ -20,6 +20,13 @@
  * Body:
  *   idNota      uuid    obrigatório
  *   numeroNota  string  obrigatório — vazio é rejeitado pela RPC
+ *   somenteSeVazio boolean opcional (default false) — só grava se o título
+ *               ainda não tem número; usado pelo "Atualizar do apLIS" para não
+ *               sobrescrever um número digitado entre a prévia e a confirmação
+ *
+ * Resposta 200: `{ success: true, resultado: 'atualizado' | 'ja-preenchido' }`.
+ * "ja-preenchido" só ocorre com somenteSeVazio e não é falha: nada foi gravado
+ * porque o título já tinha número.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -31,7 +38,10 @@ import { getSupabaseUserClient } from '../supabase.js';
 interface CorpoAtualizarNumeroNota {
   idNota?: unknown;
   numeroNota?: unknown;
+  somenteSeVazio?: unknown;
 }
+
+type ResultadoAtualizarNumeroNota = 'atualizado' | 'ja-preenchido';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   if (req.method !== 'POST') {
@@ -60,10 +70,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(400).json({ success: false, error: 'Informe o número da nota.' });
       return;
     }
+    if (corpo.somenteSeVazio !== undefined && typeof corpo.somenteSeVazio !== 'boolean') {
+      res.status(400).json({ success: false, error: 'somenteSeVazio deve ser booleano.' });
+      return;
+    }
+    const somenteSeVazio = corpo.somenteSeVazio === true;
 
-    const { error } = await getSupabaseUserClient(token as string).rpc('fat_atualizar_numero_nota', {
+    const { data, error } = await getSupabaseUserClient(token as string).rpc('fat_atualizar_numero_nota', {
       p_id_nota: idNota,
       p_numero_nota: numeroNota,
+      p_somente_se_vazio: somenteSeVazio,
     });
 
     if (error) {
@@ -75,7 +91,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json({ success: true });
+    // O token vem da RPC como está. Qualquer outro valor (ex.: null da versão
+    // antiga, que retornava void) não pode virar "atualizado" em silêncio.
+    if (data !== 'atualizado' && data !== 'ja-preenchido') {
+      console.error('[faturamento/titulo-atualizar-numero-nota] retorno inesperado da rpc:', data);
+      res.status(500).json({ success: false, error: 'Erro interno' });
+      return;
+    }
+    const resultado: ResultadoAtualizarNumeroNota = data;
+    res.status(200).json({ success: true, resultado });
   } catch (err) {
     console.error('[faturamento/titulo-atualizar-numero-nota] erro:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });
