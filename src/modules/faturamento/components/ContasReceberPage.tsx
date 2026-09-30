@@ -5,7 +5,7 @@ import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
 import { useContasReceber } from '../hooks/useContasReceber';
 import { periodoEsteMes } from '../utils/formato';
-import type { DashboardReceberFiltros, SubAbaPendencias, TituloReceber, TituloStatus } from '../types';
+import type { DashboardReceberFiltros, FiltroGlosaTitulo, SubAbaPendencias, TituloReceber, TituloStatus } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
 import EnviosPorConvenio from './EnviosPorConvenio';
@@ -75,6 +75,7 @@ const ContasReceberPage: React.FC = () => {
     // Issue 38: atalho "Somente pendentes" — ligado por padrão, a usuária não
     // precisa selecionar Status manualmente a cada visita pra ver o que falta receber.
     somentePendentes: true,
+    glosa: '' as FiltroGlosaTitulo,
     pagina: 1,
     tamanho: 25,
   });
@@ -105,6 +106,7 @@ const ContasReceberPage: React.FC = () => {
     busca: filtros.busca,
     ocultarParceiras: filtros.ocultarParceiras,
     somentePendentes: filtros.somentePendentes,
+    glosa: filtros.glosa,
     pagina: filtros.pagina,
     tamanho: filtros.tamanho,
   }), [filtros]);

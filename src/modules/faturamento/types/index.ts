@@ -442,6 +442,9 @@ export type TituloStatus =
  *  pendentes" da aba Títulos (issue 38). */
 export const STATUS_TITULOS_PENDENTES: readonly TituloStatus[] = ['aberta', 'parcialmente_recebida'];
 
+/** Glosas ainda em disputa — o recorte `aberta` do filtro "Glosa" da aba Títulos. */
+export const STATUS_GLOSA_EM_DISPUTA: readonly GlosaStatus[] = ['aberta', 'em_recurso'];
+
 /** Guia congelada dentro de um lote do título. Base do rateio de baixa e glosa. */
 export interface TituloGuia {
   id: string;
@@ -515,9 +518,19 @@ export interface TitulosFiltros {
   /** Issue 38: atalho "Somente pendentes" — filtra por STATUS_TITULOS_PENDENTES quando
    *  `status` manual está vazio. Preset em cima do filtro de Status, não substituto. */
   somentePendentes?: boolean;
+  /** Recorte por glosa lançada no título (tabela `glosas`). Vazio = sem recorte. */
+  glosa?: FiltroGlosaTitulo;
   pagina?: number;
   tamanho?: number;
 }
+
+/**
+ * Filtro "Glosa" da aba Títulos, sobre as linhas de `glosas` do título:
+ * - `com`: tem ou já teve glosa, em qualquer status (inclusive revertida);
+ * - `aberta`: tem glosa ainda em disputa (aberta ou em recurso);
+ * - `sem`: nunca teve glosa lançada.
+ */
+export type FiltroGlosaTitulo = '' | 'com' | 'aberta' | 'sem';
 
 /** Filtros que a aba Títulos salva numa view — sem paginação, que não é recorte. */
 export interface TitulosViewFiltros {
@@ -528,6 +541,7 @@ export interface TitulosViewFiltros {
   busca: string;
   ocultarParceiras: boolean;
   somentePendentes: boolean;
+  glosa: FiltroGlosaTitulo;
 }
 
 /** Glosa lançada junto de uma baixa, no formato que `fat_registrar_baixa` espera

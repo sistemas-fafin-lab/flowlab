@@ -14,6 +14,7 @@ import {
   Unlink,
 } from 'lucide-react';
 import type {
+  FiltroGlosaTitulo,
   OperadoraResumo,
   TituloBaixa,
   TituloGuia,
@@ -63,6 +64,15 @@ const STATUS_OPCOES = [
   })),
 ];
 
+// Filtro "Glosa": "Com glosa" pega também quem já teve e foi revertida —
+// o pedido do setor é achar os títulos que tiveram alguma glosa, não só as vivas.
+const GLOSA_OPCOES: { value: FiltroGlosaTitulo; label: string }[] = [
+  { value: '', label: 'Todos' },
+  { value: 'com', label: 'Com glosa (tem ou teve)' },
+  { value: 'aberta', label: 'Glosa em aberto/recurso' },
+  { value: 'sem', label: 'Sem glosa' },
+];
+
 const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 
 // Issue 40: atalhos que preenchem o range de emissão — não substituem os
@@ -100,6 +110,8 @@ interface Props {
     /** Issue 38: atalho "Somente pendentes" — preset de Status (aberta + parcialmente
      *  recebida), só surte efeito quando `status` manual está vazio (ver conflito abaixo). */
     somentePendentes: boolean;
+    /** Recorte por glosa lançada no título — ver FiltroGlosaTitulo. */
+    glosa: FiltroGlosaTitulo;
     pagina: number;
     tamanho: number;
   };
@@ -351,10 +363,11 @@ const TitulosList: React.FC<Props> = ({
       busca,
       ocultarParceiras: filtros.ocultarParceiras,
       somentePendentes: filtros.somentePendentes,
+      glosa: filtros.glosa,
     }),
     [
       filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca,
-      filtros.ocultarParceiras, filtros.somentePendentes,
+      filtros.ocultarParceiras, filtros.somentePendentes, filtros.glosa,
     ],
   );
 
@@ -432,6 +445,15 @@ const TitulosList: React.FC<Props> = ({
               ]}
               controlClass={CAMPO}
               wrapperClass="max-w-[220px]"
+            />
+          </label>
+          <label className="text-xs text-gray-500 dark:text-gray-400">
+            Glosa
+            <Select
+              value={filtros.glosa}
+              onChange={(v) => onFiltrar({ glosa: v as FiltroGlosaTitulo, pagina: 1 })}
+              options={GLOSA_OPCOES}
+              controlClass={CAMPO}
             />
           </label>
 

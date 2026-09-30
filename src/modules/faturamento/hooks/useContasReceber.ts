@@ -11,7 +11,7 @@ import type {
   TitulosFiltros,
   TituloLote,
 } from '../types';
-import { STATUS_TITULOS_PENDENTES } from '../types';
+import { STATUS_GLOSA_EM_DISPUTA, STATUS_TITULOS_PENDENTES } from '../types';
 
 // Títulos a receber, suas baixas e glosas.
 //
@@ -219,7 +219,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
 
   // Desestruturado para que as deps do useCallback sejam primitivas — com o
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
-  const { desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, pagina, tamanho } = filtros;
+  const { desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa, pagina, tamanho } = filtros;
 
   // Descarta respostas de buscas antigas: trocar de página/filtro rápido pode
   // devolver fora de ordem e sobrescrever o resultado novo com o velho.
@@ -240,7 +240,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
           `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
            valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes, updated_at,
            operadoras(nome),
-           nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes, responsavel_fechamento))`,
+           nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes, responsavel_fechamento))${glosa ? ', glosas(id_glosa)' : ''}`,
           { count: 'exact' },
         )
         // Referência do período é a EMISSÃO (revisão de 2026-09-24 sobre a
@@ -261,6 +261,16 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         query = query.in('status', STATUS_TITULOS_PENDENTES);
       }
       if (operadoraId) query = query.eq('operadora_id', operadoraId);
+      // Filtro "Glosa": o embed `glosas(id_glosa)` só entra no select quando o
+      // filtro está ativo, e o recorte é feito no servidor (is null / not is null
+      // sobre o embed), então contagem e paginação continuam certas.
+      if (glosa === 'com') {
+        query = query.not('glosas', 'is', null);
+      } else if (glosa === 'aberta') {
+        query = query.in('glosas.status', STATUS_GLOSA_EM_DISPUTA).not('glosas', 'is', null);
+      } else if (glosa === 'sem') {
+        query = query.is('glosas', null);
+      }
       if (busca?.trim()) {
         const termo = busca.trim();
         // `%` e `_` do operador viram curinga do LIKE; escapa antes de compor.
@@ -325,7 +335,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, pagina, tamanho, operadoras]);
+  }, [desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa, pagina, tamanho, operadoras]);
 
   useEffect(() => {
     void refetch();

@@ -22,6 +22,7 @@ const BASE_TITULOS: TitulosViewFiltros = {
   busca: '',
   ocultarParceiras: false,
   somentePendentes: true,
+  glosa: '',
 };
 
 describe('sanitizarFiltrosPainel', () => {
@@ -99,6 +100,7 @@ describe('sanitizarFiltrosTitulos', () => {
       busca: '123',
       ocultarParceiras: true,
       somentePendentes: false,
+      glosa: 'sem',
     };
     expect(sanitizarFiltrosTitulos(view, BASE_TITULOS)).toEqual(view);
   });
@@ -141,6 +143,18 @@ describe('sanitizarFiltrosTitulos', () => {
     expect(
       sanitizarFiltrosTitulos({ status: 'recebida', somentePendentes: true }, BASE_TITULOS),
     ).toEqual({ ...BASE_TITULOS, status: 'recebida', somentePendentes: false });
+  });
+
+  it('glosa válida é preservada', () => {
+    expect(sanitizarFiltrosTitulos({ glosa: 'aberta' }, BASE_TITULOS)).toEqual({ ...BASE_TITULOS, glosa: 'aberta' });
+  });
+
+  it('view antiga sem glosa fica sem recorte, mesmo com a tela filtrando', () => {
+    expect(sanitizarFiltrosTitulos({}, { ...BASE_TITULOS, glosa: 'com' })).toEqual(BASE_TITULOS);
+  });
+
+  it('glosa fora do union cai em sem recorte', () => {
+    expect(sanitizarFiltrosTitulos({ glosa: 'todas' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
   });
 });
 

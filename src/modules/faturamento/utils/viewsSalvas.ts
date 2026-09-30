@@ -8,6 +8,7 @@
 
 import type {
   DashboardReceberFiltros,
+  FiltroGlosaTitulo,
   GlosasViewFiltros,
   TituloStatus,
   TitulosViewFiltros,
@@ -64,6 +65,14 @@ function statusTituloOu(valor: unknown, fallback: TituloStatus | ''): TituloStat
     : fallback;
 }
 
+const FILTRO_GLOSA_VALIDOS: ReadonlySet<FiltroGlosaTitulo> = new Set(['', 'com', 'aberta', 'sem']);
+
+function filtroGlosaOu(valor: unknown, fallback: FiltroGlosaTitulo): FiltroGlosaTitulo {
+  return typeof valor === 'string' && FILTRO_GLOSA_VALIDOS.has(valor as FiltroGlosaTitulo)
+    ? (valor as FiltroGlosaTitulo)
+    : fallback;
+}
+
 function statusGlosaOu(
   valor: unknown,
   fallback: GlosasViewFiltros['status'],
@@ -108,6 +117,10 @@ export function sanitizarFiltrosTitulos(
     // antes da issue 38 (sem a chave somentePendentes) herdava o valor de `base` e
     // podia reativar o atalho por cima de um status que a própria view define.
     somentePendentes: status ? false : boolOu(obj.somentePendentes, base.somentePendentes),
+    // Sem recorte (e não `base`) quando a view não traz o campo: uma view salva
+    // antes do filtro existir não tinha recorte por glosa, e herdar o da tela
+    // mudaria o que ela mostra.
+    glosa: filtroGlosaOu(obj.glosa, ''),
   };
 }
 
