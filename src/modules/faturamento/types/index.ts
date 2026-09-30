@@ -195,6 +195,36 @@ export interface LotesFiltros {
   codEventoFatur?: number;
 }
 
+/** Lote da prévia do "Atualizar do apLIS" (GET /api/faturamento/titulos-aplis-previa). */
+export interface LotePreviaAplis {
+  lote: LoteFaturamento;
+  /** Não vira título: "sem valor a faturar". */
+  bloqueio: 'sem-valor' | null;
+  /** STLOT Recebido / Recebido - parcial: a baixa ainda tem que ser registrada aqui. */
+  jaRecebidoAplis: boolean;
+  /** Sem NF-e no apLIS: a baixa vai exigir o número. */
+  semNf: boolean;
+  /** Criado num mês e fechado noutro (a emissão segue a criação). */
+  emissaoMesAnterior: boolean;
+  /** Último desvínculo do lote de um título; o lote vem desmarcado. */
+  desvinculado: { idNota: string; numeroNota: string | null; em: string; motivo: string } | null;
+}
+
+/** Título existente sem número da nota cujo lote já tem NF-e no apLIS (issue 04). */
+export interface NfAPreencherAplis {
+  idNota: string;
+  idsLote: number[];
+  operadora: string;
+  situacao: 'preenchivel' | 'divergente';
+  nfeNumeros: string[];
+}
+
+export interface PreviaAplis {
+  desde: string;
+  lotes: LotePreviaAplis[];
+  nfsAPreencher: NfAPreencherAplis[];
+}
+
 export interface LotesMeta {
   pagina: number;
   tamanho: number;

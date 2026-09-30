@@ -44,7 +44,7 @@ export const formatCompetencia = (competencia: string | null | undefined): strin
   return ano && mes ? `${mes}/${ano}` : competencia;
 };
 
-const paraIso = (data: Date): string =>
+export const paraIso = (data: Date): string =>
   `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
 
 /** Data de hoje em ISO local (e não UTC, como faria toISOString). */

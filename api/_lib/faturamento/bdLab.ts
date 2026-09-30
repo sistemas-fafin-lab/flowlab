@@ -645,7 +645,7 @@ const SQL_LISTA = `
          DATE_FORMAT(l.DtaEnvio,        '%Y-%m-%d') AS DtaEnvio,
          DATE_FORMAT(l.DtaCancelamento, '%Y-%m-%d') AS DtaCancelamento,
          l.Protocolo,
-         fp.NomFantasia, fp.RazaoSocial, fp.CNPJ,
+         fp.NomFantasia, fp.RazaoSocial, fp.CNPJ, fp.Particular,
          lab.RazaoSocial AS Prestador,
          rps.NumeroRPS, rps.NFeNumero, rps.NFeCodigoVerificacao,
          DATE_FORMAT(rps.DataVencimento, '%Y-%m-%d') AS DataVencimento,
@@ -810,6 +810,52 @@ export async function listarLotes(params: ListarLotesParams): Promise<ListarLote
   }).then((resultado) => {
     if (!('erro' in resultado)) doCache(cacheLotes, chave, resultado);
     return resultado;
+  });
+}
+
+/** Lote fechado no apLIS, com o flag de fonte pagadora Particular — a prévia do
+ *  "Atualizar do apLIS" descarta esses (particulares têm fluxo próprio). */
+export interface LoteFechadoAplis {
+  lote: LoteFaturamento;
+  particular: boolean;
+}
+
+export type ListarLotesFechadosResultado =
+  | { lotes: LoteFechadoAplis[] }
+  | { erro: { status: number; mensagem: string } };
+
+/** Teto de segurança da prévia: um mês tem ~200 lotes fechados; isto só impede
+ *  que um corte muito antigo devolva a fatlote inteira. */
+const MAX_LOTES_FECHADOS = 2000;
+
+/**
+ * Lotes fechados no apLIS a partir de `desde` (YYYY-MM-DD, validado pelo
+ * handler), fora Cancelado (5) e Prejuízo (8) — a fonte da prévia do
+ * "Atualizar do apLIS". `DtaFechamento` é DATETIME em hora local do apLIS, então
+ * comparar com a data pura pega o dia inteiro de `desde`, sem conversão de fuso.
+ *
+ * Mesmo SELECT da aba Faturas (SQL_LISTA), sem paginação e sem cache: o operador
+ * clicou para ver o estado de agora. A dedupe contra títulos existentes fica no
+ * handler, que é quem fala com o Supabase.
+ */
+export async function listarLotesFechadosDesde(desde: string): Promise<ListarLotesFechadosResultado> {
+  return comConexao('listarLotesFechadosDesde', async (conn) => {
+    const rotulosEventoFatur = await eventosFaturamento(conn, false);
+    const where = 'l.DtaFechamento IS NOT NULL AND l.DtaFechamento >= ? AND l.Status NOT IN (5, 8)';
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      SQL_LISTA
+        .replaceAll('%WHERE%', where)
+        .replace('%ORDER%', 'l.DtaFechamento, l.IdLote')
+        .replace('%LIMIT%', String(MAX_LOTES_FECHADOS))
+        .replace('%OFFSET%', '0'),
+      [desde, desde],
+    );
+    return {
+      lotes: linhas.map((linha) => ({
+        lote: normalizarLote(linha, new Map(), rotulosEventoFatur),
+        particular: numero(linha.Particular) === 1,
+      })),
+    };
   });
 }
 

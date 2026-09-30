@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { AlertTriangle, BarChart3, ListChecks, RefreshCw, Send, Wallet } from 'lucide-react';
+import { AlertTriangle, BarChart3, DownloadCloud, ListChecks, RefreshCw, Send, Wallet } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
@@ -13,6 +13,7 @@ import PendenciasNaoFaturadas from './PendenciasNaoFaturadas';
 import PendenciasParticulares from './PendenciasParticulares';
 import PendenciasSemLote from './PendenciasSemLote';
 import NovoTituloModal from './NovoTituloModal';
+import AtualizarAplisModal from './AtualizarAplisModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
 import RegraNfModal from './RegraNfModal';
@@ -86,6 +87,7 @@ const ContasReceberPage: React.FC = () => {
   const [filtrosPainel, setFiltrosPainel] = useState<DashboardReceberFiltros>(filtrosPainelPadrao);
 
   const [novoAberto, setNovoAberto] = useState(false);
+  const [atualizarAplisAberto, setAtualizarAplisAberto] = useState(false);
   const [parceirasAberto, setParceirasAberto] = useState(false);
   const [regraNfAberto, setRegraNfAberto] = useState(false);
   const [consideradaMetaAberto, setConsideradaMetaAberto] = useState(false);
@@ -225,15 +227,28 @@ const ContasReceberPage: React.FC = () => {
         </div>
 
         {podeEditar && (
-          <button
-            type="button"
-            onClick={sincronizarOperadoras}
-            disabled={sincronizando}
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 disabled:opacity-50"
-          >
-            <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
-            Sincronizar operadoras
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* A réplica do apLIS atrasa ~1 dia: sem o aviso, o lote fechado hoje
+                "faltando" parece defeito do botão. */}
+            <span className="text-[11px] text-gray-400 dark:text-gray-500">dados do apLIS até ontem</span>
+            <button
+              type="button"
+              onClick={() => setAtualizarAplisAberto(true)}
+              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+            >
+              <DownloadCloud className="w-4 h-4" />
+              Atualizar do apLIS
+            </button>
+            <button
+              type="button"
+              onClick={sincronizarOperadoras}
+              disabled={sincronizando}
+              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 disabled:opacity-50"
+            >
+              <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
+              Sincronizar operadoras
+            </button>
+          </div>
         )}
       </div>
 
@@ -346,6 +361,11 @@ const ContasReceberPage: React.FC = () => {
         aberto={novoAberto}
         onFechar={() => setNovoAberto(false)}
         onCriar={criarTitulo}
+      />
+
+      <AtualizarAplisModal
+        aberto={atualizarAplisAberto}
+        onFechar={() => setAtualizarAplisAberto(false)}
       />
 
       <BaixaModal
