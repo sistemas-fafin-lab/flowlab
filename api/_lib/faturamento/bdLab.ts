@@ -859,6 +859,44 @@ export async function listarLotesFechadosDesde(desde: string): Promise<ListarLot
   });
 }
 
+export type NfesDosLotesResultado =
+  | { porLote: Record<number, string> }
+  | { erro: { status: number; mensagem: string } };
+
+/** Ids por `IN (...)`: ~1.000 títulos sem número hoje; o bloco só mantém o
+ *  texto da consulta num tamanho razoável. */
+const BLOCO_NFES = 1000;
+
+/**
+ * NF-e do RPS de cada lote (`fatlote.IdRPS → fatrps.NFeNumero`) — o
+ * `nfsAPreencher` da prévia do "Atualizar do apLIS". Lote sem RPS, ou com RPS
+ * ainda sem NF-e, fica fora do mapa. Mesma junção de SQL_LISTA, sem cache: o
+ * operador clicou para ver o estado de agora.
+ */
+export async function nfesDosLotes(idsLote: number[]): Promise<NfesDosLotesResultado> {
+  const ids = [...new Set(idsLote.map((n) => Math.trunc(n)))];
+  if (ids.length === 0) return { porLote: {} };
+
+  return comConexao('nfesDosLotes', async (conn) => {
+    const porLote: Record<number, string> = {};
+    for (let i = 0; i < ids.length; i += BLOCO_NFES) {
+      const bloco = ids.slice(i, i + BLOCO_NFES);
+      const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT l.IdLote, rps.NFeNumero
+           FROM fatlote l
+           JOIN fatrps rps ON rps.IdRPS = l.IdRPS
+          WHERE l.IdLote IN (${bloco.map(() => '?').join(', ')})`,
+        bloco,
+      );
+      for (const linha of linhas) {
+        const nfe = texto(linha.NFeNumero);
+        if (nfe) porLote[numero(linha.IdLote)] = nfe;
+      }
+    }
+    return { porLote };
+  });
+}
+
 // Uma consulta só, achatada (requisição × procedimento), agrupada em memória: são
 // dezenas de linhas por lote (o maior lote de julho deu 50) e duas viagens ao túnel
 // custariam mais que o agrupamento.

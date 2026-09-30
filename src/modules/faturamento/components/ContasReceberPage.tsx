@@ -366,7 +366,7 @@ const ContasReceberPage: React.FC = () => {
       <AtualizarAplisModal
         aberto={atualizarAplisAberto}
         onFechar={() => setAtualizarAplisAberto(false)}
-        onCriados={() => void refetch()}
+        onAlterados={() => void refetch()}
       />
 
       <BaixaModal

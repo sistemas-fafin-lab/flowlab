@@ -1,7 +1,7 @@
 // Regras puras do "Atualizar do apLIS" (criação de títulos a partir dos lotes
 // fechados no apLIS — .scratch/faturamento-titulos-automaticos/spec.md).
 
-import type { LoteFaturamento, LotePreviaAplis } from '../types';
+import type { LoteFaturamento, LotePreviaAplis, NfAPreencherAplis } from '../types';
 import { emissaoPadrao } from './emissaoTitulo';
 import { paraIso } from './formato';
 
@@ -63,23 +63,63 @@ export function corpoTituloAplis(
   };
 }
 
+/** Seleção inicial das NFs a preencher: todas as preenchíveis. A divergente
+ *  (lotes com NF-e diferentes) nem é selecionável. */
+export function selecaoPadraoNfs(nfs: NfAPreencherAplis[]): Set<string> {
+  return new Set(nfs.filter((nf) => nf.situacao === 'preenchivel').map((nf) => nf.idNota));
+}
+
 export type EstadoCriacao = 'aguardando' | 'criando' | 'criado' | 'falhou';
 
-/** Consolida o estado das linhas no resumo exibido ao fim da execução. */
-export function resumoCriacao(estados: Iterable<EstadoCriacao>): {
+/** "ja-preenchido": alguém digitou o número entre a prévia e a confirmação —
+ *  a rota não sobrescreve (somenteSeVazio). É aviso, não falha. */
+export type EstadoPreenchimentoNf = 'aguardando' | 'preenchendo' | 'preenchido' | 'ja-preenchido' | 'falhou';
+
+function plural(n: number, singular: string, pluralTexto: string): string {
+  return `${n} ${n === 1 ? singular : pluralTexto}`;
+}
+
+/** Consolida o estado das linhas no resumo exibido ao fim da execução. A parte
+ *  dos títulos some quando só houve NFs, e a das NFs quando só houve títulos. */
+export function resumoExecucao(
+  estados: Iterable<EstadoCriacao>,
+  estadosNf: Iterable<EstadoPreenchimentoNf> = [],
+): {
   criados: number;
   falharam: number;
+  nfsPreenchidas: number;
   texto: string;
 } {
   let criados = 0;
   let falharam = 0;
+  let titulosRodados = 0;
   for (const estado of estados) {
+    titulosRodados += 1;
     if (estado === 'criado') criados += 1;
     else if (estado === 'falhou') falharam += 1;
   }
-  const texto = `${criados} título${criados === 1 ? '' : 's'} criado${criados === 1 ? '' : 's'}`;
-  if (falharam === 0) return { criados, falharam, texto };
-  return { criados, falharam, texto: `${texto}, ${falharam} ${falharam === 1 ? 'falhou' : 'falharam'}` };
+  let nfsPreenchidas = 0;
+  let nfsJaPreenchidas = 0;
+  let nfsFalharam = 0;
+  let nfsRodadas = 0;
+  for (const estado of estadosNf) {
+    nfsRodadas += 1;
+    if (estado === 'preenchido') nfsPreenchidas += 1;
+    else if (estado === 'ja-preenchido') nfsJaPreenchidas += 1;
+    else if (estado === 'falhou') nfsFalharam += 1;
+  }
+
+  const partes: string[] = [];
+  if (titulosRodados > 0 || nfsRodadas === 0) {
+    partes.push(plural(criados, 'título criado', 'títulos criados'));
+    if (falharam > 0) partes.push(`${falharam} ${falharam === 1 ? 'falhou' : 'falharam'}`);
+  }
+  if (nfsRodadas > 0) {
+    partes.push(plural(nfsPreenchidas, 'NF preenchida', 'NFs preenchidas'));
+    if (nfsJaPreenchidas > 0) partes.push(plural(nfsJaPreenchidas, 'NF já preenchida', 'NFs já preenchidas'));
+    if (nfsFalharam > 0) partes.push(plural(nfsFalharam, 'NF falhou', 'NFs falharam'));
+  }
+  return { criados, falharam, nfsPreenchidas, texto: partes.join(', ') };
 }
 
 /** Roda `fn` sobre os itens com no máximo `limite` chamadas ao mesmo tempo. Cada

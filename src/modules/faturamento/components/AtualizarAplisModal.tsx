@@ -2,22 +2,26 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, Lock, X, XCircle } from 'lucide-react';
 import DatePicker from '../../../components/DatePicker';
 import { chamarApi } from '../hooks/useContasReceber';
-import type { LotePreviaAplis, PreviaAplis } from '../types';
+import type { LotePreviaAplis, NfAPreencherAplis, PreviaAplis } from '../types';
 import { formatCurrency, formatData } from '../utils/formato';
 import {
   corpoTituloAplis,
   corteAplisPadrao,
   emParalelo,
   PISO_CORTE_APLIS,
-  resumoCriacao,
+  resumoExecucao,
   selecaoPadraoAplis,
+  selecaoPadraoNfs,
 } from '../utils/atualizarAplis';
-import type { CorpoTituloAplis, EstadoCriacao } from '../utils/atualizarAplis';
+import type { CorpoTituloAplis, EstadoCriacao, EstadoPreenchimentoNf } from '../utils/atualizarAplis';
 
 // Prévia do "Atualizar do apLIS": lotes fechados no apLIS a partir da data de
 // corte que ainda não têm título (.scratch/faturamento-titulos-automaticos).
 // O operador desmarca as exceções e confirma: cada lote marcado vira um título
 // por uma chamada própria a titulo-criar — a mesma rota do "Novo título".
+// Numa segunda seção, os títulos existentes sem número cujo lote já tem NF-e no
+// apLIS: cada um marcado é preenchido por titulo-atualizar-numero-nota com
+// somenteSeVazio (nunca sobrescreve um número digitado; o vencimento não muda).
 //
 // Um GET por data de corte, sem paginação: um mês tem ~200 lotes.
 
@@ -31,14 +35,24 @@ const CAMPO =
 interface Props {
   aberto: boolean;
   onFechar: () => void;
-  /** Ao menos um título foi criado: a lista de títulos precisa ser relida. */
-  onCriados: () => void;
+  /** Ao menos um título foi criado ou teve a NF preenchida: a lista de títulos
+   *  precisa ser relida. */
+  onAlterados: () => void;
 }
 
 interface ResultadoLinha {
   estado: EstadoCriacao;
   mensagem?: string;
 }
+
+interface ResultadoNf {
+  estado: EstadoPreenchimentoNf;
+  mensagem?: string;
+}
+
+/** Uma fila só para as duas seções: as NFs vão primeiro (uma RPC cada, rápidas)
+ *  e os títulos depois (~6–8 s cada). */
+type Tarefa = { tipo: 'nf'; nf: NfAPreencherAplis } | { tipo: 'titulo'; item: LotePreviaAplis };
 
 // Não usa o criarTitulo do hook: ele relê a lista a cada título (seriam ~180
 // recargas); aqui a lista é relida uma vez, no fim. chamarApi lê o token a cada
@@ -48,6 +62,14 @@ function criarTituloDoLote(corpo: CorpoTituloAplis) {
     '/api/faturamento/titulo-criar',
     'Não foi possível criar o título.',
     { method: 'POST', body: corpo },
+  );
+}
+
+function preencherNf(nf: NfAPreencherAplis) {
+  return chamarApi<{ resultado?: 'atualizado' | 'ja-preenchido' }>(
+    '/api/faturamento/titulo-atualizar-numero-nota',
+    'Não foi possível preencher o número da nota.',
+    { method: 'POST', body: { idNota: nf.idNota, numeroNota: nf.nfeNumeros[0], somenteSeVazio: true } },
   );
 }
 
@@ -95,6 +117,38 @@ function EstadoLinha({ resultado }: { resultado: ResultadoLinha | undefined }) {
   );
 }
 
+function EstadoNf({ resultado }: { resultado: ResultadoNf | undefined }) {
+  if (!resultado) return null;
+  const { estado, mensagem } = resultado;
+  if (estado === 'aguardando') return <span className="text-xs text-gray-400">na fila</span>;
+  if (estado === 'preenchendo') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+        <Loader2 className="w-3.5 h-3.5 animate-spin" /> preenchendo…
+      </span>
+    );
+  }
+  if (estado === 'preenchido') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
+        <CheckCircle2 className="w-3.5 h-3.5" /> preenchida
+      </span>
+    );
+  }
+  if (estado === 'ja-preenchido') {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-amber-700 dark:text-amber-300">
+        <AlertTriangle className="w-3.5 h-3.5" /> já preenchida — o número digitado foi mantido
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-start gap-1 text-xs text-red-600 dark:text-red-400">
+      <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" /> falhou: {mensagem}
+    </span>
+  );
+}
+
 function Selos({ item }: { item: LotePreviaAplis }) {
   const { desvinculado } = item;
   return (
@@ -112,13 +166,15 @@ function Selos({ item }: { item: LotePreviaAplis }) {
   );
 }
 
-const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) => {
+const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterados }) => {
   const [desde, setDesde] = useState(() => corteAplisPadrao());
   const [previa, setPrevia] = useState<PreviaAplis | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [resultados, setResultados] = useState<Map<number, ResultadoLinha>>(new Map());
+  const [selecionadasNf, setSelecionadasNf] = useState<Set<string>>(new Set());
+  const [resultadosNf, setResultadosNf] = useState<Map<string, ResultadoNf>>(new Map());
   const [executando, setExecutando] = useState(false);
   const [resumo, setResumo] = useState<string | null>(null);
   // Identifica a execução em curso. Fechar o modal troca o id: a execução velha
@@ -136,7 +192,7 @@ const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) =
     if (
       executando &&
       !window.confirm(
-        'Os títulos ainda estão sendo criados. Se fechar agora, os lotes que ainda não começaram ficam para a próxima vez (os já criados não são desfeitos). Fechar mesmo assim?',
+        'A atualização ainda está em andamento. Se fechar agora, o que ainda não começou fica para a próxima vez (o que já foi feito não é desfeito). Fechar mesmo assim?',
       )
     ) {
       return;
@@ -147,6 +203,8 @@ const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) =
     setErro(null);
     setSelecionados(new Set());
     setResultados(new Map());
+    setSelecionadasNf(new Set());
+    setResultadosNf(new Map());
     setExecutando(false);
     setResumo(null);
     onFechar();
@@ -162,9 +220,12 @@ const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) =
         'Não foi possível consultar o apLIS.',
       );
       const lotes = body.lotes ?? [];
-      setPrevia({ desde: body.desde ?? desde, lotes, nfsAPreencher: body.nfsAPreencher ?? [] });
+      const nfsAPreencher = body.nfsAPreencher ?? [];
+      setPrevia({ desde: body.desde ?? desde, lotes, nfsAPreencher });
       setSelecionados(selecaoPadraoAplis(lotes));
       setResultados(new Map());
+      setSelecionadasNf(selecaoPadraoNfs(nfsAPreencher));
+      setResultadosNf(new Map());
       setResumo(null);
     } catch (err) {
       setErro(err instanceof Error ? err.message : 'Não foi possível consultar o apLIS.');
@@ -200,32 +261,71 @@ const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) =
     });
   };
 
+  const alternarNf = (idNota: string) => {
+    setSelecionadasNf((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(idNota)) novo.delete(idNota);
+      else novo.add(idNota);
+      return novo;
+    });
+  };
+
   const confirmar = async () => {
     const alvos = (previa?.lotes ?? []).filter(
       (item) => item.bloqueio === null && selecionados.has(item.lote.idLote),
     );
-    if (alvos.length === 0) return;
+    const alvosNf = (previa?.nfsAPreencher ?? []).filter(
+      (nf) => nf.situacao === 'preenchivel' && selecionadasNf.has(nf.idNota),
+    );
+    if (alvos.length === 0 && alvosNf.length === 0) return;
 
     const execucao = ++execucaoRef.current;
     const vigente = () => execucaoRef.current === execucao;
     const estados = new Map<number, ResultadoLinha>(
       alvos.map((item) => [item.lote.idLote, { estado: 'aguardando' }]),
     );
+    const estadosNf = new Map<string, ResultadoNf>(
+      alvosNf.map((nf) => [nf.idNota, { estado: 'aguardando' }]),
+    );
     const marcar = (idLote: number, resultado: ResultadoLinha) => {
       estados.set(idLote, resultado);
       if (vigente()) setResultados(new Map(estados));
     };
+    const marcarNf = (idNota: string, resultado: ResultadoNf) => {
+      estadosNf.set(idNota, resultado);
+      if (vigente()) setResultadosNf(new Map(estadosNf));
+    };
 
     setResultados(new Map(estados));
+    setResultadosNf(new Map(estadosNf));
     setResumo(null);
     setExecutando(true);
 
+    const tarefas: Tarefa[] = [
+      ...alvosNf.map((nf): Tarefa => ({ tipo: 'nf', nf })),
+      ...alvos.map((item): Tarefa => ({ tipo: 'titulo', item })),
+    ];
     // Um "hoje" para a execução inteira: a observação não muda de dia no meio.
     const hoje = new Date();
     await emParalelo(
-      alvos,
+      tarefas,
       CRIACOES_EM_PARALELO,
-      async (item) => {
+      async (tarefa) => {
+        if (tarefa.tipo === 'nf') {
+          const { idNota } = tarefa.nf;
+          marcarNf(idNota, { estado: 'preenchendo' });
+          try {
+            const { resultado } = await preencherNf(tarefa.nf);
+            marcarNf(idNota, { estado: resultado === 'ja-preenchido' ? 'ja-preenchido' : 'preenchido' });
+          } catch (err) {
+            marcarNf(idNota, {
+              estado: 'falhou',
+              mensagem: err instanceof Error ? err.message : 'Não foi possível preencher o número da nota.',
+            });
+          }
+          return;
+        }
+        const { item } = tarefa;
         const { idLote } = item.lote;
         marcar(idLote, { estado: 'criando' });
         try {
@@ -244,8 +344,11 @@ const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) =
       () => !vigente(),
     );
 
-    const { criados, texto } = resumoCriacao([...estados.values()].map((r) => r.estado));
-    if (criados > 0) onCriados();
+    const { criados, nfsPreenchidas, texto } = resumoExecucao(
+      [...estados.values()].map((r) => r.estado),
+      [...estadosNf.values()].map((r) => r.estado),
+    );
+    if (criados > 0 || nfsPreenchidas > 0) onAlterados();
     if (!vigente()) return;
     setExecutando(false);
     setResumo(texto);
@@ -259,11 +362,22 @@ const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) =
   const totalMarcados = marcados.reduce((soma, item) => soma + item.lote.valor, 0);
   // Depois de confirmar, a prévia vira o relatório da execução: sem mexer na
   // seleção nem na data (reabrir o modal traz o que ainda falta).
-  const travado = executando || resultados.size > 0;
+  const nfs = previa?.nfsAPreencher ?? [];
+  const nfsValidas = nfs.filter((nf) => nf.situacao === 'preenchivel');
+  const nfsMarcadas = nfsValidas.filter((nf) => selecionadasNf.has(nf.idNota));
+  const travado = executando || resultados.size > 0 || resultadosNf.size > 0;
   const todosMarcados = validos.length > 0 && marcados.length === validos.length;
-  const concluidos = [...resultados.values()].filter(
-    (r) => r.estado === 'criado' || r.estado === 'falhou',
-  ).length;
+  const todasNfsMarcadas = nfsValidas.length > 0 && nfsMarcadas.length === nfsValidas.length;
+  const totalTarefas = resultados.size + resultadosNf.size;
+  const concluidos =
+    [...resultados.values()].filter((r) => r.estado === 'criado' || r.estado === 'falhou').length
+    + [...resultadosNf.values()].filter(
+      (r) => r.estado === 'preenchido' || r.estado === 'ja-preenchido' || r.estado === 'falhou',
+    ).length;
+  const rotuloConfirmar = [
+    marcados.length > 0 && `criar ${marcados.length} título${marcados.length === 1 ? '' : 's'}`,
+    nfsMarcadas.length > 0 && `preencher ${nfsMarcadas.length} NF${nfsMarcadas.length === 1 ? '' : 's'}`,
+  ].filter(Boolean).join(' e ') || 'nada marcado'; // botão desabilitado nesse caso
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -272,7 +386,7 @@ const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) =
           <div>
             <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Atualizar do apLIS</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Lotes fechados no apLIS que ainda não têm título · dados do apLIS até ontem
+              Lotes fechados no apLIS que ainda não têm título e NFs a preencher · dados do apLIS até ontem
             </p>
           </div>
           <button
@@ -401,21 +515,94 @@ const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) =
             </p>
           )}
 
+          {!carregando && !erro && nfs.length > 0 && (
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                NFs a preencher
+                <span className="ml-2 text-xs font-normal text-gray-500 dark:text-gray-400">
+                  títulos sem número cujo lote já tem NF-e no apLIS · o vencimento não muda
+                </span>
+              </h3>
+              <div className="border border-gray-100 dark:border-gray-700 rounded-xl overflow-hidden max-h-[35vh] overflow-y-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50 dark:bg-gray-700/40 sticky top-0">
+                    <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
+                      <th className="px-3 py-2 w-8">
+                        <input
+                          type="checkbox"
+                          checked={todasNfsMarcadas}
+                          disabled={travado || nfsValidas.length === 0}
+                          onChange={() =>
+                            setSelecionadasNf(
+                              todasNfsMarcadas ? new Set() : new Set(nfsValidas.map((nf) => nf.idNota)),
+                            )
+                          }
+                          className="rounded border-gray-300 dark:border-gray-600"
+                          aria-label="Marcar todas as NFs"
+                        />
+                      </th>
+                      <th className="px-3 py-2">Operadora</th>
+                      <th className="px-3 py-2">Lote</th>
+                      <th className="px-3 py-2">NF-e</th>
+                      <th className="px-3 py-2" />
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {nfs.map((nf) => {
+                      const divergente = nf.situacao === 'divergente';
+                      return (
+                        <tr key={nf.idNota} className={divergente ? 'opacity-60' : undefined}>
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={!divergente && selecionadasNf.has(nf.idNota)}
+                              disabled={divergente || travado}
+                              onChange={() => alternarNf(nf.idNota)}
+                              className="rounded border-gray-300 dark:border-gray-600"
+                              aria-label={`Preencher a NF do título dos lotes ${nf.idsLote.join(', ')}`}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-gray-700 dark:text-gray-200 truncate max-w-[220px]">
+                            {nf.operadora}
+                          </td>
+                          <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 tabular-nums">
+                            {nf.idsLote.join(', ')}
+                          </td>
+                          <td className="px-3 py-2 text-gray-600 dark:text-gray-300 tabular-nums">
+                            {nf.nfeNumeros.join(', ')}
+                          </td>
+                          <td className="px-3 py-2">
+                            {divergente && (
+                              <span className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                                <Lock className="w-3.5 h-3.5" /> NFs divergentes — preencha à mão
+                              </span>
+                            )}
+                            <EstadoNf resultado={resultadosNf.get(nf.idNota)} />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {executando && (
             <div className="space-y-2">
               <div className="flex items-center justify-between text-xs text-gray-600 dark:text-gray-300">
                 <span>
-                  Criando títulos: <strong className="tabular-nums">{concluidos}</strong> de{' '}
-                  <strong className="tabular-nums">{resultados.size}</strong>
+                  Atualizando: <strong className="tabular-nums">{concluidos}</strong> de{' '}
+                  <strong className="tabular-nums">{totalTarefas}</strong>
                 </span>
                 <span className="text-amber-700 dark:text-amber-300">
-                  Não feche esta janela — cada lote leva alguns segundos.
+                  Não feche esta janela até terminar — cada título leva alguns segundos.
                 </span>
               </div>
               <div className="h-2 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                 <div
                   className="h-full bg-blue-600 transition-all"
-                  style={{ width: `${resultados.size ? (concluidos / resultados.size) * 100 : 0}%` }}
+                  style={{ width: `${totalTarefas ? (concluidos / totalTarefas) * 100 : 0}%` }}
                 />
               </div>
             </div>
@@ -438,10 +625,10 @@ const AtualizarAplisModal: React.FC<Props> = ({ aberto, onFechar, onCriados }) =
             <button
               type="button"
               onClick={() => void confirmar()}
-              disabled={carregando || marcados.length === 0}
+              disabled={carregando || (marcados.length === 0 && nfsMarcadas.length === 0)}
               className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Criar {marcados.length} título{marcados.length === 1 ? '' : 's'}
+              {rotuloConfirmar.charAt(0).toUpperCase() + rotuloConfirmar.slice(1)}
             </button>
           )}
         </div>
