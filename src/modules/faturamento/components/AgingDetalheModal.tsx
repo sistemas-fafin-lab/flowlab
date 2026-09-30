@@ -23,6 +23,8 @@ import type { AgingSelecao, OperadoraResumo, TituloStatus } from '../types';
 interface ItemAging {
   id: string;
   numeroNota: string | null;
+  /** Códigos dos lotes do título (nota_lote é N:N), na ordem que vieram. */
+  lotes: string[];
   operadoraNome: string | null;
   dataVencimento: string | null;
   valorSaldo: number;
@@ -36,6 +38,7 @@ interface LinhaAging {
   data_vencimento: string | null;
   valor_saldo: number | string;
   operadoras: { nome: string } | null;
+  nota_lote: { lotes: { codigo_lote: string } | null }[] | null;
 }
 
 // Mesmo recorte de "título em aberto" que a RPC fat_dashboard_receber usa
@@ -94,7 +97,10 @@ const AgingDetalheModal: React.FC<Props> = ({
 
         let query = supabase
           .from('notas')
-          .select('id_nota, numero_nota, data_vencimento, valor_saldo, operadoras(nome)', { count: 'exact' })
+          .select(
+            'id_nota, numero_nota, data_vencimento, valor_saldo, operadoras(nome), nota_lote(lotes(codigo_lote))',
+            { count: 'exact' },
+          )
           .not('status', 'in', `(${STATUS_ENCERRADOS.join(',')})`)
           .gt('valor_saldo', 0)
           .order('data_vencimento', { ascending: true, nullsFirst: true })
@@ -117,6 +123,9 @@ const AgingDetalheModal: React.FC<Props> = ({
         setItens(linhas.map((linha) => ({
           id: linha.id_nota,
           numeroNota: linha.numero_nota,
+          lotes: (linha.nota_lote ?? [])
+            .map((vinculo) => vinculo.lotes?.codigo_lote)
+            .filter((codigo): codigo is string => Boolean(codigo)),
           operadoraNome: linha.operadoras?.nome ?? null,
           dataVencimento: linha.data_vencimento,
           valorSaldo: Number(linha.valor_saldo ?? 0),
@@ -188,6 +197,7 @@ const AgingDetalheModal: React.FC<Props> = ({
                   <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-700">
                     <th className="py-2 pr-2">Operadora</th>
                     <th className="py-2 px-2">Nota</th>
+                    <th className="py-2 px-2">Lote</th>
                     <th className="py-2 px-2">Vencimento</th>
                     <th className="py-2 px-2 text-right">Saldo</th>
                     <th className="py-2 pl-2 text-right">Atraso</th>
@@ -199,6 +209,14 @@ const AgingDetalheModal: React.FC<Props> = ({
                       <td className="py-2 pr-2 truncate max-w-[220px]">{item.operadoraNome ?? '—'}</td>
                       <td className="py-2 px-2">
                         {item.numeroNota || <span className="text-gray-400 dark:text-gray-500">—</span>}
+                      </td>
+                      <td
+                        className="py-2 px-2 truncate max-w-[160px] tabular-nums"
+                        title={item.lotes.join(', ') || undefined}
+                      >
+                        {item.lotes.length === 0
+                          ? <span className="text-gray-400 dark:text-gray-500">—</span>
+                          : item.lotes.join(', ')}
                       </td>
                       <td className="py-2 px-2 tabular-nums">{formatData(item.dataVencimento)}</td>
                       <td className="py-2 px-2 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">
