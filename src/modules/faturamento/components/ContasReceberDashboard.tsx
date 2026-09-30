@@ -19,6 +19,7 @@ import {
   FileWarning,
   Gavel,
   GripVertical,
+  History,
   ListChecks,
   Lock,
   Pencil,
@@ -53,6 +54,7 @@ import FiltrosReceber from './FiltrosReceber';
 import AgingDetalheModal from './AgingDetalheModal';
 import MetaMensalModal from './MetaMensalModal';
 import RecebimentosMesModal from './RecebimentosMesModal';
+import HistoricoMetasModal from './HistoricoMetasModal';
 import type { AgingBucket, AgingSelecao, DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
@@ -317,6 +319,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
   const { data, loading, error } = useContasReceberDashboard(filtros);
   const { meta, loading: loadingMeta, error: errorMeta, salvarMeta } = useMetaMensal();
   const [metaModalAberto, setMetaModalAberto] = useState(false);
+  const [historicoMetasAberto, setHistoricoMetasAberto] = useState(false);
 
   // Widget "Recebido no mês": mês próprio, independente do período do filtro
   // (que é sobre a EMISSÃO do título) — aqui o recorte é a data de recebimento
@@ -707,6 +710,13 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 >
                   <ListChecks className="w-3.5 h-3.5" /> Ver títulos do mês
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setHistoricoMetasAberto(true)}
+                  className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-1.5"
+                >
+                  <History className="w-3.5 h-3.5" /> Histórico
+                </button>
                 {podeEditar && (
                   <button
                     type="button"
@@ -1090,6 +1100,8 @@ const ContasReceberDashboard: React.FC<Props> = ({
           onFechar={() => setRecebimentosAberto(false)}
         />
       )}
+
+      {historicoMetasAberto && <HistoricoMetasModal onFechar={() => setHistoricoMetasAberto(false)} />}
 
       <MetaMensalModal
         aberto={metaModalAberto}

@@ -4,8 +4,8 @@ import { anoMesAtual } from '../utils/formato';
 import type { MetaMensal } from '../types';
 
 // Meta mensal de faturamento (issue 43): mês/ano travados no que "hoje" é
-// quando o hook monta — não há tela de histórico de metas nesta entrega
-// (decisão assumida do spec), então o valor não precisa ser parametrizável.
+// quando o hook monta — o card é sempre o do mês corrente; os meses anteriores
+// ficam no modal de histórico (useHistoricoMetas), com a mesma regra de cálculo.
 //
 // Duas fontes combinadas numa chamada só: o valor da meta (linha própria de
 // `metas_faturamento`, pode não existir) e o faturado do mês restrito à
