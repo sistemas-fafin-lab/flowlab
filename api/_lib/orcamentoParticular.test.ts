@@ -45,6 +45,8 @@ describe('isTabelaParticularApiKeyValid', () => {
 interface FonteRow {
   id?: string;
   fonte_pagadora: string;
+  // Omitida nos testes = 'Particular' pra fonte Particular (ver criarSupabaseMock).
+  tabela_associada?: string;
   tuss: string;
   exame_id?: string | null;
   // number | string: PostgREST pode devolver NUMERIC como string.
@@ -78,6 +80,15 @@ function criarSupabaseMock(dados: {
   custo_fontes_pagadoras_exclusoes?: ExclusaoRow[];
   custo_fontes_pagadoras_valores_exame?: ValorPersonalizadoRow[];
 }) {
+  // A maioria dos testes não liga pra tabela associada — linha Particular
+  // sem tabela_associada explícita vira a tabela "Particular" (a que entra).
+  dados = {
+    ...dados,
+    custo_fontes_pagadoras: dados.custo_fontes_pagadoras.map(f => ({
+      ...f,
+      tabela_associada: f.tabela_associada ?? (f.fonte_pagadora === 'Particular' ? 'Particular' : ''),
+    })),
+  };
   return {
     from: (tabela: string) => ({
       select: () => ({
@@ -444,6 +455,78 @@ describe('buildOrcamentoParticular — linha de exame (exame_id) vs. linha geral
     expect(itens.map(i => [i.nome, i.conveniosAceitos])).toEqual([
       ['BIOPSIA SEXTANTE', []],
       ['BIOPSIA SIMPLES', ['Unimed']],
+    ]);
+  });
+});
+
+describe('buildOrcamentoParticular — só a tabela associada "Particular"', () => {
+  const exames = [
+    { id: 'e1', tuss: '40601200', nome: 'BIOPSIA SEXTANTE', custo_direto: 10, custo_indireto: 0 },
+    { id: 'e2', tuss: '40601200', nome: 'BIOPSIA SIMPLES', custo_direto: 10, custo_indireto: 0 },
+  ];
+  const linha = (over: Partial<FonteRow>): FonteRow => ({
+    id: 'p1',
+    fonte_pagadora: 'Particular',
+    tabela_associada: 'Particular',
+    tuss: '40601200',
+    exame_id: null,
+    valor: 250,
+    atendido: true,
+    elegivel_desconto_particular: false,
+    ...over,
+  });
+
+  it('linha da fonte Particular em outra tabela (ex.: PART) não entra', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linha({ id: 'p9', tabela_associada: 'PART', valor: 1000 }), linha({})],
+      custo_exames: exames,
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens.map(i => [i.nome, i.preco])).toEqual([
+      ['BIOPSIA SEXTANTE', 250],
+      ['BIOPSIA SIMPLES', 250],
+    ]);
+  });
+
+  it('tabela "PARTICULAR" em maiúsculas entra', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linha({ tabela_associada: ' PARTICULAR ' })],
+      custo_exames: exames,
+    });
+
+    expect(await buildOrcamentoParticular(supabase)).toHaveLength(2);
+  });
+
+  it('linha de exame que exclui o próprio exame não bloqueia outra linha dele nem a linha geral', async () => {
+    const autoExcluida = linha({ id: 'p2', exame_id: 'e1', valor: 999 });
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [autoExcluida, linha({ id: 'p3', exame_id: 'e1', valor: 1000 }), linha({})],
+      custo_exames: exames,
+      custo_fontes_pagadoras_exclusoes: [{ payor_id: 'p2', exame_id: 'e1' }],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens.map(i => [i.nome, i.preco])).toEqual([
+      ['BIOPSIA SEXTANTE', 1000],
+      ['BIOPSIA SIMPLES', 250],
+    ]);
+  });
+
+  it('linha de exame autoexcluída sem outra linha dele: o exame volta pra linha geral', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linha({ id: 'p2', exame_id: 'e1', valor: 999 }), linha({})],
+      custo_exames: exames,
+      custo_fontes_pagadoras_exclusoes: [{ payor_id: 'p2', exame_id: 'e1' }],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens.map(i => [i.nome, i.preco])).toEqual([
+      ['BIOPSIA SEXTANTE', 250],
+      ['BIOPSIA SIMPLES', 250],
     ]);
   });
 });

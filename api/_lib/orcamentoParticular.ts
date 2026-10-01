@@ -9,6 +9,10 @@ import { isBearerApiKeyValid } from './bearerAuth.js';
 
 const PAGE_SIZE = 1000; // espelha max_rows do PostgREST (supabase/config.toml)
 const FONTE_PARTICULAR = 'Particular';
+// Só a tabela associada "Particular" vai pra Tabela Particular — linhas da
+// fonte Particular em outras tabelas (ex.: "PART") são de outro uso e não
+// entram. Comparação sem diferenciar maiúsculas ("PARTICULAR" entra).
+const TABELA_PARTICULAR = 'particular';
 
 /**
  * `tuss` NÃO é mais garantidamente único no array de resposta (desde a
@@ -35,6 +39,7 @@ export interface OrcamentoParticularItem {
 interface FonteRow {
   id: string;
   fonte_pagadora: string;
+  tabela_associada: string;
   tuss: string;
   /** Preenchido = linha só deste exame; null = linha geral do TUSS. */
   exame_id: string | null;
@@ -99,9 +104,8 @@ async function buscarTodasPaginado<T>(
  * Mesma regra de src/components/CostControl/domain/busca.ts
  * (examesPorFontePagadora): linha com `exame_id` vale só pra aquele exame e
  * tem precedência sobre a linha geral do TUSS (`exame_id` null), que vale
- * pros demais exames do TUSS. Aqui a precedência ignora tabela_associada —
- * o endpoint já trata "Particular" como uma tabela só (primeira linha geral
- * por TUSS vence).
+ * pros demais exames do TUSS. Só entram linhas da fonte "Particular" na
+ * tabela associada "Particular" (ver TABELA_PARTICULAR).
  */
 export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
@@ -110,7 +114,7 @@ export async function buildOrcamentoParticular(
     buscarTodasPaginado<FonteRow>(
       supabase,
       'custo_fontes_pagadoras',
-      'id, fonte_pagadora, tuss, exame_id, valor, atendido, elegivel_desconto_particular',
+      'id, fonte_pagadora, tabela_associada, tuss, exame_id, valor, atendido, elegivel_desconto_particular',
     ),
     buscarTodasPaginado<ExameRow>(supabase, 'custo_exames', 'id, tuss, nome, custo_direto, custo_indireto'),
     buscarTodasPaginado<ExclusaoRow>(supabase, 'custo_fontes_pagadoras_exclusoes', 'payor_id, exame_id'),
@@ -188,9 +192,19 @@ export async function buildOrcamentoParticular(
     return Array.from(aceitos);
   };
 
-  const particulares = fontes.filter(fonte => fonte.fonte_pagadora === FONTE_PARTICULAR);
-  // Exames com linha Particular própria saem da linha geral do TUSS.
-  const examesComLinhaPropria = new Set(particulares.flatMap(fonte => (fonte.exame_id ? [fonte.exame_id] : [])));
+  const particulares = fontes.filter(
+    fonte =>
+      fonte.fonte_pagadora === FONTE_PARTICULAR &&
+      (fonte.tabela_associada ?? '').trim().toLowerCase() === TABELA_PARTICULAR,
+  );
+  // Exames com linha Particular própria saem da linha geral do TUSS — só
+  // quando a linha própria de fato os mostra: uma linha de exame que exclui
+  // o próprio exame não conta (senão o exame sumiria das duas).
+  const examesComLinhaPropria = new Set(
+    particulares.flatMap(fonte =>
+      fonte.exame_id && !exclusoesPorChave.has(`${fonte.id}:${fonte.exame_id}`) ? [fonte.exame_id] : [],
+    ),
+  );
 
   const itemDoExame = (fonte: FonteRow, exame: ExameRow): OrcamentoParticularItem => {
     const tuss = exame.tuss || fonte.tuss;
@@ -214,9 +228,8 @@ export async function buildOrcamentoParticular(
   for (const fonte of particulares) {
     if (fonte.exame_id) {
       const exame = examesPorId.get(fonte.exame_id);
-      if (!exame || examesJaVistos.has(exame.id)) continue;
+      if (!exame || examesJaVistos.has(exame.id) || exclusoesPorChave.has(`${fonte.id}:${exame.id}`)) continue;
       examesJaVistos.add(exame.id);
-      if (exclusoesPorChave.has(`${fonte.id}:${exame.id}`)) continue;
       itens.push(itemDoExame(fonte, exame));
       continue;
     }
