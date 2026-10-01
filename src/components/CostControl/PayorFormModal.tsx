@@ -1,8 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Pencil, Plus, X, Save } from 'lucide-react';
-import type { Exam, Payor, PayorEditData } from '../../hooks/useCostControl';
+import { AlertTriangle, Pencil, Plus, X, Save } from 'lucide-react';
+import { formatBRL, type Exam, type Payor, type PayorEditData } from '../../hooks/useCostControl';
 import AutocompleteInput from './AutocompleteInput';
-import { buscarExamesPorTermo, buscarFontesPagadorasPorTermo, buscarTabelasAssociadasPorTermo } from './domain/busca';
+import {
+  analisarLinhaFontePagadora,
+  examesDoTuss,
+  buscarExamesPorTermo,
+  buscarFontesPagadorasPorTermo,
+  buscarTabelasAssociadasPorTermo,
+} from './domain/busca';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -12,6 +18,9 @@ interface PayorFormModalProps {
   open: boolean;
   mode: 'edit' | 'create';
   payor: PayorEditData | null;
+  // Id da linha em edição — tirado da checagem de linha duplicada (senão a
+  // própria linha contaria como "já existe").
+  editingPayorId?: string;
   exams: Exam[];
   payors: Payor[];
   onClose: () => void;
@@ -25,20 +34,47 @@ interface PayorFormModalProps {
 
 const EMPTY_FORM: PayorEditData = { payor: '', table: '', tus: '', price: 0, exameId: null };
 
-const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exams, payors, onClose, onSave, saving = false }) => {
+const PayorFormModal: React.FC<PayorFormModalProps> = ({
+  open,
+  mode,
+  payor,
+  editingPayorId,
+  exams,
+  payors,
+  onClose,
+  onSave,
+  saving = false,
+}) => {
   const [form, setForm] = useState<PayorEditData>(EMPTY_FORM);
   const [formError, setFormError] = useState<string | null>(null);
+  // Linha geral do TUSS (exameId null) — só quando o usuário pede. Por
+  // padrão, escolher um exame grava a linha só pra ele. Ver
+  // examesPorFontePagadora.
+  const [aplicarATodos, setAplicarATodos] = useState(false);
 
   useEffect(() => {
     if (open) {
-      setForm(payor ?? EMPTY_FORM);
+      const inicial = payor ?? EMPTY_FORM;
+      setForm(inicial);
       setFormError(null);
+      setAplicarATodos(!!inicial.tus.trim() && !inicial.exameId);
     }
   }, [open, payor]);
 
   const sugestoesFonte = useMemo(() => buscarFontesPagadorasPorTermo(payors, form.payor), [payors, form.payor]);
   const sugestoesTabela = useMemo(() => buscarTabelasAssociadasPorTermo(payors, form.table), [payors, form.table]);
   const sugestoesTuss = useMemo(() => buscarExamesPorTermo(exams, form.tus), [exams, form.tus]);
+  const examesDoTussAtual = useMemo(() => examesDoTuss(exams, form.tus), [exams, form.tus]);
+
+  // O que de fato vai pro banco: com "aplicar a todos", sem exameId.
+  const dadosParaSalvar: PayorEditData = useMemo(
+    () => (aplicarATodos && form.tus.trim() ? { ...form, exameId: null } : form),
+    [aplicarATodos, form]
+  );
+  const analise = useMemo(
+    () => analisarLinhaFontePagadora(payors, dadosParaSalvar, editingPayorId),
+    [payors, dadosParaSalvar, editingPayorId]
+  );
 
   if (!open) return null;
 
@@ -47,6 +83,7 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
   // o mesmo preço com qualquer outro exame sem TUSS no catálogo. Ver
   // examesPorFontePagadora em domain/busca.ts.
   const exameVinculado = form.exameId ? exams.find(e => e.id === form.exameId) ?? null : null;
+  const tussCompartilhado = examesDoTussAtual.length > 1;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,8 +92,20 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
       setFormError('Selecione um exame da lista para vincular esta linha, ou informe um código TUSS.');
       return;
     }
+    if (tussCompartilhado && !aplicarATodos && !form.exameId) {
+      setFormError('Escolha o exame na lista do campo TUSS, ou marque "aplicar a todos os exames".');
+      return;
+    }
+    if (analise.duplicada) {
+      setFormError(
+        dadosParaSalvar.exameId
+          ? 'Já existe uma linha desta fonte pagadora e tabela para este exame — edite-a.'
+          : 'Já existe uma linha desta fonte pagadora e tabela para todos os exames deste TUSS — edite-a.'
+      );
+      return;
+    }
     setFormError(null);
-    onSave(form);
+    onSave(dadosParaSalvar);
   };
 
   const inputCls =
@@ -142,8 +191,14 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
               </label>
               <AutocompleteInput
                 value={form.tus}
-                onValueChange={v => setForm(f => ({ ...f, tus: v, exameId: null }))}
-                onSelect={exame => setForm(f => ({ ...f, tus: exame.tuss, exameId: exame.id }))}
+                onValueChange={v => {
+                  setForm(f => ({ ...f, tus: v, exameId: null }));
+                  setAplicarATodos(false);
+                }}
+                onSelect={exame => {
+                  setForm(f => ({ ...f, tus: exame.tuss, exameId: exame.id }));
+                  setAplicarATodos(false);
+                }}
                 suggestions={sugestoesTuss}
                 renderSuggestion={exame => (
                   <>
@@ -162,6 +217,40 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({ open, mode, payor, exam
                 </p>
               )}
             </div>
+            {form.tus.trim() && exameVinculado && !aplicarATodos && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 -mt-2">
+                Vale só para <span className="font-medium">{exameVinculado.name}</span>
+                {analise.linhaGeralSubstituida && (
+                  <>
+                    {' '}— substitui, só para ele, a linha geral do TUSS ({formatBRL(analise.linhaGeralSubstituida.price)})
+                  </>
+                )}
+                .
+              </p>
+            )}
+            {tussCompartilhado && (
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/40 px-4 py-3 text-sm text-gray-700 dark:text-gray-200 space-y-2">
+                <label className="flex items-center gap-2 font-medium cursor-pointer">
+                  <input type="checkbox" checked={aplicarATodos} onChange={e => setAplicarATodos(e.target.checked)} />
+                  Aplicar a todos os {examesDoTussAtual.length} exames do TUSS {form.tus.trim()}
+                </label>
+                {aplicarATodos && (
+                  <ul className="max-h-32 overflow-y-auto pl-6 list-disc text-xs text-gray-500 dark:text-gray-400">
+                    {examesDoTussAtual.map(e => (
+                      <li key={e.id}>{e.name}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            )}
+            {analise.duplicada && (
+              <p className="flex items-start gap-2 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
+                <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+                <span>
+                  Já existe esta linha ({formatBRL(analise.duplicada.price)}). Edite a existente em vez de criar outra.
+                </span>
+              </p>
+            )}
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
                 Valor Cobrado

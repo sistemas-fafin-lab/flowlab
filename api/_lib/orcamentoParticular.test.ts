@@ -46,6 +46,7 @@ interface FonteRow {
   id?: string;
   fonte_pagadora: string;
   tuss: string;
+  exame_id?: string | null;
   // number | string: PostgREST pode devolver NUMERIC como string.
   valor: number | string;
   atendido: boolean;
@@ -370,5 +371,79 @@ describe('buildOrcamentoParticular', () => {
 
     expect(itens).toHaveLength(1);
     expect(itens[0].preco).toBe(100);
+  });
+});
+
+describe('buildOrcamentoParticular — linha de exame (exame_id) vs. linha geral do TUSS', () => {
+  const exames = [
+    { id: 'e1', tuss: '40601200', nome: 'BIOPSIA SEXTANTE', custo_direto: 10, custo_indireto: 0 },
+    { id: 'e2', tuss: '40601200', nome: 'BIOPSIA SIMPLES', custo_direto: 10, custo_indireto: 0 },
+  ];
+  const linha = (over: Partial<FonteRow>): FonteRow => ({
+    id: 'p1',
+    fonte_pagadora: 'Particular',
+    tuss: '40601200',
+    exame_id: null,
+    valor: 250,
+    atendido: true,
+    elegivel_desconto_particular: false,
+    ...over,
+  });
+
+  it('linha de exame vale só pro exame dela, mesmo com TUSS compartilhado', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linha({ id: 'p2', exame_id: 'e1', valor: 450 })],
+      custo_exames: exames,
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens.map(i => [i.nome, i.preco])).toEqual([['BIOPSIA SEXTANTE', 450]]);
+  });
+
+  it('linha de exame tem precedência sobre a linha geral do TUSS, que continua valendo pros demais', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linha({}), linha({ id: 'p2', exame_id: 'e1', valor: 450 })],
+      custo_exames: exames,
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens.map(i => [i.nome, i.preco])).toEqual([
+      ['BIOPSIA SIMPLES', 250],
+      ['BIOPSIA SEXTANTE', 450],
+    ]);
+  });
+
+  it('linha de exame sem TUSS usa o exame vinculado; exames sem TUSS não viram um grupo compartilhado', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linha({ tuss: '', exame_id: 'e3', valor: 80 })],
+      custo_exames: [
+        { id: 'e3', tuss: '', nome: 'SEM TUSS A', custo_direto: 1, custo_indireto: 0 },
+        { id: 'e4', tuss: '', nome: 'SEM TUSS B', custo_direto: 1, custo_indireto: 0 },
+      ],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens.map(i => [i.nome, i.preco])).toEqual([['SEM TUSS A', 80]]);
+  });
+
+  it('conveniosAceitos: linha de exame de um convênio substitui a geral dele só praquele exame', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linha({}),
+        linha({ id: 'u1', fonte_pagadora: 'Unimed', atendido: true }),
+        linha({ id: 'u2', fonte_pagadora: 'Unimed', exame_id: 'e1', atendido: false }),
+      ],
+      custo_exames: exames,
+    });
+
+    const itens = await buildOrcamentoParticular(supabase);
+
+    expect(itens.map(i => [i.nome, i.conveniosAceitos])).toEqual([
+      ['BIOPSIA SEXTANTE', []],
+      ['BIOPSIA SIMPLES', ['Unimed']],
+    ]);
   });
 });

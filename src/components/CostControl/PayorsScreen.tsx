@@ -820,9 +820,9 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       return;
     }
     // item.exameId é o exame exibido NESTA linha — não necessariamente o
-    // exameId gravado no registro de custo_fontes_pagadoras (que só existe
-    // pra desambiguar linhas sem TUSS). Sem irmãos os dois coincidem, mas o
-    // valor de verdade vem do Payor (`payors`), não do item de exibição.
+    // exameId gravado no registro de custo_fontes_pagadoras (null numa linha
+    // geral do TUSS). O que vai pro modal é o do Payor (`payors`), não o do
+    // item de exibição.
     const fonte = payors.find(p => p.id === item.payorId);
     handleEditLinha({
       payorId: item.payorId,
@@ -897,19 +897,19 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         }
       }
 
-      // examesPorFontePagadora casa a linha pelo TUSS (se preenchido) ou
-      // pelo exameId vinculado (se TUSS vazio) — em ambos os casos, se o
-      // alvo não existir mais em Exames, a linha é gravada mas não aparece
-      // em nenhuma tabela até isso ser corrigido.
-      const linhaVaiAparecer = data.tus.trim()
-        ? exams.some(e => e.tuss === data.tus)
-        : exams.some(e => e.id === data.exameId);
+      // examesPorFontePagadora casa a linha pelo exameId (linha de exame) ou
+      // pelo TUSS (linha geral) — em ambos os casos, se o alvo não existir
+      // mais em Exames, a linha é gravada mas não aparece em nenhuma tabela
+      // até isso ser corrigido.
+      const linhaVaiAparecer = data.exameId
+        ? exams.some(e => e.id === data.exameId)
+        : exams.some(e => e.tuss === data.tus);
       if (linhaVaiAparecer) {
         showSuccess(editingLinha ? 'Fonte pagadora atualizada com sucesso!' : 'Linha criada com sucesso!');
       } else {
         showWarning(
           editingLinha ? 'Fonte pagadora atualizada' : 'Linha criada',
-          data.tus.trim()
+          !data.exameId
             ? `TUSS "${data.tus}" não está cadastrado na aba Exames — a linha foi salva, mas não vai aparecer aqui até um exame com esse TUSS existir.`
             : 'O exame vinculado não foi encontrado na aba Exames — a linha foi salva, mas não vai aparecer aqui até isso ser corrigido.'
         );
@@ -1208,6 +1208,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           mode={editingLinha ? 'edit' : 'create'}
           exams={exams}
           payors={payors}
+          editingPayorId={editingLinha?.payorId}
           payor={
             editingLinha
               ? {

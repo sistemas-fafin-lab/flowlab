@@ -120,9 +120,22 @@ export interface ExameDaFontePagadora {
  *  diferentes). */
 export const chaveExclusaoExame = (payorId: string, exameId: string): string => `${payorId}:${exameId}`;
 
-/** Exames cobertos por uma fonte pagadora — join pelo TUSS
- *  (`Payor.tus` ↔ `Exam.tuss`), ordenados por valor cobrado crescente (e,
- *  entre linhas de mesmo valor, por nome do exame).
+/** Exames cobertos por uma fonte pagadora, ordenados por valor cobrado
+ *  crescente (e, entre linhas de mesmo valor, por nome do exame).
+ *
+ *  Dois tipos de linha em custo_fontes_pagadoras:
+ *  - **linha de exame** (`exameId` preenchido): vale só pra aquele exame,
+ *    tenha ou não TUSS. É o que o PayorFormModal grava por padrão ao
+ *    escolher um exame.
+ *  - **linha geral do TUSS** (`exameId` null, TUSS preenchido): join por
+ *    texto (`Payor.tus` ↔ `Exam.tuss`), vale pra todos os exames do TUSS —
+ *    é o que a importação por planilha grava, e o que o PayorFormModal grava
+ *    quando o usuário marca "aplicar a todos os exames do TUSS".
+ *
+ *  Uma linha de exame tem precedência sobre a linha geral da mesma fonte +
+ *  tabela associada: o exame some da linha geral e aparece só com o preço
+ *  da sua própria linha (ex.: Particular/Particular TUSS 40601200 a R$250
+ *  pros 13 exames, e uma linha só de BIÓPSIA SEXTANTE a R$450).
  *
  *  Um TUSS pode ser compartilhado por exames com nomes diferentes (sem
  *  examId confiável vindo do APLIS) — nesse caso, `custo_fontes_pagadoras`
@@ -160,6 +173,16 @@ export function examesPorFontePagadora(
   // TUSS do catálogo inteiro (bug real encontrado em produção: uma linha
   // "Particular" sem TUSS estava exibindo os 20 exames sem código, todos
   // pelo mesmo preço). Ver migration 20260916100000_custo_fontes_pagadoras_exame_id.
+  const fontesDaFonte = payors.filter((fonte) => normalizar(fonte.payor) === nomeNormalizado);
+
+  // Exames com linha própria, por tabela associada — saem da linha geral do
+  // TUSS da mesma tabela (ver precedência no JSDoc).
+  const examesComLinhaPropria = new Set(
+    fontesDaFonte
+      .filter((fonte) => fonte.exameId)
+      .map((fonte) => `${normalizar(fonte.table)}|${fonte.exameId}`),
+  );
+
   const examesPorTuss = new Map<string, Exam[]>();
   const examesPorId = new Map<string, Exam>();
   for (const exame of exams) {
@@ -178,22 +201,22 @@ export function examesPorFontePagadora(
     else grupo[indice] = exame;
   }
 
-  return payors
-    .filter((fonte) => normalizar(fonte.payor) === nomeNormalizado)
+  return fontesDaFonte
     .flatMap((fonte) => {
-      // TUSS preenchido: casamento por texto, compartilhável entre exames
-      // (comportamento de sempre). TUSS vazio: só casa com o exame
-      // explicitamente vinculado via exameId — nunca com "todo exame sem
-      // TUSS". Sem exameId (dado legado ainda não migrado), a linha não
-      // aparece em lugar nenhum em vez de aparecer errada.
-      const grupo = fonte.tus
-        ? examesPorTuss.get(fonte.tus)
-        : fonte.exameId
-          ? (() => {
-              const exame = examesPorId.get(fonte.exameId!);
-              return exame ? [exame] : undefined;
-            })()
-          : undefined;
+      // exameId preenchido: só aquele exame. Senão, TUSS preenchido: todos os
+      // exames do TUSS que não têm linha própria nesta tabela. TUSS vazio sem
+      // exameId (dado legado ainda não migrado): não aparece em lugar nenhum
+      // — nunca "todo exame sem TUSS".
+      let grupo: Exam[] | undefined;
+      if (fonte.exameId) {
+        const exame = examesPorId.get(fonte.exameId);
+        grupo = exame ? [exame] : undefined;
+      } else if (fonte.tus) {
+        const tabela = normalizar(fonte.table);
+        grupo = examesPorTuss
+          .get(fonte.tus)
+          ?.filter((exame) => !examesComLinhaPropria.has(`${tabela}|${exame.id}`));
+      }
       if (!grupo) return [];
       return grupo
         .filter((exame) => !excluidos.has(chaveExclusaoExame(fonte.id, exame.id)))
@@ -219,4 +242,57 @@ export function examesPorFontePagadora(
         });
     })
     .sort((a, b) => a.valorCobrado - b.valorCobrado || a.exame.localeCompare(b.exame));
+}
+
+
+/** Exames do TUSS exato, um por nome distinto (mesmo critério de
+ *  agrupamento de examesPorFontePagadora), ordenados por nome. */
+export function examesDoTuss(exams: Exam[], tuss: string): Exam[] {
+  const alvo = tuss.trim();
+  if (!alvo) return [];
+
+  const porNome = new Map<string, Exam>();
+  for (const exame of exams) {
+    if (exame.tuss === alvo) porNome.set(exame.name, exame);
+  }
+  return Array.from(porNome.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Checagens do PayorFormModal antes de gravar `data` em
+ *  custo_fontes_pagadoras (`ignorarPayorId` = a própria linha, em edição).
+ *  Fonte e tabela são comparadas ignorando acentos/maiúsculas — "Particular"
+ *  e "PARTICULAR" contam como a mesma (foi assim que o TUSS 40601200 acabou
+ *  com 3 linhas Particular).
+ *
+ *  - `duplicada`: já existe linha da mesma fonte + tabela com o mesmo
+ *    alcance — mesmo exame (linha de exame) ou mesmo TUSS (linha geral).
+ *  - `linhaGeralSubstituida`: em linha de exame, a linha geral do TUSS da
+ *    mesma fonte + tabela que deixa de valer pra esse exame. */
+export interface AnaliseLinhaFontePagadora {
+  duplicada: Payor | null;
+  linhaGeralSubstituida: Payor | null;
+}
+
+export function analisarLinhaFontePagadora(
+  payors: Payor[],
+  data: Pick<Payor, 'payor' | 'table' | 'tus' | 'exameId'>,
+  ignorarPayorId?: string,
+): AnaliseLinhaFontePagadora {
+  const fonte = normalizar(data.payor);
+  const tabela = normalizar(data.table);
+  const tuss = normalizar(data.tus);
+  const mesmaFonteETabela = payors.filter(
+    (p) => p.id !== ignorarPayorId && normalizar(p.payor) === fonte && normalizar(p.table) === tabela,
+  );
+  const linhaGeral = tuss
+    ? mesmaFonteETabela.find((p) => !p.exameId && normalizar(p.tus) === tuss) ?? null
+    : null;
+
+  if (data.exameId) {
+    return {
+      duplicada: mesmaFonteETabela.find((p) => p.exameId === data.exameId) ?? null,
+      linhaGeralSubstituida: linhaGeral,
+    };
+  }
+  return { duplicada: linhaGeral, linhaGeralSubstituida: null };
 }

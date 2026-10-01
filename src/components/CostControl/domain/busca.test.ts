@@ -7,6 +7,8 @@ import {
   chaveExclusaoExame,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
+  analisarLinhaFontePagadora,
+  examesDoTuss,
 } from './busca';
 
 const exame = (over: Partial<Exam>): Exam => ({
@@ -394,5 +396,84 @@ describe('examesPorFontePagadora', () => {
     expect(resultado).toHaveLength(1);
     expect(resultado[0].exame).toBe('Hemograma completo');
     expect(resultado[0].exameId).toBe('e21');
+  });
+});
+
+describe('examesPorFontePagadora — linha de exame vs. linha geral do TUSS', () => {
+  const exames = [
+    exame({ id: 'e1', tuss: '40601200', name: 'BIOPSIA SEXTANTE' }),
+    exame({ id: 'e2', tuss: '40601200', name: 'BIOPSIA SIMPLES' }),
+  ];
+  const geral = fonte({ id: 'p1', payor: 'Particular', table: 'Particular', tus: '40601200', price: 250 });
+  const soSextante = fonte({ id: 'p2', payor: 'Particular', table: 'Particular', tus: '40601200', price: 450, exameId: 'e1' });
+
+  it('linha de exame vale só pro exame escolhido, mesmo com TUSS compartilhado', () => {
+    const r = examesPorFontePagadora(exames, [soSextante], 'Particular');
+    expect(r.map((e) => [e.exame, e.valorCobrado])).toEqual([['BIOPSIA SEXTANTE', 450]]);
+  });
+
+  it('linha de exame tem precedência sobre a linha geral da mesma tabela', () => {
+    const r = examesPorFontePagadora(exames, [geral, soSextante], 'Particular');
+    expect(r.map((e) => [e.exame, e.valorCobrado, e.payorId])).toEqual([
+      ['BIOPSIA SIMPLES', 250, 'p1'],
+      ['BIOPSIA SEXTANTE', 450, 'p2'],
+    ]);
+  });
+
+  it('linha de exame de OUTRA tabela não tira o exame da linha geral', () => {
+    const outraTabela = { ...soSextante, table: 'Outra' };
+    const r = examesPorFontePagadora(exames, [geral, outraTabela], 'Particular');
+    expect(r.map((e) => [e.exame, e.tabelaAssociada])).toEqual([
+      ['BIOPSIA SEXTANTE', 'Particular'],
+      ['BIOPSIA SIMPLES', 'Particular'],
+      ['BIOPSIA SEXTANTE', 'Outra'],
+    ]);
+  });
+});
+
+describe('examesDoTuss', () => {
+  it('um exame por nome distinto, ordenado por nome; TUSS vazio devolve vazio', () => {
+    const exames = [
+      exame({ id: 'e1', tuss: '40601200', name: 'BIOPSIA SIMPLES' }),
+      exame({ id: 'e2', tuss: '40601200', name: 'BIOPSIA SEXTANTE' }),
+      exame({ id: 'e3', tuss: '40601200', name: 'BIOPSIA SEXTANTE' }),
+      exame({ id: 'e4', tuss: '40304361', name: 'Hemograma completo' }),
+    ];
+    expect(examesDoTuss(exames, ' 40601200 ').map((e) => e.id)).toEqual(['e3', 'e1']);
+    expect(examesDoTuss(exames, '')).toEqual([]);
+  });
+});
+
+describe('analisarLinhaFontePagadora', () => {
+  const geral = fonte({ id: 'p1', payor: 'Particular', table: 'Particular', tus: '40601200', price: 250 });
+  const soSextante = fonte({ id: 'p2', payor: 'Particular', table: 'Particular', tus: '40601200', exameId: 'e1' });
+
+  it('linha de exame: aponta a linha geral que deixa de valer pra ele, sem duplicata', () => {
+    expect(
+      analisarLinhaFontePagadora([geral], { payor: 'particular', table: 'PARTICULAR', tus: '40601200', exameId: 'e1' }),
+    ).toEqual({ duplicada: null, linhaGeralSubstituida: geral });
+  });
+
+  it('linha de exame duplicada: mesmo exame, mesma fonte + tabela', () => {
+    expect(
+      analisarLinhaFontePagadora([geral, soSextante], { payor: 'Particular', table: 'Particular', tus: '40601200', exameId: 'e1' })
+        .duplicada,
+    ).toBe(soSextante);
+  });
+
+  it('linha geral duplicada: mesmo TUSS sem exame, ignorando a linha de exame', () => {
+    expect(
+      analisarLinhaFontePagadora([soSextante], { payor: 'Particular', table: 'Particular', tus: '40601200', exameId: null }),
+    ).toEqual({ duplicada: null, linhaGeralSubstituida: null });
+    expect(
+      analisarLinhaFontePagadora([geral], { payor: 'Particular', table: 'Particular', tus: '40601200', exameId: null })
+        .duplicada,
+    ).toBe(geral);
+  });
+
+  it('em edição, ignora a própria linha', () => {
+    expect(
+      analisarLinhaFontePagadora([geral], { payor: 'Particular', table: 'Particular', tus: '40601200', exameId: null }, 'p1'),
+    ).toEqual({ duplicada: null, linhaGeralSubstituida: null });
   });
 });

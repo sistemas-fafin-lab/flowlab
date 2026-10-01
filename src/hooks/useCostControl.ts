@@ -38,14 +38,12 @@ export interface Payor {
   // nas outras 37 fica sempre FALSE e é ignorada. Ver migration
   // 20260910090000_custo_fontes_pagadoras_elegivel_desconto_particular.
   elegivelDescontoParticular: boolean;
-  // Vínculo direto com um Exam específico — só é usado (e só faz sentido)
-  // quando `tus` está vazio: um TUSS preenchido já identifica os exames por
-  // texto (ver examesPorFontePagadora), mas TUSS vazio não tem essa garantia
-  // — sem `exameId`, uma linha sem TUSS "casaria" com QUALQUER exame sem
-  // TUSS, misturando preços de exames sem relação nenhuma entre si (era
-  // exatamente esse o bug corrigido pela migration
-  // 20260916100000_custo_fontes_pagadoras_exame_id). Null pra linhas com
-  // TUSS preenchido ou pra dado legado ainda não migrado.
+  // Preenchido = "linha de exame": vale só pra este Exam, tenha ou não TUSS
+  // (padrão do PayorFormModal ao escolher um exame). Null = "linha geral do
+  // TUSS": vale pra todos os exames com `tus` (importação por planilha, ou
+  // "aplicar a todos" no modal). Linha de exame tem precedência sobre a
+  // geral da mesma fonte + tabela — ver examesPorFontePagadora e a migration
+  // 20261001150000_custo_fontes_pagadoras_linha_por_exame.
   exameId: string | null;
 }
 
@@ -362,8 +360,10 @@ export const useCostControl = (): UseCostControlReturn => {
       if (rows.length === 0) return 0;
 
       const existentesPorTuss = new Map<string, string>();
+      // Só linhas gerais do TUSS: a planilha é por TUSS, então não pode
+      // sobrescrever o preço de uma linha que vale só pra um exame.
       payors.forEach(p => {
-        if (p.payor === fontePagadora && p.table === tabelaAssociada) existentesPorTuss.set(p.tus, p.id);
+        if (p.payor === fontePagadora && p.table === tabelaAssociada && !p.exameId) existentesPorTuss.set(p.tus, p.id);
       });
 
       const { toInsert, toUpdate } = separarUpsertFontePagadora(rows, existentesPorTuss);
