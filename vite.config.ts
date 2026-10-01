@@ -541,6 +541,7 @@ function apoioApiPlugin(env: Record<string, string>): Plugin {
 function faturamentoApiPlugin(env: Record<string, string>): Plugin {
   const FATURAMENTO_ACTIONS = new Set([
     'lotes', 'lote-detalhe', 'titulo-criar', 'titulo-atualizar-numero-nota', 'titulo-desvincular-lote', 'operadoras-sync',
+    'titulos-aplis-previa',
     'glosas-legado', 'recursos-legado',
     'pendencias-nao-faturadas', 'pendencia-lote-detalhe', 'pendencias-particulares',
     'pendencias-sem-lote', 'envios-por-convenio', 'status-faturamento', 'recebidos-mes',
