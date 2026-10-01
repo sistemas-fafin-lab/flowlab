@@ -22,6 +22,8 @@ import {
   Send,
   MessageSquare,
   Lock,
+  UserPlus,
+  AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -35,17 +37,30 @@ import SLABadge from './SLABadge';
 import { useNotificationCenter } from '../../hooks/useNotificationCenter';
 import { IT_REQUESTS_PATH, itRequestUrl } from '../../utils/itRequestLink';
 import type { ITRequestNavState, ITRequestTab } from '../../utils/itRequestLink';
+import { formatCPF, normalizeCPF } from '../../utils/cpf';
+import { DepartmentLabels } from '../../types';
+import {
+  NOVO_COLABORADOR_TYPE,
+  NOVO_COLABORADOR_VAZIO,
+  montarDescricaoNovoColaborador,
+  montarTituloNovoColaborador,
+  validarNovoColaborador,
+  type NovoColaboradorErros,
+  type NovoColaboradorForm,
+} from '../../utils/itNovoColaborador';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
 // ═══════════════════════════════════════════════════════════════════════════════
+
+type ITRequestType = 'suporte' | 'desenvolvimento' | 'consultoria' | 'novo_colaborador';
 
 interface ITRequest {
   id: string;
   codigo: string;
   title: string;
   description: string | null;
-  request_type: 'suporte' | 'desenvolvimento' | 'consultoria';
+  request_type: ITRequestType;
   priority: 'low' | 'medium' | 'high' | 'critical';
   status: 'pending' | 'in_progress' | 'resolved' | 'cancelled';
   kanban_status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
@@ -89,6 +104,7 @@ const TYPE_CONFIG: Record<string, { label: string; icon: React.ComponentType<{ c
   suporte:        { label: 'Suporte',        icon: Wrench,    color: 'text-orange-600 dark:text-orange-400',    bg: 'bg-orange-100 dark:bg-orange-900/30',    ring: 'ring-orange-500' },
   desenvolvimento: { label: 'Desenvolvimento', icon: Code,      color: 'text-violet-600 dark:text-violet-400',   bg: 'bg-violet-100 dark:bg-violet-900/30',   ring: 'ring-violet-500' },
   consultoria:     { label: 'Consultoria',    icon: Lightbulb, color: 'text-teal-600 dark:text-teal-400',     bg: 'bg-teal-100 dark:bg-teal-900/30',     ring: 'ring-teal-500' },
+  novo_colaborador: { label: 'Novo colaborador', icon: UserPlus, color: 'text-sky-600 dark:text-sky-400',      bg: 'bg-sky-100 dark:bg-sky-900/30',       ring: 'ring-sky-500' },
 };
 
 const STATUS_FILTER_ITEMS: [string, string][] = [
@@ -104,7 +120,142 @@ const TYPE_FILTER_ITEMS: [string, string][] = [
   ['suporte', 'Suporte'],
   ['desenvolvimento', 'Dev'],
   ['consultoria', 'Consultoria'],
+  ['novo_colaborador', 'Novo colaborador'],
 ];
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SUB-COMPONENTS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const FIELD_CLASS =
+  'w-full bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-violet-500/10 focus:border-violet-500 transition-all duration-200';
+
+const FieldError: React.FC<{ message?: string }> = ({ message }) =>
+  message ? <p className="text-xs text-red-600 dark:text-red-400 mt-1">{message}</p> : null;
+
+const NovoColaboradorFields: React.FC<{
+  value: NovoColaboradorForm;
+  erros: NovoColaboradorErros;
+  cpfJaCadastrado: boolean;
+  onChange: <K extends keyof NovoColaboradorForm>(key: K, value: NovoColaboradorForm[K]) => void;
+}> = ({ value, erros, cpfJaCadastrado, onChange }) => {
+  const labelClass = 'block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5';
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className={labelClass}>Nome completo *</label>
+          <input
+            type="text"
+            value={value.nomeCompleto}
+            onChange={(e) => onChange('nomeCompleto', e.target.value)}
+            className={FIELD_CLASS}
+            placeholder="Como no documento oficial"
+          />
+          <FieldError message={erros.nomeCompleto} />
+        </div>
+
+        <div>
+          <label className={labelClass}>E-mail de contato *</label>
+          <input
+            type="email"
+            value={value.emailContato}
+            onChange={(e) => onChange('emailContato', e.target.value)}
+            className={FIELD_CLASS}
+            placeholder="Pessoal, para receber os acessos"
+          />
+          <FieldError message={erros.emailContato} />
+        </div>
+
+        <div>
+          <label className={labelClass}>CPF *</label>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={value.cpf}
+            onChange={(e) => onChange('cpf', formatCPF(e.target.value))}
+            className={FIELD_CLASS}
+            placeholder="000.000.000-00"
+          />
+          <FieldError message={erros.cpf} />
+          {!erros.cpf && cpfJaCadastrado && (
+            <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mt-1">
+              <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+              Este CPF já possui conta no FlowLab.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label className={labelClass}>Setor / departamento *</label>
+          <select
+            value={value.setor}
+            onChange={(e) => onChange('setor', e.target.value as NovoColaboradorForm['setor'])}
+            className={FIELD_CLASS}
+          >
+            <option value="">Selecione…</option>
+            {Object.entries(DepartmentLabels).map(([key, label]) => (
+              <option key={key} value={key}>{label}</option>
+            ))}
+            <option value="OUTRO">Outro</option>
+          </select>
+          <FieldError message={erros.setor} />
+          {value.setor === 'OUTRO' && (
+            <>
+              <input
+                type="text"
+                value={value.setorOutro}
+                onChange={(e) => onChange('setorOutro', e.target.value)}
+                className={`${FIELD_CLASS} mt-2`}
+                placeholder="Nome do setor"
+              />
+              <FieldError message={erros.setorOutro} />
+            </>
+          )}
+        </div>
+
+        <div className="md:col-span-2">
+          <label className={labelClass}>Cargo / função *</label>
+          <input
+            type="text"
+            value={value.cargo}
+            onChange={(e) => onChange('cargo', e.target.value)}
+            className={FIELD_CLASS}
+            placeholder="Usado nos cadastros"
+          />
+          <FieldError message={erros.cargo} />
+        </div>
+      </div>
+
+      <div>
+        <label className={labelClass}>Atribuições no apLIS *</label>
+        <textarea
+          value={value.atribuicoesAplis}
+          onChange={(e) => onChange('atribuicoesAplis', e.target.value)}
+          rows={4}
+          className={`${FIELD_CLASS} resize-none min-h-[120px]`}
+          placeholder="Uma breve descrição das tarefas do novo colaborador ou as permissões necessárias"
+        />
+        <FieldError message={erros.atribuicoesAplis} />
+      </div>
+
+      <label className="flex items-start gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={value.caixaEmailPropria}
+          onChange={(e) => onChange('caixaEmailPropria', e.target.checked)}
+          className="mt-0.5 w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500"
+        />
+        <span className="text-sm text-slate-700 dark:text-slate-300">
+          Precisa de caixa de e-mail própria?
+          <span className="block text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Se não, a TI cria um alias do e-mail do setor.
+          </span>
+        </span>
+      </label>
+    </div>
+  );
+};
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENT
@@ -183,9 +334,37 @@ const ITRequestManagement: React.FC = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    request_type: 'suporte' as 'suporte' | 'desenvolvimento' | 'consultoria',
+    request_type: 'suporte' as ITRequestType,
     priority: 'medium' as 'low' | 'medium' | 'high' | 'critical',
   });
+
+  // ─── Novo colaborador ────────────────────────────────────────────────────────
+  // Esse tipo troca título + descrição por campos estruturados, que viram o
+  // título e a descrição no envio (ver utils/itNovoColaborador).
+  const isNovoColaborador = formData.request_type === NOVO_COLABORADOR_TYPE;
+  const [novoColab, setNovoColab] = useState<NovoColaboradorForm>(NOVO_COLABORADOR_VAZIO);
+  const [novoColabErros, setNovoColabErros] = useState<NovoColaboradorErros>({});
+  const [cpfJaCadastrado, setCpfJaCadastrado] = useState(false);
+
+  const setNovoColabField = <K extends keyof NovoColaboradorForm>(key: K, value: NovoColaboradorForm[K]) => {
+    setNovoColab((p) => ({ ...p, [key]: value }));
+    setNovoColabErros((p) => ({ ...p, [key]: undefined }));
+  };
+
+  // Aviso (não bloqueia): o CPF já tem conta no FlowLab — pode ser recontratação
+  // ou pedido só de apLIS/e-mail.
+  useEffect(() => {
+    const digits = normalizeCPF(novoColab.cpf);
+    if (!isNovoColaborador || digits.length !== 11) {
+      setCpfJaCadastrado(false);
+      return;
+    }
+    let cancelled = false;
+    supabase.rpc('cpf_ja_cadastrado', { p_cpf: digits }).then(({ data }) => {
+      if (!cancelled) setCpfJaCadastrado(data === true);
+    });
+    return () => { cancelled = true; };
+  }, [novoColab.cpf, isNovoColaborador]);
 
   // ─── Attachment state ────────────────────────────────────────────────────────
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -336,7 +515,16 @@ const ITRequestManagement: React.FC = () => {
   // ─── Create request ─────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.title.trim()) return;
+    let title = formData.title.trim();
+    let description: string | null = formData.description.trim() || null;
+    if (isNovoColaborador) {
+      const erros = validarNovoColaborador(novoColab);
+      setNovoColabErros(erros);
+      if (Object.keys(erros).length) return;
+      title = montarTituloNovoColaborador(novoColab);
+      description = montarDescricaoNovoColaborador(novoColab);
+    }
+    if (!title) return;
     setIsSubmitting(true);
 
     try {
@@ -367,8 +555,8 @@ const ITRequestManagement: React.FC = () => {
 
       // 2. Insert the request record with attachments
       const { error } = await supabase.from('it_requests').insert({
-        title: formData.title.trim(),
-        description: formData.description.trim() || null,
+        title,
+        description,
         request_type: formData.request_type,
         priority: formData.priority,
         requested_by: userId,
@@ -380,6 +568,8 @@ const ITRequestManagement: React.FC = () => {
 
       showSuccess('Chamado criado com sucesso!');
       setFormData({ title: '', description: '', request_type: 'suporte', priority: 'medium' });
+      setNovoColab(NOVO_COLABORADOR_VAZIO);
+      setNovoColabErros({});
       setAttachments([]);
       setAttachmentPreviews([]);
       setShowForm(false);
@@ -601,35 +791,10 @@ const ITRequestManagement: React.FC = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Title */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Título *</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
-                required
-                className="w-full bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-violet-500/10 focus:border-violet-500 transition-all duration-200"
-                placeholder="Descreva brevemente o problema ou necessidade"
-              />
-            </div>
-
-            {/* Description */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Descrição</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
-                rows={4}
-                className="w-full bg-slate-50/50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:bg-white dark:focus:bg-slate-900 focus:ring-4 focus:ring-violet-500/10 focus:border-violet-500 transition-all duration-200 resize-none min-h-[120px]"
-                placeholder={descriptionPlaceholder}
-              />
-            </div>
-
             {/* Type — Radio Cards */}
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Tipo do Chamado</label>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                 {/* Card: Suporte */}
                 <button
                   type="button"
@@ -687,8 +852,63 @@ const ITRequestManagement: React.FC = () => {
                     Quero receber ajuda do time de TI para resolver um problema, seja ele relacionado a uma solução técnica ou não.
                   </p>
                 </button>
+
+                {/* Card: Novo colaborador */}
+                <button
+                  type="button"
+                  onClick={() => setFormData((p) => ({ ...p, request_type: NOVO_COLABORADOR_TYPE }))}
+                  className={`relative flex flex-col items-start text-left p-4 rounded-2xl border transition-all duration-200 ${
+                    isNovoColaborador
+                      ? 'bg-sky-50 dark:bg-sky-900/20 border-sky-500 shadow-md ring-1 ring-sky-500/50'
+                      : 'bg-white/60 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 hover:border-sky-400/60 hover:bg-slate-50 dark:hover:bg-slate-800'
+                  }`}
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${isNovoColaborador ? 'bg-sky-100 dark:bg-sky-900/40' : 'bg-gray-100 dark:bg-gray-800'}`}>
+                    <UserPlus className={`w-5 h-5 transition-colors ${isNovoColaborador ? 'text-sky-600 dark:text-sky-400' : 'text-gray-400 dark:text-gray-500'}`} />
+                  </div>
+                  <h3 className="font-semibold text-slate-800 dark:text-slate-100 mt-3 mb-1">Novo colaborador</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                    Pedido de acesso para quem está entrando: conta no FlowLab, e-mail do setor e apLIS.
+                  </p>
+                </button>
               </div>
             </div>
+
+            {isNovoColaborador ? (
+              <NovoColaboradorFields
+                value={novoColab}
+                erros={novoColabErros}
+                cpfJaCadastrado={cpfJaCadastrado}
+                onChange={setNovoColabField}
+              />
+            ) : (
+              <>
+              {/* Title */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Título *</label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData((p) => ({ ...p, title: e.target.value }))}
+                  required
+                  className={FIELD_CLASS}
+                  placeholder="Descreva brevemente o problema ou necessidade"
+                />
+              </div>
+
+              {/* Description */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Descrição</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData((p) => ({ ...p, description: e.target.value }))}
+                  rows={4}
+                  className={`${FIELD_CLASS} resize-none min-h-[120px]`}
+                  placeholder={descriptionPlaceholder}
+                />
+              </div>
+              </>
+            )}
 
             {/* Priority — Pill group */}
             <div>

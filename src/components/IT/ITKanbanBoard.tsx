@@ -25,6 +25,7 @@ import {
   Edit3,
   Tag,
   Lightbulb,
+  UserPlus,
   MoreVertical,
   GripVertical,
   FolderOpen,
@@ -53,7 +54,7 @@ export interface ITRequest {
   codigo: string;
   title: string;
   description: string | null;
-  request_type: 'suporte' | 'desenvolvimento' | 'consultoria';
+  request_type: 'suporte' | 'desenvolvimento' | 'consultoria' | 'novo_colaborador';
   priority: 'low' | 'medium' | 'high' | 'critical';
   status: 'pending' | 'in_progress' | 'resolved' | 'cancelled';
   kanban_status: KanbanColumn;
@@ -104,7 +105,7 @@ export interface ITSprint {
 
 export type KanbanColumn = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
 
-type FilterType = 'all' | 'suporte' | 'desenvolvimento' | 'consultoria';
+type FilterType = 'all' | 'suporte' | 'desenvolvimento' | 'consultoria' | 'novo_colaborador';
 type ViewMode = 'all' | 'by_project' | 'by_sprint';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -130,6 +131,7 @@ const TYPE_CONFIG: Record<string, { label: string; icon: React.ComponentType<{ c
   suporte:         { label: 'Suporte',   icon: Wrench,    color: 'text-orange-500 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30' },
   desenvolvimento: { label: 'Dev',       icon: Code,      color: 'text-violet-500 dark:text-violet-400', bg: 'bg-violet-100 dark:bg-violet-900/30' },
   consultoria:     { label: 'Consultoria', icon: Lightbulb, color: 'text-teal-500 dark:text-teal-400',  bg: 'bg-teal-100 dark:bg-teal-900/30' },
+  novo_colaborador: { label: 'Novo colab.', icon: UserPlus, color: 'text-sky-500 dark:text-sky-400',   bg: 'bg-sky-100 dark:bg-sky-900/30' },
 };
 
 const PRIORITY_MULTIPLIER: Record<string, number> = {
@@ -1097,6 +1099,7 @@ const ITKanbanBoard: React.FC = () => {
               { value: 'suporte' as const, label: 'Suporte', icon: Wrench },
               { value: 'desenvolvimento' as const, label: 'Dev', icon: Code },
               { value: 'consultoria' as const, label: 'Consultoria', icon: Lightbulb },
+              { value: 'novo_colaborador' as const, label: 'Novo colab.', icon: UserPlus },
             ]).map(({ value, label, icon: Icon }) => (
               <button
                 key={value}
