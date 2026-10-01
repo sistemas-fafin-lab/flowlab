@@ -11,7 +11,7 @@ ficam na 02). Ver `../spec.md` — seções "Unidade e elegibilidade", "Backend"
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Nova função de leitura no `bdLab` de faturamento: lotes com
       `DtaFechamento` a partir de uma data, `Status` ∉ {5, 8}, com os campos de

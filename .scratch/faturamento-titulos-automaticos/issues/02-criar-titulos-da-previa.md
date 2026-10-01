@@ -9,7 +9,7 @@ resumo no fim. Ver `../spec.md` — "Backend" (criação) e "Frontend".
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Seleção com todos os válidos marcados por padrão, exceto `desvinculado`
       (desmarcado, selecionável); desmarcar/marcar por linha; bloqueados não
@@ -32,7 +32,7 @@ resumo no fim. Ver `../spec.md` — "Backend" (criação) e "Frontend".
       títulos
 - [x] Funções puras no utilitário (competência a partir da emissão, texto da
       observação, consolidação do resumo) com testes vitest
-- [ ] Validação manual: título criado pelo botão fica igual a um criado pelo
+- [x] Validação manual: título criado pelo botão fica igual a um criado pelo
       "Novo título" para o mesmo lote (emissão, vencimento, NF, responsável,
       guias), exceto competência e observação
 
@@ -58,3 +58,11 @@ Decisões:
 - Resumo sem falhas omite o ", 0 falharam".
 
 Pendente: validação manual no app (título do botão × "Novo título").
+
+**Validação (01/10, Supabase de teste):** execução de 107 lotes pelo botão,
+conferida contra o apLIS e a regra da rota: 1 lote por título, emissão =
+criação do lote, competência = mês da emissão, NF-e quando havia (4), valor,
+guias e responsável iguais ao apLIS, vencimento = RPS (4) ou
+fat_prever_vencimento a partir do envio/emissão (103). Sobrou só o lote 6683,
+desvinculado em 04/09 — desmarcado de propósito.
+
