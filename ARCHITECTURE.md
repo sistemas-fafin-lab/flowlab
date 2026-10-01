@@ -1,10 +1,10 @@
 # Architecture — Flow LAB
 
-> Última atualização: 2026-08-31
+> Última atualização: 2026-09-17
 
 ## Visão Geral
 
-Flow LAB é um sistema web de gestão integrada para um laboratório de análises clínicas: inventário/estoque, requisições internas (compra, pagamento, manutenção, TI), cotações a fornecedores, faturamento a operadoras de saúde, contas a receber, agendamento e execução de análises clínicas (coletas, culturas, laudos), um módulo de qualidade (ocorrências, cortesias, IHQ, registro de câncer) e um kanban multi-departamento. A interface é inteiramente em português (pt-BR).
+Flow LAB é um sistema web de gestão integrada para um laboratório de análises clínicas: inventário/estoque, requisições internas (compra, pagamento, manutenção, TI), cotações a fornecedores, faturamento a operadoras de saúde, contas a receber, agendamento e execução de análises clínicas (coletas, culturas, laudos), um módulo de qualidade (ocorrências, cortesias, IHQ, registro de câncer), recursos humanos (cadastro de colaboradores, vínculo com usuário, holerites) e um kanban multi-departamento. A interface é inteiramente em português (pt-BR).
 
 É uma SPA React servida por uma API serverless (Vercel Functions) com Supabase como backend (Postgres + Auth + Storage + RLS). Além do deploy padrão na Vercel, o mesmo código de API roda também como servidor Node standalone em Docker/VPS — usado quando é preciso um endpoint estável, alcançável por túnel ngrok, para webhooks de integrações externas (LIS externo "LabHub", laboratório de apoio "Alvaro/AOL", sistema faturador "APLIS").
 
@@ -53,6 +53,7 @@ flowlab/
 │   │   ├── faturamento/        # Faturamento a operadoras + contas a receber
 │   │   ├── analises-clinicas/  # Agendamento, coletas, culturas, laudos, integração LabHub/Alvaro
 │   │   ├── qualidade/          # Ocorrências, cortesias, IHQ, registro de câncer (portado de outro projeto)
+│   │   ├── rh/                  # Colaboradores (cadastro, gestor, vínculo com usuário) + holerites
 │   │   └── board/               # Kanban multi-departamento (acesso via custom_roles.board_id)
 │   ├── hooks/                   # Hooks compartilhados (useAuth, useInventory, useDataCache, ...)
 │   ├── contexts/                # AuthContext
@@ -72,7 +73,8 @@ flowlab/
 │   │   └── supabase.ts          # Cliente Supabase server-side (service role)
 │   ├── analises-clinicas/[action].ts  # Dispatcher Vercel (query string `action`)
 │   ├── faturamento/[action].ts        # idem
-│   └── qualidade/[action].ts          # idem
+│   ├── qualidade/[action].ts          # idem
+│   └── rh/[action].ts                 # idem — parsing/confirmação de upload de holerites
 │
 ├── workers/billing-sync/        # Processo Node separado: sincroniza faturamento com o ERP "APLIS" (cron)
 │
@@ -197,6 +199,7 @@ Fluxo assíncrono via webhook: o LIS externo (LabHub) envia agendamentos/cancela
 | **Faturamento** | `src/modules/faturamento/` + `api/faturamento/` + `workers/billing-sync/` | Emissão de títulos/notas para operadoras de saúde, contas a receber, glosas/recursos, sincronização com APLIS | Não faz agendamento nem coleta (consome dados de Análises Clínicas) |
 | **Análises Clínicas** | `src/modules/analises-clinicas/` | Agendamento, postos, coletas, culturas, temperatura, laudos, integração LabHub/Alvaro | Não decide faturamento — só gera os eventos que o faturamento consome |
 | **Qualidade** | `src/modules/qualidade/` | Ocorrências, cortesias, IHQ, registro de câncer — portado de um projeto irmão (`flowlab-qualidade`) | Depende de heurísticas best-effort para identificar dados no LIS legado (ver `bdLabQualidade.ts`) |
+| **RH** | `src/modules/rh/` + `api/rh/` | Cadastro de colaboradores (dados, gestor, vínculo com `user_profiles`), upload consolidado de holerites (auto-split por CPF via `api/_lib/rh/`) e autoatendimento ("meus holerites") | Listagem/leitura é supabase-js direto sob RLS; só o parsing/confirmação do PDF consolidado passa pela API (`rhApi.ts`) |
 | **Board** | `src/modules/board/` | Kanban multi-departamento; acesso via `custom_roles.board_id`, não via permission string | Não usa `<ProtectedRoute>` — o gate é interno ao componente |
 | **IT** | `src/components/IT/` | Kanban de TI, projetos, mind map, SLA | Ainda não migrado para `src/modules/` |
 | **Usuários/Auth** | `src/hooks/useAuth.ts`, `src/utils/permissions.ts` | Sessão, perfil, RBAC dual (role legada + custom_roles) | — |
@@ -219,7 +222,7 @@ Fluxo assíncrono via webhook: o LIS externo (LabHub) envia agendamentos/cancela
 ### Dois runtimes para a mesma API
 - **Contexto observado**: parte das integrações (LabHub, Alvaro) precisa de um endpoint webhook estável e alcançável por fora; a Vercel é o deploy padrão, mas o projeto também roda em VPS via Docker + túnel ngrok.
 - **Decisão**: os handlers de API são escritos contra uma interface `Request`/`Response`-like (padrão Vercel) e reaproveitados por dois entry points — `api/*/[action].ts` (Vercel) e `api/server.ts` (servidor Node puro, com wrappers `wrapRequest`/`wrapResponse`).
-- **Consequência**: a lógica de negócio não duplica, mas o roteamento duplica (dispatcher por `action` na Vercel vs. `Map` de rotas fixas no server standalone) — toda rota nova precisa ser registrada nos dois lugares quando é usada pelo deploy Docker.
+- **Consequência**: a lógica de negócio não duplica, mas o roteamento duplica (dispatcher por `action` na Vercel vs. `Map` de rotas fixas no server standalone) — toda rota nova precisa ser registrada nos dois lugares quando é usada pelo deploy Docker. Na prática isso já ficou pra trás pelo menos uma vez: as rotas de `api/rh/[action].ts` (holerites) não estão registradas em `api/server.ts` — módulo funciona só no deploy Vercel/dev, não no VPS Docker.
 
 ### RBAC dual: role legada + `custom_roles` dinâmico
 - **Contexto observado**: o sistema começou com 3 roles fixas (`admin`/`operator`/`requester`); o crescimento para múltiplos departamentos e módulos exigiu permissões granulares (`ALL_PERMISSION_KEYS`) sem quebrar usuários já cadastrados só com role legada.
@@ -227,7 +230,7 @@ Fluxo assíncrono via webhook: o LIS externo (LabHub) envia agendamentos/cancela
 - **Consequência**: um usuário `operator`/`requester` sem `custom_role_id` atribuído fica com zero permissões reais no RLS, mesmo que a UI (usando o fallback) sugira acesso — fonte recorrente de bugs de "botão que dá 403" (ver comentário em `permissions.ts`, issue 04 referenciada no código).
 
 ### Módulos novos isolados, núcleo antigo não migrado
-- **Contexto observado**: `src/modules/` (quotations, messaging, faturamento, analises-clinicas, qualidade, board) segue um padrão consistente — `types/`, `domain/`, `hooks/`, `components/`, `index.ts` como fachada. `src/components/` concentra os domínios mais antigos (inventário, requisições, usuários, TI) sem essa estrutura.
+- **Contexto observado**: `src/modules/` (quotations, messaging, faturamento, analises-clinicas, qualidade, rh, board) segue um padrão consistente — `types/`, `domain/`, `hooks/`, `components/`, `index.ts` como fachada. `src/components/` concentra os domínios mais antigos (inventário, requisições, usuários, TI) sem essa estrutura.
 - **Decisão implícita**: todo domínio novo entra como módulo autocontido (há inclusive uma skill `add-module` para isso); os domínios legados não foram retroativamente migrados.
 - **Consequência**: duas convenções convivem no mesmo repositório; um dev (ou agente) precisa saber qual domínio é "módulo" e qual é "legado" antes de decidir onde colocar código novo.
 
