@@ -10,8 +10,10 @@
 // verdade no PDF.
 //
 // Blocos não casados (CPF sem colaborador, ou colaborador sem competência
-// legível) NÃO bloqueiam o restante do lote — ficam no resultado para
-// tratamento manual, igual ao preview.
+// legível) NÃO bloqueiam o restante do lote. CPF sem colaborador, mas com
+// competência, é guardado em `holerites_pendentes` e vinculado pelo trigger
+// quando o colaborador for cadastrado (migration 20261002120000); o resto fica
+// no resultado para tratamento manual, igual ao preview.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { sendTemplatedEmail } from '../email.js';
@@ -19,7 +21,7 @@ import { describeError } from '../errors.js';
 import { autorizarRhERetornarUsuario, tokenDoHeader } from '../rh/autorizacao.js';
 import { extrairTextoPorPagina, fatiarPdf } from '../rh/holeritesPdf.js';
 import { processarHolerites, type BlocoIdentificado } from '../rh/holeritesProcessamento.js';
-import { BUCKET_HOLERITES, pathHoleriteIndividual, tempPathValido } from '../rh/holeritesStorage.js';
+import { BUCKET_HOLERITES, pathHoleriteIndividual, pathHoleritePendente, tempPathValido } from '../rh/holeritesStorage.js';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { APP_BASE_URL } from '../appUrl.js';
 
@@ -133,6 +135,36 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       }
     }
 
+    // Mesmo laço sequencial para os CPFs sem colaborador: o pendente é
+    // vinculado sozinho quando o colaborador for cadastrado.
+    let pendentesGuardados = 0;
+    const falhasPendentes: { cpf: string; erro: string }[] = [];
+    for (const bloco of resultado.cpfsNaoCasados) {
+      if (!bloco.competencia) continue;
+      try {
+        const fatia = await fatiarPdf(bytes, bloco.paginaInicio, bloco.paginaFim);
+        const path = pathHoleritePendente(bloco.cpf, bloco.competencia);
+
+        const { error: erroUpload } = await supabase.storage
+          .from(BUCKET_HOLERITES)
+          .upload(path, fatia, { contentType: 'application/pdf', upsert: true });
+        if (erroUpload) throw new Error(erroUpload.message);
+
+        const { error: erroUpsert } = await supabase
+          .from('holerites_pendentes')
+          .upsert(
+            { cpf: bloco.cpf, competencia: bloco.competencia, arquivo_path: path, uploaded_by: uploadedBy, created_at: new Date().toISOString() },
+            { onConflict: 'cpf,competencia' },
+          );
+        if (erroUpsert) throw new Error(erroUpsert.message);
+
+        pendentesGuardados += 1;
+      } catch (err) {
+        console.error(`[rh/holerites-confirmar] falha ao guardar pendente do CPF ${bloco.cpf}:`, describeError(err));
+        falhasPendentes.push({ cpf: bloco.cpf, erro: describeError(err) });
+      }
+    }
+
     // Notificação por email — best-effort: falha de envio não desfaz o upload/gravação
     // já efetivados, e não impede o restante do lote de notificar.
     let notificados = 0;
@@ -171,6 +203,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         processados: processados.length,
         notificados,
         falhas,
+        pendentesGuardados,
+        falhasPendentes,
         blocosSemCompetencia: resultado.blocosSemCompetencia,
         cpfsNaoCasados: resultado.cpfsNaoCasados,
         paginasSemCpf: resultado.paginasSemCpf,

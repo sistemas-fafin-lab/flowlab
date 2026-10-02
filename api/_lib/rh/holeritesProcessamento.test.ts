@@ -54,7 +54,7 @@ describe('processarHolerites', () => {
     ];
     const resultado = processarHolerites(textos, COLABORADORES, []);
     expect(resultado.cpfsNaoCasados).toEqual([
-      { cpf: '12345678909', paginaInicio: 1, paginaFim: 1 },
+      { cpf: '12345678909', competencia: '2026-08-01', paginaInicio: 1, paginaFim: 1 },
     ]);
     expect(resultado.blocosIdentificados).toEqual([
       {

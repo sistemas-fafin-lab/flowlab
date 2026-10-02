@@ -60,9 +60,11 @@ export interface HoleriteBlocoSemCompetencia {
   paginaFim: number;
 }
 
-/** CPF válido no PDF, mas sem colaborador correspondente cadastrado. */
+/** CPF válido no PDF, mas sem colaborador correspondente cadastrado. Com competência, é guardado até o cadastro. */
 export interface HoleriteCpfNaoCasado {
   cpf: string;
+  /** "YYYY-MM-DD", ou null sem "Ref." legível. */
+  competencia: string | null;
   paginaInicio: number;
   paginaFim: number;
 }
@@ -86,6 +88,9 @@ export interface HoleriteConfirmarResultado {
   processados: number;
   notificados: number;
   falhas: HoleriteFalhaProcessamento[];
+  /** Holerites de CPF sem colaborador guardados — aparecem quando o colaborador for cadastrado. */
+  pendentesGuardados: number;
+  falhasPendentes: { cpf: string; erro: string }[];
   blocosSemCompetencia: HoleriteBlocoSemCompetencia[];
   cpfsNaoCasados: HoleriteCpfNaoCasado[];
   paginasSemCpf: { numero: number }[];

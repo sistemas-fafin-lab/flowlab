@@ -17,3 +17,8 @@ export function pathHoleriteIndividual(colaboradorId: string, competencia: strin
   const competenciaAnoMes = competencia.slice(0, 7); // "YYYY-MM-DD" -> "YYYY-MM"
   return `${colaboradorId}/${competenciaAnoMes}.pdf`;
 }
+
+/** Path do holerite de um CPF ainda sem colaborador cadastrado — permanece o mesmo depois do vínculo (trigger vincular_holerites_pendentes, migration 20261002120000). */
+export function pathHoleritePendente(cpf: string, competencia: string): string {
+  return `_pendentes/${cpf}/${competencia.slice(0, 7)}.pdf`;
+}

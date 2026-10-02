@@ -41,6 +41,8 @@ export interface BlocoSemCompetencia {
 
 export interface CpfNaoCasado {
   cpf: string;
+  /** "YYYY-MM-DD", ou null sem "Ref." legível — só com competência o bloco pode ser guardado como pendente. */
+  competencia: string | null;
   paginaInicio: number;
   paginaFim: number;
 }
@@ -68,8 +70,9 @@ export function extrairPaginas(textosPorPagina: string[]): PaginaExtraida[] {
 
 /**
  * Agrupa e casa contra `colaboradores` (CPF é a única chave de matching — ver
- * spec). Blocos não casados não bloqueiam o restante do lote: ficam
- * reportados em `cpfsNaoCasados` para tratamento manual.
+ * spec). Blocos não casados não bloqueiam o restante do lote: ficam em
+ * `cpfsNaoCasados` — a confirmação guarda os que têm competência como
+ * pendentes até o colaborador ser cadastrado.
  */
 export function processarHolerites(
   textosPorPagina: string[],
@@ -89,7 +92,7 @@ export function processarHolerites(
   for (const bloco of blocos) {
     const colaborador = colaboradorPorCpf.get(bloco.cpf);
     if (!colaborador) {
-      cpfsNaoCasados.push({ cpf: bloco.cpf, paginaInicio: bloco.paginaInicio, paginaFim: bloco.paginaFim });
+      cpfsNaoCasados.push({ cpf: bloco.cpf, competencia: bloco.competencia, paginaInicio: bloco.paginaInicio, paginaFim: bloco.paginaFim });
       continue;
     }
 

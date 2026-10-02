@@ -221,6 +221,10 @@ const TelaConferencia: React.FC<{
             <p>
               <strong>{preview.cpfsNaoCasados.length}</strong> CPF(s) no PDF sem colaborador cadastrado correspondente
               (páginas: {preview.cpfsNaoCasados.map((c) => `${c.paginaInicio}–${c.paginaFim} (${formatCPF(c.cpf)})`).join(', ')}).
+              {preview.cpfsNaoCasados.some((c) => c.competencia) &&
+                ' Serão guardados e aparecerão para o colaborador assim que o CPF for cadastrado.'}
+              {preview.cpfsNaoCasados.some((c) => !c.competencia) &&
+                ' Os sem "Ref." legível não serão guardados.'}
             </p>
           )}
           {preview.blocosSemCompetencia.length > 0 && (
@@ -263,37 +267,53 @@ const TelaConferencia: React.FC<{
   );
 };
 
-const TelaResultado: React.FC<{ resultado: HoleriteConfirmarResultado; onNovoEnvio: () => void }> = ({ resultado, onNovoEnvio }) => (
-  <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 space-y-4">
-    <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
-      <CheckCircle2 className="w-5 h-5" />
-      <h3 className="text-sm font-semibold">Lote distribuído</h3>
-    </div>
-    <p className="text-sm text-gray-600 dark:text-gray-300">
-      {resultado.processados} holerite(s) gravado(s) · {resultado.notificados} colaborador(es) notificado(s) por e-mail.
-    </p>
+const TelaResultado: React.FC<{ resultado: HoleriteConfirmarResultado; onNovoEnvio: () => void }> = ({ resultado, onNovoEnvio }) => {
+  const cpfsNaoGuardados = resultado.cpfsNaoCasados.filter((c) => !c.competencia).length;
 
-    {resultado.falhas.length > 0 && (
-      <p className="text-sm text-red-600 dark:text-red-300">
-        Falha ao gravar {resultado.falhas.length}: {resultado.falhas.map((f) => f.colaboradorNome).join(', ')}. Tente reenviar o PDF.
+  return (
+    <section className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 space-y-4">
+      <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400">
+        <CheckCircle2 className="w-5 h-5" />
+        <h3 className="text-sm font-semibold">Lote distribuído</h3>
+      </div>
+      <p className="text-sm text-gray-600 dark:text-gray-300">
+        {resultado.processados} holerite(s) gravado(s) · {resultado.notificados} colaborador(es) notificado(s) por e-mail.
       </p>
-    )}
-    {(resultado.cpfsNaoCasados.length > 0 || resultado.blocosSemCompetencia.length > 0 || resultado.paginasSemCpf.length > 0) && (
-      <p className="text-sm text-amber-600 dark:text-amber-400">
-        {resultado.cpfsNaoCasados.length} CPF(s) não casado(s), {resultado.blocosSemCompetencia.length} sem competência legível,{' '}
-        {resultado.paginasSemCpf.length} página(s) sem CPF — tratamento manual.
-      </p>
-    )}
 
-    <button
-      type="button"
-      onClick={onNovoEnvio}
-      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
-    >
-      <RefreshCcw className="w-4 h-4" />
-      Novo envio
-    </button>
-  </section>
-);
+      {resultado.falhas.length > 0 && (
+        <p className="text-sm text-red-600 dark:text-red-300">
+          Falha ao gravar {resultado.falhas.length}: {resultado.falhas.map((f) => f.colaboradorNome).join(', ')}. Tente reenviar o PDF.
+        </p>
+      )}
+      {resultado.pendentesGuardados > 0 && (
+        <p className="text-sm text-gray-600 dark:text-gray-300">
+          {resultado.pendentesGuardados} holerite(s) de CPF sem colaborador guardado(s) — aparecem automaticamente quando o
+          colaborador for cadastrado.
+        </p>
+      )}
+      {resultado.falhasPendentes.length > 0 && (
+        <p className="text-sm text-red-600 dark:text-red-300">
+          Falha ao guardar {resultado.falhasPendentes.length} holerite(s) de CPF sem colaborador:{' '}
+          {resultado.falhasPendentes.map((f) => formatCPF(f.cpf)).join(', ')}. Tente reenviar o PDF.
+        </p>
+      )}
+      {(cpfsNaoGuardados > 0 || resultado.blocosSemCompetencia.length > 0 || resultado.paginasSemCpf.length > 0) && (
+        <p className="text-sm text-amber-600 dark:text-amber-400">
+          {cpfsNaoGuardados} CPF(s) não casado(s) sem competência legível, {resultado.blocosSemCompetencia.length} colaborador(es)
+          sem competência legível, {resultado.paginasSemCpf.length} página(s) sem CPF — tratamento manual.
+        </p>
+      )}
+
+      <button
+        type="button"
+        onClick={onNovoEnvio}
+        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors"
+      >
+        <RefreshCcw className="w-4 h-4" />
+        Novo envio
+      </button>
+    </section>
+  );
+};
 
 export default EnviarHoleritesSection;
