@@ -2,11 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, useCallb
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { UserProfile, UserRole } from "../types";
-import { getPermissionsForLegacyRole, SOLICITANTE_ROLE_ID } from "../utils/permissions";
-
-const normalizeCPF = (cpf: string): string => {
-  return cpf.replace(/\D/g, "").trim();
-};
+import { getPermissionsForLegacyRole } from "../utils/permissions";
 
 interface AuthContextType {
   user: User | null;
@@ -15,13 +11,6 @@ interface AuthContextType {
   loading: boolean;
   isInitialized: boolean;
   pendingAuthError: string | null;
-  signUp: (
-    email: string,
-    password: string,
-    name?: string,
-    department?: string,
-    cpf?: string,
-  ) => Promise<{ data: any; error: any }>;
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<{ error: any }>;
   resetPassword: (email: string) => Promise<{ data: any; error: any }>;
@@ -139,102 +128,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => subscription.unsubscribe();
   }, [loadUserProfile]);
 
-  const signUp = async (
-    email: string,
-    password: string,
-    name?: string,
-    department?: string,
-    cpf?: string,
-  ) => {
-    if (!department) {
-      throw new Error("Departamento é obrigatório.");
-    }
-
-    if (!cpf) {
-      throw new Error("CPF é obrigatório.");
-    }
-
-    const normalizedCPF = normalizeCPF(cpf);
-
-    if (normalizedCPF.length !== 11) {
-      throw new Error("CPF inválido. Deve conter 11 dígitos.");
-    }
-
-    const { data: whitelistEntry, error: whitelistError } = await supabase
-      .from("user_whitelist")
-      .select("cpf, name, activity")
-      .eq("cpf", normalizedCPF)
-      .single();
-
-    if (whitelistError || !whitelistEntry) {
-      throw new Error("CPF não autorizado para cadastro.");
-    }
-
-    if (!whitelistEntry.activity) {
-      throw new Error("CPF inativo. Contate o administrador.");
-    }
-
-    // Estar na whitelist não basta: o CPF pode já pertencer a um perfil. Sem esta
-    // checagem a conta nasce no Auth e o INSERT do perfil leva 23505, deixando um
-    // usuário que autentica mas é barrado no login. Precisa ser RPC porque aqui o
-    // cliente ainda é anônimo e a policy de SELECT de user_profiles exige sessão.
-    const { data: cpfEmUso, error: cpfCheckError } = await supabase.rpc(
-      "cpf_ja_cadastrado",
-      { p_cpf: normalizedCPF },
-    );
-
-    if (cpfCheckError) {
-      console.error("Erro ao verificar o CPF:", cpfCheckError);
-      throw new Error("Não foi possível validar o CPF. Tente novamente.");
-    }
-
-    if (cpfEmUso) {
-      throw new Error("CPF já cadastrado. Faça login ou contate o administrador.");
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          name: name || email.split("@")[0],
-          department,
-        },
-      },
-    });
-
-    if (data.user && !error) {
-      // Todo cadastro nasce como Solicitante — role legada 'requester' e o cargo
-      // correspondente. O custom_role_id não pode ficar nulo: sem ele o perfil não
-      // tem permissão nenhuma no RLS (ver SOLICITANTE_ROLE_ID em utils/permissions).
-      const { error: insertError } = await supabase
-        .from("user_profiles")
-        .insert({
-          id: data.user.id,
-          email,
-          name: name || email.split("@")[0],
-          role: "requester",
-          custom_role_id: SOLICITANTE_ROLE_ID,
-          department,
-          cpf: normalizedCPF,
-        });
-
-      // Sem perfil a conta autentica mas é recusada no login. Falhar alto é melhor
-      // do que devolver sucesso e deixar a pessoa trancada sem ninguém saber.
-      if (insertError) {
-        console.error("Erro ao inserir perfil:", insertError);
-        await supabase.auth.signOut({ scope: "local" });
-        throw new Error(
-          "Conta criada, mas o perfil não pôde ser salvo. Contate o administrador.",
-        );
-      }
-
-      await loadUserProfile(data.user.id);
-    }
-
-    return { data, error };
-  };
-
   const resetPassword = async (email: string) => {
     return await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/reset-password`,
@@ -338,7 +231,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loading,
         isInitialized,
         pendingAuthError,
-        signUp,
         signIn,
         signOut,
         resetPassword,

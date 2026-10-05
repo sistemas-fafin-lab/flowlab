@@ -1,9 +1,7 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogIn, UserPlus, Eye, EyeOff, Sun, Moon, Package, History, FileText, Building2, Calculator, Receipt, LayoutDashboard, ChevronLeft, ChevronRight, ChevronDown } from 'lucide-react';
+import { LogIn, Eye, EyeOff, Sun, Moon, Package, History, FileText, Building2, Calculator, Receipt, LayoutDashboard, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
-import { DEPARTMENTS } from "../utils/permissions";
-import { formatCPF, validateCPF } from "../utils/cpf";
 
 const MODULES = [
   {
@@ -77,15 +75,10 @@ const springTransition = {
 };
 
 const Auth: React.FC = () => {
-  const { signIn, signUp, resetPassword, pendingAuthError, clearPendingAuthError } = useAuth();
-  const [formView, setFormView] = useState<'login' | 'register' | 'forgot'>('login');
-  const [name, setName] = useState('');
+  const { signIn, resetPassword, pendingAuthError, clearPendingAuthError } = useAuth();
+  const [formView, setFormView] = useState<'login' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [department, setDepartment] = useState('');
-  const [cpf, setCpf] = useState('');
-  const [deptOpen, setDeptOpen] = useState(false);
-  const deptRef = useRef<HTMLDivElement>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,16 +123,6 @@ const Auth: React.FC = () => {
     return () => clearInterval(timer);
   }, [isAutoPlaying, nextSlide]);
 
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (deptRef.current && !deptRef.current.contains(e.target as Node)) {
-        setDeptOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   const toggleTheme = () => {
     const newMode = !isDarkMode;
     setIsDarkMode(newMode);
@@ -148,10 +131,6 @@ const Auth: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formView === 'register' && !department) {
-      setError('Por favor, selecione um departamento.');
-      return;
-    }
     setLoading(true);
     setError(null);
 
@@ -165,44 +144,20 @@ const Auth: React.FC = () => {
           setFormView("login");
         }
       } else {
-        if (formView === "register" && !validateCPF(cpf)) {
-          setError("CPF inválido. Verifique e tente novamente.");
-          setLoading(false);
-          return;
-        }
-
-        const { error } =
-          formView === "register"
-            ? await signUp(email, password, name, department, cpf)
-            : await signIn(email, password);
+        const { error } = await signIn(email, password);
 
         if (error) {
           let userFriendlyMessage = error.message;
 
           if (error.message.includes("Invalid login credentials")) {
             userFriendlyMessage =
-              formView === "register"
-                ? "Falha ao criar conta. Verifique se o email é válido e a senha tem pelo menos 6 caracteres."
-                : 'Email ou senha incorretos. Verifique suas credenciais e tente novamente. Se você não tem uma conta, clique em "Cadastre-se".';
+              "Email ou senha incorretos. Verifique suas credenciais e tente novamente. Se você não tem uma conta, peça o cadastro ao administrador.";
           } else if (error.message.includes("Email not confirmed")) {
             userFriendlyMessage =
               "Por favor, confirme seu email antes de fazer login.";
-          } else if (error.message.includes("Password should be at least")) {
-            userFriendlyMessage = "A senha deve ter pelo menos 6 caracteres.";
           } else if (error.message.includes("Invalid email")) {
             userFriendlyMessage =
               "Por favor, insira um endereço de email válido.";
-          } else if (error.message.includes("User already registered")) {
-            userFriendlyMessage =
-              "Este email já está cadastrado. Tente fazer login ou use outro email.";
-          } else if (error.message.includes("CPF não autorizado")) {
-            userFriendlyMessage =
-              "CPF não autorizado para cadastro. Entre em contato com o administrador.";
-          } else if (error.message.includes("CPF inativo")) {
-            userFriendlyMessage =
-              "CPF inativo. Entre em contato com o administrador.";
-          } else if (error.message.includes("CPF inválido")) {
-            userFriendlyMessage = "CPF inválido. Verifique e tente novamente.";
           } else if (error.message.includes("Acesso não autorizado")) {
             userFriendlyMessage =
               "Acesso não autorizado. Contate o administrador.";
@@ -211,31 +166,8 @@ const Auth: React.FC = () => {
           setError(userFriendlyMessage);
         }
       }
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("CPF não autorizado")) {
-        setError(
-          "CPF não autorizado para cadastro. Entre em contato com o administrador.",
-        );
-      } else if (msg.includes("CPF inativo")) {
-        setError("CPF inativo. Entre em contato com o administrador.");
-      } else if (msg.includes("CPF já cadastrado")) {
-        setError(
-          "Este CPF já possui cadastro. Faça login ou contate o administrador.",
-        );
-      } else if (msg.includes("validar o CPF")) {
-        setError("Não foi possível validar o CPF. Tente novamente.");
-      } else if (msg.includes("perfil não pôde ser salvo")) {
-        setError(
-          "Sua conta foi criada, mas o perfil não pôde ser salvo. Contate o administrador.",
-        );
-      } else if (msg.includes("CPF inválido")) {
-        setError("CPF inválido. Verifique e tente novamente.");
-      } else if (msg.includes("Departamento")) {
-        setError(msg);
-      } else {
-        setError("Ocorreu um erro inesperado. Tente novamente.");
-      }
+    } catch {
+      setError("Ocorreu um erro inesperado. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -555,249 +487,6 @@ const Auth: React.FC = () => {
                     )}
                   </button>
                 </form>
-
-                <div className="mt-8 text-center">
-                  <button
-                    onClick={() => {
-                      setFormView("register");
-                      setError(null);
-                    }}
-                    className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 text-sm font-medium transition-colors hover:underline underline-offset-4"
-                  >
-                    Não tem uma conta? Cadastre-se
-                  </button>
-
-                </div>
-              </motion.div>
-            )}
-
-            {/* ════════ REGISTER ════════ */}
-            {formView === "register" && (
-              <motion.div
-                key="register"
-                variants={formVariants}
-                initial="enter"
-                animate="center"
-                exit="exit"
-                transition={springTransition}
-              >
-                <div className="text-center mb-8">
-                  <h1 className="text-3xl font-bold mb-1">
-                    <span className="bg-gradient-to-r from-blue-900 via-blue-700 to-indigo-800 dark:from-white dark:via-gray-100 dark:to-white bg-clip-text text-transparent">
-                      Criar Conta
-                    </span>
-                  </h1>
-                  <p className="text-slate-500 dark:text-gray-300 text-sm">
-                    Preencha os dados para se cadastrar
-                  </p>
-                </div>
-
-                <AnimatePresence>
-                  {error && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -10 }}
-                      transition={{ duration: 0.2 }}
-                      className="mb-4 p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl text-red-700 dark:text-red-300 text-sm flex items-center gap-2"
-                    >
-                      <span className="flex-shrink-0 w-5 h-5 bg-red-100 dark:bg-red-800 rounded-full flex items-center justify-center text-red-500 dark:text-red-300 font-bold text-xs">
-                        !
-                      </span>
-                      {error}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  <div>
-                    <label
-                      htmlFor="reg-email"
-                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
-                    >
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      id="reg-email"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      required
-                      className="w-full px-4 py-3 border border-slate-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900/50 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400"
-                      placeholder="seu@email.com"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="reg-name"
-                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
-                    >
-                      Nome Completo
-                    </label>
-                    <input
-                      type="text"
-                      id="reg-name"
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                      required
-                      className="w-full px-4 py-3 border border-slate-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900/50 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400"
-                      placeholder="Seu nome completo"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="reg-cpf"
-                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
-                    >
-                      CPF
-                    </label>
-                    <input
-                      type="text"
-                      id="reg-cpf"
-                      value={cpf}
-                      onChange={(e) => setCpf(formatCPF(e.target.value))}
-                      required
-                      maxLength={14}
-                      className="w-full px-4 py-3 border border-slate-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900/50 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400"
-                      placeholder="000.000.000-00"
-                    />
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="reg-password"
-                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
-                    >
-                      Senha
-                    </label>
-                    <div className="relative">
-                      <input
-                        type={showPassword ? "text" : "password"}
-                        id="reg-password"
-                        value={password}
-                        onChange={(e) => setPassword(e.target.value)}
-                        required
-                        className="w-full px-4 py-3 pr-11 border border-slate-300 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-400 dark:hover:border-gray-500 bg-white dark:bg-gray-900/50 backdrop-blur-sm text-slate-800 dark:text-gray-100 placeholder:text-slate-400 dark:placeholder:text-gray-400"
-                        placeholder="••••••••"
-                        minLength={6}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 dark:text-gray-400 hover:text-slate-600 dark:hover:text-gray-200 transition-colors p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-gray-600"
-                      >
-                        {showPassword ? (
-                          <EyeOff className="w-4 h-4" />
-                        ) : (
-                          <Eye className="w-4 h-4" />
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label
-                      htmlFor="reg-department"
-                      className="block text-sm font-medium text-slate-700 dark:text-gray-300 mb-1.5"
-                    >
-                      Departamento
-                    </label>
-                    <div ref={deptRef} className="relative">
-                      <button
-                        id="reg-department"
-                        type="button"
-                        onClick={() => setDeptOpen((o) => !o)}
-                        className={`w-full flex items-center justify-between pl-4 pr-3 py-3 border rounded-xl text-sm transition-all duration-200 bg-white dark:bg-gray-900/50 text-left cursor-pointer ${
-                          deptOpen
-                            ? 'border-blue-500 ring-2 ring-blue-500/30'
-                            : 'border-slate-300 dark:border-gray-600 hover:border-slate-400 dark:hover:border-gray-500'
-                        }`}
-                      >
-                        <span className={department ? 'text-slate-800 dark:text-gray-100' : 'text-slate-400 dark:text-gray-500'}>
-                          {department || 'Selecione um departamento'}
-                        </span>
-                        <motion.span
-                          animate={{ rotate: deptOpen ? 180 : 0 }}
-                          transition={{ duration: 0.18 }}
-                          className="flex-shrink-0 ml-2"
-                        >
-                          <ChevronDown className="h-4 w-4 text-slate-400 dark:text-gray-500" />
-                        </motion.span>
-                      </button>
-
-                      <AnimatePresence>
-                        {deptOpen && (
-                          <motion.div
-                            initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                            animate={{ opacity: 1, y: 0, scale: 1 }}
-                            exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                            transition={{ duration: 0.15, ease: [0.25, 0.46, 0.45, 0.94] }}
-                            className="absolute z-50 top-full mt-1.5 left-0 right-0 bg-white dark:bg-gray-900 border border-slate-200 dark:border-gray-700 rounded-xl shadow-xl shadow-slate-900/10 dark:shadow-black/30 overflow-hidden"
-                          >
-                            <div className="max-h-52 overflow-y-auto custom-scrollbar py-1">
-                              {DEPARTMENTS.map((dept) => (
-                                <button
-                                  key={dept}
-                                  type="button"
-                                  onClick={() => { setDepartment(dept); setDeptOpen(false); }}
-                                  className={`w-full text-left px-4 py-2.5 text-sm transition-colors duration-100 ${
-                                    department === dept
-                                      ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
-                                      : 'text-slate-700 dark:text-gray-300 hover:bg-slate-50 dark:hover:bg-gray-800'
-                                  }`}
-                                >
-                                  {dept}
-                                </button>
-                              ))}
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={loading}
-                    className="w-full px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-xl shadow-md shadow-blue-500/25 dark:shadow-blue-500/15 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 dark:hover:shadow-blue-500/20 transition-all duration-200 hover-lift disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                  >
-                    {loading ? (
-                      <>
-                        <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                        Criando conta...
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="w-4 h-4 mr-2" />
-                        Criar Conta
-                      </>
-                    )}
-                  </button>
-                </form>
-
-                <div className="mt-8 text-center">
-                  <button
-                    onClick={() => {
-                      setFormView("login");
-                      setName("");
-                      setCpf("");
-                      setError(null);
-                    }}
-                    className="text-blue-700 dark:text-blue-400 hover:text-blue-900 dark:hover:text-blue-300 text-sm font-medium transition-colors hover:underline underline-offset-4"
-                  >
-                    Já tem uma conta? Faça login
-                  </button>
-                </div>
-
-                <div className="mt-5 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-xl text-slate-700 dark:text-gray-300 text-xs">
-                  <strong className="text-blue-800 dark:text-blue-400">
-                    Nota:
-                  </strong>{" "}
-                  Após criar sua conta, você poderá acessar o nosso sistema de
-                  Compras e Estoque.
-                </div>
               </motion.div>
             )}
 
