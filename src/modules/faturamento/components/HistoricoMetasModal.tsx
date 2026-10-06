@@ -76,7 +76,7 @@ const HistoricoMetasModal: React.FC<Props> = ({ onFechar }) => {
           <div>
             <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">Histórico de metas</h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Faturado de cada mês (títulos por vencimento, fontes da meta) contra a meta cadastrada
+              Faturado de cada mês (títulos por emissão, fontes da meta) contra a meta cadastrada
             </p>
           </div>
           <button

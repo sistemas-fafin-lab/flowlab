@@ -5,11 +5,11 @@ import type { MetaMensal } from '../types';
 // Histórico da meta mensal (issue 43): todo mês com meta cadastrada em
 // `metas_faturamento`, com o faturado do mês e se a meta foi batida — pela
 // MESMA regra do card do mês corrente (useMetaMensal): `fat_meta_mensal_faturado`,
-// títulos por vencimento, restritos à whitelist da meta.
+// títulos por emissão (fechamento do lote), restritos à whitelist da meta.
 //
 // O faturado é recalculado ao vivo, não congelado no fechamento do mês: um
-// título lançado depois com vencimento num mês passado muda o resultado
-// daquele mês — é o mesmo número que "Ver títulos do mês" mostraria hoje.
+// título lançado depois com emissão num mês passado muda o resultado
+// daquele mês.
 //
 // Uma chamada à RPC por mês, em paralelo: a tabela tem uma linha por mês
 // (dezenas, não milhares), e reaproveitar a RPC existente evita uma segunda

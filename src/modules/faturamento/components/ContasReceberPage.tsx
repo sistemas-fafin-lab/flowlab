@@ -139,9 +139,9 @@ const ContasReceberPage: React.FC = () => {
   }, []);
 
   // Widget "Meta mensal" do Dashboard (issue 43) → aba Títulos, com o período
-  // travado no mês/ano calendário da meta (useMetaMensal usa o mesmo "hoje").
-  // A whitelist de fontes já é sempre aplicada pelo useContasReceber, então
-  // não precisa ser repetida aqui — só o período muda.
+  // de emissão travado no mês/ano calendário da meta (useMetaMensal usa o
+  // mesmo "hoje" e a mesma coluna). A lista não aplica a whitelist da meta nem
+  // esconde cancelados (issue 37), então pode mostrar títulos a mais que o card.
   const navegarParaTitulosMeta = useCallback(() => {
     setAba('titulos');
     setFiltros((atual) => ({
