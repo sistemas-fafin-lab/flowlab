@@ -1,0 +1,104 @@
+grupo,acao,lote,operadora,origem,status,valor,emissao_atual,emissao_correta,aba_planilha,fechamento_aplis,envio_aplis,criacao_aplis,lote_reaberto,id_nota
+mesmo mês: só o dia muda,manter (só o dia difere),4899,CÂMARA DOS DEPUTADOS,backfill,parcialmente_recebida,17061.3,2026-01-28,2026-01-28,2026-01,2026-01-27,2026-01-26,2026-01-26,não,04d1d4c5-83ee-5215-8ef9-65a33b1a9014
+mesmo mês: só o dia muda,manter (só o dia difere),5971,GEAP Autogestão em Saúde,backfill,aberta,736.06,2026-07-08,2026-07-08,2026-07,2026-07-09,2026-07-09,2026-06-03,não,05508a05-a917-4043-aa32-357ae45dbfad
+mesmo mês: só o dia muda,manter (só o dia difere),5279,PMDF,backfill,parcialmente_recebida,10593.44,2026-03-24,2026-03-24,2026-03,2026-03-25,2026-03-25,2026-03-24,sim,0dbfcd74-9e34-5f0d-9df9-432f00100b52
+mesmo mês: só o dia muda,manter (só o dia difere),6029,BRADESCO SAUDE S/A 421715,backfill,recebida,3380.97,2026-06-16,2026-06-16,2026-06,2026-06-15,2026-06-15,2026-06-11,não,1372b251-50c6-5983-b687-2f02575d4dcf
+mesmo mês: só o dia muda,manter (só o dia difere),6030,BRADESCO SAUDE S/A 421715,backfill,recebida,21502.1,2026-06-17,2026-06-17,2026-06,2026-06-12,2026-06-12,2026-06-11,não,151a1781-0b6f-5da8-a746-c11c210a7dc1
+mesmo mês: só o dia muda,manter (só o dia difere),5162,LAB PLANASSISTE,backfill,recebida,1369.33,2026-03-09,2026-03-09,2026-03,2026-03-06,2026-03-06,2026-03-06,sim,168105be-9527-5a97-83d5-d88bbb613135
+mesmo mês: só o dia muda,manter (só o dia difere),3781,GEAP Autogestão em Saúde,backfill,parcialmente_recebida,18613.74,2026-04-02,2026-04-02,2026-04,2026-04-01,2026-04-01,2025-03-28,sim,1d6b62dc-6a8e-5f53-b955-16e65a7de481
+mesmo mês: só o dia muda,manter (só o dia difere),6660,ASSEFAZ,backfill,aberta,6265.85,2026-09-03,2026-09-03,2026-09,2026-09-02,2026-09-02,2026-08-27,sim,1db4d0a7-4c6a-4bcc-9f64-654dea3b044c
+mesmo mês: só o dia muda,manter (só o dia difere),5288,BRADESCO SAUDE  - 005711,backfill,parcialmente_recebida,13920.35,2026-03-26,2026-03-26,2026-03,2026-03-25,2026-03-25,2026-03-25,não,1ed8e465-5858-5e1f-ab7f-4d6731229868
+mesmo mês: só o dia muda,manter (só o dia difere),6032,BRADESCO SAUDE  - 005711,backfill,recebida,31722.24,2026-06-16,2026-06-16,2026-06,2026-06-11,2026-06-11,2026-06-11,não,20137fa4-0940-5e87-bc86-902a93dd7426
+mesmo mês: só o dia muda,manter (só o dia difere),5672,GEAP Autogestão em Saúde,backfill,aberta,9154.7,2026-05-08,2026-05-08,2026-05,2026-05-07,2026-05-07,2026-05-06,não,2528ef77-d733-5eed-8cef-2f40ab34f62d
+mesmo mês: só o dia muda,manter (só o dia difere),6047,TJDFT,backfill,recebida,5573.66,2026-06-13,2026-06-13,2026-06,2026-06-15,2026-06-15,2026-06-15,não,26f4c1a8-1051-56d8-a272-85608a29a94f
+mesmo mês: só o dia muda,manter (só o dia difere),6580,BRADESCO SAUDE  - 005711,backfill,aberta,7188.87,2026-08-21,2026-08-21,2026-08,2026-08-19,2026-08-19,2026-08-19,não,2a672d1e-d310-44d9-ab96-4638c8d5d853
+mesmo mês: só o dia muda,manter (só o dia difere),5301,BRADESCO SAUDE  - 005711,backfill,parcialmente_recebida,13111.24,2026-03-26,2026-03-26,2026-03,2026-03-23,2026-03-26,2026-03-25,sim,33c269ab-71bf-503a-b567-552c27934405
+mesmo mês: só o dia muda,manter (só o dia difere),6668,ASSEFAZ,backfill,aberta,2897.29,2026-09-03,2026-09-03,2026-09,2026-09-02,2026-09-02,2026-08-28,não,34bc22bc-d5ea-4cd8-8991-647b12c6a038
+mesmo mês: só o dia muda,manter (só o dia difere),5859,BRADESCO SAUDE  - 005711,backfill,recebida,18418.07,2026-06-16,2026-06-16,2026-06,2026-06-11,2026-06-11,2026-05-25,não,3f4e0a20-42c6-5d68-9b7b-ae9aae9751c9
+mesmo mês: só o dia muda,manter (só o dia difere),6707,TRT,sistema,cancelada,85.08,2026-09-03,2026-09-03,,2026-09-02,2026-09-02,2026-09-02,não,403d284c-7c9f-451c-b44c-605a49db9bc5
+mesmo mês: só o dia muda,manter (só o dia difere),1996,TRT,backfill,parcialmente_recebida,2874.44,2026-06-02,2026-06-02,2026-06,2026-06-01,2026-06-02,2023-01-27,sim,404a92c9-1288-59cd-bf42-acb10ee82f46
+mesmo mês: só o dia muda,manter (só o dia difere),5286,PMDF,backfill,parcialmente_recebida,3769.68,2026-03-26,2026-03-26,2026-03,2026-03-25,2026-03-25,2026-03-25,não,41eaee45-0cc3-58ad-976f-a4fae9243f29
+mesmo mês: só o dia muda,manter (só o dia difere),5730,BRADESCO SAUDE S/A 421715,backfill,recebida,4627.54,2026-05-13,2026-05-13,2026-05,2026-05-12,2026-05-12,2026-05-11,não,4305daa4-9072-5ee0-92dc-b5b0a6bc3271
+mesmo mês: só o dia muda,manter (só o dia difere),6152,CÂMARA DOS DEPUTADOS,backfill,recebida,32425.16,2026-06-25,2026-06-25,2026-06,2026-06-24,2026-06-24,2026-06-23,sim,44759474-2143-5a21-8e95-74f3038c99e1
+mesmo mês: só o dia muda,manter (só o dia difere),4973,CASSI,backfill,recebida,8755.2,2026-02-04,2026-02-04,2026-02,2026-02-05,2026-02-05,2026-02-04,não,491cdc82-23fc-5346-9e41-ec5ded629dac
+mesmo mês: só o dia muda,manter (só o dia difere),5011,SIS SENADO,backfill,aberta,1424.18,2026-02-13,2026-02-13,2026-02,2026-02-12,2026-02-12,2026-02-12,não,4f879f72-1631-5d29-a0a6-261d4981ae19
+mesmo mês: só o dia muda,manter (só o dia difere),6712,GEAP Autogestão em Saúde,backfill,aberta,17989.79,2026-09-04,2026-09-04,2026-09,2026-09-03,2026-09-03,2026-09-03,não,4fda9463-4817-4ccd-bf81-ccbdd0b2f3a8
+mesmo mês: só o dia muda,manter (só o dia difere),6035,BRADESCO SAUDE  - 005711,backfill,recebida,18706.94,2026-06-17,2026-06-17,2026-06,2026-06-12,2026-06-12,2026-06-11,sim,56314685-bfaf-5e9c-a875-caeac6bf0f90
+mesmo mês: só o dia muda,manter (só o dia difere),4970,CASSI,backfill,parcialmente_recebida,12683.23,2026-02-04,2026-02-04,2026-02,2026-02-05,2026-02-05,2026-02-04,sim,5c9be3c1-6ed9-5542-b53f-05c7d4c6f663
+mesmo mês: só o dia muda,manter (só o dia difere),5141,BRB SAÚDE,backfill,recebida,1041.46,2026-03-02,2026-03-02,2026-03,2026-03-03,2026-03-03,2026-03-03,não,635cfd8f-e8a3-5427-9e1b-8c365886d677
+mesmo mês: só o dia muda,manter (só o dia difere),6111,SIS SENADO,backfill,aberta,763.67,2026-07-08,2026-07-08,2026-07,2026-07-09,2026-07-09,2026-06-19,não,64ed0dd0-d63d-4307-9b34-cbd7a2a2c2a2
+mesmo mês: só o dia muda,manter (só o dia difere),6659,ASSEFAZ,backfill,aberta,1851.53,2026-09-03,2026-09-03,2026-09,2026-09-02,2026-09-02,2026-08-27,sim,6574d8ed-a7da-494f-af06-76b1ad64e788
+mesmo mês: só o dia muda,manter (só o dia difere),5858,BRADESCO SAUDE  - 005711,backfill,recebida,20341.7,2026-06-16,2026-06-16,2026-06,2026-06-11,2026-06-11,2026-05-25,não,688ef7f1-d942-567c-a94e-0ccf1f911b72
+mesmo mês: só o dia muda,manter (só o dia difere),4923,SIS SENADO,backfill,parcialmente_recebida,5546.9,2026-01-23,2026-01-23,2026-01,2026-01-30,2026-01-30,2026-01-30,sim,6da8415d-6d02-5504-a99c-11e5236c6a36
+mesmo mês: só o dia muda,manter (só o dia difere),6031,BRADESCO SAUDE  - 005711,backfill,parcialmente_recebida,15316.15,2026-06-17,2026-06-17,2026-06,2026-06-12,2026-06-12,2026-06-11,sim,76034b2f-40ca-5d76-adaf-b9bf30efa359
+mesmo mês: só o dia muda,manter (só o dia difere),5280,SIS SENADO,backfill,recebida,6580.6,2026-03-27,2026-03-27,2026-03,2026-03-26,2026-03-26,2026-03-24,não,7b081552-5ba9-578d-936e-b9f712a0157f
+mesmo mês: só o dia muda,manter (só o dia difere),6320,LAB PLANASSISTE,backfill,aberta,27113.96,2026-07-21,2026-07-21,2026-07,2026-07-20,2026-07-20,2026-07-20,não,7e4b57e5-3da0-4456-a498-f99ba3851425
+mesmo mês: só o dia muda,manter (só o dia difere),6500,BRADESCO SAUDE  - 005711,backfill,aberta,31355.06,2026-08-11,2026-08-11,2026-08,2026-08-10,2026-08-10,2026-08-10,não,7f6ee338-1b8e-4f64-918a-f358d7c05003
+mesmo mês: só o dia muda,manter (só o dia difere),6116,STJ,backfill,recebida,79.92,2026-07-24,2026-07-24,2026-07,2026-07-21,2026-07-21,2026-06-22,não,83b123e3-2a6c-40f1-ae14-74cfe8600b6e
+mesmo mês: só o dia muda,manter (só o dia difere),5161,LAB PLANASSISTE,backfill,recebida,24113.18,2026-03-09,2026-03-09,2026-03,2026-03-06,2026-03-06,2026-03-06,sim,83bc741b-5c6e-56eb-b2bb-53e09cabde2d
+mesmo mês: só o dia muda,manter (só o dia difere),6715,POLÍCIA FEDERAL,backfill,aberta,70.62,2026-09-04,2026-09-04,2026-09,2026-09-03,2026-09-03,2026-09-03,não,857e976d-3069-43c8-a77a-456665b118ef
+mesmo mês: só o dia muda,manter (só o dia difere),5674,GEAP Autogestão em Saúde,backfill,aberta,2729.64,2026-05-08,2026-05-08,2026-05,2026-05-07,2026-05-07,2026-05-06,sim,8d88b7a1-23b0-57fe-81c4-dacd5609a62a
+mesmo mês: só o dia muda,manter (só o dia difere),5157,AMIL,backfill,recebida,9531.98,2026-03-09,2026-03-09,2026-03,2026-03-06,2026-03-06,2026-03-05,sim,923df05b-279c-53ee-b85f-6ff87bf57184
+mesmo mês: só o dia muda,manter (só o dia difere),6159,SAUDE CAIXA,backfill,recebida,10954.34,2026-06-25,2026-06-25,2026-06,2026-06-24,2026-06-24,2026-06-24,sim,9e026fea-87c5-596f-8bb7-3fd9d99fac86
+mesmo mês: só o dia muda,manter (só o dia difere),5505,PMDF,backfill,recebida,316.28,2026-04-15,2026-04-15,2026-04,2026-04-16,2026-04-16,2026-04-16,não,a2352c67-9429-51e4-89e3-ed3fc3c31e08
+mesmo mês: só o dia muda,manter (só o dia difere),5281,SIS SENADO,backfill,recebida,2082.45,2026-03-27,2026-03-27,2026-03,2026-03-26,2026-03-26,2026-03-24,não,a64d817f-6d48-5154-a9e6-c86d72ec9e6c
+mesmo mês: só o dia muda,manter (só o dia difere),6289,SIS SENADO,backfill,aberta,1340.3,2026-07-16,2026-07-16,2026-07,2026-07-15,2026-07-15,2026-07-15,não,aba7c5ce-81f9-4344-8488-dc120be70bb5
+mesmo mês: só o dia muda,manter (só o dia difere),4971,CASSI,backfill,parcialmente_recebida,16269.07,2026-02-04,2026-02-04,2026-02,2026-02-05,2026-02-05,2026-02-04,sim,ad82dbf8-5545-5f29-a778-670810b9d4a2
+mesmo mês: só o dia muda,manter (só o dia difere),5171,LAB PLANASSISTE,backfill,recebida,18994.1,2026-03-09,2026-03-09,2026-03,2026-03-10,,2026-03-06,não,aeee244c-1907-532e-8ec2-25d2849f9796
+mesmo mês: só o dia muda,manter (só o dia difere),5306,BRADESCO SAUDE  - 005711,backfill,recebida,11918.55,2026-04-28,2026-04-28,2026-04,2026-04-24,2026-04-24,2026-03-25,não,b8eb4a50-fa08-53ac-a9c2-b25f0fc28f49
+mesmo mês: só o dia muda,manter (só o dia difere),5276,SIS SENADO,backfill,parcialmente_recebida,16338.88,2026-03-27,2026-03-27,2026-03,2026-03-26,2026-03-26,2026-03-24,não,c3944d2d-6bbc-5830-b8dd-fa0486ce5a42
+mesmo mês: só o dia muda,manter (só o dia difere),6099,BRADESCO SAUDE  - 005711,backfill,recebida,8263.22,2026-06-22,2026-06-22,2026-06,2026-06-19,2026-06-19,2026-06-19,não,d5aab073-52aa-5403-b0a6-fddcac2b8b2e
+mesmo mês: só o dia muda,manter (só o dia difere),5731,BRADESCO SAUDE S/A 421715,backfill,recebida,1178.88,2026-05-13,2026-05-13,2026-05,2026-05-11,2026-05-11,2026-05-11,não,dca943a2-f335-5d5d-b743-6a8109390910
+mesmo mês: só o dia muda,manter (só o dia difere),5158,AMIL,backfill,parcialmente_recebida,9826.81,2026-03-06,2026-03-06,2026-03,2026-03-05,2026-03-05,2026-03-05,sim,dfe20150-02bc-5a02-a407-9aa6c597c2e0
+mesmo mês: só o dia muda,manter (só o dia difere),6102,BRADESCO SAUDE S/A 421715,backfill,recebida,1323.89,2026-06-22,2026-06-22,2026-06,2026-06-19,2026-06-19,2026-06-19,não,e22504af-6476-5078-a1f8-adce9a86ee9d
+mesmo mês: só o dia muda,manter (só o dia difere),6713,FASCAL,backfill,aberta,2405.16,2026-09-04,2026-09-04,2026-09,2026-09-03,2026-09-03,2026-09-03,sim,e5e67797-cf1b-4b7f-8f12-b90eb79139cf
+mesmo mês: só o dia muda,manter (só o dia difere),5729,BRADESCO SAUDE  - 005711,backfill,recebida,2091.88,2026-05-13,2026-05-13,2026-05,2026-05-12,2026-05-12,2026-05-11,não,eb629bd9-c2de-52f8-b763-67e84528abec
+mesmo mês: só o dia muda,manter (só o dia difere),6100,BRADESCO SAUDE  - 005711,backfill,recebida,309.74,2026-06-22,2026-06-22,2026-06,2026-06-19,2026-06-19,2026-06-19,não,ee5da3d7-1a9f-5e7b-8e92-3ef958d82378
+mesmo mês: só o dia muda,manter (só o dia difere),4992,GEAP Autogestão em Saúde,backfill,recebida,12353.42,2026-02-10,2026-02-10,2026-02,2026-02-09,2026-02-09,2026-02-09,não,f1533740-799d-56e9-ad05-2601d739a2ee
+mesmo mês: só o dia muda,manter (só o dia difere),5282,SIS SENADO,backfill,recebida,2569.46,2026-03-27,2026-03-27,2026-03,2026-03-26,2026-03-26,2026-03-24,não,f28a59bb-996d-594e-be4f-b0adb9e9991d
+mesmo mês: só o dia muda,manter (só o dia difere),6048,TJDFT,backfill,recebida,3540.59,2026-06-13,2026-06-13,2026-06,2026-06-15,2026-06-15,2026-06-15,não,f2a0735e-f246-5fcf-9946-3ce419867bcc
+mesmo mês: só o dia muda,manter (só o dia difere),4999,GEAP Autogestão em Saúde,backfill,recebida,52.32,2026-02-10,2026-02-10,2026-02,2026-02-09,2026-02-09,2026-02-09,sim,f3ffbef6-13ae-5315-a110-ce57198948db
+mesmo mês: só o dia muda,manter (só o dia difere),5375,FASCAL,backfill,parcialmente_recebida,4342.79,2026-04-07,2026-04-07,2026-04,2026-04-06,2026-04-06,2026-04-01,sim,f5efbe20-6eb3-5545-9622-208fc1f5afd6
+mesmo mês: só o dia muda,manter (só o dia difere),6046,TJDFT,backfill,recebida,16669.83,2026-06-13,2026-06-13,2026-06,2026-06-15,2026-06-15,2026-06-12,sim,f98e836d-3810-5a81-b84a-5dcf077a78b0
+mesmo mês: só o dia muda,manter (só o dia difere),4972,CASSI,backfill,parcialmente_recebida,16006.35,2026-02-04,2026-02-04,2026-02,2026-02-05,2026-02-05,2026-02-04,sim,fff4ff11-d08a-54a3-a602-05e819deebd9
+fechamento fora da aba → manter planilha,manter (planilha),6094,STJ,backfill,recebida,156.77,2026-06-18,2026-06-18,2026-06,2026-07-15,2026-06-18,2026-06-18,não,086c1e2b-b328-5d37-a721-cf8e18a7f756
+fechamento fora da aba → manter planilha,manter (planilha),5708,STJ,backfill,recebida,1436.11,2026-05-20,2026-05-20,2026-05,2026-06-11,2026-05-20,2026-05-11,não,3e3aa07a-8b14-5ec6-818e-643216302a52
+fechamento fora da aba → manter planilha,manter (planilha),5840,STJ,backfill,recebida,677.88,2026-05-21,2026-05-21,2026-05,2026-06-11,2026-05-21,2026-05-21,não,4e02bfcb-ca6a-56b7-89e0-10d0c6fc687c
+fechamento fora da aba → manter planilha,manter (planilha),5371,TRT,backfill,aberta,3159.83,2026-08-31,2026-08-31,2026-08,2026-04-02,2026-04-02,2026-04-01,não,799bb0fe-1348-47b0-b48d-dc9f4df7dac5
+fechamento fora da aba → manter planilha,manter (planilha),5839,STJ,backfill,parcialmente_recebida,212.04,2026-05-21,2026-05-21,2026-05,2026-06-11,2026-05-21,2026-05-21,não,dbdedbf8-825b-511c-881c-af2d6bea8e14
+fechamento fora da aba → manter planilha,manter (planilha),5354,GEAP Autogestão em Saúde,backfill,parcialmente_recebida,18990.6,2026-04-10,2026-04-10,2026-04,2026-05-08,2026-04-06,2026-03-31,não,e39273d0-b597-5fce-a6a8-41471b00a187
+fechamento fora da aba → manter planilha,manter (planilha),6283,SIS SENADO,backfill,aberta,18156.68,2026-07-16,2026-07-16,2026-07,2026-10-05,2026-07-16,2026-07-15,não,e60ac45c-62c8-4d70-8e03-a90c87f1f6c5
+fechamento fora da aba → manter planilha,manter (planilha),5816,STJ,backfill,recebida,559.44,2026-05-20,2026-05-20,2026-05,2026-06-11,2026-05-20,2026-05-20,não,f4d108d7-c977-5bb4-abda-3eb4962327b3
+lote reaberto → manter planilha,manter (planilha),5188,CASSI,backfill,recebida,8783.38,2026-04-01,2026-04-01,2026-04,2026-03-01,2026-04-01,2026-03-11,sim,0a450eb7-0471-57e9-99a6-8ae8013aea4d
+lote reaberto → manter planilha,manter (planilha),6554,TJDFT,backfill,aberta,1195.11,2026-08-17,2026-08-17,2026-08,2026-09-24,2026-09-24,2026-08-17,sim,1516ed3b-83dd-43a1-b71c-0e755fa0b736
+lote reaberto → manter planilha,manter (planilha),6553,TJDFT,backfill,aberta,5539.02,2026-08-17,2026-08-17,2026-08,2026-09-24,2026-09-24,2026-08-17,sim,1b4795c3-49ec-4001-b12e-8f193a478d6e
+lote reaberto → manter planilha,manter (planilha),4951,BRADESCO SAUDE S/A 421715,backfill,aberta,10865.94,2026-08-06,2026-08-06,2026-08,2026-09-25,2026-08-05,2026-02-03,sim,1b64cad6-6c31-406a-8512-ccbecd44e116
+lote reaberto → manter planilha,manter (planilha),5424,SIS SENADO,backfill,aberta,348.67,2026-09-10,2026-09-10,2026-09,2026-10-05,2026-04-09,2026-04-08,sim,3640fa3e-110c-48b2-85f5-57a1e1831daf
+lote reaberto → manter planilha,manter (planilha),5804,SIS SENADO,backfill,recebida,2282.6,2026-05-21,2026-05-21,2026-05,2026-07-09,2026-05-21,2026-05-19,sim,4088c686-da0b-53a8-a07b-67c146f718c1
+lote reaberto → manter planilha,manter (planilha),6556,TJDFT,backfill,aberta,677.69,2026-08-17,2026-08-17,2026-08,2026-09-24,2026-09-24,2026-08-17,sim,45e9bef4-aa9b-4f2c-a695-c28509cc8554
+lote reaberto → manter planilha,manter (planilha),4797,BRADESCO SAUDE S/A 421715,backfill,parcialmente_recebida,17563.35,2026-01-23,2026-01-23,2026-01,2025-12-31,2025-12-31,2025-12-31,sim,48ea103a-cb82-54f8-bf32-40b3354cf41f
+lote reaberto → manter planilha,manter (planilha),6546,TJDFT,backfill,aberta,153.22,2026-08-14,2026-08-14,2026-08,2026-09-24,2026-09-24,2026-08-14,sim,4a4b71a5-a59d-4206-b005-69521e7c1712
+lote reaberto → manter planilha,manter (planilha),6476,LAB PLANASSISTE,backfill,aberta,1238.28,2026-09-10,2026-09-10,2026-09,2026-08-06,2026-09-10,2026-08-06,sim,4f9e5a1c-eee2-4812-8c06-9a426e29fdbf
+lote reaberto → manter planilha,manter (planilha),5075,BRADESCO SAUDE  - 005711,backfill,parcialmente_recebida,31745.41,2026-03-26,2026-03-26,2026-03,2026-02-26,2026-03-26,2026-02-25,sim,5a2accf1-ac66-5dae-873b-a7827ad8ab26
+lote reaberto → manter planilha,manter (planilha),5776,LAB PLANASSISTE,backfill,parcialmente_recebida,41838.37,2026-05-15,2026-05-15,2026-05,2026-06-29,2026-05-15,2026-05-15,sim,5c262903-2af5-5cf6-a6b7-3b7c0a3eb0de
+lote reaberto → manter planilha,manter (planilha),6243,PMDF,backfill,aberta,4142.78,2026-07-08,2026-07-08,2026-07,2026-10-05,2026-10-05,2026-07-08,sim,72fb35b5-0118-4858-9a7c-64b4cf902c2d
+lote reaberto → manter planilha,manter (planilha),6534,TJDFT,backfill,aberta,10892.9,2026-08-17,2026-08-17,2026-08,2026-09-24,2026-09-24,2026-08-13,sim,8f6e0af2-6d4d-4717-bd6b-28220287e9e3
+lote reaberto → manter planilha,manter (planilha),5773,FUSEX,backfill,recebida,407.82,2026-05-19,2026-05-19,2026-05,2026-06-16,2026-05-15,2026-05-15,sim,91bd2381-5b8e-579e-9b81-767b5bf1bcc5
+lote reaberto → manter planilha,manter (planilha),6535,TJDFT,backfill,aberta,6927.03,2026-08-17,2026-08-17,2026-08,2026-09-24,2026-09-24,2026-08-13,sim,9a020f27-e843-489b-809b-904e5ade8119
+lote reaberto → manter planilha,manter (planilha),4924,INAS GDF,backfill,parcialmente_recebida,6176.5,2026-02-27,2026-02-27,2026-02,2026-05-15,2026-02-27,2026-01-30,sim,c0f4a810-e515-500f-9fff-9b456cc65551
+lote reaberto → manter planilha,manter (planilha),5370,TRT,backfill,aberta,1438.89,2026-08-31,2026-08-31,2026-08,2026-04-02,2026-04-02,2026-04-01,sim,d322f81e-6ac6-4032-9245-856a1df930d3
+lote reaberto → manter planilha,manter (planilha),4421,GEAP Autogestão em Saúde,backfill,aberta,10303.1,2026-07-01,2026-07-01,2026-07,2026-06-06,2026-07-01,2025-09-22,sim,e0dbe2c9-b1f3-4114-be7f-189e72ff5eb0
+planilha com data fora da aba → fechamento acerta,corrigir para o fechamento,5865,SAUDE CAIXA,backfill,recebida,1648.28,2026-06-25,2026-05-25,2026-05,2026-05-25,2026-05-25,2026-05-25,não,1db83a93-9b44-54d3-baf9-5e463c3f16e0
+planilha com data fora da aba → fechamento acerta,corrigir para o fechamento,5866,SAUDE CAIXA,backfill,recebida,1194.72,2026-06-25,2026-05-25,2026-05,2026-05-25,2026-05-25,2026-05-25,não,75a79f08-f100-560c-b56b-6d015fcfee8f
+planilha com data fora da aba → fechamento acerta,corrigir para o fechamento,5876,SAUDE CAIXA,backfill,recebida,10649.28,2026-06-26,2026-05-26,2026-05,2026-05-26,2026-05-26,2026-05-26,sim,a680f2da-1813-5a96-a4eb-dc8e6088a91b
+planilha com data fora da aba → fechamento acerta,corrigir para o fechamento,5864,SAUDE CAIXA,backfill,recebida,6556.02,2026-06-25,2026-05-25,2026-05,2026-05-25,2026-05-25,2026-05-25,não,d5af348f-5ce4-53cb-9b56-af8ab0332248
+sem lote no apLIS,dado de demonstração? remover,,Amil Assistência Médica,sem-autor,aberta,22150.75,2026-03-01,2026-03-01,,,,,,08bda8d5-44c5-4be8-b079-bde30b45819f
+sem lote no apLIS,dado de demonstração? remover,,Bradesco Saúde,sem-autor,recebida,67340,2026-01-28,2026-01-28,,,,,,36320436-37b9-4fbf-b44a-af696fe434f0
+lote sem fechamento,manter (conferir lote),6647,AMHP-DF,backfill,aberta,1200.34,2026-08-27,2026-08-27,,,,,,43c7c3f0-50be-41fe-86f7-91a042a9fc38
+sem lote no apLIS,dado de demonstração? remover,,Unimed Regional,sem-autor,aberta,38920,2026-03-05,2026-03-05,,,,,,45867166-827f-4fa7-b904-b3a52feef2ba
+sem lote no apLIS,manter (conferir lote),6596,AMHP-DF,backfill,aberta,794.57,2026-08-24,2026-08-24,,,,,,8124d503-bf6c-4132-bc36-2db46093f2c7
+sem lote no apLIS,dado de demonstração? remover,,SulAmérica Saúde,sem-autor,glosada,15890,2026-02-15,2026-02-15,,,,,,ac8ba0cb-3aa9-45b8-b111-35747ca451f2
+sem lote no apLIS,manter (conferir lote),4905,PMDF,backfill,aberta,20391,2026-07-03,2026-07-03,,,,,,d5a900aa-9851-49c7-8baa-d23690a73aad
+sem lote no apLIS,manter (conferir lote),6652,AMHP-DF,backfill,aberta,608.84,2026-08-27,2026-08-27,,,,,,ea57d1fd-ec53-4572-918e-c998c6ed8224
+lote sem fechamento,manter (conferir lote),6335,BRADESCO SAUDE S/A 421715,backfill,aberta,15596.16,2026-07-21,2026-07-21,,,,,,f3aecfe9-b31e-4b38-9770-99b804530129
+sem lote no apLIS,dado de demonstração? remover,,Unimed Regional,sem-autor,parcialmente_recebida,45780.5,2026-02-25,2026-02-25,,,,,,ffdf4347-dc48-4107-a0a4-c0c13547c7d9
