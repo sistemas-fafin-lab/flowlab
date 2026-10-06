@@ -42,7 +42,6 @@ function itemPrevia(parcial: Partial<LotePreviaAplis> & { idLote?: number } = {}
     bloqueio: null,
     jaRecebidoAplis: false,
     semNf: true,
-    emissaoMesAnterior: false,
     desvinculado: null,
     ...resto,
   };
@@ -79,8 +78,8 @@ describe('selecaoPadraoAplis', () => {
 describe('corpoTituloAplis', () => {
   const hoje = new Date(2026, 9, 1);
 
-  it('1 lote, emissão = criação do lote e competência = mês dessa emissão', () => {
-    const corpo = corpoTituloAplis({ idLote: 6601, dtaCriacao: '2026-08-28', nfeNumero: null }, hoje);
+  it('1 lote, emissão = fechamento do lote e competência = mês dessa emissão', () => {
+    const corpo = corpoTituloAplis({ idLote: 6601, dtaFechamento: '2026-08-28', nfeNumero: null }, hoje);
     expect(corpo).toEqual({
       idsLote: [6601],
       dataEmissao: '2026-08-28',
@@ -90,11 +89,11 @@ describe('corpoTituloAplis', () => {
   });
 
   it('leva a NF-e do lote como número da nota, quando já existe', () => {
-    const corpo = corpoTituloAplis({ idLote: 6602, dtaCriacao: '2026-09-03', nfeNumero: '4521' }, hoje);
+    const corpo = corpoTituloAplis({ idLote: 6602, dtaFechamento: '2026-09-03', nfeNumero: '4521' }, hoje);
     expect(corpo.numeroNota).toBe('4521');
   });
 
-  describe('lote sem data de criação', () => {
+  describe('lote sem data de fechamento', () => {
     beforeEach(() => {
       vi.useFakeTimers();
       vi.setSystemTime(new Date(2026, 10, 3, 10));
@@ -102,7 +101,7 @@ describe('corpoTituloAplis', () => {
     afterEach(() => vi.useRealTimers());
 
     it('emissão e competência saem da mesma conta (hoje)', () => {
-      const corpo = corpoTituloAplis({ idLote: 6603, dtaCriacao: null, nfeNumero: null }, hoje);
+      const corpo = corpoTituloAplis({ idLote: 6603, dtaFechamento: null, nfeNumero: null }, hoje);
       expect(corpo.dataEmissao).toBe('2026-11-03');
       expect(corpo.competencia).toBe('2026-11');
     });

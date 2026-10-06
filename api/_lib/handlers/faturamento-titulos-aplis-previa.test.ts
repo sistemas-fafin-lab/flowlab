@@ -251,7 +251,6 @@ describe('GET /api/faturamento/titulos-aplis-previa', () => {
       bloqueio: null,
       jaRecebidoAplis: false,
       semNf: false,
-      emissaoMesAnterior: false,
       desvinculado: null,
     });
   });
@@ -299,11 +298,6 @@ describe('GET /api/faturamento/titulos-aplis-previa', () => {
   it('lote sem NFeNumero vem com semNf', async () => {
     const res = await executar({}, [lote({ nfeNumero: null })]);
     expect(res.body.lotes[0].semNf).toBe(true);
-  });
-
-  it('criado em agosto e fechado em setembro vem com emissaoMesAnterior', async () => {
-    const res = await executar({}, [lote({ dtaCriacao: '2026-08-28', dtaFechamento: '2026-09-02' })]);
-    expect(res.body.lotes[0].emissaoMesAnterior).toBe(true);
   });
 
   it('lote desvinculado aparece com o título, a data e o motivo do último desvínculo', async () => {

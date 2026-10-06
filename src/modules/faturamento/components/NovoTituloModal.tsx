@@ -415,7 +415,7 @@ const NovoTituloModal: React.FC<Props> = ({ aberto, onFechar, onCriar }) => {
               <span className="mt-1 block text-[11px] text-gray-400">
                 {emissaoManual
                   ? 'Data escolhida manualmente'
-                  : 'Padrão: data de criação do lote (a mais antiga, se houver vários)'}
+                  : 'Padrão: data de faturamento (fechamento) do lote no apLIS — a mais recente, se houver vários'}
               </span>
             </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">

@@ -3,20 +3,20 @@ import { emissaoPadrao } from './emissaoTitulo';
 import { hojeIso } from './formato';
 
 describe('emissaoPadrao', () => {
-  it('usa a data de criação do lote', () => {
-    expect(emissaoPadrao([{ dtaCriacao: '2026-08-12' }])).toBe('2026-08-12');
+  it('usa a data de fechamento do lote', () => {
+    expect(emissaoPadrao([{ dtaFechamento: '2026-10-01' }])).toBe('2026-10-01');
   });
 
-  it('com vários lotes, usa o mais antigo (CASSI 6526 + 6537)', () => {
-    expect(emissaoPadrao([{ dtaCriacao: '2026-08-13' }, { dtaCriacao: '2026-08-12' }])).toBe('2026-08-12');
+  it('com vários lotes, usa o fechamento mais recente', () => {
+    expect(emissaoPadrao([{ dtaFechamento: '2026-10-01' }, { dtaFechamento: '2026-09-30' }])).toBe('2026-10-01');
   });
 
-  it('ignora lote sem data', () => {
-    expect(emissaoPadrao([{ dtaCriacao: null }, { dtaCriacao: '2026-08-19' }])).toBe('2026-08-19');
+  it('ignora lote sem fechamento', () => {
+    expect(emissaoPadrao([{ dtaFechamento: null }, { dtaFechamento: '2026-08-19' }])).toBe('2026-08-19');
   });
 
-  it('sem lote com data, cai em hoje', () => {
+  it('sem lote fechado, cai em hoje', () => {
     expect(emissaoPadrao([])).toBe(hojeIso());
-    expect(emissaoPadrao([{ dtaCriacao: null }])).toBe(hojeIso());
+    expect(emissaoPadrao([{ dtaFechamento: null }])).toBe(hojeIso());
   });
 });

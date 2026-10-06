@@ -204,8 +204,6 @@ export interface LotePreviaAplis {
   jaRecebidoAplis: boolean;
   /** Sem NF-e no apLIS: a baixa vai exigir o número. */
   semNf: boolean;
-  /** Criado num mês e fechado noutro (a emissão segue a criação). */
-  emissaoMesAnterior: boolean;
   /** Último desvínculo do lote de um título; o lote vem desmarcado. */
   desvinculado: { idNota: string; numeroNota: string | null; em: string; motivo: string } | null;
 }

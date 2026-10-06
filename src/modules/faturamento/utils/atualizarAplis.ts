@@ -47,10 +47,10 @@ export interface CorpoTituloAplis {
 
 /** Corpo do POST titulo-criar para um lote. Emissão explícita (a mesma regra do
  *  "Novo título") para a competência sair da mesma conta, inclusive no fallback
- *  de lote sem data de criação. O número da nota é a NF-e do lote, que no
+ *  de lote sem data de fechamento. O número da nota é a NF-e do lote, que no
  *  "Novo título" o operador copia à mão — a rota não o deduz do lote. */
 export function corpoTituloAplis(
-  lote: Pick<LoteFaturamento, 'idLote' | 'dtaCriacao' | 'nfeNumero'>,
+  lote: Pick<LoteFaturamento, 'idLote' | 'dtaFechamento' | 'nfeNumero'>,
   hoje: Date = new Date(),
 ): CorpoTituloAplis {
   const dataEmissao = emissaoPadrao([lote]);

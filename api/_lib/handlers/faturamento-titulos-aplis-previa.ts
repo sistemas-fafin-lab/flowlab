@@ -13,8 +13,8 @@
  *     de título cancelado: refaturar lote cancelado é decisão manual.
  *
  * Marcas por lote: `bloqueio: 'sem-valor'` (valor ≤ 0), `jaRecebidoAplis`
- * (STLOT 4/7), `semNf` (sem NF-e: a baixa vai exigir o número),
- * `emissaoMesAnterior` (criado num mês, fechado noutro) e `desvinculado` (último
+ * (STLOT 4/7), `semNf` (sem NF-e: a baixa vai exigir o número) e
+ * `desvinculado` (último
  * registro do lote em notas_lote_audit_logs — elegível de novo, mas a tela o traz
  * desmarcado).
  *
@@ -65,7 +65,6 @@ interface LotePrevia {
   bloqueio: 'sem-valor' | null;
   jaRecebidoAplis: boolean;
   semNf: boolean;
-  emissaoMesAnterior: boolean;
   desvinculado: Desvinculo | null;
 }
 
@@ -309,8 +308,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         bloqueio: lote.valor <= 0 ? 'sem-valor' : null,
         jaRecebidoAplis: STATUS_RECEBIDO.includes(lote.status),
         semNf: !lote.nfeNumero,
-        emissaoMesAnterior: Boolean(lote.dtaCriacao && lote.dtaFechamento)
-          && lote.dtaCriacao.slice(0, 7) !== lote.dtaFechamento.slice(0, 7),
         desvinculado: situacao.desvinculos.get(lote.idLote) ?? null,
       }));
 

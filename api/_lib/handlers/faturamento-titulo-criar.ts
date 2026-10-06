@@ -17,8 +17,8 @@
  *   idsLote         number[]  obrigatório — IdLote no apLIS
  *   numeroNota      string    opcional — operadoras nf_apos_pagamento criam o
  *                             título antes de ter o número (issue 32)
- *   dataEmissao     YYYY-MM-DD (default: data de criação do lote mais antigo;
- *                   sem ela, hoje — ver emissaoDosLotes)
+ *   dataEmissao     YYYY-MM-DD (default: fechamento mais recente dos lotes;
+ *                   sem ele, hoje — ver emissaoDosLotes)
  *   competencia     "YYYY-MM"
  *   dataVencimento  YYYY-MM-DD — quando omitido, é resolvido aqui (ver abaixo)
  *   observacoes     string
@@ -73,12 +73,12 @@ function vencimentoDoRps(lotes: LoteFaturamento[]): string | null {
   return datas.length > 0 ? datas[0] : null;
 }
 
-/** Emissão padrão: a data de criação do lote mais antigo do grupo — a "data de
- *  faturamento" da planilha do setor e a convenção do backfill de 11/09. Mesma
- *  regra do modal (emissaoPadrao em src/modules/faturamento/utils/emissaoTitulo.ts). */
+/** Emissão padrão: o fechamento mais recente do grupo no apLIS — a "Data
+ *  Faturamento" da planilha do setor. Mesma regra do modal (emissaoPadrao em
+ *  src/modules/faturamento/utils/emissaoTitulo.ts). */
 function emissaoDosLotes(lotes: LoteFaturamento[]): string | null {
-  const datas = lotes.map((l) => l.dtaCriacao).filter((d): d is string => Boolean(d)).sort();
-  return datas.length > 0 ? datas[0] : null;
+  const datas = lotes.map((l) => l.dtaFechamento).filter((d): d is string => Boolean(d)).sort();
+  return datas.length > 0 ? datas[datas.length - 1] : null;
 }
 
 /** Envio mais recente do grupo: é quando a cobrança inteira chegou à operadora. */

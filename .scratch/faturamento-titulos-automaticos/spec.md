@@ -47,7 +47,7 @@ reapresentações e exceções.
 14. As a operador de faturamento, I want lotes with value R$ 0 to show up unselected and locked with the reason "sem valor a faturar", so that I understand why they won't become títulos instead of them silently disappearing.
 15. As a operador de faturamento, I want lotes already Recebido or Recebido-parcial in the apLIS to carry a "já recebido no apLIS" badge, so that I remember to register the baixa afterwards.
 16. As a operador de faturamento, I want each row of the preview to show operadora, lote, value, creation date and NF (when there is one), so that I can recognise the lote at a glance.
-17. As a operador de faturamento, I want the automatic título to use the lote creation date as emissão, so that it matches the "data de faturamento" convention of the planilha and of manual títulos.
+17. As a operador de faturamento, I want the automatic título to use the lote closing date (DtaFechamento, "faturado" in the apLIS) as emissão, so that it matches the "Data Faturamento" of the planilha and of manual títulos. (Changed 06/10: was the creation date, which put lotes closed in October into September.)
 18. As a coordenador financeiro, I want the competência of the automatic título to be the month of the emissão, so that no automatic título is a hole in the monthly report.
 19. As a operador de faturamento, I want the vencimento to follow the same rule as the manual flow (RPS vencimento when the lote already has an RPS, otherwise the operadora contractual rule), so that automatic and manual títulos behave the same in the aging.
 20. As a operador de faturamento, I want the número da nota to be filled with the RPS NF-e when the lote already has one, so that I don't copy it by hand.

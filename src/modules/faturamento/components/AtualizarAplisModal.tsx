@@ -155,7 +155,6 @@ function Selos({ item }: { item: LotePreviaAplis }) {
     <div className="flex flex-wrap gap-1">
       {item.jaRecebidoAplis && <Selo cor="blue">já recebido no apLIS</Selo>}
       {item.semNf && <Selo cor="amber">sem NF — a baixa exige o número</Selo>}
-      {item.emissaoMesAnterior && <Selo cor="gray">emissão em mês anterior</Selo>}
       {desvinculado && (
         <Selo cor="rose">
           desvinculado do título {desvinculado.numeroNota ?? '(sem número)'} em {diaMes(desvinculado.em)}:{' '}
