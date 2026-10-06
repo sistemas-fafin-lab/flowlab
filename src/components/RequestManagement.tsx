@@ -19,6 +19,11 @@ import StockWithdrawalModal from './StockWithdrawalModal';
 import { PenTool, Loader2 } from 'lucide-react';
 import { RequestManagementSkeleton } from './PageLoadingSkeleton';
 import { formatDate } from '../modules/quotations/utils/formatDate';
+import {
+  computeRequestDeliveryForecast,
+  DELIVERY_FORECAST_QUOTATION_STATUSES,
+  DeliveryForecastQuotationRow,
+} from '../modules/quotations/utils/requestDeliveryForecast';
 import { REQUESTS_STATUS_QUERY_PARAM, parseRequestStatusParam } from '../../api/_lib/requestsRoutes.js';
 
 const ITEMS_PER_PAGE = 25;
@@ -196,6 +201,34 @@ const RequestManagement: React.FC = () => {
   const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
 
   const [viewSignature, setViewSignature] = useState<{name: string; signature: string} | null>(null);
+
+  // Previsão de entrega (requestId → YYYY-MM-DD), calculada das cotações aprovadas
+  const [deliveryForecast, setDeliveryForecast] = useState<Map<string, string>>(new Map());
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadDeliveryForecast = async () => {
+      const { data, error } = await supabase
+        .from('quotations')
+        .select(`
+          request_id, status, selected_proposal_id, converted_to_purchase_at,
+          quotation_approvals ( status, approved_at ),
+          quotation_proposals ( id, is_winner, average_delivery_days, quotation_proposal_items ( delivery_days ) )
+        `)
+        .not('request_id', 'is', null)
+        .in('status', [...DELIVERY_FORECAST_QUOTATION_STATUSES]);
+
+      if (error) {
+        console.error('Erro ao carregar previsão de entrega:', error);
+        return;
+      }
+      if (!cancelled) {
+        setDeliveryForecast(computeRequestDeliveryForecast((data ?? []) as DeliveryForecastQuotationRow[]));
+      }
+    };
+    loadDeliveryForecast();
+    return () => { cancelled = true; };
+  }, [requests]);
 
   // Estados para adicionar produtos
   const [productSearch, setProductSearch] = useState('');
@@ -2102,6 +2135,18 @@ const handleCompleteRequest = async (request: Request) => {
                   <div className="min-w-0">
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Aprovado por</p>
                     <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{request.approvedBy}</p>
+                  </div>
+                </div>
+              )}
+
+              {deliveryForecast.has(request.id) && (
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 bg-gradient-to-br from-amber-500 to-orange-500 rounded-lg flex items-center justify-center shadow-sm shadow-amber-500/20 flex-shrink-0">
+                    <Calendar className="w-3.5 h-3.5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Previsão de entrega</p>
+                    <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{formatDate(deliveryForecast.get(request.id))}</p>
                   </div>
                 </div>
               )}
