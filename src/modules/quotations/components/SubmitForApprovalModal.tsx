@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Send, Loader2, AlertTriangle, UserCheck } from 'lucide-react';
+import { X, Send, Loader2, AlertTriangle, UserCheck, RefreshCw } from 'lucide-react';
 import { useAsyncGuard } from '../hooks/useAsyncGuard';
 import { useRequesterManagerOptions } from '../hooks/useRequesterManagerOptions';
 import type { Quotation, RequesterManager } from '../types';
@@ -9,22 +9,37 @@ interface SubmitForApprovalModalProps {
   quotation: Quotation;
   onConfirm: (requesterManager: RequesterManager) => Promise<void>;
   onClose: () => void;
+  /**
+   * `submit`: envio para aprovação, com o gestor pré-preenchido.
+   * `change`: troca do gestor de uma cotação já na etapa do gestor — sem
+   * pré-preenchimento e sem oferecer o gestor atual.
+   */
+  mode?: 'submit' | 'change';
 }
+
+const MODE_TEXT = {
+  submit: { title: 'Submeter para Aprovação', confirm: 'Enviar para aprovação', error: 'Erro ao enviar para aprovação.' },
+  change: { title: 'Trocar gestor do pedido', confirm: 'Trocar gestor', error: 'Erro ao trocar o gestor do pedido.' },
+};
 
 export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
   quotation,
   onConfirm,
   onClose,
+  mode = 'submit',
 }) => {
-  const { users, suggestedId, loading, error: loadError } = useRequesterManagerOptions(quotation);
+  const { users: activeUsers, suggestedId, loading, error: loadError } = useRequesterManagerOptions(quotation);
+  const isChange = mode === 'change';
+  const users = isChange ? activeUsers.filter(u => u.id !== quotation.requesterManagerId) : activeUsers;
+  const text = MODE_TEXT[mode];
   const [managerId, setManagerId] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const { isBusy, begin, reset } = useAsyncGuard();
 
   // Pré-preenche uma vez, quando a sugestão chega; depois manda a escolha do comprador.
   useEffect(() => {
-    if (suggestedId) setManagerId(current => current || suggestedId);
-  }, [suggestedId]);
+    if (suggestedId && !isChange) setManagerId(current => current || suggestedId);
+  }, [suggestedId, isChange]);
 
   useEffect(() => {
     if (loadError) setErrorMessage(loadError);
@@ -33,7 +48,7 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
   const handleConfirm = async () => {
     const manager = users.find(u => u.id === managerId);
     if (!manager) {
-      setErrorMessage('Selecione o gestor do pedido antes de enviar para aprovação');
+      setErrorMessage(isChange ? 'Selecione o novo gestor do pedido' : 'Selecione o gestor do pedido antes de enviar para aprovação');
       return;
     }
     if (!begin()) return;
@@ -42,8 +57,8 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
       await onConfirm(manager);
       onClose();
     } catch (err) {
-      console.error('Erro ao enviar para aprovação:', err);
-      setErrorMessage(err instanceof Error ? err.message : 'Erro ao enviar para aprovação.');
+      console.error(text.error, err);
+      setErrorMessage(err instanceof Error ? err.message : text.error);
       reset();
     }
   };
@@ -55,10 +70,10 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
           <div className="flex items-center justify-between">
             <div className="flex items-center">
               <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mr-3">
-                <Send className="w-5 h-5 text-white" />
+                {isChange ? <RefreshCw className="w-5 h-5 text-white" /> : <Send className="w-5 h-5 text-white" />}
               </div>
               <div>
-                <h3 className="text-lg font-bold">Submeter para Aprovação</h3>
+                <h3 className="text-lg font-bold">{text.title}</h3>
                 <p className="text-sm text-white/80">{quotation.code}</p>
               </div>
             </div>
@@ -74,7 +89,7 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
           <div>
             <label htmlFor="requester-manager" className="flex items-center gap-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200 mb-1.5">
               <UserCheck className="w-4 h-4" />
-              Gestor do pedido <span className="text-red-500">*</span>
+              {isChange ? 'Novo gestor do pedido' : 'Gestor do pedido'} <span className="text-red-500">*</span>
             </label>
             {loading ? (
               <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 py-2">
@@ -96,6 +111,7 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
               </select>
             )}
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+              {isChange && quotation.requesterManagerName && <>Gestor atual: <strong>{quotation.requesterManagerName}</strong>. O novo gestor recebe o e-mail de aprovação. </>}
               Quem abriu a {quotation.quotationType === 'contratacao' ? 'solicitação de manutenção' : 'Solicitação de Compras'} e
               confirma que a cotação atende ao pedido.
             </p>
@@ -122,8 +138,8 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
             disabled={isBusy || loading}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 text-white font-semibold text-sm rounded-xl hover:bg-amber-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            Enviar para aprovação
+            {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : isChange ? <RefreshCw className="w-4 h-4" /> : <Send className="w-4 h-4" />}
+            {text.confirm}
           </button>
         </div>
       </div>

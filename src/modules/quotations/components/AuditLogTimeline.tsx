@@ -48,6 +48,7 @@ const getActionIcon = (action: QuotationActionType) => {
     proposal_rejected: <X className="w-4 h-4" />,
     submitted_for_approval: <ArrowUpRight className="w-4 h-4" />,
     submitted_for_manager_approval: <ArrowUpRight className="w-4 h-4" />,
+    requester_manager_changed: <User className="w-4 h-4" />,
     manager_approved: <Check className="w-4 h-4" />,
     manager_rejected: <X className="w-4 h-4" />,
     approval_stage_waived: <Check className="w-4 h-4" />,
@@ -75,6 +76,7 @@ const getActionColor = (action: QuotationActionType) => {
     proposal_rejected: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300',
     submitted_for_approval: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300',
     submitted_for_manager_approval: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300',
+    requester_manager_changed: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300',
     manager_approved: 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-300',
     manager_rejected: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300',
     approval_stage_waived: 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-300',
@@ -102,6 +104,7 @@ const getActionLabel = (action: QuotationActionType): string => {
     proposal_rejected: 'Proposta rejeitada',
     submitted_for_approval: 'Submetida para aprovação',
     submitted_for_manager_approval: 'Enviada para aprovação do gestor',
+    requester_manager_changed: 'Gestor do pedido trocado',
     manager_approved: 'Aprovada pelo gestor do pedido',
     manager_rejected: 'Rejeitada pelo gestor do pedido',
     approval_stage_waived: 'Etapa 2 dispensada: gestor com alçada',
@@ -195,6 +198,11 @@ export const AuditLogTimeline: React.FC<AuditLogTimelineProps> = ({
                     {log.metadata.comment && (
                       <div className="mt-1 p-2 bg-gray-100 dark:bg-gray-700 rounded text-xs text-gray-600 dark:text-gray-400 italic">
                         "{log.metadata.comment}"
+                      </div>
+                    )}
+                    {log.metadata.requesterManagerName && (
+                      <div className="text-xs text-gray-500 dark:text-gray-400">
+                        Gestor do pedido: {log.metadata.previousRequesterManagerName ?? '—'} → {log.metadata.requesterManagerName}
                       </div>
                     )}
                     {log.metadata.decidedByAdminOnBehalf && (

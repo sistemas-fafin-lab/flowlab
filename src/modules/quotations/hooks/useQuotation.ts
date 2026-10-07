@@ -23,7 +23,7 @@ import {
   RequesterManager,
   MANAGER_APPROVAL_LEVEL,
 } from '../types';
-import { buildQuotationApprovalNotifications } from '../notifications';
+import { buildManagerApprovalNotification, buildQuotationApprovalNotifications, EmailNotificationRequest } from '../notifications';
 import { generateApprovalHash } from '../utils/generateApprovalHash';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { getQuotationAmountFromRow } from '../utils/getQuotationAmountFromRow';
@@ -563,6 +563,7 @@ export const useQuotation = () => {
         canConvertToPurchase: true,
         canCancel: true,
         canRevert: true,
+        canChangeRequesterManager: !!quotation && isManagerApprovalStage(quotation.status),
         maxApprovalAmount: Infinity,
       };
     }
@@ -581,6 +582,7 @@ export const useQuotation = () => {
         canConvertToPurchase: false,
         canCancel: false,
         canRevert: false,
+        canChangeRequesterManager: false,
         maxApprovalAmount: userApprovalLimit,
       };
     }
@@ -610,6 +612,8 @@ export const useQuotation = () => {
       canConvertToPurchase: (canView || hasPerm('canConvertQuotation')) && canConvertToPurchase(status),
       canCancel: (canView || hasPerm('canCancelQuotation')) && canCancel(status),
       canRevert: (canView || hasPerm('canRevertQuotation')) && getPreviousStatus(status) !== null,
+      // Troca do gestor parado na etapa 1: quem tem acesso ao módulo de Cotações.
+      canChangeRequesterManager: canView && isManagerStage,
       maxApprovalAmount: userApprovalLimit,
     };
   }, [user?.id, userProfile, userApprovalConfig]);
@@ -1555,6 +1559,42 @@ export const useQuotation = () => {
     });
   }, [quotations, addAuditLog]);
 
+  // Dispara os emails pelo endpoint genérico sem esperar a resposta: o envio é
+  // melhor esforço e nunca bloqueia nem reverte a mudança que o originou.
+  const sendEmailNotifications = useCallback((notifications: EmailNotificationRequest[], context: string): void => {
+    for (const notification of notifications) {
+      fetch('/api/notifications/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notification),
+      }).catch((err) => {
+        console.warn(`Error sending ${context}:`, err);
+      });
+    }
+  }, []);
+
+  // Avisa por email o gestor do pedido de que a cotação entrou na etapa dele
+  // (envio para aprovação ou troca de gestor). Melhor esforço, como o de alçada.
+  const notifyRequesterManager = useCallback(async (quotation: Quotation, managerId: string): Promise<void> => {
+    try {
+      const { data: manager, error: managerError } = await supabase
+        .from('user_profiles')
+        .select('email')
+        .eq('id', managerId)
+        .maybeSingle();
+
+      if (managerError || !manager) {
+        console.error('Error fetching requester manager for approval notification:', managerError);
+        return;
+      }
+
+      const notification = buildManagerApprovalNotification(quotation, { user_email: manager.email });
+      if (notification) sendEmailNotifications([notification], 'quotation manager approval notification');
+    } catch (notifyErr) {
+      console.error('Error notifying requester manager of quotation awaiting approval:', notifyErr);
+    }
+  }, [sendEmailNotifications]);
+
   // Apaga a linha da etapa do gestor (o histórico da decisão fica na
   // auditoria). Melhor esforço: uma linha velha só afeta a exibição, e a RPC
   // da etapa faz upsert por (quotation_id, level) na próxima decisão.
@@ -1638,7 +1678,68 @@ export const useQuotation = () => {
       previousStatus: quotation.status,
       newStatus: 'awaiting_manager_approval',
     });
-  }, [quotations, addAuditLog, clearManagerApproval]);
+
+    // Sem await: o email não segura o fechamento do modal nem a resposta.
+    void notifyRequesterManager(quotation, requesterManager.id);
+  }, [quotations, addAuditLog, clearManagerApproval, notifyRequesterManager]);
+
+  // Troca o gestor do pedido de uma cotação já parada na etapa do gestor
+  // (gestor de férias, desligado...). O filtro por status no update evita
+  // trocar o gestor de uma cotação que acabou de ser decidida.
+  const changeRequesterManager = useCallback(async (
+    quotationId: string,
+    requesterManager: RequesterManager,
+  ): Promise<void> => {
+    const quotation = quotations.find(q => q.id === quotationId);
+    if (!quotation) throw new Error('Cotação não encontrada');
+
+    if (!getPermissions(quotation).canChangeRequesterManager) {
+      throw new Error('O gestor do pedido só pode ser trocado enquanto a cotação aguarda a aprovação do gestor');
+    }
+
+    if (!requesterManager.id) {
+      throw new Error('Selecione o novo gestor do pedido');
+    }
+
+    if (requesterManager.id === quotation.requesterManagerId) {
+      throw new Error('Escolha um gestor diferente do atual');
+    }
+
+    const { data: updated, error: dbError } = await supabase
+      .from('quotations')
+      .update({ requester_manager_id: requesterManager.id })
+      .eq('id', quotationId)
+      .eq('status', 'awaiting_manager_approval')
+      .select('id');
+
+    if (dbError) {
+      console.error('Error changing requester manager:', dbError);
+      throw new Error('Erro ao trocar o gestor do pedido');
+    }
+
+    if (!updated || updated.length === 0) {
+      throw new Error('A cotação não está mais aguardando a aprovação do gestor');
+    }
+
+    setQuotations(prev => prev.map(q => (
+      q.id === quotationId
+        ? { ...q, requesterManagerId: requesterManager.id, requesterManagerName: requesterManager.name, updatedAt: new Date().toISOString() }
+        : q
+    )));
+
+    await addAuditLog(quotationId, 'requester_manager_changed', {
+      previousRequesterManagerId: quotation.requesterManagerId ?? null,
+      previousRequesterManagerName: quotation.requesterManagerName ?? null,
+      requesterManagerId: requesterManager.id,
+      requesterManagerName: requesterManager.name,
+    }, {
+      previousRequesterManagerName: quotation.requesterManagerName,
+      requesterManagerName: requesterManager.name,
+    });
+
+    // Sem await: o email não segura o fechamento do modal nem a resposta.
+    void notifyRequesterManager(quotation, requesterManager.id);
+  }, [quotations, getPermissions, addAuditLog, notifyRequesterManager]);
 
   // Notifica por email todo gestor com alçada suficiente para o valor da
   // cotação — disparado quando a cotação entra na etapa de alçada. Melhor
@@ -1658,20 +1759,11 @@ export const useQuotation = () => {
       }
 
       const notifications = buildQuotationApprovalNotifications(quotation, approvers || []);
-
-      for (const notification of notifications) {
-        fetch('/api/notifications/email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(notification),
-        }).catch((err) => {
-          console.warn('Error sending quotation approval notification:', err);
-        });
-      }
+      sendEmailNotifications(notifications, 'quotation approval notification');
     } catch (notifyErr) {
       console.error('Error notifying approvers of quotation awaiting approval:', notifyErr);
     }
-  }, []);
+  }, [sendEmailNotifications]);
 
   // Decisão da etapa do gestor do pedido via RPC atômica
   // quotation_record_manager_decision — quem pode decidir (gestor ou admin),
@@ -2160,6 +2252,7 @@ export const useQuotation = () => {
     advanceToReview,
     revertStatus,
     submitForApproval,
+    changeRequesterManager,
     approveQuotation,
     rejectQuotation,
     cancelQuotation,

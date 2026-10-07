@@ -156,6 +156,7 @@ export type QuotationActionType =
   | 'proposal_rejected'
   | 'submitted_for_approval'
   | 'submitted_for_manager_approval'
+  | 'requester_manager_changed'
   | 'manager_approved'
   | 'manager_rejected'
   | 'approval_stage_waived'
@@ -189,6 +190,9 @@ export interface QuotationAuditLog {
     comment?: string;
     /** Decisão da etapa do gestor tomada por um admin no lugar do gestor do pedido. */
     decidedByAdminOnBehalf?: boolean;
+    /** Troca do gestor do pedido durante a etapa do gestor. */
+    previousRequesterManagerName?: string;
+    requesterManagerName?: string;
   };
 }
 
@@ -506,5 +510,7 @@ export interface QuotationPermissions {
   canConvertToPurchase: boolean;
   canCancel: boolean;
   canRevert: boolean;
+  /** Trocar o gestor do pedido de uma cotação parada na etapa do gestor. */
+  canChangeRequesterManager: boolean;
   maxApprovalAmount: number;
 }

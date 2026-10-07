@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildQuotationApprovalNotifications } from './notifications';
+import { buildManagerApprovalNotification, buildQuotationApprovalNotifications } from './notifications';
 import { formatCurrency } from '../../utils/paymentUtils';
 import { SupplierProposal } from './types';
 
@@ -165,5 +165,70 @@ describe('buildQuotationApprovalNotifications', () => {
 
     expect(notifications[0].variables.quotation_title).toBe('&lt;img src=x onerror=alert(1)&gt;');
     expect(notifications[0].variables.requester_name).toBe('&lt;b&gt;Maria&lt;/b&gt;');
+  });
+});
+
+describe('buildManagerApprovalNotification', () => {
+  const manager = { user_email: 'gestor.setor@empresa.com' };
+
+  it('monta a notificação para o gestor do pedido, com o template da etapa do gestor e o link da tela de aprovações', () => {
+    const notification = buildManagerApprovalNotification(baseQuotation, manager);
+
+    expect(notification).toEqual({
+      to: 'gestor.setor@empresa.com',
+      templateSlug: 'quotation_awaiting_manager_approval',
+      variables: {
+        quotation_code: 'COT-001',
+        quotation_title: 'Compra de luvas',
+        quotation_type_label: 'Compras',
+        requester_name: 'Maria Souza',
+        total_amount: formatCurrency(5000),
+        action_url: 'https://flow-lab.vercel.app/quotations/aprovacoes',
+        proposals_list_html:
+          '<li style="margin-bottom:4px;"><strong>Fornecedor Alfa Ltda &mdash; ' + formatCurrency(5000) + '</strong> '
+          + '<span style="display:inline-block;padding:1px 8px;font-size:10px;font-weight:700;color:#047857;'
+          + 'background-color:#d1fae5;border-radius:9999px;letter-spacing:0.3px;">VENCEDORA</span></li>'
+          + '<li style="margin-bottom:4px;">Fornecedor Beta S.A. &mdash; ' + formatCurrency(6200) + '</li>',
+        items_list_html: '<li>10 cx &mdash; Luva nitrílica M</li><li>3 un &mdash; Máscara N95</li>',
+      },
+    });
+  });
+
+  it('gestor sem email cadastrado não gera notificação', () => {
+    expect(buildManagerApprovalNotification(baseQuotation, { user_email: null })).toBeNull();
+    expect(buildManagerApprovalNotification(baseQuotation, { user_email: '' })).toBeNull();
+  });
+
+  it('lista todas as propostas e destaca só a vencedora atual', () => {
+    const thirdProposal = makeProposal({ id: 'p3', supplierName: 'Fornecedor Gama ME', totalAmount: 4800 });
+    const notification = buildManagerApprovalNotification(
+      { ...baseQuotation, proposals: [winnerProposal, otherProposal, thirdProposal], selectedProposalId: 'p2' },
+      manager,
+    );
+
+    const html = notification!.variables.proposals_list_html;
+    expect(html).toContain('Fornecedor Alfa Ltda');
+    expect(html).toContain('Fornecedor Beta S.A.');
+    expect(html).toContain('Fornecedor Gama ME');
+    expect(html.match(/VENCEDORA/g)).toHaveLength(1);
+    expect(html.split('</li>').find((li) => li.includes('VENCEDORA'))).toContain('Fornecedor Beta S.A.');
+  });
+
+  it('escapa HTML em título, comprador, itens e nome de fornecedor', () => {
+    const notification = buildManagerApprovalNotification(
+      {
+        ...baseQuotation,
+        title: '<img src=x onerror=alert(1)>',
+        createdByName: '<b>Maria</b>',
+        proposals: [makeProposal({ id: 'p1', supplierName: 'Fornecedor & Cia <script>', totalAmount: 5000 })],
+        items: [{ productName: '<script>alert(1)</script>', quantity: 1, unit: 'un' }],
+      },
+      manager,
+    );
+
+    expect(notification!.variables.quotation_title).toBe('&lt;img src=x onerror=alert(1)&gt;');
+    expect(notification!.variables.requester_name).toBe('&lt;b&gt;Maria&lt;/b&gt;');
+    expect(notification!.variables.proposals_list_html).toContain('Fornecedor &amp; Cia &lt;script&gt;');
+    expect(notification!.variables.items_list_html).toBe('<li>1 un &mdash; &lt;script&gt;alert(1)&lt;/script&gt;</li>');
   });
 });

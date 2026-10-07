@@ -41,6 +41,7 @@ export const TRANSITION_ACTIONS: Record<QuotationActionType, { from: QuotationSt
   // no histórico das cotações antigas, mas não dispara mais transição.
   submitted_for_approval: null,
   submitted_for_manager_approval: { from: ['under_review'], to: 'awaiting_manager_approval' },
+  requester_manager_changed: null, // Continua em awaiting_manager_approval, só troca o gestor
   manager_approved: { from: ['awaiting_manager_approval'], to: 'awaiting_approval' },
   manager_rejected: { from: ['awaiting_manager_approval'], to: 'under_review' },
   approval_stage_waived: { from: ['awaiting_manager_approval'], to: 'approved' },

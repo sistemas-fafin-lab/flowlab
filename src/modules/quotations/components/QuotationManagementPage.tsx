@@ -111,6 +111,7 @@ export const QuotationManagementPage: React.FC = () => {
     updateProposal,
     selectWinner,
     submitForApproval,
+    changeRequesterManager,
     approveQuotation,
     rejectQuotation,
     cancelQuotation,
@@ -851,6 +852,10 @@ export const QuotationManagementPage: React.FC = () => {
           }}
           onSubmitForApproval={async (requesterManager) => {
             await submitForApproval(selectedQuotation.id, requesterManager);
+            await handleRefreshAfterAction();
+          }}
+          onChangeRequesterManager={async (requesterManager) => {
+            await changeRequesterManager(selectedQuotation.id, requesterManager);
             await handleRefreshAfterAction();
           }}
           onApprove={async (comment) => {
