@@ -72,6 +72,11 @@ type QuotationManagerDecisionRow = {
 };
 
 // Generate unique quotation code
+// Recusa do trigger quotation_enforce_requester_manager (RAISE EXCEPTION, P0001):
+// a mensagem já é para o usuário (gestor travado pela origem / comprador como gestor).
+const requesterManagerRuleMessage = (error: { code?: string; message: string }): string | null =>
+  error.code === 'P0001' ? error.message : null;
+
 const generateQuotationCode = (): string => {
   const date = new Date();
   const year = date.getFullYear();
@@ -1675,7 +1680,7 @@ export const useQuotation = () => {
 
     if (dbError) {
       console.error('Error submitting for approval:', dbError);
-      throw new Error('Erro ao enviar para aprovação');
+      throw new Error(requesterManagerRuleMessage(dbError) ?? 'Erro ao enviar para aprovação');
     }
 
     const approval: QuotationApproval = {
@@ -1747,7 +1752,7 @@ export const useQuotation = () => {
 
     if (dbError) {
       console.error('Error changing requester manager:', dbError);
-      throw new Error('Erro ao trocar o gestor do pedido');
+      throw new Error(requesterManagerRuleMessage(dbError) ?? 'Erro ao trocar o gestor do pedido');
     }
 
     if (!updated || updated.length === 0) {

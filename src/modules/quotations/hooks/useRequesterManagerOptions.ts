@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import { getDefaultRequesterManagerId, RequesterManagerSource } from '../utils/getDefaultRequesterManagerId';
-import type { Quotation, RequesterManager } from '../types';
+import { useAuth } from '../../../hooks/useAuth';
+import { resolveRequesterManagerChoice, RequesterManagerChoice, RequesterManagerSource } from '../utils/resolveRequesterManagerChoice';
+import type { Quotation } from '../types';
 
-type QuotationOrigin = Pick<Quotation, 'quotationType' | 'requestId' | 'maintenanceRequestId' | 'requesterManagerId'>;
+type QuotationOrigin = Pick<Quotation, 'quotationType' | 'requestId' | 'maintenanceRequestId' | 'requesterManagerId' | 'createdBy'>;
 
 /** Quem abriu a origem da cotação: a SC (Compras) ou a solicitação de manutenção (Contratação). */
 async function fetchRequesterManagerSource(origin: QuotationOrigin): Promise<RequesterManagerSource> {
@@ -25,17 +26,20 @@ async function fetchRequesterManagerSource(origin: QuotationOrigin): Promise<Req
   return { requestRequestedByUserId: data?.requested_by_user_id ?? null };
 }
 
+const EMPTY_CHOICE: RequesterManagerChoice = { lockedManagerId: null, suggestedId: null, eligibleUsers: [] };
+
 /**
- * Opções do campo "Gestor do pedido": usuários ativos e o gestor sugerido
- * (já gravado na cotação ou quem abriu a origem), só se ainda estiver ativo.
+ * Opções do campo "Gestor do pedido" segundo resolveRequesterManagerChoice:
+ * o gestor travado pela origem, ou os usuários ativos que podem ser escolhidos.
  */
 export function useRequesterManagerOptions(origin: QuotationOrigin) {
-  const [users, setUsers] = useState<RequesterManager[]>([]);
-  const [suggestedId, setSuggestedId] = useState<string | null>(null);
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? null;
+  const [choice, setChoice] = useState<RequesterManagerChoice>(EMPTY_CHOICE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { quotationType, requestId, maintenanceRequestId, requesterManagerId } = origin;
+  const { quotationType, requestId, maintenanceRequestId, requesterManagerId, createdBy } = origin;
 
   // Dependências primitivas: um refetch da lista de cotações gera um objeto
   // novo e não pode recarregar (nem sobrescrever a escolha do comprador).
@@ -43,7 +47,7 @@ export function useRequesterManagerOptions(origin: QuotationOrigin) {
     let cancelled = false;
     (async () => {
       try {
-        const current = { quotationType, requestId, maintenanceRequestId, requesterManagerId };
+        const current = { quotationType, requestId, maintenanceRequestId, requesterManagerId, createdBy };
         const [{ data: profiles, error: profilesError }, source] = await Promise.all([
           supabase
             .from('user_profiles')
@@ -55,10 +59,12 @@ export function useRequesterManagerOptions(origin: QuotationOrigin) {
         ]);
         if (profilesError) throw profilesError;
         if (cancelled) return;
-        const activeUsers = (profiles ?? []) as RequesterManager[];
-        const suggested = getDefaultRequesterManagerId(current, source);
-        setUsers(activeUsers);
-        setSuggestedId(suggested && activeUsers.some(u => u.id === suggested) ? suggested : null);
+        setChoice(resolveRequesterManagerChoice({
+          quotation: current,
+          source,
+          activeUsers: profiles ?? [],
+          currentUserId,
+        }));
       } catch (err) {
         console.error('Erro ao carregar usuários para gestor do pedido:', err);
         if (!cancelled) setError('Não foi possível carregar a lista de usuários.');
@@ -67,7 +73,7 @@ export function useRequesterManagerOptions(origin: QuotationOrigin) {
       }
     })();
     return () => { cancelled = true; };
-  }, [quotationType, requestId, maintenanceRequestId, requesterManagerId]);
+  }, [quotationType, requestId, maintenanceRequestId, requesterManagerId, createdBy, currentUserId]);
 
-  return { users, suggestedId, loading, error };
+  return { ...choice, loading, error };
 }

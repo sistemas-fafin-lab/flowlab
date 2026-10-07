@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Send, Loader2, AlertTriangle, UserCheck, RefreshCw } from 'lucide-react';
+import { X, Send, Loader2, AlertTriangle, UserCheck, RefreshCw, Lock } from 'lucide-react';
 import { useAsyncGuard } from '../hooks/useAsyncGuard';
 import { useRequesterManagerOptions } from '../hooks/useRequesterManagerOptions';
 import type { Quotation, RequesterManager } from '../types';
@@ -13,6 +13,8 @@ interface SubmitForApprovalModalProps {
    * `submit`: envio para aprovação, com o gestor pré-preenchido.
    * `change`: troca do gestor de uma cotação já na etapa do gestor — sem
    * pré-preenchimento e sem oferecer o gestor atual.
+   * Em ambos, o gestor travado pela origem (resolveRequesterManagerChoice)
+   * não pode ser trocado.
    */
   mode?: 'submit' | 'change';
 }
@@ -28,9 +30,12 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
   onClose,
   mode = 'submit',
 }) => {
-  const { users: activeUsers, suggestedId, loading, error: loadError } = useRequesterManagerOptions(quotation);
+  const { eligibleUsers, lockedManagerId, suggestedId, loading, error: loadError } = useRequesterManagerOptions(quotation);
   const isChange = mode === 'change';
-  const users = isChange ? activeUsers.filter(u => u.id !== quotation.requesterManagerId) : activeUsers;
+  const lockedManager = lockedManagerId ? eligibleUsers.find(u => u.id === lockedManagerId) : undefined;
+  const users = isChange ? eligibleUsers.filter(u => u.id !== quotation.requesterManagerId) : eligibleUsers;
+  const cannotChange = isChange && Boolean(lockedManager);
+  const originLabel = quotation.quotationType === 'contratacao' ? 'solicitação de manutenção' : 'Solicitação de Compras';
   const text = MODE_TEXT[mode];
   const [managerId, setManagerId] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -96,6 +101,11 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
                 <Loader2 className="w-4 h-4 animate-spin" />
                 Carregando usuários...
               </div>
+            ) : lockedManager ? (
+              <div className="flex items-center gap-2 w-full px-3 py-2.5 text-sm rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-100">
+                <Lock className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <span className="font-medium">{lockedManager.name}</span>
+              </div>
             ) : (
               <select
                 id="requester-manager"
@@ -111,9 +121,16 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
               </select>
             )}
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
-              {isChange && quotation.requesterManagerName && <>Gestor atual: <strong>{quotation.requesterManagerName}</strong>. O novo gestor recebe o e-mail de aprovação. </>}
-              Quem abriu a {quotation.quotationType === 'contratacao' ? 'solicitação de manutenção' : 'Solicitação de Compras'} e
-              confirma que a cotação atende ao pedido.
+              {cannotChange ? (
+                <>O gestor é quem abriu a {originLabel} e não pode ser trocado. Se ele não puder aprovar, um administrador pode decidir no lugar dele.</>
+              ) : lockedManager ? (
+                <>Definido por quem abriu a {originLabel}; não pode ser trocado.</>
+              ) : (
+                <>
+                  {isChange && quotation.requesterManagerName && <>Gestor atual: <strong>{quotation.requesterManagerName}</strong>. O novo gestor recebe o e-mail de aprovação. </>}
+                  Quem abriu a {originLabel} e confirma que a cotação atende ao pedido. O gestor não pode ser quem criou a cotação nem você.
+                </>
+              )}
             </p>
           </div>
 
@@ -135,7 +152,7 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
           </button>
           <button
             onClick={handleConfirm}
-            disabled={isBusy || loading}
+            disabled={isBusy || loading || cannotChange}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-amber-600 text-white font-semibold text-sm rounded-xl hover:bg-amber-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {isBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : isChange ? <RefreshCw className="w-4 h-4" /> : <Send className="w-4 h-4" />}
