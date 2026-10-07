@@ -35,6 +35,7 @@ import { generateApprovalHash } from '../utils/generateApprovalHash';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { getQuotationAmountFromRow } from '../utils/getQuotationAmountFromRow';
 import { approvalsAfterRevert } from '../utils/approvalOutcome';
+import { proposalStatusFromRow } from '../utils/proposalStatusFromRow';
 import {
   canTransition,
   validateTransition,
@@ -190,7 +191,7 @@ export const useQuotation = () => {
           quotationId: q.id,
           supplierId: p.supplier_id,
           supplierName: p.supplier_name,
-          status: p.is_winner ? 'selected' : p.status === 'rejected' ? 'rejected' : 'submitted',
+          status: proposalStatusFromRow(p),
           items: (p.quotation_proposal_items || []).map((pi: any) => {
             const qItem = itemMap[pi.quotation_item_id];
             return {

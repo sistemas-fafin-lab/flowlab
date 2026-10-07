@@ -2,7 +2,9 @@
 
 Roda 1x/dia (17h) e envia, para cada gestor com alçada de aprovação, um
 e-mail individual listando só as cotações que ainda estão "aguardando
-aprovação" dentro do limite de valor dele.
+aprovação" dentro do limite de valor dele — cada cotação com todas as suas
+propostas (fornecedor e valor) e a vencedora destacada, montadas pelo mesmo
+builder do e-mail de submissão (`buildProposalsListHtml`).
 
 Reaproveita, dentro do próprio runtime do domínio de cotações
 (TypeScript/Node — não reescrito em outra linguagem):

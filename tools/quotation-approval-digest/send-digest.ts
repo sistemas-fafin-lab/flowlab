@@ -9,7 +9,8 @@
 //
 // Para cada gestor com alçada (`user_approval_limits_with_details`,
 // can_approve = true), lista só as cotações em status "awaiting_approval"
-// cujo valor está dentro do limite dele, e envia uma notificação consolidada
+// cujo valor está dentro do limite dele — cada uma com todas as suas
+// propostas e a vencedora destacada —, e envia uma notificação consolidada
 // através do endpoint de notificação por e-mail já existente no projeto
 // (POST /api/notifications/email). Gestor sem nenhuma pendência não recebe
 // e-mail.
@@ -43,8 +44,12 @@ async function fetchPendingQuotations(): Promise<PendingApprovalQuotationRow[]> 
   const supabase = getSupabaseAdminClient();
   const { data, error } = await supabase
     .from('quotations')
-    .select('code, title, quotation_type, created_by_name, selected_price, final_total_amount, estimated_total')
+    .select(
+      'code, title, quotation_type, created_by_name, final_total_amount, estimated_total, '
+      + 'selected_proposal_id, quotation_proposals (id, supplier_name, total_amount, status, is_winner)',
+    )
     .eq('status', 'awaiting_approval')
+    .order('total_amount', { referencedTable: 'quotation_proposals' })
     .returns<PendingApprovalQuotationRow[]>();
 
   if (error) throw new Error(`Falha ao buscar cotações pendentes: ${error.message}`);
