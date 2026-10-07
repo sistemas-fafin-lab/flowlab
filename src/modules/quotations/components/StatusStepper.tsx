@@ -22,6 +22,7 @@ export const StatusStepper: React.FC<StatusStepperProps> = ({
     { status: 'sent_to_suppliers', label: 'Enviada', shortLabel: 'Env.' },
     { status: 'waiting_responses', label: 'Aguardando', shortLabel: 'Agrd.' },
     { status: 'under_review', label: 'Análise', shortLabel: 'Análise' },
+    { status: 'awaiting_manager_approval', label: 'Gestor', shortLabel: 'Gestor' },
     { status: 'awaiting_approval', label: 'Aprovação', shortLabel: 'Aprov.' },
     { status: 'approved', label: 'Aprovada', shortLabel: 'Aprov.' },
     { status: 'converted_to_purchase', label: 'Convertida', shortLabel: 'Conv.' },

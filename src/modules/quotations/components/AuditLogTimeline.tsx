@@ -14,7 +14,7 @@ import {
   User,
   Clock,
 } from 'lucide-react';
-import { QuotationAuditLog, QuotationActionType } from '../types';
+import { QuotationAuditLog, QuotationActionType, QuotationStatusLabels } from '../types';
 
 interface AuditLogTimelineProps {
   logs: QuotationAuditLog[];
@@ -47,6 +47,9 @@ const getActionIcon = (action: QuotationActionType) => {
     proposal_selected: <Check className="w-4 h-4" />,
     proposal_rejected: <X className="w-4 h-4" />,
     submitted_for_approval: <ArrowUpRight className="w-4 h-4" />,
+    submitted_for_manager_approval: <ArrowUpRight className="w-4 h-4" />,
+    manager_approved: <Check className="w-4 h-4" />,
+    manager_rejected: <X className="w-4 h-4" />,
     approved: <Check className="w-4 h-4" />,
     rejected: <X className="w-4 h-4" />,
     escalated: <ArrowUpRight className="w-4 h-4" />,
@@ -70,6 +73,9 @@ const getActionColor = (action: QuotationActionType) => {
     proposal_selected: 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-300',
     proposal_rejected: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300',
     submitted_for_approval: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300',
+    submitted_for_manager_approval: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-300',
+    manager_approved: 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-300',
+    manager_rejected: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300',
     approved: 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-300',
     rejected: 'bg-red-100 dark:bg-red-900/50 text-red-600 dark:text-red-300',
     escalated: 'bg-orange-100 dark:bg-orange-900/50 text-orange-600 dark:text-orange-300',
@@ -93,6 +99,9 @@ const getActionLabel = (action: QuotationActionType): string => {
     proposal_selected: 'Proposta selecionada',
     proposal_rejected: 'Proposta rejeitada',
     submitted_for_approval: 'Submetida para aprovação',
+    submitted_for_manager_approval: 'Enviada para aprovação do gestor',
+    manager_approved: 'Aprovada pelo gestor do pedido',
+    manager_rejected: 'Rejeitada pelo gestor do pedido',
     approved: 'Cotação aprovada',
     rejected: 'Cotação rejeitada',
     escalated: 'Escalonada para próximo nível',
@@ -185,9 +194,14 @@ export const AuditLogTimeline: React.FC<AuditLogTimelineProps> = ({
                         "{log.metadata.comment}"
                       </div>
                     )}
+                    {log.metadata.decidedByAdminOnBehalf && (
+                      <div className="text-xs font-medium text-amber-700 dark:text-amber-400">
+                        Decidida por admin no lugar do gestor do pedido
+                      </div>
+                    )}
                     {log.metadata.previousStatus && log.metadata.newStatus && (
                       <div className="text-xs text-gray-500 dark:text-gray-400">
-                        Status: {log.metadata.previousStatus} → {log.metadata.newStatus}
+                        Status: {QuotationStatusLabels[log.metadata.previousStatus] ?? log.metadata.previousStatus} → {QuotationStatusLabels[log.metadata.newStatus] ?? log.metadata.newStatus}
                       </div>
                     )}
                   </div>

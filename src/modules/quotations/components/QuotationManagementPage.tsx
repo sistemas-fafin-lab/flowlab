@@ -20,6 +20,7 @@ import {
   Filter,
   BarChart3,
   ShieldCheck,
+  UserCheck,
 } from 'lucide-react';
 import { useQuotation } from '../hooks/useQuotation';
 import {
@@ -74,6 +75,7 @@ const STATUS_FILTER_OPTIONS: { value: QuotationStatus | 'all'; label: string }[]
   { value: 'sent_to_suppliers', label: 'Enviadas' },
   { value: 'waiting_responses', label: 'Aguardando' },
   { value: 'under_review', label: 'Em Análise' },
+  { value: 'awaiting_manager_approval', label: 'Aprovação do Gestor' },
   { value: 'awaiting_approval', label: 'Aprovação' },
   { value: 'approved', label: 'Aprovadas' },
   { value: 'rejected', label: 'Rejeitadas' },
@@ -305,7 +307,7 @@ export const QuotationManagementPage: React.FC = () => {
             </button>
           )}
         </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
           {/* Ativas (Draft) */}
           <button
             onClick={() => toggleStatusCardFilter('draft')}
@@ -327,6 +329,31 @@ export const QuotationManagementPage: React.FC = () => {
               </div>
               {selectedStatusFilters.has('draft') && (
                 <CheckCircle2 className="w-5 h-5 text-blue-500 flex-shrink-0" />
+              )}
+            </div>
+          </button>
+
+          {/* Aprovação do Gestor (etapa 1) */}
+          <button
+            onClick={() => toggleStatusCardFilter('awaiting_manager_approval')}
+            className={`group bg-white dark:bg-gray-800 rounded-xl p-4 border-2 shadow-sm hover:shadow-md transition-all duration-200 text-left cursor-pointer ${
+              selectedStatusFilters.has('awaiting_manager_approval')
+                ? 'border-amber-500 ring-2 ring-amber-500/20 bg-amber-50 dark:bg-amber-900/20'
+                : 'border-gray-200 dark:border-gray-600 hover:border-amber-400 dark:hover:border-amber-500'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <div className={`w-11 h-11 rounded-xl flex items-center justify-center transition-colors ${
+                selectedStatusFilters.has('awaiting_manager_approval') ? 'bg-amber-500' : 'bg-amber-100 dark:bg-amber-900/50 group-hover:bg-amber-200 dark:group-hover:bg-amber-800/50'
+              }`}>
+                <UserCheck className={`w-5 h-5 ${selectedStatusFilters.has('awaiting_manager_approval') ? 'text-white' : 'text-amber-600 dark:text-amber-400'}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">{metrics.totalAwaitingManagerApproval}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Aprovação do Gestor</p>
+              </div>
+              {selectedStatusFilters.has('awaiting_manager_approval') && (
+                <CheckCircle2 className="w-5 h-5 text-amber-500 flex-shrink-0" />
               )}
             </div>
           </button>
@@ -768,8 +795,9 @@ export const QuotationManagementPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Approval pending indicator + ação de aprovar, visível só para quem tem alçada */}
-              {quotation.status === 'awaiting_approval' && (
+              {/* Approval pending indicator + ação de aprovar: na etapa do gestor, visível
+                  para o gestor do pedido e para admins; na etapa de alçada, para quem tem alçada */}
+              {(quotation.status === 'awaiting_manager_approval' || quotation.status === 'awaiting_approval') && (
                 <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700 flex items-center gap-3">
                   {getPermissions(quotation).canApprove && (
                     <button
@@ -786,7 +814,9 @@ export const QuotationManagementPage: React.FC = () => {
                   )}
                   <span className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400">
                     <Clock className="w-3.5 h-3.5" />
-                    Aguardando aprovação
+                    {quotation.status === 'awaiting_manager_approval'
+                      ? `Aguardando aprovação do gestor${quotation.requesterManagerName ? ` (${quotation.requesterManagerName})` : ''}`
+                      : 'Aguardando aprovação'}
                   </span>
                 </div>
               )}

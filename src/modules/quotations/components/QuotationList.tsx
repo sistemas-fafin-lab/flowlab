@@ -67,6 +67,7 @@ const STATUS_FILTER_OPTIONS: { value: QuotationStatus | 'all'; label: string }[]
   { value: 'sent_to_suppliers', label: 'Enviadas' },
   { value: 'waiting_responses', label: 'Aguardando' },
   { value: 'under_review', label: 'Em Análise' },
+  { value: 'awaiting_manager_approval', label: 'Aprovação do Gestor' },
   { value: 'awaiting_approval', label: 'Aprovação' },
   { value: 'approved', label: 'Aprovadas' },
   { value: 'rejected', label: 'Rejeitadas' },
@@ -273,6 +274,12 @@ export const QuotationList: React.FC<QuotationListProps> = ({
                   )}
 
                   {/* Approval pending indicator */}
+                  {quotation.status === 'awaiting_manager_approval' && (
+                    <div className="mt-3 flex items-center gap-2 text-xs text-amber-600">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Aguardando aprovação do gestor</span>
+                    </div>
+                  )}
                   {quotation.status === 'awaiting_approval' && (
                     <div className="mt-3 flex items-center gap-2 text-xs text-amber-600">
                       <Clock className="w-3.5 h-3.5" />

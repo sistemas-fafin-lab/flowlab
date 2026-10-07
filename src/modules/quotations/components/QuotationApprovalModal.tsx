@@ -4,6 +4,7 @@ import { X, FileText, User, DollarSign, Package, Building2, Crown, Star, Clock, 
 import { Quotation, QuotationPermissions } from '../types';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { annotateProposals } from '../utils/annotateProposals';
+import { isManagerApprovalStage } from '../workflow/stateMachine';
 import { ApprovalTimeline } from './ApprovalTimeline';
 
 interface QuotationApprovalModalProps {
@@ -63,7 +64,9 @@ export const QuotationApprovalModal: React.FC<QuotationApprovalModalProps> = ({
               <FileText className="w-5 h-5 text-white" />
             </div>
             <div className="min-w-0">
-              <h3 className="text-lg font-bold truncate">Aprovar Cotação</h3>
+              <h3 className="text-lg font-bold truncate">
+                {isManagerApprovalStage(quotation.status) ? 'Aprovação do Gestor' : 'Aprovar Cotação'}
+              </h3>
               <p className="text-sm text-white/80 font-mono">{quotation.code}</p>
             </div>
           </div>
@@ -170,7 +173,8 @@ export const QuotationApprovalModal: React.FC<QuotationApprovalModalProps> = ({
             )}
           </div>
 
-          {/* Approve/Reject — reaproveita a decisão atômica e a checagem de alçada já existentes.
+          {/* Approve/Reject — reaproveita a decisão atômica da etapa (gestor ou alçada; o hook
+              escolhe a RPC pelo status) e a checagem de alçada já existentes.
               Desabilitado enquanto uma troca de vencedora está em andamento: o valor/alçada só
               reflete a proposta recém-selecionada depois que o refresh pós-troca chega. */}
           <ApprovalTimeline

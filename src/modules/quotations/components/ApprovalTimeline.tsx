@@ -1,14 +1,17 @@
 import React from 'react';
-import { Check, X, Clock, AlertTriangle, ChevronRight, User, Shield, Fingerprint } from 'lucide-react';
+import { Check, X, Clock, AlertTriangle, ChevronRight, User, Shield, Fingerprint, UserCheck } from 'lucide-react';
 import {
   Quotation,
+  QuotationApproval,
   ApprovalLevel,
   APPROVAL_THRESHOLDS,
+  MANAGER_APPROVAL_LEVEL,
 } from '../types';
 import { useAuth } from '../../../hooks/useAuth';
 import QuotationApprovalSignatureModal from './QuotationApprovalSignatureModal';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { useAsyncGuard } from '../hooks/useAsyncGuard';
+import { isManagerApprovalStage } from '../workflow/stateMachine';
 
 interface ApprovalTimelineProps {
   quotation: Quotation;
@@ -52,6 +55,64 @@ const ApprovalLevelBadge: React.FC<{ level: ApprovalLevel; isActive?: boolean }>
   );
 };
 
+// Aprovador, assinatura e comentário de uma linha de quotation_approvals —
+// comum à etapa do gestor e às etapas de alçada.
+const ApprovalDecisionDetails: React.FC<{ approval?: QuotationApproval }> = ({ approval }) => (
+  <>
+    {approval?.approverId && (
+      <div className="mt-2.5 flex items-center gap-2 text-sm flex-wrap">
+        <User className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
+        <span className="text-slate-700 dark:text-slate-300 font-medium">{approval.approverName}</span>
+        <span className="text-slate-300 dark:text-slate-600">•</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          {formatDate(approval.approvedAt || approval.rejectedAt || approval.createdAt)}
+        </span>
+      </div>
+    )}
+
+    {approval?.status === 'approved' && approval.signatureHash && (
+      <div
+        className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400"
+        title={approval.signatureHash}
+      >
+        <Fingerprint className="w-3 h-3 flex-shrink-0" />
+        <span>Assinatura eletrônica:</span>
+        <code className="font-mono text-slate-600 dark:text-slate-300">
+          {approval.signatureHash.slice(0, 16)}…
+        </code>
+      </div>
+    )}
+
+    {approval?.comment && (
+      <div className="mt-2 p-2.5 bg-white/70 dark:bg-slate-800/70 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
+        <p className="text-xs text-slate-600 dark:text-slate-400 italic">"{approval.comment}"</p>
+      </div>
+    )}
+  </>
+);
+
+const ApprovalStatusIcon: React.FC<{ status?: QuotationApproval['status'] }> = ({ status }) => (
+  <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${
+    status === 'approved'
+      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
+      : status === 'rejected'
+      ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'
+      : status === 'pending'
+      ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+      : 'bg-slate-100 dark:bg-slate-700/70 text-slate-400 dark:text-slate-500'
+  }`}>
+    {status === 'approved' ? (
+      <Check className="w-4 h-4" />
+    ) : status === 'rejected' ? (
+      <X className="w-4 h-4" />
+    ) : status === 'pending' ? (
+      <Clock className="w-4 h-4" />
+    ) : (
+      <ChevronRight className="w-4 h-4" />
+    )}
+  </div>
+);
+
 export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
   quotation,
   currentUserApprovalLimit,
@@ -68,12 +129,23 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
 
   const amount = getQuotationAmount(quotation);
   const isWithinLimit = amount <= currentUserApprovalLimit;
+  // Etapa do gestor: "de acordo" de quem pediu, sem checagem de alçada.
+  const isManagerStage = isManagerApprovalStage(quotation.status);
   // onApprove/onReject só vêm preenchidos quando o QuotationDrawer já checou
   // permissions.canApprove/canReject — checar status e alçada aqui de novo,
   // sem essa condição, reabriria a possibilidade de mostrar o botão para
   // quem não tem o direito e o onConfirm virar um no-op silencioso.
-  const canApprove = !!onApprove && quotation.status === 'awaiting_approval' && isWithinLimit;
-  const canReject = !!onReject && quotation.status === 'awaiting_approval';
+  const canApprove = !!onApprove && (isManagerStage || (quotation.status === 'awaiting_approval' && isWithinLimit));
+  const canReject = !!onReject && (isManagerStage || quotation.status === 'awaiting_approval');
+
+  const managerApproval = quotation.approvals.find(a => a.level === MANAGER_APPROVAL_LEVEL);
+  // Cotações enviadas antes da etapa do gestor não têm gestor nem linha
+  // 'manager' — nesse caso a etapa simplesmente não aparece.
+  // Cotações enviadas no ticket 02 (já em awaiting_approval, com gestor mas
+  // sem linha 'manager') também ficam sem a etapa.
+  const showManagerStep = isManagerStage || !!managerApproval;
+  const managerStepStatus: QuotationApproval['status'] | undefined =
+    managerApproval?.status ?? (isManagerStage ? 'pending' : undefined);
 
   const handleConfirmSignedApproval = async () => {
     await onApprove?.(approveComment || undefined);
@@ -149,8 +221,39 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
 
         {/* Approval Steps */}
         <div className="px-4 sm:px-5 py-4 space-y-3">
+          {showManagerStep && (
+            <div
+              className={`relative flex items-start gap-3.5 p-3.5 rounded-xl border transition-colors ${
+                isManagerStage
+                  ? 'bg-blue-50/70 dark:bg-blue-900/15 border-blue-200/70 dark:border-blue-800/50'
+                  : 'bg-slate-50/60 dark:bg-slate-900/30 border-slate-200/60 dark:border-slate-700/40'
+              }`}
+            >
+              <ApprovalStatusIcon status={managerStepStatus} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                    Gestor do pedido
+                  </h4>
+                  <span className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-full border bg-amber-100/80 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-200/70 dark:border-amber-800/50 ${isManagerStage ? 'ring-2 ring-offset-1 ring-blue-500 dark:ring-offset-slate-900' : ''}`}>
+                    <UserCheck className="w-3 h-3 mr-1" />
+                    Etapa 1
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  {quotation.requesterManagerName
+                    ? `"De acordo" de ${quotation.requesterManagerName}, antes da alçada`
+                    : '"De acordo" de quem pediu, antes da alçada'}
+                </p>
+                <ApprovalDecisionDetails approval={managerApproval} />
+              </div>
+            </div>
+          )}
+
           {APPROVAL_THRESHOLDS.map((threshold, index) => {
             const isRequired = threshold.level === quotation.requiredApprovalLevel;
+            // Na etapa do gestor, a alçada ainda não está aberta: só um passo ativo por vez.
+            const isActive = isRequired && !isManagerStage;
             const approval = quotation.approvals.find(a => a.level === threshold.level);
             const isPast = APPROVAL_THRESHOLDS.indexOf(
               APPROVAL_THRESHOLDS.find(t => t.level === quotation.requiredApprovalLevel)!
@@ -162,31 +265,12 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
               <div
                 key={threshold.level}
                 className={`relative flex items-start gap-3.5 p-3.5 rounded-xl border transition-colors ${
-                  isRequired
+                  isActive
                     ? 'bg-blue-50/70 dark:bg-blue-900/15 border-blue-200/70 dark:border-blue-800/50'
                     : 'bg-slate-50/60 dark:bg-slate-900/30 border-slate-200/60 dark:border-slate-700/40'
                 }`}
               >
-                {/* Status Icon */}
-                <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${
-                  approval?.status === 'approved'
-                    ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400'
-                    : approval?.status === 'rejected'
-                    ? 'bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400'
-                    : approval?.status === 'pending'
-                    ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
-                    : 'bg-slate-100 dark:bg-slate-700/70 text-slate-400 dark:text-slate-500'
-                }`}>
-                  {approval?.status === 'approved' ? (
-                    <Check className="w-4 h-4" />
-                  ) : approval?.status === 'rejected' ? (
-                    <X className="w-4 h-4" />
-                  ) : approval?.status === 'pending' ? (
-                    <Clock className="w-4 h-4" />
-                  ) : (
-                    <ChevronRight className="w-4 h-4" />
-                  )}
-                </div>
+                <ApprovalStatusIcon status={approval?.status} />
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
@@ -194,44 +278,13 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
                     <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-100">
                       {threshold.label}
                     </h4>
-                    <ApprovalLevelBadge level={threshold.level} isActive={isRequired} />
+                    <ApprovalLevelBadge level={threshold.level} isActive={isActive} />
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     {threshold.description}
                   </p>
 
-                  {/* Approver Info */}
-                  {approval?.approverId && (
-                    <div className="mt-2.5 flex items-center gap-2 text-sm flex-wrap">
-                      <User className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500" />
-                      <span className="text-slate-700 dark:text-slate-300 font-medium">{approval.approverName}</span>
-                      <span className="text-slate-300 dark:text-slate-600">•</span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {formatDate(approval.approvedAt || approval.rejectedAt || approval.createdAt)}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Signature hash */}
-                  {approval?.status === 'approved' && approval.signatureHash && (
-                    <div
-                      className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400"
-                      title={approval.signatureHash}
-                    >
-                      <Fingerprint className="w-3 h-3 flex-shrink-0" />
-                      <span>Assinatura eletrônica:</span>
-                      <code className="font-mono text-slate-600 dark:text-slate-300">
-                        {approval.signatureHash.slice(0, 16)}…
-                      </code>
-                    </div>
-                  )}
-
-                  {/* Comment */}
-                  {approval?.comment && (
-                    <div className="mt-2 p-2.5 bg-white/70 dark:bg-slate-800/70 rounded-xl border border-slate-200/60 dark:border-slate-700/40">
-                      <p className="text-xs text-slate-600 dark:text-slate-400 italic">"{approval.comment}"</p>
-                    </div>
-                  )}
+                  <ApprovalDecisionDetails approval={approval} />
                 </div>
               </div>
             );
@@ -342,6 +395,7 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
           quotationTitle={quotation.title}
           approverName={userProfile?.name || 'Aprovador'}
           comment={approveComment || undefined}
+          successMessage={isManagerStage ? 'Aprovação do gestor registrada! A cotação seguiu para a aprovação por alçada.' : undefined}
           onConfirm={handleConfirmSignedApproval}
           onClose={() => setShowSignatureModal(false)}
         />

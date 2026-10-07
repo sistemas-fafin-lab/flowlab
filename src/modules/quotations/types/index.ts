@@ -8,6 +8,7 @@ export type QuotationStatus =
   | 'sent_to_suppliers'
   | 'waiting_responses'
   | 'under_review'
+  | 'awaiting_manager_approval'
   | 'awaiting_approval'
   | 'approved'
   | 'rejected'
@@ -19,6 +20,7 @@ export const QuotationStatusLabels: Record<QuotationStatus, string> = {
   sent_to_suppliers: 'Enviada aos Fornecedores',
   waiting_responses: 'Aguardando Respostas',
   under_review: 'Em Análise',
+  awaiting_manager_approval: 'Aprovação do Gestor',
   awaiting_approval: 'Aguardando Aprovação',
   approved: 'Aprovada',
   rejected: 'Rejeitada',
@@ -31,6 +33,7 @@ export const QuotationStatusColors: Record<QuotationStatus, string> = {
   sent_to_suppliers: 'bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200',
   waiting_responses: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200',
   under_review: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200',
+  awaiting_manager_approval: 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200',
   awaiting_approval: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200',
   approved: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200',
   rejected: 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200',
@@ -94,6 +97,14 @@ export const ProposalStatusColors: Record<ProposalStatus, string> = {
 // ============================================
 export type ApprovalLevel = 'level_1' | 'level_2' | 'level_3' | 'level_4';
 
+/**
+ * Nível da linha de quotation_approvals da etapa do gestor do pedido — uma
+ * linha por etapa (unicidade quotation_id + level): 'manager' para o "de
+ * acordo" do gestor, ApprovalLevel para a aprovação por alçada.
+ */
+export const MANAGER_APPROVAL_LEVEL = 'manager';
+export type ApprovalStepLevel = ApprovalLevel | typeof MANAGER_APPROVAL_LEVEL;
+
 export interface ApprovalThreshold {
   level: ApprovalLevel;
   label: string;
@@ -144,6 +155,9 @@ export type QuotationActionType =
   | 'proposal_selected'
   | 'proposal_rejected'
   | 'submitted_for_approval'
+  | 'submitted_for_manager_approval'
+  | 'manager_approved'
+  | 'manager_rejected'
   | 'approved'
   | 'rejected'
   | 'escalated'
@@ -172,6 +186,8 @@ export interface QuotationAuditLog {
     itemId?: string;
     itemName?: string;
     comment?: string;
+    /** Decisão da etapa do gestor tomada por um admin no lugar do gestor do pedido. */
+    decidedByAdminOnBehalf?: boolean;
   };
 }
 
@@ -264,7 +280,7 @@ export interface ProposalAttachment {
 export interface QuotationApproval {
   id: string;
   quotationId: string;
-  level: ApprovalLevel;
+  level: ApprovalStepLevel;
   status: 'pending' | 'approved' | 'rejected';
   approverId?: string;
   approverName?: string;
@@ -354,6 +370,7 @@ export interface Quotation {
 export interface QuotationMetrics {
   totalActive: number;
   totalDraft: number;
+  totalAwaitingManagerApproval: number;
   totalAwaitingApproval: number;
   totalApproved: number;
   totalRejected: number;

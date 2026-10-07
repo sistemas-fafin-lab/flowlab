@@ -7,6 +7,8 @@ import {
   canTransition,
   getPreviousStatus,
   getValidNextStatuses,
+  getStatusStep,
+  isManagerApprovalStage,
   isTerminalStatus,
 } from './stateMachine';
 import { QuotationStatus, QuotationStatusLabels } from '../types';
@@ -21,7 +23,10 @@ const statusesWhere = (predicate: (status: QuotationStatus) => boolean) => ALL_S
 describe('canTransition', () => {
   it.each<[QuotationStatus, QuotationStatus]>([
     ['draft', 'sent_to_suppliers'],
-    ['under_review', 'awaiting_approval'],
+    ['under_review', 'awaiting_manager_approval'],
+    ['awaiting_manager_approval', 'awaiting_approval'],
+    ['awaiting_manager_approval', 'under_review'],
+    ['awaiting_manager_approval', 'cancelled'],
     ['awaiting_approval', 'approved'],
     ['awaiting_approval', 'under_review'],
     ['awaiting_approval', 'rejected'],
@@ -36,6 +41,9 @@ describe('canTransition', () => {
   it.each<[QuotationStatus, QuotationStatus]>([
     ['draft', 'approved'],
     ['under_review', 'approved'],
+    ['under_review', 'awaiting_approval'],
+    ['awaiting_manager_approval', 'approved'],
+    ['awaiting_manager_approval', 'rejected'],
     ['awaiting_approval', 'converted_to_purchase'],
     ['approved', 'rejected'],
     ['rejected', 'approved'],
@@ -45,7 +53,11 @@ describe('canTransition', () => {
     expect(canTransition(from, to)).toBe(false);
   });
 
-  it('a partir da submissão, só se aprova, rejeita, cancela ou volta para análise', () => {
+  it('na etapa do gestor, só se segue para a alçada, volta para análise ou cancela', () => {
+    expect(getValidNextStatuses('awaiting_manager_approval')).toEqual(['awaiting_approval', 'under_review', 'cancelled']);
+  });
+
+  it('na etapa de alçada, só se aprova, rejeita, cancela ou volta para análise', () => {
     expect(getValidNextStatuses('awaiting_approval')).toEqual(['approved', 'under_review', 'rejected', 'cancelled']);
   });
 
@@ -54,7 +66,8 @@ describe('canTransition', () => {
       draft: ['sent_to_suppliers', 'under_review', 'cancelled'],
       sent_to_suppliers: ['waiting_responses', 'under_review', 'draft', 'cancelled'],
       waiting_responses: ['under_review', 'sent_to_suppliers', 'cancelled'],
-      under_review: ['awaiting_approval', 'waiting_responses', 'rejected', 'cancelled'],
+      under_review: ['awaiting_manager_approval', 'waiting_responses', 'rejected', 'cancelled'],
+      awaiting_manager_approval: ['awaiting_approval', 'under_review', 'cancelled'],
       awaiting_approval: ['approved', 'under_review', 'rejected', 'cancelled'],
       approved: ['converted_to_purchase', 'awaiting_approval', 'cancelled'],
       rejected: ['draft'],
@@ -65,8 +78,20 @@ describe('canTransition', () => {
 });
 
 describe('TRANSITION_ACTIONS', () => {
-  it('submeter leva de "em análise" para "aguardando aprovação"', () => {
-    expect(TRANSITION_ACTIONS.submitted_for_approval).toEqual({ from: ['under_review'], to: 'awaiting_approval' });
+  it('submeter leva de "em análise" para a etapa do gestor', () => {
+    expect(TRANSITION_ACTIONS.submitted_for_manager_approval).toEqual({ from: ['under_review'], to: 'awaiting_manager_approval' });
+  });
+
+  it('a submissão direta para a alçada não existe mais (só no histórico legado)', () => {
+    expect(TRANSITION_ACTIONS.submitted_for_approval).toBeNull();
+  });
+
+  it('o gestor aprova levando para a etapa de alçada', () => {
+    expect(TRANSITION_ACTIONS.manager_approved).toEqual({ from: ['awaiting_manager_approval'], to: 'awaiting_approval' });
+  });
+
+  it('o gestor rejeita devolvendo para "em análise"', () => {
+    expect(TRANSITION_ACTIONS.manager_rejected).toEqual({ from: ['awaiting_manager_approval'], to: 'under_review' });
   });
 
   it('aprovar só sai de "aguardando aprovação"', () => {
@@ -83,7 +108,7 @@ describe('TRANSITION_ACTIONS', () => {
 
   it('cancelar sai de qualquer status não terminal, exceto rejeitada e cancelada', () => {
     expect(TRANSITION_ACTIONS.cancelled).toEqual({
-      from: ['draft', 'sent_to_suppliers', 'waiting_responses', 'under_review', 'awaiting_approval', 'approved'],
+      from: ['draft', 'sent_to_suppliers', 'waiting_responses', 'under_review', 'awaiting_manager_approval', 'awaiting_approval', 'approved'],
       to: 'cancelled',
     });
   });
@@ -100,6 +125,7 @@ describe('getPreviousStatus', () => {
     ['sent_to_suppliers', 'draft'],
     ['waiting_responses', 'sent_to_suppliers'],
     ['under_review', 'waiting_responses'],
+    ['awaiting_manager_approval', 'under_review'],
     ['awaiting_approval', 'under_review'],
     ['approved', 'awaiting_approval'],
   ])('reverter %s volta para %s', (status, previous) => {
@@ -125,11 +151,27 @@ describe('predicados de permissão por status', () => {
     expect(statusesWhere(canSubmitForApproval)).toEqual(['under_review']);
   });
 
-  it('só se aprova ou rejeita em "aguardando aprovação"', () => {
-    expect(statusesWhere(canApproveOrReject)).toEqual(['awaiting_approval']);
+  it('aprova-se ou rejeita-se nas duas etapas de aprovação', () => {
+    expect(statusesWhere(canApproveOrReject)).toEqual(['awaiting_manager_approval', 'awaiting_approval']);
   });
 
-  it('a vencedora pode ser trocada aguardando respostas, em análise e aguardando aprovação', () => {
-    expect(statusesWhere(canSelectWinner)).toEqual(['waiting_responses', 'under_review', 'awaiting_approval']);
+  it('a vencedora pode ser trocada aguardando respostas, em análise e nas duas etapas de aprovação', () => {
+    expect(statusesWhere(canSelectWinner)).toEqual([
+      'waiting_responses',
+      'under_review',
+      'awaiting_manager_approval',
+      'awaiting_approval',
+    ]);
+  });
+
+  it('só "aprovação do gestor" é a etapa do gestor', () => {
+    expect(statusesWhere(isManagerApprovalStage)).toEqual(['awaiting_manager_approval']);
+  });
+});
+
+describe('getStatusStep', () => {
+  it('a etapa do gestor fica entre "em análise" e "aguardando aprovação" no stepper', () => {
+    expect(getStatusStep('awaiting_manager_approval')).toBe(getStatusStep('under_review') + 1);
+    expect(getStatusStep('awaiting_approval')).toBe(getStatusStep('awaiting_manager_approval') + 1);
   });
 });

@@ -8,6 +8,7 @@ interface QuotationApprovalSignatureModalProps {
   quotationTitle: string;
   approverName: string;
   comment?: string;
+  successMessage?: string;
   onConfirm: () => Promise<void>;
   onClose: () => void;
 }
@@ -17,6 +18,7 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
   quotationTitle,
   approverName,
   comment,
+  successMessage = 'Cotação aprovada com sucesso!',
   onConfirm,
   onClose,
 }) => {
@@ -89,7 +91,7 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
               <div className="flex items-center">
                 <CheckCircle2 className="w-6 h-6 text-green-500 mr-3" />
                 <div>
-                  <p className="font-semibold text-green-800 dark:text-green-200">Cotação aprovada com sucesso!</p>
+                  <p className="font-semibold text-green-800 dark:text-green-200">{successMessage}</p>
                   <p className="text-sm text-green-600 dark:text-green-400">Fechando em instantes...</p>
                 </div>
               </div>

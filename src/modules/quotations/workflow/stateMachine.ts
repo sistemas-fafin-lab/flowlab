@@ -12,7 +12,10 @@ export const VALID_TRANSITIONS: Record<QuotationStatus, QuotationStatus[]> = {
   draft: ['sent_to_suppliers', 'under_review', 'cancelled'],
   sent_to_suppliers: ['waiting_responses', 'under_review', 'draft', 'cancelled'],
   waiting_responses: ['under_review', 'sent_to_suppliers', 'cancelled'],
-  under_review: ['awaiting_approval', 'waiting_responses', 'rejected', 'cancelled'],
+  under_review: ['awaiting_manager_approval', 'waiting_responses', 'rejected', 'cancelled'],
+  // Etapa 1 (gestor do pedido): aprova → alçada; rejeita → volta para análise.
+  awaiting_manager_approval: ['awaiting_approval', 'under_review', 'cancelled'],
+  // Etapa 2 (alçada).
   awaiting_approval: ['approved', 'under_review', 'rejected', 'cancelled'],
   approved: ['converted_to_purchase', 'awaiting_approval', 'cancelled'],
   rejected: ['draft'], // Can restart from draft
@@ -30,12 +33,17 @@ export const TRANSITION_ACTIONS: Record<QuotationActionType, { from: QuotationSt
   supplier_response: null, // May trigger waiting_responses → under_review
   proposal_selected: null, // No direct status change
   proposal_rejected: null, // No direct status change
-  submitted_for_approval: { from: ['under_review'], to: 'awaiting_approval' },
+  // Legado: até a etapa do gestor, o envio ia direto para a alçada. Continua
+  // no histórico das cotações antigas, mas não dispara mais transição.
+  submitted_for_approval: null,
+  submitted_for_manager_approval: { from: ['under_review'], to: 'awaiting_manager_approval' },
+  manager_approved: { from: ['awaiting_manager_approval'], to: 'awaiting_approval' },
+  manager_rejected: { from: ['awaiting_manager_approval'], to: 'under_review' },
   approved: { from: ['awaiting_approval'], to: 'approved' },
   rejected: { from: ['awaiting_approval', 'under_review'], to: 'rejected' },
   escalated: null, // Stays in awaiting_approval but changes approval level
   converted_to_purchase: { from: ['approved'], to: 'converted_to_purchase' },
-  cancelled: { from: ['draft', 'sent_to_suppliers', 'waiting_responses', 'under_review', 'awaiting_approval', 'approved'], to: 'cancelled' },
+  cancelled: { from: ['draft', 'sent_to_suppliers', 'waiting_responses', 'under_review', 'awaiting_manager_approval', 'awaiting_approval', 'approved'], to: 'cancelled' },
   comment_added: null,
   item_added: null,
   item_removed: null,
@@ -58,6 +66,7 @@ export const BACKWARD_TRANSITIONS: Partial<Record<QuotationStatus, QuotationStat
   sent_to_suppliers: 'draft',
   waiting_responses: 'sent_to_suppliers',
   under_review: 'waiting_responses',
+  awaiting_manager_approval: 'under_review',
   awaiting_approval: 'under_review',
   approved: 'awaiting_approval',
 };
@@ -113,11 +122,11 @@ export function canReceiveProposals(status: QuotationStatus): boolean {
 
 /**
  * Checks if a winner can be selected in current status.
- * Inclui 'awaiting_approval' para permitir a troca de vencedora dentro do
- * modal de aprovação, sem exigir reabrir a cotação para revisão.
+ * Inclui as duas etapas de aprovação para permitir a troca de vencedora
+ * dentro do modal de aprovação, sem exigir reabrir a cotação para revisão.
  */
 export function canSelectWinner(status: QuotationStatus): boolean {
-  return ['under_review', 'waiting_responses', 'awaiting_approval'].includes(status);
+  return ['under_review', 'waiting_responses', 'awaiting_manager_approval', 'awaiting_approval'].includes(status);
 }
 
 /**
@@ -128,10 +137,19 @@ export function canSubmitForApproval(status: QuotationStatus): boolean {
 }
 
 /**
- * Checks if the quotation can be approved/rejected
+ * Checks if the quotation can be approved/rejected — na etapa do gestor
+ * (sem checagem de valor) ou na etapa de alçada.
  */
 export function canApproveOrReject(status: QuotationStatus): boolean {
-  return ['awaiting_approval'].includes(status);
+  return ['awaiting_manager_approval', 'awaiting_approval'].includes(status);
+}
+
+/**
+ * A cotação está na etapa do gestor do pedido: quem decide é o
+ * requester_manager_id (ou um admin no lugar dele), sem checagem de alçada.
+ */
+export function isManagerApprovalStage(status: QuotationStatus): boolean {
+  return status === 'awaiting_manager_approval';
 }
 
 /**
@@ -242,7 +260,7 @@ export function validateTransition(
       }
       break;
 
-    case 'awaiting_approval':
+    case 'awaiting_manager_approval':
       if (!context.hasSelectedWinner) {
         errors.push('NO_SELECTED_WINNER');
         messages.push('É necessário selecionar uma proposta vencedora');
@@ -281,6 +299,7 @@ export const STATUS_ORDER: QuotationStatus[] = [
   'sent_to_suppliers',
   'waiting_responses',
   'under_review',
+  'awaiting_manager_approval',
   'awaiting_approval',
   'approved',
   'converted_to_purchase',

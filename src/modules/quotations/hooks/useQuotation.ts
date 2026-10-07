@@ -21,6 +21,7 @@ import {
   APPROVAL_THRESHOLDS,
   QuotationActionType,
   RequesterManager,
+  MANAGER_APPROVAL_LEVEL,
 } from '../types';
 import { buildQuotationApprovalNotifications } from '../notifications';
 import { generateApprovalHash } from '../utils/generateApprovalHash';
@@ -38,6 +39,7 @@ import {
   canConvertToPurchase,
   canCancel,
   getPreviousStatus,
+  isManagerApprovalStage,
 } from '../workflow/stateMachine';
 
 // Retorno de quotation_record_decision(), que persiste no mesmo statement o
@@ -45,6 +47,14 @@ import {
 type QuotationDecisionRow = {
   id: string;
   created_at: string;
+};
+
+// Retorno de quotation_record_manager_decision() (etapa do gestor).
+type QuotationManagerDecisionRow = {
+  approval_id: string;
+  approval_created_at: string;
+  new_status: QuotationStatus;
+  decided_by_admin: boolean;
 };
 
 // Generate unique quotation code
@@ -393,6 +403,7 @@ export const useQuotation = () => {
       sent_to_suppliers: 'sent_to_suppliers',
       waiting_responses: 'waiting_responses',
       under_review: 'under_review',
+      awaiting_manager_approval: 'awaiting_manager_approval',
       awaiting_approval: 'awaiting_approval',
       approved: 'approved',
       rejected: 'rejected',
@@ -495,6 +506,7 @@ export const useQuotation = () => {
     return {
       totalActive: active.length,
       totalDraft: quotations.filter(q => q.status === 'draft').length,
+      totalAwaitingManagerApproval: quotations.filter(q => q.status === 'awaiting_manager_approval').length,
       totalAwaitingApproval: quotations.filter(q => q.status === 'awaiting_approval').length,
       totalApproved: quotations.filter(q => q.status === 'approved').length,
       totalRejected: quotations.filter(q => q.status === 'rejected').length,
@@ -568,22 +580,32 @@ export const useQuotation = () => {
 
     const status = quotation.status;
     const quotationAmount = getQuotationAmount(quotation);
-    
+
+    // Etapa do gestor: decide o gestor do pedido (admin já saiu acima), sem
+    // checagem de alçada — a regra definitiva fica na RPC
+    // quotation_record_manager_decision. Na etapa de alçada, a regra de antes.
+    const isManagerStage = isManagerApprovalStage(status);
+    const isRequesterManager = !!user?.id && quotation.requesterManagerId === user.id;
+    const canDecideStage = isManagerStage
+      ? isRequesterManager
+      : userCanApprove && canApproveOrReject(status);
+
     return {
       canView,
       canCreate,
       canEdit: canView && canEditQuotation(status),
       canDelete: false, // Only admin can delete
       canSendToSuppliers: canView && status === 'draft',
-      canSelectWinner: (canView || hasPerm('canSelectWinnerQuotation')) && canSelectWinner(status),
-      canApprove: userCanApprove && canApproveOrReject(status) && quotationAmount <= userApprovalLimit,
-      canReject: userCanApprove && canApproveOrReject(status),
+      canSelectWinner:
+        (canView || hasPerm('canSelectWinnerQuotation') || (isManagerStage && isRequesterManager)) && canSelectWinner(status),
+      canApprove: canDecideStage && (isManagerStage || quotationAmount <= userApprovalLimit),
+      canReject: canDecideStage,
       canConvertToPurchase: (canView || hasPerm('canConvertQuotation')) && canConvertToPurchase(status),
       canCancel: (canView || hasPerm('canCancelQuotation')) && canCancel(status),
       canRevert: (canView || hasPerm('canRevertQuotation')) && getPreviousStatus(status) !== null,
       maxApprovalAmount: userApprovalLimit,
     };
-  }, [userProfile, userApprovalConfig]);
+  }, [user?.id, userProfile, userApprovalConfig]);
 
   // ============================================
   // AUDIT LOG
@@ -1517,12 +1539,29 @@ export const useQuotation = () => {
       return q;
     }));
 
-    await addAuditLog(quotationId, 'proposal_selected', {}, {
+    // Mesma entrada de troca de vencedora nas duas etapas de aprovação; o
+    // status em que a troca aconteceu distingue a etapa do gestor.
+    await addAuditLog(quotationId, 'proposal_selected', { quotationStatus: quotation.status }, {
       supplierId: proposal.supplierId,
       supplierName: proposal.supplierName,
       amount: proposal.totalAmount,
     });
   }, [quotations, addAuditLog]);
+
+  // Apaga a linha da etapa do gestor (o histórico da decisão fica na
+  // auditoria). Melhor esforço: uma linha velha só afeta a exibição, e a RPC
+  // da etapa faz upsert por (quotation_id, level) na próxima decisão.
+  const clearManagerApproval = useCallback(async (quotationId: string): Promise<void> => {
+    const { error: deleteError } = await supabase
+      .from('quotation_approvals')
+      .delete()
+      .eq('quotation_id', quotationId)
+      .eq('level', MANAGER_APPROVAL_LEVEL);
+
+    if (deleteError) {
+      console.error('Error clearing manager approval:', deleteError);
+    }
+  }, []);
 
   const submitForApproval = useCallback(async (
     quotationId: string,
@@ -1543,10 +1582,15 @@ export const useQuotation = () => {
       throw new Error('Selecione o gestor do pedido antes de enviar para aprovação');
     }
 
-    // Persist status change to DB
+    // Cada envio abre uma etapa do gestor nova: uma decisão anterior (rejeição,
+    // ou aprovação desfeita por revert) não pode aparecer como a deste envio.
+    await clearManagerApproval(quotationId);
+
+    // Persist status change to DB — o envio vai para a etapa do gestor do
+    // pedido; o e-mail de alçada só sai quando o gestor aprovar.
     const { error: dbError } = await supabase
       .from('quotations')
-      .update({ status: 'awaiting_approval', requester_manager_id: requesterManager.id })
+      .update({ status: 'awaiting_manager_approval', requester_manager_id: requesterManager.id })
       .eq('id', quotationId);
 
     if (dbError) {
@@ -1557,7 +1601,7 @@ export const useQuotation = () => {
     const approval: QuotationApproval = {
       id: crypto.randomUUID(),
       quotationId,
-      level: quotation.requiredApprovalLevel,
+      level: MANAGER_APPROVAL_LEVEL,
       status: 'pending',
       amount: getQuotationAmount(quotation),
       createdAt: new Date().toISOString(),
@@ -1567,7 +1611,7 @@ export const useQuotation = () => {
       if (q.id === quotationId) {
         return {
           ...q,
-          status: 'awaiting_approval',
+          status: 'awaiting_manager_approval',
           requesterManagerId: requesterManager.id,
           requesterManagerName: requesterManager.name,
           currentApprovalLevel: quotation.requiredApprovalLevel,
@@ -1578,18 +1622,21 @@ export const useQuotation = () => {
       return q;
     }));
 
-    await addAuditLog(quotationId, 'submitted_for_approval', {
+    await addAuditLog(quotationId, 'submitted_for_manager_approval', {
       level: quotation.requiredApprovalLevel,
       amount: getQuotationAmount(quotation),
       requesterManagerId: requesterManager.id,
       requesterManagerName: requesterManager.name,
     }, {
       previousStatus: quotation.status,
-      newStatus: 'awaiting_approval',
+      newStatus: 'awaiting_manager_approval',
     });
+  }, [quotations, addAuditLog, clearManagerApproval]);
 
-    // Notificar por email todo gestor com alçada suficiente para o valor da
-    // cotação — melhor esforço, uma falha aqui não pode reverter a submissão.
+  // Notifica por email todo gestor com alçada suficiente para o valor da
+  // cotação — disparado quando a cotação entra na etapa de alçada. Melhor
+  // esforço: uma falha aqui nunca reverte a mudança de status.
+  const notifyAlcadaApprovers = useCallback(async (quotation: Quotation): Promise<void> => {
     try {
       const amount = getQuotationAmount(quotation);
       const { data: approvers, error: approversError } = await supabase
@@ -1600,23 +1647,102 @@ export const useQuotation = () => {
 
       if (approversError) {
         console.error('Error fetching approvers for quotation approval notification:', approversError);
-      } else {
-        const notifications = buildQuotationApprovalNotifications(quotation, approvers || []);
+        return;
+      }
 
-        for (const notification of notifications) {
-          fetch('/api/notifications/email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(notification),
-          }).catch((err) => {
-            console.warn('Error sending quotation approval notification:', err);
-          });
-        }
+      const notifications = buildQuotationApprovalNotifications(quotation, approvers || []);
+
+      for (const notification of notifications) {
+        fetch('/api/notifications/email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(notification),
+        }).catch((err) => {
+          console.warn('Error sending quotation approval notification:', err);
+        });
       }
     } catch (notifyErr) {
       console.error('Error notifying approvers of quotation awaiting approval:', notifyErr);
     }
-  }, [quotations, addAuditLog]);
+  }, []);
+
+  // Decisão da etapa do gestor do pedido via RPC atômica
+  // quotation_record_manager_decision — quem pode decidir (gestor ou admin),
+  // o status exigido e o valor real são conferidos lá; o client só reflete o
+  // status devolvido. `now`/`signatureHash` seguem a mesma regra da alçada.
+  const applyManagerDecision = useCallback(async (
+    quotation: Quotation,
+    decision: 'approved' | 'rejected',
+    comment: string | undefined,
+    now: string,
+    signatureHash: string | null,
+  ): Promise<QuotationManagerDecisionRow> => {
+    if (!user || !userProfile) throw new Error('Usuário não autenticado');
+
+    const approvalAmount = getQuotationAmount(quotation);
+
+    const { data: result, error: decisionError } = await supabase
+      .rpc('quotation_record_manager_decision', {
+        p_quotation_id: quotation.id,
+        p_decision: decision,
+        p_approver_id: user.id,
+        p_approver_name: userProfile.name,
+        p_approver_role: userProfile.role,
+        p_max_amount: approvalAmount,
+        p_comment: comment ?? null,
+        p_decided_at: now,
+        p_signature_hash: signatureHash,
+      })
+      .single<QuotationManagerDecisionRow>();
+
+    if (decisionError) {
+      console.error(`Error persisting quotation manager ${decision}:`, decisionError);
+      // Mensagens pt-BR específicas da RPC (não é o gestor, status mudou,
+      // valor desatualizado, rejeição sem motivo) — repassar.
+      throw new Error(decisionError.message || (decision === 'approved' ? 'Erro ao registrar aprovação' : 'Erro ao registrar rejeição'));
+    }
+
+    const newApproval: QuotationApproval = {
+      id: result.approval_id,
+      quotationId: quotation.id,
+      level: MANAGER_APPROVAL_LEVEL,
+      status: decision,
+      approverId: user.id,
+      approverName: userProfile.name,
+      approverRole: userProfile.role,
+      amount: approvalAmount,
+      comment,
+      createdAt: result.approval_created_at,
+      ...(decision === 'approved'
+        ? { approvedAt: now, signatureHash: signatureHash ?? undefined }
+        : { rejectedAt: now }),
+    };
+
+    setQuotations(prev => prev.map(q => {
+      if (q.id === quotation.id) {
+        return {
+          ...q,
+          status: result.new_status,
+          approvals: [...q.approvals.filter(a => a.level !== MANAGER_APPROVAL_LEVEL), newApproval],
+          updatedAt: now,
+        };
+      }
+      return q;
+    }));
+
+    await addAuditLog(quotation.id, decision === 'approved' ? 'manager_approved' : 'manager_rejected', {
+      comment,
+      ...(result.decided_by_admin ? { note: 'Decisão tomada por admin no lugar do gestor do pedido' } : {}),
+    }, {
+      previousStatus: quotation.status,
+      newStatus: result.new_status,
+      amount: approvalAmount,
+      ...(comment ? { comment } : {}),
+      decidedByAdminOnBehalf: result.decided_by_admin,
+    });
+
+    return result;
+  }, [user, userProfile, addAuditLog]);
 
   // Persiste a decisão via RPC atômica e reflete no estado local. Comum a
   // approveQuotation/rejectQuotation; `now` entra como parâmetro (em vez de
@@ -1707,6 +1833,14 @@ export const useQuotation = () => {
       timestamp: now,
     });
 
+    if (isManagerApprovalStage(quotation.status)) {
+      const result = await applyManagerDecision(quotation, 'approved', comment, now, signatureHash);
+      if (result.new_status === 'awaiting_approval') {
+        await notifyAlcadaApprovers({ ...quotation, status: result.new_status });
+      }
+      return;
+    }
+
     await applyQuotationDecision(quotation, 'approved', comment, now, signatureHash);
 
     await addAuditLog(quotationId, 'approved', { comment }, {
@@ -1714,7 +1848,7 @@ export const useQuotation = () => {
       newStatus: 'approved',
       amount: approvalAmount,
     });
-  }, [quotations, user, userProfile, getPermissions, addAuditLog, applyQuotationDecision]);
+  }, [quotations, user, userProfile, getPermissions, addAuditLog, applyQuotationDecision, applyManagerDecision, notifyAlcadaApprovers]);
 
   const rejectQuotation = useCallback(async (quotationId: string, comment: string): Promise<void> => {
     if (!user || !userProfile) throw new Error('Usuário não autenticado');
@@ -1727,6 +1861,13 @@ export const useQuotation = () => {
     }
 
     const now = new Date().toISOString();
+
+    if (isManagerApprovalStage(quotation.status)) {
+      if (!comment.trim()) throw new Error('Informe o motivo da rejeição');
+      await applyManagerDecision(quotation, 'rejected', comment, now, null);
+      return;
+    }
+
     await applyQuotationDecision(quotation, 'rejected', comment, now, null);
 
     await addAuditLog(quotationId, 'rejected', { comment }, {
@@ -1734,7 +1875,7 @@ export const useQuotation = () => {
       newStatus: 'rejected',
       comment,
     });
-  }, [quotations, user, userProfile, addAuditLog, applyQuotationDecision]);
+  }, [quotations, user, userProfile, addAuditLog, applyQuotationDecision, applyManagerDecision]);
 
   const revertStatus = useCallback(async (quotationId: string): Promise<void> => {
     const quotation = quotations.find(q => q.id === quotationId);
@@ -1745,9 +1886,10 @@ export const useQuotation = () => {
 
     const updates: Record<string, unknown> = { status: previousStatus };
 
-    // When reverting from awaiting_approval back to under_review,
+    // When reverting from either approval stage back to under_review,
     // clear the selected proposal so the analyst can re-evaluate
-    if (quotation.status === 'awaiting_approval') {
+    const revertsToReview = quotation.status === 'awaiting_approval' || quotation.status === 'awaiting_manager_approval';
+    if (revertsToReview) {
       updates.selected_proposal_id = null;
       updates.final_total_amount = null;
     }
@@ -1786,8 +1928,14 @@ export const useQuotation = () => {
       throw new Error(revertMessage ?? 'Erro ao retornar etapa da cotação');
     }
 
-    // If reverting from awaiting_approval, reset proposal statuses back to submitted
-    if (quotation.status === 'awaiting_approval') {
+    // Voltar para análise limpa a vencedora — o "de acordo" do gestor foi dado
+    // sobre ela e não pode sobreviver à troca.
+    if (revertsToReview) {
+      await clearManagerApproval(quotationId);
+    }
+
+    // If reverting from an approval stage, reset proposal statuses back to submitted
+    if (revertsToReview) {
       const proposalIds = quotation.proposals.map(p => p.id);
       if (proposalIds.length > 0) {
         await supabase
@@ -1804,7 +1952,7 @@ export const useQuotation = () => {
         status: previousStatus,
         updatedAt: new Date().toISOString(),
       };
-      if (quotation.status === 'awaiting_approval') {
+      if (revertsToReview) {
         updated.selectedProposalId = undefined;
         updated.selectedSupplierId = undefined;
         updated.selectedSupplierName = undefined;
@@ -1815,6 +1963,9 @@ export const useQuotation = () => {
       if (quotation.status === 'approved') {
         updated.approvals = q.approvals.filter(a => a.level !== quotation.requiredApprovalLevel);
       }
+      if (revertsToReview) {
+        updated.approvals = q.approvals.filter(a => a.level !== MANAGER_APPROVAL_LEVEL);
+      }
       return updated;
     }));
 
@@ -1824,7 +1975,7 @@ export const useQuotation = () => {
       previousStatus: quotation.status,
       newStatus: previousStatus,
     });
-  }, [quotations, addAuditLog]);
+  }, [quotations, addAuditLog, clearManagerApproval]);
 
   const cancelQuotation = useCallback(async (quotationId: string, reason: string): Promise<void> => {
     const quotation = quotations.find(q => q.id === quotationId);
