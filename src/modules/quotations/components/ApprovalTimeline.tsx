@@ -209,8 +209,9 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
           </div>
         </div>
 
-        {/* User Limit Warning */}
-        {!isWithinLimit && quotation.status === 'awaiting_approval' && (
+        {/* User Limit Warning — só quando há ação possível; numa visão só de
+            leitura (ex.: gestor depois da sua etapa) o aviso só confunde. */}
+        {!isWithinLimit && quotation.status === 'awaiting_approval' && (canApprove || canReject) && (
           <div className="px-4 sm:px-5 py-3 bg-amber-50/80 dark:bg-amber-900/15 border-b border-amber-200/70 dark:border-amber-800/50">
             <div className="flex items-start gap-2.5">
               <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0 mt-0.5" />

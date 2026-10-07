@@ -1,17 +1,27 @@
 import React, { useMemo, useState } from 'react';
 import { ChevronRight, ClipboardCheck, Inbox, RefreshCcw, User } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import { Quotation, QuotationTypeLabels } from '../types';
+import { Quotation, QuotationPermissions, QuotationTypeLabels } from '../types';
 import { useQuotation } from '../hooks/useQuotation';
 import { useSyncFromQuotations } from '../hooks/useSyncFromQuotations';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { filterQuotationsAwaitingMyManagerApproval } from '../utils/filterQuotationsAwaitingMyManagerApproval';
 import { QuotationApprovalModal } from './QuotationApprovalModal';
+import { isManagerApprovalStage } from '../workflow/stateMachine';
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
 const formatDate = (date: string) => new Date(date).toLocaleDateString('pt-BR');
+
+// Esta tela só decide a etapa do gestor. Depois da decisão o modal segue
+// aberto (sincronizado) e a cotação pode estar na alçada — aí ele vira só
+// leitura, para o gestor não aprovar/rejeitar/trocar vencedora numa etapa
+// que não é dele.
+const managerStageOnly = (quotation: Quotation, permissions: QuotationPermissions): QuotationPermissions =>
+  isManagerApprovalStage(quotation.status)
+    ? permissions
+    : { ...permissions, canApprove: false, canReject: false, canSelectWinner: false };
 
 /**
  * "Minhas aprovações de cotação": tela enxuta para o gestor do pedido dar o
@@ -121,7 +131,7 @@ export const ManagerApprovalsPage: React.FC = () => {
       {approvalQuotation && (
         <QuotationApprovalModal
           quotation={approvalQuotation}
-          permissions={getPermissions(approvalQuotation)}
+          permissions={managerStageOnly(approvalQuotation, getPermissions(approvalQuotation))}
           onClose={() => setApprovalQuotation(null)}
           onApprove={async (comment) => {
             const newStatus = await approveQuotation(approvalQuotation.id, comment);
