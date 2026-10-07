@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, FileText, User, DollarSign, Package, Building2, Crown, Star, Clock, Repeat } from 'lucide-react';
-import { Quotation, QuotationPermissions } from '../types';
+import { Quotation, QuotationPermissions, QuotationStatus } from '../types';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { annotateProposals } from '../utils/annotateProposals';
 import { isManagerApprovalStage } from '../workflow/stateMachine';
@@ -11,7 +11,7 @@ interface QuotationApprovalModalProps {
   quotation: Quotation;
   permissions: QuotationPermissions;
   onClose: () => void;
-  onApprove: (comment?: string) => Promise<void>;
+  onApprove: (comment?: string) => Promise<QuotationStatus | void>;
   onReject: (comment: string) => Promise<void>;
   // Reaproveita a mesma operação de seleção de vencedora usada na comparação
   // de propostas — a troca dentro do modal não duplica a lógica de domínio.

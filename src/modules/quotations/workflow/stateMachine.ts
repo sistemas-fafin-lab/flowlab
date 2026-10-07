@@ -13,11 +13,15 @@ export const VALID_TRANSITIONS: Record<QuotationStatus, QuotationStatus[]> = {
   sent_to_suppliers: ['waiting_responses', 'under_review', 'draft', 'cancelled'],
   waiting_responses: ['under_review', 'sent_to_suppliers', 'cancelled'],
   under_review: ['awaiting_manager_approval', 'waiting_responses', 'rejected', 'cancelled'],
-  // Etapa 1 (gestor do pedido): aprova → alçada; rejeita → volta para análise.
-  awaiting_manager_approval: ['awaiting_approval', 'under_review', 'cancelled'],
+  // Etapa 1 (gestor do pedido): aprova → alçada, ou direto para aprovada
+  // quando a alçada do próprio gestor cobre o valor (etapa 2 dispensada);
+  // rejeita → volta para análise.
+  awaiting_manager_approval: ['awaiting_approval', 'approved', 'under_review', 'cancelled'],
   // Etapa 2 (alçada).
   awaiting_approval: ['approved', 'under_review', 'rejected', 'cancelled'],
-  approved: ['converted_to_purchase', 'awaiting_approval', 'cancelled'],
+  // Desfazer a aprovação volta para a alçada; se a etapa 2 foi dispensada,
+  // volta para a etapa do gestor (quem decide é quotation_revert_from_approved).
+  approved: ['converted_to_purchase', 'awaiting_approval', 'awaiting_manager_approval', 'cancelled'],
   rejected: ['draft'], // Can restart from draft
   converted_to_purchase: [], // Terminal state
   cancelled: ['draft'], // Can restart from draft
@@ -39,6 +43,7 @@ export const TRANSITION_ACTIONS: Record<QuotationActionType, { from: QuotationSt
   submitted_for_manager_approval: { from: ['under_review'], to: 'awaiting_manager_approval' },
   manager_approved: { from: ['awaiting_manager_approval'], to: 'awaiting_approval' },
   manager_rejected: { from: ['awaiting_manager_approval'], to: 'under_review' },
+  approval_stage_waived: { from: ['awaiting_manager_approval'], to: 'approved' },
   approved: { from: ['awaiting_approval'], to: 'approved' },
   rejected: { from: ['awaiting_approval', 'under_review'], to: 'rejected' },
   escalated: null, // Stays in awaiting_approval but changes approval level
@@ -68,6 +73,8 @@ export const BACKWARD_TRANSITIONS: Partial<Record<QuotationStatus, QuotationStat
   under_review: 'waiting_responses',
   awaiting_manager_approval: 'under_review',
   awaiting_approval: 'under_review',
+  // Destino padrão; com a etapa 2 dispensada, a reversão volta para
+  // awaiting_manager_approval (decidido pela RPC de reversão).
   approved: 'awaiting_approval',
 };
 

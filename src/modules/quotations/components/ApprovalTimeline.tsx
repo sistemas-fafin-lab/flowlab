@@ -6,17 +6,20 @@ import {
   ApprovalLevel,
   APPROVAL_THRESHOLDS,
   MANAGER_APPROVAL_LEVEL,
+  QuotationStatus,
 } from '../types';
 import { useAuth } from '../../../hooks/useAuth';
 import QuotationApprovalSignatureModal from './QuotationApprovalSignatureModal';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { useAsyncGuard } from '../hooks/useAsyncGuard';
 import { isManagerApprovalStage } from '../workflow/stateMachine';
+import { getApprovalSuccessMessage } from '../utils/approvalOutcome';
 
 interface ApprovalTimelineProps {
   quotation: Quotation;
   currentUserApprovalLimit: number;
-  onApprove?: (comment?: string) => void | Promise<void>;
+  /** Devolve o status em que a cotação ficou (desfecho decidido no servidor). */
+  onApprove?: (comment?: string) => Promise<QuotationStatus | void>;
   onReject?: (comment: string) => void | Promise<void>;
 }
 
@@ -147,11 +150,14 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
   const managerStepStatus: QuotationApproval['status'] | undefined =
     managerApproval?.status ?? (isManagerStage ? 'pending' : undefined);
 
-  const handleConfirmSignedApproval = async () => {
-    await onApprove?.(approveComment || undefined);
+  const handleConfirmSignedApproval = async (): Promise<string | void> => {
+    const newStatus = await onApprove?.(approveComment || undefined);
     // Não fecha o modal aqui: ele mesmo mostra a tela de sucesso e se fecha
     // via onClose após o delay. Fechar por aqui desmontaria o modal antes
     // dele ter a chance de renderizar essa tela.
+    // A mensagem segue o desfecho devolvido pela RPC — na etapa do gestor, a
+    // cotação pode ter sido aprovada direto (etapa 2 dispensada).
+    if (newStatus) return getApprovalSuccessMessage(newStatus);
   };
 
   const handleConfirmReject = async () => {
@@ -284,6 +290,12 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
                     {threshold.description}
                   </p>
 
+                  {approval?.stageWaived && (
+                    <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                      <UserCheck className="w-3.5 h-3.5" />
+                      Etapa dispensada: quem aprovou a etapa do gestor tem alçada para o valor
+                    </p>
+                  )}
                   <ApprovalDecisionDetails approval={approval} />
                 </div>
               </div>
@@ -395,7 +407,6 @@ export const ApprovalTimeline: React.FC<ApprovalTimelineProps> = ({
           quotationTitle={quotation.title}
           approverName={userProfile?.name || 'Aprovador'}
           comment={approveComment || undefined}
-          successMessage={isManagerStage ? 'Aprovação do gestor registrada! A cotação seguiu para a aprovação por alçada.' : undefined}
           onConfirm={handleConfirmSignedApproval}
           onClose={() => setShowSignatureModal(false)}
         />

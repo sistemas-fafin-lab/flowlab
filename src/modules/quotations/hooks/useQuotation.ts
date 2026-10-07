@@ -27,6 +27,7 @@ import { buildQuotationApprovalNotifications } from '../notifications';
 import { generateApprovalHash } from '../utils/generateApprovalHash';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { getQuotationAmountFromRow } from '../utils/getQuotationAmountFromRow';
+import { approvalsAfterRevert } from '../utils/approvalOutcome';
 import {
   canTransition,
   validateTransition,
@@ -50,11 +51,16 @@ type QuotationDecisionRow = {
 };
 
 // Retorno de quotation_record_manager_decision() (etapa do gestor).
+// new_status é o desfecho: approved (etapa 2 dispensada — waived_approval_*
+// é a linha de alçada gravada em nome do gestor), awaiting_approval ou
+// under_review (rejeitada).
 type QuotationManagerDecisionRow = {
   approval_id: string;
   approval_created_at: string;
   new_status: QuotationStatus;
   decided_by_admin: boolean;
+  waived_approval_id: string | null;
+  waived_approval_created_at: string | null;
 };
 
 // Generate unique quotation code
@@ -258,6 +264,7 @@ export const useQuotation = () => {
             rejectedAt: a.rejected_at,
             createdAt: a.created_at,
             signatureHash: a.signature_hash,
+            stageWaived: a.stage_waived ?? false,
           })),
         department: q.department || 'ESTOQUE',
         costCenter: q.cost_center,
@@ -1685,6 +1692,11 @@ export const useQuotation = () => {
       .rpc('quotation_record_manager_decision', {
         p_quotation_id: quotation.id,
         p_decision: decision,
+        // Chave da linha de alçada caso a RPC dispense a etapa 2, derivada do
+        // mesmo valor que a RPC confere (não de requiredApprovalLevel, que
+        // fica defasado até o refetch depois de uma troca de vencedora) — é
+        // a mesma chave que a reversão calcula a partir do valor recarregado.
+        p_level: getRequiredApprovalLevel(approvalAmount),
         p_approver_id: user.id,
         p_approver_name: userProfile.name,
         p_approver_role: userProfile.role,
@@ -1718,12 +1730,28 @@ export const useQuotation = () => {
         : { rejectedAt: now }),
     };
 
+    // Etapa 2 dispensada: a RPC gravou também a linha de alçada em nome de
+    // quem aprovou, com a mesma assinatura e o mesmo instante.
+    const waivedApproval: QuotationApproval | null = result.waived_approval_id
+      ? {
+          ...newApproval,
+          id: result.waived_approval_id,
+          level: getRequiredApprovalLevel(approvalAmount),
+          createdAt: result.waived_approval_created_at ?? now,
+          stageWaived: true,
+        }
+      : null;
+
     setQuotations(prev => prev.map(q => {
       if (q.id === quotation.id) {
         return {
           ...q,
           status: result.new_status,
-          approvals: [...q.approvals.filter(a => a.level !== MANAGER_APPROVAL_LEVEL), newApproval],
+          approvals: [
+            ...q.approvals.filter(a => a.level !== MANAGER_APPROVAL_LEVEL && a.level !== waivedApproval?.level),
+            newApproval,
+            ...(waivedApproval ? [waivedApproval] : []),
+          ],
           updatedAt: now,
         };
       }
@@ -1740,6 +1768,19 @@ export const useQuotation = () => {
       ...(comment ? { comment } : {}),
       decidedByAdminOnBehalf: result.decided_by_admin,
     });
+
+    if (waivedApproval) {
+      await addAuditLog(quotation.id, 'approval_stage_waived', {
+        note: result.decided_by_admin
+          ? 'Etapa 2 dispensada: admin, decidindo no lugar do gestor, com alçada'
+          : 'Etapa 2 dispensada: gestor com alçada',
+        level: waivedApproval.level,
+      }, {
+        previousStatus: quotation.status,
+        newStatus: result.new_status,
+        amount: approvalAmount,
+      });
+    }
 
     return result;
   }, [user, userProfile, addAuditLog]);
@@ -1812,7 +1853,9 @@ export const useQuotation = () => {
     }));
   }, [user, userProfile]);
 
-  const approveQuotation = useCallback(async (quotationId: string, comment?: string): Promise<void> => {
+  // Devolve o status em que a cotação ficou — na etapa do gestor, é o
+  // desfecho decidido pela RPC (aprovada direto ou seguiu para a alçada).
+  const approveQuotation = useCallback(async (quotationId: string, comment?: string): Promise<QuotationStatus> => {
     if (!user || !userProfile) throw new Error('Usuário não autenticado');
 
     const quotation = quotations.find(q => q.id === quotationId);
@@ -1835,10 +1878,11 @@ export const useQuotation = () => {
 
     if (isManagerApprovalStage(quotation.status)) {
       const result = await applyManagerDecision(quotation, 'approved', comment, now, signatureHash);
+      // Etapa 2 dispensada (approved) não gera e-mail de alçada.
       if (result.new_status === 'awaiting_approval') {
         await notifyAlcadaApprovers({ ...quotation, status: result.new_status });
       }
-      return;
+      return result.new_status;
     }
 
     await applyQuotationDecision(quotation, 'approved', comment, now, signatureHash);
@@ -1848,6 +1892,8 @@ export const useQuotation = () => {
       newStatus: 'approved',
       amount: approvalAmount,
     });
+
+    return 'approved';
   }, [quotations, user, userProfile, getPermissions, addAuditLog, applyQuotationDecision, applyManagerDecision, notifyAlcadaApprovers]);
 
   const rejectQuotation = useCallback(async (quotationId: string, comment: string): Promise<void> => {
@@ -1881,8 +1927,10 @@ export const useQuotation = () => {
     const quotation = quotations.find(q => q.id === quotationId);
     if (!quotation) throw new Error('Cotação não encontrada');
 
-    const previousStatus = getPreviousStatus(quotation.status);
-    if (!previousStatus) throw new Error('Não é possível retornar desta etapa');
+    const defaultPreviousStatus = getPreviousStatus(quotation.status);
+    if (!defaultPreviousStatus) throw new Error('Não é possível retornar desta etapa');
+    // Ao desfazer uma aprovação, substituído pelo destino devolvido pela RPC.
+    let previousStatus: QuotationStatus = defaultPreviousStatus;
 
     const updates: Record<string, unknown> = { status: previousStatus };
 
@@ -1906,11 +1954,14 @@ export const useQuotation = () => {
     let revertError: { message?: string } | null = null;
     let revertMessage: string | null = null;
     if (quotation.status === 'approved') {
-      const { error } = await supabase.rpc('quotation_revert_from_approved', {
+      // O destino vem da RPC: awaiting_approval (aprovação real de alçada) ou
+      // awaiting_manager_approval (etapa 2 dispensada pela alçada do gestor).
+      const { data, error } = await supabase.rpc('quotation_revert_from_approved', {
         p_quotation_id: quotationId,
         p_level: quotation.requiredApprovalLevel,
       });
       revertError = error;
+      if (!error && data) previousStatus = data as QuotationStatus;
       // A RPC devolve mensagens pt-BR específicas (nível sem aprovação,
       // status mudou) — repassar em vez de trocar por texto genérico.
       revertMessage = error?.message ?? null;
@@ -1961,7 +2012,7 @@ export const useQuotation = () => {
         updated.proposals = q.proposals.map(p => ({ ...p, status: 'submitted' as const, selectedAt: undefined }));
       }
       if (quotation.status === 'approved') {
-        updated.approvals = q.approvals.filter(a => a.level !== quotation.requiredApprovalLevel);
+        updated.approvals = approvalsAfterRevert(q.approvals, quotation.requiredApprovalLevel, previousStatus);
       }
       if (revertsToReview) {
         updated.approvals = q.approvals.filter(a => a.level !== MANAGER_APPROVAL_LEVEL);

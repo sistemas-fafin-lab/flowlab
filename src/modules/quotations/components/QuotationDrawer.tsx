@@ -25,7 +25,7 @@ import {
   Minimize2,
   RotateCcw,
 } from 'lucide-react';
-import { Quotation, RequesterManager, QuotationStatusColors, QuotationStatusLabels, QuotationPermissions, SubmitProposalInput, QuotationItem, SupplierProposal } from '../types';
+import { Quotation, RequesterManager, QuotationStatusColors, QuotationStatusLabels, QuotationPermissions, QuotationStatus, SubmitProposalInput, QuotationItem, SupplierProposal } from '../types';
 import { Supplier } from '../../../types';
 import { StatusStepper } from './StatusStepper';
 import { ProposalComparison } from './ProposalComparison';
@@ -52,7 +52,7 @@ interface QuotationDrawerProps {
   onSendToSuppliers?: () => void;
   onSelectWinner?: (proposalId: string) => void;
   onSubmitForApproval?: (requesterManager: RequesterManager) => Promise<void>;
-  onApprove?: (comment?: string) => void;
+  onApprove?: (comment?: string) => Promise<QuotationStatus | void>;
   onReject?: (comment: string) => void;
   onConvertToPurchase?: () => void;
   onCancel?: (reason: string) => void;

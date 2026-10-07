@@ -158,6 +158,7 @@ export type QuotationActionType =
   | 'submitted_for_manager_approval'
   | 'manager_approved'
   | 'manager_rejected'
+  | 'approval_stage_waived'
   | 'approved'
   | 'rejected'
   | 'escalated'
@@ -291,6 +292,12 @@ export interface QuotationApproval {
   rejectedAt?: string;
   createdAt: string;
   signatureHash?: string;
+  /**
+   * Linha de alçada gravada pela aprovação do gestor do pedido que também
+   * tinha alçada para o valor (etapa 2 dispensada): mesmo aprovador,
+   * assinatura e instante da linha 'manager'.
+   */
+  stageWaived?: boolean;
 }
 
 /** Gestor do pedido: dá o "de acordo" da cotação antes da aprovação por alçada. */

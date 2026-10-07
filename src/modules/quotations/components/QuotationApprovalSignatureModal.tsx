@@ -2,14 +2,15 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Check, Fingerprint, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useAsyncGuard } from '../hooks/useAsyncGuard';
+import { getApprovalSuccessMessage } from '../utils/approvalOutcome';
 
 interface QuotationApprovalSignatureModalProps {
   quotationCode: string;
   quotationTitle: string;
   approverName: string;
   comment?: string;
-  successMessage?: string;
-  onConfirm: () => Promise<void>;
+  /** Pode devolver a mensagem de sucesso, quando ela depende do desfecho. */
+  onConfirm: () => Promise<string | void>;
   onClose: () => void;
 }
 
@@ -18,12 +19,12 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
   quotationTitle,
   approverName,
   comment,
-  successMessage = 'Cotação aprovada com sucesso!',
   onConfirm,
   onClose,
 }) => {
   const [processingComplete, setProcessingComplete] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [outcomeMessage, setOutcomeMessage] = useState<string | null>(null);
 
   const { isBusy: isProcessing, begin, reset } = useAsyncGuard();
 
@@ -35,8 +36,9 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
     try {
       setErrorMessage(null);
 
-      await onConfirm();
+      const message = await onConfirm();
 
+      if (message) setOutcomeMessage(message);
       setProcessingComplete(true);
       setTimeout(() => onClose(), 1500);
     } catch (error) {
@@ -91,7 +93,7 @@ export const QuotationApprovalSignatureModal: React.FC<QuotationApprovalSignatur
               <div className="flex items-center">
                 <CheckCircle2 className="w-6 h-6 text-green-500 mr-3" />
                 <div>
-                  <p className="font-semibold text-green-800 dark:text-green-200">{successMessage}</p>
+                  <p className="font-semibold text-green-800 dark:text-green-200">{outcomeMessage ?? getApprovalSuccessMessage('approved')}</p>
                   <p className="text-sm text-green-600 dark:text-green-400">Fechando em instantes...</p>
                 </div>
               </div>

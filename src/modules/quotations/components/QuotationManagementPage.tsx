@@ -869,8 +869,9 @@ export const QuotationManagementPage: React.FC = () => {
             await handleRefreshAfterAction();
           }}
           onApprove={async (comment) => {
-            await approveQuotation(selectedQuotation.id, comment);
+            const newStatus = await approveQuotation(selectedQuotation.id, comment);
             await handleRefreshAfterAction();
+            return newStatus;
           }}
           onReject={async (comment) => {
             await rejectQuotation(selectedQuotation.id, comment);
@@ -936,8 +937,9 @@ export const QuotationManagementPage: React.FC = () => {
           permissions={getPermissions(approvalQuotation)}
           onClose={() => setApprovalQuotation(null)}
           onApprove={async (comment) => {
-            await approveQuotation(approvalQuotation.id, comment);
+            const newStatus = await approveQuotation(approvalQuotation.id, comment);
             await handleRefreshAfterAction();
+            return newStatus;
           }}
           onReject={async (comment) => {
             await rejectQuotation(approvalQuotation.id, comment);

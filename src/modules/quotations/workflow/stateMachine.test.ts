@@ -27,11 +27,13 @@ describe('canTransition', () => {
     ['awaiting_manager_approval', 'awaiting_approval'],
     ['awaiting_manager_approval', 'under_review'],
     ['awaiting_manager_approval', 'cancelled'],
+    ['awaiting_manager_approval', 'approved'],
     ['awaiting_approval', 'approved'],
     ['awaiting_approval', 'under_review'],
     ['awaiting_approval', 'rejected'],
     ['approved', 'converted_to_purchase'],
     ['approved', 'awaiting_approval'],
+    ['approved', 'awaiting_manager_approval'],
     ['rejected', 'draft'],
     ['cancelled', 'draft'],
   ])('permite %s → %s', (from, to) => {
@@ -42,7 +44,6 @@ describe('canTransition', () => {
     ['draft', 'approved'],
     ['under_review', 'approved'],
     ['under_review', 'awaiting_approval'],
-    ['awaiting_manager_approval', 'approved'],
     ['awaiting_manager_approval', 'rejected'],
     ['awaiting_approval', 'converted_to_purchase'],
     ['approved', 'rejected'],
@@ -53,8 +54,13 @@ describe('canTransition', () => {
     expect(canTransition(from, to)).toBe(false);
   });
 
-  it('na etapa do gestor, só se segue para a alçada, volta para análise ou cancela', () => {
-    expect(getValidNextStatuses('awaiting_manager_approval')).toEqual(['awaiting_approval', 'under_review', 'cancelled']);
+  it('na etapa do gestor, segue para a alçada, aprova direto (etapa 2 dispensada), volta para análise ou cancela', () => {
+    expect(getValidNextStatuses('awaiting_manager_approval')).toEqual(['awaiting_approval', 'approved', 'under_review', 'cancelled']);
+  });
+
+  it('desfazer uma aprovação volta para a alçada ou, se ela foi dispensada, para a etapa do gestor', () => {
+    expect(canTransition('approved', 'awaiting_approval')).toBe(true);
+    expect(canTransition('approved', 'awaiting_manager_approval')).toBe(true);
   });
 
   it('na etapa de alçada, só se aprova, rejeita, cancela ou volta para análise', () => {
@@ -67,9 +73,9 @@ describe('canTransition', () => {
       sent_to_suppliers: ['waiting_responses', 'under_review', 'draft', 'cancelled'],
       waiting_responses: ['under_review', 'sent_to_suppliers', 'cancelled'],
       under_review: ['awaiting_manager_approval', 'waiting_responses', 'rejected', 'cancelled'],
-      awaiting_manager_approval: ['awaiting_approval', 'under_review', 'cancelled'],
+      awaiting_manager_approval: ['awaiting_approval', 'approved', 'under_review', 'cancelled'],
       awaiting_approval: ['approved', 'under_review', 'rejected', 'cancelled'],
-      approved: ['converted_to_purchase', 'awaiting_approval', 'cancelled'],
+      approved: ['converted_to_purchase', 'awaiting_approval', 'awaiting_manager_approval', 'cancelled'],
       rejected: ['draft'],
       converted_to_purchase: [],
       cancelled: ['draft'],
@@ -88,6 +94,10 @@ describe('TRANSITION_ACTIONS', () => {
 
   it('o gestor aprova levando para a etapa de alçada', () => {
     expect(TRANSITION_ACTIONS.manager_approved).toEqual({ from: ['awaiting_manager_approval'], to: 'awaiting_approval' });
+  });
+
+  it('o gestor com alçada para o valor aprova direto, dispensando a etapa 2', () => {
+    expect(TRANSITION_ACTIONS.approval_stage_waived).toEqual({ from: ['awaiting_manager_approval'], to: 'approved' });
   });
 
   it('o gestor rejeita devolvendo para "em análise"', () => {
