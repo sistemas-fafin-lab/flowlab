@@ -192,6 +192,7 @@ export interface Database {
           items: Json[]
           reason: string
           requested_by: string
+          requested_by_user_id: string | null
           request_date: string
           status: 'pending' | 'approved' | 'rejected' | 'completed'
           priority: 'low' | 'standard' | 'priority' | 'urgent'
@@ -210,6 +211,7 @@ export interface Database {
           items: Json[]
           reason: string
           requested_by: string
+          requested_by_user_id?: string | null
           request_date?: string
           status?: 'pending' | 'approved' | 'rejected' | 'completed'
           priority?: 'low' | 'standard' | 'priority' | 'urgent'
@@ -228,6 +230,7 @@ export interface Database {
           items?: Json[]
           reason?: string
           requested_by?: string
+          requested_by_user_id?: string | null
           request_date?: string
           status?: 'pending' | 'approved' | 'rejected' | 'completed'
           priority?: 'low' | 'standard' | 'priority' | 'urgent'

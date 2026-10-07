@@ -25,7 +25,7 @@ import {
   Minimize2,
   RotateCcw,
 } from 'lucide-react';
-import { Quotation, QuotationStatusColors, QuotationStatusLabels, QuotationPermissions, SubmitProposalInput, QuotationItem, SupplierProposal } from '../types';
+import { Quotation, RequesterManager, QuotationStatusColors, QuotationStatusLabels, QuotationPermissions, SubmitProposalInput, QuotationItem, SupplierProposal } from '../types';
 import { Supplier } from '../../../types';
 import { StatusStepper } from './StatusStepper';
 import { ProposalComparison } from './ProposalComparison';
@@ -34,6 +34,7 @@ import { AuditLogTimeline } from './AuditLogTimeline';
 import { AddProposalModal } from './AddProposalModal';
 import { ProposalDetailModal } from './ProposalDetailModal';
 import { PurchaseOrderModal } from './PurchaseOrderModal';
+import { SubmitForApprovalModal } from './SubmitForApprovalModal';
 import { generateQuotationPDF } from '../utils/generateQuotationPDF';
 
 interface SupplierOption {
@@ -50,7 +51,7 @@ interface QuotationDrawerProps {
   onClose: () => void;
   onSendToSuppliers?: () => void;
   onSelectWinner?: (proposalId: string) => void;
-  onSubmitForApproval?: () => void;
+  onSubmitForApproval?: (requesterManager: RequesterManager) => Promise<void>;
   onApprove?: (comment?: string) => void;
   onReject?: (comment: string) => void;
   onConvertToPurchase?: () => void;
@@ -125,6 +126,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   const [showActionsMenu, setShowActionsMenu] = React.useState(false);
   const [showProposalModal, setShowProposalModal] = useState(false);
   const [showPurchaseOrderModal, setShowPurchaseOrderModal] = useState(false);
+  const [showSubmitForApprovalModal, setShowSubmitForApprovalModal] = useState(false);
   const [editingProposal, setEditingProposal] = useState<SupplierProposal | null>(null);
   const [viewingProposal, setViewingProposal] = useState<SupplierProposal | null>(null);
   const [showAddItemForm, setShowAddItemForm] = useState(false);
@@ -462,10 +464,16 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Criada em</span>
                     <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{formatDate(quotation.createdAt)}</span>
                   </div>
-                  <div className={`px-4 py-3 flex items-center justify-between ${quotation.responseDeadline ? 'border-b border-slate-100/70 dark:border-slate-700/40' : ''}`}>
+                  <div className={`px-4 py-3 flex items-center justify-between ${quotation.responseDeadline || quotation.requesterManagerName ? 'border-b border-slate-100/70 dark:border-slate-700/40' : ''}`}>
                     <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Criada por</span>
                     <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{quotation.createdByName}</span>
                   </div>
+                  {quotation.requesterManagerName && (
+                    <div className={`px-4 py-3 flex items-center justify-between ${quotation.responseDeadline ? 'border-b border-slate-100/70 dark:border-slate-700/40' : ''}`}>
+                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Gestor do pedido</span>
+                      <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{quotation.requesterManagerName}</span>
+                    </div>
+                  )}
                   {quotation.responseDeadline && (
                     <div className="px-4 py-3 flex items-center justify-between">
                       <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Prazo de Resposta</span>
@@ -771,7 +779,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
               )}
               {canSubmitForApprovalNow && (
                 <button
-                  onClick={onSubmitForApproval}
+                  onClick={() => setShowSubmitForApprovalModal(true)}
                   className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-amber-600 text-white font-semibold text-sm rounded-xl hover:bg-amber-700 transition-colors shadow-sm"
                 >
                   <ChevronRight className="w-4 h-4" />
@@ -900,6 +908,14 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
           isOpen={!!viewingProposal}
           proposal={viewingProposal}
           onClose={() => setViewingProposal(null)}
+        />
+      )}
+
+      {showSubmitForApprovalModal && onSubmitForApproval && (
+        <SubmitForApprovalModal
+          quotation={quotation}
+          onConfirm={onSubmitForApproval}
+          onClose={() => setShowSubmitForApprovalModal(false)}
         />
       )}
 

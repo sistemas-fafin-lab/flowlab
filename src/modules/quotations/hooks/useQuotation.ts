@@ -20,6 +20,7 @@ import {
   ApprovalLevel,
   APPROVAL_THRESHOLDS,
   QuotationActionType,
+  RequesterManager,
 } from '../types';
 import { buildQuotationApprovalNotifications } from '../notifications';
 import { generateApprovalHash } from '../utils/generateApprovalHash';
@@ -108,7 +109,8 @@ export const useQuotation = () => {
           quotation_invited_suppliers (*),
           quotation_proposals (*, quotation_proposal_items (*)),
           quotation_audit_logs (*),
-          quotation_approvals (*)
+          quotation_approvals (*),
+          requester_manager:user_profiles!requester_manager_id (name)
         `)
         .order('created_at', { ascending: false });
 
@@ -226,6 +228,8 @@ export const useQuotation = () => {
         // linhas legacy gravam só selected_price; o nível precisa vir do
         // mesmo valor que será validado/enviado na decisão.
         finalTotalAmount: q.selected_price ?? q.final_total_amount,
+        requesterManagerId: q.requester_manager_id ?? undefined,
+        requesterManagerName: q.requester_manager?.name ?? undefined,
         requiredApprovalLevel: getRequiredApprovalLevel(getQuotationAmountFromRow(q)),
         currentApprovalLevel: undefined,
         approvals: (q.quotation_approvals || [])
@@ -1520,7 +1524,10 @@ export const useQuotation = () => {
     });
   }, [quotations, addAuditLog]);
 
-  const submitForApproval = useCallback(async (quotationId: string): Promise<void> => {
+  const submitForApproval = useCallback(async (
+    quotationId: string,
+    requesterManager: RequesterManager,
+  ): Promise<void> => {
     const quotation = quotations.find(q => q.id === quotationId);
     if (!quotation) throw new Error('Cotação não encontrada');
 
@@ -1532,10 +1539,14 @@ export const useQuotation = () => {
       throw new Error('É necessário selecionar uma proposta vencedora');
     }
 
+    if (!requesterManager.id) {
+      throw new Error('Selecione o gestor do pedido antes de enviar para aprovação');
+    }
+
     // Persist status change to DB
     const { error: dbError } = await supabase
       .from('quotations')
-      .update({ status: 'awaiting_approval' })
+      .update({ status: 'awaiting_approval', requester_manager_id: requesterManager.id })
       .eq('id', quotationId);
 
     if (dbError) {
@@ -1557,6 +1568,8 @@ export const useQuotation = () => {
         return {
           ...q,
           status: 'awaiting_approval',
+          requesterManagerId: requesterManager.id,
+          requesterManagerName: requesterManager.name,
           currentApprovalLevel: quotation.requiredApprovalLevel,
           approvals: [approval],
           updatedAt: new Date().toISOString(),
@@ -1568,6 +1581,8 @@ export const useQuotation = () => {
     await addAuditLog(quotationId, 'submitted_for_approval', {
       level: quotation.requiredApprovalLevel,
       amount: getQuotationAmount(quotation),
+      requesterManagerId: requesterManager.id,
+      requesterManagerName: requesterManager.name,
     }, {
       previousStatus: quotation.status,
       newStatus: 'awaiting_approval',

@@ -73,6 +73,8 @@ export interface Request {
   items: RequestItem[];
   reason: string;
   requestedBy: string;
+  /** Usuário que criou a SC — NULL em SCs anteriores a 2026-10. */
+  requestedByUserId?: string | null;
   requestDate: string;
   status: RequestStatus;
   priority: 'standard' | 'priority' | 'urgent';

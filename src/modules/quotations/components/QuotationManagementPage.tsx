@@ -834,8 +834,8 @@ export const QuotationManagementPage: React.FC = () => {
             await selectWinner(selectedQuotation.id, proposalId);
             await handleRefreshAfterAction();
           }}
-          onSubmitForApproval={async () => {
-            await submitForApproval(selectedQuotation.id);
+          onSubmitForApproval={async (requesterManager) => {
+            await submitForApproval(selectedQuotation.id, requesterManager);
             await handleRefreshAfterAction();
           }}
           onApprove={async (comment) => {

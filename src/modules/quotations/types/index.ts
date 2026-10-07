@@ -277,6 +277,12 @@ export interface QuotationApproval {
   signatureHash?: string;
 }
 
+/** Gestor do pedido: dá o "de acordo" da cotação antes da aprovação por alçada. */
+export interface RequesterManager {
+  id: string;
+  name: string;
+}
+
 // ============================================
 // MAIN QUOTATION ENTITY
 // ============================================
@@ -311,6 +317,8 @@ export interface Quotation {
   finalTotalAmount?: number;
   
   // Approval
+  requesterManagerId?: string;
+  requesterManagerName?: string;
   requiredApprovalLevel: ApprovalLevel;
   currentApprovalLevel?: ApprovalLevel;
   approvals: QuotationApproval[];

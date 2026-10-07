@@ -215,6 +215,7 @@ export const useInventory = () => {
       items: request.items || [],
       reason: request.reason,
       requestedBy: request.requested_by,
+      requestedByUserId: request.requested_by_user_id ?? null,
       requestDate: request.request_date,
       status: request.status,
       priority: request.priority || 'standard',
@@ -750,6 +751,9 @@ export const useInventory = () => {
         }
       }
 
+      // Quem criou a SC vira o gestor do pedido sugerido na cotação.
+      const { data: { session } } = await supabase.auth.getSession();
+
       const { data, error } = await supabase
         .from('requests')
         .insert({
@@ -758,6 +762,7 @@ export const useInventory = () => {
           reason: request.reason,
           priority: request.priority,
           requested_by: request.requestedBy,
+          requested_by_user_id: session?.user.id ?? null,
           request_date: request.requestDate,
           department: request.department,
           supplier_id: request.supplierId,
