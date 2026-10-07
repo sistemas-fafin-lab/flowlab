@@ -201,6 +201,7 @@ Fluxo assíncrono via webhook: o LIS externo (LabHub) envia agendamentos/cancela
 | **Qualidade** | `src/modules/qualidade/` | Ocorrências, cortesias, IHQ, registro de câncer — portado de um projeto irmão (`flowlab-qualidade`) | Depende de heurísticas best-effort para identificar dados no LIS legado (ver `bdLabQualidade.ts`) |
 | **RH** | `src/modules/rh/` + `api/rh/` | Cadastro de colaboradores (dados, gestor, vínculo com `user_profiles`), upload consolidado de holerites (auto-split por CPF via `api/_lib/rh/`) e autoatendimento ("meus holerites") | Listagem/leitura é supabase-js direto sob RLS; só o parsing/confirmação do PDF consolidado passa pela API (`rhApi.ts`) |
 | **Board** | `src/modules/board/` | Kanban multi-departamento; acesso via `custom_roles.board_id`, não via permission string | Não usa `<ProtectedRoute>` — o gate é interno ao componente |
+| **Minhas aprovações de cotação** | `src/modules/quotations/components/ManagerApprovalsPage.tsx` | Rota `/quotations/aprovacoes`, aberta a qualquer usuário logado: o gestor do pedido pode não ter `canManageQuotations` | Não usa `<ProtectedRoute>` — a tela só lista as cotações em que o usuário é o gestor do pedido, e a RPC `quotation_record_manager_decision` autoriza a decisão |
 | **IT** | `src/components/IT/` | Kanban de TI, projetos, mind map, SLA | Ainda não migrado para `src/modules/` |
 | **Usuários/Auth** | `src/hooks/useAuth.ts`, `src/utils/permissions.ts` | Sessão, perfil, RBAC dual (role legada + custom_roles) | — |
 

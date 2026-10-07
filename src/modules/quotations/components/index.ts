@@ -1,5 +1,6 @@
 // Main Page
 export { QuotationManagementPage } from './QuotationManagementPage';
+export { ManagerApprovalsPage } from './ManagerApprovalsPage';
 
 // List & Display Components
 export { QuotationList } from './QuotationList';

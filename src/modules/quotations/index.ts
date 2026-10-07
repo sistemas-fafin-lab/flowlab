@@ -28,3 +28,6 @@ export * from './hooks';
 
 // Components
 export * from './components';
+
+// URL contract
+export * from './routes';

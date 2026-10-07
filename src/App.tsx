@@ -16,7 +16,7 @@ import ExpirationMonitor from './components/ExpirationMonitor';
 import ProductChangeLog from './components/ProductChangeLog';
 import UserManagement from './components/UserManagement';
 import SupplierManagement from './components/SupplierManagement';
-import { QuotationManagementPage } from './modules/quotations';
+import { ManagerApprovalsPage, QuotationManagementPage, QUOTATIONS_MANAGER_APPROVALS_PATH } from './modules/quotations';
 import RequestPeriodConfig from './components/RequestPeriodConfig';
 import ResetPassword from './components/ResetPassword';
 import Home from './components/Home';
@@ -217,6 +217,8 @@ const AuthenticatedApp: React.FC = () => {
             </ProtectedRoute>
           }
         />
+        {/* Aprovação do gestor do pedido: só login, sem canManageQuotations */}
+        <Route path={QUOTATIONS_MANAGER_APPROVALS_PATH} element={<ManagerApprovalsPage />} />
         <Route
           path="/request-periods"
           element={

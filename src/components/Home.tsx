@@ -6,7 +6,8 @@ import { useAuth } from '../hooks/useAuth';
 import { hasPermission } from '../utils/permissions';
 import { supabase } from '../lib/supabase';
 import { useQuotationsAwaitingApprovalCount } from '../modules/quotations/hooks/useQuotationsAwaitingApprovalCount';
-import { buildQuotationsUrl } from '../modules/quotations/routes';
+import { useQuotationsAwaitingManagerApprovalCount } from '../modules/quotations/hooks/useQuotationsAwaitingManagerApprovalCount';
+import { buildQuotationManagerApprovalsUrl, buildQuotationsUrl } from '../modules/quotations/routes';
 import {
   LayoutDashboard,
   Package,
@@ -24,6 +25,7 @@ import {
   TrendingUp,
   CheckCircle2,
   ClipboardList,
+  ClipboardCheck,
   ShieldCheck,
   AlertCircle,
   Sparkles,
@@ -61,6 +63,7 @@ interface QuickStats {
   expiringCount: number;
   myPendingRequests: number;
   quotationsAwaitingApprovalCount: number;
+  quotationsAwaitingManagerApprovalCount: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -135,6 +138,15 @@ const WIDGETS_CONFIG: WidgetConfig[] = [
     icon: ShieldCheck,
     size: 'medium',
     requiredPermission: 'canManageQuotations',
+    category: 'action',
+  },
+  {
+    id: 'quotation-manager-approvals',
+    title: 'Cotações aguardando sua aprovação (gestor)',
+    description: 'Cotações em que você é o gestor do pedido',
+    icon: ClipboardCheck,
+    size: 'medium',
+    requiredPermission: null, // o gestor pode não ter acesso ao módulo de Cotações
     category: 'action',
   },
   {
@@ -447,6 +459,39 @@ const QuotationApprovalsWidget: React.FC<WidgetProps> = ({ stats }) => (
   </Link>
 );
 
+// Medium: Cotações aguardando o "de acordo" do usuário como gestor do pedido
+const QuotationManagerApprovalsWidget: React.FC<WidgetProps> = ({ stats }) => (
+  <Link
+    to={buildQuotationManagerApprovalsUrl('')}
+    className="group relative w-full h-full rounded-3xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 border border-gray-100 dark:border-gray-700 shadow-xl min-h-[160px] flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:border-orange-300 dark:hover:border-orange-600"
+  >
+    <div className="h-full flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/25">
+          <ClipboardCheck className="w-6 h-6 text-white" />
+        </div>
+        <span className="px-2.5 py-1 text-xs font-bold bg-orange-500 text-white rounded-full">
+          {stats.quotationsAwaitingManagerApprovalCount}
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="mt-auto flex flex-col gap-1">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+          Cotações aguardando sua aprovação (gestor)
+        </h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {`${stats.quotationsAwaitingManagerApprovalCount} pendente${stats.quotationsAwaitingManagerApprovalCount > 1 ? 's' : ''}`}
+        </p>
+      </div>
+    </div>
+
+    {/* Arrow indicator */}
+    <ChevronRight className="absolute bottom-6 right-6 w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+  </Link>
+);
+
 // Medium: Minhas Solicitações
 const MyRequestsWidget: React.FC<WidgetProps> = ({ stats, loading }) => (
   <Link
@@ -654,6 +699,8 @@ const renderWidget = (config: WidgetConfig, stats: QuickStats, loading: boolean)
       return <PendingApprovalsWidget {...props} />;
     case 'quotation-approvals':
       return <QuotationApprovalsWidget {...props} />;
+    case 'quotation-manager-approvals':
+      return <QuotationManagerApprovalsWidget {...props} />;
     case 'my-requests':
       return <MyRequestsWidget {...props} />;
     case 'stats-pending':
@@ -841,9 +888,11 @@ const Home: React.FC = () => {
   const userPermissions = userProfile?.permissions || [];
   const userId = userProfile?.id || '';
 
-  // Stats state (quotationsAwaitingApprovalCount vem de useQuotationsAwaitingApprovalCount,
-  // mesclado só na hora de renderizar os widgets — ver `statsForWidgets` abaixo)
-  const [stats, setStats] = useState<Omit<QuickStats, 'quotationsAwaitingApprovalCount'>>({
+  // Stats state (as contagens de cotações vêm dos hooks do módulo de cotações,
+  // mescladas só na hora de renderizar os widgets — ver `statsForWidgets` abaixo)
+  const [stats, setStats] = useState<
+    Omit<QuickStats, 'quotationsAwaitingApprovalCount' | 'quotationsAwaitingManagerApprovalCount'>
+  >({
     pendingRequests: 0,
     approvedRequests: 0,
     lowStockCount: 0,
@@ -859,6 +908,10 @@ const Home: React.FC = () => {
     count: quotationsAwaitingApprovalCount,
     canApprove: hasQuotationApprovalAuthority,
   } = useQuotationsAwaitingApprovalCount(canManageQuotations);
+
+  // Etapa do gestor do pedido: para qualquer usuário logado, independente do
+  // acesso ao módulo — o card só aparece com pendência.
+  const quotationsAwaitingManagerApprovalCount = useQuotationsAwaitingManagerApprovalCount();
 
   // Customization state
   const [hiddenWidgets, setHiddenWidgets] = useState<string[]>([]);
@@ -902,14 +955,16 @@ const Home: React.FC = () => {
     }
   }, [userId]);
 
-  // Filter widgets by permission (+ alçada de cotações para o card dedicado)
+  // Filter widgets by permission (+ alçada de cotações e pendência de gestor
+  // para os cards dedicados)
   const availableWidgets = useMemo(() => {
     return WIDGETS_CONFIG.filter((widget) => {
       if (widget.id === 'quotation-approvals' && !hasQuotationApprovalAuthority) return false;
+      if (widget.id === 'quotation-manager-approvals' && quotationsAwaitingManagerApprovalCount === 0) return false;
       if (widget.requiredPermission === null) return true;
       return hasPermission(userPermissions, widget.requiredPermission);
     });
-  }, [userPermissions, hasQuotationApprovalAuthority]);
+  }, [userPermissions, hasQuotationApprovalAuthority, quotationsAwaitingManagerApprovalCount]);
 
   // Final visible widgets (permission + not hidden)
   const visibleWidgets = useMemo(() => {
@@ -917,8 +972,8 @@ const Home: React.FC = () => {
   }, [availableWidgets, hiddenWidgets]);
 
   const statsForWidgets = useMemo<QuickStats>(
-    () => ({ ...stats, quotationsAwaitingApprovalCount }),
-    [stats, quotationsAwaitingApprovalCount],
+    () => ({ ...stats, quotationsAwaitingApprovalCount, quotationsAwaitingManagerApprovalCount }),
+    [stats, quotationsAwaitingApprovalCount, quotationsAwaitingManagerApprovalCount],
   );
 
   // Fetch stats
