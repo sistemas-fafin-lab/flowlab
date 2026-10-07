@@ -74,3 +74,34 @@ export function buildManagerApprovalNotification(
     variables: buildApprovalEmailVariables(quotation, buildQuotationManagerApprovalsUrl(APP_BASE_URL)),
   };
 }
+
+export interface ManagerRejection {
+  rejectedByName: string;
+  comment: string;
+}
+
+/**
+ * Monta o email de rejeição na etapa do gestor — enviado ao comprador (quem
+ * criou a cotação) quando o gestor do pedido, ou um admin no lugar dele,
+ * rejeita e a cotação volta para "Em análise". Null quando o comprador não
+ * tem email cadastrado.
+ */
+export function buildManagerRejectionNotification(
+  quotation: Pick<Quotation, 'code' | 'title'>,
+  buyer: ApproverWithEmail,
+  rejection: ManagerRejection,
+): EmailNotificationRequest | null {
+  if (!buyer.user_email) return null;
+
+  return {
+    to: buyer.user_email,
+    templateSlug: 'quotation_manager_rejected',
+    variables: {
+      quotation_code: escapeHtml(quotation.code),
+      quotation_title: escapeHtml(quotation.title),
+      rejected_by_name: escapeHtml(rejection.rejectedByName),
+      rejection_comment: escapeHtml(rejection.comment),
+      action_url: buildQuotationsUrl(APP_BASE_URL, 'under_review'),
+    },
+  };
+}

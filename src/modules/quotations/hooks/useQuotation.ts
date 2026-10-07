@@ -23,7 +23,14 @@ import {
   RequesterManager,
   MANAGER_APPROVAL_LEVEL,
 } from '../types';
-import { buildManagerApprovalNotification, buildQuotationApprovalNotifications, EmailNotificationRequest } from '../notifications';
+import {
+  buildManagerApprovalNotification,
+  buildManagerRejectionNotification,
+  buildQuotationApprovalNotifications,
+  ApproverWithEmail,
+  EmailNotificationRequest,
+  ManagerRejection,
+} from '../notifications';
 import { generateApprovalHash } from '../utils/generateApprovalHash';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { getQuotationAmountFromRow } from '../utils/getQuotationAmountFromRow';
@@ -1573,27 +1580,52 @@ export const useQuotation = () => {
     }
   }, []);
 
-  // Avisa por email o gestor do pedido de que a cotação entrou na etapa dele
-  // (envio para aprovação ou troca de gestor). Melhor esforço, como o de alçada.
-  const notifyRequesterManager = useCallback(async (quotation: Quotation, managerId: string): Promise<void> => {
+  // Busca o email do destinatário, monta a notificação e dispara. Melhor
+  // esforço: qualquer falha só é logada — nunca desfaz a mudança que originou
+  // o aviso. Builder que devolve null (usuário sem email) não envia nada.
+  const notifyUser = useCallback(async (
+    userId: string,
+    build: (recipient: ApproverWithEmail) => EmailNotificationRequest | null,
+    context: string,
+  ): Promise<void> => {
     try {
-      const { data: manager, error: managerError } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('email')
-        .eq('id', managerId)
+        .eq('id', userId)
         .maybeSingle();
 
-      if (managerError || !manager) {
-        console.error('Error fetching requester manager for approval notification:', managerError);
+      if (profileError || !profile) {
+        console.error(`Error fetching recipient for ${context}:`, profileError);
         return;
       }
 
-      const notification = buildManagerApprovalNotification(quotation, { user_email: manager.email });
-      if (notification) sendEmailNotifications([notification], 'quotation manager approval notification');
+      const notification = build({ user_email: profile.email });
+      if (notification) sendEmailNotifications([notification], context);
     } catch (notifyErr) {
-      console.error('Error notifying requester manager of quotation awaiting approval:', notifyErr);
+      console.error(`Error sending ${context}:`, notifyErr);
     }
   }, [sendEmailNotifications]);
+
+  // Avisa por email o gestor do pedido de que a cotação entrou na etapa dele
+  // (envio para aprovação ou troca de gestor). Melhor esforço, como o de alçada.
+  const notifyRequesterManager = useCallback((quotation: Quotation, managerId: string): Promise<void> => (
+    notifyUser(
+      managerId,
+      (manager) => buildManagerApprovalNotification(quotation, manager),
+      'quotation manager approval notification',
+    )
+  ), [notifyUser]);
+
+  // Avisa por email o comprador (quem criou a cotação) de que o gestor do
+  // pedido rejeitou e a cotação voltou para "Em análise".
+  const notifyBuyerOfManagerRejection = useCallback((quotation: Quotation, rejection: ManagerRejection): Promise<void> => (
+    notifyUser(
+      quotation.createdBy,
+      (buyer) => buildManagerRejectionNotification(quotation, buyer, rejection),
+      'quotation manager rejection notification',
+    )
+  ), [notifyUser]);
 
   // Apaga a linha da etapa do gestor (o histórico da decisão fica na
   // auditoria). Melhor esforço: uma linha velha só afeta a exibição, e a RPC
@@ -2003,6 +2035,8 @@ export const useQuotation = () => {
     if (isManagerApprovalStage(quotation.status)) {
       if (!comment.trim()) throw new Error('Informe o motivo da rejeição');
       await applyManagerDecision(quotation, 'rejected', comment, now, null);
+      // Sem await: o email não segura o fechamento do modal nem a resposta.
+      void notifyBuyerOfManagerRejection(quotation, { rejectedByName: userProfile.name, comment });
       return;
     }
 
@@ -2013,7 +2047,7 @@ export const useQuotation = () => {
       newStatus: 'rejected',
       comment,
     });
-  }, [quotations, user, userProfile, addAuditLog, applyQuotationDecision, applyManagerDecision]);
+  }, [quotations, user, userProfile, addAuditLog, applyQuotationDecision, applyManagerDecision, notifyBuyerOfManagerRejection]);
 
   const revertStatus = useCallback(async (quotationId: string): Promise<void> => {
     const quotation = quotations.find(q => q.id === quotationId);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildManagerApprovalNotification, buildQuotationApprovalNotifications } from './notifications';
+import { buildManagerApprovalNotification, buildManagerRejectionNotification, buildQuotationApprovalNotifications } from './notifications';
 import { formatCurrency } from '../../utils/paymentUtils';
 import { SupplierProposal } from './types';
 
@@ -230,5 +230,44 @@ describe('buildManagerApprovalNotification', () => {
     expect(notification!.variables.requester_name).toBe('&lt;b&gt;Maria&lt;/b&gt;');
     expect(notification!.variables.proposals_list_html).toContain('Fornecedor &amp; Cia &lt;script&gt;');
     expect(notification!.variables.items_list_html).toBe('<li>1 un &mdash; &lt;script&gt;alert(1)&lt;/script&gt;</li>');
+  });
+});
+
+describe('buildManagerRejectionNotification', () => {
+  const buyer = { user_email: 'maria.souza@empresa.com' };
+  const rejection = { rejectedByName: 'Carlos Gestor', comment: 'Faltou cotar o fornecedor habitual.' };
+
+  it('monta a notificação para o comprador, com quem rejeitou, o comentário e o link para a cotação na lista', () => {
+    expect(buildManagerRejectionNotification(baseQuotation, buyer, rejection)).toEqual({
+      to: 'maria.souza@empresa.com',
+      templateSlug: 'quotation_manager_rejected',
+      variables: {
+        quotation_code: 'COT-001',
+        quotation_title: 'Compra de luvas',
+        rejected_by_name: 'Carlos Gestor',
+        rejection_comment: 'Faltou cotar o fornecedor habitual.',
+        action_url: 'https://flow-lab.vercel.app/quotations?status=under_review',
+      },
+    });
+  });
+
+  it('comprador sem email cadastrado não gera notificação', () => {
+    expect(buildManagerRejectionNotification(baseQuotation, { user_email: null }, rejection)).toBeNull();
+    expect(buildManagerRejectionNotification(baseQuotation, { user_email: '' }, rejection)).toBeNull();
+  });
+
+  it('escapa HTML em código, título, quem rejeitou e comentário', () => {
+    const notification = buildManagerRejectionNotification(
+      { code: 'COT-<1>', title: '<img src=x onerror=alert(1)>' },
+      buyer,
+      { rejectedByName: '<b>Carlos</b>', comment: 'Preço "alto" & <script>alert(1)</script>' },
+    );
+
+    expect(notification!.variables.quotation_code).toBe('COT-&lt;1&gt;');
+    expect(notification!.variables.quotation_title).toBe('&lt;img src=x onerror=alert(1)&gt;');
+    expect(notification!.variables.rejected_by_name).toBe('&lt;b&gt;Carlos&lt;/b&gt;');
+    expect(notification!.variables.rejection_comment).toBe(
+      'Preço &quot;alto&quot; &amp; &lt;script&gt;alert(1)&lt;/script&gt;',
+    );
   });
 });
