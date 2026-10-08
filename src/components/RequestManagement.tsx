@@ -413,19 +413,25 @@ useEffect(() => {
 
   // Toggle status filter via cards (multi-select)
   const toggleStatusCardFilter = (status: string) => {
-    setSelectedStatusFilters(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(status)) {
-        newSet.delete(status);
-      } else {
-        newSet.add(status);
-      }
-      // Limpa o filtro dropdown quando usar cards
-      if (newSet.size > 0) {
-        setStatusFilter('all');
-      }
-      return newSet;
-    });
+    const newSet = new Set(selectedStatusFilters);
+    if (newSet.has(status)) {
+      newSet.delete(status);
+    } else {
+      newSet.add(status);
+    }
+    setSelectedStatusFilters(newSet);
+    // Limpa o filtro dropdown quando usar cards
+    if (newSet.size > 0) {
+      setStatusFilter('all');
+    }
+  };
+
+  // Escolher no dropdown substitui os cards: os cards têm precedência no
+  // filtro, então mantê-los ativos faria a escolha do dropdown não ter efeito.
+  const selectStatusDropdownFilter = (status: string) => {
+    setStatusFilter(status);
+    setSelectedStatusFilters(new Set());
+    setStatusDropdownOpen(false);
   };
 
   // Limpar filtros de cards
@@ -1619,7 +1625,7 @@ const handleCompleteRequest = async (request: Request) => {
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => { setStatusFilter(opt.value); setStatusDropdownOpen(false); }}
+                onClick={() => selectStatusDropdownFilter(opt.value)}
                 className={`w-full flex items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${
                   statusFilter === opt.value
                     ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium'
