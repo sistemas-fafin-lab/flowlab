@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import ReactDOM from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
-import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image, Clock, CheckCircle2, XCircle, Play, ChevronDown } from 'lucide-react';
+import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image, Clock, CheckCircle2, XCircle, Play, ChevronDown, Copy } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
@@ -158,7 +158,8 @@ const RequestManagement: React.FC = () => {
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<string>>(new Set());
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState('');
+  const [dateFromFilter, setDateFromFilter] = useState('');
+  const [dateToFilter, setDateToFilter] = useState('');
   const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
   const [departmentDropdownOpen, setDepartmentDropdownOpen] = useState(false);
   const [statusDropdownRect, setStatusDropdownRect] = useState<DOMRect | null>(null);
@@ -364,15 +365,16 @@ useEffect(() => {
     return matchesSearch && matchesCategory && hasStock;
   });
 
-  // Filtrar solicitações baseado no perfil do usuário
-  const filteredRequests = requests.filter(request => {
-    // Status filter: usa cards clicáveis OU dropdown
-    const matchesStatus = selectedStatusFilters.size > 0 
-      ? selectedStatusFilters.has(request.status)
-      : (statusFilter === 'all' || request.status === statusFilter);
+  // Filtros de "Filtros e Pesquisa" + acesso do perfil, sem o status. Os cards de
+  // status contam sobre esta base, para refletirem os demais filtros sem zerarem
+  // uns aos outros.
+  const requestsMatchingNonStatusFilters = requests.filter(request => {
     const matchesType = typeFilter === 'all' || request.type === typeFilter;
     const matchesDepartment = departmentFilter === 'all' || request.department === departmentFilter;
-    const matchesDate = !dateFilter || request.requestDate === dateFilter;
+    const requestDay = request.requestDate?.slice(0, 10) ?? '';
+    const matchesDate =
+      (!dateFromFilter || requestDay >= dateFromFilter) &&
+      (!dateToFilter || requestDay <= dateToFilter);
     
     // Pesquisa inteligente - busca em múltiplos campos
     const matchesSearch = !searchQuery || (
@@ -393,8 +395,18 @@ useEffect(() => {
                              userProfile?.role === 'operator' || 
                              request.department === userProfile?.department;
     
-    return matchesStatus && matchesType && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
+    return matchesType && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
   });
+
+  // Status filter: usa cards clicáveis OU dropdown
+  const filteredRequests = requestsMatchingNonStatusFilters.filter(request =>
+    selectedStatusFilters.size > 0
+      ? selectedStatusFilters.has(request.status)
+      : (statusFilter === 'all' || request.status === statusFilter)
+  );
+
+  const countByStatus = (status: string) =>
+    requestsMatchingNonStatusFilters.filter(r => r.status === status).length;
 
   // Paginação incremental (mesmo padrão do Histórico de Alterações)
   const displayedRequests = filteredRequests.slice(0, displayCount);
@@ -409,7 +421,7 @@ useEffect(() => {
   // Reinicia a paginação sempre que os filtros ou a busca mudarem
   useEffect(() => {
     setDisplayCount(ITEMS_PER_PAGE);
-  }, [searchQuery, statusFilter, selectedStatusFilters, typeFilter, departmentFilter, dateFilter]);
+  }, [searchQuery, statusFilter, selectedStatusFilters, typeFilter, departmentFilter, dateFromFilter, dateToFilter]);
 
   // Toggle status filter via cards (multi-select)
   const toggleStatusCardFilter = (status: string) => {
@@ -855,6 +867,51 @@ const handleCompleteRequest = async (request: Request) => {
     a.click();
     window.URL.revokeObjectURL(url);
     showSuccess('Relatório exportado com sucesso!');
+  };
+
+  // Copia a lista filtrada como texto separado por tabulação (uma linha por item),
+  // pronto para colar no Excel / Google Sheets.
+  const copyFilteredRequests = async () => {
+    if (filteredRequests.length === 0) {
+      showWarning('Nenhuma solicitação para copiar.');
+      return;
+    }
+
+    const cell = (value?: string | number | null) =>
+      String(value ?? '').replace(/[\t\r\n]+/g, ' ').trim();
+    const date = (value?: string) => (value ? formatDate(value) : '');
+
+    const header = [
+      'ID', 'Tipo', 'Status', 'Prioridade', 'Data da solicitação', 'Solicitante',
+      'Departamento', 'Produto', 'Quantidade', 'Fornecedor', 'Aprovado por',
+      'Data da aprovação', 'Motivo',
+    ];
+    const rows = filteredRequests.flatMap(request => {
+      const items = request.items.length > 0 ? request.items : [null];
+      return items.map(item => [
+        request.id,
+        request.type,
+        statusLabels[request.status],
+        priorityLabels[request.priority],
+        date(request.requestDate),
+        request.requestedBy,
+        request.department,
+        item?.productName,
+        item?.quantity,
+        request.supplierName,
+        request.approvedBy,
+        date(request.approvalDate),
+        request.reason.replace(/\*+/g, ''), // tira as marcas de negrito/itálico do editor
+      ].map(cell).join('\t'));
+    });
+
+    try {
+      await navigator.clipboard.writeText([header.join('\t'), ...rows].join('\n'));
+      showSuccess(`${filteredRequests.length} solicitação(ões) copiada(s)! Cole numa planilha.`);
+    } catch (error) {
+      console.error('Erro ao copiar solicitações:', error);
+      showError('Não foi possível copiar. Tente novamente.');
+    }
   };
 
   const canApprove = userProfile?.role === 'admin' || userProfile?.role === 'operator';
@@ -1787,7 +1844,7 @@ const handleCompleteRequest = async (request: Request) => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
 
           {/* Pesquisa */}
-          <div className="col-span-1 md:col-span-2 lg:col-span-4">
+          <div className="col-span-1 md:col-span-2 lg:col-span-3">
             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Pesquisa</label>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -1876,20 +1933,43 @@ const handleCompleteRequest = async (request: Request) => {
           )}
 
           {/* Data */}
-          <div className="col-span-1 lg:col-span-2">
-            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Data</label>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full pl-4 pr-4 py-2.5 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all text-sm text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800"
-            />
+          <div className="col-span-1 md:col-span-2 lg:col-span-3">
+            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Período</label>
+            <div className="grid grid-cols-2 gap-2">
+              <input
+                type="date"
+                aria-label="Data de início"
+                title="Data de início"
+                value={dateFromFilter}
+                max={dateToFilter || undefined}
+                onChange={(e) => setDateFromFilter(e.target.value)}
+                className="w-full min-w-0 px-3 py-2.5 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all text-sm text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800"
+              />
+              <input
+                type="date"
+                aria-label="Data de fim"
+                title="Data de fim"
+                value={dateToFilter}
+                min={dateFromFilter || undefined}
+                onChange={(e) => setDateToFilter(e.target.value)}
+                className="w-full min-w-0 px-3 py-2.5 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500 transition-all text-sm text-slate-700 dark:text-slate-200 hover:bg-white dark:hover:bg-slate-800"
+              />
+            </div>
           </div>
 
           {/* Contador */}
           <div className="col-span-1 md:col-span-2 lg:col-span-2 flex flex-col justify-end">
             <label className="block text-sm font-medium mb-1.5 invisible">&#8203;</label>
-            <div className="flex justify-center lg:justify-end">
+            <div className="flex justify-center lg:justify-end items-center gap-2">
+              <button
+                type="button"
+                onClick={copyFilteredRequests}
+                title="Copiar a lista exibida para colar numa planilha"
+                aria-label="Copiar lista de solicitações"
+                className="inline-flex items-center justify-center w-9 h-9 bg-white/50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-300 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800 hover:text-blue-600 dark:hover:text-blue-400 transition-all flex-shrink-0"
+              >
+                <Copy className="w-4 h-4" />
+              </button>
               <span className="inline-flex items-center px-4 py-2 bg-blue-50/50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-sm font-semibold border border-blue-100 dark:border-blue-800 whitespace-nowrap">
                 <span className="font-bold mr-1">{filteredRequests.length}</span>
                 {filteredRequests.length === 1 ? 'solicitação' : 'solicitações'}
@@ -1920,7 +2000,7 @@ const handleCompleteRequest = async (request: Request) => {
                 <p className={`text-2xl font-bold ${
                   selectedStatusFilters.has('pending') ? 'text-yellow-600 dark:text-yellow-400' : 'text-slate-800 dark:text-slate-100'
                 }`}>
-                  {requests.filter(r => r.status === 'pending').length}
+                  {countByStatus('pending')}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Pendentes</p>
               </div>
@@ -1944,7 +2024,7 @@ const handleCompleteRequest = async (request: Request) => {
                 <p className={`text-2xl font-bold ${
                   selectedStatusFilters.has('approved') ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-800 dark:text-slate-100'
                 }`}>
-                  {requests.filter(r => r.status === 'approved').length}
+                  {countByStatus('approved')}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Aprovadas</p>
               </div>
@@ -1968,7 +2048,7 @@ const handleCompleteRequest = async (request: Request) => {
                 <p className={`text-2xl font-bold ${
                   selectedStatusFilters.has('rejected') ? 'text-red-600 dark:text-red-400' : 'text-slate-800 dark:text-slate-100'
                 }`}>
-                  {requests.filter(r => r.status === 'rejected').length}
+                  {countByStatus('rejected')}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Rejeitadas</p>
               </div>
@@ -1992,7 +2072,7 @@ const handleCompleteRequest = async (request: Request) => {
                 <p className={`text-2xl font-bold ${
                   selectedStatusFilters.has('completed') ? 'text-blue-600 dark:text-blue-400' : 'text-slate-800 dark:text-slate-100'
                 }`}>
-                  {requests.filter(r => r.status === 'completed').length}
+                  {countByStatus('completed')}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Concluídas</p>
               </div>
