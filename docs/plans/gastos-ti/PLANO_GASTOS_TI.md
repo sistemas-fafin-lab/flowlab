@@ -1,6 +1,6 @@
 # Plano — Módulo Gastos de TI (base de despesas + dashboard FinOps)
 
-> **Status:** 🧪 **Pronto no código, em conferência.** Fases 0 a 3 concluídas em 01/Out/2026 (issues 01 a 13), Fase 4 em 05/Out/2026 (issues 14 a 16). Migrations das Fases 1 e 2 aplicadas; a da Fase 4 (`20261009170000_gastos_ti_orcamentos.sql`) ainda não. Os widgets do dashboard foram conferidos com dados fictícios num harness, nos temas claro e escuro; falta conferir com dados reais no navegador.
+> **Status:** 🚀 **Pronto para subir** (roteiro na §14). **Pronto no código, em conferência.** Fases 0 a 3 concluídas em 01/Out/2026 (issues 01 a 13), Fase 4 em 05/Out/2026 (issues 14 a 16). Migrations das Fases 1 e 2 aplicadas; a da Fase 4 (`20261009170000_gastos_ti_orcamentos.sql`) ainda não. Os widgets do dashboard foram conferidos com dados fictícios num harness, nos temas claro e escuro; falta conferir com dados reais no navegador.
 > **Área:** Tecnologia — novo subitem do menu "Tecnologia", ao lado de Hub de Aplicações, Board e Mind Map.
 > **Criado em:** 30/Set/2026. **Revisado em:** 30/Set/2026, com as decisões D2, D3, D5, D6, D13 e D14 fechadas com o usuário.
 > **Issues:** `.scratch/gastos-ti/spec.md` e `.scratch/gastos-ti/issues/01` a `16`.
@@ -706,3 +706,44 @@ Pronta no código em 05/Out/2026 (detalhes nas issues 14 a 16). Decisões tomada
 | `src/components/Layout.tsx` (`:473`, `:710-721`) | subitem, item pai com `anyOf`/`href`, auto-expansão |
 | `supabase/migrations/` | uma migration por fase (Fases 1, 2 e 4), sem gravar nada em `custom_roles` (D14) |
 | `docs/CLAUDE.md` (lista de módulos) | registrar o módulo `gastos-ti/` |
+| `src/components/Select.tsx`, `src/components/DatePicker.tsx` | prop opcional `tone="vidro"` (polimento do dashboard). O default mantém as classes de antes; nenhuma outra tela muda |
+
+---
+
+## 14. Subida para produção
+
+A ordem é banco → cargos → app. O app não quebra sem o banco: sem a migration de orçamento, o KPI de orçamento só mostra "Orçamento indisponível".
+
+**1. Banco (Supabase).**
+- **Nova, ainda não aplicada:** `20261009170000_gastos_ti_orcamentos.sql`.
+- **As cinco das Fases 1 e 2 já estão em produção.** Elas foram renumeradas de `20261001…/20261002…` para `20261009120000`–`20261009160000`, porque três versões colidiam com migrations de outros módulos que entraram no `main` (`it_requests_novo_colaborador`, `custo_fontes_pagadoras_linha_por_exame`, `holerites_pendentes`).
+  - Se foram aplicadas pelo SQL Editor, não há nada a fazer.
+  - Com `supabase db push`, o CLI vai listá-las como pendentes (o nome mudou). Todas são idempotentes, então rodar de novo não muda nada.
+- **Conferência:**
+  - `select to_regclass('public.ti_orcamentos');` não pode voltar nulo.
+  - `select count(*) from public.ti_categorias;` precisa dar 8 ou mais.
+- **Só se o CLI foi usado antes:** confira se as versões antigas ficaram registradas com os nossos nomes, o que teria feito o CLI pular as migrations dos outros módulos com a mesma versão.
+  ```sql
+  select version, name from supabase_migrations.schema_migrations
+  where version in ('20261001120000', '20261001150000', '20261002120000');
+  ```
+
+**2. Cargos (D14).** Em Usuários (`/users`), marque "Visualizar Gastos de TI" e/ou "Gerenciar Gastos de TI" (grupo Tecnologia) nos cargos que vão usar o módulo.
+- Quem tem cargo customizado, inclusive o de Administrador, só enxerga o menu depois disso. O frontend lê as permissões do cargo, e o RLS também.
+- Só um perfil `role = 'admin'` sem cargo vê o módulo direto.
+
+**3. App (Vercel).**
+1. Push da branch `feat/gastos-ti`. Se a integração Git da Vercel gerar o preview, confira o módulo com os dados reais antes de publicar.
+2. Leve a branch ao `main`. Ela já está rebaseada sobre o `origin/main`, então o avanço é direto (fast-forward). A Vercel publica.
+3. Não há variável de ambiente nova.
+
+**4. Conferência pós-deploy (cerca de 5 minutos).**
+- Menu Tecnologia → Gastos de TI.
+- Cadastrar uma despesa de teste e conferir a prévia das ocorrências.
+- No Mês a mês, dar baixa com anexo.
+- No Orçamento, salvar um valor.
+- No Dashboard, usar filtros, visões, drill-down e exportar.
+- Um perfil só com "Visualizar" não pode ver botões de escrita.
+- Apagar a despesa de teste. Com lançamento, o sistema pede para encerrar em vez de excluir: desfaça a baixa antes.
+
+**5. Volta atrás.** Faça o redeploy do deploy anterior na Vercel. As tabelas `ti_*` e o bucket `ti-gastos-anexos` são isolados do resto do sistema e podem ficar.
