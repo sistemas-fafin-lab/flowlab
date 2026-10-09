@@ -51,6 +51,7 @@ import {
 } from './modules/qualidade';
 import { BoardPage } from './modules/board';
 import { ColaboradoresPage, HoleritesPage } from './modules/rh';
+import { FinopsDashboardPage, DespesasPage, MesAMesPage, OrcamentoPage } from './modules/gastos-ti';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -534,6 +535,40 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canManageIT" permissions={userPermissions}>
               <ITKanbanBoard />
+            </ProtectedRoute>
+          }
+        />
+        {/* Gastos de TI — chaves próprias, independentes de canManageIT
+            (docs/plans/gastos-ti). Quem só gerencia também enxerga, por isso anyOf. */}
+        <Route
+          path="/it/gastos"
+          element={
+            <ProtectedRoute anyOf={['canViewGastosTI', 'canManageGastosTI']} permissions={userPermissions}>
+              <FinopsDashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/gastos/despesas"
+          element={
+            <ProtectedRoute anyOf={['canViewGastosTI', 'canManageGastosTI']} permissions={userPermissions}>
+              <DespesasPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/gastos/mes-a-mes"
+          element={
+            <ProtectedRoute anyOf={['canViewGastosTI', 'canManageGastosTI']} permissions={userPermissions}>
+              <MesAMesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/gastos/orcamento"
+          element={
+            <ProtectedRoute anyOf={['canViewGastosTI', 'canManageGastosTI']} permissions={userPermissions}>
+              <OrcamentoPage />
             </ProtectedRoute>
           }
         />

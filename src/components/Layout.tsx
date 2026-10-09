@@ -49,6 +49,7 @@ import {
   Send,
   AlertOctagon,
   UserCog,
+  Coins,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -80,6 +81,12 @@ interface NavigationItem {
    * tem prioridade sobre `permission`/`anyOf`.
    */
   visible?: boolean;
+  /**
+   * Item continua ativo nas rotas filhas (ex.: /it/gastos ativo em
+   * /it/gastos/despesas), para módulos com abas próprias que ocupam um só
+   * subitem no menu. Opt-in: sem ele, vale a comparação exata de sempre.
+   */
+  matchNested?: boolean;
   category?: string;
   subItems?: NavigationItem[];
 }
@@ -470,7 +477,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/products', '/add-product', '/expiration', '/changelog'].includes(path)) return ['Produtos'];
     if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
-    if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/'].includes(path)) return ['Tecnologia'];
+    if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/', '/it/gastos', '/it/gastos/despesas', '/it/gastos/mes-a-mes', '/it/gastos/orcamento'].includes(path)) return ['Tecnologia'];
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
     if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias', '/qualidade/indicadores'].includes(path)) return ['Qualidade'];
     if (['/rh/colaboradores', '/rh/holerites'].includes(path)) return ['RH'];
@@ -492,6 +499,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   // sem checar uma permission string — depende de custom_roles.board_id.
   const boardAccess = useBoardAccess();
   const isAdmin = hasPermission(userPermissions, 'canManageUsers');
+  const canManageIT = hasPermission(userPermissions, 'canManageIT');
 
   // ─── Persist collapsed state ────────────────────────────────────────────────
   const toggleCollapsed = useCallback(() => {
@@ -709,18 +717,22 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       },
       {
         name: 'Tecnologia',
-        href: '/it/dashboard',
+        // Quem só tem as chaves de Gastos de TI (ex.: Financeiro) não tem
+        // canManageIT: o rótulo do item pai não pode levar ao Hub (/it/dashboard)
+        // e cair em "Acesso Negado" — mesmo cuidado do item RH acima.
+        href: canManageIT ? '/it/dashboard' : '/it/gastos',
         icon: Server,
-        permission: 'canManageIT',
+        anyOf: ['canManageIT', 'canViewGastosTI', 'canManageGastosTI'],
         category: 'TECNOLOGIA',
         subItems: [
           { name: 'Hub de Aplicações', href: '/it/dashboard', icon: Server, permission: 'canManageIT' },
           { name: 'Board', href: '/it/kanban', icon: KanbanSquare, permission: 'canManageIT' },
           { name: 'Mind Map', href: '/it/mindmap', icon: Map, permission: 'canManageIT' },
+          { name: 'Gastos de TI', href: '/it/gastos', icon: Coins, anyOf: ['canViewGastosTI', 'canManageGastosTI'], matchNested: true },
         ],
       },
     ],
-    [boardAccess]
+    [boardAccess, canManageIT]
   );
 
   // ─── Navigation helpers ─────────────────────────────────────────────────────
@@ -734,13 +746,25 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     );
   };
 
+  const hrefsAninhados = useMemo(
+    () =>
+      new Set(
+        navigation
+          .flatMap((item) => [item, ...(item.subItems ?? [])])
+          .filter((item) => item.matchNested)
+          .map((item) => item.href)
+      ),
+    [navigation]
+  );
+
+  const isSubItemActive = (href: string) =>
+    location.pathname === href || (hrefsAninhados.has(href) && location.pathname.startsWith(`${href}/`));
+
   const isItemActive = (href: string, subItems?: NavigationItem[]) => {
     if (location.pathname === href) return true;
-    if (subItems) return subItems.some((sub) => location.pathname === sub.href);
+    if (subItems) return subItems.some((sub) => isSubItemActive(sub.href));
     return false;
   };
-
-  const isSubItemActive = (href: string) => location.pathname === href;
 
   const canAccessItem = (item: NavigationItem) => {
     if (item.visible !== undefined) return item.visible;

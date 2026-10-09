@@ -60,3 +60,23 @@ describe('getPermissionsForLegacyRole — canManageHolerites (issue 05)', () => 
     expect(permissoes).toContain('canManageHolerites');
   });
 });
+
+describe('getPermissionsForLegacyRole — chaves do módulo Gastos de TI', () => {
+  it('não concede canViewGastosTI nem canManageGastosTI a operator legado', () => {
+    const permissoes = getPermissionsForLegacyRole('operator');
+    expect(permissoes).not.toContain('canViewGastosTI');
+    expect(permissoes).not.toContain('canManageGastosTI');
+  });
+
+  it('não concede chaves de Gastos de TI a requester legado', () => {
+    const permissoes = getPermissionsForLegacyRole('requester');
+    expect(permissoes).not.toContain('canViewGastosTI');
+    expect(permissoes).not.toContain('canManageGastosTI');
+  });
+
+  it('mantém as chaves de Gastos de TI para admin legado (role=admin é reconhecida pelo RLS)', () => {
+    const permissoes = getPermissionsForLegacyRole('admin');
+    expect(permissoes).toContain('canViewGastosTI');
+    expect(permissoes).toContain('canManageGastosTI');
+  });
+});

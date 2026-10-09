@@ -29,6 +29,11 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canManageBilling', label: 'Gerenciar Contas a Receber', group: 'Administração' },
   { key: 'canManageRoles', label: 'Gerenciar Cargos', group: 'Administração' },
   { key: 'canManageIT', label: 'Gerenciar TI', group: 'Tecnologia' },
+  // Gastos de TI (docs/plans/gastos-ti) tem chaves próprias de propósito: canManageIT
+  // libera Hub/Board/Mind Map para o time técnico, que não precisa ver contratos e
+  // valores — e quem vê os gastos (ex.: Financeiro) não precisa do resto da TI.
+  { key: 'canViewGastosTI', label: 'Visualizar Gastos de TI', group: 'Tecnologia' },
+  { key: 'canManageGastosTI', label: 'Gerenciar Gastos de TI', group: 'Tecnologia' },
   { key: 'canManageWhitelist', label: 'Gerenciar Whitelist', group: 'Administração' },
   // ── Análises Clínicas ──────────────────────────────────────────────────────
   { key: 'canViewAnalisesClinicas', label: 'Visualizar Análises Clínicas', group: 'Análises Clínicas' },
@@ -92,7 +97,7 @@ export const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ALL_PERMISSION_KEYS.map(p => p.key),
   operator: ALL_PERMISSION_KEYS.map(p => p.key).filter(
-    k => !['canViewDashboard', 'canManageUsers', 'canDeleteUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards', 'canViewColaboradores', 'canManageHolerites', 'canViewAllHolerites', 'canViewHoleritesEquipe'].includes(k)
+    k => !['canViewDashboard', 'canManageUsers', 'canDeleteUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards', 'canViewColaboradores', 'canManageHolerites', 'canViewAllHolerites', 'canViewHoleritesEquipe', 'canViewGastosTI', 'canManageGastosTI'].includes(k)
   ),
   requester: ['canViewRequests', 'canAddRequests'],
 };
