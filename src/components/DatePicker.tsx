@@ -36,7 +36,45 @@ interface DatePickerProps {
    * O valor de troca continua ISO `YYYY-MM-DD`, sempre com dia 01.
    */
   granularity?: 'day' | 'month';
+  /**
+   * Visual do painel. 'padrao' (default) é o de sempre; 'vidro' é o painel em
+   * vidro slate/violeta dos dashboards de TI, com entrada animada.
+   */
+  tone?: 'padrao' | 'vidro';
 }
+
+// Classes que mudam por tom. As de 'padrao' são exatamente as de antes do `tone`.
+const TONS = {
+  padrao: {
+    painel: 'z-[10000] w-72 p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40',
+    navegar: 'p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700',
+    titulo: 'text-sm font-medium text-gray-800 dark:text-gray-100 tabular-nums',
+    celula: 'rounded-lg',
+    escolhido: 'bg-blue-600 text-white font-medium',
+    atual: 'text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30',
+    normal: 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700',
+    rodape: 'flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-700',
+    hoje: 'text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline',
+    vazio: 'text-gray-400 dark:text-gray-500',
+    icone: 'text-gray-400',
+  },
+  vidro: {
+    painel:
+      'z-[10000] w-72 p-3 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-[0_12px_40px_-8px_rgba(15,23,42,0.22)] dark:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.6)] animate-scale-in origin-top-left',
+    navegar:
+      'p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 focus-visible:outline-0 focus-visible:ring-2 focus-visible:ring-violet-500/70',
+    titulo: 'text-sm font-semibold text-slate-800 dark:text-slate-100 tabular-nums',
+    // outline-0 + anel violeta: o :focus-visible global pintaria um contorno azul dentro do painel violeta.
+    celula: 'rounded-xl focus-visible:outline-0 focus-visible:ring-2 focus-visible:ring-violet-500/70',
+    escolhido: 'bg-violet-600 text-white font-semibold shadow-md shadow-violet-500/30',
+    atual: 'text-violet-700 dark:text-violet-300 font-semibold ring-1 ring-inset ring-violet-200 dark:ring-violet-500/30 hover:bg-violet-50 dark:hover:bg-violet-500/15',
+    normal: 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800',
+    rodape: 'flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800',
+    hoje: 'rounded-md text-xs font-semibold text-violet-700 dark:text-violet-300 hover:underline focus-visible:outline-0 focus-visible:ring-2 focus-visible:ring-violet-500/70',
+    vazio: 'text-slate-400 dark:text-slate-500',
+    icone: 'text-slate-400',
+  },
+} as const;
 
 const PANEL_MAX_PX = 320;
 const PANEL_WIDTH_PX = 288; // w-72
@@ -106,7 +144,9 @@ const DatePicker: React.FC<DatePickerProps> = ({
   ariaLabel,
   allowClear = false,
   granularity = 'day',
+  tone = 'padrao',
 }) => {
+  const t = TONS[tone];
   const modoMes = granularity === 'month';
   const [open, setOpen] = useState(false);
   const [posicao, setPosicao] = useState<PosicaoPainel | null>(null);
@@ -203,8 +243,8 @@ const DatePicker: React.FC<DatePickerProps> = ({
         aria-label={ariaLabel}
         className={`${controlClass} flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60`}
       >
-        <span className={`truncate flex items-center gap-2 ${selecionado ? '' : 'text-gray-400 dark:text-gray-500'}`}>
-          <Calendar className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+        <span className={`truncate flex items-center gap-2 ${selecionado ? '' : t.vazio}`}>
+          <Calendar className={`w-3.5 h-3.5 flex-shrink-0 ${t.icone}`} />
           {selecionado
             ? modoMes
               ? `${MESES[selecionado.getMonth()]} de ${selecionado.getFullYear()}`
@@ -226,7 +266,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
           aria-label="Selecionar data"
           // z acima de qualquer modal do app (o maior usa z-[9999]).
           style={{ position: 'fixed', left: posicao.left, top: posicao.top, bottom: posicao.bottom }}
-          className="z-[10000] w-72 p-3 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40"
+          className={t.painel}
           onKeyDown={(e) => {
             if (e.key === 'Escape') {
               e.stopPropagation();
@@ -243,12 +283,12 @@ const DatePicker: React.FC<DatePickerProps> = ({
                   modoMes ? new Date(m.getFullYear() - 1, m.getMonth(), 1) : new Date(m.getFullYear(), m.getMonth() - 1, 1)
                 )
               }
-              className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className={t.navegar}
               aria-label={modoMes ? 'Ano anterior' : 'Mês anterior'}
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
-            <span className="text-sm font-medium text-gray-800 dark:text-gray-100 tabular-nums">
+            <span className={t.titulo}>
               {modoMes ? mesVisivel.getFullYear() : `${MESES[mesVisivel.getMonth()]} ${mesVisivel.getFullYear()}`}
             </span>
             <button
@@ -258,7 +298,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
                   modoMes ? new Date(m.getFullYear() + 1, m.getMonth(), 1) : new Date(m.getFullYear(), m.getMonth() + 1, 1)
                 )
               }
-              className="p-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+              className={t.navegar}
               aria-label={modoMes ? 'Próximo ano' : 'Próximo mês'}
             >
               <ChevronRight className="w-4 h-4" />
@@ -275,12 +315,12 @@ const DatePicker: React.FC<DatePickerProps> = ({
                     key={nomeMes}
                     type="button"
                     onClick={() => escolherMes(i, mesVisivel.getFullYear())}
-                    className={`rounded-lg py-2 text-xs transition-colors ${
+                    className={`${t.celula} py-2 text-xs transition-colors ${
                       ativo
-                        ? 'bg-blue-600 text-white font-medium'
+                        ? t.escolhido
                         : ehMesAtual
-                          ? 'text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30'
-                          : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                          ? t.atual
+                          : t.normal
                     }`}
                   >
                     {nomeMes.slice(0, 3)}
@@ -308,14 +348,14 @@ const DatePicker: React.FC<DatePickerProps> = ({
                       key={dia.toISOString()}
                       type="button"
                       onClick={() => escolher(dia)}
-                      className={`aspect-square rounded-lg text-xs tabular-nums transition-colors ${
+                      className={`aspect-square ${t.celula} text-xs tabular-nums transition-colors ${
                         ativo
-                          ? 'bg-blue-600 text-white font-medium'
+                          ? t.escolhido
                           : ehHoje
-                            ? 'text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30'
+                            ? t.atual
                             : foraDoMes
                               ? 'text-gray-300 dark:text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                              : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700'
+                              : t.normal
                       }`}
                     >
                       {dia.getDate()}
@@ -326,7 +366,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
             </>
           )}
 
-          <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+          <div className={t.rodape}>
             {allowClear ? (
               <button
                 type="button"
@@ -340,7 +380,7 @@ const DatePicker: React.FC<DatePickerProps> = ({
             <button
               type="button"
               onClick={() => (modoMes ? escolherMes(hoje.getMonth(), hoje.getFullYear()) : escolher(hoje))}
-              className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+              className={t.hoje}
             >
               {modoMes ? 'Este mês' : 'Hoje'}
             </button>

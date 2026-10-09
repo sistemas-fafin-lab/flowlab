@@ -33,10 +33,40 @@ interface SelectProps {
   disabled?: boolean;
   /** usado quando não há <label for> apontando para o controle */
   ariaLabel?: string;
+  /**
+   * Visual do painel. 'padrao' (default) é o de sempre; 'vidro' é o painel em
+   * vidro slate/violeta dos dashboards de TI, com entrada animada.
+   */
+  tone?: 'padrao' | 'vidro';
 }
 
 // Altura máxima do painel; também serve de folga para decidir se abre para cima.
 const PANEL_MAX_PX = 260;
+
+// Classes que mudam por tom. As de 'padrao' são exatamente as de antes do `tone`.
+const TONS = {
+  padrao: {
+    painel: 'py-1 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40',
+    separador: 'my-1 border-t border-gray-100 dark:border-gray-700',
+    opcao: '',
+    ativo: 'bg-blue-50 dark:bg-blue-900/30',
+    escolhido: 'font-medium text-blue-600 dark:text-blue-300',
+    normal: 'text-gray-700 dark:text-gray-200',
+    vazio: 'text-gray-400 dark:text-gray-500',
+    seta: 'text-gray-400',
+  },
+  vidro: {
+    painel:
+      'p-1 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-[0_12px_40px_-8px_rgba(15,23,42,0.22)] dark:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.6)] [scrollbar-width:thin] animate-scale-in',
+    separador: 'my-1 mx-2 border-t border-slate-100 dark:border-slate-800',
+    opcao: 'rounded-lg',
+    ativo: 'bg-violet-50 dark:bg-violet-500/15',
+    escolhido: 'font-semibold text-violet-700 dark:text-violet-300',
+    normal: 'text-slate-700 dark:text-slate-200',
+    vazio: 'text-slate-400 dark:text-slate-500',
+    seta: 'text-slate-400',
+  },
+} as const;
 
 // Limites verticais de quem realmente corta o painel: o ancestral que rola
 // (o corpo do modal, por exemplo) ou, na falta dele, a viewport.
@@ -63,7 +93,9 @@ const Select: React.FC<SelectProps> = ({
   id,
   disabled,
   ariaLabel,
+  tone = 'padrao',
 }) => {
+  const t = TONS[tone];
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [dropUp, setDropUp] = useState(false);
@@ -171,11 +203,11 @@ const Select: React.FC<SelectProps> = ({
         aria-label={ariaLabel}
         className={`${controlClass} flex items-center justify-between gap-2 text-left disabled:cursor-not-allowed disabled:opacity-60`}
       >
-        <span className={`truncate ${selected ? '' : 'text-gray-400 dark:text-gray-500'}`}>
+        <span className={`truncate ${selected ? '' : t.vazio}`}>
           {selected?.label ?? placeholder}
         </span>
         <ChevronDown
-          className={`w-4 h-4 flex-shrink-0 text-gray-400 transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
+          className={`w-4 h-4 flex-shrink-0 ${t.seta} transition-transform duration-150 ${open ? 'rotate-180' : ''}`}
         />
       </button>
 
@@ -185,8 +217,8 @@ const Select: React.FC<SelectProps> = ({
           id={listId}
           role="listbox"
           aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
-          className={`absolute left-0 z-50 min-w-full w-max max-w-[min(24rem,90vw)] max-h-[260px] overflow-y-auto py-1 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40 ${
-            dropUp ? 'bottom-full mb-1' : 'top-full mt-1'
+          className={`absolute left-0 z-50 min-w-full w-max max-w-[min(24rem,90vw)] max-h-[260px] overflow-y-auto ${t.painel} ${
+            dropUp ? `bottom-full mb-1${tone === 'vidro' ? ' origin-bottom' : ''}` : `top-full mt-1${tone === 'vidro' ? ' origin-top' : ''}`
           }`}
         >
           {options.map((opcao, index) => {
@@ -195,7 +227,7 @@ const Select: React.FC<SelectProps> = ({
             return (
               <React.Fragment key={opcao.value}>
                 {opcao.separatorBefore && (
-                  <div className="my-1 border-t border-gray-100 dark:border-gray-700" />
+                  <div className={t.separador} />
                 )}
                 <button
                   type="button"
@@ -205,12 +237,12 @@ const Select: React.FC<SelectProps> = ({
                   aria-selected={escolhido}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => escolher(index)}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left transition-colors ${
-                    ativo ? 'bg-blue-50 dark:bg-blue-900/30' : ''
+                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left transition-colors ${t.opcao} ${
+                    ativo ? t.ativo : ''
                   } ${
                     escolhido
-                      ? 'font-medium text-blue-600 dark:text-blue-300'
-                      : 'text-gray-700 dark:text-gray-200'
+                      ? t.escolhido
+                      : t.normal
                   }`}
                 >
                   <span className="truncate">{opcao.label}</span>
