@@ -52,6 +52,7 @@ import {
 import { BoardPage } from './modules/board';
 import { ColaboradoresPage, HoleritesPage } from './modules/rh';
 import { FinopsDashboardPage, DespesasPage, MesAMesPage, OrcamentoPage } from './modules/gastos-ti';
+import { EvaHomePage, EvaSugestoesPage, EvaReunioesPage, EvaMembrosPage, EvaConfiguracoesPage } from './modules/eva';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -490,6 +491,48 @@ const AuthenticatedApp: React.FC = () => {
             dentro do próprio componente, conforme canManageHolerites. */}
         <Route path="/rh/holerites" element={<HoleritesPage />} />
         {/* IT Module Routes */}
+        {/* EVA, o agente de TI (docs/plans/agente-ti). O Início é da equipe de TI;
+            a administração também abre para quem só aprova (canApproveAgenteTI). */}
+        <Route
+          path="/it/inicio"
+          element={
+            <ProtectedRoute permission="canManageIT" permissions={userPermissions}>
+              <EvaHomePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/eva"
+          element={
+            <ProtectedRoute anyOf={['canManageIT', 'canApproveAgenteTI']} permissions={userPermissions}>
+              <EvaSugestoesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/eva/reunioes"
+          element={
+            <ProtectedRoute anyOf={['canManageIT', 'canApproveAgenteTI']} permissions={userPermissions}>
+              <EvaReunioesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/eva/membros"
+          element={
+            <ProtectedRoute permission="canApproveAgenteTI" permissions={userPermissions}>
+              <EvaMembrosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/eva/configuracoes"
+          element={
+            <ProtectedRoute permission="canApproveAgenteTI" permissions={userPermissions}>
+              <EvaConfiguracoesPage />
+            </ProtectedRoute>
+          }
+        />
         <Route
           path="/it/dashboard"
           element={

@@ -50,6 +50,8 @@ import {
   AlertOctagon,
   UserCog,
   Coins,
+  Sparkles,
+  Bot,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
@@ -87,6 +89,8 @@ interface NavigationItem {
    * subitem no menu. Opt-in: sem ele, vale a comparação exata de sempre.
    */
   matchNested?: boolean;
+  /** Pílula ao lado do nome do subitem (ex.: "EVA" no Início de TI). */
+  badge?: string;
   category?: string;
   subItems?: NavigationItem[];
 }
@@ -477,7 +481,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/products', '/add-product', '/expiration', '/changelog'].includes(path)) return ['Produtos'];
     if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
-    if (['/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/', '/it/gastos', '/it/gastos/despesas', '/it/gastos/mes-a-mes', '/it/gastos/orcamento'].includes(path)) return ['Tecnologia'];
+    if (['/it/inicio', '/it/eva', '/it/eva/reunioes', '/it/eva/membros', '/it/eva/configuracoes', '/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/', '/it/gastos', '/it/gastos/despesas', '/it/gastos/mes-a-mes', '/it/gastos/orcamento'].includes(path)) return ['Tecnologia'];
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
     if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias', '/qualidade/indicadores'].includes(path)) return ['Qualidade'];
     if (['/rh/colaboradores', '/rh/holerites'].includes(path)) return ['RH'];
@@ -500,6 +504,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const boardAccess = useBoardAccess();
   const isAdmin = hasPermission(userPermissions, 'canManageUsers');
   const canManageIT = hasPermission(userPermissions, 'canManageIT');
+  const canApproveAgenteTI = hasPermission(userPermissions, 'canApproveAgenteTI');
 
   // ─── Persist collapsed state ────────────────────────────────────────────────
   const toggleCollapsed = useCallback(() => {
@@ -717,14 +722,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       },
       {
         name: 'Tecnologia',
-        // Quem só tem as chaves de Gastos de TI (ex.: Financeiro) não tem
-        // canManageIT: o rótulo do item pai não pode levar ao Hub (/it/dashboard)
-        // e cair em "Acesso Negado" — mesmo cuidado do item RH acima.
-        href: canManageIT ? '/it/dashboard' : '/it/gastos',
+        // O pai abre o Início da EVA para a equipe de TI (D8). Quem não tem
+        // canManageIT (ex.: Financeiro com Gastos de TI, ou um gestor que só aprova
+        // sugestões da EVA) não pode cair em "Acesso Negado" — mesmo cuidado do item RH acima.
+        href: canManageIT ? '/it/inicio' : canApproveAgenteTI ? '/it/eva' : '/it/gastos',
         icon: Server,
-        anyOf: ['canManageIT', 'canViewGastosTI', 'canManageGastosTI'],
+        anyOf: ['canManageIT', 'canViewGastosTI', 'canManageGastosTI', 'canApproveAgenteTI'],
         category: 'TECNOLOGIA',
         subItems: [
+          { name: 'Início', href: '/it/inicio', icon: Sparkles, permission: 'canManageIT', badge: 'EVA' },
+          { name: 'EVA', href: '/it/eva', icon: Bot, anyOf: ['canManageIT', 'canApproveAgenteTI'], matchNested: true },
           { name: 'Hub de Aplicações', href: '/it/dashboard', icon: Server, permission: 'canManageIT' },
           { name: 'Board', href: '/it/kanban', icon: KanbanSquare, permission: 'canManageIT' },
           { name: 'Mind Map', href: '/it/mindmap', icon: Map, permission: 'canManageIT' },
@@ -732,7 +739,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ],
       },
     ],
-    [boardAccess, canManageIT]
+    [boardAccess, canManageIT, canApproveAgenteTI]
   );
 
   // ─── Navigation helpers ─────────────────────────────────────────────────────
@@ -903,13 +910,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     <Link
                       to={subItem.href}
                       onClick={isMobile ? () => setSidebarOpen(false) : undefined}
-                      className={`block px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                      className={`flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                         isSubItemActive(subItem.href)
                           ? 'bg-blue-50/80 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                           : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200'
                       }`}
                     >
-                      {subItem.name}
+                      <span className="inline-flex items-center gap-2">
+                        {subItem.name}
+                        {subItem.badge && (
+                          <span className="text-[10px] font-bold tracking-wider px-1.5 py-px rounded-full text-white bg-gradient-to-r from-blue-500 to-violet-500">
+                            {subItem.badge}
+                          </span>
+                        )}
+                      </span>
                     </Link>
                   </motion.div>
                 ))}
