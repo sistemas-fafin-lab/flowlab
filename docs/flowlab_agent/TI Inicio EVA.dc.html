@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/flow-lab-design-system-019df954-8ca8-70be-901a-61627e39b8b5/colors_and_type.css">
+<script src="_ds/flow-lab-design-system-019df954-8ca8-70be-901a-61627e39b8b5/_ds_bundle.js"></script>
+<style>
+html,body{margin:0;padding:0;background:var(--eva-page-solid)}
+:root{--eva-page:linear-gradient(to bottom right,#f9fafb,#f3f4f6);--eva-page-solid:#f3f4f6;--eva-glass:rgba(255,255,255,.6);--eva-glass-border:rgba(255,255,255,.55);--eva-side:rgba(255,255,255,.7);--eva-drawer:rgba(255,255,255,.85);--eva-surface:#ffffff;--eva-surface-94:rgba(255,255,255,.94);--eva-divider:rgba(229,231,235,.8);--eva-hdr:linear-gradient(to right,#eff6ff,#eef2ff,#faf5ff);--eva-ftr:linear-gradient(to right,#f9fafb,#f8fafc);--eva-title:linear-gradient(to right,#1e293b,#475569);--eva-active-sub:rgba(239,246,255,.8);--eva-active-sub-fg:#2563eb;--eva-seg:rgba(226,232,240,.5);--eva-seg-border:rgba(255,255,255,.2);--eva-seg-active:#ffffff;--eva-row:rgba(248,250,252,.6);--eva-row-hover:rgba(241,245,249,.8);--eva-line:#f1f5f9;--eva-line2:#e2e8f0;--eva-line3:rgba(226,232,240,.6);--eva-line-hover:#cbd5e1;--eva-track:#e2e8f0;--eva-hover:#f3f4f6;--eva-danger-hover:#fef2f2;--eva-fg1:#1e293b;--eva-fg2:#334155;--eva-fg3:#475569;--eva-fg4:#64748b;--eva-fg5:#94a3b8;--eva-sphere:radial-gradient(circle at 50% 55%, #e0e7ff, #a5b4fc)}
+:root[data-eva-theme="dark"]{--eva-page:linear-gradient(to bottom right,#111827,#1f2937);--eva-page-solid:#111827;--eva-glass:rgba(15,23,42,.6);--eva-glass-border:rgba(51,65,85,.5);--eva-side:rgba(17,24,39,.7);--eva-drawer:rgba(17,24,39,.88);--eva-surface:#1e293b;--eva-surface-94:rgba(15,23,42,.94);--eva-divider:rgba(55,65,81,.8);--eva-hdr:#1f2937;--eva-ftr:#1f2937;--eva-title:linear-gradient(to right,#f1f5f9,#cbd5e1);--eva-active-sub:rgba(30,58,138,.3);--eva-active-sub-fg:#60a5fa;--eva-seg:rgba(30,41,59,.5);--eva-seg-border:rgba(51,65,85,.3);--eva-seg-active:#334155;--eva-row:rgba(30,41,59,.4);--eva-row-hover:rgba(51,65,85,.4);--eva-line:#334155;--eva-line2:#334155;--eva-line3:rgba(51,65,85,.5);--eva-line-hover:#475569;--eva-track:#334155;--eva-hover:#374151;--eva-danger-hover:rgba(127,29,29,.2);--eva-fg1:#f1f5f9;--eva-fg2:#e2e8f0;--eva-fg3:#cbd5e1;--eva-fg4:#94a3b8;--eva-fg5:#64748b;--eva-sphere:radial-gradient(circle at 50% 55%, #c7d2fe, #818cf8);--slate-600:#cbd5e1;--gray-600:#cbd5e1;--gray-700:#e2e8f0;--success-600:#34d399;--danger-600:#f87171;--warning-600:#fbbf24;--blue-600:#60a5fa}
+@keyframes eva-ping{75%,100%{transform:scale(1.8);opacity:0}}
+*{box-sizing:border-box}
+a{color:#2563eb;text-decoration:none}
+a:hover{color:#1d4ed8}
+input::placeholder{color:var(--eva-fg5)}
+@keyframes eva-spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes eva-spin-rev{from{transform:rotate(360deg)}to{transform:rotate(0deg)}}
+@keyframes eva-breathe{0%,100%{transform:scale(1);opacity:.85}50%{transform:scale(1.12);opacity:1}}
+@keyframes eva-morph{0%,100%{transform:translate(0,0) scale(1)}33%{transform:translate(12%,-8%) scale(1.15)}66%{transform:translate(-10%,10%) scale(.9)}}
+@keyframes eva-edge{0%{box-shadow:inset 0 0 50px 6px rgba(59,130,246,.45)}33%{box-shadow:inset 0 0 50px 6px rgba(139,92,246,.45)}66%{box-shadow:inset 0 0 50px 6px rgba(236,72,153,.4)}100%{box-shadow:inset 0 0 50px 6px rgba(59,130,246,.45)}}
+@keyframes eva-dot{0%,80%,100%{opacity:.25;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+@keyframes eva-in{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes eva-drawer{from{opacity:0;transform:translateX(24px)}to{opacity:1;transform:translateX(0)}}
+@keyframes ping{75%,100%{transform:scale(2);opacity:0}}
+</style>
+<template id="__bundler_thumbnail"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3b82f6"></stop><stop offset=".5" stop-color="#8b5cf6"></stop><stop offset="1" stop-color="#ec4899"></stop></linearGradient></defs><rect width="100" height="100" fill="#eef2ff"></rect><circle cx="50" cy="50" r="20" fill="url(#g)"></circle></svg></template>
+</helmet>
+
+<div style="min-height:100vh; background:var(--eva-page); font-family:var(--font-sans); color:var(--eva-fg1); isolation:isolate">
+
+  <!-- Desktop sidebar (Layout.tsx) -->
+  <div style="position:fixed; top:16px; bottom:16px; left:16px; width:256px; display:flex; flex-direction:column; z-index:30">
+    <div style="display:flex; flex-direction:column; height:100%; width:100%; border-radius:24px; border:1px solid var(--eva-glass-border); background:var(--eva-side); backdrop-filter:blur(40px); -webkit-backdrop-filter:blur(40px); box-shadow:0 25px 50px -12px rgba(15,23,42,.10); overflow:hidden">
+      <div style="display:flex; align-items:center; height:64px; padding:0 16px; border-bottom:1px solid var(--eva-divider); background:var(--eva-hdr); flex-shrink:0">
+        <a href="#" style="display:flex; align-items:center; flex:1; justify-content:center"><sc-if value="{{ isLight }}" hint-placeholder-val="{{ true }}"><img src="assets/LOGO-HOR.svg" alt="LAB Logo" style="height:40px; width:auto"></sc-if><sc-if value="{{ isDark }}" hint-placeholder-val="{{ false }}"><img src="assets/LOGO-HOR-DM.svg" alt="LAB Logo" style="height:40px; width:auto"></sc-if></a>
+        <button aria-label="Tema" title="Alternar tema" onClick="{{ toggleTheme }}" style="width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:12px; border:none; background:transparent; color:var(--eva-fg4); cursor:pointer" style-hover="background:var(--eva-hover)">
+          <sc-if value="{{ isLight }}" hint-placeholder-val="{{ true }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></svg></sc-if>
+          <sc-if value="{{ isDark }}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></svg></sc-if>
+        </button>
+      </div>
+
+      <nav ref="{{ navRef }}" style="flex:1; padding:16px 12px; overflow-y:auto; overflow-x:hidden">
+        <p style="font-size:10px; font-weight:700; color:var(--eva-fg4); text-transform:uppercase; letter-spacing:.05em; padding:0 16px; margin:0 0 12px">GERENCIAL</p>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <a href="#" style="display:flex; align-items:center; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"></rect><rect width="7" height="5" x="14" y="3" rx="1"></rect><rect width="7" height="9" x="14" y="12" rx="1"></rect><rect width="7" height="5" x="3" y="16" rx="1"></rect></svg><span>Dashboard</span></a>
+        </div>
+
+        <p style="font-size:10px; font-weight:700; color:var(--eva-fg4); text-transform:uppercase; letter-spacing:.05em; padding:0 16px; margin:32px 0 12px">OPERAÇÕES</p>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <div style="display:flex; align-items:center"><a href="#" style="display:flex; align-items:center; flex:1; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16.5 9.4 7.55 4.24"></path><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.29 7 12 12 20.71 7"></polyline><line x1="12" x2="12" y1="22" y2="12"></line></svg><span>Produtos</span></a><button style="padding:6px; border:none; background:transparent; border-radius:8px; color:var(--eva-fg5); display:flex; cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+          <a href="#" style="display:flex; align-items:center; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path><path d="M3 3v5h5"></path><path d="M12 7v5l4 2"></path></svg><span>Movimentações</span></a>
+          <a href="#" style="display:flex; align-items:center; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"></path><path d="m7 16.5-4.74-2.85"></path><path d="m7 16.5 5-3"></path><path d="M7 16.5v5.17"></path><path d="M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Z"></path><path d="m17 16.5-5-3"></path><path d="m17 16.5 4.74-2.85"></path><path d="M17 16.5v5.17"></path><path d="M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8Z"></path><path d="M12 8 7.26 5.15"></path><path d="m12 8 4.74-2.85"></path><path d="M12 13.5V8"></path></svg><span>Estoque Departamental</span></a>
+          <a href="#" style="display:flex; align-items:center; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" x2="8" y1="13" y2="13"></line><line x1="16" x2="8" y1="17" y2="17"></line><line x1="10" x2="8" y1="9" y2="9"></line></svg><span>Solicitações</span></a>
+          <a href="#" style="display:flex; align-items:center; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"></path><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"></path><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"></path><path d="M10 6h4"></path><path d="M10 10h4"></path><path d="M10 14h4"></path><path d="M10 18h4"></path></svg><span>Fornecedores</span></a>
+          <a href="#" style="display:flex; align-items:center; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"></rect><line x1="8" x2="16" y1="6" y2="6"></line><line x1="16" x2="16" y1="14" y2="18"></line><path d="M16 10h.01"></path><path d="M12 10h.01"></path><path d="M8 10h.01"></path><path d="M12 14h.01"></path><path d="M8 14h.01"></path><path d="M12 18h.01"></path><path d="M8 18h.01"></path></svg><span>Cotações</span></a>
+          <a href="#" style="display:flex; align-items:center; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"></path><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"></path><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"></path></svg><span>Controle de Custos</span></a>
+          <div style="display:flex; align-items:center"><a href="#" style="display:flex; align-items:center; flex:1; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1-2-1Z"></path><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"></path><path d="M12 17V7"></path></svg><span>Faturamento</span></a><button style="padding:6px; border:none; background:transparent; border-radius:8px; color:var(--eva-fg5); display:flex; cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+          <div style="display:flex; align-items:center"><a href="#" style="display:flex; align-items:center; flex:1; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.8 2.3A.3.3 0 1 0 5 2H4a2 2 0 0 0-2 2v5a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6V4a2 2 0 0 0-2-2h-1a.2.2 0 1 0 .3.3"></path><path d="M8 15v1a6 6 0 0 0 6 6v0a6 6 0 0 0 6-6v-4"></path><circle cx="20" cy="10" r="2"></circle></svg><span>Análises Clínicas</span></a><button style="padding:6px; border:none; background:transparent; border-radius:8px; color:var(--eva-fg5); display:flex; cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+          <div style="display:flex; align-items:center"><a href="#" style="display:flex; align-items:center; flex:1; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg><span>Qualidade</span></a><button style="padding:6px; border:none; background:transparent; border-radius:8px; color:var(--eva-fg5); display:flex; cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+        </div>
+
+        <p style="font-size:10px; font-weight:700; color:var(--eva-fg4); text-transform:uppercase; letter-spacing:.05em; padding:0 16px; margin:32px 0 12px">ADMINISTRAÇÃO</p>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <a href="#" style="display:flex; align-items:center; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg><span>Usuários</span></a>
+          <div style="display:flex; align-items:center"><a href="#" style="display:flex; align-items:center; flex:1; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path><circle cx="12" cy="12" r="3"></circle></svg><span>Sistema</span></a><button style="padding:6px; border:none; background:transparent; border-radius:8px; color:var(--eva-fg5); display:flex; cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+          <div style="display:flex; align-items:center"><a href="#" style="display:flex; align-items:center; flex:1; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:var(--eva-fg3)" style-hover="background:var(--eva-hover); color:var(--eva-fg1)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><circle cx="19" cy="11" r="2"></circle><path d="M19 8v1"></path><path d="M19 13v1"></path><path d="m21.6 9.5-.87.5"></path><path d="m17.27 12-.87.5"></path><path d="m21.6 12.5-.87-.5"></path><path d="m17.27 10-.87-.5"></path></svg><span>RH</span></a><button style="padding:6px; border:none; background:transparent; border-radius:8px; color:var(--eva-fg5); display:flex; cursor:pointer"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button></div>
+        </div>
+
+        <p style="font-size:10px; font-weight:700; color:var(--eva-fg4); text-transform:uppercase; letter-spacing:.05em; padding:0 16px; margin:32px 0 12px">TECNOLOGIA</p>
+        <div style="display:flex; flex-direction:column; gap:8px">
+          <div>
+            <div style="display:flex; align-items:center">
+              <a href="#" style="display:flex; align-items:center; flex:1; padding:10px 12px; font-size:14px; font-weight:500; border-radius:12px; color:#ffffff; background:linear-gradient(to right,#3b82f6,#2563eb); box-shadow:0 4px 6px -1px rgba(59,130,246,.25),0 2px 4px -2px rgba(59,130,246,.25)"><svg style="margin-right:12px; flex-shrink:0" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"></rect><rect width="20" height="8" x="2" y="14" rx="2" ry="2"></rect><line x1="6" x2="6.01" y1="6" y2="6"></line><line x1="6" x2="6.01" y1="18" y2="18"></line></svg><span>Tecnologia</span></a>
+              <button style="padding:6px; border:none; background:transparent; border-radius:8px; color:#2563eb; display:flex; cursor:pointer; transform:rotate(180deg)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"></path></svg></button>
+            </div>
+            <div style="margin-left:24px; margin-top:8px; display:flex; flex-direction:column; gap:4px; border-left:1px solid var(--eva-line2); padding-left:12px">
+              <a href="#" style="display:flex; align-items:center; gap:8px; padding:8px 12px; font-size:14px; font-weight:500; border-radius:8px; background:var(--eva-active-sub); color:var(--eva-active-sub-fg)">Início<span style="font-size:10px; font-weight:700; letter-spacing:.05em; padding:1px 6px; border-radius:9999px; color:#ffffff; background:linear-gradient(to right,#3b82f6,#8b5cf6)">EVA</span></a>
+              <a href="#" style="display:block; padding:8px 12px; font-size:14px; font-weight:500; border-radius:8px; color:var(--eva-fg4)" style-hover="background:var(--eva-hover); color:var(--eva-fg2)">Hub de Aplicações</a>
+              <a href="#" style="display:block; padding:8px 12px; font-size:14px; font-weight:500; border-radius:8px; color:var(--eva-fg4)" style-hover="background:var(--eva-hover); color:var(--eva-fg2)">Board</a>
+              <a href="#" style="display:block; padding:8px 12px; font-size:14px; font-weight:500; border-radius:8px; color:var(--eva-fg4)" style-hover="background:var(--eva-hover); color:var(--eva-fg2)">Mind Map</a>
+              <a href="#" style="display:block; padding:8px 12px; font-size:14px; font-weight:500; border-radius:8px; color:var(--eva-fg4)" style-hover="background:var(--eva-hover); color:var(--eva-fg2)">Gastos de TI</a>
+            </div>
+          </div>
+        </div>
+        <div style="margin-top:20px; padding:0 12px">
+          <button style="display:flex; align-items:center; gap:8px; font-size:10px; font-weight:500; color:var(--eva-fg5); background:transparent; border:none; text-transform:uppercase; letter-spacing:.05em; cursor:pointer; padding:0" style-hover="color:#3b82f6"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"></path><path d="m15 5 4 4"></path></svg>Editar categorias</button>
+        </div>
+      </nav>
+
+      <div style="border-top:1px solid var(--eva-divider); background:var(--eva-ftr); flex-shrink:0">
+        <div style="padding:12px">
+          <div style="display:flex; align-items:center; gap:8px; padding:10px; border-radius:12px; background:var(--eva-surface); box-shadow:0 1px 2px 0 rgba(0,0,0,.05)">
+            <div style="width:40px; height:40px; border-radius:12px; background:linear-gradient(to bottom right,#3b82f6,#6366f1); display:flex; align-items:center; justify-content:center; flex-shrink:0; color:#ffffff; box-shadow:0 4px 6px -1px rgba(59,130,246,.25)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg></div>
+            <div style="flex:1; min-width:0">
+              <p style="margin:0; font-size:14px; font-weight:500; color:var(--eva-fg1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">Rafael Lima</p>
+              <p style="margin:0; font-size:12px; color:var(--eva-fg4)">Gestor de TI</p>
+              <p style="margin:0; font-size:12px; color:var(--eva-active-sub-fg); font-weight:500">Tecnologia</p>
+            </div>
+            <button aria-label="Notificações" style="position:relative; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:12px; border:none; background:transparent; color:var(--eva-fg4); cursor:pointer; flex-shrink:0" style-hover="background:var(--eva-hover); color:var(--eva-fg2)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"></path><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"></path></svg>
+              <span style="position:absolute; top:2px; right:0; display:flex; align-items:center; justify-content:center; min-width:18px; height:18px; padding:0 4px; border-radius:9999px; background:#ef4444; color:#ffffff; font-size:10px; font-weight:700; line-height:1">3</span>
+            </button>
+            <button title="Sair" style="padding:8px; border-radius:12px; border:none; background:transparent; color:var(--eva-fg5); display:flex; cursor:pointer; flex-shrink:0" style-hover="color:#ef4444; background:var(--eva-danger-hover)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" x2="9" y1="12" y2="12"></line></svg></button>
+          </div>
+        </div>
+        <div style="padding:0 12px 12px; display:flex; justify-content:center">
+          <button style="width:100%; display:flex; align-items:center; justify-content:center; gap:8px; padding:6px 0; border-radius:8px; border:none; background:transparent; color:var(--eva-fg5); font-size:12px; cursor:pointer; font-family:inherit" style-hover="background:var(--eva-hover); color:var(--eva-fg3)"><svg style="transform:rotate(180deg)" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>Recolher</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div style="min-height:100vh; padding-left:288px">
+    <main style="min-height:100vh; padding:12px 32px 40px">
+      <div style="display:flex; flex-direction:column; gap:28px; max-width:1440px; margin:0 auto">
+
+        <!-- Hero: EVA -->
+        <div style="position:relative; display:flex; flex-direction:column; align-items:center; text-align:center; padding-top:28px; animation:eva-in .5s cubic-bezier(.22,1,.36,1) both">
+          <div style="position:absolute; top:-40px; left:50%; width:560px; height:300px; margin-left:-280px; border-radius:9999px; background:radial-gradient(ellipse at center, rgba(99,102,241,.14), rgba(236,72,153,.06) 45%, rgba(255,255,255,0) 70%); pointer-events:none"></div>
+          <button onClick="{{ openChat }}" aria-label="Abrir conversa com a EVA" style="position:relative; width:104px; height:104px; border:none; background:transparent; padding:0; cursor:pointer; display:flex; align-items:center; justify-content:center">{{ orbHero }}</button>
+          <p style="position:relative; margin:22px 0 0; font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--eva-fg4)">EVA · Agente de TI · {{ todayLabel }}</p>
+          <h2 style="position:relative; margin:6px 0 0; font-size:30px; line-height:1.2; font-weight:700; letter-spacing:-.02em; background:var(--eva-title); -webkit-background-clip:text; background-clip:text; color:transparent">{{ greeting }}</h2>
+          <p style="position:relative; margin:8px 0 0; max-width:620px; font-size:14px; line-height:1.55; color:var(--eva-fg4); text-wrap:pretty">{{ briefing }}</p>
+
+          <div ref="{{ heroRef }}" style="position:relative; width:100%; max-width:660px; margin-top:24px">
+            <div style="position:absolute; inset:-4px; border-radius:24px; overflow:hidden; filter:blur(14px); opacity:.45; pointer-events:none">{{ glow }}</div>
+            <div style="position:relative; border-radius:20px; padding:2px; overflow:hidden">
+              {{ glow }}
+              <div style="position:relative; display:flex; align-items:center; gap:12px; padding:8px 8px 8px 14px; border-radius:18px; background:var(--eva-surface-94)">
+                <div style="width:26px; height:26px; flex-shrink:0; display:flex; align-items:center; justify-content:center">{{ orbXs }}</div>
+                <input value="{{ heroDraft }}" onChange="{{ onHeroChange }}" onKeyDown="{{ onHeroKey }}" placeholder="{{ heroPlaceholder }}" style="flex:1; min-width:0; border:none; outline:none; background:transparent; font-size:15px; font-family:inherit; color:var(--eva-fg1); padding:8px 0">
+                <button onClick="{{ micHero }}" title="{{ micTitle }}" style="{{ micHeroStyle }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg></button>
+                <button onClick="{{ sendHero }}" title="Enviar" style="width:40px; height:40px; display:flex; align-items:center; justify-content:center; border-radius:12px; border:none; background:linear-gradient(to right,#3b82f6,#2563eb); color:#ffffff; cursor:pointer; box-shadow:0 4px 6px -1px rgba(59,130,246,.25)" style-hover="box-shadow:0 10px 15px -3px rgba(59,130,246,.3)" style-active="transform:scale(.96)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg></button>
+              </div>
+            </div>
+          </div>
+          <sc-if value="{{ voiceNotice }}" hint-placeholder-val="{{ false }}">
+            <p style="position:relative; margin:12px 0 0; font-size:12px; color:#dc2626">{{ voiceNotice }}</p>
+          </sc-if>
+          <div style="position:relative; display:flex; flex-wrap:wrap; justify-content:center; gap:8px; margin-top:14px">
+            <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="3">
+              <button onClick="{{ s.onClick }}" style="padding:6px 12px; border-radius:9999px; border:1px solid var(--eva-glass-border); background:var(--eva-glass); backdrop-filter:blur(12px); font-size:12px; font-weight:500; color:var(--eva-fg3); cursor:pointer; font-family:inherit; box-shadow:0 1px 2px rgba(0,0,0,.04)" style-hover="background:var(--eva-surface); color:var(--eva-fg1); border-color:rgba(59,130,246,.3)">{{ s.label }}</button>
+            </sc-for>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap">
+          <div style="display:flex; background:var(--eva-seg); backdrop-filter:blur(12px); border-radius:12px; padding:4px; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,.05); border:1px solid var(--eva-seg-border)">
+            <button onClick="{{ setTeam }}" style="{{ tabTeamStyle }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M22 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>Equipe</button>
+            <button onClick="{{ setMe }}" style="{{ tabMeStyle }}"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>Minha visão</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+            <div style="display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border-radius:12px; background:var(--eva-glass); border:1px solid var(--eva-glass-border); backdrop-filter:blur(40px); font-size:12px; color:var(--eva-fg3)"><span style="width:8px; height:8px; border-radius:9999px; background:#10b981"></span><b style="font-weight:600; color:var(--eva-fg1)">Granola</b>API · sincronizado às 07:30</div>
+            <div style="display:inline-flex; align-items:center; gap:8px; padding:7px 12px; border-radius:12px; background:var(--eva-glass); border:1px solid var(--eva-glass-border); backdrop-filter:blur(40px); font-size:12px; color:var(--eva-fg3)"><span style="width:8px; height:8px; border-radius:9999px; background:#10b981"></span><b style="font-weight:600; color:var(--eva-fg1)">Wa-ha</b>WhatsApp conectado</div>
+            <button title="Atualizar" style="padding:8px; border-radius:12px; border:1px solid transparent; background:transparent; color:var(--eva-fg5); display:flex; cursor:pointer" style-hover="color:var(--eva-fg3); background:var(--eva-row-hover); border-color:var(--eva-line3)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg></button>
+          </div>
+        </div>
+
+        <!-- Stat cards (ITHubDashboard pattern) -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:16px">
+          <sc-for list="{{ stats }}" as="c" hint-placeholder-count="4">
+            <div style="position:relative; overflow:hidden; background:var(--eva-glass); backdrop-filter:blur(40px); border:1px solid var(--eva-glass-border); border-radius:24px; padding:20px; transition:all .3s cubic-bezier(.22,1,.36,1)" style-hover="transform:translateY(-4px); box-shadow:0 25px 50px -12px rgba(0,0,0,.12)">
+              <div style="position:absolute; right:-24px; top:-24px; width:96px; height:96px; border-radius:9999px; filter:blur(40px); opacity:.2; background:{{ c.flare }}"></div>
+              <div style="position:relative; width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:#ffffff; margin-bottom:16px; background:{{ c.bg }}; box-shadow:{{ c.shadow }}">{{ c.icon }}</div>
+              <div style="font-size:44px; font-weight:800; letter-spacing:-.025em; color:var(--eva-fg1); line-height:1; margin-bottom:8px; font-variant-numeric:tabular-nums">{{ c.value }}</div>
+              <p style="margin:0; font-size:13px; font-weight:600; color:var(--eva-fg4); text-transform:uppercase; letter-spacing:.05em">{{ c.label }}</p>
+              <p style="margin:6px 0 0; font-size:12px; color:var(--eva-fg5)">{{ c.hint }}</p>
+            </div>
+          </sc-for>
+        </div>
+
+        <!-- Kanban -->
+        <div style="background:var(--eva-glass); backdrop-filter:blur(40px); border:1px solid var(--eva-glass-border); border-radius:24px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,.05)">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:20px">
+            <div style="display:flex; align-items:center; gap:12px">
+              <div style="padding:8px; border-radius:12px; background:linear-gradient(to bottom right,#3b82f6,#7c3aed); color:#ffffff; display:flex; box-shadow:0 10px 15px -3px rgba(59,130,246,.25)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M8 7v7"></path><path d="M12 7v4"></path><path d="M16 7v9"></path></svg></div>
+              <div>
+                <h4 style="margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; color:var(--eva-fg1)">Board de TI</h4>
+                <p style="margin:0; font-size:12px; color:var(--eva-fg5)">{{ kanbanSub }}</p>
+              </div>
+            </div>
+            <x-import component-from-global-scope="FlowLABDesignSystem_019df9.Button" variant="ghost" icon="arrow-up-right" hint-size="120px,36px">Abrir Board</x-import>
+          </div>
+          <div style="display:flex; height:8px; border-radius:9999px; overflow:hidden; gap:2px; margin-bottom:20px">
+            <sc-for list="{{ columns }}" as="col" hint-placeholder-count="5">
+              <div style="height:100%; width:{{ col.pct }}%; background:{{ col.color }}"></div>
+            </sc-for>
+          </div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px">
+            <sc-for list="{{ columns }}" as="col" hint-placeholder-count="5">
+              <div style="display:flex; flex-direction:column; gap:10px; padding:14px; border-radius:16px; background:var(--eva-row); border:1px solid var(--eva-line3)">
+                <div style="display:flex; align-items:center; justify-content:space-between">
+                  <div style="display:flex; align-items:center; gap:8px"><span style="width:8px; height:8px; border-radius:9999px; background:{{ col.color }}"></span><span style="font-size:12px; font-weight:600; color:var(--eva-fg3)">{{ col.label }}</span></div>
+                  <span style="font-size:22px; font-weight:800; color:var(--eva-fg1); font-variant-numeric:tabular-nums; line-height:1">{{ col.count }}</span>
+                </div>
+                <sc-for list="{{ col.items }}" as="it" hint-placeholder-count="2">
+                  <div style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:12px; background:var(--eva-surface); border:1px solid var(--eva-line); box-shadow:0 1px 2px rgba(0,0,0,.03)">
+                    <span style="width:22px; height:22px; border-radius:9999px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:9px; font-weight:700; color:#ffffff; background:{{ it.bg }}">{{ it.ini }}</span>
+                    <span style="font-size:12px; color:var(--eva-fg2); line-height:1.35; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical">{{ it.t }}</span>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-for>
+          </div>
+          <sc-if value="{{ showInsights }}" hint-placeholder-val="{{ true }}">
+            <div style="position:relative; border-radius:16px; padding:1.5px; overflow:hidden; margin-top:20px">
+              {{ glowSoft }}
+              <div style="position:relative; display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:14.5px; background:var(--eva-surface-94)">
+                <div style="width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center">{{ orbXs }}</div>
+                <div style="flex:1; min-width:0">
+                  <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px"><span style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:linear-gradient(to right,#2563eb,#7c3aed); -webkit-background-clip:text; background-clip:text; color:transparent">EVA</span><span style="font-size:11px; color:var(--eva-fg5)">{{ ins.kanban.src }}</span></div>
+                  <p style="margin:0; font-size:13px; line-height:1.55; color:var(--eva-fg2); text-wrap:pretty">{{ ins.kanban.text }}</p>
+                  <sc-if value="{{ ins.kanban.open }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
+                      <button onClick="{{ ins.kanban.act }}" style="padding:6px 12px; border-radius:10px; border:none; background:linear-gradient(to right,#3b82f6,#2563eb); color:#ffffff; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; box-shadow:0 4px 6px -1px rgba(59,130,246,.25)" style-active="transform:scale(.98)">{{ ins.kanban.cta }}</button>
+                      <button onClick="{{ ins.kanban.ask }}" style="padding:6px 12px; border-radius:10px; border:1px solid var(--eva-line2); background:var(--eva-surface); color:var(--eva-fg2); font-size:12px; font-weight:500; cursor:pointer; font-family:inherit" style-hover="border-color:var(--eva-line-hover)">Perguntar à EVA</button>
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ ins.kanban.done }}" hint-placeholder-val="{{ false }}">
+                    <p style="margin:8px 0 0; font-size:12px; font-weight:600; color:#059669">{{ ins.kanban.doneText }}</p>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <!-- Overdue + WhatsApp -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:24px">
+
+          <div style="background:var(--eva-glass); backdrop-filter:blur(40px); border:1px solid var(--eva-glass-border); border-radius:24px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,.05); display:flex; flex-direction:column">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px; flex-wrap:wrap">
+              <div style="display:flex; align-items:center; gap:12px">
+                <div style="padding:8px; border-radius:12px; background:linear-gradient(to bottom right,#ef4444,#e11d48); color:#ffffff; display:flex; box-shadow:0 10px 15px -3px rgba(239,68,68,.25)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg></div>
+                <div>
+                  <h4 style="margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; color:var(--eva-fg1)">Atrasadas e cobranças</h4>
+                  <p style="margin:0; font-size:12px; color:var(--eva-fg5)">EVA cobra pelo WhatsApp em nome do gestor</p>
+                </div>
+              </div>
+              <div style="display:flex; background:var(--eva-seg); border-radius:12px; padding:4px; box-shadow:inset 0 2px 4px 0 rgba(0,0,0,.05)">
+                <button onClick="{{ filterAll }}" style="{{ fAllStyle }}">Todas</button>
+                <button onClick="{{ filterCrit }}" style="{{ fCritStyle }}">Crítica e alta</button>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px; flex:1">
+              <sc-for list="{{ overdue }}" as="r" hint-placeholder-count="4">
+                <div style="display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:16px; background:var(--eva-row)" style-hover="background:var(--eva-row-hover)">
+                  <span title="{{ r.prioLabel }}" style="width:10px; height:10px; border-radius:9999px; flex-shrink:0; background:{{ r.prioColor }}; box-shadow:0 0 0 4px {{ r.prioRing }}"></span>
+                  <div style="flex:1; min-width:0">
+                    <p style="margin:0; font-size:13px; font-weight:600; color:var(--eva-fg1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ r.title }}</p>
+                    <p style="margin:2px 0 0; font-size:12px; color:var(--eva-fg4)">{{ r.meta }}</p>
+                    <p style="margin:4px 0 0; font-size:11px; color:{{ r.lastColor }}; display:flex; align-items:center; gap:4px">{{ r.last }}</p>
+                  </div>
+                  <x-import component-from-global-scope="FlowLABDesignSystem_019df9.Badge" tone="danger" hint-size="70px,22px">{{ r.late }}</x-import>
+                  <button onClick="{{ r.onCharge }}" disabled="{{ r.charged }}" style="{{ r.btnStyle }}">{{ r.btnLabel }}</button>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ showInsights }}" hint-placeholder-val="{{ true }}">
+              <div style="position:relative; border-radius:16px; padding:1.5px; overflow:hidden; margin-top:16px">
+                {{ glowSoft }}
+                <div style="position:relative; display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:14.5px; background:var(--eva-surface-94)">
+                  <div style="width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center">{{ orbXs }}</div>
+                  <div style="flex:1; min-width:0">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px"><span style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:linear-gradient(to right,#2563eb,#7c3aed); -webkit-background-clip:text; background-clip:text; color:transparent">EVA</span><span style="font-size:11px; color:var(--eva-fg5)">{{ ins.overdue.src }}</span></div>
+                    <p style="margin:0; font-size:13px; line-height:1.55; color:var(--eva-fg2); text-wrap:pretty">{{ ins.overdue.text }}</p>
+                    <sc-if value="{{ ins.overdue.open }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
+                        <button onClick="{{ ins.overdue.act }}" style="padding:6px 12px; border-radius:10px; border:none; background:linear-gradient(to right,#3b82f6,#2563eb); color:#ffffff; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; box-shadow:0 4px 6px -1px rgba(59,130,246,.25)" style-active="transform:scale(.98)">{{ ins.overdue.cta }}</button>
+                        <button onClick="{{ ins.overdue.ask }}" style="padding:6px 12px; border-radius:10px; border:1px solid var(--eva-line2); background:var(--eva-surface); color:var(--eva-fg2); font-size:12px; font-weight:500; cursor:pointer; font-family:inherit" style-hover="border-color:var(--eva-line-hover)">Perguntar à EVA</button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ ins.overdue.done }}" hint-placeholder-val="{{ false }}">
+                      <p style="margin:8px 0 0; font-size:12px; font-weight:600; color:#059669">{{ ins.overdue.doneText }}</p>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="background:var(--eva-glass); backdrop-filter:blur(40px); border:1px solid var(--eva-glass-border); border-radius:24px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,.05); display:flex; flex-direction:column">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px">
+              <div style="display:flex; align-items:center; gap:12px">
+                <div style="padding:8px; border-radius:12px; background:linear-gradient(to bottom right,#10b981,#16a34a); color:#ffffff; display:flex; box-shadow:0 10px 15px -3px rgba(16,185,129,.25)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"></path></svg></div>
+                <div>
+                  <h4 style="margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; color:var(--eva-fg1)">Fila do WhatsApp</h4>
+                  <p style="margin:0; font-size:12px; color:var(--eva-fg5)">Notificações automáticas via Wa-ha</p>
+                </div>
+              </div>
+              <div style="display:flex; align-items:center; gap:6px; padding:4px 10px; border-radius:9999px; background:rgba(16,185,129,.2); border:1px solid rgba(16,185,129,.3)"><span style="width:6px; height:6px; border-radius:9999px; background:#10b981"></span><span style="font-size:10px; font-weight:600; color:#059669; text-transform:uppercase; letter-spacing:.05em">Ao vivo</span></div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px; flex:1">
+              <sc-for list="{{ waQueue }}" as="m" hint-placeholder-count="5">
+                <div style="display:flex; gap:12px; padding:12px 14px; border-radius:16px; background:var(--eva-row); animation:eva-in .3s cubic-bezier(.22,1,.36,1) both">
+                  <span style="font-size:12px; font-weight:600; color:var(--eva-fg4); font-variant-numeric:tabular-nums; width:38px; flex-shrink:0; padding-top:1px">{{ m.time }}</span>
+                  <div style="flex:1; min-width:0">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:8px">
+                      <p style="margin:0; font-size:13px; font-weight:600; color:var(--eva-fg1); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">{{ m.to }}</p>
+                      <x-import component-from-global-scope="FlowLABDesignSystem_019df9.Badge" tone="{{ m.tone }}" hint-size="70px,22px">{{ m.statusLabel }}</x-import>
+                    </div>
+                    <p style="margin:3px 0 0; font-size:12px; line-height:1.45; color:var(--eva-fg4); overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical">{{ m.text }}</p>
+                    <sc-if value="{{ m.note }}" hint-placeholder-val="{{ false }}"><p style="margin:3px 0 0; font-size:11px; color:#dc2626">{{ m.note }}</p></sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ showInsights }}" hint-placeholder-val="{{ true }}">
+              <div style="position:relative; border-radius:16px; padding:1.5px; overflow:hidden; margin-top:16px">
+                {{ glowSoft }}
+                <div style="position:relative; display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:14.5px; background:var(--eva-surface-94)">
+                  <div style="width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center">{{ orbXs }}</div>
+                  <div style="flex:1; min-width:0">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px"><span style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:linear-gradient(to right,#2563eb,#7c3aed); -webkit-background-clip:text; background-clip:text; color:transparent">EVA</span><span style="font-size:11px; color:var(--eva-fg5)">{{ ins.wa.src }}</span></div>
+                    <p style="margin:0; font-size:13px; line-height:1.55; color:var(--eva-fg2); text-wrap:pretty">{{ ins.wa.text }}</p>
+                    <sc-if value="{{ ins.wa.open }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
+                        <button onClick="{{ ins.wa.act }}" style="padding:6px 12px; border-radius:10px; border:none; background:linear-gradient(to right,#3b82f6,#2563eb); color:#ffffff; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; box-shadow:0 4px 6px -1px rgba(59,130,246,.25)" style-active="transform:scale(.98)">{{ ins.wa.cta }}</button>
+                        <button onClick="{{ ins.wa.ask }}" style="padding:6px 12px; border-radius:10px; border:1px solid var(--eva-line2); background:var(--eva-surface); color:var(--eva-fg2); font-size:12px; font-weight:500; cursor:pointer; font-family:inherit" style-hover="border-color:var(--eva-line-hover)">Perguntar à EVA</button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ ins.wa.done }}" hint-placeholder-val="{{ false }}">
+                      <p style="margin:8px 0 0; font-size:12px; font-weight:600; color:#059669">{{ ins.wa.doneText }}</p>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+
+        <!-- Projects + My tasks -->
+        <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr)); gap:24px">
+
+          <div style="background:var(--eva-glass); backdrop-filter:blur(40px); border:1px solid var(--eva-glass-border); border-radius:24px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,.05); display:flex; flex-direction:column">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px">
+              <div style="display:flex; align-items:center; gap:12px">
+                <div style="padding:8px; border-radius:12px; background:linear-gradient(to bottom right,#6366f1,#7c3aed); color:#ffffff; display:flex; box-shadow:0 10px 15px -3px rgba(99,102,241,.25)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"></path></svg></div>
+                <div>
+                  <h4 style="margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; color:var(--eva-fg1)">Projetos em andamento</h4>
+                  <p style="margin:0; font-size:12px; color:var(--eva-fg5)">Progresso do sprint atual</p>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px; flex:1">
+              <sc-for list="{{ projects }}" as="p" hint-placeholder-count="4">
+                <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px 20px; padding:14px 16px; border-radius:16px; background:var(--eva-row)" style-hover="background:var(--eva-row-hover)">
+                  <div style="flex:1 1 240px; min-width:0">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap">
+                      <p style="margin:0; font-size:13px; font-weight:600; color:var(--eva-fg1)">{{ p.name }}</p>
+                      <x-import component-from-global-scope="FlowLABDesignSystem_019df9.Badge" tone="{{ p.tone }}" hint-size="70px,22px">{{ p.status }}</x-import>
+                    </div>
+                    <p style="margin:3px 0 0; font-size:12px; color:var(--eva-fg4)">{{ p.sprint }} · {{ p.tasks }} tasks · prazo {{ p.due }}</p>
+                  </div>
+                  <div style="flex:1 1 160px; max-width:260px; display:flex; align-items:center; gap:10px">
+                    <div style="flex:1; height:6px; border-radius:9999px; background:var(--eva-track); overflow:hidden"><div style="height:100%; border-radius:9999px; width:{{ p.pct }}%; background:{{ p.bar }}"></div></div>
+                    <span style="font-size:12px; font-weight:700; color:var(--eva-fg2); width:34px; text-align:right; font-variant-numeric:tabular-nums">{{ p.pct }}%</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ showInsights }}" hint-placeholder-val="{{ true }}">
+              <div style="position:relative; border-radius:16px; padding:1.5px; overflow:hidden; margin-top:16px">
+                {{ glowSoft }}
+                <div style="position:relative; display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:14.5px; background:var(--eva-surface-94)">
+                  <div style="width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center">{{ orbXs }}</div>
+                  <div style="flex:1; min-width:0">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px"><span style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:linear-gradient(to right,#2563eb,#7c3aed); -webkit-background-clip:text; background-clip:text; color:transparent">EVA</span><span style="font-size:11px; color:var(--eva-fg5)">{{ ins.projects.src }}</span></div>
+                    <p style="margin:0; font-size:13px; line-height:1.55; color:var(--eva-fg2); text-wrap:pretty">{{ ins.projects.text }}</p>
+                    <sc-if value="{{ ins.projects.open }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
+                        <button onClick="{{ ins.projects.act }}" style="padding:6px 12px; border-radius:10px; border:none; background:linear-gradient(to right,#3b82f6,#2563eb); color:#ffffff; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; box-shadow:0 4px 6px -1px rgba(59,130,246,.25)" style-active="transform:scale(.98)">{{ ins.projects.cta }}</button>
+                        <button onClick="{{ ins.projects.ask }}" style="padding:6px 12px; border-radius:10px; border:1px solid var(--eva-line2); background:var(--eva-surface); color:var(--eva-fg2); font-size:12px; font-weight:500; cursor:pointer; font-family:inherit" style-hover="border-color:var(--eva-line-hover)">Perguntar à EVA</button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ ins.projects.done }}" hint-placeholder-val="{{ false }}">
+                      <p style="margin:8px 0 0; font-size:12px; font-weight:600; color:#059669">{{ ins.projects.doneText }}</p>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+
+          <div style="background:var(--eva-glass); backdrop-filter:blur(40px); border:1px solid var(--eva-glass-border); border-radius:24px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,.05); display:flex; flex-direction:column">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:16px">
+              <div style="display:flex; align-items:center; gap:12px">
+                <div style="padding:8px; border-radius:12px; background:linear-gradient(to bottom right,#06b6d4,#3b82f6); color:#ffffff; display:flex; box-shadow:0 10px 15px -3px rgba(6,182,212,.25)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg></div>
+                <div>
+                  <h4 style="margin:0; font-size:14px; font-weight:700; letter-spacing:-.01em; color:var(--eva-fg1)">Minhas tasks do dia</h4>
+                  <p style="margin:0; font-size:12px; color:var(--eva-fg5)">{{ myProgress }}</p>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px; flex:1">
+              <sc-for list="{{ myTasks }}" as="t" hint-placeholder-count="5">
+                <button onClick="{{ t.toggle }}" style="display:flex; align-items:flex-start; gap:12px; padding:10px 12px; border-radius:14px; border:none; background:transparent; text-align:left; cursor:pointer; font-family:inherit; width:100%" style-hover="background:var(--eva-row-hover)">
+                  <span style="{{ t.boxStyle }}"><sc-if value="{{ t.done }}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></sc-if></span>
+                  <span style="flex:1; min-width:0">
+                    <span style="{{ t.titleStyle }}">{{ t.title }}</span>
+                    <span style="display:flex; align-items:center; gap:6px; margin-top:2px; font-size:12px; color:var(--eva-fg4)"><b style="font-weight:600; color:var(--eva-fg3); font-variant-numeric:tabular-nums">{{ t.time }}</b>{{ t.project }}</span>
+                  </span>
+                  <sc-if value="{{ t.late }}" hint-placeholder-val="{{ false }}"><x-import component-from-global-scope="FlowLABDesignSystem_019df9.Badge" tone="danger" hint-size="70px,22px">Atrasada</x-import></sc-if>
+                </button>
+              </sc-for>
+            </div>
+            <sc-if value="{{ showInsights }}" hint-placeholder-val="{{ true }}">
+              <div style="position:relative; border-radius:16px; padding:1.5px; overflow:hidden; margin-top:16px">
+                {{ glowSoft }}
+                <div style="position:relative; display:flex; gap:12px; align-items:flex-start; padding:14px 16px; border-radius:14.5px; background:var(--eva-surface-94)">
+                  <div style="width:28px; height:28px; flex-shrink:0; display:flex; align-items:center; justify-content:center">{{ orbXs }}</div>
+                  <div style="flex:1; min-width:0">
+                    <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px"><span style="font-size:10px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; background:linear-gradient(to right,#2563eb,#7c3aed); -webkit-background-clip:text; background-clip:text; color:transparent">EVA</span><span style="font-size:11px; color:var(--eva-fg5)">{{ ins.mine.src }}</span></div>
+                    <p style="margin:0; font-size:13px; line-height:1.55; color:var(--eva-fg2); text-wrap:pretty">{{ ins.mine.text }}</p>
+                    <sc-if value="{{ ins.mine.open }}" hint-placeholder-val="{{ true }}">
+                      <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap">
+                        <button onClick="{{ ins.mine.act }}" style="padding:6px 12px; border-radius:10px; border:none; background:linear-gradient(to right,#3b82f6,#2563eb); color:#ffffff; font-size:12px; font-weight:600; cursor:pointer; font-family:inherit; box-shadow:0 4px 6px -1px rgba(59,130,246,.25)" style-active="transform:scale(.98)">{{ ins.mine.cta }}</button>
+                        <button onClick="{{ ins.mine.ask }}" style="padding:6px 12px; border-radius:10px; border:1px solid var(--eva-line2); background:var(--eva-surface); color:var(--eva-fg2); font-size:12px; font-weight:500; cursor:pointer; font-family:inherit" style-hover="border-color:var(--eva-line-hover)">Perguntar à EVA</button>
+                      </div>
+                    </sc-if>
+                    <sc-if value="{{ ins.mine.done }}" hint-placeholder-val="{{ false }}">
+                      <p style="margin:8px 0 0; font-size:12px; font-weight:600; color:#059669">{{ ins.mine.doneText }}</p>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Floating EVA bar (appears after the hero input scrolls out of view) -->
+  <div style="{{ floatStyle }}">
+    <sc-if value="{{ voiceNotice }}" hint-placeholder-val="{{ false }}">
+      <p style="margin:0 4px 8px; padding:8px 12px; border-radius:12px; background:var(--eva-surface); border:1px solid var(--eva-line2); font-size:12px; color:#dc2626; box-shadow:0 10px 15px -3px rgba(15,23,42,.1)">{{ voiceNotice }}</p>
+    </sc-if>
+    <div style="position:relative">
+      <div style="position:absolute; inset:-4px; border-radius:24px; overflow:hidden; filter:blur(14px); opacity:.4; pointer-events:none">{{ glow }}</div>
+      <div style="position:relative; border-radius:20px; padding:1.5px; overflow:hidden; box-shadow:0 25px 50px -12px rgba(15,23,42,.25)">
+        {{ glow }}
+        <div style="position:relative; display:flex; align-items:center; gap:8px; padding:6px 6px 6px 8px; border-radius:18.5px; background:var(--eva-surface-94)">
+          <button onClick="{{ openChat }}" aria-label="Abrir conversa com a EVA" style="width:40px; height:40px; flex-shrink:0; border:none; background:transparent; padding:0; cursor:pointer; display:flex; align-items:center; justify-content:center">{{ orbFloat }}</button>
+          <input value="{{ floatDraft }}" onChange="{{ onFloatChange }}" onKeyDown="{{ onFloatKey }}" placeholder="{{ floatPlaceholder }}" style="flex:1; min-width:0; border:none; outline:none; background:transparent; font-size:14px; font-family:inherit; color:var(--eva-fg1); padding:8px 0">
+          <button onClick="{{ micFloat }}" title="{{ micTitle }}" style="{{ micFloatStyle }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg></button>
+          <button onClick="{{ sendFloat }}" title="Enviar" style="width:36px; height:36px; flex-shrink:0; display:flex; align-items:center; justify-content:center; border-radius:12px; border:none; background:linear-gradient(to right,#3b82f6,#2563eb); color:#ffffff; cursor:pointer; box-shadow:0 4px 6px -1px rgba(59,130,246,.25)" style-active="transform:scale(.96)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Siri-style edge glow while EVA is thinking or listening -->
+  <sc-if value="{{ glowActive }}" hint-placeholder-val="{{ false }}">{{ edgeGlow }}</sc-if>
+
+  <!-- Chat drawer -->
+  <sc-if value="{{ chatOpen }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ closeChat }}" style="position:fixed; inset:0; z-index:40; background:rgba(15,23,42,.18); backdrop-filter:blur(4px)"></div>
+    <div style="position:fixed; top:16px; right:16px; bottom:16px; width:440px; max-width:calc(100vw - 32px); z-index:50; display:flex; flex-direction:column; border-radius:24px; border:1px solid var(--eva-glass-border); background:var(--eva-drawer); backdrop-filter:blur(40px); box-shadow:0 25px 50px -12px rgba(15,23,42,.2); overflow:hidden; animation:eva-drawer .3s cubic-bezier(.22,1,.36,1) both">
+      <div style="display:flex; align-items:center; gap:12px; padding:16px 16px 16px 20px; border-bottom:1px solid var(--eva-divider); background:var(--eva-hdr)">
+        <div style="width:40px; height:40px; display:flex; align-items:center; justify-content:center">{{ orbChat }}</div>
+        <div style="flex:1; min-width:0">
+          <p style="margin:0; font-size:15px; font-weight:700; color:var(--eva-fg1)">EVA</p>
+          <p style="margin:0; font-size:12px; color:var(--eva-fg4)">{{ chatStatus }}</p>
+        </div>
+        <button onClick="{{ closeChat }}" aria-label="Fechar" style="padding:8px; border-radius:12px; border:none; background:transparent; color:var(--eva-fg4); display:flex; cursor:pointer" style-hover="background:var(--eva-hover)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+      </div>
+      <div ref="{{ chatRef }}" style="flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:12px">
+        <sc-for list="{{ messages }}" as="msg" hint-placeholder-count="1">
+          <sc-if value="{{ msg.isEva }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; gap:10px; align-items:flex-start; max-width:92%; animation:eva-in .25s cubic-bezier(.22,1,.36,1) both">
+              <div style="width:24px; height:24px; flex-shrink:0; margin-top:2px; display:flex; align-items:center; justify-content:center">{{ orbXs }}</div>
+              <div style="padding:10px 14px; border-radius:16px; border-top-left-radius:6px; background:var(--eva-surface); border:1px solid var(--eva-line); box-shadow:0 1px 2px rgba(0,0,0,.04); font-size:13px; line-height:1.55; color:var(--eva-fg2); white-space:pre-line; text-wrap:pretty">{{ msg.text }}</div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ msg.isMe }}" hint-placeholder-val="{{ false }}">
+            <div style="align-self:flex-end; max-width:80%; padding:10px 14px; border-radius:16px; border-top-right-radius:6px; background:linear-gradient(to right,#3b82f6,#2563eb); color:#ffffff; font-size:13px; line-height:1.5; box-shadow:0 4px 6px -1px rgba(59,130,246,.25); animation:eva-in .25s cubic-bezier(.22,1,.36,1) both">{{ msg.text }}</div>
+          </sc-if>
+        </sc-for>
+        <sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; gap:10px; align-items:center">
+            <div style="width:24px; height:24px; display:flex; align-items:center; justify-content:center">{{ orbXsFast }}</div>
+            <div style="display:flex; gap:4px; padding:12px 14px; border-radius:16px; background:var(--eva-surface); border:1px solid var(--eva-line)">{{ dots }}</div>
+          </div>
+        </sc-if>
+      </div>
+      <div style="padding:12px 16px 16px; border-top:1px solid var(--eva-divider)">
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px">
+          <sc-for list="{{ suggestions }}" as="s" hint-placeholder-count="3">
+            <button onClick="{{ s.onClick }}" style="padding:5px 10px; border-radius:9999px; border:1px solid var(--eva-line2); background:var(--eva-surface); font-size:11px; font-weight:500; color:var(--eva-fg3); cursor:pointer; font-family:inherit" style-hover="border-color:rgba(59,130,246,.4); color:var(--eva-fg1)">{{ s.label }}</button>
+          </sc-for>
+        </div>
+        <div style="position:relative; border-radius:16px; padding:1.5px; overflow:hidden">
+          {{ glowSoft }}
+          <div style="position:relative; display:flex; align-items:center; gap:8px; padding:6px 6px 6px 14px; border-radius:14.5px; background:var(--eva-surface)">
+            <input value="{{ draft }}" onChange="{{ onDraftChange }}" onKeyDown="{{ onDraftKey }}" placeholder="{{ chatPlaceholder }}" style="flex:1; min-width:0; border:none; outline:none; background:transparent; font-size:14px; font-family:inherit; color:var(--eva-fg1); padding:8px 0">
+            <button onClick="{{ micChat }}" title="{{ micTitle }}" style="{{ micChatStyle }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg></button>
+            <button onClick="{{ sendDraft }}" title="Enviar" style="width:36px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:10px; border:none; background:linear-gradient(to right,#3b82f6,#2563eb); color:#ffffff; cursor:pointer; box-shadow:0 4px 6px -1px rgba(59,130,246,.25)" style-active="transform:scale(.96)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"></path><path d="M22 2 11 13"></path></svg></button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showInsights&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;EVA&quot;},&quot;animatedGlow&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;EVA&quot;},&quot;defaultView&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Equipe&quot;,&quot;Minha visão&quot;],&quot;default&quot;:&quot;Equipe&quot;,&quot;tsType&quot;:&quot;'Equipe' | 'Minha visão'&quot;,&quot;section&quot;:&quot;Visão&quot;}}">
+class Component extends DCLogic {
+  navRef = React.createRef();
+  chatRef = React.createRef();
+
+  state = {
+    view: (this.props.defaultView ?? 'Equipe') === 'Minha visão' ? 'me' : 'team',
+    filter: 'all',
+    charged: {},
+    acks: {},
+    extraWa: [],
+    myDone: { m1: true },
+    chatOpen: false,
+    thinking: false,
+    draft: '',
+    heroDraft: '',
+    floatDraft: '',
+    floatVisible: false,
+    listening: false,
+    voiceTarget: null,
+    voiceNotice: '',
+    theme: (() => { try { return localStorage.getItem('eva-proto-theme') === 'dark' ? 'dark' : 'light'; } catch (e) { return 'light'; } })(),
+    messages: [{ from: 'eva', text: 'Bom dia, Rafael. Li o resumo do sprint review de sexta no Granola e atualizei o board. Como posso ajudar?' }],
+  };
+
+  heroRef = React.createRef();
+
+  componentDidMount() {
+    const go = () => { const n = this.navRef.current; if (n) n.scrollTop = n.scrollHeight; };
+    requestAnimationFrame(go);
+    setTimeout(go, 300);
+    setTimeout(go, 1000);
+    this.applyTheme(this.state.theme);
+    this._onScroll = () => {
+      const el = this.heroRef.current;
+      if (!el) return;
+      const show = el.getBoundingClientRect().bottom < 0;
+      if (show !== this.state.floatVisible) this.setState({ floatVisible: show });
+    };
+    window.addEventListener('scroll', this._onScroll, true);
+    window.addEventListener('resize', this._onScroll);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('scroll', this._onScroll, true);
+    window.removeEventListener('resize', this._onScroll);
+    if (this.rec) try { this.rec.abort(); } catch (e) {}
+    clearTimeout(this._t); clearTimeout(this._nt);
+  }
+
+  // ---------- theme ----------
+  applyTheme(t) {
+    document.documentElement.setAttribute('data-eva-theme', t);
+    try { localStorage.setItem('eva-proto-theme', t); } catch (e) {}
+  }
+  toggleTheme() {
+    const t = this.state.theme === 'dark' ? 'light' : 'dark';
+    this.applyTheme(t);
+    this.setState({ theme: t });
+  }
+
+  // ---------- voice (Web Speech API, pt-BR) ----------
+  notice(msg) {
+    clearTimeout(this._nt);
+    this.setState({ voiceNotice: msg });
+    if (msg) this._nt = setTimeout(() => this.setState({ voiceNotice: '' }), 6000);
+  }
+  toggleVoice(target) {
+    if (this.state.listening) { if (this.rec) this.rec.stop(); return; }
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { this.notice('Ditado por voz não é suportado neste navegador. Use o Chrome ou o Edge.'); return; }
+    const field = target === 'hero' ? 'heroDraft' : target === 'chat' ? 'draft' : 'floatDraft';
+    const rec = new SR();
+    rec.lang = 'pt-BR'; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    let finalText = '';
+    rec.onresult = (e) => {
+      let interim = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        const r = e.results[i];
+        if (r.isFinal) finalText += r[0].transcript; else interim += r[0].transcript;
+      }
+      this.setState({ [field]: (finalText + ' ' + interim).trim() });
+    };
+    rec.onerror = (e) => {
+      const map = {
+        'not-allowed': 'Não foi possível acessar o microfone. Libere a permissão no navegador e tente novamente.',
+        'service-not-allowed': 'Não foi possível acessar o microfone. Libere a permissão no navegador e tente novamente.',
+        'no-speech': 'Não ouvi nada. Toque no microfone e fale sua pergunta.',
+        'audio-capture': 'Nenhum microfone encontrado. Conecte um microfone e tente novamente.',
+        'network': 'O ditado precisa de conexão com a internet. Verifique a rede e tente novamente.',
+      };
+      if (e.error !== 'aborted') this.notice(map[e.error] || 'O ditado foi interrompido. Tente novamente.');
+    };
+    rec.onend = () => {
+      this.rec = null;
+      const text = finalText.trim();
+      this.setState({ listening: false, voiceTarget: null });
+      if (text) this.ask(text);
+    };
+    try {
+      rec.start();
+      this.rec = rec;
+      this.setState({ listening: true, voiceTarget: target, [field]: '' });
+      this.notice('');
+    } catch (err) {
+      this.notice('Não foi possível iniciar o ditado. Tente novamente.');
+    }
+  }
+  micStyle(target, size) {
+    const on = this.state.listening && this.state.voiceTarget === target;
+    return {
+      width: size, height: size, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      borderRadius: 12, border: 'none', cursor: 'pointer', transition: 'all .2s',
+      background: on ? 'rgba(239,68,68,.1)' : 'transparent', color: on ? '#ef4444' : 'var(--eva-fg4)',
+      boxShadow: on ? '0 0 0 4px rgba(239,68,68,.12)' : 'none',
+    };
+  }
+  componentDidUpdate() {
+    const c = this.chatRef.current;
+    if (c) c.scrollTop = c.scrollHeight;
+  }
+
+  // ---------- Siri-style visuals ----------
+  orb(s, speed) {
+    const h = React.createElement;
+    const sp = speed || 1;
+    const blur = Math.max(2, s * 0.16);
+    const blob = (k, color, left, top, sc, dur) => h('div', { key: k, style: {
+      position: 'absolute', left, top, width: sc * 100 + '%', height: sc * 100 + '%', borderRadius: '50%',
+      background: color, filter: `blur(${blur}px)`, opacity: 0.95,
+      animation: `eva-morph ${dur / sp}s ease-in-out infinite` } });
+    return h('div', { style: { position: 'relative', width: s, height: s, flexShrink: 0 } }, [
+      h('div', { key: 'halo', style: { position: 'absolute', inset: -s * 0.28, borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(99,102,241,.45), rgba(236,72,153,.18) 45%, rgba(255,255,255,0) 70%)',
+        filter: `blur(${s * 0.1}px)`, animation: `eva-breathe ${4 / sp}s ease-in-out infinite` } }),
+      h('div', { key: 'sphere', style: { position: 'absolute', inset: 0, borderRadius: '50%', overflow: 'hidden',
+        background: 'var(--eva-sphere)',
+        boxShadow: `inset 0 0 0 1px rgba(255,255,255,.55), 0 ${s * 0.08}px ${s * 0.25}px -${s * 0.06}px rgba(79,70,229,.5)` } }, [
+        h('div', { key: 'g1', style: { position: 'absolute', inset: 0, animation: `eva-spin ${7 / sp}s linear infinite` } }, [
+          blob('b1', '#3b82f6', '-18%', '-8%', 0.78, 5),
+          blob('b2', '#ec4899', '42%', '46%', 0.62, 6),
+        ]),
+        h('div', { key: 'g2', style: { position: 'absolute', inset: 0, animation: `eva-spin-rev ${10 / sp}s linear infinite` } }, [
+          blob('b3', '#8b5cf6', '38%', '-22%', 0.72, 7),
+          blob('b4', '#06b6d4', '-12%', '48%', 0.6, 5.5),
+        ]),
+        h('div', { key: 'hl', style: { position: 'absolute', inset: 0, borderRadius: '50%',
+          background: 'radial-gradient(circle at 32% 24%, rgba(255,255,255,.9), rgba(255,255,255,0) 38%)' } }),
+        h('div', { key: 'rim', style: { position: 'absolute', inset: 0, borderRadius: '50%',
+          boxShadow: `inset 0 -${s * 0.06}px ${s * 0.18}px rgba(255,255,255,.45)` } }),
+      ]),
+    ]);
+  }
+  glowLayer(opacity, animated) {
+    return React.createElement('div', { style: {
+      position: 'absolute', left: '50%', top: '50%', width: 1400, height: 1400, marginLeft: -700, marginTop: -700,
+      background: 'conic-gradient(from 0deg, #3b82f6, #6366f1, #8b5cf6, #ec4899, #06b6d4, #3b82f6)',
+      opacity, animation: animated ? 'eva-spin 6s linear infinite' : 'none', pointerEvents: 'none' } });
+  }
+
+  // ---------- data ----------
+  P = {
+    ana: { n: 'Ana Costa', ini: 'AC', bg: 'linear-gradient(135deg,#3b82f6,#6366f1)' },
+    bruno: { n: 'Bruno Mendes', ini: 'BM', bg: 'linear-gradient(135deg,#10b981,#059669)' },
+    carla: { n: 'Carla Dias', ini: 'CD', bg: 'linear-gradient(135deg,#f59e0b,#f97316)' },
+    diego: { n: 'Diego Souza', ini: 'DS', bg: 'linear-gradient(135deg,#8b5cf6,#7c3aed)' },
+    rafael: { n: 'Rafael Lima', ini: 'RL', bg: 'linear-gradient(135deg,#06b6d4,#3b82f6)' },
+  };
+
+  KANBAN = {
+    team: [
+      ['backlog', 'Backlog', '#64748b', 18, [['Estudo de termômetros integrados', 'carla'], ['Lista fechada de convênios atendidos', 'ana']]],
+      ['todo', 'A Fazer', '#3b82f6', 9, [['Notificação 24h antes da coleta', 'diego'], ['Itens opcionais na conferência', 'carla']]],
+      ['in_progress', 'Em Progresso', '#f59e0b', 7, [['Integração Granola via API', 'rafael'], ['Regra de 24h para autorização', 'ana']]],
+      ['review', 'Revisão', '#8b5cf6', 6, [['PR: upload de carteirinha (LAB-HUB)', 'ana'], ['Painel de temperatura · sparkline', 'ana']]],
+      ['done', 'Concluído', '#10b981', 23, [['Agenda de posto (horários)', 'bruno'], ['Alerta de temperatura fora da faixa', 'carla']]],
+    ],
+    me: [
+      ['backlog', 'Backlog', '#64748b', 2, [['Roteiro de testes da EVA', 'rafael']]],
+      ['todo', 'A Fazer', '#3b82f6', 3, [['Aprovar templates de notificação AC', 'rafael'], ['Definir escopo da integração Granola', 'rafael']]],
+      ['in_progress', 'Em Progresso', '#f59e0b', 2, [['Integração Granola via API', 'rafael'], ['Validar seletor de convênios', 'rafael']]],
+      ['review', 'Revisão', '#8b5cf6', 1, [['PR: upload de carteirinha (LAB-HUB)', 'rafael']]],
+      ['done', 'Concluído', '#10b981', 5, [['Daily da equipe de TI', 'rafael']]],
+    ],
+  };
+
+  OVERDUE = [
+    { id: 't1', title: 'Aplicar migration de cultura avulsa em produção', project: 'Análises Clínicas', p: 'bruno', days: 2, prio: 'critical', last: 'Cobrada às 10:12 · sem resposta', mine: false },
+    { id: 't2', title: 'Template de recoleta genérica para WhatsApp', project: 'Notificações WhatsApp', p: 'diego', days: 3, prio: 'high', last: 'Cobrada ontem às 17:30 · respondeu “amanhã cedo”', mine: false },
+    { id: 't3', title: 'Regra de 24h para autorização do convênio', project: 'Portal do Paciente', p: 'ana', days: 1, prio: 'high', last: 'Ainda não cobrada', mine: false },
+    { id: 't4', title: 'Validar seletor de convênios no LAB-HUB', project: 'Portal do Paciente', p: 'rafael', days: 1, prio: 'medium', last: 'Lembrete enviado às 09:00', mine: true },
+  ];
+  PRIO = {
+    critical: ['Crítica', '#ef4444', 'rgba(239,68,68,.15)'],
+    high: ['Alta', '#f97316', 'rgba(249,115,22,.15)'],
+    medium: ['Média', '#f59e0b', 'rgba(245,158,11,.15)'],
+    low: ['Baixa', '#94a3b8', 'rgba(148,163,184,.15)'],
+  };
+
+  WA = {
+    team: [
+      { time: '17:30', to: 'Grupo Equipe TI', text: 'Fechamento do dia: tasks concluídas, pendências e prioridades de amanhã.', st: 'scheduled' },
+      { time: '14:00', to: 'Grupo Equipe TI', text: 'Resumo do sprint review de 10/10 com 5 pendências e responsáveis.', st: 'scheduled' },
+      { time: '10:12', to: 'Bruno Mendes', text: 'Bruno, a task “Aplicar migration de cultura avulsa” venceu há 2 dias. Consegue atualizar o status?', st: 'delivered' },
+      { time: '09:00', to: 'Ana Costa', text: 'Bom dia, Ana. Você tem 3 tasks para hoje e 4 cards aguardando em Revisão.', st: 'read' },
+      { time: '08:45', to: 'Diego Souza', text: 'Bom dia, Diego. Você tem 2 tasks para hoje, 1 atrasada.', st: 'failed', note: 'Sessão Wa-ha desconectada · reenviada às 08:52' },
+    ],
+    me: [
+      { time: '14:20', to: 'Rafael Lima', text: 'Lembrete: revisão do PR de upload de carteirinha às 14:30.', st: 'scheduled' },
+      { time: '09:00', to: 'Rafael Lima', text: 'Bom dia, Rafael. Você tem 5 tasks hoje, 1 atrasada: validar seletor de convênios.', st: 'read' },
+      { time: '08:10', to: 'Rafael Lima', text: 'Resumo do sprint review de sexta disponível. 2 pendências são suas.', st: 'read' },
+    ],
+  };
+  WA_ST = {
+    scheduled: ['Agendada', 'neutral'], sending: ['Enviando', 'info'], delivered: ['Entregue', 'success'],
+    read: ['Lida', 'info'], failed: ['Falhou', 'danger'],
+  };
+
+  PROJECTS = [
+    { name: 'Portal do Paciente (LAB-HUB)', sprint: 'Sprint 6', done: 31, total: 40, due: '24/10', status: 'No prazo', tone: 'success', mine: true },
+    { name: 'Notificações WhatsApp · Análises Clínicas', sprint: 'Sprint 2', done: 7, total: 20, due: '07/11', status: 'Em risco', tone: 'warning', mine: true },
+    { name: 'Agente EVA', sprint: 'Sprint 1', done: 3, total: 15, due: '14/11', status: 'No prazo', tone: 'success', mine: true },
+    { name: 'Análises Clínicas · Fase 7', sprint: 'Sprint 4', done: 22, total: 25, due: '17/10', status: 'No prazo', tone: 'success', mine: false },
+  ];
+
+  MY = [
+    { id: 'm1', time: '09:30', title: 'Daily da equipe de TI', project: 'Reunião' },
+    { id: 'm2', time: '11:00', title: 'Validar seletor de convênios no LAB-HUB', project: 'Portal do Paciente', late: true },
+    { id: 'm3', time: '14:30', title: 'Revisar PR de upload de carteirinha', project: 'Portal do Paciente' },
+    { id: 'm4', time: '16:00', title: 'Definir escopo da integração Granola', project: 'Agente EVA' },
+    { id: 'm5', time: '17:00', title: 'Aprovar templates de notificação AC', project: 'Notificações WhatsApp' },
+  ];
+
+  // ---------- chat ----------
+  reply(q) {
+    const s = q.toLowerCase();
+    if (/atras|cobr|venc/.test(s)) return 'Hoje são 4 tasks atrasadas:\n• Migration de cultura avulsa · Bruno · 2 dias (crítica)\n• Template de recoleta · Diego · 3 dias\n• Regra de 24h do convênio · Ana · 1 dia\n• Seletor de convênios · você · 1 dia\n\nQuer que eu cobre Bruno e Ana agora pelo WhatsApp?';
+    if (/reuni|granola|resumo|review/.test(s)) return 'Sprint review de sexta, 10/10 (Granola):\n• Etapa B da recoleta foi adiada para o próximo sprint.\n• Templates de notificação AC precisam de aprovação até 17/10.\n• Marina vai enviar a lista de itens opcionais da conferência.\n\nCriei 3 cards no Backlog e atribuí os responsáveis.';
+    if (/sobrecarreg|capacidade|quem|carga/.test(s)) return 'Carga atual da equipe:\n• Ana: 9 cards abertos, 4 em Revisão\n• Carla: 6 cards\n• Bruno: 5 cards\n• Diego: 3 cards\n\nSugiro mover 2 revisões da Ana para o Diego.';
+    if (/projeto|prazo|sprint/.test(s)) return 'Notificações WhatsApp é o único projeto em risco: 35% concluído com 60% do sprint decorrido. O prazo foi ajustado para 07/11 depois do adiamento da Etapa B. Os demais estão no ritmo.';
+    if (/whats|wa-ha|mensag|fila/.test(s)) return 'Hoje enviei 6 mensagens pelo Wa-ha e tenho 2 agendadas (14:00 e 17:30). Uma falhou às 08:45 por queda de sessão; reconectei e reenviei às 08:52.';
+    return 'Anotei. Vou acompanhar no board e aviso você pelo WhatsApp se algo mudar.';
+  }
+  ask(text) {
+    const q = (text || '').trim();
+    if (!q) { this.setState({ chatOpen: true }); return; }
+    this.setState(s => ({ chatOpen: true, thinking: true, draft: '', heroDraft: '', floatDraft: '', messages: [...s.messages, { from: 'me', text: q }] }));
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState(s => ({ thinking: false, messages: [...s.messages, { from: 'eva', text: this.reply(q) }] })), 1400);
+  }
+  charge(row) {
+    const now = new Date();
+    const time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+    const first = this.P[row.p].n.split(' ')[0];
+    const key = 'x' + row.id;
+    this.setState(s => ({
+      charged: { ...s.charged, [row.id]: true },
+      extraWa: [{ key, time, to: this.P[row.p].n, text: `${first}, a task “${row.title}” está atrasada há ${row.days} ${row.days > 1 ? 'dias' : 'dia'}. Consegue atualizar o status?`, st: 'sending' }, ...s.extraWa],
+    }));
+    setTimeout(() => this.setState(s => ({ extraWa: s.extraWa.map(m => m.key === key ? { ...m, st: 'delivered' } : m) })), 1500);
+  }
+
+  segStyle(active, small) {
+    return {
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: small ? '5px 12px' : '6px 16px',
+      fontSize: small ? 12 : 14, fontWeight: 600, borderRadius: 8, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+      transition: 'all .2s', background: active ? 'var(--eva-seg-active)' : 'transparent', color: active ? 'var(--eva-fg1)' : 'var(--eva-fg4)',
+      boxShadow: active ? '0 1px 2px rgba(0,0,0,.05), 0 0 0 1px rgba(0,0,0,.05)' : 'none',
+    };
+  }
+
+  insight(key, src, text, cta, doneText, q) {
+    const done = !!this.state.acks[key];
+    return {
+      src, text, cta, doneText, open: !done, done,
+      act: () => this.setState(s => ({ acks: { ...s.acks, [key]: true } })),
+      ask: () => this.ask(q),
+    };
+  }
+
+  renderVals() {
+    const st = this.state;
+    const me = st.view === 'me';
+    const showInsights = this.props.showInsights ?? true;
+    const animated = this.props.animatedGlow ?? true;
+    const ic = (paths) => React.createElement('svg', { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round', dangerouslySetInnerHTML: { __html: paths } });
+
+    const cols = this.KANBAN[me ? 'me' : 'team'];
+    const totalCards = cols.reduce((a, c) => a + c[3], 0);
+    const columns = cols.map(c => ({
+      key: c[0], label: c[1], color: c[2], count: c[3], pct: (c[3] / totalCards * 100).toFixed(1),
+      items: c[4].map(([t, p]) => ({ t, ini: this.P[p].ini, bg: this.P[p].bg })),
+    }));
+    const openCards = cols.slice(0, 4).reduce((a, c) => a + c[3], 0);
+
+    let od = this.OVERDUE.filter(r => !me || r.mine);
+    if (st.filter === 'crit') od = od.filter(r => r.prio === 'critical' || r.prio === 'high');
+    const overdue = od.map(r => {
+      const charged = !!st.charged[r.id];
+      const pr = this.PRIO[r.prio];
+      return {
+        ...r, charged, prioLabel: pr[0], prioColor: pr[1], prioRing: pr[2],
+        meta: `${r.project} · ${this.P[r.p].n}`,
+        late: `${r.days} ${r.days > 1 ? 'dias' : 'dia'}`,
+        last: charged ? 'Cobrança enviada agora via WhatsApp' : r.last,
+        lastColor: charged ? '#059669' : 'var(--eva-fg5)',
+        btnLabel: charged ? 'Cobrada' : (r.mine ? 'Lembrar' : 'Cobrar'),
+        btnStyle: {
+          padding: '6px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, fontFamily: 'inherit', flexShrink: 0,
+          cursor: charged ? 'default' : 'pointer', whiteSpace: 'nowrap',
+          border: charged ? '1px solid rgba(16,185,129,.25)' : '1px solid var(--eva-line2)',
+          background: charged ? 'rgba(16,185,129,.1)' : 'var(--eva-surface)', color: charged ? '#059669' : 'var(--eva-fg2)',
+        },
+        onCharge: () => { if (!charged) this.charge(r); },
+      };
+    });
+
+    const baseWa = this.WA[me ? 'me' : 'team'];
+    const extra = me ? [] : st.extraWa;
+    const waQueue = [...baseWa.slice(0, me ? 1 : 2), ...extra, ...baseWa.slice(me ? 1 : 2)].map(m => ({
+      ...m, statusLabel: this.WA_ST[m.st][0], tone: this.WA_ST[m.st][1], note: m.note || '',
+    }));
+
+    const projects = this.PROJECTS.filter(p => !me || p.mine).map(p => {
+      const pct = Math.round(p.done / p.total * 100);
+      return { ...p, pct, tasks: `${p.done}/${p.total}`, bar: p.tone === 'warning' ? 'linear-gradient(to right,#f59e0b,#f97316)' : 'linear-gradient(to right,#3b82f6,#8b5cf6)' };
+    });
+
+    const myTasks = this.MY.map(t => {
+      const done = !!st.myDone[t.id];
+      return {
+        ...t, done, late: !!t.late && !done,
+        toggle: () => this.setState(s => ({ myDone: { ...s.myDone, [t.id]: !s.myDone[t.id] } })),
+        boxStyle: {
+          width: 20, height: 20, marginTop: 1, borderRadius: 6, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: done ? 'none' : '1.5px solid var(--eva-line-hover)', background: done ? 'linear-gradient(to bottom right,#3b82f6,#6366f1)' : 'var(--eva-surface)',
+          boxShadow: done ? '0 4px 6px -1px rgba(59,130,246,.3)' : 'none', transition: 'all .2s',
+        },
+        titleStyle: { display: 'block', fontSize: 13, fontWeight: 500, color: done ? 'var(--eva-fg5)' : 'var(--eva-fg1)', textDecoration: done ? 'line-through' : 'none' },
+      };
+    });
+    const doneCount = myTasks.filter(t => t.done).length;
+
+    const charges = Object.keys(st.charged).length;
+    const stats = me ? [
+      { label: 'Em aberto', value: 8, hint: 'Cards atribuídos a você', icon: ic('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v7"/><path d="M12 7v4"/><path d="M16 7v9"/>'), bg: 'linear-gradient(to bottom right,#3b82f6,#2563eb)', shadow: '0 10px 15px -3px rgba(59,130,246,.3), 0 0 0 4px rgba(59,130,246,.2)', flare: '#3b82f6' },
+      { label: 'Atrasadas', value: 1, hint: 'Validar seletor de convênios', icon: ic('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'), bg: 'linear-gradient(to bottom right,#ef4444,#e11d48)', shadow: '0 10px 15px -3px rgba(239,68,68,.3), 0 0 0 4px rgba(239,68,68,.2)', flare: '#ef4444' },
+      { label: 'Hoje', value: `${doneCount}/5`, hint: 'Tasks do dia concluídas', icon: ic('<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/>'), bg: 'linear-gradient(to bottom right,#10b981,#16a34a)', shadow: '0 10px 15px -3px rgba(16,185,129,.3), 0 0 0 4px rgba(16,185,129,.2)', flare: '#10b981' },
+      { label: 'Projetos', value: 3, hint: '1 em risco', icon: ic('<path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5c0-1.1.9-2 2-2h3.93a2 2 0 0 1 1.66.9l.82 1.2a2 2 0 0 0 1.66.9H18a2 2 0 0 1 2 2v2"/>'), bg: 'linear-gradient(to bottom right,#8b5cf6,#7c3aed)', shadow: '0 10px 15px -3px rgba(139,92,246,.3), 0 0 0 4px rgba(139,92,246,.2)', flare: '#8b5cf6' },
+    ] : [
+      { label: 'Em aberto', value: openCards, hint: 'Backlog a Revisão', icon: ic('<rect width="18" height="18" x="3" y="3" rx="2"/><path d="M8 7v7"/><path d="M12 7v4"/><path d="M16 7v9"/>'), bg: 'linear-gradient(to bottom right,#3b82f6,#2563eb)', shadow: '0 10px 15px -3px rgba(59,130,246,.3), 0 0 0 4px rgba(59,130,246,.2)', flare: '#3b82f6' },
+      { label: 'Atrasadas', value: 4, hint: '1 crítica', icon: ic('<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'), bg: 'linear-gradient(to bottom right,#ef4444,#e11d48)', shadow: '0 10px 15px -3px rgba(239,68,68,.3), 0 0 0 4px rgba(239,68,68,.2)', flare: '#ef4444' },
+      { label: 'Concluídas', value: 23, hint: 'Nesta semana', icon: ic('<path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="m9 12 2 2 4-4"/>'), bg: 'linear-gradient(to bottom right,#10b981,#16a34a)', shadow: '0 10px 15px -3px rgba(16,185,129,.3), 0 0 0 4px rgba(16,185,129,.2)', flare: '#10b981' },
+      { label: 'Cobranças', value: 6 + charges, hint: 'Enviadas hoje pela EVA', icon: ic('<path d="m3 21 1.9-5.7a8.5 8.5 0 1 1 3.8 3.8z"/>'), bg: 'linear-gradient(to bottom right,#8b5cf6,#7c3aed)', shadow: '0 10px 15px -3px rgba(139,92,246,.3), 0 0 0 4px rgba(139,92,246,.2)', flare: '#8b5cf6' },
+    ];
+
+    const ins = me ? {
+      kanban: this.insight('k-me', 'Board · agora', 'Você tem 1 card parado em Revisão há 3 dias: o PR de upload de carteirinha. Ele bloqueia 2 tasks da Ana no Portal do Paciente.', 'Reservar horário', 'Feito. Reservei 14:30–15:30 na sua agenda e avisei a Ana.', 'O que está bloqueado por mim?'),
+      overdue: this.insight('o-me', 'Board · Portal do Paciente', 'A validação do seletor de convênios venceu ontem. A Ana precisa dela para fechar a regra de 24h.', 'Lembrar às 11:00', 'Combinado. Vou lembrar você às 11:00 pelo WhatsApp.', 'O que está atrasado?'),
+      wa: this.insight('w-me', 'Wa-ha · hoje', 'Você recebeu 2 mensagens minhas hoje. Às 14:20 envio o lembrete da revisão do PR.', 'Silenciar até 14:00', 'Pronto. Nenhuma mensagem até 14:00.', 'Quais mensagens estão na fila?'),
+      projects: this.insight('p-me', 'Granola · Sprint review 10/10', 'Na reunião de sexta ficou decidido adiar a Etapa B da recoleta. Atualizei o prazo de Notificações WhatsApp para 07/11.', 'Ver resumo da reunião', 'Resumo aberto no chat da EVA.', 'Resumo da última reunião'),
+      mine: this.insight('m-me', 'Agenda · hoje', 'Entre 14:30 e 16:00 você não tem reuniões. É o melhor horário para a revisão do PR, que libera 2 tasks da Ana.', 'Bloquear agenda', 'Feito. Bloqueei 14:30–16:00.', 'Como organizo meu dia?'),
+    } : {
+      kanban: this.insight('k-team', 'Board · agora', 'A coluna Revisão acumulou 6 cards, 4 deles com a Ana. O Diego tem capacidade livre esta semana: sugiro mover 2 revisões para ele.', 'Redistribuir', 'Feito. Movi 2 revisões para o Diego e avisei os dois no WhatsApp.', 'Quem está sobrecarregado?'),
+      overdue: this.insight('o-team', 'Board · Wa-ha', 'O Bruno não respondeu a cobrança das 10:12. Ele está no plantão de coleta até 13h, então reagendei uma nova cobrança para 13:15.', 'Manter 13:15', 'Combinado. Cobrança mantida para 13:15.', 'O que está atrasado?'),
+      wa: this.insight('w-team', 'Wa-ha · 08:52', 'A sessão do Wa-ha caiu às 08:45 e uma mensagem para o Diego falhou. Reconectei às 08:52 e reenviei.', 'Ver logs', 'Logs abertos em Sistema › Provedores de Mensagens.', 'Como está a fila do WhatsApp?'),
+      projects: this.insight('p-team', 'Granola · Sprint review 10/10', 'Na reunião de sexta ficou decidido adiar a Etapa B da recoleta. Atualizei o prazo de Notificações WhatsApp para 07/11 e marquei o projeto como em risco.', 'Ver resumo da reunião', 'Resumo aberto no chat da EVA.', 'Resumo da última reunião'),
+      mine: this.insight('m-team', 'Agenda · hoje', 'Entre 14:30 e 16:00 você não tem reuniões. É o melhor horário para a revisão do PR, que libera 2 tasks da Ana.', 'Bloquear agenda', 'Feito. Bloqueei 14:30–16:00.', 'Como organizo meu dia?'),
+    };
+    const pAct = ins.projects.act;
+    ins.projects.act = () => { pAct(); this.ask('Resumo da última reunião'); };
+
+    const sugg = ['O que está atrasado?', 'Resumo da última reunião', 'Quem está sobrecarregado?'];
+    const dots = [0, 1, 2].map(i => React.createElement('span', { key: i, style: { width: 6, height: 6, borderRadius: '50%', background: '#6366f1', animation: `eva-dot 1.2s ${i * 0.15}s ease-in-out infinite` } }));
+
+    return {
+      navRef: this.navRef, chatRef: this.chatRef,
+      orbHero: this.orb(96, (st.thinking || st.listening) ? 2.2 : 1),
+      orbFloat: this.orb(32, (st.thinking || st.listening) ? 2.2 : 1),
+      orbXs: this.orb(22, 1),
+      orbXsFast: this.orb(22, 2.5),
+      orbChat: this.orb(36, st.thinking ? 2.5 : 1),
+      glow: this.glowLayer(1, animated),
+      glowSoft: this.glowLayer(0.55, animated),
+      edgeGlow: React.createElement('div', { style: { position: 'fixed', inset: 0, zIndex: 60, pointerEvents: 'none', borderRadius: 0, animation: 'eva-edge 1.6s linear infinite' } }),
+      dots,
+      todayLabel: 'Terça, 13 de outubro',
+      greeting: me ? 'Bom dia, Rafael' : 'Bom dia, equipe de TI',
+      briefing: me
+        ? `Você tem 5 tasks hoje, ${myTasks.filter(t => t.late).length} atrasada. Reservei a tarde para a revisão do PR do Portal do Paciente.`
+        : 'Hoje há 4 tasks atrasadas e 2 mensagens agendadas no WhatsApp. O board já reflete o sprint review de sexta, importado do Granola.',
+      heroDraft: st.heroDraft,
+      onHeroChange: e => this.setState({ heroDraft: e.target.value }),
+      onHeroKey: e => { if (e.key === 'Enter') this.ask(st.heroDraft); },
+      sendHero: () => this.ask(st.heroDraft),
+      suggestions: sugg.map(label => ({ label, onClick: () => this.ask(label) })),
+      setTeam: () => this.setState({ view: 'team' }),
+      setMe: () => this.setState({ view: 'me' }),
+      tabTeamStyle: this.segStyle(!me), tabMeStyle: this.segStyle(me),
+      filterAll: () => this.setState({ filter: 'all' }),
+      filterCrit: () => this.setState({ filter: 'crit' }),
+      fAllStyle: this.segStyle(st.filter === 'all', true), fCritStyle: this.segStyle(st.filter === 'crit', true),
+      stats, columns,
+      kanbanSub: me ? `${totalCards} cards seus, por coluna` : `${totalCards} cards na equipe, por coluna`,
+      overdue, waQueue, projects, myTasks,
+      myProgress: `${doneCount} de ${myTasks.length} concluídas`,
+      showInsights, ins,
+      chatOpen: st.chatOpen, thinking: st.thinking,
+      chatStatus: st.thinking ? 'Analisando board, projetos e reuniões…' : 'Agente de TI · online',
+      openChat: () => this.setState({ chatOpen: true }),
+      closeChat: () => this.setState({ chatOpen: false }),
+      messages: st.messages.map(m => ({ ...m, isEva: m.from === 'eva', isMe: m.from === 'me' })),
+      draft: st.draft,
+      onDraftChange: e => this.setState({ draft: e.target.value }),
+      onDraftKey: e => { if (e.key === 'Enter') this.ask(st.draft); },
+      sendDraft: () => this.ask(st.draft),
+      heroRef: this.heroRef,
+      isDark: st.theme === 'dark', isLight: st.theme !== 'dark',
+      toggleTheme: () => this.toggleTheme(),
+      logoSrc: st.theme === 'dark' ? 'assets/LOGO-HOR-DM.svg' : 'assets/LOGO-HOR.svg',
+      glowActive: st.thinking || st.listening,
+      voiceNotice: st.voiceNotice,
+      micTitle: st.listening ? 'Parar ditado' : 'Falar com a EVA',
+      micHero: () => this.toggleVoice('hero'),
+      micChat: () => this.toggleVoice('chat'),
+      micFloat: () => this.toggleVoice('float'),
+      micHeroStyle: this.micStyle('hero', 40),
+      micChatStyle: this.micStyle('chat', 36),
+      micFloatStyle: this.micStyle('float', 36),
+      heroPlaceholder: st.listening && st.voiceTarget === 'hero' ? 'Ouvindo… fale sua pergunta' : 'Pergunte à EVA sobre tasks, projetos ou reuniões',
+      chatPlaceholder: st.listening && st.voiceTarget === 'chat' ? 'Ouvindo… fale sua pergunta' : 'Escreva para a EVA',
+      floatPlaceholder: st.listening && st.voiceTarget === 'float' ? 'Ouvindo…' : 'Pergunte à EVA',
+      floatDraft: st.floatDraft,
+      onFloatChange: e => this.setState({ floatDraft: e.target.value }),
+      onFloatKey: e => { if (e.key === 'Enter') this.ask(st.floatDraft); },
+      sendFloat: () => this.ask(st.floatDraft),
+      floatStyle: (() => {
+        const show = st.floatVisible && !st.chatOpen;
+        return {
+          position: 'fixed', right: 24, bottom: 24, zIndex: 35, width: 400, maxWidth: 'calc(100vw - 48px)',
+          transition: 'opacity .3s cubic-bezier(.22,1,.36,1), transform .3s cubic-bezier(.22,1,.36,1)',
+          opacity: show ? 1 : 0, transform: show ? 'translateY(0) scale(1)' : 'translateY(16px) scale(.96)',
+          pointerEvents: show ? 'auto' : 'none',
+        };
+      })(),
+    };
+  }
+}
+</script>
+</body>
+</html>
