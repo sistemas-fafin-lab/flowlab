@@ -18,7 +18,7 @@ Plano: §4.2 (RF11, RF13, RF17), §5 (Fluxo 1) e §8 (`ti-agente-analisar.ts`).
 
 **Blocked by:** 08.
 
-**Status:** ready-for-agent
+**Status:** done no código (13/Out/2026); falta colar uma reunião de verdade pela tela, depois das migrations
 
 - [ ] Ação `agente-analisar` no dispatcher:
   - POST com sessão;
@@ -30,3 +30,15 @@ Plano: §4.2 (RF11, RF13, RF17), §5 (Fluxo 1) e §8 (`ti-agente-analisar.ts`).
 - [ ] Reunião em erro mostra a mensagem e o botão Reanalisar.
 
 ## Comments
+
+**13/Out/2026 — implementado no código.**
+- **Ação `agente-analisar`** (`api/_lib/handlers/ti-agente-analisar.ts`):
+  - colar exige `canManageIT` ou `canApproveAgenteTI`; reanalisar (`{ reuniao_id }`) só gestor;
+  - resumo de até 60 mil caracteres, com erro 413 legível;
+  - `dryRun` analisa numa linha temporária e não deixa nada gravado.
+- **Aba Reuniões** (`ReunioesPage.tsx`):
+  - lista com origem, data, status, número de sugestões, link para o Granola e o selo "atualizada desde a análise" (D14);
+  - selo "Gemini" com o motivo da reserva;
+  - reunião em erro mostra a mensagem e, para gestor, "Reanalisar".
+- **Colar reunião:** modal com título, data (padrão: hoje em Brasília) e resumo. A data vai como 15:00 UTC (meio-dia em Brasília), para os prazos relativos não mudarem de dia.
+- **Diferença do texto da issue:** o modal não tem prévia do markdown. O resumo vai como foi colado.

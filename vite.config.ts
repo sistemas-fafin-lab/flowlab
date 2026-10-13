@@ -808,6 +808,7 @@ function tiApiPlugin(env: Record<string, string>): Plugin {
     'agente-sync-cron': 'GET',
     'agente-sincronizar': 'POST',
     'agente-analisar': 'POST',
+    'agente-perguntar': 'POST',
   };
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY',

@@ -18,7 +18,7 @@ Plano: §2 (D20, D26), §4.2 (RF23, RF24), §4.4 (RN17), §9.1, §9.5, §12.3 e 
 
 **Blocked by:** 03, 06. Os cartões de proposta precisam da 11 (RPC) e do diálogo de confirmação da 17. A 08 deixa o contexto mais rico (resumo da última reunião), mas não bloqueia: sem reunião analisada, o contexto vai sem ela.
 
-**Status:** ready-for-agent
+**Status:** done no código (13/Out/2026); falta conferir no navegador (voz e proposta de ponta a ponta) depois das migrations
 
 - [ ] `api/_lib/ti-agente/chat.ts`:
   - monta o contexto, com cards abertos um por linha, projetos e sprints, o resumo da última reunião analisada e as últimas mensagens da fila;
@@ -44,3 +44,38 @@ Plano: §2 (D20, D26), §4.2 (RF23, RF24), §4.4 (RN17), §9.1, §9.5, §12.3 e 
   - limite diário: a 31ª pergunta recusada.
 
 ## Comments
+
+**13/Out/2026 — implementado no código.**
+- **Servidor:**
+  - `api/_lib/ti-agente/chat.ts`: instruções, contexto, schema `{ resposta, cards_citados, propostas }` e validação;
+  - `api/_lib/handlers/ti-agente-perguntar.ts`, registrado no dispatcher, no `api/server.ts` e no `tiApiPlugin`.
+- **Contexto:**
+  - na ordem: hoje, membros, cards abertos, projetos e sprints, a última reunião analisada (resumo cortado em 8 mil caracteres, com as decisões) e as 10 últimas mensagens da fila;
+  - a fila só entra para gestor (D24). Na Minha visão, só os cards da pessoa e só as mensagens trocadas com ela;
+  - o histórico vai com as 6 últimas mensagens, delimitado como dado (RN15).
+- **Validação:**
+  - código citado fora do contexto sai;
+  - as propostas passam pela mesma validação das reuniões (§9.4);
+  - pedido sobre card que não está no contexto não vira "card novo", ao contrário da reunião: a pessoa pediu um card específico.
+  
+  A resposta leva o card atual (para o "antes → depois") e o nome das pessoas citadas.
+- **Limite:** 30 perguntas por pessoa por dia em Brasília, contando as tentativas do Claude em `ti_agente_chamadas_ia`. Na 31ª, 429 com "Você chegou ao limite de perguntas de hoje".
+- **Tela:**
+  - `useEvaChat` chama `evaService.ask`, uma pergunta por vez;
+  - a abertura do drawer é montada no cliente ("Li o board e a última reunião (10/10)");
+  - erro de rede ou dos dois provedores mostra a mensagem do handoff, em destaque âmbar;
+  - os códigos citados viram atalhos que abrem o card.
+- **Propostas no drawer** (`PropostaChatCard`, D28):
+  - antes → depois, avisos e "Descartar";
+  - o botão é "Aprovar e executar" para gestor e "Enviar para aprovação" para os demais. Os dois chamam `ti_agente_propor_sugestao` com `origem = 'chat'`;
+  - nada é gravado até o clique. Quando o gestor executa, o Início relê o board.
+- **Voz:** `useVoiceInput` ligado no hero, no drawer e na barra flutuante, com as mensagens de erro do handoff.
+- **Testes:**
+  - `chat.test.ts` (10): contexto, fila só de gestor, Minha visão, código inexistente, proposta validada, schema;
+  - `ti-agente-perguntar.test.ts` (6): a 31ª pergunta recusada sem chamar a IA; pedido de mudança vira proposta sem nenhuma escrita no banco; Minha visão sem cards dos outros; fila só para gestor; mensagem do handoff; pergunta vazia;
+  - `chatReplies.test.ts` (3) e o teste de fumaça do cartão de proposta.
+- **Teste real com dados fictícios** (Claude, sem gravar), cerca de 2,2 mil tokens de entrada e 150 a 260 de saída por pergunta:
+  - "O que está atrasado?" listou o IT-045 com prazo e responsável;
+  - "Passa o IT-052 para o Diego e move para em andamento" virou uma proposta com coluna e responsável certos, e a resposta disse "Nada foi alterado ainda";
+  - **ajuste feito depois:** a primeira rodada usava os códigos das colunas ("review") e oferecia o botão Cobrar sem que pedissem, e ele ainda não existe. As instruções agora mandam usar os nomes da tela e só falar de cobrança quando pedirem.
+- **Cache:** a entrada ficou em cerca de 2,2 mil tokens, perto do mínimo de cache do Sonnet. Falta conferir `cache_read_input_tokens` com o board real, que é maior.

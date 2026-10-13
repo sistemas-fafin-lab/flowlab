@@ -54,6 +54,8 @@ CREATE TABLE IF NOT EXISTS public.ti_agente_config (
     CONSTRAINT ti_agente_config_linha_unica CHECK (id),
   granola_folder_id       text,
   granola_ultima_sync_em  timestamptz,
+  granola_verificado_em   timestamptz,
+  granola_ultimo_erro     text,
   whatsapp_ativo          boolean NOT NULL DEFAULT false,
   cobranca_ativa          boolean NOT NULL DEFAULT false,
   dias_parado             smallint NOT NULL DEFAULT 5
@@ -64,9 +66,15 @@ CREATE TABLE IF NOT EXISTS public.ti_agente_config (
   updated_at              timestamptz NOT NULL DEFAULT now()
 );
 
+-- Quem já tiver criado a tabela antes destas duas colunas recebe as duas aqui.
+ALTER TABLE public.ti_agente_config ADD COLUMN IF NOT EXISTS granola_verificado_em timestamptz;
+ALTER TABLE public.ti_agente_config ADD COLUMN IF NOT EXISTS granola_ultimo_erro text;
+
 COMMENT ON TABLE public.ti_agente_config IS 'Configuração da EVA (linha única, id = true). Liga/desliga do WhatsApp e da cobrança, pasta do Granola e situação da sessão do WAHA.';
 COMMENT ON COLUMN public.ti_agente_config.granola_folder_id IS 'Pasta do Granola que a sincronização lê (fol_…). Hoje: "Team meetings" do espaço "TI Lab team".';
-COMMENT ON COLUMN public.ti_agente_config.granola_ultima_sync_em IS 'Cursor da sincronização (updated_after). Só avança quando a execução termina sem erro.';
+COMMENT ON COLUMN public.ti_agente_config.granola_ultima_sync_em IS 'Cursor da sincronização (updated_after): o maior updated_at de nota já visto. Só avança quando a execução termina sem erro.';
+COMMENT ON COLUMN public.ti_agente_config.granola_verificado_em IS 'Fim da última sincronização sem erro, com ou sem nota nova. É o que o chip "Granola" do Início mostra (D25).';
+COMMENT ON COLUMN public.ti_agente_config.granola_ultimo_erro IS 'Erro da última sincronização; NULL quando a última terminou bem. Acende o chip "Granola" em vermelho.';
 COMMENT ON COLUMN public.ti_agente_config.whatsapp_ativo IS 'Liga/desliga geral do envio de WhatsApp (RF20). O script da VPS confere antes de cada envio.';
 COMMENT ON COLUMN public.ti_agente_config.cobranca_ativa IS 'Liga/desliga só da cobrança diária automática.';
 COMMENT ON COLUMN public.ti_agente_config.dias_parado IS 'Dias sem mudança para um card em andamento/revisão contar como parado (RN04).';

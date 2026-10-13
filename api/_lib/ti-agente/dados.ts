@@ -27,13 +27,18 @@ const primeiroNome = (nome: string) => nome.trim().split(/\s+/)[0] ?? '';
 export async function lerMembros(db: SupabaseClient): Promise<MembroCtx[]> {
   const { data: membros, error } = await db
     .from('ti_agente_membros')
-    .select('user_id, apelidos, user_profiles!inner(name, deleted_at)')
+    .select('user_id, apelidos, perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at)')
     .eq('ativo', true);
   if (error) throw new Error(error.message);
-  const ativos = (membros ?? []).filter((m) => !(m.user_profiles as unknown as { deleted_at: string | null }).deleted_at);
+  type Perfil = { name: string; deleted_at: string | null } | null;
+  // Duas FKs para user_profiles (user_id e updated_by): o embed precisa do nome da FK.
+  const ativos = (membros ?? []).filter((m) => {
+    const p = m.perfil as unknown as Perfil;
+    return p && !p.deleted_at;
+  });
   if (ativos.length > 0) {
     return ativos.map((m) => {
-      const nome = (m.user_profiles as unknown as { name: string }).name;
+      const nome = (m.perfil as unknown as { name: string }).name;
       return { id: m.user_id as string, nome, apelidos: (m.apelidos as string[]) ?? [] };
     });
   }

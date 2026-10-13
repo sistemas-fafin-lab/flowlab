@@ -16,6 +16,7 @@ const PONTO: Record<IntegrationState, string> = {
   online: 'bg-emerald-500',
   offline: 'bg-red-500',
   pending: 'bg-slate-300 dark:bg-slate-600',
+  attention: 'bg-amber-500',
 };
 
 const CHIP =

@@ -12,7 +12,9 @@ import { ProjectsCard } from './ProjectsCard';
 import { MyTasksCard } from './MyTasksCard';
 import { WhatsAppQueueCard } from './WhatsAppQueueCard';
 import { EvaStatCards } from './EvaStatCards';
+import { PropostaChatCard } from './PropostaChatCard';
 import type { OverdueRow } from '../hooks/useEvaHome';
+import type { PropostaEva } from '../types';
 
 const HOJE = '2026-10-13';
 const EU = 'u-eu';
@@ -59,6 +61,20 @@ describe('blocos do Início (fumaça)', () => {
     expect(html).toContain('Sem responsável');
     // Antes da Fase 3 não há botão de cobrar.
     expect(html).not.toContain('>Cobrar<');
+  });
+
+  it('proposta do chat: o botão depende de quem confirma, e nada diz que já mudou (D28)', () => {
+    const p: PropostaEva = {
+      id: 'p1', tipo: 'atualizar_card', card_id: 'c1', trecho: 'move o IT-045 para revisão', confianca: 'alta', avisos: [], estado: 'aberta',
+      proposta: { kanban_status: 'review' },
+      card: { id: 'c1', codigo: 'IT-045', title: 'Robô de pré-faturamento', kanban_status: 'in_progress', priority: 'high', due_date: null, assigned_to: [] },
+    };
+    const gestor = render(h(PropostaChatCard, { p, ehGestor: true, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }));
+    expect(gestor).toContain('Aprovar e executar');
+    expect(gestor).toContain('Em Progresso');
+    expect(gestor).toContain('Revisão');
+    expect(render(h(PropostaChatCard, { p, ehGestor: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviar para aprovação');
+    expect(render(h(PropostaChatCard, { p: { ...p, estado: 'na_fila' }, ehGestor: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviada para aprovação');
   });
 
   it('mostram estados vazios em vez de quebrar', () => {

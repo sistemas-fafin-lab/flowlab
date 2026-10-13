@@ -1,5 +1,27 @@
 // Helpers de texto e data da interface da EVA (do handoff). As respostas fixas do
-// protótipo saíram: o chat real entra na issue 16 (ação `agente-perguntar`).
+// protótipo saíram: quem responde é a ação `agente-perguntar` (issue 16).
+import { diaSP, formatarDiaMes } from './datas';
+
+/** Mensagem do handoff quando os dois provedores falham. */
+export const FALHA_CHAT = 'Não consegui consultar o board agora. Tente novamente em alguns segundos.';
+/** O servidor só olha as últimas 6 (RN17); mandar mais é desperdício. */
+export const HISTORICO_ENVIADO = 6;
+
+/** Abertura do drawer, sem IA: saudação + o que a EVA leu (issue 16). */
+export function mensagemInicial(nome: string, ultimaReuniaoEm: string | null, date = new Date()): string {
+  const lido = ultimaReuniaoEm
+    ? `Li o board e a última reunião (${formatarDiaMes(diaSP(new Date(ultimaReuniaoEm)))}).`
+    : 'Li o board.';
+  return `${greetingFor(date)}${nome ? `, ${nome}` : ''}. ${lido} Pergunte sobre cards, atrasos e projetos, ou peça uma mudança: eu preparo a proposta e nada muda sem aprovação.`;
+}
+
+/** As últimas mensagens da conversa, no formato da ação (sem a abertura e sem falhas). */
+export function historicoParaEnvio(mensagens: { from: 'eva' | 'me'; text: string; falhou?: boolean }[]) {
+  return mensagens
+    .filter((m) => !m.falhou)
+    .slice(-HISTORICO_ENVIADO)
+    .map((m) => ({ de: m.from === 'me' ? ('eu' as const) : ('eva' as const), texto: m.text }));
+}
 
 export function formatTodayLabel(date = new Date()): string {
   const weekday = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', timeZone: 'America/Sao_Paulo' }).format(date).replace('-feira', '');

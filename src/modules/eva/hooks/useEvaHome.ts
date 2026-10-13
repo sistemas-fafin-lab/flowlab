@@ -23,6 +23,8 @@ export interface AvisoEva {
   desfazer?: () => void;
 }
 
+const SEM_CARDS: CardTI[] = [];
+
 /** Janela para desfazer a conclusão de uma task do dia. */
 export const JANELA_DESFAZER_MS = 5000;
 /** Mesmo intervalo mínimo entre e-mails de status do Board (ITKanbanBoard). */
@@ -215,6 +217,16 @@ export function useEvaHome(defaultView: EvaView = 'team') {
     [nomes, avisar],
   );
 
+  /** Card citado no chat, pelo código. Fora do Início (ex.: oculto), avisa. */
+  const abrirCardPorCodigo = useCallback(
+    (codigo: string) => {
+      const card = dados?.cards.find((c) => c.codigo.toUpperCase() === codigo.toUpperCase());
+      if (card) void abrirCard(card.id);
+      else avisar(`Não achei o ${codigo} no board.`, 'erro');
+    },
+    [dados, abrirCard, avisar],
+  );
+
   const fecharCard = useCallback(() => {
     setCardAberto(null);
     void carregar();
@@ -230,7 +242,10 @@ export function useEvaHome(defaultView: EvaView = 'team') {
     snapshot, overdue,
     toggleTask,
     aviso, fecharAviso: () => setAviso(null),
-    cardAberto, abrirCard, fecharCard, atualizarCardAberto,
+    cardAberto, abrirCard, abrirCardPorCodigo, fecharCard, atualizarCardAberto,
+    nomes, avisar,
+    /** Os cards crus, para as regras dos comentários (domain/comentarios.ts). */
+    cards: dados?.cards ?? SEM_CARDS, hoje: dados?.hoje ?? null, usuarioId,
   };
 }
 

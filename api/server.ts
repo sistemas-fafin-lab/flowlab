@@ -111,6 +111,7 @@ HANDLERS.set('POST /api/users/create', () => import('./users/create.js'));
 HANDLERS.set('GET /api/ti/agente-sync-cron',   () => import('./_lib/handlers/ti-agente-sync-cron.js'));
 HANDLERS.set('POST /api/ti/agente-sincronizar', () => import('./_lib/handlers/ti-agente-sincronizar.js'));
 HANDLERS.set('POST /api/ti/agente-analisar',    () => import('./_lib/handlers/ti-agente-analisar.js'));
+HANDLERS.set('POST /api/ti/agente-perguntar',   () => import('./_lib/handlers/ti-agente-perguntar.js'));
 HANDLERS.set('POST /api/analises-clinicas/deliver-coleta',     () => import('./_lib/handlers/deliver-coleta.js'));
 HANDLERS.set('POST /api/analises-clinicas/deliver-resultado',  () => import('./_lib/handlers/deliver-resultado.js'));
 HANDLERS.set('GET /api/analises-clinicas/get-disponibilidade', () => import('./_lib/handlers/get-disponibilidade.js'));

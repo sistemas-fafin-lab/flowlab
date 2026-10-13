@@ -16,7 +16,7 @@ Plano: §3 (Granola, Claude e Gemini), §5, §8 (`api/`), §9.1 e RNF02/RNF03/RN
 
 **Blocked by:** 05 (precisa de `ti_agente_chamadas_ia`).
 
-**Status:** ready-for-agent
+**Status:** done no código (13/Out/2026)
 
 - [ ] `api/ti/[action].ts` espelhando `api/notifications/[action].ts`, com um `ROTAS` inicial contendo a ação `agente-sync-cron`, que exige `CRON_SECRET` e, nesta fase, só lista as notas em `dryRun`.
 - [ ] Rota registrada no `api/server.ts` (`HANDLERS.set`) e no middleware de dev do `vite.config.ts`.

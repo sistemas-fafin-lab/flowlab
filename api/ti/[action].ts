@@ -15,6 +15,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import agenteSyncCron from '../_lib/handlers/ti-agente-sync-cron.js';
 import agenteSincronizar from '../_lib/handlers/ti-agente-sincronizar.js';
 import agenteAnalisar from '../_lib/handlers/ti-agente-analisar.js';
+import agentePerguntar from '../_lib/handlers/ti-agente-perguntar.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
@@ -23,6 +24,7 @@ const ROTAS: Record<string, Handler> = {
   'agente-sync-cron': agenteSyncCron,
   'agente-sincronizar': agenteSincronizar,
   'agente-analisar': agenteAnalisar,
+  'agente-perguntar': agentePerguntar,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

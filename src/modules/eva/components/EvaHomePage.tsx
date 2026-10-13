@@ -1,4 +1,5 @@
 import React, { useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import './eva.css';
@@ -7,8 +8,13 @@ import { hasPermission } from '../../../utils/permissions';
 import ITTaskDrawer from '../../../components/IT/ITTaskDrawer';
 import { useEvaHome } from '../hooks/useEvaHome';
 import { useEvaChat } from '../hooks/useEvaChat';
+import { useEvaNoInicio } from '../hooks/useAgenteAdmin';
+import { useEvaComentarios } from '../hooks/useEvaComentarios';
 import { useScrolledPast } from '../hooks/useScrolledPast';
+import { useVoiceInput } from '../hooks/useVoiceInput';
 import { formatTodayLabel, greetingFor } from '../domain/chatReplies';
+import { montarComentarios, type ComentariosInicio } from '../domain/comentarios';
+import { montarIntegracoes } from '../domain/integracoes';
 import { primeiroNome } from '../domain/pessoas';
 import { EvaUIProvider } from './EvaUIContext';
 import { EvaHero } from './EvaHero';
@@ -23,30 +29,76 @@ import { MyTasksCard } from './MyTasksCard';
 import { EvaChatDrawer, EvaEdgeGlow } from './EvaChatDrawer';
 import { EvaFloatingChat } from './EvaFloatingChat';
 import { EvaToast } from './EvaToast';
+import { ConfirmarPropostaModal } from './ConfirmarPropostaModal';
 import { GlassCard } from './ui';
-import type { EvaInsightData, EvaView, IntegrationStatus } from '../types';
+import type { EvaInsightData, EvaView } from '../types';
 
 export interface EvaHomePageProps {
   animatedGlow?: boolean;
   defaultView?: EvaView;
 }
 
-// Fase 1: Granola e WhatsApp ainda não existem. Os chips dizem isso em vez de fingir
-// que estão conectados (§12.1). As fases 2 e 3 trocam por ti_agente_config.
-const INTEGRACOES_FASE1: IntegrationStatus[] = [
-  { id: 'granola', name: 'Granola', detail: 'ainda não configurado', state: 'pending' },
-  { id: 'waha', name: 'Wa-ha', detail: 'ainda não configurado', state: 'pending' },
-];
-
 /** /it/inicio — homepage do módulo de TI com a EVA. Renderizada dentro do <Layout>. */
 const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultView = 'team' }) => {
   const { userProfile } = useAuth();
+  const navigate = useNavigate();
   const nome = primeiroNome(userProfile?.name ?? '');
   const ehGestor = hasPermission(userProfile?.permissions || [], 'canApproveAgenteTI');
 
   const home = useEvaHome(defaultView);
-  const chat = useEvaChat(nome);
+  const eva = useEvaNoInicio(ehGestor);
+  const chat = useEvaChat({
+    primeiroNome: nome,
+    view: home.view,
+    ehGestor,
+    ultimaReuniaoEm: eva.dados?.ultimaReuniao?.analisada_em ?? null,
+    onExecutada: () => {
+      void home.recarregar();
+      void eva.recarregar();
+    },
+  });
+  const voice = useVoiceInput(chat.ask);
   const s = home.snapshot;
+
+  const integracoes = useMemo(
+    () => montarIntegracoes(eva.dados?.config ?? null, eva.dados?.pendentes ?? null, ehGestor),
+    [eva.dados, ehGestor],
+  );
+  const nomePessoa = (id: string) => chat.nomes[id] ?? home.nomes[id] ?? 'alguém';
+  const abrirCitado = (codigo: string) => {
+    chat.close();
+    home.abrirCardPorCodigo(codigo);
+  };
+
+  // Comentários da EVA (issue 17): regras fixas sobre os dados que o Início já leu.
+  const comentarios = useMemo<ComentariosInicio>(
+    () => (s && home.hoje
+      ? montarComentarios({
+          visao: home.view,
+          usuarioId: home.usuarioId,
+          hoje: home.hoje,
+          cards: home.cards,
+          nomes: home.nomes,
+          projetos: s.projects,
+          ehGestor,
+          config: eva.dados?.config ?? null,
+          ultimaReuniao: eva.dados?.ultimaReuniao ?? null,
+          pendentesDaReuniao: eva.dados?.pendentesDaReuniao ?? null,
+        })
+      : {}),
+    [s, home.hoje, home.view, home.usuarioId, home.cards, home.nomes, ehGestor, eva.dados],
+  );
+  const acoes = useEvaComentarios({
+    ehGestor,
+    navegar: navigate,
+    abrirCard: (id) => void home.abrirCard(id),
+    perguntar: (texto) => void chat.ask(texto),
+    onExecutada: () => {
+      void home.recarregar();
+      void eva.recarregar();
+    },
+    onFeito: (texto) => home.avisar(texto, 'sucesso'),
+  });
 
   const heroInputRef = useRef<HTMLDivElement>(null);
   const pastHero = useScrolledPast(heroInputRef);
@@ -55,16 +107,23 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
     ? `${greetingFor()}${nome ? `, ${nome}` : ''}`
     : `${greetingFor()}, equipe de TI`;
 
-  // Comentários da EVA entram na issue 17; até lá nenhum bloco tem rodapé.
-  const insight = (dado?: EvaInsightData) => (
-    <EvaInsight insight={dado} accepted={false} onAccept={() => undefined} onAsk={chat.ask} />
-  );
+  const insight = (dado?: EvaInsightData) => {
+    const feito = dado ? acoes.feitos[dado.id] : undefined;
+    return (
+      <EvaInsight
+        insight={dado && feito !== undefined ? { ...dado, doneText: feito } : dado}
+        accepted={feito !== undefined}
+        onAccept={() => dado && acoes.aceitar(dado)}
+        onAsk={chat.ask}
+      />
+    );
+  };
 
   const doneCount = useMemo(() => s?.myTasks.filter((t) => t.done).length ?? 0, [s]);
 
   return (
     <MotionConfig reducedMotion="user">
-      <EvaUIProvider showInsights={false} animatedGlow={animatedGlow}>
+      <EvaUIProvider showInsights animatedGlow={animatedGlow}>
         <div className="flex flex-col gap-7 pb-10 max-w-[1440px] mx-auto">
           <EvaHero
             ref={heroInputRef}
@@ -72,18 +131,22 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
             greeting={greeting}
             briefing={s?.briefing ?? (home.erro ? 'Não consegui ler o board agora.' : 'Lendo o board…')}
             thinking={chat.thinking}
-            listening={false}
-            transcript=""
-            voiceNotice=""
+            listening={voice.isActive('hero')}
+            transcript={voice.transcript}
+            voiceNotice={!pastHero && !chat.open ? voice.notice : ''}
             onAsk={chat.ask}
+            onMic={() => voice.toggle('hero')}
           />
 
           <EvaControls
             view={home.view}
             onViewChange={home.setView}
-            integrations={INTEGRACOES_FASE1}
+            integrations={integracoes}
             loading={home.loading}
-            onRefresh={() => void home.recarregar()}
+            onRefresh={() => {
+              void home.recarregar();
+              void eva.recarregar();
+            }}
           />
 
           {!s && home.erro && (
@@ -118,7 +181,7 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
                 total={s.totalCards}
                 members={s.members}
                 onOpenCard={(id) => void home.abrirCard(id)}
-                footer={insight()}
+                footer={insight(comentarios.kanban)}
               />
 
               <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,420px),1fr))]">
@@ -127,15 +190,15 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
                   filter={home.filter}
                   onFilterChange={home.setFilter}
                   onOpenCard={(id) => void home.abrirCard(id)}
-                  footer={insight()}
+                  footer={insight(comentarios.overdue)}
                 />
                 {/* D24: a fila do WhatsApp é só para gestores. Para os demais, as atrasadas ocupam a linha. */}
-                {ehGestor && <WhatsAppQueueCard messages={[]} ativa={false} footer={insight()} />}
+                {ehGestor && <WhatsAppQueueCard messages={[]} ativa={false} footer={insight(comentarios.whatsapp)} />}
               </div>
 
               <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr))]">
-                <ProjectsCard projects={s.projects} footer={insight()} />
-                <MyTasksCard tasks={s.myTasks} doneCount={doneCount} onToggle={(id) => void home.toggleTask(id)} footer={insight()} />
+                <ProjectsCard projects={s.projects} footer={insight(comentarios.projects)} />
+                <MyTasksCard tasks={s.myTasks} doneCount={doneCount} onToggle={(id) => void home.toggleTask(id)} footer={insight(comentarios.myTasks)} />
               </div>
             </div>
           )}
@@ -144,24 +207,42 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
         <EvaFloatingChat
           visible={pastHero && !chat.open}
           thinking={chat.thinking}
-          listening={false}
-          transcript=""
-          notice=""
+          listening={voice.isActive('float')}
+          transcript={voice.transcript}
+          notice={pastHero && !chat.open ? voice.notice : ''}
           onOpen={() => chat.ask()}
           onAsk={chat.ask}
+          onMic={() => voice.toggle('float')}
         />
-        <EvaEdgeGlow active={chat.thinking} />
+        <EvaEdgeGlow active={chat.thinking || voice.listening} />
         <EvaChatDrawer
           open={chat.open}
           thinking={chat.thinking}
           messages={chat.messages}
           onClose={chat.close}
           onSend={chat.ask}
-          listening={false}
-          transcript=""
-          voiceNotice=""
+          listening={voice.isActive('chat')}
+          transcript={voice.transcript}
+          voiceNotice={chat.open ? voice.notice : ''}
+          onMic={() => voice.toggle('chat')}
+          ehGestor={ehGestor}
+          nome={nomePessoa}
+          onConfirmar={(p) => void chat.confirmar(p)}
+          onDescartar={chat.descartar}
+          onOpenCard={abrirCitado}
         />
         <EvaToast aviso={home.aviso} onClose={home.fecharAviso} />
+        <ConfirmarPropostaModal
+          aberto={!!acoes.dialogo}
+          titulo={acoes.dialogo?.acao.titulo ?? ''}
+          propostas={acoes.dialogo?.acao.propostas ?? []}
+          ehGestor={ehGestor}
+          nome={nomePessoa}
+          enviando={acoes.enviando}
+          erro={acoes.erro}
+          onConfirmar={() => void acoes.confirmar()}
+          onFechar={acoes.fechar}
+        />
 
         {home.cardAberto && (
           <ITTaskDrawer task={home.cardAberto} onClose={home.fecharCard} onUpdate={home.atualizarCardAberto} />

@@ -11,7 +11,7 @@ Plano: §3 (Granola e Vercel), §4.2 (RF12), §5 (Fluxo 1), §16 (cron `0 12 * *
 
 **Blocked by:** 08. Para rodar de verdade, também a 04.
 
-**Status:** ready-for-agent
+**Status:** done no código (13/Out/2026); falta conferir o cron no primeiro deploy (04)
 
 - [ ] Ação `agente-sync-cron`: GET, `CRON_SECRET`, `dryRun` (lista o que faria sem gravar).
 - [ ] Ação `agente-sincronizar`: POST com sessão e `canManageIT`; mesma rotina.
@@ -24,3 +24,27 @@ Plano: §3 (Granola e Vercel), §4.2 (RF12), §5 (Fluxo 1), §16 (cron `0 12 * *
 - [ ] Chip "Granola · sincronizado às HH:mm" no Início (`EvaControls`), lido de `ti_agente_config`. Verde quando sincronizou nas últimas 24 h úteis; vermelho com o último erro.
 
 ## Comments
+
+**13/Out/2026 — implementado no código.**
+- **Rotina** (`api/_lib/ti-agente/sincronizar.ts`), usada pelas duas ações:
+  - `agente-sync-cron`: GET, com `CRON_SECRET` e `dryRun`;
+  - `agente-sincronizar`: POST, com sessão e `canManageIT` ou `canApproveAgenteTI`.
+- **Comportamento:**
+  - idempotente por `granola_note_id`;
+  - nota já guardada só atualiza `fonte_atualizada_em` (D14);
+  - nota sem resumo fica para a próxima execução;
+  - `realizada_em` vem do evento da agenda ou, sem ele, da criação da nota;
+  - notas com `deleted_at` são ignoradas.
+- **Tempo da function:** uma análise nova só começa se ainda restarem 270 s dos 300 s. Uma reunião presa em "analisando" há mais de 10 min volta para a fila.
+- **Botão "Buscar reuniões agora"** na aba Reuniões, com "N novas, N atualizadas".
+- **Situação (correção feita nesta issue):** `granola_ultima_sync_em` é o cursor, o maior `updated_at` de nota visto, não a hora da execução. Usado no chip, ele acenderia vermelho numa semana sem nota nova, mesmo com o cron rodando. A migration ganhou duas colunas:
+  - `granola_verificado_em`: fim da última execução sem erro;
+  - `granola_ultimo_erro`: erro da última execução, ou NULL.
+  
+  A migration ainda não foi aplicada. O `ADD COLUMN IF NOT EXISTS` cobre quem já tiver criado a tabela.
+- **Chip do Início** (`domain/integracoes.ts`, testado):
+  - verde, "sincronizado 13/10 às 09:00";
+  - vermelho, "erro na última sincronização", ou "sem sincronizar desde…" depois de 4 dias sem execução (cobre um fim de semana mais um dia útil);
+  - cinza: "ainda não configurado" ou "aguardando a 1ª sincronização".
+- **Configurações:** mostra a última sincronização e o erro, quando houver.
+- **Falta:** conferir no primeiro deploy se o Hobby aceita o cron `0 12 * * 1-5`.

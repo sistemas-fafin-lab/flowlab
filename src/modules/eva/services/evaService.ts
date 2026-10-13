@@ -1,9 +1,11 @@
 // Ponto único de integração da EVA com o backend (handoff: services/evaService.ts).
-// Fase 1: o Início lê direto do Supabase, protegido pela RLS de it_requests,
-// it_projects e it_sprints. Chat, cobrança e comentários entram nas próximas fases
-// (issues 14, 16 e 17) — até lá os métodos dizem isso em vez de devolver mock.
+// O Início lê direto do Supabase, protegido pela RLS de it_requests, it_projects e
+// it_sprints. O chat passa pela rota /api/ti/agente-perguntar; a cobrança entra na
+// fase 3 (issue 14).
 import { supabase } from '../../../lib/supabase';
 import type { ITRequest } from '../../../components/IT/ITKanbanBoard';
+import type { EvaView, PropostaEva } from '../types';
+import { chamarEva } from './agenteApi';
 import { somarDias, type Dia } from '../domain/datas';
 import type { CardTI, ColunaKanban, StatusChamado } from '../domain/demandas';
 import type { ProjetoTI, SprintTI } from '../domain/projetos';
@@ -135,4 +137,17 @@ export const evaService = {
   async registrarEmailDeStatus(id: string): Promise<void> {
     await supabase.from('it_requests').update({ last_status_email_at: new Date().toISOString() }).eq('id', id);
   },
+
+  /** Chat (issue 16): pergunta à EVA. As propostas voltam sem nada aplicado (D28). */
+  ask: (pergunta: string, visao: EvaView, historico: { de: 'eva' | 'eu'; texto: string }[]) =>
+    chamarEva<RespostaEva>('agente-perguntar', { pergunta, visao, historico }),
 };
+
+/** O que `agente-perguntar` devolve (api/_lib/ti-agente/chat.ts, RespostaChat). */
+export interface RespostaEva {
+  resposta: string;
+  cardsCitados: string[];
+  propostas: Omit<PropostaEva, 'id' | 'estado' | 'erro'>[];
+  nomes: Record<string, string>;
+  provedor: 'claude' | 'gemini';
+}

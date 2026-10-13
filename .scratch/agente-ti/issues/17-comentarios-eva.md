@@ -24,7 +24,7 @@ Plano: §2 (D6, D21), §4.1 (RF09), §12.1, §12.2 e §14.1.
 
 **Blocked by:** 02, 03. As ações que propõem mudança precisam da RPC `ti_agente_propor_sugestao` (11). O comentário de Projetos com reunião precisa da 08. Os de WhatsApp precisam da 12; até lá, essas regras não disparam.
 
-**Status:** ready-for-agent
+**Status:** done no código (13/Out/2026); faltam as regras que dependem da fila do WhatsApp (12 e 14)
 
 - [ ] `domain/comentarios.ts`:
   - uma função por bloco, que recebe o snapshot (e a fila, as sugestões e a última reunião, quando houver) e `hoje`;
@@ -38,3 +38,34 @@ Plano: §2 (D6, D21), §4.1 (RF09), §12.1, §12.2 e §14.1.
 - [ ] `showInsights` volta a `true` no Início quando a issue estiver pronta.
 
 ## Comments
+
+**13/Out/2026 — implementado no código.** `domain/comentarios.ts` tem uma função por bloco. Os limites são constantes exportadas.
+
+**Lista final das regras (v1):**
+
+| Bloco | Quando aparece | Texto | Ação |
+|---|---|---|---|
+| Kanban (só Equipe) | uma pessoa tem 4 ou mais cards em Revisão, Em Progresso ou A Fazer (nessa ordem de prioridade), e um colega tem pelo menos 3 cards a menos em aberto. No empate, vai quem tem menos naquela coluna | "A coluna Revisão tem 6 cards, 4 com Ana. Diego tem menos carga (1 card em aberto)." | **Redistribuir:** propõe passar os 2 cards de menor destaque (menor prioridade, prazo mais longe) para o colega |
+| Atrasadas | card crítico ou alto atrasado e sem responsável | "IT-031 (Firewall) está atrasado há 3 dias e sem responsável." | Abrir card |
+| Atrasadas | senão, o atraso mais longo, de 7 dias ou mais | "IT-020 (LIS) está atrasado há 8 dias, com Ana. Vale revisar o prazo ou o escopo." | Abrir card |
+| WhatsApp (só gestor) | envio ligado e Wa-ha sem sinal, aguardando QR code ou desconectado | "O Wa-ha está sem sinal da VPS. As mensagens esperam na fila até a sessão voltar." | Ver configurações |
+| Projetos | última reunião analisada há até 14 dias com sugestões pendentes | "A reunião de 10/10 gerou 3 sugestões que ainda aguardam aprovação." | Ver sugestões (`/it/eva`) |
+| Projetos | mesma reunião sem pendentes, com decisões (`observacoes`) | as decisões da reunião | Ver resumo da reunião (abre o chat) |
+| Projetos | senão, projeto Atrasado (antes) ou Em risco | "O projeto Portal está em risco: 2 de 10 cards feitos, prazo 17/10." | Abrir projeto |
+| Minhas tasks | card meu de hoje ou atrasado em Em Progresso ou Revisão, sem mudança há 3 dias ou mais (Revisão primeiro) | "IT-052 (Upload) vence hoje e está em Revisão sem mudança há 4 dias." | Abrir card |
+
+**Ficam para depois:**
+- "cobrança sem resposta há mais de 3 h" (Atrasadas), quando a cobrança existir (14);
+- "mensagem falhou hoje" (WhatsApp), quando a fila existir (12).
+
+**Ações** (`hooks/useEvaComentarios.ts`):
+- navegar, abrir o card ou abrir o chat. A proposta abre o `ConfirmarPropostaModal`, reaproveitável, com cada card em antes → depois;
+- o gestor aprova e a EVA executa (`ti_agente_propor_sugestao(..., p_aprovar = true)`); os demais enviam para a fila (`origem = 'comentario'`). Nenhuma ação escreve direto em `it_requests`;
+- uma proposta por card: se uma falhar, o diálogo diz qual e fica só com o que falhou, sem reenviar o que já foi;
+- o texto de feito só aparece depois da execução ("Pronto: IT-045 e IT-052 passaram para Diego." ou "Proposta enviada para aprovação de um gestor."). Ele aparece no rodapé e no aviso, porque o board relido pode tirar o comentário da tela.
+
+**`showInsights`** voltou a `true` no Início.
+
+**Testes** (`comentarios.test.ts`, 12): cada regra aparece e some no caso certo. Um teste varre texto, botão, pergunta e título do diálogo das cinco regras e falha se algum disser "movi", "atualizei", "criei", "bloqueei", "reservei", "passei" ou "cobrei".
+
+**Diferença do texto da issue:** o `acceptInsight` não ficou no `evaService`. A ação mistura navegação, chat e diálogo, então ficou num hook da tela. O serviço só tem a chamada da RPC (`agenteAdmin.propor`).

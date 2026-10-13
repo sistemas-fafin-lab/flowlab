@@ -3,6 +3,7 @@
 // os cards levam id e código, e o responsável pode faltar.
 import type { ColunaKanban, Prioridade } from './domain/demandas';
 import type { SituacaoProjeto } from './domain/projetos';
+import type { CardResumo, PropostaCard, TipoSugestao } from './services/agenteAdmin';
 
 export type EvaView = 'team' | 'me';
 export type OverdueFilter = 'all' | 'critical';
@@ -80,6 +81,31 @@ export interface DailyTask {
 
 export type InsightSlot = 'kanban' | 'overdue' | 'whatsapp' | 'projects' | 'myTasks';
 
+/** Mudança num card que um comentário propõe (D28): só executa depois de confirmada. */
+export interface PropostaDeComentario {
+  tipo: TipoSugestao;
+  card_id: string;
+  card: CardResumo;
+  proposta: PropostaCard;
+  trecho: string;
+}
+
+/** O que o botão principal do comentário faz (D21). Nenhuma escreve direto no board. */
+export type AcaoInsight =
+  | { tipo: 'navegar'; para: string }
+  | { tipo: 'abrir_card'; cardId: string }
+  | { tipo: 'chat'; pergunta: string }
+  | {
+      tipo: 'propor';
+      /** Pergunta do diálogo de confirmação ("Passar IT-045 e IT-052 da Ana para o Diego?"). */
+      titulo: string;
+      propostas: PropostaDeComentario[];
+      /** Texto depois que o gestor aprovou e a EVA executou. */
+      feitoGestor: string;
+      /** Texto depois que a proposta foi para a fila. */
+      feitoFila: string;
+    };
+
 export interface EvaInsightData {
   id: string;
   /** Origem do insight, ex.: "Granola · Sprint review 10/10" */
@@ -90,6 +116,7 @@ export interface EvaInsightData {
   doneText: string;
   /** Pergunta enviada ao chat ao clicar em "Perguntar à EVA" */
   askPrompt: string;
+  acao: AcaoInsight;
 }
 
 export type StatKey = 'open' | 'overdue' | 'done' | 'charges' | 'today' | 'projects';
@@ -112,13 +139,36 @@ export interface EvaHomeSnapshot {
   members: Record<string, TeamMember>;
 }
 
+/**
+ * Ação que a EVA propôs no chat (D28, RN17). Nada muda no board até a confirmação:
+ * gestor confirma e ela executa; os demais mandam para a fila de aprovação.
+ */
+export interface PropostaEva {
+  id: string;
+  tipo: TipoSugestao;
+  card_id: string | null;
+  proposta: PropostaCard;
+  trecho: string;
+  confianca: 'alta' | 'media' | 'baixa';
+  avisos: string[];
+  card: CardResumo | null;
+  estado: 'aberta' | 'enviando' | 'executada' | 'na_fila' | 'descartada';
+  erro?: string;
+}
+
 export interface ChatMessage {
   id: string;
   from: 'eva' | 'me';
   text: string;
+  /** Códigos dos cards que a EVA citou (só os que existem no board). */
+  cardsCitados?: string[];
+  propostas?: PropostaEva[];
+  /** Resposta de erro (limite do dia, IA fora): mostrada sem cartões. */
+  falhou?: boolean;
 }
 
-export type IntegrationState = 'online' | 'offline' | 'pending';
+/** `attention`: algo espera alguém (ex.: sugestões aguardando aprovação). */
+export type IntegrationState = 'online' | 'offline' | 'pending' | 'attention';
 
 export interface IntegrationStatus {
   id: 'granola' | 'waha' | 'sugestoes';

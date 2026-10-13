@@ -58,3 +58,10 @@ export function casarMembro(nomeCitado: string, membros: MembroComApelidos[]): s
   const achado = membros.find((m) => m.apelidos.some((a) => normalizarNome(a) === alvo));
   return achado?.id ?? null;
 }
+
+/** 5561999924986 → +55 61 99992-4986 (só exibição); sem número, "—". */
+export function formatarWhatsapp(digitos: string | null): string {
+  if (!digitos) return '—';
+  const m = digitos.match(/^(\d{2})(\d{2})(\d{4,5})(\d{4})$/);
+  return m ? `+${m[1]} ${m[2]} ${m[3]}-${m[4]}` : digitos;
+}

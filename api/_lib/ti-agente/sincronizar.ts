@@ -32,12 +32,18 @@ export async function sincronizarGranola(
   const dryRun = !!opcoes.dryRun;
   const base: ResultadoSync = { ok: false, erro: null, novas: 0, atualizadas: 0, analisadas: [], pendentesRestantes: 0, dryRun };
 
+  /** Situação para o chip do Início e para Configurações (D25). O dryRun não deixa rastro. */
+  const falhou = async (erro: string, parcial: Partial<ResultadoSync> = {}): Promise<ResultadoSync> => {
+    if (!dryRun) await db.from('ti_agente_config').update({ granola_ultimo_erro: erro.slice(0, 500) }).eq('id', true);
+    return { ...base, ...parcial, erro };
+  };
+
   const { data: config } = await db.from('ti_agente_config').select('granola_folder_id, granola_ultima_sync_em').eq('id', true).single();
   const pastaId = config?.granola_folder_id as string | null;
-  if (!pastaId) return { ...base, erro: 'Pasta do Granola não configurada (Configurações da EVA).' };
+  if (!pastaId) return falhou('Pasta do Granola não configurada (Configurações da EVA).');
 
   const lista = await granola.listarNotas({ pastaId, atualizadasDepois: (config?.granola_ultima_sync_em as string | null) ?? null });
-  if ('erro' in lista) return { ...base, erro: lista.erro };
+  if ('erro' in lista) return falhou(lista.erro);
   const notas = lista.dados.filter((n) => !n.deleted_at);
 
   if (dryRun) {
@@ -58,7 +64,7 @@ export async function sincronizarGranola(
       continue;
     }
     const nota = await granola.buscarNota(resumo.id);
-    if ('erro' in nota) return { ...base, erro: nota.erro, novas, atualizadas };
+    if ('erro' in nota) return falhou(nota.erro, { novas, atualizadas });
     const texto = nota.dados.summary_markdown || nota.dados.summary_text;
     if (!texto?.trim()) continue; // nota ainda sem resumo: entra numa próxima sincronização
     const { error } = await db.from('ti_agente_reunioes').insert({
@@ -71,12 +77,15 @@ export async function sincronizarGranola(
       fonte_atualizada_em: nota.dados.updated_at,
       status: 'pendente',
     });
-    if (error && !error.message.includes('duplicate')) return { ...base, erro: error.message, novas, atualizadas };
+    if (error && !error.message.includes('duplicate')) return falhou(error.message, { novas, atualizadas });
     novas += 1;
   }
 
   // O cursor só avança quando a listagem e a gravação terminaram sem erro.
-  if (maiorAtualizacao) await db.from('ti_agente_config').update({ granola_ultima_sync_em: maiorAtualizacao }).eq('id', true);
+  await db
+    .from('ti_agente_config')
+    .update({ ...(maiorAtualizacao ? { granola_ultima_sync_em: maiorAtualizacao } : {}), granola_verificado_em: new Date(agora()).toISOString(), granola_ultimo_erro: null })
+    .eq('id', true);
 
   // Analisa as pendentes enquanto ainda couber uma análise inteira no tempo da function.
   const analisadas: ResultadoAnalise[] = [];

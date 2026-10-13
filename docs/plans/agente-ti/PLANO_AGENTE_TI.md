@@ -267,7 +267,9 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
 |---|---|---|
 | `id` | boolean PK DEFAULT true, CHECK (`id`) | garante uma linha só |
 | `granola_folder_id` | text NULL | pasta que o agente lê (hoje `fol_WEROcYgPA0ti68`, "Team meetings") |
-| `granola_ultima_sync_em` | timestamptz NULL | cursor da sincronização (`updated_after`) |
+| `granola_ultima_sync_em` | timestamptz NULL | cursor da sincronização (`updated_after`): o maior `updated_at` de nota já visto, não a hora da execução |
+| `granola_verificado_em` | timestamptz NULL | fim da última sincronização sem erro, com ou sem nota nova. Alimenta o chip "Granola" do Início (D25) |
+| `granola_ultimo_erro` | text NULL | erro da última sincronização; NULL quando ela terminou bem. Acende o chip em vermelho |
 | `whatsapp_ativo` | boolean DEFAULT false | liga/desliga geral do envio (RF20) |
 | `cobranca_ativa` | boolean DEFAULT false | liga/desliga só da cobrança diária |
 | `dias_parado` | smallint DEFAULT 5 CHECK 1–60 | RN04 |
@@ -747,9 +749,9 @@ Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotatio
   - cards abertos, um por linha;
   - projetos e sprints;
   - o resumo da última reunião analisada;
-  - as últimas mensagens da fila.
+  - as últimas mensagens da fila, só para gestor (D24).
   
-  Na Minha visão, só o que é da pessoa. O bloco de contexto vai com cache de prompt: perguntas seguidas na mesma sessão pagam cerca de 10% da entrada.
+  Na Minha visão, só o que é da pessoa. Pedido sobre card que não está no contexto não vira "card novo", como acontece na reunião: a proposta simplesmente não sai. O bloco de contexto vai com cache de prompt: perguntas seguidas na mesma sessão pagam cerca de 10% da entrada.
 - **Histórico:** as últimas 6 mensagens da sessão. Nada vai para o banco além do registro de uso (RN14).
 - **Limite:** 30 perguntas por pessoa por dia, contadas em `ti_agente_chamadas_ia`.
 - **Custo:** cerca de US$ 0,01 a 0,03 por pergunta (§9.5).

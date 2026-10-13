@@ -14,7 +14,7 @@ Plano: §3 (formato da nota), §4.4 (RN07 a RN11, RN14, RN15), §9 inteiro e §1
 
 **Blocked by:** 06, 07. Para rodar de verdade na Vercel, também a 04 (chaves do Claude e do Gemini cadastradas lá). Localmente, já funciona.
 
-**Status:** ready-for-agent
+**Status:** done no código (13/Out/2026)
 
 - [ ] `api/_lib/ti-agente/extracao.ts`:
   - instruções fixas em pt-BR (§9.2), as mesmas para os dois provedores, com o conteúdo entre `<reuniao>…</reuniao>` tratado como dado;

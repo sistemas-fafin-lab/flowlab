@@ -5,8 +5,9 @@ import { Send, X } from 'lucide-react';
 import { EvaOrb } from './EvaOrb';
 import { GlowFrame } from './EvaGlow';
 import { MicButton, VoiceNotice } from './ui';
+import { PropostaChatCard } from './PropostaChatCard';
 import { EVA_SUGGESTIONS } from '../constants';
-import type { ChatMessage } from '../types';
+import type { ChatMessage, PropostaEva } from '../types';
 
 interface Props {
   open: boolean;
@@ -18,10 +19,22 @@ interface Props {
   transcript: string;
   voiceNotice: string;
   onMic?: () => void;
+  /** Propostas (D28): gestor executa, os demais mandam para a fila. */
+  ehGestor?: boolean;
+  nome?: (id: string) => string;
+  onConfirmar?: (p: PropostaEva) => void;
+  onDescartar?: (p: PropostaEva) => void;
+  /** Abre o card citado pelo código. */
+  onOpenCard?: (codigo: string) => void;
 }
 
+const semNome = () => 'alguém';
+
 /** Drawer de conversa (portal no body, mesmo padrão do CategoryEditorModal do Layout). */
-export const EvaChatDrawer: React.FC<Props> = ({ open, thinking, messages, onClose, onSend, listening, transcript, voiceNotice, onMic }) => {
+export const EvaChatDrawer: React.FC<Props> = ({
+  open, thinking, messages, onClose, onSend, listening, transcript, voiceNotice, onMic,
+  ehGestor = false, nome = semNome, onConfirmar, onDescartar, onOpenCard,
+}) => {
   const [draft, setDraft] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -37,7 +50,8 @@ export const EvaChatDrawer: React.FC<Props> = ({ open, thinking, messages, onClo
     return () => document.removeEventListener('keydown', h);
   }, [open, onClose]);
 
-  const submit = () => { if (!draft.trim()) return; onSend(draft); setDraft(''); };
+  // Uma pergunta por vez: enquanto a EVA pensa, o rascunho espera.
+  const submit = () => { if (!draft.trim() || thinking) return; onSend(draft); setDraft(''); };
 
   return ReactDOM.createPortal(
     <AnimatePresence>
@@ -73,8 +87,34 @@ export const EvaChatDrawer: React.FC<Props> = ({ open, thinking, messages, onClo
                 m.from === 'eva' ? (
                   <div key={m.id} className="flex gap-2.5 items-start max-w-[92%] animate-fade-in-up">
                     <div className="w-6 h-6 flex-shrink-0 mt-0.5 flex items-center justify-center"><EvaOrb size={22} /></div>
-                    <div className="px-3.5 py-2.5 rounded-2xl rounded-tl-md bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-[0_1px_2px_rgba(0,0,0,.04)] text-[13px] leading-[1.55] text-slate-700 dark:text-slate-200 whitespace-pre-line [text-wrap:pretty]">
-                      {m.text}
+                    <div className="min-w-0 flex flex-col gap-1.5">
+                      <div className={`px-3.5 py-2.5 rounded-2xl rounded-tl-md border shadow-[0_1px_2px_rgba(0,0,0,.04)] text-[13px] leading-[1.55] whitespace-pre-line [text-wrap:pretty] ${
+                        m.falhou
+                          ? 'bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30 text-amber-800 dark:text-amber-200'
+                          : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                      }`}>
+                        {m.text}
+                      </div>
+                      {onOpenCard && m.cardsCitados && m.cardsCitados.length > 0 && (
+                        <div className="flex flex-wrap gap-1">
+                          {m.cardsCitados.map((c) => (
+                            <button key={c} type="button" onClick={() => onOpenCard(c)} title={`Abrir ${c}`}
+                              className="px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:border-blue-500/40 transition-colors">
+                              {c}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {m.propostas?.map((p) => (
+                        <PropostaChatCard
+                          key={p.id}
+                          p={p}
+                          ehGestor={ehGestor}
+                          nome={nome}
+                          onConfirmar={() => onConfirmar?.(p)}
+                          onDescartar={() => onDescartar?.(p)}
+                        />
+                      ))}
                     </div>
                   </div>
                 ) : (

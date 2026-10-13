@@ -19,7 +19,7 @@ Plano: §6.1, §6.2 e convenções da §6.
 
 **Blocked by:** 01 (a chave `canApproveAgenteTI` precisa existir no front para os testes de ponta a ponta).
 
-**Status:** ready-for-agent
+**Status:** done no código (13/Out/2026); falta aplicar as duas migrations no Supabase (ready-for-human)
 
 - [ ] Migration `2026MMDDhhmmss_agente_ti_tabelas.sql`, idempotente, com a guarda de `current_user_has_permission` no topo.
 - [ ] As seis tabelas, com CHECKs nomeados, índices, `COMMENT ON` em pt-BR e triggers de `updated_at`.
@@ -64,3 +64,9 @@ Plano: §6.1, §6.2 e convenções da §6.
 O script de teste ficou fora do repositório.
 
 **Falta:** aplicar no Supabase (você).
+
+**13/Out/2026 — duas colunas novas em `ti_agente_config` (issue 10).**
+- `granola_verificado_em`: fim da última sincronização sem erro;
+- `granola_ultimo_erro`: erro da última sincronização.
+
+O chip "Granola" do Início não podia usar o cursor `granola_ultima_sync_em`, que é a data da nota mais recente e não a hora da execução. As colunas estão no `CREATE TABLE` e num `ADD COLUMN IF NOT EXISTS` logo depois, para o caso de a tabela já existir. Os 28 cenários do PGlite passaram de novo.
