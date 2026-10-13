@@ -14,7 +14,7 @@ Plano: §3 (formato da nota), §4.4 (RN07 a RN11, RN14, RN15), §9 inteiro e §1
 
 **Blocked by:** 06, 07. Para rodar de verdade na Vercel, também a 04 (chaves do Claude e do Gemini cadastradas lá). Localmente, já funciona.
 
-**Status:** done no código (13/Out/2026)
+**Status:** done no código (13/Out/2026); primeira análise real pela tela em 13/Out, com a correção abaixo
 
 - [ ] `api/_lib/ti-agente/extracao.ts`:
   - instruções fixas em pt-BR (§9.2), as mesmas para os dois provedores, com o conteúdo entre `<reuniao>…</reuniao>` tratado como dado;
@@ -46,3 +46,12 @@ Plano: §3 (formato da nota), §4.4 (RN07 a RN11, RN14, RN15), §9 inteiro e §1
 - **Correção:** as instruções passaram a mandar procurar primeiro na lista de cards, comparando pelo sentido (a transcrição escreve "Área", "Áurea" e "Oria" para o Oria), e a sempre preencher o responsável.
 - **Segunda rodada do Claude:** comentou no IT-120 (auditoria no Oria: falta o deploy) e no IT-118 (Hub interno do Oria). Criou 4 cards novos: robô de pré-faturamento; chamado para o Jonathan, com o Gabriel; validação do Hub de Laudos; reunião com a Erika. O "Hub de Laudos" pode ou não ser o IT-050 ("Envio de Laudos Via API"); quem aprova decide.
 - **Custo medido:** cerca de 11 mil tokens de entrada e 2 mil de saída (~US$ 0,04 por reunião), em 10 a 15 s. Esforço `medium` mantido.
+
+**13/Out/2026 — primeira análise real pela tela (Reuniões → "Buscar reuniões agora") e correção.**
+- **Resultado:** a sincronização trouxe a nota da pasta, o Claude analisou e gravou 11 sugestões pendentes. Mesmo assim, a reunião ficou como "Erro" com "invalid input syntax for type json".
+- **Causa:** `lerGestores` filtrava `custom_roles.permissions` com `.contains(..., ['canApproveAgenteTI'])`. A coluna é `jsonb`, e o array JS vira o literal de array do Postgres (`{…}`), que não é JSON. O teste no PGlite não pegou porque o stub tinha `permissions` como `text[]`.
+- **Correção:**
+  - o filtro agora vai como JSON (`'["canApproveAgenteTI"]'`);
+  - uma falha no aviso do sino não marca mais como erro uma análise que já foi gravada.
+  
+  Dois testes novos em `analisarReuniao.test.ts`.

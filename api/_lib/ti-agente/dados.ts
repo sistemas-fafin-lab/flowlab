@@ -76,7 +76,9 @@ export function registradorDeChamadas(db: SupabaseClient) {
 
 /** Ids dos gestores da EVA ativos: cargo com canApproveAgenteTI ou role admin. */
 export async function lerGestores(db: SupabaseClient): Promise<string[]> {
-  const { data: cargos, error } = await db.from('custom_roles').select('id').contains('permissions', ['canApproveAgenteTI']);
+  // custom_roles.permissions é jsonb: o filtro vai como JSON (["…"]). Um array JS viraria
+  // o literal de array do Postgres ({…}) e daria "invalid input syntax for type json".
+  const { data: cargos, error } = await db.from('custom_roles').select('id').contains('permissions', JSON.stringify(['canApproveAgenteTI']));
   if (error) throw new Error(error.message);
   const ids = (cargos ?? []).map((c) => c.id as string);
   const filtro = ids.length ? `role.eq.admin,custom_role_id.in.(${ids.join(',')})` : 'role.eq.admin';

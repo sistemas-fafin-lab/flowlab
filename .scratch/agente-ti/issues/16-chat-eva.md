@@ -71,7 +71,7 @@ Plano: §2 (D20, D26), §4.2 (RF23, RF24), §4.4 (RN17), §9.1, §9.5, §12.3 e 
   - nada é gravado até o clique. Quando o gestor executa, o Início relê o board.
 - **Voz:** `useVoiceInput` ligado no hero, no drawer e na barra flutuante, com as mensagens de erro do handoff.
 - **Testes:**
-  - `chat.test.ts` (10): contexto, fila só de gestor, Minha visão, código inexistente, proposta validada, schema;
+  - `chat.test.ts` (9): contexto, fila só de gestor, Minha visão, código inexistente, proposta validada, schema;
   - `ti-agente-perguntar.test.ts` (6): a 31ª pergunta recusada sem chamar a IA; pedido de mudança vira proposta sem nenhuma escrita no banco; Minha visão sem cards dos outros; fila só para gestor; mensagem do handoff; pergunta vazia;
   - `chatReplies.test.ts` (3) e o teste de fumaça do cartão de proposta.
 - **Teste real com dados fictícios** (Claude, sem gravar), cerca de 2,2 mil tokens de entrada e 150 a 260 de saída por pergunta:

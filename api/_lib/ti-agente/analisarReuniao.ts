@@ -86,14 +86,19 @@ export async function analisarReuniao(
       observacoes: r.dados.observacoes, erro: null,
     }).eq('id', reuniaoId);
 
-    if (sugestoes.length > 0) {
-      await avisarGestores(db, {
-        titulo: 'Sugestões novas da EVA',
-        conteudo: `${sugestoes.length} ${sugestoes.length === 1 ? 'sugestão' : 'sugestões'} da reunião "${reuniao.titulo}" aguardando aprovação.`,
-        link: '/it/eva',
-      });
+    // A análise já está gravada: falha no aviso do sino não pode marcar a reunião como erro.
+    try {
+      if (sugestoes.length > 0) {
+        await avisarGestores(db, {
+          titulo: 'Sugestões novas da EVA',
+          conteudo: `${sugestoes.length} ${sugestoes.length === 1 ? 'sugestão' : 'sugestões'} da reunião "${reuniao.titulo}" aguardando aprovação.`,
+          link: '/it/eva',
+        });
+      }
+      if (r.provedor === 'gemini') await avisarSeReservaSeguida(db, r.motivoReserva);
+    } catch (e) {
+      console.error('[EVA/analise] Análise gravada, mas o aviso aos gestores falhou:', e);
     }
-    if (r.provedor === 'gemini') await avisarSeReservaSeguida(db, r.motivoReserva);
     return resultado;
   } catch (e) {
     const erro = e instanceof Error ? e.message : String(e);
