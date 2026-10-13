@@ -173,7 +173,7 @@ A interface é a do protótipo (§12). Os requisitos abaixo seguem os blocos del
 | ID | Regra |
 |---|---|
 | **RN01** | **Card aberto:** `kanban_status <> 'done'`, `status` fora de (`resolved`, `cancelled`) e `kanban_hidden = false`. |
-| **RN02** | **Atrasado:** card aberto com `due_date` antes de hoje. O dia é o de **America/Sao_Paulo**: `due_date` é `TIMESTAMPTZ`, e comparar em UTC atrasaria cards às 21h. |
+| **RN02** | **Atrasado:** card aberto com prazo antes de hoje.<br>• **"Hoje"** é o dia de **America/Sao_Paulo**.<br>• **O dia do prazo** é o que foi escolhido no Board. O `ITTaskDrawer`, único lugar que grava `due_date`, salva esse dia como meia-noite UTC (`new Date('2026-10-20').toISOString()`). Por isso o prazo é lido **sem converter fuso** (`diaDoPrazo`). Converter para Brasília jogaria todo prazo para o dia anterior, às 21h. Descoberto na implementação, em 13/Out.<br>• **Instantes reais** (`updated_at`, comentários) usam o fuso de Brasília. |
 | **RN03** | **Vence em breve:** card aberto com vencimento entre hoje e hoje + N dias. N = 7 no Início. Na cobrança, conta o vencimento hoje ou no próximo dia útil. |
 | **RN04** | **Parado:** card em `in_progress` ou `review` sem mudança há `dias_parado` dias corridos ou mais (padrão 5). A última mudança é a mais recente entre `updated_at` e o último comentário. |
 | **RN05** | **Projeto (D4).** **Em andamento:** tem sprint `active` ou pelo menos um card aberto. **Prazo:** o maior entre o `end_date` da sprint ativa e o maior `due_date` dos cards abertos, ou vazio se não houver nenhum. **Situação:** *Atrasado* se algum card aberto está atrasado ou a sprint ativa já passou do fim. *Atenção* se algum card aberto vence em até 3 dias, ou se a sprint ativa termina em até 3 dias com cards abertos, ou se o progresso da sprint ativa está mais de 20 pontos abaixo do tempo já decorrido dela (D27). *No prazo* se tem prazo. *Sem prazo* nos demais casos. **Progresso:** cards `done` ÷ cards não ocultos e não cancelados, da sprint ativa se houver, senão do projeto. |
@@ -831,7 +831,7 @@ Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotatio
 ## 14. Verificação
 
 1. **Testes de domínio** (`npm test`), no mínimo:
-   - card vencendo às 21h de Brasília (o dia não pode virar em UTC);
+   - prazo gravado pelo Board para hoje (meia-noite UTC, que é 21h de ontem em Brasília) continua sendo de hoje, e o de ontem está atrasado há 1 dia;
    - card em `done` com `status` ainda `pending` (não é aberto);
    - card oculto;
    - card sem prazo;
@@ -909,7 +909,7 @@ Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotatio
 | Sugestões piores quando o Gemini responde | Todas passam por aprovação (D6), com o selo "analisada pelo Gemini"; modelo configurável em `AGENTE_TI_GEMINI_MODEL` |
 | Telefones e conversas expostos | RLS só para aprovadores; envio só pela VPS; WAHA fechado (D9) |
 | Mesma regra dando números diferentes no Início e na cobrança | Um único `domain/` usado pelo front, pela api e pela VPS (§8) |
-| O dia vira em UTC e cobra card "atrasado" que vence hoje | Regras pelo dia de America/Sao_Paulo (RN02) e testes do caso das 21h |
+| Prazo lido no dia errado (o Board grava meia-noite UTC do dia escolhido) | `diaDoPrazo` lê o dia sem converter fuso; "hoje" e os instantes reais usam Brasília (RN02); testes dos dois casos |
 | Os textos do protótipo prometem ações que a EVA não faz ("Movi", "Atualizei", "Criei", "Bloqueei a agenda") | Mocks fora da tela de produção; comentários por regra que só sugerem; teste que barra texto de ação feita sozinha (§12.2, §14) |
 | O chat vira o maior custo de IA | Esforço baixo, contexto enxuto com cache, limite de 30 perguntas por pessoa por dia, gasto por `finalidade` na aba Configurações (§9.5) |
 | O chat inventa um card ou um número | Contexto com os dados reais e códigos citados conferidos; a resposta só cita cards da lista enviada |

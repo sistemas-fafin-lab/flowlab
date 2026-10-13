@@ -1,6 +1,6 @@
-// Datas da EVA: tudo trafega como dia "YYYY-MM-DD" no fuso de Brasília (RN02).
-// `due_date` é TIMESTAMPTZ — comparar em UTC faria um card que vence às 21h de hoje
-// virar "atrasado" porque em UTC já é amanhã. Nenhuma função aqui lê o relógio:
+// Datas da EVA: tudo trafega como dia "YYYY-MM-DD" (RN02). "Hoje" e os instantes reais
+// (updated_at, comentários) usam o fuso de Brasília; o PRAZO dos cards usa o dia escolhido
+// no Board, sem converter fuso (ver diaDoPrazo). Nenhuma função aqui lê o relógio:
 // quem chama passa `hoje` (RN06). Este arquivo também é importado pela api/ e pela
 // VPS, então não pode depender de nada do navegador.
 
@@ -21,6 +21,18 @@ export function diaSP(instante: string | Date): Dia {
   if (typeof instante === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(instante)) return instante;
   const data = typeof instante === 'string' ? new Date(instante) : instante;
   return formatadorDia.format(data);
+}
+
+/**
+ * Dia do PRAZO de um card. Não converte fuso: o ITTaskDrawer (único lugar que grava
+ * it_requests.due_date) salva o dia escolhido como meia-noite UTC
+ * (`new Date('2026-10-20').toISOString()`) e lê de volta com `split('T')[0]`. Converter
+ * para Brasília jogaria o prazo para o dia anterior (21h). Instantes reais
+ * (updated_at, comentários) continuam usando `diaSP`.
+ */
+export function diaDoPrazo(dueDate: string): Dia {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) return dueDate;
+  return new Date(dueDate).toISOString().slice(0, 10);
 }
 
 /** Dia de hoje em Brasília. Só para a borda (hooks/handlers) — as regras recebem `hoje`. */

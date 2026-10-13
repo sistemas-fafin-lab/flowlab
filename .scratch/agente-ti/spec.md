@@ -46,7 +46,9 @@ Detalhes na tabela de decisões e na §12 do plano.
 - **Nenhum dado de mock em produção.** Nenhum texto diz que a EVA mudou algo antes de a aprovação ter executado de fato.
 - **Ação da EVA = proposta** (`ti_agente_propor_sugestao`). Só a RPC de aprovação escreve em `it_requests`, e o gestor que confirma está aprovando.
 - Regras em `domain/` puro, com `hoje` como argumento (nunca `new Date()` dentro da regra) e testes vitest ao lado. O mesmo `domain/` serve o front, a `api/` e o script da VPS.
-- Datas de prazo comparadas pelo **dia de America/Sao_Paulo** (`due_date` é `TIMESTAMPTZ`).
+- Datas (RN02):
+  - "hoje" e os instantes reais são o **dia de America/Sao_Paulo**;
+  - o **prazo** dos cards é o dia escolhido no Board, gravado como meia-noite UTC, e é lido **sem converter fuso** (`diaDoPrazo`).
 - RLS por `current_user_has_permission('canManageIT' | 'canApproveAgenteTI')`. Nenhuma migration grava em `custom_roles`.
 - Serverless só no dispatcher novo `api/ti/[action].ts`, registrado nos três lugares (Vercel, `api/server.ts`, `vite.config.ts`). Toda rotina aceita `?dryRun=true`.
 - Chaves só no servidor ou na VPS, nunca com prefixo `VITE_`.

@@ -60,3 +60,8 @@ Fábricas de teste em `domain/testes/fabricas.ts`. **48 testes** novos cobrem os
 - **"Concluídas na semana"** usa o `updated_at` dos cards concluídos, porque `it_requests` não tem coluna de data de conclusão.
 - **Briefing:** "vence nos próximos dias" exclui o que vence hoje, que já entra nas tasks do dia.
 - **Tasks do dia:** incluem os cards que a pessoa concluiu hoje, para o "x de y" não encolher ao marcar.
+
+**13/Out/2026 — correção do dia do prazo.**
+- **O problema:** o `ITTaskDrawer`, único lugar que grava `it_requests.due_date`, salva o dia escolhido como meia-noite UTC. Ler esse instante no fuso de Brasília dava o dia anterior.
+- **A correção:** `diaDoPrazo` lê o dia sem converter fuso. "Hoje" e os instantes reais (`updated_at`, comentários) continuam no fuso de Brasília. A RN02 do plano foi ajustada.
+- **Testes:** dois novos cobrem prazo para hoje e prazo para ontem.

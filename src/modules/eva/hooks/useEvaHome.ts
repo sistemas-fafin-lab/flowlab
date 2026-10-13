@@ -175,9 +175,9 @@ export function useEvaHome(defaultView: EvaView = 'team') {
         try {
           await evaService.reabrirCard(id, anterior);
           avisar(`${card.codigo} voltou a ficar em aberto.`, 'sucesso');
-        } catch {
+        } catch (e) {
           mudarCardLocal(id, { kanban_status: card.kanban_status, status: card.status });
-          avisar(`Não consegui reabrir ${card.codigo}. Tente de novo.`, 'erro');
+          avisar(`Não consegui reabrir ${card.codigo}: ${e instanceof Error ? e.message : 'tente de novo'}`, 'erro');
         }
         return;
       }
@@ -193,9 +193,9 @@ export function useEvaHome(defaultView: EvaView = 'team') {
         }, JANELA_DESFAZER_MS);
         pendentesRef.current.set(id, { timer, anterior, notificar });
         avisar(`${card.codigo} concluído.`, 'sucesso', () => void toggleTaskRef.current?.(id));
-      } catch {
+      } catch (e) {
         mudarCardLocal(id, anterior);
-        avisar(`Não consegui concluir ${card.codigo}. Tente de novo.`, 'erro');
+        avisar(`Não consegui concluir ${card.codigo}: ${e instanceof Error ? e.message : 'tente de novo'}`, 'erro');
       }
     },
     [dados, nomes, mudarCardLocal, notificarResolucao, avisar],

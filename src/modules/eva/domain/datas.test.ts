@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  diaSP, diferencaDias, ehDiaUtil, formatarDiaMes, inicioDaSemana, pluralDias, proximoDiaUtil, somarDias,
+  diaDoPrazo, diaSP, diferencaDias, ehDiaUtil, formatarDiaMes, inicioDaSemana, pluralDias, proximoDiaUtil, somarDias,
 } from './datas';
 
 describe('diaSP', () => {
@@ -15,6 +15,15 @@ describe('diaSP', () => {
 
   it('meia-noite e um minuto em Brasília já é o dia seguinte', () => {
     expect(diaSP('2026-10-14T03:01:00Z')).toBe('2026-10-14');
+  });
+});
+
+describe('diaDoPrazo', () => {
+  it('lê o dia escolhido no Board, sem converter para Brasília', () => {
+    // O ITTaskDrawer grava 20/10 como meia-noite UTC; em SP isso é 19/10 às 21h.
+    expect(diaDoPrazo('2026-10-20T00:00:00.000Z')).toBe('2026-10-20');
+    expect(diaDoPrazo('2026-10-20T00:00:00+00:00')).toBe('2026-10-20');
+    expect(diaDoPrazo('2026-10-20')).toBe('2026-10-20');
   });
 });
 

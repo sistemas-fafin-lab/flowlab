@@ -44,6 +44,17 @@ async function lerTudo<T>(consulta: (de: number, ate: number) => Pagina<T>): Pro
   }
 }
 
+/**
+ * UPDATE em it_requests conferindo se a linha mudou. A RLS de UPDATE só libera admin
+ * ou department = 'TI' e, quando nega, o PostgREST devolve 0 linhas sem erro — sem
+ * esta conferência a tela mostraria "concluído" sem nada ter mudado.
+ */
+async function atualizarCard(id: string, mudanca: { kanban_status: ColunaKanban; status: StatusChamado }): Promise<void> {
+  const { data, error } = await supabase.from('it_requests').update(mudanca).eq('id', id).select('id');
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) throw new Error('Sem permissão para alterar este card.');
+}
+
 function normalizarCard(r: CardTI): CardTI {
   return { ...r, assigned_to: r.assigned_to ?? [], kanban_hidden: !!r.kanban_hidden };
 }
@@ -112,15 +123,12 @@ export const evaService = {
 
   /** Conclui o card com a mesma regra do Board: coluna "done" + status "resolved". */
   async concluirCard(id: string): Promise<void> {
-    const { error } = await supabase.from('it_requests').update({ kanban_status: 'done', status: 'resolved' }).eq('id', id);
-    if (error) throw new Error(error.message);
+    await atualizarCard(id, { kanban_status: 'done', status: 'resolved' });
   },
 
   /** Volta o card para onde estava (desfazer) ou, sem histórico, para "em andamento". */
   async reabrirCard(id: string, anterior?: { kanban_status: ColunaKanban; status: StatusChamado }): Promise<void> {
-    const destino = anterior ?? { kanban_status: 'in_progress' as const, status: 'in_progress' as const };
-    const { error } = await supabase.from('it_requests').update(destino).eq('id', id);
-    if (error) throw new Error(error.message);
+    await atualizarCard(id, anterior ?? { kanban_status: 'in_progress', status: 'in_progress' });
   },
 
   /** Marca o envio do e-mail de resolução, para respeitar o intervalo mínimo do Board. */

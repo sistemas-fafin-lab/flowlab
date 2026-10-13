@@ -1,6 +1,6 @@
 // Regras sobre os cards de TI (it_requests) — RN01 a RN04, D23 e o resumo do Kanban.
 // Puras: recebem `hoje` (dia em Brasília). Usadas pelo Início, pela cobrança e pela VPS.
-import { diaSP, diferencaDias, inicioDaSemana, type Dia } from './datas';
+import { diaDoPrazo, diaSP, diferencaDias, inicioDaSemana, type Dia } from './datas';
 
 export type ColunaKanban = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
 export type Prioridade = 'low' | 'medium' | 'high' | 'critical';
@@ -42,9 +42,9 @@ export function estaAberto(card: CardTI): boolean {
   return estaVisivel(card) && !estaConcluido(card);
 }
 
-/** Dia de vencimento em Brasília, ou null sem prazo. */
+/** Dia de vencimento (o dia escolhido no Board, ver `diaDoPrazo`), ou null sem prazo. */
 export function diaVencimento(card: CardTI): Dia | null {
-  return card.due_date ? diaSP(card.due_date) : null;
+  return card.due_date ? diaDoPrazo(card.due_date) : null;
 }
 
 /** RN02 — aberto e venceu antes de hoje. */

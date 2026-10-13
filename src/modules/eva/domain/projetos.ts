@@ -1,6 +1,6 @@
 // Situação dos projetos de TI deduzida dos cards e da sprint (D4, RN05, D27).
 // it_projects não tem status, responsável nem prazo: tudo sai daqui.
-import { diaSP, diferencaDias, type Dia } from './datas';
+import { diaDoPrazo, diaSP, diferencaDias, type Dia } from './datas';
 import { estaAberto, estaAtrasado, estaConcluido, estaVisivel, venceEmBreve, type CardTI } from './demandas';
 
 export interface ProjetoTI {
@@ -61,7 +61,7 @@ export function resumirProjeto(projeto: ProjetoTI, cards: CardTI[], sprints: Spr
   const feitos = base.filter(estaConcluido).length;
   const total = base.length;
 
-  const prazos = abertos.map((c) => (c.due_date ? diaSP(c.due_date) : null)).filter((d): d is Dia => d !== null);
+  const prazos = abertos.map((c) => (c.due_date ? diaDoPrazo(c.due_date) : null)).filter((d): d is Dia => d !== null);
   if (sprint?.end_date) prazos.push(diaSP(sprint.end_date));
   const prazo = prazos.length ? prazos.sort().pop()! : null;
 

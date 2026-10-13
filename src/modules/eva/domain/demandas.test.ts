@@ -21,9 +21,16 @@ describe('estaAberto (RN01)', () => {
 });
 
 describe('estaAtrasado (RN02)', () => {
-  it('card que vence às 21h de hoje (Brasília) não está atrasado', () => {
-    // 2026-10-14T00:00Z = 13/10 21h em SP
-    expect(estaAtrasado(card({ due_date: '2026-10-14T00:00:00Z' }), HOJE)).toBe(false);
+  it('prazo gravado pelo Board para hoje (meia-noite UTC = 21h de ontem em SP) não está atrasado', () => {
+    // O ITTaskDrawer salva o dia 13/10 como 2026-10-13T00:00:00.000Z.
+    const c = card({ due_date: '2026-10-13T00:00:00.000Z' });
+    expect(estaAtrasado(c, HOJE)).toBe(false);
+    expect(venceEmBreve(c, HOJE, 0)).toBe(true);
+  });
+  it('prazo do Board para ontem está atrasado há exatamente 1 dia', () => {
+    const c = card({ due_date: '2026-10-12T00:00:00+00:00' });
+    expect(estaAtrasado(c, HOJE)).toBe(true);
+    expect(diasDeAtraso(c, HOJE)).toBe(1);
   });
   it('venceu ontem: atrasado há 1 dia', () => {
     const c = card({ due_date: '2026-10-12' });
