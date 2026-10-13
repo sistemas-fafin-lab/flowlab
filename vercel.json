@@ -2,8 +2,12 @@
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/" }
   ],
+  "functions": {
+    "api/ti/*.ts": { "maxDuration": 300 }
+  },
   "crons": [
     { "path": "/api/umami/inatividade-cron", "schedule": "0 11 * * 1" },
-    { "path": "/api/notifications/requests-digest-cron", "schedule": "0 20 * * *" }
+    { "path": "/api/notifications/requests-digest-cron", "schedule": "0 20 * * *" },
+    { "path": "/api/ti/agente-sync-cron", "schedule": "0 12 * * 1-5" }
   ]
 }

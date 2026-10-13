@@ -197,7 +197,7 @@ A interface é a do protótipo (§12). Os requisitos abaixo seguem os blocos del
 |---|---|
 | **RNF01** | **Segurança:** chaves do Claude, do Granola e do WAHA só no servidor ou na VPS, nunca com prefixo `VITE_`. O WAHA continua fechado na VPS (D9). O webhook é validado (§11.3). Os crons exigem `CRON_SECRET`. RLS em todas as tabelas novas. |
 | **RNF02** | **Functions:** um dispatcher só, `api/ti/[action].ts`, registrado nos três lugares de sempre (Vercel, `api/server.ts`, middleware do `vite.config.ts`). |
-| **RNF03** | **Duração:** uma análise leva de 30 s a 2 min. Com a reserva, o pior caso fica perto de 4 min: Claude com 2 tentativas de 90 s, mais 60 s do Gemini (§9.1). A function precisa de `maxDuration` de 300 s (a conferir no plano). A sincronização só começa uma análise nova se ainda restarem 4 min; o resto fica `pendente` para a próxima execução ou para o botão. |
+| **RNF03** | **Duração:** uma análise leva de 30 s a 2 min. Com a reserva, o pior caso fica em 4,5 min: Claude com 2 tentativas de 90 s, mais 90 s do Gemini (§9.1). A function tem `maxDuration` de 300 s. A sincronização só começa uma análise nova se ainda restarem 4,5 min; o resto fica `pendente` para a próxima execução ou para o botão. |
 | **RNF04** | **Custo da IA:** cerca de US$ 0,06 a 0,11 por reunião com o Sonnet 5.5 (§9.5), ou seja, menos de US$ 0,50 por mês no ritmo semanal. Cada resposta de WhatsApp custa cerca de US$ 0,01. O Gemini só é cobrado quando assume. |
 | **RNF05** | **Testabilidade:** regras em `domain/` puras e testadas. Os clientes de Granola, Claude e WAHA recebem `fetch`/cliente injetado e nunca lançam exceção, como em `api/_lib/requestsDigestWhatsApp.ts`. Toda rotina aceita `?dryRun=true`. |
 | **RNF06** | **Desempenho:** o painel carrega em menos de 2 s. A consulta pega só cards abertos e os concluídos nos últimos 14 dias, paginando (o PostgREST corta em 1000 linhas). |
@@ -305,6 +305,7 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
 | `analisada_em` | timestamptz NULL | |
 | `provedor` | text NULL CHECK (`claude`, `gemini`) | quem respondeu. `gemini` acende o selo "analisada pelo Gemini" na fila (D17); os tokens ficam em `ti_agente_chamadas_ia` |
 | `motivo_reserva` | text NULL | por que o Claude não respondeu, quando houve troca |
+| `observacoes` | text NULL | o que a reunião decidiu de mais importante para os projetos (campo `observacoes` da análise); alimenta o comentário do bloco Projetos |
 | `created_by` | uuid NULL → `user_profiles` | vazio quando vem do cron |
 | `created_at` | | |
 
@@ -540,7 +541,7 @@ O `@google/genai` (1.52) já está no projeto.
 **Gemini, a reserva:**
 - `@google/genai` (já instalado), no molde de `api/_lib/apoio/gemini.ts`:
   - `ai.models.generateContent({ model, contents, config: { systemInstruction, responseMimeType: 'application/json', responseJsonSchema } })`;
-  - tempo limite de 60 s.
+  - tempo limite de 90 s. Os 60 s iniciais se mostraram curtos no teste com a reunião real (13/Out): uma rodada levou 35 s, a outra estourou.
 - **Modelo:** `gemini-3.8-flash`, escolhido pelo usuário e confirmado na chave em 13/Out (§3).
   - Fica em `AGENTE_TI_GEMINI_MODEL`, com esse valor como padrão, separado do `GEMINI_MODEL` do Apoio Alvaro, para uma mudança num não afetar o outro.
 - **Instruções:** as mesmas do Claude (§9.2), em `systemInstruction`. O conteúdo da reunião segue em `contents`.
@@ -611,7 +612,7 @@ const SchemaSugestoes = z.object({ sugestoes: z.array(Sugestao), observacoes: z.
 |---|---|---|
 | Entrada: instruções (~2 mil) + resumo (~5 mil) + membros, cards e projetos (~3 a 6 mil) | ~10 a 13 mil | ~US$ 0,02 a 0,03 |
 | Saída, incluindo o raciocínio | ~4 a 8 mil | ~US$ 0,04 a 0,08 |
-| **Por reunião** | | **~US$ 0,06 a 0,11** |
+| **Por reunião** | | **~US$ 0,06 a 0,11** (medido em 13/Out com a reunião real de 21/09: 11 mil tokens de entrada e 2 mil de saída, cerca de US$ 0,04) |
 | Resposta de WhatsApp (`effort: 'low'`, ~2 mil de entrada e ~500 de saída) | | ~US$ 0,01 |
 | Pergunta no chat (`effort: 'low'`, ~8 a 12 mil de entrada com o contexto, ~300 a 600 de saída) | | ~US$ 0,03 sem cache; ~US$ 0,01 quando o contexto vem do cache |
 
@@ -903,7 +904,7 @@ Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotatio
 | Chave do Claude é da organização e exige o cabeçalho de workspace | `CLAUDE_WORKSPACE_ID` em toda chamada. A chave é do dono da organização e não muda (§3) |
 | Endpoint ngrok expõe a API do WAHA na internet | O agente não depende dele (fala pelo `localhost`); chave de API do WAHA, senha no painel e autenticação no ngrok (§11.1) |
 | RPC `SECURITY DEFINER` vira porta dos fundos no Kanban | Conferência de permissão na primeira linha; só os campos listados; testes com usuário sem a chave |
-| Análise passa do tempo da function | `maxDuration` de 300 s; Claude com 90 s e 1 nova tentativa, Gemini com 60 s; a sincronização só começa uma análise se restarem 4 min; reanalisar manual em caso de erro |
+| Análise passa do tempo da function | `maxDuration` de 300 s; Claude com 90 s e 1 nova tentativa, Gemini com 90 s; a sincronização só começa uma análise se restarem 4,5 min; reanalisar manual em caso de erro |
 | Claude indisponível, sobrecarregado ou recusando | Gemini 3.8 Flash assume com as mesmas instruções e o mesmo schema (D17); selo e motivo na tela |
 | A reserva esconde um erro de configuração do Claude (chave errada, workspace errado) | Erros 400/401/403 registrados como `configuracao` e mostrados na aba Configurações; aviso no sino depois de 3 reservas seguidas |
 | Sugestões piores quando o Gemini responde | Todas passam por aprovação (D6), com o selo "analisada pelo Gemini"; modelo configurável em `AGENTE_TI_GEMINI_MODEL` |

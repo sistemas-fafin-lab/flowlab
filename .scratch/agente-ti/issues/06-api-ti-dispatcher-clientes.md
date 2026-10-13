@@ -53,3 +53,17 @@ Plano: §3 (Granola, Claude e Gemini), §5, §8 (`api/`), §9.1 e RNF02/RNF03/RN
 - [ ] Confirmação do import de `src/modules/eva/domain/` no preview, registrada nos comentários.
 
 ## Comments
+
+**13/Out/2026 — implementado.**
+- **Dispatcher** `api/ti/[action].ts` (10ª function), registrado também em `api/server.ts` e no `tiApiPlugin` do `vite.config.ts`. No `vercel.json`:
+  - `functions` com `"api/ti/*.ts"` e `maxDuration` 300 (o padrão `[action]` seria lido como classe de caracteres de glob);
+  - cron `0 12 * * 1-5`.
+- **IA:**
+  - `api/_lib/ti-agente/ia/` com `tipos.ts`, `claude.ts` (Sonnet 5.5 fixo, cabeçalho do workspace, 90 s e 1 nova tentativa, cache no último bloco do system), `gemini.ts` (3.8 Flash, 90 s) e `gerarEstruturado.ts`;
+  - JSON Schema único gerado pelo `z.toJSONSchema` do zod 4, sem `$schema`.
+- **Granola:** `granola.ts`, com paginação por cursor e erros legíveis.
+- **Dependências:** `@anthropic-ai/sdk` 0.133 e `zod` 4.6. O zod 3.22 segue aninhado só em `@vercel/python-analysis`.
+- **Import de `src/` (resolvido sem preview):** `api/` compila com NodeNext e exige `.js` nos imports, então não importa o domínio de `src/`. A extração ficou autocontida em `api/_lib/ti-agente/`. A cobrança (14) volta a esta questão.
+- **Testes:** 31 no servidor (IA, Granola, extração).
+
+**Teste real (13/Out, sem gravar nada):** Granola, Claude e Gemini reais, contexto lido do Supabase só com SELECT. Os dois provedores aceitaram o schema. O Gemini estourou 60 s numa das rodadas, e o limite dele subiu para 90 s.

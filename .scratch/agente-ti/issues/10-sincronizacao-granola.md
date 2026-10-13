@@ -5,7 +5,7 @@
 - Os dois listam as notas da pasta configurada com `updated_after` = última sincronização, buscam cada nota nova, gravam em `ti_agente_reunioes` e analisam.
 - Uma nota já guardada **não é analisada de novo** sozinha (D14). Só `fonte_atualizada_em` é atualizado, e isso acende o selo na lista.
 
-Para caber no tempo da function, cada execução só começa uma análise nova se ainda restarem 4 minutos. É o pior caso com a reserva: Claude com 2 tentativas de 90 s, mais 60 s do Gemini (plano RNF03). As restantes ficam `pendente` para a próxima execução ou para o botão.
+Para caber no tempo da function, cada execução só começa uma análise nova se ainda restarem 4,5 minutos. É o pior caso com a reserva: Claude com 2 tentativas de 90 s, mais 90 s do Gemini (plano RNF03). As restantes ficam `pendente` para a próxima execução ou para o botão.
 
 Plano: §3 (Granola e Vercel), §4.2 (RF12), §5 (Fluxo 1), §16 (cron `0 12 * * 1-5`) e RNF03.
 

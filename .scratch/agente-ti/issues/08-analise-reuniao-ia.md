@@ -33,3 +33,16 @@ Plano: §3 (formato da nota), §4.4 (RN07 a RN11, RN14, RN15), §9 inteiro e §1
 - [ ] Rodar o `dryRun` com a reunião real de 21/09 e registrar nos comentários quantas sugestões saíram, quais fazem sentido e os tokens gastos. Se as sugestões não convencerem, testar `esforco: 'high'` antes de mexer no prompt.
 
 ## Comments
+
+**13/Out/2026 — implementado.**
+- `extracao.ts`: instruções, schema, contexto e validação da §9.4.
+- `analisarReuniao.ts`: substitui as pendentes antigas, grava as sugestões e a reunião (`provedor`, `motivo_reserva`, `observacoes`), avisa os gestores e manda o aviso de 3 reservas seguidas, uma vez só.
+- `dados.ts`: enquanto a aba Membros estiver vazia, usa as pessoas do departamento TI como membros, com o primeiro nome como apelido.
+- 11 testes da extração com reunião fictícia.
+
+**Dry-run com a reunião real de 21/09** (sem gravar; contexto: 7 pessoas, 18 cards abertos, 6 projetos, 3 sprints):
+- **Primeira rodada do Claude:** 7 sugestões, todas "criar card", mesmo havendo cards abertos sobre os mesmos assuntos. Isso geraria duplicados.
+- **Gemini, com as mesmas instruções:** ligou os itens aos cards IT-056, IT-120, IT-118 e IT-050.
+- **Correção:** as instruções passaram a mandar procurar primeiro na lista de cards, comparando pelo sentido (a transcrição escreve "Área", "Áurea" e "Oria" para o Oria), e a sempre preencher o responsável.
+- **Segunda rodada do Claude:** comentou no IT-120 (auditoria no Oria: falta o deploy) e no IT-118 (Hub interno do Oria). Criou 4 cards novos: robô de pré-faturamento; chamado para o Jonathan, com o Gabriel; validação do Hub de Laudos; reunião com a Erika. O "Hub de Laudos" pode ou não ser o IT-050 ("Envio de Laudos Via API"); quem aprova decide.
+- **Custo medido:** cerca de 11 mil tokens de entrada e 2 mil de saída (~US$ 0,04 por reunião), em 10 a 15 s. Esforço `medium` mantido.

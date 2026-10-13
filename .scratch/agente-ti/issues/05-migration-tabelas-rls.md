@@ -39,3 +39,28 @@ Plano: §6.1, §6.2 e convenções da §6.
 - [ ] Atualizar a §6 do plano se algo mudar na implementação.
 
 ## Comments
+
+**13/Out/2026 — implementado no código.**
+
+- **`supabase/migrations/20261013150000_eva_tabelas.sql`:**
+  - as seis tabelas, a linha inicial da config e a RLS da §6.2;
+  - coluna extra `ti_agente_reunioes.observacoes`, que guarda o resumo da análise usado no comentário de Projetos.
+- **`20261013151000_eva_rpcs.sql`:** aprovar, rejeitar, propor e `ti_agente_cobrancas_hoje()`, a contagem da issue 14 adiantada.
+- **Nomes:** seguem a convenção nova de migrations, com o prefixo `eva_`. Falta a linha em `supabase/MIGRATIONS.md`, que ainda não está no `main`.
+- **Decisão:** sem CHECK de `card_id` obrigatório. Ele faria a exclusão de um card no Board falhar quando houvesse sugestão pendente apontando para ele.
+
+**Verificação:** as migrations rodaram num Postgres em WASM (PGlite), com stubs de `auth.uid()`, `current_user_has_permission`, `user_profiles`, `it_requests`, `it_task_comments` e `user_notifications`. Os 28 cenários passaram:
+- reaplicar as duas migrations sem erro;
+- não gestor barrado na RPC direta;
+- card criado com prazo à meia-noite UTC (convenção do Board);
+- `done` com `resolved`;
+- comentário com o prefixo "EVA:";
+- proposta pendente e proposta aprovada na mesma chamada;
+- rejeição exige motivo;
+- apagar um card com sugestão pendente;
+- contagem de cobranças;
+- RLS: só `canManageIT` não lê membros nem mensagens; gestor lê; sem chave não lê nada.
+
+O script de teste ficou fora do repositório.
+
+**Falta:** aplicar no Supabase (você).
