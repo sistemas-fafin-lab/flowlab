@@ -20,7 +20,7 @@ const MAX_RESUMO_REUNIAO = 8000;
 export const MAX_FILA = 10;
 
 export interface MensagemHistorico { de: 'eva' | 'eu'; texto: string }
-export interface UltimaReuniao { titulo: string; realizadaEm: string | null; observacoes: string | null; resumo: string }
+export interface UltimaReuniao { id?: string; titulo: string; realizadaEm: string | null; observacoes: string | null; resumo: string }
 /** Mensagem da fila do WhatsApp — só entra no contexto de gestor (D24). */
 export interface MensagemFila { quando: string; para: string; direcao: 'saida' | 'entrada'; status: string; texto: string }
 

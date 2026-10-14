@@ -68,27 +68,40 @@ export function propostaDoItem(i: ItemResposta): { kanban_status: 'done' } | { p
   return null;
 }
 
-export const NAO_ACHEI_CARD = 'Não achei o card. Qual o código? (ex.: "IT-045 concluída")';
-export const SEM_INTERPRETACAO = 'Recebi sua mensagem, mas não consegui ler agora. A equipe vai ver no Início.';
-export const SEM_CARDS = 'Recebi. Você não tem cards abertos no Kanban de TI agora.';
-export const SO_TEXTO = 'Por aqui eu só leio texto. Escreva o código do card e o que mudou (ex.: "IT-045 concluída").';
+// Tom da EVA (D30): próxima e objetiva, pelo primeiro nome, frases curtas, um emoji no máximo.
+export const NAO_ACHEI_CARD = 'Não achei o card 🤔 Qual é o código? (ex.: "IT-045 concluída")';
+export const SEM_INTERPRETACAO = 'Recebi, mas não consegui processar agora. Tenta de novo daqui a pouco?';
+export const SEM_CARDS = 'Você não tem cards abertos no Kanban de TI agora 🙌';
+export const SO_TEXTO = 'Por aqui eu só leio texto (áudio e imagem ainda não). Me escreve o que precisa?';
 
-/** "Anotei no IT-045: 'concluída'. A mudança de status vai para aprovação." (§11.3, passo 4) */
+/**
+ * A confirmação montada pelo sistema (§11.3, passo 4). É a reserva da escrita da IA: entra quando
+ * o que a IA entendeu não bate com o que de fato foi registrado (D30).
+ */
 export function montarConfirmacao(nome: string, itens: ItemResposta[]): string {
   if (itens.length === 0) return NAO_ACHEI_CARD;
   const linhas = itens.map((i) => {
     const c = i.card.codigo;
     const proposta = propostaDoItem(i);
-    if (i.intencao === 'concluir') return proposta ? `${c}: anotei que está concluída. A mudança de status vai para aprovação.` : `${c}: anotei no card.`;
+    if (i.intencao === 'concluir') return proposta ? `${c}: concluída. Mandei para aprovação do gestor.` : `${c}: anotei no card.`;
     if (i.intencao === 'adiar') {
-      if (proposta) return `${c}: anotei o novo prazo, ${formatarDiaMes(i.novaData!)}. A mudança vai para aprovação.`;
-      return i.novaData ? `${c}: anotei no card (o prazo já é ${formatarDiaMes(i.novaData)}).` : `${c}: anotei. Para mudar o prazo, me diga a data (ex.: "${c} vai para 24/10").`;
+      if (proposta) return `${c}: novo prazo ${formatarDiaMes(i.novaData!)}. Mandei para aprovação.`;
+      return i.novaData ? `${c}: anotei (o prazo já é ${formatarDiaMes(i.novaData)}).` : `${c}: anotei. Para mudar o prazo, me diz a data (ex.: "${c} vai para 24/10").`;
     }
     if (i.intencao === 'bloquear') return `${c}: anotei o bloqueio e avisei os gestores.`;
     return `${c}: anotei no card.`;
   });
   const n = primeiroNome(nome);
-  return [`Obrigada${n ? `, ${n}` : ''}!`, ...linhas].join('\n');
+  return [`Anotado${n ? `, ${n}` : ''}!`, ...linhas].join('\n');
+}
+
+/**
+ * A confirmação escrita pela IA só vale quando o que ela entendeu é o que foi registrado: os mesmos
+ * cards e, para concluir e mudar prazo, uma sugestão de verdade. Senão, vale a montada pelo sistema.
+ */
+export function respostaFiel(saida: SaidaResposta, itens: ItemResposta[]): boolean {
+  if (itens.length === 0 || itens.length !== saida.itens.length) return false;
+  return itens.every((i) => (i.intencao === 'concluir' || i.intencao === 'adiar' ? propostaDoItem(i) !== null : true));
 }
 
 // ── Registro do que o membro informou ───────────────────────────────────────

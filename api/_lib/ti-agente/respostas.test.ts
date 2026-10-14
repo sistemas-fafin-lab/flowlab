@@ -4,7 +4,7 @@ vi.mock('./dados.js', () => ({ avisarGestores: vi.fn(async () => undefined) }));
 
 import { avisarGestores } from './dados.js';
 import {
-  NAO_ACHEI_CARD, linhaDoCard, montarConfirmacao, propostaDoItem, registrarAtualizacoes, validarResposta, type SaidaResposta,
+  NAO_ACHEI_CARD, linhaDoCard, montarConfirmacao, propostaDoItem, registrarAtualizacoes, respostaFiel, validarResposta, type SaidaResposta,
 } from './respostas.js';
 import type { CardTI } from '../../../src/modules/eva/domain/demandas.js';
 
@@ -45,8 +45,17 @@ describe('interpretação da resposta', () => {
     expect(montarConfirmacao('Bruno Mendes', [
       { card: C1, intencao: 'concluir', novaData: null, prazoTexto: null },
       { card: C2, intencao: 'adiar', novaData: '2026-10-16', prazoTexto: 'sexta' },
-    ])).toBe('Obrigada, Bruno!\nIT-045: anotei que está concluída. A mudança de status vai para aprovação.\nIT-052: anotei o novo prazo, 16/10. A mudança vai para aprovação.');
+    ])).toBe('Anotado, Bruno!\nIT-045: concluída. Mandei para aprovação do gestor.\nIT-052: novo prazo 16/10. Mandei para aprovação.');
     expect(montarConfirmacao('Bruno', [])).toBe(NAO_ACHEI_CARD);
+  });
+
+  it('a confirmação da IA só vale quando bate com o que foi registrado (D30)', () => {
+    const concluir = { card: C1, intencao: 'concluir' as const, novaData: null, prazoTexto: null };
+    expect(respostaFiel(saida([item({ intencao: 'concluir' })]), [concluir])).toBe(true);
+    // A IA citou dois cards, mas só um existe: vale a montada pelo sistema.
+    expect(respostaFiel(saida([item({ intencao: 'concluir' }), item({ card_codigo: 'IT-999', intencao: 'concluir' })]), [concluir])).toBe(false);
+    // "Vai para sexta" sem data clara não vira sugestão: a IA não pode dizer que mandou para aprovação.
+    expect(respostaFiel(saida([item({ intencao: 'adiar' })]), [{ card: C1, intencao: 'adiar', novaData: null, prazoTexto: 'sexta' }])).toBe(false);
   });
 });
 
@@ -77,7 +86,7 @@ describe('registrarAtualizacoes', () => {
       itens: [{ card: C1, intencao: 'concluir', novaData: null, prazoTexto: null }],
     });
     expect(r).toMatchObject({ sugestoes: 1, cardIds: ['c1'] });
-    expect(r.confirmacao).toContain('IT-045: anotei que está concluída');
+    expect(r.confirmacao).toContain('IT-045: concluída. Mandei para aprovação do gestor.');
     expect(inserts.map((i) => i.tabela)).toEqual(['it_task_comments', 'ti_agente_sugestoes']);
     expect(inserts[0].linhas).toEqual([{ task_id: 'c1', user_id: 'u-bruno', content: 'via WhatsApp: IT-045 concluída' }]);
     expect(inserts[1].linhas).toMatchObject([{ origem: 'whatsapp', mensagem_id: 'msg1', proposta_por: 'u-bruno', tipo: 'atualizar_card', card_id: 'c1', proposta: { kanban_status: 'done' } }]);

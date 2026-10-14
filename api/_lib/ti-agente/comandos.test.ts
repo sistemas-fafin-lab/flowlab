@@ -22,12 +22,12 @@ vi.mock('./grupo.js', async (original) => ({
 vi.mock('./ia/gerarEstruturado.js', () => ({ gerarEstruturado: vi.fn() }));
 
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
-import { lerContexto } from './dados.js';
+import { avisarGestores, lerContexto } from './dados.js';
 import { enfileirarNoGrupo, lerConfigGrupo } from './grupo.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
 import {
-  AJUDA_GESTOR, CANCELADO, EXPIROU, INSTRUCOES_WHATSAPP, PEDIR_SIM, SEM_LISTA, descreverSugestao, ehNao, ehSim, ehSoAgradecimento,
-  lerPedidoDeLista, montarContextoMensagem, montarListaSugestoes, processarRecebida, type SaidaMensagem, type SugestaoLista,
+  AJUDA_GESTOR, CANCELADO, CANCELADO_PROPOSTA, EXPIROU, INSTRUCOES_WHATSAPP, PEDIR_SIM, SEM_LISTA, descreverSugestao, ehNao, ehSim,
+  fechoDeConversa, lerPedidoDeLista, montarContextoMensagem, montarListaSugestoes, processarRecebida, type SaidaMensagem, type SugestaoLista,
 } from './comandos.js';
 import { SEM_INTERPRETACAO } from './respostas.js';
 import type { CardTI } from '../../../src/modules/eva/domain/demandas.js';
@@ -55,8 +55,12 @@ const sug = (s: Partial<SugestaoLista>): SugestaoLista => ({
 });
 
 const saida = (s: Partial<SaidaMensagem>): SaidaMensagem => ({
-  intencao: 'outro', itens: [], resposta: null, cobrar_codigos: [], cobrar_pessoa_id: null, numeros: [], todas: false, motivo: null, aviso: null,
-  confianca: 'alta', ...s,
+  intencao: 'conversa', resposta: '', itens: [], propostas: [], lembrete_texto: '', lembrete_quando: '', lembrete_id: '',
+  cobrar_codigos: [], cobrar_pessoa_id: '', numeros: [], todas: false, motivo: '', aviso: '', confianca: 'alta', ...s,
+});
+const proposta = (p: Partial<SaidaMensagem['propostas'][number]>): SaidaMensagem['propostas'][number] => ({
+  tipo: 'atualizar_card', card_codigo: 'IT-045', titulo: null, descricao: null, responsaveis: [], prazo: null, prazo_texto: null,
+  prioridade: null, kanban_status: null, projeto_id: null, sprint: null, comentario: null, trecho: 'pedido', confianca: 'alta', ...p,
 });
 
 // ── Banco falso: guarda comandos e sugestões entre as mensagens ──────────────
@@ -69,6 +73,10 @@ interface Estado {
   contagem: number;
   comandos: Record<string, unknown>[];
   sugestoes: SugestaoLista[];
+  /** Falas anteriores com a pessoa (ti_agente_mensagens). */
+  historico: { direcao: string; tipo: string; status: string; texto: string; created_at: string }[];
+  /** Lembretes pendentes (tipo lembrete). */
+  lembretes: { id: string; texto: string; proxima_tentativa_em: string; status: string; tipo: string; membro_id: string }[];
 }
 
 function criarDb(e: Estado) {
@@ -82,7 +90,7 @@ function criarDb(e: Estado) {
     let head = false;
     const q: Record<string, unknown> = {};
     q.select = (_c?: string, o?: { head?: boolean }) => { if (o?.head) head = true; return q; };
-    for (const m of ['order', 'limit', 'lt', 'neq', 'gte']) q[m] = () => q;
+    for (const m of ['order', 'limit', 'lt', 'neq', 'gte', 'range']) q[m] = () => q;
     q.eq = (k: string, v: unknown) => { f[k] = v; return q; };
     q.in = (k: string, v: unknown[]) => { f[`in:${k}`] = v; return q; };
     q.gt = (k: string, v: unknown) => { f[`gt:${k}`] = v; return q; };
@@ -101,12 +109,16 @@ function criarDb(e: Estado) {
     const resolver = () => {
       if (op === 'insert') return { data: [{ id: `ins-${++seq}` }], error: null };
       if (op === 'update') {
-        if (tabela !== 'ti_agente_comandos') return { data: [], error: null };
-        const alvo = e.comandos.filter(casa);
+        const linhas: Record<string, unknown>[] = tabela === 'ti_agente_comandos' ? e.comandos
+          : tabela === 'ti_agente_mensagens' && f.tipo === 'lembrete' ? e.lembretes : [];
+        const alvo = linhas.filter(casa);
         alvo.forEach((c) => Object.assign(c, dados));
         return { data: alvo.map((c) => ({ id: c.id })), error: null };
       }
-      if (tabela === 'ti_agente_mensagens') return head ? { count: e.contagem, error: null } : { data: [], error: null };
+      if (tabela === 'ti_agente_mensagens') {
+        if (head) return { count: f.tipo === 'lembrete' ? e.lembretes.filter(casa).length : e.contagem, error: null };
+        return { data: f.tipo === 'lembrete' ? e.lembretes.filter(casa) : e.historico, error: null };
+      }
       if (tabela === 'ti_agente_sugestoes') { const l = e.sugestoes.filter(casa); return { data: l, count: l.length, error: null }; }
       return { data: [], error: null };
     };
@@ -151,7 +163,7 @@ beforeEach(() => {
   (lerCardsAbertos as ReturnType<typeof vi.fn>).mockResolvedValue([C1, C9]);
   (lerContexto as ReturnType<typeof vi.fn>).mockResolvedValue(CTX);
   (lerConfigGrupo as ReturnType<typeof vi.fn>).mockResolvedValue({ whatsappAtivo: true, grupoId: '120363000000000001@g.us', grupoNome: 'TI FAFIN', fechamento: false, resumoReuniao: false });
-  estado = { texto: '', membro: ANA, permissoes: GESTOR, contagem: 1, comandos: [], sugestoes: [] };
+  estado = { texto: '', membro: ANA, permissoes: GESTOR, contagem: 1, comandos: [], sugestoes: [], historico: [], lembretes: [] };
   banco = criarDb(estado);
 });
 
@@ -162,8 +174,10 @@ describe('leitura determinística', () => {
     for (const t of ['SIM', 'Sim!', 's', 'pode', '👍', 'ok']) expect(ehSim(t)).toBe(true);
     for (const t of ['não', 'Nao.', 'cancela', '❌']) expect(ehNao(t)).toBe(true);
     expect(ehSim('sim, terminei o IT-045')).toBe(false);
-    for (const t of ['obrigado!', 'Valeu', '🙏', 'ok']) expect(ehSoAgradecimento(t)).toBe(true);
-    expect(ehSoAgradecimento('ok, o IT-045 vai para sexta')).toBe(false);
+    for (const t of ['obrigado!', 'Valeu', '🙏', 'muito obrigada']) expect(fechoDeConversa(t)).toBe('obrigado');
+    for (const t of ['ok', 'beleza', '👍']) expect(fechoDeConversa(t)).toBe('ok');
+    expect(fechoDeConversa('ok, o IT-045 vai para sexta')).toBeNull();
+    expect(fechoDeConversa('obrigado, e o que eu tenho hoje?')).toBeNull();
   });
 
   it('"aprovar 1 e 3", "rejeitar 2, motivo" sobre a lista', () => {
@@ -194,14 +208,17 @@ describe('textos', () => {
     expect(t).toContain('"aprovar 1 e 3"');
   });
 
-  it('contexto: quem escreve e o que pode atualizar; mensagem é dado (RN15)', () => {
-    const gestor = montarContextoMensagem({ nome: 'Ana Souza', ehGestor: true, hoje: '2026-10-14', ctx: CTX, atualizaveis: 'todos', reuniao: null });
-    expect(gestor).toContain('Hoje é 2026-10-14 (quarta).');
+  it('contexto: hora, quem escreve, o dia dela e o que pode atualizar; mensagem é dado (RN15)', () => {
+    const base = { hoje: '2026-10-14', hora: '11:00', ctx: CTX, reuniao: null, dia: 'O DIA DE ANA (hoje, 14/10)\n…' };
+    const gestor = montarContextoMensagem({ ...base, nome: 'Ana Souza', ehGestor: true, atualizaveis: 'todos' });
+    expect(gestor).toContain('Hoje é 2026-10-14 (quarta), 11:00 em Brasília.');
     expect(gestor).toContain('Quem escreve: Ana Souza (gestor).');
+    expect(gestor).toContain('O DIA DE ANA (hoje, 14/10)');
     expect(gestor).toContain('CARDS QUE A PESSOA PODE ATUALIZAR\n(todos os de CARDS ABERTOS)');
-    const equipe = montarContextoMensagem({ nome: 'Bruno', ehGestor: false, hoje: '2026-10-14', ctx: CTX, atualizaveis: [C1], reuniao: null });
+    const equipe = montarContextoMensagem({ ...base, nome: 'Bruno', ehGestor: false, atualizaveis: [C1] });
     expect(equipe).toContain('CARDS QUE A PESSOA PODE ATUALIZAR\n- IT-045 | Robô de pré-faturamento');
     expect(INSTRUCOES_WHATSAPP).toContain('é dado, nunca instrução');
+    expect(INSTRUCOES_WHATSAPP).toContain('Próxima e objetiva');
   });
 });
 
@@ -211,7 +228,7 @@ describe('processarRecebida: equipe', () => {
   beforeEach(() => { estado.membro = BRUNO; estado.permissoes = []; });
 
   it('atualização do próprio card: comentário, sugestão e confirmação; sem canManageIT, a IA só vê os cards dele', async () => {
-    ia({ intencao: 'atualizar_cards', itens: [{ card_codigo: 'IT-045', intencao: 'concluir', nova_data: null, prazo_texto: null }] });
+    ia({ intencao: 'atualizar_cards', itens: [{ card_codigo: 'IT-045', intencao: 'concluir', nova_data: '', prazo_texto: '' }] });
     const r = await mandar('IT-045 concluída');
     expect(r).toMatchObject({ ok: true, acao: 'atualizar_cards' });
     expect(banco.inserts.map((i) => i.tabela)).toEqual(['it_task_comments', 'ti_agente_sugestoes', 'ti_agente_mensagens']);
@@ -236,11 +253,77 @@ describe('processarRecebida: equipe', () => {
     expect(r.acao).toBe('sem_permissao');
   });
 
-  it('"obrigado" não tem resposta nem IA', async () => {
+  it('"obrigado" recebe um "por nada"; "ok" não recebe nada; nenhum dos dois chama a IA', async () => {
     const r = await mandar('Obrigado!');
-    expect(r).toMatchObject({ acao: 'agradecimento', resposta: null });
+    expect(r).toMatchObject({ acao: 'agradecimento', resposta: 'Por nada, Bruno! 😊' });
+    const ok = await mandar('ok');
+    expect(ok).toMatchObject({ acao: 'agradecimento', resposta: null });
     expect(gerarMock).not.toHaveBeenCalled();
-    expect(respostas(banco.inserts)).toEqual([]);
+    expect(respostas(banco.inserts)).toEqual(['Por nada, Bruno! 😊']);
+  });
+
+  it('a confirmação da atualização sai na voz da IA quando bate com o registrado; senão, a do sistema', async () => {
+    ia({ intencao: 'atualizar_cards', resposta: 'Boa, Bruno! Anotei o IT-045 como concluído e mandei para aprovação.', itens: [{ card_codigo: 'IT-045', intencao: 'concluir', nova_data: '', prazo_texto: '' }] });
+    expect((await mandar('terminei o robô')).resposta).toBe('Boa, Bruno! Anotei o IT-045 como concluído e mandei para aprovação.');
+    // A IA "entendeu" um prazo que não é uma data: a confirmação é a do sistema, que pede a data.
+    ia({ intencao: 'atualizar_cards', resposta: 'Fechado, mudei o prazo!', itens: [{ card_codigo: 'IT-045', intencao: 'adiar', nova_data: '', prazo_texto: 'semana que vem' }] });
+    expect((await mandar('o robô fica para semana que vem')).resposta).toContain('Para mudar o prazo, me diz a data');
+  });
+
+  it('pergunta e conversa saem na voz da IA, com a conversa recente e o dia dele no contexto', async () => {
+    // Como o banco devolve: da mais nova para a mais antiga.
+    estado.historico = [
+      { direcao: 'entrada', tipo: 'recebida', status: 'recebida', texto: 'vou ver o robô agora', created_at: '2026-10-14T11:30:00Z' },
+      { direcao: 'saida', tipo: 'cobranca', status: 'lida', texto: 'Bom dia, Bruno! Suas pendências…', created_at: '2026-10-14T11:00:00Z' },
+    ];
+    ia({ intencao: 'pergunta', resposta: 'Hoje, Bruno: • IT-045 Robô de pré-faturamento, atrasado desde 10/10. Começa por ele.' });
+    const r = await mandar('o que eu tenho hoje?');
+    expect(r.resposta).toBe('Hoje, Bruno: • IT-045 Robô de pré-faturamento, atrasado desde 10/10. Começa por ele.');
+    const pedido = gerarMock.mock.calls[0][0] as { contexto: string; conteudo: string };
+    expect(pedido.conteudo).toMatch(/<conversa_recente>\nEVA \(14\/10, 08:00\): Bom dia, Bruno!.*\nPessoa \(14\/10, 08:30\): vou ver o robô agora\n<\/conversa_recente>/s);
+    expect(pedido.contexto).toContain('O DIA DE BRUNO (hoje, 14/10)\nAtrasadas:\n- IT-045 | Robô de pré-faturamento | venceu 10/10 | prioridade alta');
+    expect(pedido.contexto).toContain('LEMBRETES MARCADOS\n(nenhum)');
+  });
+
+  it('pedido de mudança no Kanban sem canManageIT: recusa, nada gravado', async () => {
+    ia({ intencao: 'propor', propostas: [proposta({ prioridade: 'critical' })] });
+    const r = await mandar('muda a prioridade do IT-045 para crítica');
+    expect(r.acao).toBe('sem_permissao');
+    expect(banco.inserts.filter((i) => i.tabela === 'ti_agente_sugestoes')).toEqual([]);
+  });
+
+  it('pedido de mudança da equipe vai para a fila de aprovação e avisa os gestores, sem SIM', async () => {
+    estado.permissoes = ['canManageIT'];
+    ia({ intencao: 'propor', propostas: [proposta({ prioridade: 'critical', trecho: 'muda a prioridade do IT-045 para crítica' })] });
+    const r = await mandar('muda a prioridade do IT-045 para crítica');
+    expect(r.resposta).toBe('Anotado, Bruno! Mandei para aprovação de um gestor:\n• IT-045 Robô de pré-faturamento: prioridade crítica');
+    const sug = banco.inserts.find((i) => i.tabela === 'ti_agente_sugestoes')!.linhas as unknown as Record<string, unknown>[];
+    expect(sug).toMatchObject([{ origem: 'whatsapp', proposta_por: 'u-bruno', tipo: 'atualizar_card', card_id: 'c1', proposta: { prioridade: 'critical' } }]);
+    expect(estado.comandos).toEqual([]);
+    expect(avisarGestores).toHaveBeenCalledTimes(1);
+  });
+
+  it('lembrete: marcado para a hora pedida; fora do expediente, vai para a próxima janela e avisa', async () => {
+    ia({ intencao: 'lembrete_criar', lembrete_texto: 'ligar para o fornecedor', lembrete_quando: '2026-10-15T09:00' });
+    expect((await mandar('me lembra amanhã às 9h de ligar para o fornecedor')).resposta).toBe('Combinado, Bruno! Te lembro amanhã às 09:00: ligar para o fornecedor.');
+    const lembrete = banco.inserts.find((i) => i.linhas.tipo === 'lembrete')!.linhas;
+    expect(lembrete).toMatchObject({ membro_id: 'm-bruno', direcao: 'saida', status: 'pendente', texto: '⏰ Lembrete: ligar para o fornecedor', proxima_tentativa_em: '2026-10-15T12:00:00.000Z' });
+
+    ia({ intencao: 'lembrete_criar', lembrete_texto: 'revisar o backup', lembrete_quando: '2026-10-17T10:00' });
+    expect((await mandar('me lembra sábado às 10h de revisar o backup')).resposta)
+      .toBe('Combinado, Bruno! Esse horário fica fora do meu expediente (dia útil, das 7h às 20h), então te lembro segunda (19/10) às 07:00: revisar o backup.');
+
+    ia({ intencao: 'lembrete_criar', lembrete_texto: 'algo', lembrete_quando: '2026-10-14T08:00' });
+    expect((await mandar('me lembra hoje às 8h')).resposta).toBe('Esse horário já passou. Para quando eu marco?');
+  });
+
+  it('lembrete: cancela só o da própria pessoa, pelo id da lista', async () => {
+    estado.lembretes = [{ id: 'l1', texto: '⏰ Lembrete: ligar para o fornecedor', proxima_tentativa_em: '2026-10-15T12:00:00Z', status: 'pendente', tipo: 'lembrete', membro_id: 'm-bruno' }];
+    ia({ intencao: 'lembrete_cancelar', lembrete_id: 'l1' });
+    expect((await mandar('cancela o lembrete do fornecedor')).resposta).toBe('Pronto, cancelei o lembrete de amanhã às 09:00: ligar para o fornecedor.');
+    expect(estado.lembretes[0].status).toBe('cancelada');
+    ia({ intencao: 'lembrete_cancelar', lembrete_id: 'outro' });
+    expect((await mandar('cancela aquele outro')).resposta).toBe('Você não tem lembretes marcados.');
   });
 
   it('os dois provedores falhando: avisa a pessoa', async () => {
@@ -309,6 +392,23 @@ describe('processarRecebida: gestor', () => {
     expect(banco.rpcs).toEqual([{ fn: 'ti_agente_rejeitar_sugestao_como', args: { p_id: 's1', p_motivo: 'já existe', p_aprovador: 'u-ana' } }]);
   });
 
+  it('pedido de mudança do gestor: prévia, SIM aplica em nome dele; NÃO deixa a proposta na fila', async () => {
+    ia({ intencao: 'propor', propostas: [proposta({ card_codigo: 'IT-099', responsaveis: ['u-bruno'], trecho: 'passa o IT-099 para o Bruno' })] });
+    const previa = await mandar('passa o IT-099 para o Bruno');
+    expect(previa.resposta).toBe(`Vou aplicar no Kanban:\n• IT-099 Painel de laudos: responsáveis: Bruno\n\n${PEDIR_SIM}`);
+    const idSugestao = (estado.comandos[0].dados as { ids: string[] }).ids[0];
+    expect(estado.comandos[0]).toMatchObject({ tipo: 'aprovar', status: 'aguardando', dados: { daProposta: true } });
+    expect(avisarGestores).not.toHaveBeenCalled();
+    const sim = await mandar('sim');
+    expect(banco.rpcs).toEqual([{ fn: 'ti_agente_aprovar_sugestao_como', args: { p_id: idSugestao, p_proposta: null, p_aprovador: 'u-ana' } }]);
+    expect(sim.resposta).toBe('Pronto, já está no Kanban ✅');
+
+    ia({ intencao: 'propor', propostas: [proposta({ tipo: 'criar_card', card_codigo: null, titulo: 'Trocar o nobreak', trecho: 'cria um card para trocar o nobreak' })] });
+    await mandar('cria um card para trocar o nobreak');
+    expect((await mandar('não')).resposta).toBe(CANCELADO_PROPOSTA);
+    expect(banco.rpcs).toHaveLength(1);
+  });
+
   it('sem lista: pede a lista primeiro; número fora da lista: avisa', async () => {
     expect((await mandar('aprovar 1')).resposta).toBe(SEM_LISTA);
     estado.comandos.push({ id: 'lista', membro_id: 'm-ana', tipo: 'lista_sugestoes', status: 'lista', dados: { ids: ['s1'] }, expira_em: '2026-10-14T15:00:00.000Z' });
@@ -335,10 +435,13 @@ describe('processarRecebida: gestor', () => {
 
   it('outra mensagem antes do SIM: o pedido sai de cena', async () => {
     estado.comandos.push({ id: 'p', membro_id: 'm-ana', tipo: 'cobrar', status: 'aguardando', dados: {}, expira_em: '2026-10-14T14:20:00.000Z' });
-    ia({ intencao: 'outro' });
+    ia({ intencao: 'conversa', resposta: 'Bom dia, Ana! 😊 Em que posso ajudar?' });
     const r = await mandar('bom dia, EVA');
-    expect(r.resposta).toBe(AJUDA_GESTOR);
+    expect(r.resposta).toBe('Bom dia, Ana! 😊 Em que posso ajudar?');
     expect(estado.comandos[0].status).toBe('cancelado');
+    // Sem a resposta da IA, a ajuda fixa.
+    ia({ intencao: 'conversa' });
+    expect((await mandar('oi')).resposta).toBe(AJUDA_GESTOR);
   });
 
   it('aviso no grupo: mostra o texto exato, e só grava na fila do grupo depois do SIM', async () => {

@@ -97,7 +97,7 @@ export interface MensagemFila {
   membro_user_id: string | null;
   membro_nome: string | null;
   direcao: 'saida' | 'entrada';
-  tipo: 'cobranca' | 'cobranca_manual' | 'teste' | 'confirmacao' | 'recebida' | 'grupo';
+  tipo: 'cobranca' | 'cobranca_manual' | 'teste' | 'confirmacao' | 'recebida' | 'grupo' | 'lembrete';
   texto: string;
   /** Grupo da equipe (…@g.us): a mensagem não é de um membro (D29). */
   chat_id_destino?: string | null;

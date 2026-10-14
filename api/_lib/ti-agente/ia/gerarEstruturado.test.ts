@@ -34,6 +34,21 @@ describe('paraJsonSchema', () => {
     const { SchemaMensagem } = await import('../comandos.js');
     expect(JSON.stringify(paraJsonSchema(SchemaMensagem))).not.toMatch(/"(minimum|maximum|minLength|maxLength)"/);
   });
+
+  it('poucos campos "ou nulo": o Claude recusa a partir de uns 20 ("too many parameters with union types")', async () => {
+    const { SchemaMensagem } = await import('../comandos.js');
+    const { SchemaChat } = await import('../chat.js');
+    const { SchemaSugestoes } = await import('../extracao.js');
+    const unioes = (no: unknown): number => {
+      if (Array.isArray(no)) return no.reduce((n, x) => n + unioes(x), 0);
+      if (!no || typeof no !== 'object') return 0;
+      const o = no as Record<string, unknown>;
+      const aqui = Array.isArray(o.type) || Array.isArray(o.anyOf) || Array.isArray(o.oneOf) ? 1 : 0;
+      return aqui + Object.values(o).reduce<number>((n, v) => n + unioes(v), 0);
+    };
+    // A análise de reunião (11) roda em produção; a resposta do WhatsApp com 20 foi recusada (14/Out).
+    for (const s of [SchemaMensagem, SchemaChat, SchemaSugestoes]) expect(unioes(paraJsonSchema(s))).toBeLessThanOrEqual(12);
+  });
 });
 
 describe('gerarEstruturado — reserva (D17)', () => {
