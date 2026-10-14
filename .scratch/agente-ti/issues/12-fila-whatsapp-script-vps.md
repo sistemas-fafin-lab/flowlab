@@ -57,3 +57,13 @@ Plano: §2 (D9), §3 (WAHA e número), §4.3 (RF19 a RF21), §11.1 e §11.2.
   - **"Ao vivo"** aparece quando o WhatsApp está ligado.
 - **Chip Wa-ha:** já existia (`domain/integracoes.ts`) e ganhou o estado "fora do ar".
 - **Desvio:** a issue pedia "WhatsApp conectado", mas o chip mostra "Wa-ha · conectado", no padrão dos outros chips.
+
+**14/Out/2026 — arquivo único para a VPS.**
+- **Problema:** rodar o script fora de um checkout dá `ERR_MODULE_NOT_FOUND`, porque ele importa `api/_lib` e `src/`. Clonar o repositório na VPS exigiria uma chave do GitHub e o `npm ci` do app inteiro.
+- **`npm run eva-build-outbox`** (`build.mjs`, esbuild) gera em `dist/`, pasta ignorada pelo git:
+  - `eva-whatsapp.mjs`: 861 KB, com `@supabase/supabase-js` dentro;
+  - `install.sh`, com LF, porque o checkout no Windows fica com CRLF e quebraria o bash;
+  - `versao.txt`, com o commit empacotado.
+- **Detalhe do build:** o `punycode` nativo, depreciado, foi trocado pelo pacote do npm. Sem isso, o Node avisaria a cada minuto no journal.
+- **`install.sh` aceita `ARQUIVO=`:** copia o arquivo para `/opt/flowlab-eva`, ou continua aceitando `REPO_DIR=` como antes. Também confere se o Node é 18 ou mais novo.
+- **Conferido:** o `--dry-run` do arquivo único, numa pasta sem `node_modules`, leu o banco do app e reportou o WAHA ausente sem quebrar. `bash -n` no `install.sh` gerado está ok.

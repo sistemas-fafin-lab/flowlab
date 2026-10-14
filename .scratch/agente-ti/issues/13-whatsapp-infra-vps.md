@@ -23,7 +23,12 @@ Plano: §2 (D9), §3 (WAHA), §11 e §16.
   - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` do projeto **do app** (o do `VITE_SUPABASE_URL`), não o de teste.
   
   Todas sem prefixo `VITE_`. O `install.sh` grava essas variáveis em `/etc/flowlab/eva-whatsapp.env` (600).
-- [ ] Depois da 12: rodar `tools/agente-ti-whatsapp/install.sh` e conferir o timer (`systemctl list-timers`).
+- [ ] Depois da 12: instalar o timer e conferir com `systemctl list-timers`. Modo recomendado, sem clonar o repositório:
+  1. `npm run eva-build-outbox` na máquina de desenvolvimento;
+  2. copiar `dist/eva-whatsapp.mjs` e `dist/install.sh` para a VPS;
+  3. rodar `sudo ARQUIVO=~/eva-whatsapp.mjs SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… WAHA_API_KEY=… bash ~/install.sh`.
+  
+  Passo a passo no README da pasta.
 - [ ] Depois da 12: cadastrar pelo menos um membro com WhatsApp, ligar o WhatsApp em Configurações e usar **"Enviar teste"**. A mensagem precisa chegar no celular.
 
 ## Comments

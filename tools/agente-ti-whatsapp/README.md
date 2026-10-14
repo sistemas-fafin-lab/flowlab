@@ -25,15 +25,50 @@ O systemd não abre uma execução nova enquanto a anterior está rodando (`Type
 
 ## Instalação (systemd)
 
-Num checkout do repositório com `npm install` feito:
+Há dois modos. O recomendado é o **arquivo único**: a VPS não precisa de uma cópia do repositório nem de chave do GitHub, só de Node 18 ou mais novo.
 
-```bash
-sudo REPO_DIR=/opt/flowlab \
-     SUPABASE_URL=https://<projeto-do-app>.supabase.co \
-     SUPABASE_SERVICE_ROLE_KEY=<service-role-do-app> \
-     WAHA_API_KEY=<chave-do-waha> \
-     ./tools/agente-ti-whatsapp/install.sh
-```
+### Arquivo único (recomendado)
+
+1. Numa máquina com o repositório e `npm install` feito, gere o pacote:
+
+   ```bash
+   npm run eva-build-outbox
+   ```
+
+   Ele cria, em `tools/agente-ti-whatsapp/dist/` (pasta ignorada pelo git):
+   - `eva-whatsapp.mjs`: o script com tudo dentro, cerca de 860 KB;
+   - `install.sh`: o instalador, com fim de linha LF;
+   - `versao.txt`: o commit que foi empacotado.
+
+2. Copie os dois primeiros para a VPS:
+
+   ```bash
+   scp tools/agente-ti-whatsapp/dist/eva-whatsapp.mjs tools/agente-ti-whatsapp/dist/install.sh usuario@vps:~/
+   ```
+
+3. Na VPS, confira sem enviar nada. O esperado é `"sessao": "WORKING"`:
+
+   ```bash
+   SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... WAHA_API_KEY=... node ~/eva-whatsapp.mjs --dry-run
+   ```
+
+4. Instale. O arquivo é copiado para `/opt/flowlab-eva/`:
+
+   ```bash
+   sudo ARQUIVO=~/eva-whatsapp.mjs \
+        SUPABASE_URL=https://<projeto-do-app>.supabase.co \
+        SUPABASE_SERVICE_ROLE_KEY=<service-role-do-app> \
+        WAHA_API_KEY=<chave-do-waha> \
+        bash ~/install.sh
+   ```
+
+**Para atualizar:** gere o pacote de novo, copie e rode o `install.sh` outra vez.
+
+### Checkout do repositório
+
+Com o repositório clonado na VPS e `npm ci` feito, troque `ARQUIVO=…` por `REPO_DIR=/caminho/do/flowlab`. O timer roda o `.ts` com `tsx`, e para atualizar basta `git pull && npm ci`.
+
+### Nos dois modos
 
 As chaves ficam em `/etc/flowlab/eva-whatsapp.env`, com permissão `600`. Elas não vão para as units do systemd, que qualquer usuário da máquina consegue ler.
 
@@ -49,13 +84,15 @@ O log só registra quando há envio, falha ou sessão fora do ar, para não ench
 ## Uso manual
 
 ```bash
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... WAHA_API_KEY=... \
-  npx tsx tools/agente-ti-whatsapp/send-outbox.ts --dry-run
+# arquivo único
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... WAHA_API_KEY=... node eva-whatsapp.mjs --dry-run
+# checkout do repositório
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... WAHA_API_KEY=... npx tsx tools/agente-ti-whatsapp/send-outbox.ts --dry-run
 ```
 
 O `--dry-run` mostra a situação da sessão, se o envio está ligado e quantas mensagens esperam na fila. Não grava nem envia nada. Sem `--dry-run`, roda uma execução de verdade.
 
-Também dá para usar o script do `package.json`: `npm run eva-send-outbox -- --dry-run`.
+O comando tem de rodar de dentro do checkout, ou apontar para o `eva-whatsapp.mjs`. Rodado na pasta pessoal, o `npx tsx tools/...` dá `ERR_MODULE_NOT_FOUND`.
 
 ## Variáveis de ambiente
 

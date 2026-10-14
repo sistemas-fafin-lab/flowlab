@@ -690,7 +690,9 @@ Seções vazias não aparecem. Acima de 8 itens, a mensagem termina com "e outra
 
 **A EVA não depende do WhatsApp.** Início, chat, reuniões, sugestões e aprovações não falam com o WAHA. O botão Cobrar e o cron da manhã só gravam na fila. Se o WAHA ou a VPS caírem, o chip mostra "fora do ar" ou "sem sinal da VPS", as mensagens esperam, e o resto segue igual. O webhook (§11.3) é só a entrada das respostas: token errado, ou WAHA fora do ar, afeta apenas o recebimento das respostas.
 
-Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotation-approval-digest/`. A rotina fica em `api/_lib/ti-agente/outbox.ts` (testada); o executável só monta os clientes. As chaves ficam num arquivo de ambiente `600`, não nas units do systemd.
+**Como roda na VPS** (14/Out): de preferência como **arquivo único**. `npm run eva-build-outbox` empacota o script com tudo dentro (`dist/eva-whatsapp.mjs`, cerca de 860 KB), e a VPS só precisa de Node 18+, sem cópia do repositório nem chave do GitHub. A outra opção é um checkout com `npx tsx`, como `tools/quotation-approval-digest/`. O `install.sh` aceita os dois modos (`ARQUIVO=` ou `REPO_DIR=`).
+
+A rotina fica em `api/_lib/ti-agente/outbox.ts` (testada); o executável só monta os clientes. As chaves ficam num arquivo de ambiente `600`, não nas units do systemd.
 
 ### 11.3 Recebidas (webhook)
 
