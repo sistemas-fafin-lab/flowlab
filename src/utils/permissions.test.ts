@@ -80,3 +80,17 @@ describe('getPermissionsForLegacyRole — chaves do módulo Gastos de TI', () =>
     expect(permissoes).toContain('canManageGastosTI');
   });
 });
+
+describe('getPermissionsForLegacyRole — canApproveAgenteTI (EVA)', () => {
+  it('não concede canApproveAgenteTI a operator legado', () => {
+    expect(getPermissionsForLegacyRole('operator')).not.toContain('canApproveAgenteTI');
+  });
+
+  it('não concede canApproveAgenteTI a requester legado', () => {
+    expect(getPermissionsForLegacyRole('requester')).not.toContain('canApproveAgenteTI');
+  });
+
+  it('mantém canApproveAgenteTI para admin legado (role=admin é reconhecida pelo RLS)', () => {
+    expect(getPermissionsForLegacyRole('admin')).toContain('canApproveAgenteTI');
+  });
+});

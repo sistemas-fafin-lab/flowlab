@@ -800,13 +800,97 @@ function rhApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
+// ── Dev-only middleware para /api/ti/{action} (EVA, o agente de TI) ─────────────
+// Espelha api/ti/[action].ts. GET para o cron (com CRON_SECRET) e POST para as ações
+// da tela. Sem este plugin, `npm run dev` cai no fallback do SPA.
+function tiApiPlugin(env: Record<string, string>): Plugin {
+  const ACOES: Record<string, 'GET' | 'POST'> = {
+    'agente-sync-cron': 'GET',
+    'agente-sincronizar': 'POST',
+    'agente-analisar': 'POST',
+    'agente-perguntar': 'POST',
+    'agente-cobranca-cron': 'GET',
+    'agente-cobrar': 'POST',
+    'agente-teste': 'POST',
+    'waha-webhook': 'POST',
+  };
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY',
+    'CLAUDE_API_KEY', 'CLAUDE_WORKSPACE_ID', 'GEMINI_API_KEY', 'AGENTE_TI_GEMINI_MODEL',
+    'GRANOLA_API_KEY', 'CRON_SECRET', 'APP_URL', 'WAHA_WEBHOOK_SECRET', 'WAHA_SESSION',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+  };
+
+  return {
+    name: 'ti-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        const match = url.pathname.match(/^\/api\/ti\/([^/]+)$/);
+        const action = match?.[1];
+        if (!action || !ACOES[action] || req.method !== ACOES[action]) return next();
+
+        let body: Record<string, unknown> = {};
+        if (req.method === 'POST') {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              let raw = '';
+              req.on('data', (chunk) => { raw += chunk; });
+              req.on('end', () => {
+                try { body = raw ? JSON.parse(raw) : {}; resolve(); }
+                catch { reject(new Error('JSON inválido')); }
+              });
+              req.on('error', reject);
+            });
+          } catch {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: 'Body inválido' }));
+            return;
+          }
+        }
+
+        const query = { ...Object.fromEntries(url.searchParams), action };
+        const vReq = Object.assign(req, { body, query });
+        const vRes = Object.assign(res, {
+          status(code: number) { res.statusCode = code; return vRes; },
+          json(payload: unknown) {
+            if (!res.headersSent) res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(payload));
+            return vRes;
+          },
+        });
+
+        try {
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule(`/api/_lib/handlers/ti-${action}.ts`);
+          await mod.default(vReq, vRes);
+        } catch (err) {
+          console.error(`[dev/ti/${action}]`, err);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Erro interno' }));
+          }
+        }
+      });
+    },
+  };
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   // loadEnv com prefix '' carrega TODAS as vars (inclusive UMAMI_* sem prefixo VITE_)
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), notificationsApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env), qualidadeApiPlugin(env), rhApiPlugin(env)],
+    plugins: [react(), notificationsApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env), qualidadeApiPlugin(env), rhApiPlugin(env), tiApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },

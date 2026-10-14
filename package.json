@@ -11,9 +11,11 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "send-quotation-approval-digest": "tsx tools/quotation-approval-digest/send-digest.ts"
+    "send-quotation-approval-digest": "tsx tools/quotation-approval-digest/send-digest.ts",
+    "eva-send-outbox": "tsx tools/agente-ti-whatsapp/send-outbox.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
@@ -42,7 +44,8 @@
     "react-signature-canvas": "^1.1.0-alpha.2",
     "recharts": "^3.7.0",
     "signature": "^0.0.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
