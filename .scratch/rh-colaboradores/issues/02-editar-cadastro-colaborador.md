@@ -6,10 +6,14 @@ nascem vazios no backfill — cargo, data de admissão, matrícula — e ajusta 
 
 **Blocked by:** 01 — Colaboradores: schema, backfill e listagem
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Tela/modal de edição do colaborador com campos: cargo, data de admissão, matrícula,
       departamento.
 - [ ] Validação básica (ex.: data de admissão não pode ser futura; formato de data válido).
 - [ ] Alterações respeitam a mesma permissão de RH usada na listagem (01).
 - [ ] Alterações refletem imediatamente na tela de listagem.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

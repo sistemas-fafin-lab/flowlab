@@ -7,7 +7,7 @@ recursos futuros.
 
 **Blocked by:** 01 — Colaboradores: schema, backfill e listagem
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Campo "Gestor" no cadastro do colaborador — busca/seleciona outro colaborador
       existente para preencher `gestor_id`.
@@ -15,3 +15,7 @@ recursos futuros.
 - [ ] Bloqueia ciclos na cadeia de gestores (ex.: A tem B como gestor, B não pode ter A
       como gestor, direta ou indiretamente).
 - [ ] Vínculo salvo aparece na ficha do colaborador (nome do gestor).
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

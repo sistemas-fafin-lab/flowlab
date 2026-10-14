@@ -1,10 +1,13 @@
-import React, { useCallback, useMemo, useState } from 'react';
-import { AlertTriangle, BarChart3, DownloadCloud, ListChecks, RefreshCw, Send, Wallet } from 'lucide-react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, BarChart3, CheckCheck, DownloadCloud, ListChecks, RefreshCw, Scale, Send, Wallet } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
 import { useContasReceber } from '../hooks/useContasReceber';
+import { useConferenciaAplis } from '../hooks/useConferenciaAplis';
 import { periodoEsteMes } from '../utils/formato';
+import { idsDivergentesNoPeriodo } from '../utils/conferenciaAplis';
+import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
 import type { DashboardReceberFiltros, FiltroGlosaTitulo, SubAbaPendencias, TituloReceber, TituloStatus } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
@@ -14,6 +17,8 @@ import PendenciasParticulares from './PendenciasParticulares';
 import PendenciasSemLote from './PendenciasSemLote';
 import NovoTituloModal from './NovoTituloModal';
 import AtualizarAplisModal from './AtualizarAplisModal';
+import ConferenciaAplisModal from './ConferenciaAplisModal';
+import AplicarBaixasAplisModal from './AplicarBaixasAplisModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
 import RegraNfModal from './RegraNfModal';
@@ -77,6 +82,7 @@ const ContasReceberPage: React.FC = () => {
     // precisa selecionar Status manualmente a cada visita pra ver o que falta receber.
     somentePendentes: true,
     glosa: '' as FiltroGlosaTitulo,
+    divergenteAplis: false,
     pagina: 1,
     tamanho: 25,
   });
@@ -88,6 +94,14 @@ const ContasReceberPage: React.FC = () => {
 
   const [novoAberto, setNovoAberto] = useState(false);
   const [atualizarAplisAberto, setAtualizarAplisAberto] = useState(false);
+  const [conferenciaAberta, setConferenciaAberta] = useState(false);
+  const [aplicarBaixasAberto, setAplicarBaixasAberto] = useState(false);
+  // Trocada quando o "Lançar baixa" ou o "Editar título" fecha depois de salvar
+  // (e no cancelamento e no "Atualizar" da lista): a conferência com o apLIS — a
+  // do modal, se aberto, e a dos selos da aba Títulos — refaz a leitura e o
+  // título acertado sai da lista.
+  const [versaoConferencia, setVersaoConferencia] = useState(0);
+  const tituloSalvoRef = useRef(false);
   const [parceirasAberto, setParceirasAberto] = useState(false);
   const [regraNfAberto, setRegraNfAberto] = useState(false);
   const [consideradaMetaAberto, setConsideradaMetaAberto] = useState(false);
@@ -100,6 +114,24 @@ const ContasReceberPage: React.FC = () => {
   // com cara de aviso positivo.
   const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
 
+  // Selos e filtro "Divergente do apLIS" da aba Títulos: lida a cada entrada na
+  // aba, sem segurar a lista (que carrega por conta própria).
+  const conferencia = useConferenciaAplis(aba === 'titulos', versaoConferencia);
+
+  // undefined = filtro desligado; null = ligado, mas a conferência ainda não
+  // chegou ou falhou (a lista fica vazia, ver useContasReceber).
+  // Chaveado pelo conteúdo: cada releitura da conferência traz um array novo,
+  // e um array novo com os mesmos ids refaria a consulta da lista à toa.
+  const chaveIdsDivergentes = useMemo(() => {
+    if (!filtros.divergenteAplis) return undefined;
+    if (!conferencia.titulos) return null;
+    return idsDivergentesNoPeriodo(conferencia.titulos, filtros.desde, filtros.ate).join(',');
+  }, [filtros.divergenteAplis, filtros.desde, filtros.ate, conferencia.titulos]);
+  const idsDivergentesAplis = useMemo((): string[] | null | undefined => {
+    if (typeof chaveIdsDivergentes !== 'string') return chaveIdsDivergentes;
+    return chaveIdsDivergentes === '' ? [] : chaveIdsDivergentes.split(',');
+  }, [chaveIdsDivergentes]);
+
   const parametros = useMemo(() => ({
     desde: filtros.desde,
     ate: filtros.ate,
@@ -109,13 +141,16 @@ const ContasReceberPage: React.FC = () => {
     ocultarParceiras: filtros.ocultarParceiras,
     somentePendentes: filtros.somentePendentes,
     glosa: filtros.glosa,
+    divergenteAplis: filtros.divergenteAplis,
+    idsDivergentesAplis,
     pagina: filtros.pagina,
     tamanho: filtros.tamanho,
-  }), [filtros]);
+  }), [filtros, idsDivergentesAplis]);
 
   const {
-    titulos, operadoras, total, loading, error, refetch, refetchOperadoras,
-    buscarGuias, buscarEnvioLotes, buscarBaixas, criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
+    titulos, operadoras, total, loading, error, refetch, refetchOperadoras, buscarTitulo,
+    buscarGuias, buscarEnvioLotes, buscarBaixas, buscarLancamentos, buscarAlteracoes, corrigirLancamento, excluirBaixa,
+    criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
     atualizarNumeroNota, desvincularLote, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
   } = useContasReceber(parametros);
 
@@ -193,14 +228,49 @@ const ContasReceberPage: React.FC = () => {
 
   // O mesmo modal atende os dois casos: o formulário de glosa é idêntico, muda
   // só o caminho de escrita (ver o comentário de `modo` no BaixaModal).
-  const abrirBaixa = (titulo: TituloReceber) => {
+  const abrirBaixa = useCallback((titulo: TituloReceber) => {
+    tituloSalvoRef.current = false;
     setModoModal('baixa');
     setTituloBaixa(titulo);
-  };
+  }, []);
   const abrirGlosa = (titulo: TituloReceber) => {
+    tituloSalvoRef.current = false;
     setModoModal('glosa');
     setTituloBaixa(titulo);
   };
+
+  const abrirEditar = useCallback((titulo: TituloReceber) => {
+    tituloSalvoRef.current = false;
+    setTituloEditar(titulo);
+  }, []);
+
+  // Fecha o "Lançar baixa"/"Editar título"; se algo foi salvo, refaz a conferência.
+  const fecharLancamento = useCallback((fechar: () => void) => {
+    fechar();
+    if (tituloSalvoRef.current) setVersaoConferencia((v) => v + 1);
+    tituloSalvoRef.current = false;
+  }, []);
+
+  /** Repassa o resultado de uma escrita dos modais de lançamento, anotando o sucesso. */
+  const anotarSalvo = useCallback((erro: string | null) => {
+    if (erro === null) tituloSalvoRef.current = true;
+    return erro;
+  }, []);
+
+  // A conferência só tem o id: o título pode estar fora do filtro/página da lista.
+  const abrirTituloDaConferencia = useCallback(async (
+    idNota: string,
+    acao: AcaoTituloConferencia,
+  ): Promise<string | null> => {
+    try {
+      const titulo = await buscarTitulo(idNota);
+      if (acao === 'baixa') abrirBaixa(titulo);
+      else abrirEditar(titulo);
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Não foi possível abrir o título.';
+    }
+  }, [abrirBaixa, abrirEditar, buscarTitulo]);
 
   const confirmarCancelamento = async (titulo: TituloReceber) => {
     const ok = window.confirm(
@@ -209,6 +279,8 @@ const ContasReceberPage: React.FC = () => {
     if (!ok) return;
     const erro = await cancelarTitulo(titulo.id);
     if (erro) setAviso({ tipo: 'erro', texto: erro });
+    // Título cancelado sai da conferência.
+    else setVersaoConferencia((v) => v + 1);
   };
 
   return (
@@ -226,11 +298,31 @@ const ContasReceberPage: React.FC = () => {
           </div>
         </div>
 
-        {podeEditar && (
-          <div className="flex flex-wrap items-center gap-2">
-            {/* A réplica do apLIS atrasa ~1 dia: sem o aviso, o lote fechado hoje
-                "faltando" parece defeito do botão. */}
-            <span className="text-[11px] text-gray-400 dark:text-gray-500">dados do apLIS até ontem</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* A réplica do apLIS atrasa ~1 dia: sem o aviso, o lote fechado hoje
+              "faltando" (ou a baixa de hoje no apLIS) parece defeito do botão. */}
+          <span className="text-[11px] text-gray-400 dark:text-gray-500">dados do apLIS até ontem</span>
+          {/* Só leitura: visível a quem vê o Contas a Receber (canViewBilling,
+              já exigido pela rota), não só a quem edita. */}
+          <button
+            type="button"
+            onClick={() => setConferenciaAberta(true)}
+            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+          >
+            <Scale className="w-4 h-4" />
+            Conferir baixas com o apLIS
+          </button>
+          {podeEditar && (
+            <button
+              type="button"
+              onClick={() => setAplicarBaixasAberto(true)}
+              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+            >
+              <CheckCheck className="w-4 h-4" />
+              Aplicar baixas do apLIS
+            </button>
+          )}
+          {podeEditar && (
             <button
               type="button"
               onClick={() => setAtualizarAplisAberto(true)}
@@ -239,6 +331,8 @@ const ContasReceberPage: React.FC = () => {
               <DownloadCloud className="w-4 h-4" />
               Atualizar do apLIS
             </button>
+          )}
+          {podeEditar && (
             <button
               type="button"
               onClick={sincronizarOperadoras}
@@ -248,8 +342,8 @@ const ContasReceberPage: React.FC = () => {
               <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
               Sincronizar operadoras
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {aviso && (
@@ -305,12 +399,19 @@ const ContasReceberPage: React.FC = () => {
           titulos={titulos}
           operadoras={operadoras}
           total={total}
-          loading={loading}
+          // Com o filtro "Divergente do apLIS" ligado, a lista depende da
+          // conferência: até ela chegar, é "carregando", não "nenhum título".
+          loading={loading || (filtros.divergenteAplis && !conferencia.titulos && !conferencia.erro)}
           error={error}
+          divergencias={conferencia.porTitulo}
+          erroConferencia={conferencia.erro}
           podeEditar={podeEditar}
           filtros={filtros}
           onFiltrar={aplicarFiltro}
-          onAtualizar={() => void refetch()}
+          onAtualizar={() => {
+            void refetch();
+            setVersaoConferencia((v) => v + 1);
+          }}
           onNovoTitulo={() => setNovoAberto(true)}
           onGerenciarParceiras={() => setParceirasAberto(true)}
           onGerenciarRegraNf={() => setRegraNfAberto(true)}
@@ -318,11 +419,12 @@ const ContasReceberPage: React.FC = () => {
           onBaixa={abrirBaixa}
           onGlosa={abrirGlosa}
           onCancelar={(titulo) => void confirmarCancelamento(titulo)}
-          onEditar={setTituloEditar}
+          onEditar={abrirEditar}
           onDesvincularLote={desvincularLote}
           buscarGuias={buscarGuias}
           buscarEnvioLotes={buscarEnvioLotes}
           buscarBaixas={buscarBaixas}
+          buscarAlteracoes={buscarAlteracoes}
         />
       )}
 
@@ -366,15 +468,36 @@ const ContasReceberPage: React.FC = () => {
       <AtualizarAplisModal
         aberto={atualizarAplisAberto}
         onFechar={() => setAtualizarAplisAberto(false)}
-        onAlterados={() => void refetch()}
+        onAlterados={() => {
+          void refetch();
+          // Títulos novos ou lotes revinculados mudam a conferência.
+          setVersaoConferencia((v) => v + 1);
+        }}
+      />
+
+      <ConferenciaAplisModal
+        aberto={conferenciaAberta}
+        onFechar={() => setConferenciaAberta(false)}
+        versao={versaoConferencia}
+        podeAbrirTitulo={podeEditar}
+        onAbrirTitulo={abrirTituloDaConferencia}
+      />
+
+      <AplicarBaixasAplisModal
+        aberto={aplicarBaixasAberto}
+        onFechar={() => setAplicarBaixasAberto(false)}
+        onAlterados={() => {
+          void refetch();
+          setVersaoConferencia((v) => v + 1);
+        }}
       />
 
       <BaixaModal
         titulo={tituloBaixa}
         modo={modoModal}
-        onFechar={() => setTituloBaixa(null)}
-        onRegistrar={registrarBaixa}
-        onLancarGlosas={lancarGlosas}
+        onFechar={() => fecharLancamento(() => setTituloBaixa(null))}
+        onRegistrar={async (dados) => anotarSalvo(await registrarBaixa(dados))}
+        onLancarGlosas={async (notaId, glosas) => anotarSalvo(await lancarGlosas(notaId, glosas))}
         buscarGuias={buscarGuias}
       />
 
@@ -401,8 +524,12 @@ const ContasReceberPage: React.FC = () => {
 
       <EditarTituloModal
         titulo={tituloEditar}
-        onFechar={() => setTituloEditar(null)}
-        onSalvar={atualizarNumeroNota}
+        onFechar={() => fecharLancamento(() => setTituloEditar(null))}
+        onSalvar={async (idNota, numeroNota) => anotarSalvo(await atualizarNumeroNota(idNota, numeroNota))}
+        buscarLancamentos={buscarLancamentos}
+        buscarGuias={buscarGuias}
+        onCorrigirLancamento={async (payload) => anotarSalvo(await corrigirLancamento(payload))}
+        onExcluirBaixa={async (id, motivo) => anotarSalvo(await excluirBaixa(id, motivo))}
       />
     </div>
   );

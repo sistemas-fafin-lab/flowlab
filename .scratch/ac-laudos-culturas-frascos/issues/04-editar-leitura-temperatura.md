@@ -1,4 +1,4 @@
-Status: ready-for-agent
+Status: done
 Type: task
 
 # Temperatura: editar uma leitura já registrada
@@ -87,3 +87,7 @@ de leitura para `domain/leituras.ts`, testados em
   (`fora_faixa` recalculado pela trigger).
 - Sem permissão, o botão não aparece.
 - `npm test` verde; typecheck/lint limpos.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

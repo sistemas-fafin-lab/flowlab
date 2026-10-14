@@ -12,7 +12,7 @@ essas decisões sem motivo novo.
 
 **Blocked by:** Nenhuma — pode começar imediatamente.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Migration cria a tabela `colaboradores` conforme o schema em `spec.md` (incluindo
       `user_profile_id` opcional com índice único parcial, `cpf` `NOT NULL UNIQUE`,
@@ -36,3 +36,7 @@ essas decisões sem motivo novo.
 - [ ] Tela de listagem exibe: nome, CPF, departamento, status, e se há usuário do sistema
       vinculado (com nome/e-mail da conta, quando houver).
 - [ ] RLS na tabela `colaboradores` segue o padrão do projeto (`current_user_has_permission()`).
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

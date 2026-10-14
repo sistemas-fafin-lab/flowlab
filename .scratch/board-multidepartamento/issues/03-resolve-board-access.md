@@ -18,7 +18,7 @@ sem acesso a nenhum board; usuário sem `custom_role_id` → sem acesso.
 **Blocked by:** None — can start immediately (o formato de dados já está
 decidido na spec; não depende da migration estar aplicada)
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Função pura implementada em `domain/`, sem imports de Supabase/React.
 - [ ] Teste co-localizado cobrindo: sem `board_id` (sem acesso); com
@@ -27,3 +27,7 @@ decidido na spec; não depende da migration estar aplicada)
       total a todos os boards, independente do cargo); sem `custom_role_id`
       (sem acesso).
 - [ ] `npm run lint`, typecheck e testes limpos.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

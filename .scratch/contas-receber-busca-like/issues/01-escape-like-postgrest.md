@@ -1,6 +1,6 @@
 # Escape de `%`/`_` na busca de Títulos é descartado pelo PostgREST
 
-Status: ready-for-agent
+Status: done
 
 ## Onde
 
@@ -59,3 +59,14 @@ Achado original: revisão `/code-review` de 2026-08-12, ao lado do refactor do
 Candidato 1 da revisão de arquitetura
 (`docs/architecture/oportunidades-melhoria-arquitetura.md`). Não é regressão
 desse refactor — o código de busca não foi tocado nele.
+
+## Comments
+
+14/10/2026 — resolvido sem RPC: escape em duas camadas no cliente
+(`src/modules/faturamento/utils/buscaLike.ts`, testado). Dentro do `.or()` o
+valor citado dobra as barras, para o `\%` chegar ao Postgres. Conferido em
+produção (só leitura): com escape simples, `"%\%%"` casava as 1.717
+observações; com o duplo, só as com `%` literal (0). A RPC foi descartada
+porque um termo comum ("2026") devolveria milhares de ids para um `in.(...)`
+na URL. O `.ilike()` do código do lote, fora do `or()`, já funcionava com o
+escape simples.

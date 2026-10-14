@@ -11,7 +11,7 @@ de TI (componente compartilhado do ticket 01).
 
 **Blocked by:** 04
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Usuário com `canManageBoard` consegue criar um card novo no board do
       próprio cargo, preenchendo os campos genéricos (título, descrição,
@@ -26,3 +26,7 @@ de TI (componente compartilhado do ticket 01).
       acionar nenhuma dessas ações, mesmo tentando direto (RLS bloqueia
       escrita mesmo que a UI falhe em esconder o botão).
 - [ ] `npm run lint` e typecheck limpos.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

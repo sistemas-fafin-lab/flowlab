@@ -7,7 +7,7 @@ colaborador, sem precisar mexer direto no banco.
 
 **Blocked by:** 01 — Colaboradores: schema, backfill e listagem
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Ação "Vincular usuário" no colaborador sem conta: busca/seleciona um `user_profile`
       existente e cria o vínculo (`user_profile_id`).
@@ -16,3 +16,7 @@ colaborador, sem precisar mexer direto no banco.
       clara.
 - [ ] Ação "Desvincular" remove o vínculo sem apagar o colaborador nem o usuário.
 - [ ] Listagem (01) reflete o vínculo/desvínculo imediatamente.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

@@ -1,6 +1,6 @@
 # Faturamento: visão agregada de envios por convênio em Contas a Receber
 
-Status: 3 issues, todas `ready-for-agent`.
+Status: done (3 issues concluídas).
 
 Spec resultante de sessão de grilling em 2026-09-04, a partir de um pedido
 literal do cliente (repassado pelo usuário via `/grill-me`).

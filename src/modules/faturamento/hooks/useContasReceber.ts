@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { diasDeAtraso } from '../utils/formato';
+import { padraoContem, valorCitadoPostgrest } from '../utils/buscaLike';
 import type {
+  AlteracaoLancamento,
   BaixaInput,
+  CorrecaoLancamentoPayload,
+  GlosaLancada,
   GlosaLancamentoInput,
+  GlosaStatus,
+  LancamentosTitulo,
   OperadoraResumo,
   TituloBaixa,
   TituloGuia,
@@ -25,6 +31,17 @@ import { STATUS_GLOSA_EM_DISPUTA, STATUS_TITULOS_PENDENTES } from '../types';
 // título fica mentindo entre um statement e outro.
 
 const TAMANHO_PADRAO = 25;
+
+/** Nome (`user_profiles.name`) por id. `registrado_por_id` referencia
+ *  auth.users, não user_profiles — sem FK direta o PostgREST não embeda o nome
+ *  num select só, então resolve numa segunda ida. */
+async function nomesDosUsuarios(ids: (string | null)[]): Promise<Record<string, string>> {
+  const distintos = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (distintos.length === 0) return {};
+  const { data, error } = await supabase.from('user_profiles').select('id, name').in('id', distintos);
+  if (error) throw new Error(error.message);
+  return Object.fromEntries((data ?? []).map((p) => [p.id as string, p.name as string]));
+}
 
 async function getToken(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -92,6 +109,31 @@ export async function chamarApi<T = unknown>(
   return body;
 }
 
+/** Uma baixa (com suas glosas) pela RPC `fat_registrar_baixa`, sem reler nada.
+ *  Também usado pelo "Aplicar baixas do apLIS", que lança várias em sequência. */
+export async function rpcRegistrarBaixa(dados: BaixaInput): Promise<void> {
+  const { error } = await supabase.rpc('fat_registrar_baixa', {
+    p: {
+      notaId: dados.notaId,
+      valorRecebido: dados.valorRecebido,
+      dataRecebimento: dados.dataRecebimento,
+      bancoNome: dados.bancoNome ?? null,
+      bancoConta: dados.bancoConta ?? null,
+      formaRecebimento: dados.formaRecebimento ?? null,
+      observacoes: dados.observacoes ?? null,
+      glosas: dados.glosas.map((g) => ({
+        valor: g.valor,
+        motivo: g.motivo,
+        codigoGlosa: g.codigoGlosa ?? null,
+        status: g.status ?? 'aberta',
+        requisicaoId: g.requisicaoId ?? null,
+        loteId: g.loteId ?? null,
+      })),
+    },
+  });
+  if (error) throw new Error(error.message);
+}
+
 // Formato cru devolvido pelo PostgREST — snake_case, com os embeds aninhados.
 interface LinhaTitulo {
   id_nota: string;
@@ -121,6 +163,11 @@ interface LinhaTitulo {
     } | null;
   }[] | null;
 }
+
+const SELECT_TITULO = `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
+  valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes, updated_at,
+  operadoras(nome),
+  nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes, responsavel_fechamento))`;
 
 const num = (bruto: number | string | null | undefined): number => {
   const n = Number(bruto ?? 0);
@@ -171,6 +218,9 @@ interface UseContasReceberResult {
   refetch: () => Promise<void>;
   /** Recarrega o seletor de operadoras — chamado depois de sincronizar com o apLIS. */
   refetchOperadoras: () => Promise<void>;
+  /** Um título pelo id, fora dos filtros da lista — a conferência com o apLIS
+   *  abre títulos que não estão na página atual. */
+  buscarTitulo: (notaId: string) => Promise<TituloReceber>;
   /** Guias congeladas de um lote, sob demanda ao expandir a linha. Sempre um
    *  array — nunca undefined, mesmo sem nenhuma guia. */
   buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
@@ -182,6 +232,15 @@ interface UseContasReceberResult {
   /** Baixas (`recebimentos`) do título, mais recente primeiro, com o nome de
    *  quem registrou já resolvido — issue 39. Sempre um array, nunca undefined. */
   buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
+  /** Baixas (com todos os campos digitados e as glosas de cada uma) e glosas
+   *  sem baixa do título, para a correção pelo "Editar título". */
+  buscarLancamentos: (notaId: string) => Promise<LancamentosTitulo>;
+  /** Histórico de correções de lançamentos do título, mais recente primeiro. */
+  buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
+  /** Corrige uma baixa (ou as glosas sem baixa) — ver utils/correcaoLancamento.ts. */
+  corrigirLancamento: (payload: CorrecaoLancamentoPayload) => Promise<string | null>;
+  /** Exclui uma baixa e as glosas dela, com motivo obrigatório. */
+  excluirBaixa: (recebimentoId: string, motivo: string) => Promise<string | null>;
   criarTitulo: (dados: {
     idsLote: number[];
     numeroNota: string;
@@ -219,7 +278,10 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
 
   // Desestruturado para que as deps do useCallback sejam primitivas — com o
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
-  const { desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa, pagina, tamanho } = filtros;
+  const {
+    desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
+    divergenteAplis, idsDivergentesAplis, pagina, tamanho,
+  } = filtros;
 
   // Descarta respostas de buscas antigas: trocar de página/filtro rápido pode
   // devolver fora de ordem e sobrescrever o resultado novo com o velho.
@@ -233,16 +295,20 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     const porPagina = tamanho ?? TAMANHO_PADRAO;
     const inicio = ((pagina ?? 1) - 1) * porPagina;
 
+    // Filtro "Divergente do apLIS" sem divergente a mostrar (ou sem a
+    // conferência, que a tela avisa à parte): nem vai ao banco — `in.()`
+    // vazio e "ignorar o filtro" seriam as duas respostas erradas.
+    if (divergenteAplis && (!idsDivergentesAplis || idsDivergentesAplis.length === 0)) {
+      setTitulos([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
+
     try {
       let query = supabase
         .from('notas')
-        .select(
-          `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
-           valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes, updated_at,
-           operadoras(nome),
-           nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes, responsavel_fechamento))${glosa ? ', glosas(id_glosa)' : ''}`,
-          { count: 'exact' },
-        )
+        .select(`${SELECT_TITULO}${glosa ? ', glosas(id_glosa)' : ''}`, { count: 'exact' })
         // Referência do período é a EMISSÃO (revisão de 2026-09-24 sobre a
         // issue 40, que tinha escolhido vencimento): filtrar por vencimento
         // fazia um título emitido em agosto sumir do período de agosto. A
@@ -261,6 +327,9 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         query = query.in('status', STATUS_TITULOS_PENDENTES);
       }
       if (operadoraId) query = query.eq('operadora_id', operadoraId);
+      // Os ids vêm da conferência (rota própria, MySQL do apLIS) — recorte no
+      // servidor para contagem e paginação continuarem certas.
+      if (divergenteAplis && idsDivergentesAplis) query = query.in('id_nota', idsDivergentesAplis);
       // Filtro "Glosa": o embed `glosas(id_glosa)` só entra no select quando o
       // filtro está ativo, e o recorte é feito no servidor (is null / not is null
       // sobre o embed), então contagem e paginação continuam certas.
@@ -273,13 +342,14 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       }
       if (busca?.trim()) {
         const termo = busca.trim();
-        // `%` e `_` do operador viram curinga do LIKE; escapa antes de compor.
-        // Aspas duplas escapam vírgula/parênteses do termo dentro do or() do PostgREST.
-        const termoLike = termo.replace(/[%_]/g, '\\$&').replace(/"/g, '\\"');
+        // `%` e `_` digitados são literais, não curinga — ver utils/buscaLike.ts
+        // (dentro do or() o escape precisa sobreviver ao parser do PostgREST).
+        const padrao = padraoContem(termo);
+        const citado = valorCitadoPostgrest(padrao);
         const condicoes = [
-          `numero_nota.ilike."%${termoLike}%"`,
-          `competencia.ilike."%${termoLike}%"`,
-          `observacoes.ilike."%${termoLike}%"`,
+          `numero_nota.ilike.${citado}`,
+          `competencia.ilike.${citado}`,
+          `observacoes.ilike.${citado}`,
         ];
         // Nome da operadora não dá pra filtrar direto no embed aninhado do or() —
         // resolve os ids pela lista já carregada (mesma origem do dropdown) e
@@ -297,7 +367,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         const { data: lotesBatidos } = await supabase
           .from('nota_lote')
           .select('id_nota, lotes!inner(codigo_lote)')
-          .ilike('lotes.codigo_lote', `%${termoLike}%`);
+          .ilike('lotes.codigo_lote', padrao);
         const idsPorLote = [...new Set((lotesBatidos ?? []).map((l) => l.id_nota as string))];
         if (idsPorLote.length > 0) {
           condicoes.push(`id_nota.in.(${idsPorLote.join(',')})`);
@@ -335,7 +405,10 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa, pagina, tamanho, operadoras]);
+  }, [
+    desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
+    divergenteAplis, idsDivergentesAplis, pagina, tamanho, operadoras,
+  ]);
 
   useEffect(() => {
     void refetch();
@@ -363,6 +436,17 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   useEffect(() => {
     void refetchOperadoras();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const buscarTitulo = useCallback(async (notaId: string): Promise<TituloReceber> => {
+    const { data, error: erro } = await supabase
+      .from('notas')
+      .select(SELECT_TITULO)
+      .eq('id_nota', notaId)
+      .maybeSingle();
+    if (erro) throw new Error(erro.message);
+    if (!data) throw new Error('Título não encontrado.');
+    return normalizar(data as unknown as LinhaTitulo);
   }, []);
 
   const buscarGuias = useCallback(async (loteId: string) => {
@@ -393,10 +477,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   }, []);
 
   // Issue 39: histórico de baixas por título, sob demanda ao expandir a linha
-  // (mesmo padrão de buscarGuias). `registrado_por_id` referencia auth.users,
-  // não user_profiles — sem FK direta entre as duas tabelas o PostgREST não
-  // embeda o nome num select só, então resolve em duas idas: as baixas, depois
-  // os nomes dos ids distintos encontrados.
+  // (mesmo padrão de buscarGuias).
   const buscarBaixas = useCallback(async (notaId: string): Promise<TituloBaixa[]> => {
     const { data, error: erro } = await supabase
       .from('recebimentos')
@@ -406,19 +487,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       .order('created_at', { ascending: false });
     if (erro) throw new Error(erro.message);
     const linhas = data ?? [];
-
-    const idsUsuarios = [...new Set(
-      linhas.map((l) => l.registrado_por_id as string | null).filter((id): id is string => Boolean(id)),
-    )];
-    let nomePorId: Record<string, string> = {};
-    if (idsUsuarios.length > 0) {
-      const { data: perfis, error: erroPerfis } = await supabase
-        .from('user_profiles')
-        .select('id, name')
-        .in('id', idsUsuarios);
-      if (erroPerfis) throw new Error(erroPerfis.message);
-      nomePorId = Object.fromEntries((perfis ?? []).map((p) => [p.id as string, p.name as string]));
-    }
+    const nomePorId = await nomesDosUsuarios(linhas.map((l) => l.registrado_por_id as string | null));
 
     return linhas.map((linha) => ({
       id: linha.id_receb as string,
@@ -428,6 +497,84 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         ? (nomePorId[linha.registrado_por_id as string] ?? null)
         : null,
       createdAt: linha.created_at as string,
+    }));
+  }, []);
+
+  // Correção de lançamentos (.scratch/titulos-edicao-lancamentos): baixas com
+  // todos os campos digitados, cada uma com as glosas lançadas junto, mais as
+  // glosas sem baixa ("Lançar glosa" e backfill).
+  const buscarLancamentos = useCallback(async (notaId: string): Promise<LancamentosTitulo> => {
+    const [recebimentos, glosas] = await Promise.all([
+      supabase
+        .from('recebimentos')
+        .select('id_receb, data_receb, valor_recebido, forma_recebimento, banco_nome, banco_conta, observacoes, registrado_por_id, created_at')
+        .eq('nota_id', notaId)
+        // Só as que contam no recebido do título (filtro de fat_recalcular_nota);
+        // as 'previsto' do legado não são pagamento e a RPC recusa corrigi-las.
+        .in('status', ['recebido', 'parcial'])
+        .order('data_receb', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('glosas')
+        .select('id_glosa, recebimento_id, valor, motivo, requisicao_id, lote_id, status')
+        .eq('nota_id', notaId)
+        .order('created_at', { ascending: true }),
+    ]);
+    if (recebimentos.error) throw new Error(recebimentos.error.message);
+    if (glosas.error) throw new Error(glosas.error.message);
+
+    const porBaixa = new Map<string | null, GlosaLancada[]>();
+    for (const linha of glosas.data ?? []) {
+      const chave = (linha.recebimento_id as string | null) ?? null;
+      const lista = porBaixa.get(chave) ?? [];
+      lista.push({
+        id: linha.id_glosa as string,
+        valor: num(linha.valor as number),
+        motivo: (linha.motivo as string | null) ?? '',
+        requisicaoId: (linha.requisicao_id as string | null) ?? null,
+        loteId: (linha.lote_id as string | null) ?? null,
+        status: linha.status as GlosaStatus,
+      });
+      porBaixa.set(chave, lista);
+    }
+
+    const linhas = recebimentos.data ?? [];
+    const nomePorId = await nomesDosUsuarios(linhas.map((l) => l.registrado_por_id as string | null));
+    return {
+      baixas: linhas.map((linha) => ({
+        id: linha.id_receb as string,
+        valorRecebido: num(linha.valor_recebido as number),
+        dataReceb: (linha.data_receb as string | null) ?? null,
+        formaRecebimento: (linha.forma_recebimento as string | null) ?? null,
+        bancoNome: (linha.banco_nome as string | null) ?? null,
+        bancoConta: (linha.banco_conta as string | null) ?? null,
+        observacoes: (linha.observacoes as string | null) ?? null,
+        registradoPorNome: linha.registrado_por_id
+          ? (nomePorId[linha.registrado_por_id as string] ?? null)
+          : null,
+        glosas: porBaixa.get(linha.id_receb as string) ?? [],
+      })),
+      glosasSemBaixa: porBaixa.get(null) ?? [],
+    };
+  }, []);
+
+  const buscarAlteracoes = useCallback(async (notaId: string): Promise<AlteracaoLancamento[]> => {
+    const { data, error: erro } = await supabase
+      .from('notas_lancamentos_audit_logs')
+      .select('id, entidade, acao, campo, valor_anterior, valor_novo, motivo, performed_by_name, performed_at')
+      .eq('nota_id', notaId)
+      .order('performed_at', { ascending: false });
+    if (erro) throw new Error(erro.message);
+    return (data ?? []).map((linha) => ({
+      id: linha.id as string,
+      entidade: linha.entidade as AlteracaoLancamento['entidade'],
+      acao: linha.acao as AlteracaoLancamento['acao'],
+      campo: (linha.campo as string | null) ?? null,
+      valorAnterior: (linha.valor_anterior as string | null) ?? null,
+      valorNovo: (linha.valor_novo as string | null) ?? null,
+      motivo: linha.motivo as string,
+      feitoPorNome: linha.performed_by_name as string,
+      feitoEm: linha.performed_at as string,
     }));
   }, []);
 
@@ -459,26 +606,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const registrarBaixa = useCallback(async (dados: BaixaInput): Promise<string | null> => {
     setError(null);
     try {
-      const { error: erro } = await supabase.rpc('fat_registrar_baixa', {
-        p: {
-          notaId: dados.notaId,
-          valorRecebido: dados.valorRecebido,
-          dataRecebimento: dados.dataRecebimento,
-          bancoNome: dados.bancoNome ?? null,
-          bancoConta: dados.bancoConta ?? null,
-          formaRecebimento: dados.formaRecebimento ?? null,
-          observacoes: dados.observacoes ?? null,
-          glosas: dados.glosas.map((g) => ({
-            valor: g.valor,
-            motivo: g.motivo,
-            codigoGlosa: g.codigoGlosa ?? null,
-            status: g.status ?? 'aberta',
-            requisicaoId: g.requisicaoId ?? null,
-            loteId: g.loteId ?? null,
-          })),
-        },
-      });
-      if (erro) throw new Error(erro.message);
+      await rpcRegistrarBaixa(dados);
       await refetch();
       return null;
     } catch (err) {
@@ -538,6 +666,42 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Não foi possível cancelar o título.';
+      setError(msg);
+      return msg;
+    }
+  }, [refetch]);
+
+  // RPC direto, como fat_registrar_baixa: não depende de nada que o navegador
+  // não alcance, e a RPC revalida canManageBilling e grava a auditoria na
+  // mesma transação.
+  const corrigirLancamento = useCallback(async (
+    payload: CorrecaoLancamentoPayload,
+  ): Promise<string | null> => {
+    setError(null);
+    try {
+      const { error: erro } = await supabase.rpc('fat_corrigir_lancamento', { p: payload });
+      if (erro) throw new Error(erro.message);
+      await refetch();
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Não foi possível corrigir o lançamento.';
+      setError(msg);
+      return msg;
+    }
+  }, [refetch]);
+
+  const excluirBaixa = useCallback(async (recebimentoId: string, motivo: string): Promise<string | null> => {
+    setError(null);
+    try {
+      const { error: erro } = await supabase.rpc('fat_excluir_baixa', {
+        p_recebimento_id: recebimentoId,
+        p_motivo: motivo,
+      });
+      if (erro) throw new Error(erro.message);
+      await refetch();
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Não foi possível excluir a baixa.';
       setError(msg);
       return msg;
     }
@@ -687,9 +851,14 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     error,
     refetch,
     refetchOperadoras,
+    buscarTitulo,
     buscarGuias,
     buscarEnvioLotes,
     buscarBaixas,
+    buscarLancamentos,
+    buscarAlteracoes,
+    corrigirLancamento,
+    excluirBaixa,
     criarTitulo,
     registrarBaixa,
     lancarGlosas,

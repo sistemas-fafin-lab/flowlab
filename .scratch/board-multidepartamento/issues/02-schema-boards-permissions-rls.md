@@ -31,7 +31,7 @@ ticket.
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Migration aplicada criando `boards`, `board_tickets` e
       `custom_roles.board_id`, com a linha "transporte" semeada em `boards`.
@@ -45,3 +45,7 @@ ticket.
       comportamento desejado pela spec é todo admin legado enxergar todos os
       boards.
 - [ ] `npm run lint` e typecheck limpos.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

@@ -3,7 +3,7 @@
 
 import type { LoteFaturamento, LotePreviaAplis, NfAPreencherAplis } from '../types';
 import { emissaoPadrao } from './emissaoTitulo';
-import { paraIso } from './formato';
+import { paraIso, plural } from './formato';
 
 /** Data de corte mínima. Lotes fechados antes disso foram tratados pelo backfill
  *  e ficam de fora de propósito. O servidor valida o mesmo piso
@@ -74,10 +74,6 @@ export type EstadoCriacao = 'aguardando' | 'criando' | 'criado' | 'falhou';
 /** "ja-preenchido": alguém digitou o número entre a prévia e a confirmação —
  *  a rota não sobrescreve (somenteSeVazio). É aviso, não falha. */
 export type EstadoPreenchimentoNf = 'aguardando' | 'preenchendo' | 'preenchido' | 'ja-preenchido' | 'falhou';
-
-function plural(n: number, singular: string, pluralTexto: string): string {
-  return `${n} ${n === 1 ? singular : pluralTexto}`;
-}
 
 /** Consolida o estado das linhas no resumo exibido ao fim da execução. A parte
  *  dos títulos some quando só houve NFs, e a das NFs quando só houve títulos. */

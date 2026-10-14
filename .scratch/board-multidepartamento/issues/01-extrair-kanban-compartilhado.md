@@ -13,7 +13,7 @@ continuam completamente separados.
 
 **Blocked by:** None — can start immediately
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Existe um componente de Kanban compartilhado, sem imports de Supabase e
       sem conhecimento de "TI" — recebe colunas/cards/callbacks via props.
@@ -22,3 +22,7 @@ continuam completamente separados.
       drag-and-drop, mesmo comportamento visual) — regressão zero, verificado
       manualmente na tela `/it/kanban`.
 - [ ] `npm run lint` e typecheck limpos.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

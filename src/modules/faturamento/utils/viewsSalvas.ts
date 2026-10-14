@@ -121,6 +121,8 @@ export function sanitizarFiltrosTitulos(
     // antes do filtro existir não tinha recorte por glosa, e herdar o da tela
     // mudaria o que ela mostra.
     glosa: filtroGlosaOu(obj.glosa, ''),
+    // Mesma regra do `glosa`: view sem o campo é anterior ao filtro.
+    divergenteAplis: boolOu(obj.divergenteAplis, false),
   };
 }
 

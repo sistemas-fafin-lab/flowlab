@@ -14,6 +14,8 @@ import {
   Unlink,
 } from 'lucide-react';
 import type {
+  AlteracaoLancamento,
+  DivergenciaAplis,
   FiltroGlosaTitulo,
   OperadoraResumo,
   TituloBaixa,
@@ -34,7 +36,9 @@ import {
   responsaveisDoTitulo,
 } from '../utils/formato';
 import { dataEnvioEfetiva } from '../utils/envioAoVivo';
+import { descreverAlteracao } from '../utils/correcaoLancamento';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
+import { COR_TIPO, seloDivergencia } from '../utils/conferenciaAplis';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
@@ -98,6 +102,11 @@ interface Props {
   total: number;
   loading: boolean;
   error: string | null;
+  /** Conferência com o apLIS por `idNota` (só os divergentes); null enquanto
+   *  não chegou ou se falhou — aí a linha sai sem selo. */
+  divergencias: Map<string, DivergenciaAplis> | null;
+  /** Falha da conferência: aviso discreto, a lista segue normal. */
+  erroConferencia: string | null;
   podeEditar: boolean;
   filtros: {
     desde: string;
@@ -112,6 +121,8 @@ interface Props {
     somentePendentes: boolean;
     /** Recorte por glosa lançada no título — ver FiltroGlosaTitulo. */
     glosa: FiltroGlosaTitulo;
+    /** Só os títulos que divergem do apLIS (ids da conferência). */
+    divergenteAplis: boolean;
     pagina: number;
     tamanho: number;
   };
@@ -137,6 +148,9 @@ interface Props {
   buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
   /** Issue 39: histórico de baixas do título, buscado ao expandir a linha. */
   buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
+  /** Correções de baixas/glosas do título (.scratch/titulos-edicao-lancamentos),
+   *  buscadas junto com as baixas ao expandir a linha. */
+  buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
 }
 
 /** Badge de atraso. Só aparece quando há vencimento e o título ainda tem saldo. */
@@ -158,12 +172,29 @@ const Atraso: React.FC<{ titulo: TituloReceber }> = ({ titulo }) => {
   );
 };
 
+/** Selo do título divergente do apLIS; os dois valores no tooltip. */
+const SeloAplis: React.FC<{ divergencia: DivergenciaAplis }> = ({ divergencia }) => {
+  const selo = seloDivergencia(divergencia);
+  return (
+    <div className="mt-1">
+      <span
+        title={selo.detalhe}
+        className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${COR_TIPO[divergencia.tipo]}`}
+      >
+        {selo.texto}
+      </span>
+    </div>
+  );
+};
+
 const TitulosList: React.FC<Props> = ({
   titulos,
   operadoras,
   total,
   loading,
   error,
+  divergencias,
+  erroConferencia,
   podeEditar,
   filtros,
   onFiltrar,
@@ -180,6 +211,7 @@ const TitulosList: React.FC<Props> = ({
   buscarGuias,
   buscarEnvioLotes,
   buscarBaixas,
+  buscarAlteracoes,
 }) => {
   const [expandido, setExpandido] = useState<string | null>(null);
   const [loteAberto, setLoteAberto] = useState<string | null>(null);
@@ -203,6 +235,10 @@ const TitulosList: React.FC<Props> = ({
   const [baixasVersao, setBaixasVersao] = useState<Record<string, string>>({});
   const [carregandoBaixas, setCarregandoBaixas] = useState<Record<string, boolean>>({});
   const [erroBaixas, setErroBaixas] = useState<Record<string, string>>({});
+  // Correções de lançamentos: mesma chave e mesma versão das baixas — uma
+  // correção sempre recalcula o título e avança `statusAtualizadoEm`.
+  const [alteracoes, setAlteracoes] = useState<Record<string, AlteracaoLancamento[]>>({});
+  const [erroAlteracoes, setErroAlteracoes] = useState<Record<string, string>>({});
   const [busca, setBusca] = useState(filtros.busca);
   // Por título: DtaEnvio ao vivo dos seus lotes, chave = aplisId (issue 15).
   // Ausente = ainda não revalidado ou a consulta falhou — dataEnvioEfetiva cai
@@ -254,7 +290,23 @@ const TitulosList: React.FC<Props> = ({
 
     setCarregandoBaixas((atual) => ({ ...atual, [notaId]: true }));
     setErroBaixas((atual) => ({ ...atual, [notaId]: '' }));
+    setErroAlteracoes((atual) => ({ ...atual, [notaId]: '' }));
     let cancelado = false;
+    // Falha do histórico não derruba as baixas: cada um mostra o próprio erro.
+    void buscarAlteracoes(notaId)
+      .then((lista) => {
+        if (!cancelado) {
+          setAlteracoes((atual) => ({ ...atual, [notaId]: lista }));
+        }
+      })
+      .catch((err) => {
+        if (!cancelado) {
+          setErroAlteracoes((atual) => ({
+            ...atual,
+            [notaId]: err instanceof Error ? err.message : 'Não foi possível carregar as alterações.',
+          }));
+        }
+      });
     void buscarBaixas(notaId)
       .then((lista) => {
         if (!cancelado) {
@@ -364,10 +416,11 @@ const TitulosList: React.FC<Props> = ({
       ocultarParceiras: filtros.ocultarParceiras,
       somentePendentes: filtros.somentePendentes,
       glosa: filtros.glosa,
+      divergenteAplis: filtros.divergenteAplis,
     }),
     [
       filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca,
-      filtros.ocultarParceiras, filtros.somentePendentes, filtros.glosa,
+      filtros.ocultarParceiras, filtros.somentePendentes, filtros.glosa, filtros.divergenteAplis,
     ],
   );
 
@@ -484,6 +537,18 @@ const TitulosList: React.FC<Props> = ({
               />
               Ocultar clínicas parceiras
             </label>
+            <label
+              className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+              title="Títulos cujo recebido aqui difere do recebido no apLIS (dados do apLIS até ontem)"
+            >
+              <input
+                type="checkbox"
+                checked={filtros.divergenteAplis}
+                onChange={(e) => onFiltrar({ divergenteAplis: e.target.checked, pagina: 1 })}
+                className="rounded border-gray-300 dark:border-gray-600"
+              />
+              Divergente do apLIS
+            </label>
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
@@ -560,15 +625,35 @@ const TitulosList: React.FC<Props> = ({
         </div>
       )}
 
+      {/* Sem a conferência a lista segue normal, só sem selos — mas o operador
+          precisa saber que "nenhum selo" não quer dizer "nada divergente". */}
+      {erroConferencia && (
+        <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            Conferência com o apLIS indisponível ({erroConferencia}): os títulos divergentes não estão marcados
+            {filtros.divergenteAplis && ' e o filtro "Divergente do apLIS" não pôde ser aplicado'}.
+          </span>
+        </div>
+      )}
+
       {/* ── Tabela ───────────────────────────────────────────────────────── */}
       {loading ? (
         <div className="flex justify-center py-16"><LoadingSpinner /></div>
+      ) : titulos.length === 0 && filtros.divergenteAplis && erroConferencia ? (
+        // Vazia por falta da conferência, não por falta de título: ampliar o
+        // período (a dica de baixo) não resolveria.
+        <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
+          Sem a conferência com o apLIS não dá para saber quais títulos divergem.
+          Desligue "Divergente do apLIS" para ver a lista ou tente "Atualizar".
+        </div>
       ) : titulos.length === 0 ? (
         <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
           Nenhum título de {formatData(filtros.desde)} até {formatData(filtros.ate)}
           {filtros.status
             ? ` com status "${STATUS_ROTULOS[filtros.status]}"`
-            : filtros.somentePendentes && ' com o atalho "Somente pendentes" ativado'}.
+            : filtros.somentePendentes && ' com o atalho "Somente pendentes" ativado'}
+          {filtros.divergenteAplis && ' divergente do apLIS'}.
           {' '}Amplie o período de emissão acima — trocar o Status não muda
           a lista se o período já não cobrir nenhum título.
           {podeEditar && ' Use "Novo título" para agrupar lotes do apLIS numa cobrança.'}
@@ -599,6 +684,7 @@ const TitulosList: React.FC<Props> = ({
                   const aberto = expandido === titulo.id;
                   const encerrado = titulo.status === 'cancelada' || titulo.valorSaldo <= 0;
                   const responsaveis = responsaveisDoTitulo(titulo.lotes);
+                  const divergencia = divergencias?.get(titulo.id);
                   return (
                     <React.Fragment key={titulo.id}>
                       <tr
@@ -688,6 +774,7 @@ const TitulosList: React.FC<Props> = ({
                           <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_CORES[titulo.status]}`}>
                             {STATUS_ROTULOS[titulo.status]}
                           </span>
+                          {divergencia && <SeloAplis divergencia={divergencia} />}
                           {/* Mesmos poucos títulos revisitados em dias diferentes mudam de
                               status (Aberta → Parcial → Recebida) conforme as baixas chegam —
                               sem isto, a mudança parece uma NF "semelhante" duplicada. */}
@@ -786,6 +873,48 @@ const TitulosList: React.FC<Props> = ({
                                 </table>
                               )}
                             </div>
+
+                            {/* Correções de baixas/glosas pelo "Editar título" — só
+                                aparece quando houve alguma (ou quando a busca falhou). */}
+                            {(erroAlteracoes[titulo.id] || (alteracoes[titulo.id]?.length ?? 0) > 0) && (
+                              <div className="mb-3">
+                                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                  Alterações
+                                </p>
+                                {erroAlteracoes[titulo.id] ? (
+                                  <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    {erroAlteracoes[titulo.id]}
+                                  </p>
+                                ) : (
+                                  <table className="w-full max-w-3xl text-xs">
+                                    <thead>
+                                      <tr className="text-left text-gray-400">
+                                        <th className="py-1">Quando</th>
+                                        <th className="py-1">O quê</th>
+                                        <th className="py-1">De → para</th>
+                                        <th className="py-1">Motivo</th>
+                                        <th className="py-1">Por</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {alteracoes[titulo.id]?.map((alteracao) => {
+                                        const { oQue, de, para } = descreverAlteracao(alteracao);
+                                        return (
+                                          <tr key={alteracao.id} className="text-gray-600 dark:text-gray-300 align-top">
+                                            <td className="py-1 pr-3 whitespace-nowrap">{formatDataHora(alteracao.feitoEm)}</td>
+                                            <td className="py-1 pr-3 whitespace-nowrap">{oQue}</td>
+                                            <td className="py-1 pr-3 tabular-nums">{de} → {para}</td>
+                                            <td className="py-1 pr-3">{alteracao.motivo}</td>
+                                            <td className="py-1 whitespace-nowrap">{alteracao.feitoPorNome}</td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            )}
 
                             <div className="space-y-1">
                               {titulo.lotes.length === 0 ? (

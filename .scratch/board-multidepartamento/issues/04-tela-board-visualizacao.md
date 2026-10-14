@@ -20,7 +20,7 @@ permission="canView...">` usado pelos outros módulos — depende também de
 
 **Blocked by:** 01, 02, 03
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Funcionário com cargo vinculado a um board vê, em `/board`, as colunas e
       os cards daquele board (mesmos campos genéricos: título, descrição,
@@ -32,3 +32,7 @@ permission="canView...">` usado pelos outros módulos — depende também de
 - [ ] Nenhuma ação de escrita (criar/mover/editar/excluir card) disponível
       ainda nesta tela.
 - [ ] `npm run lint` e typecheck limpos.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).
