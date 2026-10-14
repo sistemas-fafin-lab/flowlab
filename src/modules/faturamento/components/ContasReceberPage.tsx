@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BarChart3, DownloadCloud, ListChecks, RefreshCw, Scale, Send, Wallet } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCheck, DownloadCloud, ListChecks, RefreshCw, Scale, Send, Wallet } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
@@ -18,6 +18,7 @@ import PendenciasSemLote from './PendenciasSemLote';
 import NovoTituloModal from './NovoTituloModal';
 import AtualizarAplisModal from './AtualizarAplisModal';
 import ConferenciaAplisModal from './ConferenciaAplisModal';
+import AplicarBaixasAplisModal from './AplicarBaixasAplisModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
 import RegraNfModal from './RegraNfModal';
@@ -94,6 +95,7 @@ const ContasReceberPage: React.FC = () => {
   const [novoAberto, setNovoAberto] = useState(false);
   const [atualizarAplisAberto, setAtualizarAplisAberto] = useState(false);
   const [conferenciaAberta, setConferenciaAberta] = useState(false);
+  const [aplicarBaixasAberto, setAplicarBaixasAberto] = useState(false);
   // Trocada quando o "Lançar baixa" ou o "Editar título" fecha depois de salvar
   // (e no cancelamento e no "Atualizar" da lista): a conferência com o apLIS — a
   // do modal, se aberto, e a dos selos da aba Títulos — refaz a leitura e o
@@ -313,6 +315,16 @@ const ContasReceberPage: React.FC = () => {
           {podeEditar && (
             <button
               type="button"
+              onClick={() => setAplicarBaixasAberto(true)}
+              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+            >
+              <CheckCheck className="w-4 h-4" />
+              Aplicar baixas do apLIS
+            </button>
+          )}
+          {podeEditar && (
+            <button
+              type="button"
               onClick={() => setAtualizarAplisAberto(true)}
               className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
             >
@@ -469,6 +481,15 @@ const ContasReceberPage: React.FC = () => {
         versao={versaoConferencia}
         podeAbrirTitulo={podeEditar}
         onAbrirTitulo={abrirTituloDaConferencia}
+      />
+
+      <AplicarBaixasAplisModal
+        aberto={aplicarBaixasAberto}
+        onFechar={() => setAplicarBaixasAberto(false)}
+        onAlterados={() => {
+          void refetch();
+          setVersaoConferencia((v) => v + 1);
+        }}
       />
 
       <BaixaModal

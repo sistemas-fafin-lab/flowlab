@@ -195,3 +195,8 @@ export const faixaAgingParaRange = (bucket: AgingBucket, hoje: string = hojeIso(
       return { desde: null, ate: deslocarDias(hoje, -91), incluirSemVencimento: false };
   }
 };
+
+/** "1 título" / "3 títulos": a contagem com o texto no singular ou no plural. */
+export function plural(n: number, singular: string, pluralTexto: string): string {
+  return `${n} ${n === 1 ? singular : pluralTexto}`;
+}

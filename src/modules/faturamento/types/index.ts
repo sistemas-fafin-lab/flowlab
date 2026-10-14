@@ -251,6 +251,33 @@ export interface ConferenciaAplis {
   titulos: DivergenciaAplis[];
 }
 
+/** Baixa a lançar a partir do apLIS: uma por data de recebimento lá. */
+export interface BaixaSugeridaAplis {
+  /** YYYY-MM-DD. */
+  data: string;
+  valor: number;
+  observacoes: string;
+}
+
+/** Título da prévia "Aplicar baixas do apLIS"
+ *  (GET /api/faturamento/titulos-baixas-aplis-previa). */
+export interface TituloPreviaBaixasAplis {
+  idNota: string;
+  numeroNota: string | null;
+  operadora: string;
+  tipo: Extract<TipoDivergenciaAplis, 'so-no-aplis' | 'aplis-maior'>;
+  recebidoSistema: number;
+  recebidoAplis: number;
+  baixas: BaixaSugeridaAplis[];
+  /** 'sem-nota': o `fat_registrar_baixa` recusaria (issue 34). */
+  pulado: 'sem-nota' | null;
+}
+
+export interface PreviaBaixasAplis {
+  dadoAte: string | null;
+  titulos: TituloPreviaBaixasAplis[];
+}
+
 export interface LotesMeta {
   pagina: number;
   tamanho: number;

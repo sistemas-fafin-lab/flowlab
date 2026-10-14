@@ -109,6 +109,31 @@ export async function chamarApi<T = unknown>(
   return body;
 }
 
+/** Uma baixa (com suas glosas) pela RPC `fat_registrar_baixa`, sem reler nada.
+ *  Também usado pelo "Aplicar baixas do apLIS", que lança várias em sequência. */
+export async function rpcRegistrarBaixa(dados: BaixaInput): Promise<void> {
+  const { error } = await supabase.rpc('fat_registrar_baixa', {
+    p: {
+      notaId: dados.notaId,
+      valorRecebido: dados.valorRecebido,
+      dataRecebimento: dados.dataRecebimento,
+      bancoNome: dados.bancoNome ?? null,
+      bancoConta: dados.bancoConta ?? null,
+      formaRecebimento: dados.formaRecebimento ?? null,
+      observacoes: dados.observacoes ?? null,
+      glosas: dados.glosas.map((g) => ({
+        valor: g.valor,
+        motivo: g.motivo,
+        codigoGlosa: g.codigoGlosa ?? null,
+        status: g.status ?? 'aberta',
+        requisicaoId: g.requisicaoId ?? null,
+        loteId: g.loteId ?? null,
+      })),
+    },
+  });
+  if (error) throw new Error(error.message);
+}
+
 // Formato cru devolvido pelo PostgREST — snake_case, com os embeds aninhados.
 interface LinhaTitulo {
   id_nota: string;
@@ -581,26 +606,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const registrarBaixa = useCallback(async (dados: BaixaInput): Promise<string | null> => {
     setError(null);
     try {
-      const { error: erro } = await supabase.rpc('fat_registrar_baixa', {
-        p: {
-          notaId: dados.notaId,
-          valorRecebido: dados.valorRecebido,
-          dataRecebimento: dados.dataRecebimento,
-          bancoNome: dados.bancoNome ?? null,
-          bancoConta: dados.bancoConta ?? null,
-          formaRecebimento: dados.formaRecebimento ?? null,
-          observacoes: dados.observacoes ?? null,
-          glosas: dados.glosas.map((g) => ({
-            valor: g.valor,
-            motivo: g.motivo,
-            codigoGlosa: g.codigoGlosa ?? null,
-            status: g.status ?? 'aberta',
-            requisicaoId: g.requisicaoId ?? null,
-            loteId: g.loteId ?? null,
-          })),
-        },
-      });
-      if (erro) throw new Error(erro.message);
+      await rpcRegistrarBaixa(dados);
       await refetch();
       return null;
     } catch (err) {
