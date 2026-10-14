@@ -12,7 +12,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "send-quotation-approval-digest": "tsx tools/quotation-approval-digest/send-digest.ts",
-    "eva-send-outbox": "tsx tools/agente-ti-whatsapp/send-outbox.ts"
+    "eva-send-outbox": "tsx tools/agente-ti-whatsapp/send-outbox.ts",
+    "eva-build-outbox": "node tools/agente-ti-whatsapp/build.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",
@@ -55,6 +56,7 @@
     "@vercel/node": "^5.1.14",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
+    "esbuild": "^0.21.5",
     "eslint": "^9.13.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
