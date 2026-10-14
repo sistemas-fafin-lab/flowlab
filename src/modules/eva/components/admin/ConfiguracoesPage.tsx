@@ -132,7 +132,16 @@ const ConfiguracoesPage: React.FC = () => {
               />
             </label>
           ))}
-          <p className="text-[11px] text-slate-400">O envio entra com a fase de cobrança (script da VPS). Até lá, ligar não envia nada.</p>
+          <div className={`${LINHA} text-xs text-slate-500 dark:text-slate-400 flex flex-col gap-0.5`}>
+            <p>Última cobrança diária: {quando(situacao.dados?.ultimaCobranca ?? null)}</p>
+            <p>
+              Últimos 7 dias: {situacao.dados?.semana.enviadas ?? 0} enviadas · {situacao.dados?.semana.falhas ?? 0} falharam
+              {situacao.dados?.semana.pendentes ? ` · ${situacao.dados.semana.pendentes} na fila` : ''}
+            </p>
+          </div>
+          <p className="text-[11px] text-slate-400">
+            As mensagens saem pelo script da VPS (tools/agente-ti-whatsapp), a cada minuto. A cobrança diária é montada às 08h, nos dias úteis.
+          </p>
         </GlassCard>
       </div>
 

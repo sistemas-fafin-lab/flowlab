@@ -19,7 +19,7 @@ Plano: §6.1, §6.2 e convenções da §6.
 
 **Blocked by:** 01 (a chave `canApproveAgenteTI` precisa existir no front para os testes de ponta a ponta).
 
-**Status:** done no código (13/Out/2026); falta aplicar as duas migrations no Supabase (ready-for-human)
+**Status:** done (13/Out/2026): aplicadas pelo usuário no projeto do app e conferidas (tabelas, colunas, embeds e funções)
 
 - [ ] Migration `2026MMDDhhmmss_agente_ti_tabelas.sql`, idempotente, com a guarda de `current_user_has_permission` no topo.
 - [ ] As seis tabelas, com CHECKs nomeados, índices, `COMMENT ON` em pt-BR e triggers de `updated_at`.
@@ -70,3 +70,10 @@ O script de teste ficou fora do repositório.
 - `granola_ultimo_erro`: erro da última sincronização.
 
 O chip "Granola" do Início não podia usar o cursor `granola_ultima_sync_em`, que é a data da nota mais recente e não a hora da execução. As colunas estão no `CREATE TABLE` e num `ADD COLUMN IF NOT EXISTS` logo depois, para o caso de a tabela já existir. Os 28 cenários do PGlite passaram de novo.
+
+**13/Out/2026 — aplicadas.** O usuário rodou as duas migrations no projeto do app (`jqxe…`). A conferência foi feita só com a chave pública, sem ler nem gravar dados:
+- as seis tabelas existem, com todas as colunas, inclusive as duas novas;
+- os três embeds com o nome da FK funcionam;
+- as quatro funções existem, e o anon é barrado em todas.
+
+As Fases 3 e 4 (14/Out) não precisaram de migration nova: "Enviar teste" e "Cobrar" passam por rotas do servidor, já que a fila não tem policy de INSERT.

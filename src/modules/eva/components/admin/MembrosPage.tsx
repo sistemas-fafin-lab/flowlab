@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
-import { UserPlus, Users } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Send, UserPlus, Users } from 'lucide-react';
 import EvaAdminShell from './EvaAdminShell';
 import EvaModal from './EvaModal';
+import HistoricoMembro from './HistoricoMembro';
 import Select from '../../../../components/Select';
 import { GlassCard, StatusBadge } from '../ui';
 import { EvaToast } from '../EvaToast';
@@ -30,6 +31,41 @@ const MembrosPage: React.FC = () => {
   const [salvando, setSalvando] = useState(false);
   const [aviso, setAviso] = useState<AvisoEva | null>(null);
   const membros = useMemo(() => dados ?? [], [dados]);
+  const [aberto, setAberto] = useState<string | null>(null);
+  const [versao, setVersao] = useState(0);
+  const [testando, setTestando] = useState<Record<string, string>>({});
+  const [falhas, setFalhas] = useState<Record<string, { erro: string | null; created_at: string }>>({});
+
+  useEffect(() => {
+    agenteAdmin.ultimasFalhas().then(setFalhas).catch(() => setFalhas({}));
+  }, [versao, dados]);
+
+  /** RF19: põe o teste na fila e acompanha até "enviada" ou "falhou" (o script da VPS roda a cada minuto). */
+  const enviarTeste = async (m: Membro) => {
+    setTestando((t) => ({ ...t, [m.id]: 'Na fila…' }));
+    try {
+      const { mensagemId } = await agenteAdmin.enviarTeste(m.id);
+      for (let i = 0; i < 30; i += 1) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const s = await agenteAdmin.statusMensagem(mensagemId).catch(() => null);
+        if (s && s.status !== 'pendente') {
+          setTestando((t) => ({ ...t, [m.id]: '' }));
+          setAviso({
+            id: Date.now(),
+            texto: s.status === 'falhou' ? `O teste para ${m.nome} falhou: ${s.erro ?? 'sem detalhe'}` : `Teste enviado para ${m.nome}. Confira no celular.`,
+            tom: s.status === 'falhou' ? 'erro' : 'sucesso',
+          });
+          setVersao((v) => v + 1);
+          return;
+        }
+      }
+      setTestando((t) => ({ ...t, [m.id]: '' }));
+      setAviso({ id: Date.now(), texto: 'O teste continua na fila. Confira se o timer da VPS está rodando e se a sessão do WAHA está conectada.', tom: 'erro' });
+    } catch (e) {
+      setTestando((t) => ({ ...t, [m.id]: '' }));
+      setAviso({ id: Date.now(), texto: e instanceof Error ? e.message : 'Não consegui enviar o teste.', tom: 'erro' });
+    }
+  };
 
   // RN08: o mesmo apelido em duas pessoas deixaria a EVA sem saber quem é quem.
   const duplicados = useMemo(() => {
@@ -90,7 +126,8 @@ const MembrosPage: React.FC = () => {
       <GlassCard className="gap-3">
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Os apelidos são os nomes com que a pessoa aparece nos resumos das reuniões ("@Gabriel Carneiro"). Enquanto esta lista
-          estiver vazia, a EVA usa as pessoas do departamento TI. O WhatsApp só é usado com a adesão marcada, a partir da fase de cobrança.
+          estiver vazia, a EVA usa as pessoas do departamento TI. A cobrança pelo WhatsApp só vai para quem tem a adesão marcada;
+          as respostas só valem de números cadastrados aqui.
         </p>
         {erro && <p className="text-sm text-red-600 dark:text-red-400">Não consegui carregar os membros: {erro}</p>}
         {!erro && !carregando && membros.length === 0 && (
@@ -101,20 +138,37 @@ const MembrosPage: React.FC = () => {
         )}
         {membros.map((m) => {
           const temDuplicado = [m.nome, ...m.apelidos].some((a) => duplicados.has(normalizarNome(a)));
+          const falha = falhas[m.id];
           return (
-            <div key={m.id} className={`${LINHA} flex flex-wrap items-center justify-between gap-3 ${m.ativo ? '' : 'opacity-60'}`}>
-              <div className="min-w-0 flex-[1_1_280px]">
-                <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">{m.nome}</p>
-                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                  Apelidos: {m.apelidos.length ? m.apelidos.join(', ') : '—'} · WhatsApp: {formatarWhatsapp(m.whatsapp)}
-                </p>
-                {temDuplicado && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Há um apelido igual em outro membro: a EVA não vai saber quem é quem.</p>}
+            <div key={m.id} className={`${LINHA} flex flex-col gap-3 ${m.ativo ? '' : 'opacity-60'}`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0 flex-[1_1_280px]">
+                  <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">{m.nome}</p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    Apelidos: {m.apelidos.length ? m.apelidos.join(', ') : '—'} · WhatsApp: {formatarWhatsapp(m.whatsapp)}
+                  </p>
+                  {temDuplicado && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Há um apelido igual em outro membro: a EVA não vai saber quem é quem.</p>}
+                  {falha && (
+                    <p className="mt-1 text-xs text-red-600 dark:text-red-400 [overflow-wrap:anywhere]">
+                      A última mensagem falhou{falha.erro ? `: ${falha.erro}` : '.'}
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {m.recebe_cobranca && <StatusBadge tone="success">Recebe cobrança</StatusBadge>}
+                  {!m.ativo && <StatusBadge tone="neutral">Inativo</StatusBadge>}
+                  {m.whatsapp && m.ativo && (
+                    <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void enviarTeste(m)} disabled={!!testando[m.id]}>
+                      <Send className="w-3.5 h-3.5" /> {testando[m.id] || 'Enviar teste'}
+                    </button>
+                  )}
+                  <button type="button" className={BOTAO_SECUNDARIO} onClick={() => setAberto(aberto === m.id ? null : m.id)} aria-expanded={aberto === m.id}>
+                    Histórico
+                  </button>
+                  <button type="button" className={BOTAO_SECUNDARIO} onClick={() => editar(m)}>Editar</button>
+                </div>
               </div>
-              <div className="flex items-center gap-1.5">
-                {m.recebe_cobranca && <StatusBadge tone="success">Recebe cobrança</StatusBadge>}
-                {!m.ativo && <StatusBadge tone="neutral">Inativo</StatusBadge>}
-                <button type="button" className={BOTAO_SECUNDARIO} onClick={() => editar(m)}>Editar</button>
-              </div>
+              {aberto === m.id && <HistoricoMembro membroId={m.id} versao={versao} />}
             </div>
           );
         })}

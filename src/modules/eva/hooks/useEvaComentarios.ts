@@ -9,6 +9,8 @@ interface Opcoes {
   navegar: (para: string) => void;
   abrirCard: (id: string) => void;
   perguntar: (texto: string) => void;
+  /** "Cobrar de novo": a mesma rota do botão Cobrar (janela de 4 h, D22). true = foi para a fila. */
+  cobrar: (cardId: string) => Promise<boolean>;
   /** Depois que o gestor aprovou e a EVA executou, para o Início reler o board. */
   onExecutada: () => void;
   /** Proposta concluída (executada ou enviada para a fila), com o texto do que aconteceu. */
@@ -20,7 +22,7 @@ interface Opcoes {
  * chat, ou abre o diálogo de confirmação de uma proposta. Nada escreve direto em it_requests:
  * a mudança passa por ti_agente_propor_sugestao.
  */
-export function useEvaComentarios({ ehGestor, navegar, abrirCard, perguntar, onExecutada, onFeito }: Opcoes) {
+export function useEvaComentarios({ ehGestor, navegar, abrirCard, perguntar, cobrar, onExecutada, onFeito }: Opcoes) {
   /** Texto de "feito" de cada comentário já aceito, pelo id do comentário. */
   const [feitos, setFeitos] = useState<Record<string, string>>({});
   const [dialogo, setDialogo] = useState<{ insightId: string; acao: Proposta } | null>(null);
@@ -38,11 +40,16 @@ export function useEvaComentarios({ ehGestor, navegar, abrirCard, perguntar, onE
       setDialogo({ insightId: insight.id, acao: a });
       return;
     }
+    if (a.tipo === 'cobrar') {
+      // O "feito" só aparece se a cobrança entrou mesmo na fila; a recusa vem no aviso.
+      void cobrar(a.cardId).then((ok) => { if (ok) setFeitos((f) => ({ ...f, [insight.id]: insight.doneText })); });
+      return;
+    }
     if (a.tipo === 'navegar') navegar(a.para);
     else if (a.tipo === 'abrir_card') abrirCard(a.cardId);
     else perguntar(a.pergunta);
     setFeitos((f) => ({ ...f, [insight.id]: insight.doneText }));
-  }, [navegar, abrirCard, perguntar]);
+  }, [navegar, abrirCard, perguntar, cobrar]);
 
   const confirmar = useCallback(async () => {
     if (!dialogo) return;

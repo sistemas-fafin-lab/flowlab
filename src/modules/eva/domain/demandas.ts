@@ -1,6 +1,7 @@
 // Regras sobre os cards de TI (it_requests) — RN01 a RN04, D23 e o resumo do Kanban.
 // Puras: recebem `hoje` (dia em Brasília). Usadas pelo Início, pela cobrança e pela VPS.
-import { diaDoPrazo, diaSP, diferencaDias, inicioDaSemana, type Dia } from './datas';
+// A api/ (NodeNext) também importa este arquivo: os imports levam ".js".
+import { diaDoPrazo, diaSP, diferencaDias, inicioDaSemana, type Dia } from './datas.js';
 
 export type ColunaKanban = 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
 export type Prioridade = 'low' | 'medium' | 'high' | 'critical';

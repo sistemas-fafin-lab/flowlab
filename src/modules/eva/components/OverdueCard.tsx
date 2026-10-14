@@ -9,7 +9,10 @@ interface Props {
   rows: OverdueRow[];
   filter: OverdueFilter;
   onFilterChange: (f: OverdueFilter) => void;
-  /** Sem `onCharge`, o botão Cobrar/Lembrar não aparece (antes da Fase 3, D22). */
+  /**
+   * Sem `onCharge`, o botão Cobrar/Lembrar não aparece. Com ele, só nas linhas `chargeable`
+   * (WhatsApp ligado; Lembrar no próprio card, Cobrar só para gestor — D22).
+   */
   onCharge?: (row: OverdueRow) => void;
   onOpenCard: (id: string) => void;
   footer?: React.ReactNode;
@@ -50,15 +53,18 @@ export const OverdueCard: React.FC<Props> = ({ rows, filter, onFilterChange, onC
               )}
             </button>
             <StatusBadge tone="danger">{r.lateLabel}</StatusBadge>
-            {onCharge && (
+            {onCharge && r.chargeable && (
               <button
                 type="button"
-                disabled={r.charged}
+                disabled={r.charged || !!r.chargeHint}
+                title={r.charged ? undefined : r.chargeHint}
                 onClick={() => onCharge(r)}
                 className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold whitespace-nowrap flex-shrink-0 border transition-colors ${
                   r.charged
                     ? 'cursor-default border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                    : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:border-slate-300'
+                    : r.chargeHint
+                      ? 'cursor-not-allowed border-slate-200 dark:border-slate-700 bg-white/60 dark:bg-slate-800/60 text-slate-400 dark:text-slate-500'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-gray-700 dark:text-gray-200 hover:border-slate-300'
                 }`}
               >
                 {r.charged ? 'Cobrada' : r.isMine ? 'Lembrar' : 'Cobrar'}

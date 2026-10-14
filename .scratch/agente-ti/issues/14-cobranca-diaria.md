@@ -19,7 +19,7 @@ Plano: §2 (D11, D13, D22), §4.3 (RF18, RF25), §4.4 (RN12, RN16), §10, §12.1
 
 **Blocked by:** 02, 03, 06, 12. A conferência em produção depende da 13.
 
-**Status:** ready-for-agent
+**Status:** done no código (14/Out/2026); falta ligar a cobrança e conferir o primeiro envio real (depende da 13)
 
 - [ ] `domain/cobranca.ts`, com testes:
   - `pendenciasPorMembro` (atrasadas, vencem hoje ou no próximo dia útil, paradas);
@@ -48,3 +48,36 @@ Plano: §2 (D11, D13, D22), §4.3 (RF18, RF25), §4.4 (RN12, RN16), §10, §12.1
 ## Comments
 
 **13/Out/2026.** A cobrança sob demanda entrou com o protótipo (botão Cobrar/Lembrar). A diária continua como estava.
+
+**14/Out/2026 — implementado no código.**
+- **Domínio compartilhado.** `src/modules/eva/domain/cobranca.ts` é importado pelo Início e pela `api/`.
+  - Os arquivos do domínio passaram a importar com `.js`, porque a `api/` compila com NodeNext. O Vite resolve `.js` para `.ts` sem configuração.
+  - Isso resolve a questão aberta na 06: as regras de atrasado e parado são as mesmas do Início, sem cópia.
+- **Funções do domínio:**
+  - `pendenciasDoMembro`: cada card numa seção só, na ordem atrasada > vence hoje ou até o próximo dia útil > parada. O comentário recente tira o card de "parado";
+  - `montarMensagemDiaria`: modelo do §10, com 8 itens no máximo e "… e outras N no Início". Na sexta, a seção diz "Vencem até segunda". Os exemplos de resposta usam os códigos reais;
+  - `montarCobrancaManual`, `podeCobrar` (403/409/422 com o motivo e o horário da próxima cobrança possível), `destinatarios` e `chaveDia`. 13 testes.
+- **`agente-cobranca-cron`:**
+  - GET com `CRON_SECRET`;
+  - não grava em fim de semana nem com o WhatsApp ou a cobrança desligados;
+  - `chave_dia` com `upsert` e `ignoreDuplicates`: rodar duas vezes conta como "repetida";
+  - o `dryRun` monta os textos mesmo com tudo desligado ou em fim de semana, para conferir antes de ligar.
+  
+  Cron `0 11 * * 1-5` no `vercel.json`.
+- **`agente-cobrar`:**
+  - POST com sessão, para cards atrasados;
+  - Lembrar o próprio card com `canManageIT`; Cobrar só com `canApproveAgenteTI`;
+  - 409 dentro de 4 h; 422 sem WhatsApp, com o WhatsApp desligado ou com o card em dia;
+  - uma mensagem por responsável, com `enviada_por`. 5 testes da rota.
+- **`ti_agente_cobrancas_hoje()`:** já estava na migration de RPCs (05).
+- **Início:**
+  - o botão aparece só com o WhatsApp ligado e só onde a pessoa pode usar: Lembrar no próprio card, Cobrar só para gestor;
+  - para gestor, fica desabilitado com a dica quando ninguém tem WhatsApp com adesão;
+  - resposta otimista ("Cobrada", "Cobrança enviada agora via WhatsApp", o indicador soma +1); recusa do servidor desfaz a mudança e mostra o motivo;
+  - "último contato da EVA" só para gestor (D24): "Cobrada às 10:12 · sem resposta", "… · respondeu às 10:40", "Cobrança na fila", "Ainda não cobrada";
+  - fila e contagem são relidas a cada minuto com a página aberta.
+- **Link do Início:** usa `APP_URL` (`api/_lib/appUrl.ts`).
+- **Configurações:** mostra a última cobrança diária e, nos últimos 7 dias, quantas mensagens foram enviadas, quantas falharam e quantas estão na fila.
+- **Conferido no banco do app (14/Out), sem gravar:**
+  - o cron em `dryRun` respondeu "A cobrança diária está desligada" e não montou mensagens: há 1 membro cadastrado, ainda sem WhatsApp e adesão;
+  - a prévia do texto desse membro, ignorando a adesão, saiu no modelo, com 1 card parado desde 08/09.

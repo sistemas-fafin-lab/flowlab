@@ -10,6 +10,8 @@ import {
 } from './demandas';
 import { montarIntegracoes, type ConfigIntegracoes } from './integracoes';
 import { primeiroNome } from './pessoas';
+import { JANELA_COBRANCA_MS } from './cobranca';
+import { quandoFoi, ultimoContato, type MensagemFila } from './whatsapp';
 
 export interface UltimaReuniaoInicio {
   id: string;
@@ -32,6 +34,8 @@ export interface EntradaComentarios {
   ultimaReuniao: UltimaReuniaoInicio | null;
   /** Sugestões da última reunião ainda pendentes; null quando não deu para contar. */
   pendentesDaReuniao: number | null;
+  /** Fila do WhatsApp dos últimos dias: só gestores leem (D24); null para os demais. */
+  fila?: MensagemFila[] | null;
   agora?: number;
 }
 
@@ -130,7 +134,6 @@ export function comentarioKanban(e: EntradaComentarios): EvaInsightData | undefi
 // ── Atrasadas: crítica sem dono, ou atraso longo ────────────────────────────
 
 export function comentarioAtrasadas(e: EntradaComentarios): EvaInsightData | undefined {
-  // A regra "cobrança sem resposta há mais de 3 h" entra com a fila do WhatsApp (issue 14).
   const daVisao = e.visao === 'me' ? e.cards.filter((c) => ehDoUsuario(c, e.usuarioId)) : e.cards;
   const atrasados = ordenarAtrasados(daVisao, e.hoje);
 
@@ -145,6 +148,26 @@ export function comentarioAtrasadas(e: EntradaComentarios): EvaInsightData | und
       askPrompt: `Quem pode assumir o ${semDono.codigo}?`,
       acao: abrirCard(semDono),
     };
+  }
+
+  // Cobrança sem resposta (D24: só gestor, que lê a fila). Passadas as 4 h da janela, a
+  // ação "Cobrar de novo" sempre pode sair (RN16).
+  if (e.ehGestor && e.fila) {
+    const agora = e.agora ?? Date.now();
+    for (const c of atrasados) {
+      const contato = ultimoContato(c.id, c.assigned_to, e.fila, agora, e.hoje, JANELA_COBRANCA_MS);
+      if (!contato.semResposta || agora - new Date(contato.semResposta.desde).getTime() < JANELA_COBRANCA_MS) continue;
+      const nome = primeiroNome(contato.semResposta.nome ?? '') || 'O responsável';
+      return {
+        id: `overdue:sem-resposta:${c.id}:${contato.semResposta.desde}`,
+        source: `Wa-ha · cobrança ${quandoFoi(contato.semResposta.desde, e.hoje)}`,
+        text: `${nome} não respondeu à cobrança ${quandoFoi(contato.semResposta.desde, e.hoje)} sobre o ${c.codigo} (${c.title}).`,
+        ctaLabel: 'Cobrar de novo',
+        doneText: 'Cobrança de novo na fila do WhatsApp.',
+        askPrompt: `O que se sabe do ${c.codigo}?`,
+        acao: { tipo: 'cobrar', cardId: c.id },
+      };
+    }
   }
 
   const longo = atrasados.find((c) => diasDeAtraso(c, e.hoje) >= DIAS_ATRASO_LONGO);
@@ -166,19 +189,35 @@ export function comentarioAtrasadas(e: EntradaComentarios): EvaInsightData | und
 // ── WhatsApp (só gestor, D24): sessão do Wa-ha sem sinal ──────────────────────
 
 export function comentarioWhatsapp(e: EntradaComentarios): EvaInsightData | undefined {
-  // A regra "mensagem falhou hoje" entra com a fila (issue 12).
   if (!e.ehGestor || !e.config?.whatsapp_ativo) return undefined;
   const chip = montarIntegracoes(e.config, null, false, e.agora).find((c) => c.id === 'waha');
-  if (!chip || chip.state !== 'offline') return undefined;
-  return {
-    id: `whatsapp:${chip.detail}`,
-    source: 'Wa-ha · agora',
-    text: `O Wa-ha está ${chip.detail}. As mensagens esperam na fila até a sessão voltar.`,
-    ctaLabel: 'Ver configurações',
-    doneText: 'Abri as configurações.',
-    askPrompt: 'O que fazer quando a sessão do Wa-ha cai?',
-    acao: { tipo: 'navegar', para: '/it/eva/configuracoes' },
-  };
+  if (chip && chip.state === 'offline') {
+    return {
+      id: `whatsapp:${chip.detail}`,
+      source: 'Wa-ha · agora',
+      text: `O Wa-ha está ${chip.detail}. As mensagens esperam na fila até a sessão voltar.`,
+      ctaLabel: 'Ver configurações',
+      doneText: 'Abri as configurações.',
+      askPrompt: 'O que fazer quando a sessão do Wa-ha cai?',
+      acao: { tipo: 'navegar', para: '/it/eva/configuracoes' },
+    };
+  }
+
+  // Mensagem que falhou hoje (a mais recente).
+  const falha = (e.fila ?? []).find((m) => m.direcao === 'saida' && m.status === 'falhou' && diaSP(m.created_at) === e.hoje);
+  if (falha) {
+    const nome = primeiroNome(falha.membro_nome ?? '') || 'um membro';
+    return {
+      id: `whatsapp:falha:${falha.id}`,
+      source: `Wa-ha · ${quandoFoi(falha.created_at, e.hoje)}`,
+      text: `Uma mensagem para ${nome} falhou ${quandoFoi(falha.created_at, e.hoje)}${falha.erro ? `: ${falha.erro}` : '.'}`,
+      ctaLabel: 'Ver no histórico',
+      doneText: 'Abri a aba Membros.',
+      askPrompt: 'Por que uma mensagem do WhatsApp falha?',
+      acao: { tipo: 'navegar', para: '/it/eva/membros' },
+    };
+  }
+  return undefined;
 }
 
 // ── Projetos: a última reunião (sugestões pendentes ou decisões) ou um projeto em risco ──

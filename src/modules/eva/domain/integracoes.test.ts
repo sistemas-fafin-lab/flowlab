@@ -31,6 +31,7 @@ describe('chips do Início (D25)', () => {
     expect(chip(montarIntegracoes(cfg({ waha_status: 'WORKING', waha_verificado_em: recente }), null, false, AGORA), 'waha')).toMatchObject({ state: 'online', detail: 'conectado' });
     expect(chip(montarIntegracoes(cfg({ waha_status: 'SCAN_QR_CODE', waha_verificado_em: recente }), null, false, AGORA), 'waha')).toMatchObject({ state: 'offline', detail: 'aguardando o QR code' });
     expect(chip(montarIntegracoes(cfg({ waha_status: 'WORKING', waha_verificado_em: '2026-10-13T14:00:00Z' }), null, false, AGORA), 'waha')).toMatchObject({ state: 'offline', detail: 'sem sinal da VPS' });
+    expect(chip(montarIntegracoes(cfg({ waha_status: 'INACESSIVEL', waha_verificado_em: recente }), null, false, AGORA), 'waha')).toMatchObject({ state: 'offline', detail: 'fora do ar' });
   });
 
   it('sugestões pendentes: só para gestor e só quando há alguma', () => {

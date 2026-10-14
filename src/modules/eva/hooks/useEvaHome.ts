@@ -7,6 +7,8 @@ import { evaService, type DadosInicio } from '../services/evaService';
 import { hojeSP, pluralDias } from '../domain/datas';
 import { estaConcluido, type CardTI, type ColunaKanban, type StatusChamado } from '../domain/demandas';
 import { montarSnapshot } from '../domain/inicio';
+import { JANELA_COBRANCA_MS } from '../domain/cobranca';
+import { ultimoContato, type MensagemFila } from '../domain/whatsapp';
 import type { EvaView, OverdueFilter, OverdueTask } from '../types';
 
 export interface OverdueRow extends OverdueTask {
@@ -14,6 +16,22 @@ export interface OverdueRow extends OverdueTask {
   memberName: string;
   lateLabel: string;
   statusText: string;
+  /** O botão Cobrar/Lembrar aparece (WhatsApp ligado e permissão para o modo, D22). */
+  chargeable: boolean;
+  /** Botão desabilitado, com o motivo (ex.: ninguém com WhatsApp). */
+  chargeHint?: string;
+}
+
+/** A fila do Início olha os últimos dias (último contato e comentários da EVA). */
+const DIAS_FILA = 3;
+/** A fila e a contagem de cobranças mudam a cada minuto (o script da VPS). */
+const ATUALIZAR_WHATSAPP_MS = 60_000;
+
+interface OpcoesInicio {
+  /** canApproveAgenteTI: vê a fila e o último contato (D24) e cobra cards dos outros (D22). */
+  ehGestor: boolean;
+  /** ti_agente_config.whatsapp_ativo: sem ele, o botão Cobrar/Lembrar não aparece. */
+  whatsappAtivo: boolean;
 }
 
 export interface AvisoEva {
@@ -36,10 +54,11 @@ interface Pendente {
   notificar: () => Promise<void>;
 }
 
-export function useEvaHome(defaultView: EvaView = 'team') {
+export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio = { ehGestor: false, whatsappAtivo: false }) {
   const { userProfile } = useAuth();
   const usuarioId = userProfile?.id ?? '';
   const { sendNotification } = useNotificationCenter();
+  const { ehGestor, whatsappAtivo } = opcoes;
 
   const [view, setView] = useState<EvaView>(defaultView);
   const [dados, setDados] = useState<DadosInicio | null>(null);
@@ -48,6 +67,13 @@ export function useEvaHome(defaultView: EvaView = 'team') {
   const [filter, setFilter] = useState<OverdueFilter>('all');
   const [aviso, setAviso] = useState<AvisoEva | null>(null);
   const [cardAberto, setCardAberto] = useState<ITRequest | null>(null);
+  // WhatsApp (Fase 3): contagem para todos; fila e quem tem WhatsApp só para gestores (D24).
+  const [cobrancasHoje, setCobrancasHoje] = useState<number | null>(null);
+  const [fila, setFila] = useState<MensagemFila[] | null>(null);
+  const [comWhatsapp, setComWhatsapp] = useState<Set<string> | null>(null);
+  /** Cobranças feitas nesta tela, até a fila confirmar (resposta otimista do handoff). */
+  const [cobradasAgora, setCobradasAgora] = useState<Record<string, string>>({});
+  const [agora, setAgora] = useState(() => Date.now());
 
   const requestIdRef = useRef(0);
   const pendentesRef = useRef(new Map<string, Pendente>());
@@ -79,6 +105,27 @@ export function useEvaHome(defaultView: EvaView = 'team') {
     void carregar();
   }, [carregar]);
 
+  /** Contagem do dia, fila e quem tem WhatsApp. Cada leitura falha sozinha (sem tabelas, fica vazio). */
+  const carregarWhatsapp = useCallback(async () => {
+    if (!usuarioId) return;
+    const desde = new Date(Date.now() - DIAS_FILA * 86_400_000);
+    const [n, f, w] = await Promise.all([
+      evaService.cobrancasHoje().catch(() => null),
+      ehGestor ? evaService.lerFila(desde).catch(() => null) : Promise.resolve(null),
+      ehGestor ? evaService.membrosComWhatsapp().catch(() => null) : Promise.resolve(null),
+    ]);
+    setCobrancasHoje(n);
+    setFila(f);
+    setComWhatsapp(w ? new Set(w) : null);
+    setAgora(Date.now());
+  }, [usuarioId, ehGestor]);
+
+  useEffect(() => {
+    void carregarWhatsapp();
+    const t = setInterval(() => { if (document.visibilityState === 'visible') void carregarWhatsapp(); }, ATUALIZAR_WHATSAPP_MS);
+    return () => clearInterval(t);
+  }, [carregarWhatsapp]);
+
   // Ao sair da página, as notificações que esperavam a janela de desfazer saem já.
   useEffect(() => {
     const pendentes = pendentesRef.current;
@@ -91,27 +138,51 @@ export function useEvaHome(defaultView: EvaView = 'team') {
     };
   }, []);
 
+  // Cobranças desta tela que a contagem do servidor ainda não viu (saem da fila em até 1 min).
+  const cobrancasLocais = useMemo(
+    () => Object.values(cobradasAgora).filter((em) => new Date(em).getTime() > agora).length,
+    [cobradasAgora, agora],
+  );
+
   const snapshot = useMemo(
     () =>
       dados && usuarioId
-        ? montarSnapshot({ visao: view, usuarioId, hoje: dados.hoje, cards: dados.cards, projetos: dados.projetos, sprints: dados.sprints, pessoas: dados.pessoas, cobrancasHoje: null })
+        ? montarSnapshot({
+            visao: view, usuarioId, hoje: dados.hoje, cards: dados.cards, projetos: dados.projetos, sprints: dados.sprints, pessoas: dados.pessoas,
+            cobrancasHoje: cobrancasHoje === null ? null : cobrancasHoje + cobrancasLocais,
+          })
         : null,
-    [dados, view, usuarioId],
+    [dados, view, usuarioId, cobrancasHoje, cobrancasLocais],
   );
 
   const overdue: OverdueRow[] = useMemo(() => {
-    if (!snapshot) return [];
+    if (!snapshot || !dados) return [];
+    const porId = new Map(dados.cards.map((c) => [c.id, c]));
     const lista = filter === 'critical'
       ? snapshot.overdue.filter((t) => t.priority === 'critical' || t.priority === 'high')
       : snapshot.overdue;
-    return lista.map((t) => ({
-      ...t,
-      charged: false,
-      memberName: (t.memberId && snapshot.members[t.memberId]?.name) || 'Sem responsável',
-      lateLabel: pluralDias(t.daysLate),
-      statusText: t.lastChargeText,
-    }));
-  }, [snapshot, filter]);
+    return lista.map((t) => {
+      const donos = porId.get(t.id)?.assigned_to ?? [];
+      // D24: o último contato vem da fila, que só gestores leem.
+      const contato = fila ? ultimoContato(t.id, donos, fila, agora, dados.hoje, JANELA_COBRANCA_MS) : null;
+      const local = cobradasAgora[t.id];
+      const charged = !!local || !!contato?.cobradaNaJanela;
+      let chargeHint: string | undefined;
+      if (comWhatsapp) {
+        if (t.isMine && !comWhatsapp.has(usuarioId)) chargeHint = 'Você não tem WhatsApp com adesão à cobrança (EVA → Membros).';
+        else if (!t.isMine && !donos.some((u) => comWhatsapp.has(u))) chargeHint = 'Nenhum responsável tem WhatsApp com adesão à cobrança (EVA → Membros).';
+      }
+      return {
+        ...t,
+        charged,
+        memberName: (t.memberId && snapshot.members[t.memberId]?.name) || 'Sem responsável',
+        lateLabel: pluralDias(t.daysLate),
+        statusText: local ? 'Cobrança enviada agora via WhatsApp' : contato?.texto ?? '',
+        chargeable: whatsappAtivo && donos.length > 0 && (t.isMine || ehGestor),
+        chargeHint,
+      };
+    });
+  }, [snapshot, dados, filter, fila, agora, cobradasAgora, comWhatsapp, usuarioId, whatsappAtivo, ehGestor]);
 
   const nomes = useMemo(
     () => Object.fromEntries((dados?.pessoas ?? []).map((p) => [p.id, p.name])),
@@ -217,6 +288,37 @@ export function useEvaHome(defaultView: EvaView = 'team') {
     [nomes, avisar],
   );
 
+  /**
+   * Cobrar/Lembrar (D22): resposta otimista do handoff. O botão vira "Cobrada" na hora;
+   * se o servidor recusar (janela de 4 h, sem WhatsApp), volta e o aviso diz o motivo.
+   */
+  const cobrarCard = useCallback(
+    async (cardId: string): Promise<boolean> => {
+      const codigo = dados?.cards.find((c) => c.id === cardId)?.codigo ?? 'card';
+      setCobradasAgora((c) => ({ ...c, [cardId]: new Date().toISOString() }));
+      try {
+        const r = await evaService.sendCharge(cardId);
+        avisar(
+          r.modo === 'lembrar'
+            ? `Lembrete do ${codigo} na fila do WhatsApp.`
+            : `Cobrança do ${codigo} para ${r.destinatarios.join(', ')} na fila do WhatsApp.`,
+          'sucesso',
+        );
+        void carregarWhatsapp();
+        return true;
+      } catch (e) {
+        setCobradasAgora((c) => {
+          const resto = { ...c };
+          delete resto[cardId];
+          return resto;
+        });
+        avisar(`Não consegui cobrar o ${codigo}: ${e instanceof Error ? e.message : 'tente de novo'}`, 'erro');
+        return false;
+      }
+    },
+    [dados, avisar, carregarWhatsapp],
+  );
+
   /** Card citado no chat, pelo código. Fora do Início (ex.: oculto), avisa. */
   const abrirCardPorCodigo = useCallback(
     (codigo: string) => {
@@ -246,6 +348,8 @@ export function useEvaHome(defaultView: EvaView = 'team') {
     nomes, avisar,
     /** Os cards crus, para as regras dos comentários (domain/comentarios.ts). */
     cards: dados?.cards ?? SEM_CARDS, hoje: dados?.hoje ?? null, usuarioId,
+    /** WhatsApp: fila só para gestores (null para os demais), cobrança e momento da última leitura. */
+    fila, agora, cobrarCard, cobrar: (row: OverdueRow) => cobrarCard(row.id), recarregarWhatsapp: carregarWhatsapp,
   };
 }
 

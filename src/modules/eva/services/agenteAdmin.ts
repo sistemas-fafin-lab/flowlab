@@ -197,18 +197,70 @@ export const agenteAdmin = {
     return { projetos: p.data ?? [], sprints: s.data ?? [] };
   },
 
-  /** Painel de Configurações: a última análise que falhou e a última mensagem que saiu. */
+  /** Painel de Configurações: última análise com erro, última mensagem, última cobrança e a semana. */
   async situacao(): Promise<{
     ultimoErroAnalise: { titulo: string; erro: string | null; created_at: string } | null;
     ultimaMensagem: { enviada_em: string | null; status: string } | null;
+    ultimaCobranca: string | null;
+    semana: { enviadas: number; falhas: number; pendentes: number };
   }> {
-    const [r, m] = await Promise.all([
+    const desde = new Date(Date.now() - 7 * 86_400_000).toISOString();
+    const [r, m, c, s] = await Promise.all([
       supabase.from('ti_agente_reunioes').select('titulo, erro, created_at').eq('status', 'erro').order('created_at', { ascending: false }).limit(1).maybeSingle(),
       supabase.from('ti_agente_mensagens').select('enviada_em, status').eq('direcao', 'saida').not('enviada_em', 'is', null).order('enviada_em', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('ti_agente_mensagens').select('created_at').eq('tipo', 'cobranca').order('created_at', { ascending: false }).limit(1).maybeSingle(),
+      supabase.from('ti_agente_mensagens').select('status').eq('direcao', 'saida').gte('created_at', desde).limit(2000),
     ]);
     erro(r.error);
-    // A fila só é lida por gestor (D24); para os demais, a linha simplesmente não vem.
-    return { ultimoErroAnalise: r.data, ultimaMensagem: m.error ? null : m.data };
+    // A fila só é lida por gestor (D24); para os demais, as linhas simplesmente não vêm.
+    const st = (s.data ?? []).map((x) => x.status as string);
+    return {
+      ultimoErroAnalise: r.data,
+      ultimaMensagem: m.error ? null : m.data,
+      ultimaCobranca: (c.data?.created_at as string | undefined) ?? null,
+      semana: {
+        enviadas: st.filter((x) => x === 'enviada' || x === 'entregue' || x === 'lida').length,
+        falhas: st.filter((x) => x === 'falhou').length,
+        pendentes: st.filter((x) => x === 'pendente').length,
+      },
+    };
+  },
+
+  /** "Enviar teste" (RF19): a mensagem vai para a fila e o script da VPS envia em até 1 min. */
+  enviarTeste: (membroId: string) => chamarEva<{ mensagemId: string }>('agente-teste', { membro_id: membroId }),
+
+  async statusMensagem(id: string): Promise<{ status: string; erro: string | null } | null> {
+    const { data, error } = await supabase.from('ti_agente_mensagens').select('status, erro').eq('id', id).maybeSingle();
+    erro(error);
+    return data as { status: string; erro: string | null } | null;
+  },
+
+  /** Histórico de um membro (RF21): enviadas, falhas e recebidas. */
+  async historicoMembro(membroId: string): Promise<{ id: string; direcao: 'saida' | 'entrada'; tipo: string; texto: string; status: string; erro: string | null; created_at: string; enviada_em: string | null }[]> {
+    const { data, error } = await supabase
+      .from('ti_agente_mensagens')
+      .select('id, direcao, tipo, texto, status, erro, created_at, enviada_em')
+      .eq('membro_id', membroId)
+      .order('created_at', { ascending: false })
+      .limit(30);
+    erro(error);
+    return (data ?? []) as never;
+  },
+
+  /** Última mensagem que falhou de cada membro: "número fora do WhatsApp" aparece na aba Membros. */
+  async ultimasFalhas(): Promise<Record<string, { erro: string | null; created_at: string }>> {
+    const { data, error } = await supabase
+      .from('ti_agente_mensagens')
+      .select('membro_id, status, erro, created_at')
+      .eq('direcao', 'saida')
+      .in('status', ['falhou', 'enviada', 'entregue', 'lida'])
+      .order('created_at', { ascending: false })
+      .limit(500);
+    erro(error);
+    const ultima: Record<string, { status: string; erro: string | null; created_at: string }> = {};
+    for (const m of data ?? []) if (m.membro_id && !ultima[m.membro_id as string]) ultima[m.membro_id as string] = m as never;
+    // Só conta a falha se ela for a última notícia do membro (um envio depois dela resolve).
+    return Object.fromEntries(Object.entries(ultima).filter(([, v]) => v.status === 'falhou').map(([k, v]) => [k, { erro: v.erro, created_at: v.created_at }]));
   },
 
   async pessoasAtivas(): Promise<Pessoa[]> {

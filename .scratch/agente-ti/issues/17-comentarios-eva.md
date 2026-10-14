@@ -24,7 +24,7 @@ Plano: §2 (D6, D21), §4.1 (RF09), §12.1, §12.2 e §14.1.
 
 **Blocked by:** 02, 03. As ações que propõem mudança precisam da RPC `ti_agente_propor_sugestao` (11). O comentário de Projetos com reunião precisa da 08. Os de WhatsApp precisam da 12; até lá, essas regras não disparam.
 
-**Status:** done no código (13/Out/2026); faltam as regras que dependem da fila do WhatsApp (12 e 14)
+**Status:** done no código (14/Out/2026), com as duas regras da fila do WhatsApp
 
 - [ ] `domain/comentarios.ts`:
   - uma função por bloco, que recebe o snapshot (e a fila, as sugestões e a última reunião, quando houver) e `hoje`;
@@ -67,5 +67,14 @@ Plano: §2 (D6, D21), §4.1 (RF09), §12.1, §12.2 e §14.1.
 **`showInsights`** voltou a `true` no Início.
 
 **Testes** (`comentarios.test.ts`, 12): cada regra aparece e some no caso certo. Um teste varre texto, botão, pergunta e título do diálogo das cinco regras e falha se algum disser "movi", "atualizei", "criei", "bloqueei", "reservei", "passei" ou "cobrei".
+
+**14/Out/2026 — as duas regras da fila do WhatsApp** (só gestor, que lê a fila, D24):
+
+| Bloco | Quando aparece | Texto | Ação |
+|---|---|---|---|
+| Atrasadas (depois de "crítica sem dono") | a última cobrança de um card atrasado saiu há mais de **4 h** e o responsável não respondeu | "Ana não respondeu à cobrança às 07:00 sobre o IT-020 (LIS)." | **Cobrar de novo**, pela mesma rota do botão Cobrar. O "feito" só aparece se a cobrança entrou na fila |
+| WhatsApp (depois de "Wa-ha fora do ar") | uma mensagem de saída falhou hoje | "Uma mensagem para Diego falhou às 08:45: O número … não está no WhatsApp." | Ver no histórico (`/it/eva/membros`) |
+
+**Desvio:** a issue falava em mais de 3 h sem resposta. Ficou em 4 h, a janela da RN16, para "Cobrar de novo" nunca ser recusada logo depois de aparecer.
 
 **Diferença do texto da issue:** o `acceptInsight` não ficou no `evaService`. A ação mistura navegação, chat e diálogo, então ficou num hook da tela. O serviço só tem a chamada da RPC (`agenteAdmin.propor`).

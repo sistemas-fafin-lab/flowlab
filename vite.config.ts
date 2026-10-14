@@ -809,11 +809,15 @@ function tiApiPlugin(env: Record<string, string>): Plugin {
     'agente-sincronizar': 'POST',
     'agente-analisar': 'POST',
     'agente-perguntar': 'POST',
+    'agente-cobranca-cron': 'GET',
+    'agente-cobrar': 'POST',
+    'agente-teste': 'POST',
+    'waha-webhook': 'POST',
   };
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'SUPABASE_ANON_KEY',
     'CLAUDE_API_KEY', 'CLAUDE_WORKSPACE_ID', 'GEMINI_API_KEY', 'AGENTE_TI_GEMINI_MODEL',
-    'GRANOLA_API_KEY', 'CRON_SECRET', 'APP_URL',
+    'GRANOLA_API_KEY', 'CRON_SECRET', 'APP_URL', 'WAHA_WEBHOOK_SECRET', 'WAHA_SESSION',
   ];
 
   const ensureProcessEnv = () => {

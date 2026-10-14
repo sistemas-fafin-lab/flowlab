@@ -6,6 +6,7 @@ import {
 import { card } from './testes/fabricas';
 import type { CardTI } from './demandas';
 import type { EvaInsightData, ProjectSummary } from '../types';
+import type { MensagemFila } from './whatsapp';
 
 const HOJE = '2026-10-13';
 const AGORA = new Date('2026-10-13T15:00:00Z').getTime();
@@ -116,6 +117,38 @@ describe('Minhas tasks', () => {
     const parado = card({ assigned_to: ['u-bruno'], kanban_status: 'review', due_date: '2026-10-13T00:00:00.000Z', updated_at: '2026-10-09T12:00:00Z', codigo: 'IT-052', title: 'Upload' });
     expect(comentarioMinhasTasks(entrada({ cards: [parado] }))?.text).toBe('IT-052 (Upload) vence hoje e está em Revisão sem mudança há 4 dias.');
     expect(comentarioMinhasTasks(entrada({ cards: [{ ...parado, updated_at: '2026-10-12T12:00:00Z' }] }))).toBeUndefined();
+  });
+});
+
+describe('regras com a fila do WhatsApp (gestor, D24)', () => {
+  const msg = (m: Partial<MensagemFila>): MensagemFila => ({
+    id: 'w1', membro_id: 'm-ana', membro_user_id: 'u-ana', membro_nome: 'Ana Costa', direcao: 'saida', tipo: 'cobranca_manual',
+    texto: 't', card_ids: [], status: 'enviada', erro: null, created_at: '2026-10-13T10:00:00Z', enviada_em: '2026-10-13T10:00:20Z', ...m,
+  });
+  const atrasado = card({ codigo: 'IT-020', title: 'LIS', assigned_to: ['u-ana'], due_date: '2026-10-10T00:00:00.000Z' });
+  const cfg = { granola_folder_id: null, granola_verificado_em: null, granola_ultimo_erro: null, waha_status: 'WORKING', waha_verificado_em: '2026-10-13T14:59:00Z', whatsapp_ativo: true };
+
+  it('cobrança sem resposta há mais de 4 h: "Cobrar de novo"', () => {
+    const fila = [msg({ card_ids: [atrasado.id] })];
+    const c = comentarioAtrasadas(entrada({ cards: [atrasado], fila }))!;
+    expect(c.text).toBe('Ana não respondeu à cobrança às 07:00 sobre o IT-020 (LIS).');
+    expect(c.acao).toEqual({ tipo: 'cobrar', cardId: atrasado.id });
+  });
+
+  it('some com resposta, dentro das 4 h ou para quem não é gestor', () => {
+    const cobranca = msg({ card_ids: [atrasado.id] });
+    const resposta = msg({ id: 'w2', direcao: 'entrada', tipo: 'recebida', status: 'recebida', created_at: '2026-10-13T11:00:00Z', enviada_em: null });
+    expect(comentarioAtrasadas(entrada({ cards: [atrasado], fila: [cobranca, resposta] }))).toBeUndefined();
+    expect(comentarioAtrasadas(entrada({ cards: [atrasado], fila: [cobranca], agora: new Date('2026-10-13T12:00:00Z').getTime() }))).toBeUndefined();
+    expect(comentarioAtrasadas(entrada({ cards: [atrasado], fila: [cobranca], ehGestor: false }))).toBeUndefined();
+  });
+
+  it('mensagem que falhou hoje leva ao histórico', () => {
+    const fila = [msg({ status: 'falhou', erro: 'O número 5561988887777 não está no WhatsApp.', membro_nome: 'Diego Lima', created_at: '2026-10-13T11:45:00Z' })];
+    const c = comentarioWhatsapp(entrada({ config: cfg, fila }))!;
+    expect(c.text).toBe('Uma mensagem para Diego falhou às 08:45: O número 5561988887777 não está no WhatsApp.');
+    expect(c.acao).toEqual({ tipo: 'navegar', para: '/it/eva/membros' });
+    expect(comentarioWhatsapp(entrada({ config: cfg, fila: [msg({ status: 'falhou', created_at: '2026-10-12T11:45:00Z' })] }))).toBeUndefined();
   });
 });
 

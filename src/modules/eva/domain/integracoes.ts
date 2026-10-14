@@ -35,6 +35,8 @@ function waha(cfg: ConfigIntegracoes | null, agora: number): IntegrationStatus {
   if (!cfg?.waha_verificado_em) return { ...base, detail: 'ainda não configurado', state: 'pending' };
   if (agora - new Date(cfg.waha_verificado_em).getTime() > WAHA_SEM_SINAL_MS) return { ...base, detail: 'sem sinal da VPS', state: 'offline' };
   if (cfg.waha_status === 'WORKING') return { ...base, detail: 'conectado', state: 'online' };
+  // O script da VPS grava INACESSIVEL quando nem o WAHA responde (api/_lib/ti-agente/outbox.ts).
+  if (cfg.waha_status === 'INACESSIVEL') return { ...base, detail: 'fora do ar', state: 'offline' };
   if (cfg.waha_status === 'SCAN_QR_CODE') return { ...base, detail: 'aguardando o QR code', state: 'offline' };
   if (cfg.waha_status === 'STARTING') return { ...base, detail: 'iniciando', state: 'pending' };
   return { ...base, detail: 'desconectado', state: 'offline' };

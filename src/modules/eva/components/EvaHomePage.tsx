@@ -30,6 +30,7 @@ import { EvaChatDrawer, EvaEdgeGlow } from './EvaChatDrawer';
 import { EvaFloatingChat } from './EvaFloatingChat';
 import { EvaToast } from './EvaToast';
 import { ConfirmarPropostaModal } from './ConfirmarPropostaModal';
+import { mensagensDaFila } from './fila';
 import { GlassCard } from './ui';
 import type { EvaInsightData, EvaView } from '../types';
 
@@ -45,8 +46,9 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
   const nome = primeiroNome(userProfile?.name ?? '');
   const ehGestor = hasPermission(userProfile?.permissions || [], 'canApproveAgenteTI');
 
-  const home = useEvaHome(defaultView);
   const eva = useEvaNoInicio(ehGestor);
+  const whatsappAtivo = eva.dados?.config?.whatsapp_ativo === true;
+  const home = useEvaHome(defaultView, { ehGestor, whatsappAtivo });
   const chat = useEvaChat({
     primeiroNome: nome,
     view: home.view,
@@ -84,15 +86,18 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
           config: eva.dados?.config ?? null,
           ultimaReuniao: eva.dados?.ultimaReuniao ?? null,
           pendentesDaReuniao: eva.dados?.pendentesDaReuniao ?? null,
+          fila: home.fila,
+          agora: home.agora,
         })
       : {}),
-    [s, home.hoje, home.view, home.usuarioId, home.cards, home.nomes, ehGestor, eva.dados],
+    [s, home.hoje, home.view, home.usuarioId, home.cards, home.nomes, ehGestor, eva.dados, home.fila, home.agora],
   );
   const acoes = useEvaComentarios({
     ehGestor,
     navegar: navigate,
     abrirCard: (id) => void home.abrirCard(id),
     perguntar: (texto) => void chat.ask(texto),
+    cobrar: home.cobrarCard,
     onExecutada: () => {
       void home.recarregar();
       void eva.recarregar();
@@ -189,11 +194,18 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
                   rows={home.overdue}
                   filter={home.filter}
                   onFilterChange={home.setFilter}
+                  onCharge={whatsappAtivo ? (row) => void home.cobrar(row) : undefined}
                   onOpenCard={(id) => void home.abrirCard(id)}
                   footer={insight(comentarios.overdue)}
                 />
                 {/* D24: a fila do WhatsApp é só para gestores. Para os demais, as atrasadas ocupam a linha. */}
-                {ehGestor && <WhatsAppQueueCard messages={[]} ativa={false} footer={insight(comentarios.whatsapp)} />}
+                {ehGestor && (
+                  <WhatsAppQueueCard
+                    messages={home.fila && home.hoje ? mensagensDaFila(home.fila, home.hoje, home.view === 'me' ? home.usuarioId : null) : []}
+                    ativa={whatsappAtivo}
+                    footer={insight(comentarios.whatsapp)}
+                  />
+                )}
               </div>
 
               <div className="grid gap-6 [grid-template-columns:repeat(auto-fit,minmax(min(100%,380px),1fr))]">

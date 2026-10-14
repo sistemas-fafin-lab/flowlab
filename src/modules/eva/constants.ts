@@ -27,6 +27,7 @@ export const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; r
 export const WA_STATUS_CONFIG: Record<WaStatus, { label: string; tone: BadgeTone }> = {
   scheduled: { label: 'Agendada', tone: 'neutral' },
   sending: { label: 'Enviando', tone: 'info' },
+  sent: { label: 'Enviada', tone: 'info' },
   delivered: { label: 'Entregue', tone: 'success' },
   read: { label: 'Lida', tone: 'info' },
   failed: { label: 'Falhou', tone: 'danger' },

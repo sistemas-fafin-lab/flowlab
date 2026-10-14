@@ -16,13 +16,13 @@ Plano: §2 (D9), §3 (WAHA), §11 e §16.
   - de preferência, autenticação no próprio ngrok (Basic Auth ou OAuth na política de tráfego) ou restrição de IP.
 - [ ] Testar que uma chamada sem a chave, pela URL do ngrok, é recusada (ex.: `GET <url-ngrok>/api/sessions` sem `X-Api-Key` deve voltar 401).
 - [ ] Criar no WAHA a sessão **`ti_agente`** e conectar o número **+55 61 9992-4986** (o número do próprio agente) pelo QR code. A sessão `quotations_001` fica como está.
-- [ ] Configurar o webhook da sessão para `https://<app>/api/ti/waha-webhook`, com os eventos `message` e `message.ack` (este último, para os selos Entregue/Lida do Início). A chave HMAC ou o token fica em `WAHA_WEBHOOK_SECRET` na Vercel. **Este item pode esperar a 15**, onde se decide entre HMAC e token. A cobrança (14) não depende dele.
+- [ ] Configurar o webhook da sessão para `https://<app>/api/ti/waha-webhook?token=<WAHA_WEBHOOK_SECRET>`, com os eventos `message` e `message.ack` (este último, para os selos Entregue/Lida do Início). Sem HMAC: a 15 decidiu pelo token na URL. Gere um valor aleatório longo (ex.: `openssl rand -hex 32`) e cadastre o mesmo em `WAHA_WEBHOOK_SECRET` na Vercel. A cobrança (14) não depende deste item.
 - [ ] Na VPS, definir para o script:
   - `WAHA_URL=http://127.0.0.1:3000` (o `localhost`, **não** a URL do ngrok);
   - `WAHA_API_KEY`, `WAHA_SESSION=ti_agente`;
-  - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY`.
+  - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` do projeto **do app** (o do `VITE_SUPABASE_URL`), não o de teste.
   
-  Todas sem prefixo `VITE_`.
+  Todas sem prefixo `VITE_`. O `install.sh` grava essas variáveis em `/etc/flowlab/eva-whatsapp.env` (600).
 - [ ] Depois da 12: rodar `tools/agente-ti-whatsapp/install.sh` e conferir o timer (`systemctl list-timers`).
 - [ ] Depois da 12: cadastrar pelo menos um membro com WhatsApp, ligar o WhatsApp em Configurações e usar **"Enviar teste"**. A mensagem precisa chegar no celular.
 

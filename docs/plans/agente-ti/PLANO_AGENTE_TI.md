@@ -1,6 +1,11 @@
 # Plano — EVA, o agente de TI (Início + reuniões → Kanban + cobrança por WhatsApp)
 
-> **Status:** 🚧 **Em desenvolvimento** (branch `feat/agente-ti`). **Fases 0 e 1 no código em 13/Out/2026** (issues 01 a 03): permissão, rotas, menu e o Início da EVA com dados reais. Falta conferir no navegador com login real. Protótipo da interface em `docs/flowlab_agent/` (§12).
+> **Status:** 🚧 **Código completo, em conferência** (branch `feat/agente-ti`).
+> - **Fases 0 a 2 (13/Out/2026):** Início com dados reais, reuniões do Granola, sugestões com aprovação, chat e comentários. As migrations foram aplicadas no projeto do app, e a primeira análise real rodou pela tela.
+> - **Fases 3 e 4 (14/Out/2026):** fila do WhatsApp com o script da VPS, cobrança diária e sob demanda, e respostas pelo webhook.
+> - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
+>
+> Protótipo da interface em `docs/flowlab_agent/` (§12).
 > **Área:** Tecnologia. Dois subitens novos no menu "Tecnologia": **Início** com a pílula EVA (`/it/inicio`) e **EVA** (`/it/eva`, administração).
 > **Criado em:** 13/Out/2026, a partir da reunião "Conceito do Agente no FlowLab".
 > **Decisões:** **todas fechadas com o usuário em 13/Out.** D7 a D16 e D18 a D27 como recomendado, com três ajustes:
@@ -669,7 +674,7 @@ Seções vazias não aparecem. Acima de 8 itens, a mensagem termina com "e outra
   - chave de API ligada no WAHA, exigida em toda chamada (`X-Api-Key`);
   - senha no painel e no Swagger do WAHA;
   - de preferência, uma camada de autenticação no próprio ngrok (Basic Auth ou OAuth na política de tráfego) ou restrição de IP.
-- **Webhook da sessão:** `https://<app>/api/ti/waha-webhook`, eventos `message` e `message.ack`, com chave HMAC (§11.3).
+- **Webhook da sessão:** `https://<app>/api/ti/waha-webhook?token=<WAHA_WEBHOOK_SECRET>`, eventos `message` e `message.ack`, sem HMAC (§11.3).
 
 ### 11.2 Envio (fila → VPS)
 
@@ -679,18 +684,22 @@ Seções vazias não aparecem. Acima de 8 itens, a mensagem termina com "e outra
 3. Para cada uma: se o membro não tem `whatsapp_chat_id`, resolve com `GET /api/contacts/check-exists?phone=…&session=ti_agente` e guarda. Se o número não existe no WhatsApp, a mensagem fica `falhou` com aviso na tela de membros.
 4. `POST /api/sendText` `{ session, chatId, text }` com `X-Api-Key`, e **1 a 3 s de intervalo** entre envios, para não parecer disparo em massa.
 5. Sucesso: `enviada`, com `waha_message_id` e `enviada_em`. Falha: `tentativas + 1` e nova tentativa depois de 1, 5 e 15 min. Na 4ª falha, `falhou`.
-6. A cada execução, lê `GET /api/sessions/ti_agente` e grava `waha_status` e `waha_verificado_em` em `ti_agente_config`. É o que alimenta o chip "Wa-ha" do Início (D25). Roda mesmo com o liga/desliga desligado.
+6. A cada execução, lê `GET /api/sessions/ti_agente` e grava `waha_status` e `waha_verificado_em` em `ti_agente_config`. É o que alimenta o chip "Wa-ha" do Início (D25). Roda mesmo com o liga/desliga desligado. Se o WAHA nem responde, grava `INACESSIVEL` (chip "fora do ar").
+7. *(Implementação, 14/Out)* Com a sessão fora de `WORKING`, o script não tenta enviar: as mensagens esperam a sessão voltar, sem gastar tentativas.
 
-Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotation-approval-digest/`.
+Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotation-approval-digest/`. A rotina fica em `api/_lib/ti-agente/outbox.ts` (testada); o executável só monta os clientes. As chaves ficam num arquivo de ambiente `600`, não nas units do systemd.
 
 ### 11.3 Recebidas (webhook)
 
 `ti-waha-webhook.ts`:
-1. **Valida a origem.** Preferência pelo HMAC SHA-512 do WAHA (cabeçalho `X-Webhook-Hmac`) sobre o corpo cru.
-   - O dispatcher da Vercel entrega o corpo já convertido em JSON. Se não houver acesso ao corpo cru, a alternativa aceita é um token secreto na URL do webhook (`?token=`, por HTTPS), mais a conferência do remetente na lista de membros.
-   - A escolha fica registrada na issue 13.
+1. **Valida a origem.** ✅ **Decidido na implementação (14/Out): token secreto na URL** (`/api/ti/waha-webhook?token=<WAHA_WEBHOOK_SECRET>`, por HTTPS), comparado em tempo constante, mais a conferência do remetente na lista de membros.
+   - O HMAC SHA-512 do WAHA (`X-Webhook-Hmac`) precisaria do corpo cru, e a Vercel entrega o corpo já convertido em JSON. Recalcular sobre `JSON.stringify(req.body)` não reproduz os bytes originais.
+   - Sem `WAHA_WEBHOOK_SECRET` configurado, a rota responde 503 e não grava nada.
 2. Aplica a RN13: ignora grupos, `fromMe` e números desconhecidos. Grava a recebida com `waha_message_id` único, então uma entrega repetida pelo WAHA é ignorada.
-3. Responde 200 rápido. A interpretação roda em seguida, com `waitUntil` se disponível. Ela usa o `gerarEstruturado` (§9.1): Claude Sonnet 5.5 com `effort: 'low'`, Gemini se ele falhar, e os cards abertos **daquele membro** como contexto. Ela gera um comentário no card citado (autor: o próprio membro, com o prefixo "via WhatsApp") e, se houver pedido de mudança, uma sugestão na fila (D12).
+3. Responde 200 rápido. A interpretação roda em seguida, com `waitUntil` se disponível. Ela usa o `gerarEstruturado` (§9.1): Claude Sonnet 5.5 com `effort: 'low'`, Gemini se ele falhar, e os cards abertos **daquele membro** como contexto (mais a última cobrança enviada a ele, para entender "concluída" sem código). Ela gera um comentário no card citado (autor: o próprio membro, com o prefixo "via WhatsApp") e, se houver pedido de mudança, uma sugestão na fila (D12).
+   - **Concluir** vira a sugestão "coluna → Concluído". **Adiar** com data vira a sugestão "prazo → nova data". Adiar sem data clara só comenta e pede a data.
+   - **Bloqueado** vira comentário e aviso no sino aos gestores, sem sugestão: o card não tem campo de bloqueio.
+   - Até 5 cards por mensagem. Acima de 20 mensagens de um membro no mesmo dia, as próximas ficam registradas sem interpretação e sem resposta. Isso segura o custo e evita um laço com robô de resposta automática.
 4. Enfileira a confirmação: "Anotei no IT-045: 'concluída'. A mudança de status vai para aprovação."
 5. **Confirmações de entrega (RF26):** o webhook também assina o evento `message.ack`. Com ele, a mensagem de saída de mesmo `waha_message_id` passa a `entregue` ou `lida`, o que acende os selos da fila no Início. O status nunca volta para trás: `lida` não vira `entregue`.
 
@@ -931,9 +940,11 @@ Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotatio
 | Vercel | `AGENTE_TI_GEMINI_MODEL` | opcional; padrão `gemini-3.8-flash` |
 | Vercel | `GRANOLA_API_KEY` | existe no `.env`; cadastrar na Vercel (a chave atual, decidido em 13/Out) |
 | Vercel | `CRON_SECRET` | já existe |
-| Vercel | `WAHA_WEBHOOK_SECRET` | nova; chave do HMAC ou token do webhook (§11.3) |
-| VPS | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | já usadas pelos outros scripts da VPS |
-| VPS | `WAHA_URL=http://127.0.0.1:3000`, `WAHA_API_KEY`, `WAHA_SESSION=ti_agente` | novas, **sem prefixo `VITE_`** |
+| Vercel | `WAHA_WEBHOOK_SECRET` | nova; o **token** do webhook (decidido na issue 15, §11.3). Um valor aleatório longo, que vai também na URL configurada no WAHA (`?token=…`) |
+| Vercel | `WAHA_SESSION` | opcional; padrão `ti_agente`. O webhook ignora eventos de outra sessão |
+| Vercel | `APP_URL` | já existe; base do link "Início" na cobrança (`api/_lib/appUrl.ts`) |
+| VPS | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | do projeto **do app** (o do `VITE_SUPABASE_URL`), não o de teste. Ficam em `/etc/flowlab/eva-whatsapp.env` (600), gravado pelo `install.sh` |
+| VPS | `WAHA_URL=http://127.0.0.1:3000`, `WAHA_API_KEY`, `WAHA_SESSION=ti_agente` | novas, **sem prefixo `VITE_`**. O script recusa uma `WAHA_URL` do ngrok |
 | `.env` local | `VITE_WAHA_*` | não usadas por nenhum código; **remover** (§3) |
 | Banco | `ti_agente_config.granola_folder_id` | `fol_WEROcYgPA0ti68` ("Team meetings") |
 | `vercel.json` | crons `/api/ti/agente-sync-cron` (`0 12 * * 1-5`) e `/api/ti/agente-cobranca-cron` (`0 11 * * 1-5`); `functions` com `maxDuration` para `api/ti/[action].ts` | novo |

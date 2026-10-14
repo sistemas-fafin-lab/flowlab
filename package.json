@@ -11,7 +11,8 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "send-quotation-approval-digest": "tsx tools/quotation-approval-digest/send-digest.ts"
+    "send-quotation-approval-digest": "tsx tools/quotation-approval-digest/send-digest.ts",
+    "eva-send-outbox": "tsx tools/agente-ti-whatsapp/send-outbox.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.133.0",

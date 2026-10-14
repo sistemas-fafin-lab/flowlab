@@ -13,7 +13,9 @@ import { MyTasksCard } from './MyTasksCard';
 import { WhatsAppQueueCard } from './WhatsAppQueueCard';
 import { EvaStatCards } from './EvaStatCards';
 import { PropostaChatCard } from './PropostaChatCard';
+import { mensagensDaFila } from './fila';
 import type { OverdueRow } from '../hooks/useEvaHome';
+import type { MensagemFila } from '../domain/whatsapp';
 import type { PropostaEva } from '../types';
 
 const HOJE = '2026-10-13';
@@ -42,7 +44,7 @@ function snapshot(vazio: boolean) {
 }
 
 function linhas(s: ReturnType<typeof montarSnapshot>): OverdueRow[] {
-  return s.overdue.map((t) => ({ ...t, charged: false, memberName: 'Rafael Lima', lateLabel: '1 dia', statusText: '' }));
+  return s.overdue.map((t) => ({ ...t, charged: false, memberName: 'Rafael Lima', lateLabel: '1 dia', statusText: '', chargeable: false }));
 }
 
 describe('blocos do Início (fumaça)', () => {
@@ -75,6 +77,32 @@ describe('blocos do Início (fumaça)', () => {
     expect(gestor).toContain('Revisão');
     expect(render(h(PropostaChatCard, { p, ehGestor: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviar para aprovação');
     expect(render(h(PropostaChatCard, { p: { ...p, estado: 'na_fila' }, ehGestor: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviada para aprovação');
+  });
+
+  it('Cobrar/Lembrar só onde pode; sem WhatsApp, desabilitado com a dica (D22)', () => {
+    const [r] = linhas(snapshot(false));
+    const html = (row: OverdueRow) => render(h(OverdueCard, { rows: [row], filter: 'all', onFilterChange: noop, onOpenCard: noop, onCharge: noop }));
+    expect(html({ ...r, chargeable: false })).not.toContain('>Lembrar<');
+    expect(html({ ...r, chargeable: true })).toContain('>Lembrar<');
+    const semZap = html({ ...r, chargeable: true, chargeHint: 'Você não tem WhatsApp com adesão à cobrança (EVA → Membros).' });
+    expect(semZap).toContain('disabled=""');
+    expect(semZap).toContain('title="Você não tem WhatsApp');
+    expect(html({ ...r, chargeable: true, charged: true, statusText: 'Cobrança enviada agora via WhatsApp' })).toContain('>Cobrada<');
+  });
+
+  it('fila do WhatsApp com mensagens reais', () => {
+    const fila: MensagemFila[] = [
+      { id: 'a', membro_id: 'm', membro_user_id: 'u', membro_nome: 'Ana Costa', direcao: 'saida', tipo: 'cobranca', texto: 'Bom dia, Ana!', card_ids: [], status: 'enviada', erro: null, created_at: '2026-10-13T11:05:00Z', enviada_em: '2026-10-13T11:05:10Z' },
+      { id: 'b', membro_id: 'm', membro_user_id: 'u', membro_nome: 'Ana Costa', direcao: 'entrada', tipo: 'recebida', texto: 'IT-045 concluída', card_ids: [], status: 'recebida', erro: null, created_at: '2026-10-13T11:20:00Z', enviada_em: null },
+      { id: 'c', membro_id: 'm2', membro_user_id: 'u2', membro_nome: 'Diego Lima', direcao: 'saida', tipo: 'teste', texto: 'Teste', card_ids: [], status: 'falhou', erro: 'O número não está no WhatsApp.', created_at: '2026-10-13T11:45:00Z', enviada_em: null },
+    ];
+    const msgs = mensagensDaFila(fila, HOJE, null);
+    expect(msgs.map((m) => [m.to, m.status, m.time])).toEqual([['Ana Costa', 'sent', '08:05'], ['Diego Lima', 'failed', '08:45']]);
+    expect(mensagensDaFila(fila, HOJE, 'u2')).toHaveLength(1);
+    const html = render(h(WhatsAppQueueCard, { messages: msgs, ativa: true }));
+    expect(html).toContain('Ao vivo');
+    expect(html).toContain('Enviada');
+    expect(html).toContain('O número não está no WhatsApp.');
   });
 
   it('mostram estados vazios em vez de quebrar', () => {

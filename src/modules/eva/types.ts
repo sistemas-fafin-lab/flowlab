@@ -10,7 +10,7 @@ export type OverdueFilter = 'all' | 'critical';
 
 export type KanbanColumnKey = ColunaKanban;
 export type Priority = Prioridade;
-export type WaStatus = 'scheduled' | 'sending' | 'delivered' | 'read' | 'failed';
+export type WaStatus = 'scheduled' | 'sending' | 'sent' | 'delivered' | 'read' | 'failed';
 export type ProjectStatus = SituacaoProjeto;
 export type BadgeTone = 'success' | 'warning' | 'danger' | 'info' | 'neutral';
 
@@ -95,6 +95,8 @@ export type AcaoInsight =
   | { tipo: 'navegar'; para: string }
   | { tipo: 'abrir_card'; cardId: string }
   | { tipo: 'chat'; pergunta: string }
+  /** Cobrança manual (D22), pela mesma rota do botão Cobrar: respeita a janela de 4 h. */
+  | { tipo: 'cobrar'; cardId: string }
   | {
       tipo: 'propor';
       /** Pergunta do diálogo de confirmação ("Passar IT-045 e IT-052 da Ana para o Diego?"). */

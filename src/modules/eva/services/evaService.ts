@@ -1,10 +1,11 @@
 // Ponto único de integração da EVA com o backend (handoff: services/evaService.ts).
 // O Início lê direto do Supabase, protegido pela RLS de it_requests, it_projects e
-// it_sprints. O chat passa pela rota /api/ti/agente-perguntar; a cobrança entra na
-// fase 3 (issue 14).
+// it_sprints. O chat e a cobrança passam pelas rotas /api/ti/agente-perguntar e
+// /api/ti/agente-cobrar; a fila do WhatsApp é lida só por gestores (D24).
 import { supabase } from '../../../lib/supabase';
 import type { ITRequest } from '../../../components/IT/ITKanbanBoard';
 import type { EvaView, PropostaEva } from '../types';
+import type { MensagemFila } from '../domain/whatsapp';
 import { chamarEva } from './agenteApi';
 import { somarDias, type Dia } from '../domain/datas';
 import type { CardTI, ColunaKanban, StatusChamado } from '../domain/demandas';
@@ -141,6 +142,40 @@ export const evaService = {
   /** Chat (issue 16): pergunta à EVA. As propostas voltam sem nada aplicado (D28). */
   ask: (pergunta: string, visao: EvaView, historico: { de: 'eva' | 'eu'; texto: string }[]) =>
     chamarEva<RespostaEva>('agente-perguntar', { pergunta, visao, historico }),
+
+  /** Botão Cobrar/Lembrar (D22): põe a cobrança na fila; o script da VPS envia em até 1 min. */
+  sendCharge: (cardId: string) =>
+    chamarEva<{ modo: 'cobrar' | 'lembrar'; destinatarios: string[] }>('agente-cobrar', { card_id: cardId }),
+
+  /** Cobranças enviadas hoje. Só a contagem (D24): qualquer um com canManageIT vê o número. */
+  async cobrancasHoje(): Promise<number> {
+    const { data, error } = await supabase.rpc('ti_agente_cobrancas_hoje');
+    if (error) throw new Error(error.message);
+    return (data as number | null) ?? 0;
+  },
+
+  /** Fila do WhatsApp dos últimos dias, para gestores (D24, RLS de ti_agente_mensagens). */
+  async lerFila(desde: Date): Promise<MensagemFila[]> {
+    const { data, error } = await supabase
+      .from('ti_agente_mensagens')
+      .select('id, membro_id, direcao, tipo, texto, card_ids, status, erro, created_at, enviada_em, membro:ti_agente_membros(user_id, perfil:user_profiles!ti_agente_membros_user_id_fkey(name))')
+      .gte('created_at', desde.toISOString())
+      .order('created_at', { ascending: false })
+      .limit(300);
+    if (error) throw new Error(error.message);
+    type Membro = { user_id: string; perfil: { name: string } | null } | null;
+    return (data ?? []).map((m) => {
+      const { membro, ...resto } = m as unknown as Omit<MensagemFila, 'membro_user_id' | 'membro_nome'> & { membro: Membro };
+      return { ...resto, card_ids: resto.card_ids ?? [], membro_user_id: membro?.user_id ?? null, membro_nome: membro?.perfil?.name ?? null };
+    });
+  },
+
+  /** Quem tem WhatsApp com adesão (só gestores leem ti_agente_membros): habilita o botão Cobrar. */
+  async membrosComWhatsapp(): Promise<string[]> {
+    const { data, error } = await supabase.from('ti_agente_membros').select('user_id').eq('ativo', true).eq('recebe_cobranca', true).not('whatsapp', 'is', null);
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((m) => m.user_id as string);
+  },
 };
 
 /** O que `agente-perguntar` devolve (api/_lib/ti-agente/chat.ts, RespostaChat). */
