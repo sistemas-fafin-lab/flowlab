@@ -13,7 +13,7 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY → projeto do app (não o de teste)
 //   WAHA_URL      → http://127.0.0.1:3000 (o localhost da VPS, NÃO a URL do ngrok)
 //   WAHA_API_KEY  → a chave de API do WAHA (X-Api-Key)
-//   WAHA_SESSION  → ti_agente (padrão)
+//   WAHA_SESSION  → eva (padrão; a sessão do número da EVA no WAHA)
 //
 // Uso:
 //   npx tsx tools/agente-ti-whatsapp/send-outbox.ts            (envia)
@@ -38,7 +38,7 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const waha = criarClienteWaha({ url, apiKey: process.env.WAHA_API_KEY, sessao: process.env.WAHA_SESSION || 'ti_agente' });
+  const waha = criarClienteWaha({ url, apiKey: process.env.WAHA_API_KEY, sessao: process.env.WAHA_SESSION || 'eva' });
   const repo = repositorioSupabase(getSupabaseAdminClient());
 
   if (dryRun) {
@@ -55,13 +55,14 @@ async function main(): Promise<number> {
   }
 
   const r = await esvaziarFila(repo, waha);
+  const vencidas = r.vencidas ? `; ${r.vencidas} vencida(s) na fila` : '';
   const resumo = r.desligado
-    ? 'envio desligado em Configurações'
+    ? `envio desligado em Configurações${vencidas}`
     : r.sessao !== 'WORKING'
-      ? 'sessão não conectada; nada enviado'
-      : `${r.enviadas} enviada(s), ${r.falhas} falha(s)${r.definitivas ? `, ${r.definitivas} definitiva(s)` : ''}`;
+      ? `sessão não conectada; nada enviado${vencidas}`
+      : `${r.enviadas} enviada(s), ${r.falhas} falha(s)${r.definitivas ? `, ${r.definitivas} definitiva(s)` : ''}${vencidas}`;
   // Só loga quando há o que dizer, para o journal não encher a cada minuto.
-  if (r.enviadas || r.falhas || r.sessao !== 'WORKING') console.error(`[${SCRIPT}] sessão ${r.sessao}: ${resumo}`);
+  if (r.enviadas || r.falhas || r.vencidas || r.sessao !== 'WORKING') console.error(`[${SCRIPT}] sessão ${r.sessao}: ${resumo}`);
   return r.falhas > 0 && r.enviadas === 0 ? 1 : 0;
 }
 

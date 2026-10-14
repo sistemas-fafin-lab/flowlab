@@ -8,7 +8,7 @@ export interface ConfigWaha {
   /** http://127.0.0.1:3000 — o localhost da VPS, nunca a URL do ngrok. */
   url: string;
   apiKey?: string;
-  /** ti_agente */
+  /** eva (a sessão do número da EVA no WAHA) */
   sessao: string;
   /** Tempo máximo de cada chamada (padrão 15 s). */
   timeoutMs?: number;

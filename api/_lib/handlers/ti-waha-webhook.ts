@@ -1,5 +1,5 @@
 // API Route: POST /api/ti/waha-webhook?token=<WAHA_WEBHOOK_SECRET> — eventos do WAHA (issue 15).
-// Configurar na sessão ti_agente com os eventos `message` e `message.ack` (issue 13).
+// Configurar na sessão `eva` com os eventos `message` e `message.ack` (issue 13).
 // - message.ack: acende Entregue/Lida na mensagem de saída (RF26), sem voltar para trás.
 // - message: só de membro ativo (RN13). Grava a recebida (idempotente por waha_message_id),
 //   responde 200 e interpreta em segundo plano (waitUntil): comentário no card, sugestão na
@@ -31,7 +31,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     return;
   }
 
-  const evento = lerEvento(req.body, process.env.WAHA_SESSION || 'ti_agente');
+  const evento = lerEvento(req.body, process.env.WAHA_SESSION || 'eva');
   if (evento.tipo === 'ignorar') {
     res.status(200).json({ success: true, ignorado: evento.motivo });
     return;

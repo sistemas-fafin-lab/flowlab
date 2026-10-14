@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  depoisDaFalha, digitosDoChatId, horarioNaFila, idCurtoWaha, mesmoNumero, quandoFoi, statusPeloAck, ultimoContato,
+  depoisDaFalha, digitosDoChatId, horarioNaFila, idCurtoWaha, mesmoNumero, quandoFoi, statusPeloAck, ultimoContato, venceuNaFila,
   type MensagemFila,
 } from './whatsapp';
 
@@ -22,6 +22,11 @@ describe('números', () => {
     expect(digitosDoChatId('987654321@lid')).toBeNull();
   });
 
+  it('JID de aparelho do GOWS perde o sufixo', () => {
+    expect(digitosDoChatId('556199924986:1@s.whatsapp.net')).toBe('556199924986');
+    expect(mesmoNumero(digitosDoChatId('556199924986:12@s.whatsapp.net'), '5561999924986')).toBe(true);
+  });
+
   it('id curto do WAHA', () => {
     expect(idCurtoWaha('true_556199924986@c.us_3EB0ABC')).toBe('3EB0ABC');
     expect(idCurtoWaha('3EB0ABC')).toBe('3EB0ABC');
@@ -34,6 +39,18 @@ describe('novas tentativas (§11.2)', () => {
     expect(depoisDaFalha(0, agora)).toEqual({ status: 'pendente', tentativas: 1, proxima_tentativa_em: '2026-10-13T12:01:00.000Z' });
     expect(depoisDaFalha(2, agora)).toEqual({ status: 'pendente', tentativas: 3, proxima_tentativa_em: '2026-10-13T12:15:00.000Z' });
     expect(depoisDaFalha(3, agora)).toEqual({ status: 'falhou', tentativas: 4 });
+  });
+});
+
+describe('validade na fila (queda longa do WAHA)', () => {
+  const agora = new Date('2026-10-14T12:00:00Z').getTime(); // 09:00 em Brasília
+  it('a cobrança da manhã só vale no próprio dia', () => {
+    expect(venceuNaFila('cobranca', '2026-10-14T11:05:00Z', agora)).toBe(false);
+    expect(venceuNaFila('cobranca', '2026-10-13T11:05:00Z', agora)).toBe(true);
+  });
+  it('as demais valem 12 h', () => {
+    expect(venceuNaFila('cobranca_manual', '2026-10-14T01:00:00Z', agora)).toBe(false);
+    expect(venceuNaFila('confirmacao', '2026-10-13T23:00:00Z', agora)).toBe(true);
   });
 });
 

@@ -41,7 +41,7 @@ function res() {
   return { r, api: api as unknown as VercelResponse };
 }
 const mensagem = (from: string, extra: Record<string, unknown> = {}) =>
-  ({ event: 'message', session: 'ti_agente', payload: { id: 'false_x_AAA', from, fromMe: false, body: 'IT-045 concluída', ...extra } });
+  ({ event: 'message', session: 'eva', payload: { id: 'false_x_AAA', from, fromMe: false, body: 'IT-045 concluída', ...extra } });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -100,14 +100,14 @@ describe('POST /api/ti/waha-webhook', () => {
     const { db, updates } = criarDb({ saida: { id: 's1', status: 'enviada' } });
     dbMock.mockReturnValue(db);
     const { r, api } = res();
-    await handler(req({ event: 'message.ack', session: 'ti_agente', payload: { id: 'true_x@c.us_B', ack: 3 } }), api);
+    await handler(req({ event: 'message.ack', session: 'eva', payload: { id: 'true_x@c.us_B', ack: 3 } }), api);
     expect(r.body).toMatchObject({ ack: 'lida' });
     expect(updates[0]).toEqual({ dados: { status: 'lida' }, filtros: [['id', 's1'], ['status', 'enviada']] });
 
     const outro = criarDb({ saida: { id: 's1', status: 'lida' } });
     dbMock.mockReturnValue(outro.db);
     const { r: r2, api: api2 } = res();
-    await handler(req({ event: 'message.ack', session: 'ti_agente', payload: { id: 'true_x@c.us_B', ack: 2 } }), api2);
+    await handler(req({ event: 'message.ack', session: 'eva', payload: { id: 'true_x@c.us_B', ack: 2 } }), api2);
     expect(r2.body).toMatchObject({ ack: 'sem mudança' });
     expect(outro.updates).toEqual([]);
   });

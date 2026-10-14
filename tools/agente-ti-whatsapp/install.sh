@@ -10,7 +10,7 @@
 #        SUPABASE_SERVICE_ROLE_KEY=<service-role> \
 #        WAHA_API_KEY=<chave-do-waha> \
 #        ./install.sh
-#   (WAHA_URL padrão: http://127.0.0.1:3000; WAHA_SESSION padrão: ti_agente)
+#   (WAHA_URL padrão: http://127.0.0.1:3000; WAHA_SESSION padrão: eva)
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
@@ -23,7 +23,7 @@ fi
 : "${SUPABASE_SERVICE_ROLE_KEY:?defina SUPABASE_SERVICE_ROLE_KEY}"
 : "${WAHA_API_KEY:?defina WAHA_API_KEY}"
 WAHA_URL="${WAHA_URL:-http://127.0.0.1:3000}"
-WAHA_SESSION="${WAHA_SESSION:-ti_agente}"
+WAHA_SESSION="${WAHA_SESSION:-eva}"
 
 case "$WAHA_URL" in
   *ngrok*) echo "WAHA_URL não pode ser a URL do ngrok: use o localhost da VPS (http://127.0.0.1:3000)." >&2; exit 1 ;;

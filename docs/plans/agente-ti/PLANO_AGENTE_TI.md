@@ -58,7 +58,7 @@ Entregáveis, na ordem em que geram valor:
 |---|---|---|---|
 | **D1** | Fonte das reuniões | ✅ **Fechado (13/Out): API pública do Granola, plano Business.** A chave já está no `.env` (`GRANOLA_API_KEY`). O resumo colado à mão continua existindo como reserva e para reuniões fora do Granola. Detalhes do teste na §3. | Fase 2 |
 | **D2** | Modelo de IA | ✅ **Fechado (13/Out): Claude Sonnet 5.5 (`claude-sonnet-5-5`), e só ele**, para economizar tokens. Nenhum outro modelo Claude entra, nem como reserva. SDK oficial `@anthropic-ai/sdk`, saída estruturada validada com zod. A chave (`CLAUDE_API_KEY`) é **da organização**, então toda chamada leva o cabeçalho `anthropic-workspace-id` (`CLAUDE_WORKSPACE_ID`, §3). | Fase 2 |
-| **D3** | WhatsApp | ✅ **Fechado (13/Out): WAHA, número do agente +55 61 9992-4986.** Uma sessão própria do WAHA (`ti_agente`), separada da `quotations_001` das cotações. Ver D9 para o caminho das mensagens. | Fase 3 |
+| **D3** | WhatsApp | ✅ **Fechado (13/Out): WAHA, número do agente +55 61 9992-4986.** Uma sessão própria do WAHA (criada como **`eva`** em 14/Out), separada da `quotations_001` das cotações. Ver D9 para o caminho das mensagens. | Fase 3 |
 | **D4** | Status e prazo dos projetos | ✅ **Fechado (13/Out): deduzidos dos prazos dos cards e da sprint.** Nenhuma coluna nova em `it_projects`. Regra na RN05. | Fase 1 |
 | **D5** | Homepage | ✅ **Fechado (13/Out): página nova**, no estilo da homepage principal do FlowLab (`Home.tsx`), com visual moderno e prioridade máxima na interface. **O visual sai de um protótipo do usuário no Claude Design**, recebido em 13/Out em `docs/flowlab_agent/`. A §12 diz de onde sai cada dado e o que muda em relação aos mocks. | Issue 03 |
 | **D6** | Sugestões do agente | ✅ **Fechado (13/Out): sempre passam por aprovação**, com uma chave nova: `canApproveAgenteTI`. | Fase 2 |
@@ -230,7 +230,7 @@ A interface é a do protótipo (§12). Os requisitos abaixo seguem os blocos del
                     │ tools/agente-ti-whatsapp│ (timer 1 min)│  │
                     │   lê a fila ────────────┘              │  │
                     │   envia ─► WAHA 127.0.0.1:3000 ────────┘  │  ◄─► WhatsApp (+55 61 9992-4986)
-                    │            (sessão ti_agente; webhook ──► Vercel)
+                    │            (sessão eva; webhook ──► Vercel)
                     └───────────────────────────────────────────┘
 ```
 
@@ -278,7 +278,7 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
 | `whatsapp_ativo` | boolean DEFAULT false | liga/desliga geral do envio (RF20) |
 | `cobranca_ativa` | boolean DEFAULT false | liga/desliga só da cobrança diária |
 | `dias_parado` | smallint DEFAULT 5 CHECK 1–60 | RN04 |
-| `waha_status` | text NULL | situação da sessão `ti_agente` (`WORKING`, `SCAN_QR_CODE`, `FAILED`…), gravada pelo script da VPS (D25) |
+| `waha_status` | text NULL | situação da sessão `eva` (`WORKING`, `SCAN_QR_CODE`, `FAILED`…), gravada pelo script da VPS (D25) |
 | `waha_verificado_em` | timestamptz NULL | último aviso do script. Mais de 5 min sem aviso = chip "Wa-ha sem sinal" |
 | `updated_by`, `updated_at` | | |
 
@@ -668,7 +668,7 @@ Seções vazias não aparecem. Acima de 8 itens, a mensagem termina com "e outra
 
 ### 11.1 Sessão
 
-- **Sessão nova `ti_agente`** no WAHA Plus da VPS, com o número **+55 61 9992-4986** (o número do próprio agente, que envia as mensagens). O usuário configura a sessão e conecta pelo QR code do painel do WAHA, acessando pelo **endpoint ngrok da VPS** (13/Out). A sessão `quotations_001` não é tocada.
+- **Sessão nova `eva`** (criada em 14/Out, engine GOWS) no WAHA Plus da VPS, com o número **+55 61 9992-4986** (o número do próprio agente, que envia as mensagens). O usuário configura a sessão e conecta pelo QR code do painel do WAHA, acessando pelo **endpoint ngrok da VPS** (13/Out). A sessão `quotations_001` não é tocada.
 - **O agente não usa o ngrok:** o script da fila (§11.2) roda na mesma VPS e fala com o WAHA em `http://127.0.0.1:3000`. Assim, uma troca de URL do ngrok não afeta nada.
 - **Proteção do endpoint ngrok.** O túnel deixa a API do WAHA acessível pela internet, e quem a alcança controla o número (envia e lê conversas). Antes de conectar o número:
   - chave de API ligada no WAHA, exigida em toda chamada (`X-Api-Key`);
@@ -681,11 +681,14 @@ Seções vazias não aparecem. Acima de 8 itens, a mensagem termina com "e outra
 `tools/agente-ti-whatsapp/send-outbox.ts`, num timer systemd a cada minuto:
 1. Lê `ti_agente_config.whatsapp_ativo`. Se estiver desligado, encerra.
 2. Busca até 20 mensagens `saida` + `pendente` com `proxima_tentativa_em` vencida, das mais antigas para as mais novas.
-3. Para cada uma: se o membro não tem `whatsapp_chat_id`, resolve com `GET /api/contacts/check-exists?phone=…&session=ti_agente` e guarda. Se o número não existe no WhatsApp, a mensagem fica `falhou` com aviso na tela de membros.
+3. Para cada uma: se o membro não tem `whatsapp_chat_id`, resolve com `GET /api/contacts/check-exists?phone=…&session=eva` e guarda. Se o número não existe no WhatsApp, a mensagem fica `falhou` com aviso na tela de membros.
 4. `POST /api/sendText` `{ session, chatId, text }` com `X-Api-Key`, e **1 a 3 s de intervalo** entre envios, para não parecer disparo em massa.
 5. Sucesso: `enviada`, com `waha_message_id` e `enviada_em`. Falha: `tentativas + 1` e nova tentativa depois de 1, 5 e 15 min. Na 4ª falha, `falhou`.
-6. A cada execução, lê `GET /api/sessions/ti_agente` e grava `waha_status` e `waha_verificado_em` em `ti_agente_config`. É o que alimenta o chip "Wa-ha" do Início (D25). Roda mesmo com o liga/desliga desligado. Se o WAHA nem responde, grava `INACESSIVEL` (chip "fora do ar").
+6. A cada execução, lê `GET /api/sessions/eva` e grava `waha_status` e `waha_verificado_em` em `ti_agente_config`. É o que alimenta o chip "Wa-ha" do Início (D25). Roda mesmo com o liga/desliga desligado. Se o WAHA nem responde, grava `INACESSIVEL` (chip "fora do ar").
 7. *(Implementação, 14/Out)* Com a sessão fora de `WORKING`, o script não tenta enviar: as mensagens esperam a sessão voltar, sem gastar tentativas.
+8. *(Implementação, 14/Out)* **Validade na fila:** a cobrança da manhã só vale no próprio dia, porque diz "pendências de hoje"; as demais mensagens valem 12 h. Vencida, a mensagem vira `falhou` com o motivo e não sai mais. A regra roda em toda execução, mesmo com o envio desligado ou a sessão caída. Assim, uma queda longa do WAHA não resulta numa leva de mensagens atrasadas quando ele volta.
+
+**A EVA não depende do WhatsApp.** Início, chat, reuniões, sugestões e aprovações não falam com o WAHA. O botão Cobrar e o cron da manhã só gravam na fila. Se o WAHA ou a VPS caírem, o chip mostra "fora do ar" ou "sem sinal da VPS", as mensagens esperam, e o resto segue igual. O webhook (§11.3) é só a entrada das respostas: token errado, ou WAHA fora do ar, afeta apenas o recebimento das respostas.
 
 Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotation-approval-digest/`. A rotina fica em `api/_lib/ti-agente/outbox.ts` (testada); o executável só monta os clientes. As chaves ficam num arquivo de ambiente `600`, não nas units do systemd.
 
@@ -941,10 +944,10 @@ Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotatio
 | Vercel | `GRANOLA_API_KEY` | existe no `.env`; cadastrar na Vercel (a chave atual, decidido em 13/Out) |
 | Vercel | `CRON_SECRET` | já existe |
 | Vercel | `WAHA_WEBHOOK_SECRET` | nova; o **token** do webhook (decidido na issue 15, §11.3). Um valor aleatório longo, que vai também na URL configurada no WAHA (`?token=…`) |
-| Vercel | `WAHA_SESSION` | opcional; padrão `ti_agente`. O webhook ignora eventos de outra sessão |
+| Vercel | `WAHA_SESSION` | opcional; padrão `eva`. O webhook ignora eventos de outra sessão |
 | Vercel | `APP_URL` | já existe; base do link "Início" na cobrança (`api/_lib/appUrl.ts`) |
 | VPS | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | do projeto **do app** (o do `VITE_SUPABASE_URL`), não o de teste. Ficam em `/etc/flowlab/eva-whatsapp.env` (600), gravado pelo `install.sh` |
-| VPS | `WAHA_URL=http://127.0.0.1:3000`, `WAHA_API_KEY`, `WAHA_SESSION=ti_agente` | novas, **sem prefixo `VITE_`**. O script recusa uma `WAHA_URL` do ngrok |
+| VPS | `WAHA_URL=http://127.0.0.1:3000`, `WAHA_API_KEY`, `WAHA_SESSION=eva` | novas, **sem prefixo `VITE_`**. O script recusa uma `WAHA_URL` do ngrok |
 | `.env` local | `VITE_WAHA_*` | não usadas por nenhum código; **remover** (§3) |
 | Banco | `ti_agente_config.granola_folder_id` | `fol_WEROcYgPA0ti68` ("Team meetings") |
 | `vercel.json` | crons `/api/ti/agente-sync-cron` (`0 12 * * 1-5`) e `/api/ti/agente-cobranca-cron` (`0 11 * * 1-5`); `functions` com `maxDuration` para `api/ti/[action].ts` | novo |
