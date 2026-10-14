@@ -23,7 +23,12 @@ interface CorpoWaha {
     body?: unknown;
     hasMedia?: unknown;
     ack?: unknown;
-    _data?: { key?: { senderPn?: unknown; remoteJidAlt?: unknown } };
+    _data?: {
+      /** NOWEB/WEBJS: o número quando o remetente vem como LID. */
+      key?: { senderPn?: unknown; remoteJidAlt?: unknown };
+      /** GOWS (whatsmeow): Sender/Chat podem ser LID; SenderAlt/ChatAlt trazem o número. */
+      Info?: { Sender?: unknown; SenderAlt?: unknown; Chat?: unknown; ChatAlt?: unknown };
+    };
   };
 }
 
@@ -45,9 +50,10 @@ export function lerEvento(corpo: unknown, sessaoEsperada: string): EventoWaha {
   if (/@(g\.us|broadcast|newsletter)$/.test(de)) return ignorar('grupo, lista ou canal');
   if (typeof p.id !== 'string' || !p.id) return ignorar('mensagem sem id');
 
-  // O remetente pode vir como número (@c.us) ou como LID (@lid); nesse caso, o número
-  // costuma vir em _data.key (senderPn / remoteJidAlt), conforme o engine do WAHA.
-  const candidatos = [de, p.participant, p._data?.key?.senderPn, p._data?.key?.remoteJidAlt]
+  // O remetente pode vir como número (@c.us) ou como LID (@lid); nesse caso, o número vem
+  // em outro campo, conforme o engine do WAHA: _data.key (NOWEB) ou _data.Info (GOWS).
+  const info = p._data?.Info;
+  const candidatos = [de, p.participant, p._data?.key?.senderPn, p._data?.key?.remoteJidAlt, info?.SenderAlt, info?.Sender, info?.ChatAlt, info?.Chat]
     .filter((x): x is string => typeof x === 'string')
     .map(digitosDoChatId)
     .filter((x): x is string => !!x);

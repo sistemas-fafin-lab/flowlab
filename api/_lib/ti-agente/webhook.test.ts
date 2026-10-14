@@ -25,6 +25,14 @@ describe('lerEvento (RN13)', () => {
     expect(e).toMatchObject({ tipo: 'mensagem', remetentes: ['5561999924986'] });
   });
 
+  it('GOWS: remetente em LID usa _data.Info.SenderAlt, sem o sufixo de aparelho', () => {
+    const e = lerEvento(msg({
+      from: '151037608517734@lid',
+      _data: { Info: { Sender: '151037608517734@lid', SenderAlt: '556199924986:1@s.whatsapp.net', Chat: '151037608517734@lid' } },
+    }), 'ti_agente');
+    expect(e).toMatchObject({ tipo: 'mensagem', remetentes: ['556199924986'] });
+  });
+
   it('confirmação de entrega', () => {
     expect(lerEvento({ event: 'message.ack', session: 'ti_agente', payload: { id: 'true_x@c.us_B', ack: 3 } }, 'ti_agente'))
       .toEqual({ tipo: 'ack', id: 'true_x@c.us_B', ack: 3 });

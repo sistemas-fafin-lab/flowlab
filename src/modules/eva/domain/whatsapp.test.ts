@@ -22,6 +22,11 @@ describe('números', () => {
     expect(digitosDoChatId('987654321@lid')).toBeNull();
   });
 
+  it('JID de aparelho do GOWS perde o sufixo', () => {
+    expect(digitosDoChatId('556199924986:1@s.whatsapp.net')).toBe('556199924986');
+    expect(mesmoNumero(digitosDoChatId('556199924986:12@s.whatsapp.net'), '5561999924986')).toBe(true);
+  });
+
   it('id curto do WAHA', () => {
     expect(idCurtoWaha('true_556199924986@c.us_3EB0ABC')).toBe('3EB0ABC');
     expect(idCurtoWaha('3EB0ABC')).toBe('3EB0ABC');

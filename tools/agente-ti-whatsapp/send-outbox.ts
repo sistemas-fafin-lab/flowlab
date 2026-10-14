@@ -13,7 +13,7 @@
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY → projeto do app (não o de teste)
 //   WAHA_URL      → http://127.0.0.1:3000 (o localhost da VPS, NÃO a URL do ngrok)
 //   WAHA_API_KEY  → a chave de API do WAHA (X-Api-Key)
-//   WAHA_SESSION  → ti_agente (padrão)
+//   WAHA_SESSION  → eva (padrão; a sessão do número da EVA no WAHA)
 //
 // Uso:
 //   npx tsx tools/agente-ti-whatsapp/send-outbox.ts            (envia)
@@ -38,7 +38,7 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const waha = criarClienteWaha({ url, apiKey: process.env.WAHA_API_KEY, sessao: process.env.WAHA_SESSION || 'ti_agente' });
+  const waha = criarClienteWaha({ url, apiKey: process.env.WAHA_API_KEY, sessao: process.env.WAHA_SESSION || 'eva' });
   const repo = repositorioSupabase(getSupabaseAdminClient());
 
   if (dryRun) {

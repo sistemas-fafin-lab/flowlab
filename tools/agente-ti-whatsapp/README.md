@@ -8,7 +8,7 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts`, com testes. Este diretório só
 
 ## O que cada execução faz (plano §11.2)
 
-1. Lê `GET /api/sessions/ti_agente` e grava `waha_status` e `waha_verificado_em`. Isso roda mesmo com o envio desligado. Se o WAHA não responde, grava `INACESSIVEL`.
+1. Lê `GET /api/sessions/eva` e grava `waha_status` e `waha_verificado_em`. Isso roda mesmo com o envio desligado. Se o WAHA não responde, grava `INACESSIVEL`.
 2. Se o WhatsApp estiver desligado em **EVA → Configurações**, para por aí.
 3. Se a sessão não estiver `WORKING`, também para, para não gastar tentativas.
 4. Pega até 20 mensagens pendentes, das mais antigas para as mais novas.
@@ -62,7 +62,7 @@ Também dá para usar o script do `package.json`: `npm run eva-send-outbox -- --
 | `SUPABASE_SERVICE_ROLE_KEY` | sim | — | Service role desse projeto |
 | `WAHA_API_KEY` | sim | — | Chave de API do WAHA (`X-Api-Key`) |
 | `WAHA_URL` | não | `http://127.0.0.1:3000` | O localhost da VPS. O script recusa uma URL do ngrok |
-| `WAHA_SESSION` | não | `ti_agente` | Sessão do número da EVA (+55 61 9992-4986) |
+| `WAHA_SESSION` | não | `eva` | Sessão do número da EVA (+55 61 9992-4986) |
 
 Nenhuma delas leva o prefixo `VITE_`.
 
@@ -71,6 +71,6 @@ Nenhuma delas leva o prefixo `VITE_`.
 | Sintoma | Causa provável |
 |---|---|
 | Chip "Wa-ha · sem sinal da VPS" no Início | O timer parou ou não consegue falar com o Supabase. Veja o `journalctl` |
-| Chip "Wa-ha · desconectado" ou "aguardando o QR code" | A sessão `ti_agente` caiu no WAHA. Reconecte pelo painel |
+| Chip "Wa-ha · desconectado" ou "aguardando o QR code" | A sessão `eva` caiu no WAHA. Reconecte pelo painel |
 | Mensagens paradas em "Agendada" | Envio desligado em Configurações, ou sessão fora de `WORKING` |
 | "O número … não está no WhatsApp" na aba Membros | O número cadastrado está errado ou não tem WhatsApp |

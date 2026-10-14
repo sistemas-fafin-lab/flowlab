@@ -12,7 +12,7 @@ O desenho completo está em `docs/plans/agente-ti/PLANO_AGENTE_TI.md`: glossári
 
 - **D1:** reuniões pela **API pública do Granola** (plano Business). Colar à mão continua como reserva.
 - **D2:** IA = **Claude Sonnet 5.5 (`claude-sonnet-5-5`), e só ele**, para economizar tokens. Usa `@anthropic-ai/sdk` e saída estruturada com zod. A chave é da organização, então leva o cabeçalho `anthropic-workspace-id` (`CLAUDE_WORKSPACE_ID`).
-- **D3:** WhatsApp pelo **WAHA**, com o número do agente **+55 61 9992-4986** numa sessão própria (`ti_agente`).
+- **D3:** WhatsApp pelo **WAHA**, com o número do agente **+55 61 9992-4986** numa sessão própria (`eva`).
 - **D4:** situação e prazo dos projetos **deduzidos** dos prazos dos cards e da sprint, sem colunas novas em `it_projects`.
 - **D5:** **página nova** no estilo da Home. O visual é o do **protótipo do Claude Design**, recebido em `docs/flowlab_agent/` (plano §12).
 - **D6:** tudo o que o agente propõe **passa por aprovação**, com a chave nova `canApproveAgenteTI`.
@@ -20,7 +20,7 @@ O desenho completo está em `docs/plans/agente-ti/PLANO_AGENTE_TI.md`: glossári
 - **D17:** se o Claude falhar ou estiver indisponível, o **Gemini 3.8 Flash** (`gemini-3.8-flash`) assume, com as mesmas instruções e o mesmo schema. Toda troca fica registrada e aparece na tela.
 
 Respostas do usuário na mesma data:
-- **Número +55 61 9992-4986:** é o do próprio agente. O usuário configura a sessão `ti_agente` no WAHA da VPS, acessando por um endpoint ngrok. O agente não usa o ngrok, mas o endpoint precisa de proteção (plano §11.1).
+- **Número +55 61 9992-4986:** é o do próprio agente. O usuário configura a sessão `eva` no WAHA da VPS, acessando por um endpoint ngrok. O agente não usa o ngrok, mas o endpoint precisa de proteção (plano §11.1).
 - **Granola:** fica a chave atual, porque só existe uma conta gravando.
 - **Claude:** a chave da organização não muda, nem em produção. O usuário é o dono da organização.
 

@@ -5,12 +5,15 @@ import { diaSP, formatarDiaMes, somarDias, type Dia } from './datas.js';
 
 // ── Números ──────────────────────────────────────────────────────────────────
 
-/** Só os dígitos de um chatId do WhatsApp ("5561…@c.us"). Grupos, listas e LIDs não são telefone. */
+/**
+ * Só os dígitos de um chatId do WhatsApp ("5561…@c.us"). Grupos, listas e LIDs não são telefone.
+ * O JID de aparelho ("556199924986:1@s.whatsapp.net", do engine GOWS) perde o ":1".
+ */
 export function digitosDoChatId(chatId: string | null | undefined): string | null {
   if (!chatId) return null;
   const [usuario, dominio] = chatId.split('@');
   if (dominio && dominio !== 'c.us' && dominio !== 's.whatsapp.net') return null;
-  const d = usuario.replace(/\D/g, '');
+  const d = usuario.split(':')[0].replace(/\D/g, '');
   return d.length >= 10 ? d : null;
 }
 
