@@ -34,6 +34,16 @@ case "$WAHA_URL" in
   *ngrok*) echo "WAHA_URL não pode ser a URL do ngrok: use o localhost da VPS (http://127.0.0.1:3000)." >&2; exit 1 ;;
 esac
 
+# Texto de exemplo colado no lugar do valor ("…", "<chave>") ou caractere fora do ASCII:
+# o envio falharia com um erro obscuro. O valor não é mostrado.
+for VAR in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY WAHA_API_KEY WAHA_URL WAHA_SESSION; do
+  VAL="${!VAR}"
+  if [[ "$VAL" == "<"*">" ]] || LC_ALL=C printf '%s' "$VAL" | grep -q '[^ -~]'; then
+    echo "$VAR parece o texto de exemplo (\"…\" ou \"<…>\") ou tem caractere inválido. Use o valor real." >&2
+    exit 1
+  fi
+done
+
 NODE_BIN="${NODE_BIN:-$(command -v node || true)}"
 if [ -z "$NODE_BIN" ]; then
   echo "Node não encontrado. Instale o Node 18 ou mais novo." >&2

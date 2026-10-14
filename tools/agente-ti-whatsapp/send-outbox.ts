@@ -32,6 +32,14 @@ async function main(): Promise<number> {
     console.error(`[${SCRIPT}] Variáveis ausentes: ${faltando.join(', ')}.`);
     return 2;
   }
+  // Texto de exemplo colado no lugar do valor ("…", "<chave>") ou caractere que não cabe num
+  // cabeçalho HTTP: avisa aqui, em vez de um erro obscuro do fetch. O valor não vai para o log.
+  const marcador = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'WAHA_API_KEY', 'WAHA_URL', 'WAHA_SESSION']
+    .filter((k) => { const v = process.env[k]; return v !== undefined && (/[^\x20-\x7E]/.test(v) || /^<.*>$/.test(v.trim())); });
+  if (marcador.length > 0) {
+    console.error(`[${SCRIPT}] ${marcador.join(', ')} parece(m) o texto de exemplo ("…" ou "<…>") ou tem caractere inválido. Use o valor real.`);
+    return 2;
+  }
   const url = (process.env.WAHA_URL || 'http://127.0.0.1:3000').trim();
   if (/ngrok/i.test(url)) {
     console.error(`[${SCRIPT}] WAHA_URL aponta para o ngrok. Use o localhost da VPS (http://127.0.0.1:3000), D9.`);
