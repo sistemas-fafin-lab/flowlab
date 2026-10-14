@@ -5,7 +5,7 @@ divergentes e ganha um filtro para eles. Ver `../spec.md` — seção "Frontend"
 
 **Blocked by:** 01
 
-**Status:** needs-triage
+**Status:** done (não testado no navegador)
 
 - [x] O hook da aba Títulos busca a conferência uma vez por carga, sem
       bloquear a lista, e cruza por `idNota`

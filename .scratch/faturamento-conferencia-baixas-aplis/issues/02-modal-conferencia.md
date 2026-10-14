@@ -5,7 +5,7 @@ que lista as divergências da rota da 01. Ver `../spec.md` — seção "Frontend
 
 **Blocked by:** 01
 
-**Status:** needs-triage
+**Status:** done (não testado no navegador)
 
 - [x] Botão "Conferir baixas com o apLIS" ao lado de "Atualizar do apLIS",
       visível com `canViewBilling`, com o aviso "dados do apLIS até ontem"

@@ -6,7 +6,7 @@ devolve os títulos cujo recebido no sistema diverge do recebido no apLIS. Ver
 
 **Blocked by:** None — can start immediately
 
-**Status:** needs-triage
+**Status:** done (falta a conferência ao vivo contra o levantamento de 14/10)
 
 - [x] Função no `bdLab` de faturamento: por `IdLote`, `fatlote.Status`,
       `SUM(ValorRecebido)` e `MIN/MAX(DtaRecebido)` de
