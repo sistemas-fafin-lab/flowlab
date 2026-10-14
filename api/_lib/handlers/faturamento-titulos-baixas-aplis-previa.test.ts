@@ -8,17 +8,20 @@ vi.mock('../supabase.js', () => ({
 vi.mock('../faturamento/bdLab.js', () => ({
   recebidosDosLotes: vi.fn(),
   recebidosPorDataDosLotes: vi.fn(),
+  diferencasDosLotes: vi.fn(),
 }));
 
 import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
-import { recebidosDosLotes, recebidosPorDataDosLotes } from '../faturamento/bdLab.js';
+import { diferencasDosLotes, recebidosDosLotes, recebidosPorDataDosLotes } from '../faturamento/bdLab.js';
 import type { RecebidoLoteAplis, RecebidoLoteNaData } from '../faturamento/bdLab.js';
+import type { DiferencaAplis } from '../faturamento/glosasAplis.js';
 import handler from './faturamento-titulos-baixas-aplis-previa.js';
 
 const getSupabaseAdminClientMock = getSupabaseAdminClient as ReturnType<typeof vi.fn>;
 const getSupabaseUserClientMock = getSupabaseUserClient as ReturnType<typeof vi.fn>;
 const recebidosDosLotesMock = recebidosDosLotes as ReturnType<typeof vi.fn>;
 const recebidosPorDataDosLotesMock = recebidosPorDataDosLotes as ReturnType<typeof vi.fn>;
+const diferencasDosLotesMock = diferencasDosLotes as ReturnType<typeof vi.fn>;
 
 type Linha = Record<string, unknown>;
 
@@ -28,8 +31,10 @@ interface CorpoResposta {
   meta: { dadoAte: string | null };
   titulos: (Record<string, unknown> & {
     idNota: string;
-    tipo: string;
+    tipo: string | null;
     pulado: string | null;
+    puladoGlosa: string | null;
+    glosas: Record<string, unknown>[];
     baixas: { data: string; valor: number; observacoes: string }[];
   })[];
 }
@@ -73,6 +78,8 @@ interface Cenario {
   erroNotas?: string;
   recebimentos?: Linha[];
   erroRecebimentos?: string;
+  glosas?: Linha[];
+  erroGlosas?: string;
 }
 
 function mockarSupabase(cenario: Cenario = {}) {
@@ -93,6 +100,7 @@ function mockarSupabase(cenario: Cenario = {}) {
     from: vi.fn((tabela: string) => {
       if (tabela === 'notas') return consulta(cenario.notas ?? [], cenario.erroNotas);
       if (tabela === 'recebimentos') return consulta(cenario.recebimentos ?? [], cenario.erroRecebimentos);
+      if (tabela === 'glosas') return consulta(cenario.glosas ?? [], cenario.erroGlosas);
       throw new Error(`tabela inesperada no mock: ${tabela}`);
     }),
   });
@@ -157,13 +165,30 @@ async function executar(
   cenario: Cenario,
   porLote: Record<number, RecebidoLoteAplis> = {},
   porData: Record<number, RecebidoLoteNaData[]> = {},
+  diferencas: Record<number, DiferencaAplis[]> = {},
 ) {
   mockarSupabase(cenario);
   recebidosDosLotesMock.mockResolvedValue({ porLote, dadoAte: '2026-10-13' });
   recebidosPorDataDosLotesMock.mockResolvedValue({ porLote: porData });
+  diferencasDosLotesMock.mockResolvedValue({ porLote: diferencas });
   const res = criarRes();
   await handler(criarReq(), res);
   return res;
+}
+
+// Procedimentos de um lote recebidos a menor no apLIS (NF 9124, lote 6228: 475 procedimentos, R$ 867,86).
+function diferenca(idLote: number, overrides: Partial<DiferencaAplis> = {}): DiferencaAplis {
+  return {
+    idLote,
+    motivoCodigo: 2902,
+    motivoDescricao: 'GLOSA MANTIDA',
+    desMotivoGlosa: '2902',
+    codEventoFatur: 6,
+    emRecurso: false,
+    valor: 867.86,
+    procedimentos: 475,
+    ...overrides,
+  };
 }
 
 function recebimento(notaId: string, valor: number, data: string, status = 'recebido'): Linha {
@@ -232,6 +257,9 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
         observacoes: 'Baixa do apLIS — lote(s) 6329 (recebido em 22/09/2026)',
       }],
       pulado: null,
+      saldo: 0,
+      glosas: [],
+      puladoGlosa: null,
     }]);
   });
 
@@ -301,6 +329,187 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
       { 6329: recebido(2034.81), 6401: recebido(0) },
     );
     expect(recebidosPorDataDosLotesMock).toHaveBeenCalledWith([6329]);
+  });
+
+  describe('glosas', () => {
+    it('título com a baixa batendo e glosa a lançar entra, sem baixa', async () => {
+      // NF 9124: R$ 2.000 cobrados, R$ 1.132,14 recebidos nos dois lados, R$ 867,86 glosados no apLIS.
+      const res = await executar(
+        {
+          notas: [nota('nf-9124', ['6228'], {
+            numero_nota: '9124',
+            status: 'parcialmente_recebida',
+            valor_total: 2000,
+            valor_recebido: 1132.14,
+          })],
+        },
+        { 6228: recebido(1132.14) },
+        {},
+        { 6228: [diferenca(6228)] },
+      );
+
+      expect(res.statusCode).toBe(200);
+      expect(res.body.titulos).toEqual([{
+        idNota: 'nf-9124',
+        numeroNota: '9124',
+        operadora: 'AMHP-DF',
+        tipo: null,
+        recebidoSistema: 1132.14,
+        recebidoAplis: 1132.14,
+        baixas: [],
+        pulado: null,
+        saldo: 867.86,
+        glosas: [{
+          idLote: 6228,
+          codigo: '2902',
+          motivo: 'GLOSA MANTIDA',
+          status: 'aberta',
+          valor: 867.86,
+          procedimentos: 475,
+        }],
+        puladoGlosa: null,
+      }]);
+    });
+
+    it('título com baixa leva as glosas no saldo que sobra depois das baixas', async () => {
+      const res = await executar(
+        { notas: [nota('so-no-aplis', ['6329'], { valor_total: 2100 })] },
+        { 6329: recebido(2034.81) },
+        { 6329: [{ data: '2026-09-22', valor: 2034.81 }] },
+        { 6329: [diferenca(6329, { valor: 65.19, procedimentos: 2, codEventoFatur: 18 })] },
+      );
+      expect(res.body.titulos).toEqual([expect.objectContaining({
+        tipo: 'so-no-aplis',
+        baixas: [expect.objectContaining({ valor: 2034.81 })],
+        saldo: 65.19,
+        glosas: [expect.objectContaining({ valor: 65.19, status: 'definitiva', procedimentos: 2 })],
+        puladoGlosa: null,
+      })]);
+    });
+
+    it('sistema-maior e lote-ausente com diferença no apLIS entram pulados (tipo)', async () => {
+      const res = await executar(
+        {
+          notas: [
+            nota('sistema-maior', ['6401'], { status: 'parcialmente_recebida', valor_recebido: 1200 }),
+            nota('lote-ausente', ['6402', '4905']),
+          ],
+        },
+        { 6401: recebido(0), 6402: recebido(0) },
+        {},
+        { 6401: [diferenca(6401, { valor: 100 })], 6402: [diferenca(6402, { valor: 100 })] },
+      );
+      expect(res.body.titulos.map((t) => [t.idNota, t.tipo, t.baixas, t.glosas, t.puladoGlosa])).toEqual([
+        ['sistema-maior', 'sistema-maior', [], [], 'tipo'],
+        ['lote-ausente', 'lote-ausente', [], [], 'tipo'],
+      ]);
+      expect(res.body.titulos[1].recebidoAplis).toBeNull();
+    });
+
+    it('título sem número da nota sai com a glosa pulada', async () => {
+      const res = await executar(
+        { notas: [nota('sem-nota', ['6228'], { numero_nota: null, valor_recebido: 1132.14 })] },
+        { 6228: recebido(1132.14) },
+        {},
+        { 6228: [diferenca(6228)] },
+      );
+      expect(res.body.titulos).toEqual([expect.objectContaining({
+        tipo: null,
+        pulado: null,
+        glosas: [],
+        puladoGlosa: 'sem-nota',
+      })]);
+    });
+
+    it('título com glosa já lançada sai com a glosa pulada (glosa-manual)', async () => {
+      const res = await executar(
+        {
+          notas: [nota('nf-9124', ['6228'], { valor_total: 2000, valor_recebido: 1132.14, valor_glosado: 100 })],
+          glosas: [{ nota_id: 'nf-9124' }, { nota_id: 'outro' }],
+        },
+        { 6228: recebido(1132.14) },
+        {},
+        { 6228: [diferenca(6228)] },
+      );
+      expect(res.body.titulos).toEqual([expect.objectContaining({ glosas: [], puladoGlosa: 'glosa-manual' })]);
+    });
+
+    it('diferença só sem motivo: entra pulada (sem-motivo)', async () => {
+      const res = await executar(
+        { notas: [nota('a', ['6228'], { valor_total: 2000, valor_recebido: 1132.14 })] },
+        { 6228: recebido(1132.14) },
+        {},
+        { 6228: [diferenca(6228, { motivoCodigo: null, motivoDescricao: null, desMotivoGlosa: null })] },
+      );
+      expect(res.body.titulos).toEqual([expect.objectContaining({ glosas: [], puladoGlosa: 'sem-motivo' })]);
+    });
+
+    it('título sem baixa e já fechado (saldo abaixo de R$ 1,00) fica fora, mesmo com diferença no apLIS', async () => {
+      const res = await executar(
+        {
+          notas: [nota('fechado', ['6228'], {
+            status: 'liquidada', valor_total: 2000, valor_recebido: 1132.14, valor_glosado: 867.86,
+          })],
+          glosas: [{ nota_id: 'fechado' }],
+        },
+        { 6228: recebido(1132.14) },
+        {},
+        { 6228: [diferenca(6228)] },
+      );
+      expect(res.body.titulos).toEqual([]);
+    });
+
+    it('os títulos com baixa vêm antes dos só com glosa', async () => {
+      const res = await executar(
+        {
+          notas: [
+            nota('so-glosa', ['6228'], { valor_total: 2000, valor_recebido: 1132.14 }),
+            nota('com-baixa', ['6329']),
+          ],
+        },
+        { 6228: recebido(1132.14), 6329: recebido(2034.81) },
+        { 6329: [{ data: '2026-09-22', valor: 2034.81 }] },
+        { 6228: [diferenca(6228)] },
+      );
+      expect(res.body.titulos.map((t) => t.idNota)).toEqual(['com-baixa', 'so-glosa']);
+    });
+
+    it('pede as diferenças de todos os lotes conferidos e as glosas só dos títulos com diferença', async () => {
+      const res = await executar(
+        { notas: [nota('a', ['6228'], { valor_total: 2000, valor_recebido: 1132.14 }), nota('b', ['6402'])] },
+        { 6228: recebido(1132.14), 6402: recebido(0) },
+        {},
+        { 6228: [diferenca(6228)] },
+      );
+      expect(res.statusCode).toBe(200);
+      expect(diferencasDosLotesMock).toHaveBeenCalledWith([6228, 6402]);
+    });
+
+    it('falha ao ler as diferenças na réplica devolve 502', async () => {
+      mockarSupabase({ notas: [nota('a', ['6329'])] });
+      recebidosDosLotesMock.mockResolvedValue({ porLote: { 6329: recebido(2034.81) }, dadoAte: '2026-10-13' });
+      recebidosPorDataDosLotesMock.mockResolvedValue({ porLote: {} });
+      diferencasDosLotesMock.mockResolvedValue({
+        erro: { status: 502, mensagem: 'Não foi possível consultar o banco do laboratório: connect ETIMEDOUT' },
+      });
+      const res = criarRes();
+      await handler(criarReq(), res);
+
+      expect(res.statusCode).toBe(502);
+      expect(res.body.error).toMatch(/apLIS/);
+      expect(res.body).not.toHaveProperty('titulos');
+    });
+
+    it('falha ao ler as glosas do sistema devolve 502', async () => {
+      const res = await executar(
+        { notas: [nota('a', ['6228'], { valor_total: 2000, valor_recebido: 1132.14 })], erroGlosas: 'boom' },
+        { 6228: recebido(1132.14) },
+        {},
+        { 6228: [diferenca(6228)] },
+      );
+      expect(res.statusCode).toBe(502);
+      expect(res.body).not.toHaveProperty('titulos');
+    });
   });
 
   it('falha na réplica devolve 502 com mensagem clara, nunca lista vazia', async () => {

@@ -30,6 +30,7 @@
 //     lotes abertos hoje ainda não aparecem. A tela avisa a data do dado mais recente.
 
 import mysql from 'mysql2/promise';
+import type { DiferencaAplis } from './glosasAplis.js';
 
 /** Timeout de conexão. O túnel pode estar fora do ar; falha rápido. */
 const CONNECT_TIMEOUT_MS = 8_000;
@@ -1008,6 +1009,68 @@ export async function recebidosPorDataDosLotes(idsLote: number[]): Promise<Receb
         if (!data) continue;
         const idLote = numero(linha.IdLote);
         (porLote[idLote] ??= []).push({ data, valor: numero(linha.Valor) });
+      }
+    }
+    return { porLote };
+  });
+}
+
+export type DiferencasDosLotesResultado =
+  | { porLote: Record<number, DiferencaAplis[]> }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * O que o apLIS deixou de receber nos lotes, para as glosas sugeridas
+ * (.scratch/faturamento-glosas-automaticas-aplis/spec.md): procedimentos com
+ * `ValorLiquido − ValorRecebido ≥ R$ 0,01`, somados por lote + motivo
+ * (`IdMotivoGlosa` → catálogo `fatmotivoglosa`, e `DesMotivoGlosa`) + situação
+ * da requisição (`CodEventoFatur`) + estar num lote de recurso. Somado no
+ * MySQL: são ~27 mil procedimentos em ~1.400 grupos (medido 14/10).
+ *
+ * `ValorRecebido` nulo fica fora: a operadora ainda não retornou, e o motivo
+ * pode ser só autorização em análise. Recebido 0 sem `DtaRecebido` entra (glosa
+ * total). O lote de recurso entra por tabela derivada: `fatloterecursoprocedimento`
+ * não tem índice em `IdRequisicaoProcedimento` (~4 mil linhas). Lote sem
+ * diferença fica fora do mapa. Blocos de 1.000 lotes, como `recebidosDosLotes`.
+ */
+export async function diferencasDosLotes(idsLote: number[]): Promise<DiferencasDosLotesResultado> {
+  const ids = [...new Set(idsLote.map((n) => Math.trunc(n)))];
+  if (ids.length === 0) return { porLote: {} };
+
+  return comConexao('diferencasDosLotes', async (conn) => {
+    const porLote: Record<number, DiferencaAplis[]> = {};
+    for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
+      const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
+      const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT r.Lote AS IdLote, fmg.Codigo AS MotivoCodigo, fmg.Descricao AS MotivoDescricao,
+                NULLIF(TRIM(p.DesMotivoGlosa), '') AS DesMotivoGlosa, r.CodEventoFatur,
+                (rp.IdRequisicaoProcedimento IS NOT NULL) AS EmRecurso,
+                SUM(p.ValorLiquido - p.ValorRecebido) AS Valor, COUNT(*) AS Procedimentos
+           FROM requisicao r
+           JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
+           LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = p.IdMotivoGlosa
+           LEFT JOIN (SELECT DISTINCT IdRequisicaoProcedimento FROM fatloterecursoprocedimento
+                       WHERE IdRequisicaoProcedimento IS NOT NULL) rp
+                  ON rp.IdRequisicaoProcedimento = p.IdRequisicaoProcedimento
+          WHERE r.Lote IN (${bloco.map(() => '?').join(', ')})
+            AND p.ValorRecebido IS NOT NULL
+            AND p.ValorLiquido - p.ValorRecebido >= 0.01
+          GROUP BY r.Lote, fmg.Codigo, fmg.Descricao, NULLIF(TRIM(p.DesMotivoGlosa), ''), r.CodEventoFatur,
+                   (rp.IdRequisicaoProcedimento IS NOT NULL)`,
+        bloco,
+      );
+      for (const linha of linhas) {
+        const idLote = numero(linha.IdLote);
+        (porLote[idLote] ??= []).push({
+          idLote,
+          motivoCodigo: inteiroOuNulo(linha.MotivoCodigo),
+          motivoDescricao: texto(linha.MotivoDescricao),
+          desMotivoGlosa: texto(linha.DesMotivoGlosa),
+          codEventoFatur: inteiroOuNulo(linha.CodEventoFatur),
+          emRecurso: numero(linha.EmRecurso) === 1,
+          valor: numero(linha.Valor),
+          procedimentos: numero(linha.Procedimentos),
+        });
       }
     }
     return { porLote };

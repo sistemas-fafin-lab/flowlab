@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { TituloPreviaBaixasAplis } from '../types';
+import type { GlosaSugeridaAplis, TituloPreviaBaixasAplis } from '../types';
 import {
+  motivoPuladoGlosa,
   resumoAplicacao,
   selecaoPadraoBaixas,
   separarPrevia,
   titulosComBaixaRepetida,
   totalALancar,
+  totalGlosasSugeridas,
 } from './aplicarBaixasAplis';
 
 function titulo(parcial: Partial<TituloPreviaBaixasAplis> & { idNota: string }): TituloPreviaBaixasAplis {
@@ -17,8 +19,15 @@ function titulo(parcial: Partial<TituloPreviaBaixasAplis> & { idNota: string }):
     recebidoAplis: 100,
     baixas: [{ data: '2026-09-22', valor: 100, observacoes: 'Baixa do apLIS' }],
     pulado: null,
+    saldo: 0,
+    glosas: [],
+    puladoGlosa: null,
     ...parcial,
   };
+}
+
+function glosa(parcial: Partial<GlosaSugeridaAplis> = {}): GlosaSugeridaAplis {
+  return { idLote: 6228, codigo: '2902', motivo: 'GLOSA MANTIDA', status: 'aberta', valor: 867.86, procedimentos: 475, ...parcial };
 }
 
 describe('separarPrevia', () => {
@@ -33,13 +42,41 @@ describe('separarPrevia', () => {
       titulo({ idNota: 'a', numeroNota: null, baixas: [], pulado: 'sem-nota' }),
     ]);
     expect(aplicaveis).toEqual([]);
-    expect(pulados).toEqual([{ titulo: expect.objectContaining({ idNota: 'a' }), motivo: 'sem número da nota' }]);
+    expect(pulados).toEqual([{
+      titulo: expect.objectContaining({ idNota: 'a' }),
+      motivo: 'sem número da nota',
+      motivoGlosa: null,
+    }]);
   });
 
   it('título com número mas sem baixa sugerida é pulado — sem data de recebimento no apLIS', () => {
     const { aplicaveis, pulados } = separarPrevia([titulo({ idNota: 'a', baixas: [] })]);
     expect(aplicaveis).toEqual([]);
     expect(pulados[0].motivo).toBe('sem data de recebimento no apLIS');
+  });
+
+  it('título só com glosa a lançar (recebido batendo) vai para os aplicáveis, sem baixa marcável', () => {
+    const titulos = [titulo({ idNota: 'a', tipo: null, baixas: [], glosas: [glosa()] })];
+    expect(separarPrevia(titulos).aplicaveis.map((t) => t.idNota)).toEqual(['a']);
+    expect(selecaoPadraoBaixas(titulos)).toEqual(new Set());
+  });
+
+  it('título sem data de recebimento mas com glosa vai para os aplicáveis pela glosa', () => {
+    const { aplicaveis, pulados } = separarPrevia([titulo({ idNota: 'a', baixas: [], glosas: [glosa()] })]);
+    expect(aplicaveis.map((t) => t.idNota)).toEqual(['a']);
+    expect(pulados).toEqual([]);
+  });
+
+  it('título sem baixa e com a glosa pulada vai para os pulados com o motivo da glosa', () => {
+    const { aplicaveis, pulados } = separarPrevia([
+      titulo({ idNota: 'a', tipo: null, baixas: [], puladoGlosa: 'glosa-manual' }),
+    ]);
+    expect(aplicaveis).toEqual([]);
+    expect(pulados).toEqual([{
+      titulo: expect.objectContaining({ idNota: 'a' }),
+      motivo: null,
+      motivoGlosa: 'título já tem glosa lançada',
+    }]);
   });
 
   it('mantém a ordem da rota', () => {
@@ -66,6 +103,33 @@ describe('totalALancar', () => {
 
   it('nada marcado = zero', () => {
     expect(totalALancar([titulo({ idNota: 'a' })], new Set())).toEqual({ titulos: 0, baixas: 0, valor: 0 });
+  });
+});
+
+describe('motivoPuladoGlosa', () => {
+  it.each([
+    ['sem-motivo', null, 'diferença sem motivo no apLIS'],
+    ['glosa-manual', null, 'título já tem glosa lançada'],
+    ['passa-do-saldo', null, 'glosa passa do saldo do título'],
+    ['sem-nota', 'so-no-aplis', 'sem número da nota'],
+    ['tipo', 'sistema-maior', 'recebido aqui maior que no apLIS'],
+    ['tipo', 'lote-ausente', 'lote não encontrado no apLIS'],
+  ] as const)('%s (%s) → %s', (puladoGlosa, tipo, texto) => {
+    expect(motivoPuladoGlosa(titulo({ idNota: 'a', tipo, puladoGlosa }))).toBe(texto);
+  });
+
+  it('sem pulado → null', () => {
+    expect(motivoPuladoGlosa(titulo({ idNota: 'a' }))).toBeNull();
+  });
+});
+
+describe('totalGlosasSugeridas', () => {
+  it('conta e soma as glosas sugeridas de todos os títulos, em centavos', () => {
+    expect(totalGlosasSugeridas([
+      titulo({ idNota: 'a', glosas: [glosa({ valor: 0.1 }), glosa({ valor: 0.2 })] }),
+      titulo({ idNota: 'b', glosas: [glosa({ valor: 50 })] }),
+      titulo({ idNota: 'c' }),
+    ])).toEqual({ titulos: 2, glosas: 3, valor: 50.3 });
   });
 });
 

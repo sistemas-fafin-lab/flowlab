@@ -259,18 +259,41 @@ export interface BaixaSugeridaAplis {
   observacoes: string;
 }
 
+export type StatusGlosaAplis = Exclude<GlosaStatus, 'revertida'>;
+
+/** Glosa a lançar a partir do apLIS: uma por lote + código + status
+ *  (.scratch/faturamento-glosas-automaticas-aplis). */
+export interface GlosaSugeridaAplis {
+  /** `aplis_id` do lote. */
+  idLote: number;
+  codigo: string | null;
+  motivo: string;
+  status: StatusGlosaAplis;
+  valor: number;
+  procedimentos: number;
+}
+
+/** Por que o título não tem glosa a lançar. 'tipo': `sistema-maior` ou `lote-ausente`. */
+export type PuladoGlosaAplis = 'sem-motivo' | 'glosa-manual' | 'passa-do-saldo' | 'sem-nota' | 'tipo';
+
 /** Título da prévia "Aplicar baixas do apLIS"
  *  (GET /api/faturamento/titulos-baixas-aplis-previa). */
 export interface TituloPreviaBaixasAplis {
   idNota: string;
   numeroNota: string | null;
   operadora: string;
-  tipo: Extract<TipoDivergenciaAplis, 'so-no-aplis' | 'aplis-maior'>;
+  /** null: o recebido bate com o apLIS — o título está na prévia pela glosa. */
+  tipo: TipoDivergenciaAplis | null;
   recebidoSistema: number;
-  recebidoAplis: number;
+  /** null quando algum lote não existe no apLIS. */
+  recebidoAplis: number | null;
   baixas: BaixaSugeridaAplis[];
   /** 'sem-nota': o `fat_registrar_baixa` recusaria (issue 34). */
   pulado: 'sem-nota' | null;
+  /** Saldo do título depois das baixas sugeridas. */
+  saldo: number;
+  glosas: GlosaSugeridaAplis[];
+  puladoGlosa: PuladoGlosaAplis | null;
 }
 
 export interface PreviaBaixasAplis {

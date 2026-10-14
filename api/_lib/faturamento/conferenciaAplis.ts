@@ -43,6 +43,11 @@ export function centavos(valor: number): number {
   return Math.round(valor * 100);
 }
 
+/** Soma dos valores em centavos inteiros. */
+export function somaCentavos(itens: { valor: number }[]): number {
+  return itens.reduce((soma, item) => soma + centavos(item.valor), 0);
+}
+
 /**
  * Tipo da divergência entre os dois recebidos, ou null quando a diferença fica
  * abaixo de R$ 1,00 (arredondamento). Comparado em centavos: em float,

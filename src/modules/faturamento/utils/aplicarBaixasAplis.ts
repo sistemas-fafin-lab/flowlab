@@ -1,7 +1,9 @@
 // Regras puras do "Aplicar baixas do apLIS"
 // (.scratch/faturamento-baixas-automaticas-aplis/spec.md): o que a prévia
 // oferece para lançar, o total marcado e o resumo da execução. As baixas
-// sugeridas vêm prontas da rota (api/_lib/faturamento/baixasAplis.ts).
+// sugeridas vêm prontas da rota (api/_lib/faturamento/baixasAplis.ts), e as
+// glosas também (api/_lib/faturamento/glosasAplis.ts) — por ora só para
+// conferência, sem lançar (.scratch/faturamento-glosas-automaticas-aplis, issue 01).
 
 import type { TituloPreviaBaixasAplis } from '../types';
 import { plural } from './formato';
@@ -10,12 +12,40 @@ export type MotivoPulado = 'sem número da nota' | 'sem data de recebimento no a
 
 export interface TituloPulado {
   titulo: TituloPreviaBaixasAplis;
-  motivo: MotivoPulado;
+  /** Por que a baixa ficou de fora; null quando o título não tem baixa a lançar. */
+  motivo: MotivoPulado | null;
+  motivoGlosa: string | null;
 }
 
-/** Aplicáveis (têm número e ao menos uma baixa) e pulados, com o motivo. O
- *  título com número e sem baixa é o lote com valor recebido mas sem
+/** Tem baixa que dá para lançar (número da nota e ao menos uma baixa). */
+export function temBaixaAplicavel(titulo: TituloPreviaBaixasAplis): boolean {
+  return titulo.pulado === null && titulo.baixas.length > 0;
+}
+
+/** Por que a baixa do título ficou de fora. Só o título com recebido a lançar
+ *  tem baixa; com número e sem baixa é o lote com valor recebido mas sem
  *  `DtaRecebido` no apLIS: sem data não há como lançar. */
+export function motivoPuladoBaixa(titulo: TituloPreviaBaixasAplis): MotivoPulado | null {
+  if (titulo.tipo !== 'so-no-aplis' && titulo.tipo !== 'aplis-maior') return null;
+  if (titulo.pulado === 'sem-nota') return 'sem número da nota';
+  if (titulo.baixas.length === 0) return 'sem data de recebimento no apLIS';
+  return null;
+}
+
+/** Por que a glosa do título ficou de fora, em texto para o operador. */
+export function motivoPuladoGlosa(titulo: TituloPreviaBaixasAplis): string | null {
+  switch (titulo.puladoGlosa) {
+    case 'sem-motivo': return 'diferença sem motivo no apLIS';
+    case 'glosa-manual': return 'título já tem glosa lançada';
+    case 'passa-do-saldo': return 'glosa passa do saldo do título';
+    case 'sem-nota': return 'sem número da nota';
+    case 'tipo': return titulo.tipo === 'lote-ausente' ? 'lote não encontrado no apLIS' : 'recebido aqui maior que no apLIS';
+    default: return null;
+  }
+}
+
+/** Aplicáveis (baixa a lançar ou glosa sugerida) e pulados (nada a lançar),
+ *  com os motivos. */
 export function separarPrevia(titulos: TituloPreviaBaixasAplis[]): {
   aplicaveis: TituloPreviaBaixasAplis[];
   pulados: TituloPulado[];
@@ -23,9 +53,8 @@ export function separarPrevia(titulos: TituloPreviaBaixasAplis[]): {
   const aplicaveis: TituloPreviaBaixasAplis[] = [];
   const pulados: TituloPulado[] = [];
   for (const titulo of titulos) {
-    if (titulo.pulado === 'sem-nota') pulados.push({ titulo, motivo: 'sem número da nota' });
-    else if (titulo.baixas.length === 0) pulados.push({ titulo, motivo: 'sem data de recebimento no apLIS' });
-    else aplicaveis.push(titulo);
+    if (temBaixaAplicavel(titulo) || titulo.glosas.length > 0) aplicaveis.push(titulo);
+    else pulados.push({ titulo, motivo: motivoPuladoBaixa(titulo), motivoGlosa: motivoPuladoGlosa(titulo) });
   }
   return { aplicaveis, pulados };
 }
@@ -50,12 +79,12 @@ export function titulosComBaixaRepetida(titulos: TituloPreviaBaixasAplis[]): Set
   return repetidos;
 }
 
-/** Seleção inicial: os aplicáveis, menos os que repetem baixa de outro título
- *  (o operador escolhe em qual dos dois lançar). */
+/** Seleção inicial: os títulos com baixa a lançar, menos os que repetem baixa
+ *  de outro título (o operador escolhe em qual dos dois lançar). */
 export function selecaoPadraoBaixas(titulos: TituloPreviaBaixasAplis[]): Set<string> {
-  const { aplicaveis } = separarPrevia(titulos);
-  const repetidos = titulosComBaixaRepetida(aplicaveis);
-  return new Set(aplicaveis.filter((t) => !repetidos.has(t.idNota)).map((t) => t.idNota));
+  const comBaixa = titulos.filter(temBaixaAplicavel);
+  const repetidos = titulosComBaixaRepetida(comBaixa);
+  return new Set(comBaixa.filter((t) => !repetidos.has(t.idNota)).map((t) => t.idNota));
 }
 
 /** Quanto os títulos marcados vão lançar. Soma em centavos (0,1 + 0,2). */
@@ -73,6 +102,22 @@ export function totalALancar(
     for (const baixa of titulo.baixas) centavos += Math.round(baixa.valor * 100);
   }
   return { titulos: qtdTitulos, baixas, valor: centavos / 100 };
+}
+
+/** Glosas sugeridas na prévia (ainda só para conferência). Soma em centavos. */
+export function totalGlosasSugeridas(
+  titulos: TituloPreviaBaixasAplis[],
+): { titulos: number; glosas: number; valor: number } {
+  let qtdTitulos = 0;
+  let glosas = 0;
+  let centavos = 0;
+  for (const titulo of titulos) {
+    if (titulo.glosas.length === 0) continue;
+    qtdTitulos += 1;
+    glosas += titulo.glosas.length;
+    for (const glosa of titulo.glosas) centavos += Math.round(glosa.valor * 100);
+  }
+  return { titulos: qtdTitulos, glosas, valor: centavos / 100 };
 }
 
 /** 'parcial': uma baixa do título falhou depois de outra já lançada — o
