@@ -1,6 +1,6 @@
 # Fila de WhatsApp da EVA → WAHA local
 
-Roda a cada minuto na VPS do WAHA. Grava a situação da sessão do WAHA em `ti_agente_config` (chip "Wa-ha" do Início) e envia as mensagens pendentes de `ti_agente_mensagens`: cobranças, lembretes, testes e confirmações.
+Roda a cada minuto na VPS do WAHA. Grava a situação da sessão do WAHA em `ti_agente_config` (chip "Wa-ha" do Início) e envia as mensagens pendentes de `ti_agente_mensagens`: cobranças, lembretes, testes, confirmações e as mensagens do grupo da equipe. A cada 30 minutos, grava também a lista de grupos do número da EVA, para a escolha do grupo em Configurações.
 
 Por que na VPS: o WAHA fica em `127.0.0.1:3000`, e a Vercel não alcança esse endereço. Expor a API do WAHA na internet daria a quem tivesse a chave controle total do número (plano, D9). A Vercel só grava as mensagens no banco; este script as envia pelo `localhost`.
 
@@ -9,12 +9,14 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts`, com testes. Este diretório só
 ## O que cada execução faz (plano §11.2)
 
 1. Lê `GET /api/sessions/eva` e grava `waha_status` e `waha_verificado_em`. Isso roda mesmo com o envio desligado. Se o WAHA não responde, grava `INACESSIVEL`.
+   - Com a sessão `WORKING`, relê a lista de grupos (`GET /api/eva/groups`) a cada 30 minutos e grava em `waha_grupos`. O botão "Atualizar lista" de Configurações pede a leitura no minuto seguinte. Uma falha aqui vai para o log e não impede o envio.
 2. Marca como `falhou` as mensagens que venceram na fila, para não saírem atrasadas depois de uma queda longa. A cobrança da manhã só vale no próprio dia, porque diz "pendências de hoje"; as demais valem 12 h. Isso também roda com o envio desligado ou a sessão caída.
-3. Fora do horário de cobrança (dia útil, das 7h às 20h de Brasília), reagenda as cobranças e os lembretes para a próxima janela; nunca saem no fim de semana. Teste e confirmação saem a qualquer hora.
+3. Fora do horário de cobrança (dia útil, das 7h às 20h de Brasília), reagenda as cobranças, os lembretes e as mensagens do grupo para a próxima janela; nunca saem no fim de semana. Teste e confirmação saem a qualquer hora.
 4. Se o WhatsApp estiver desligado em **EVA → Configurações**, para por aí.
 5. Se a sessão não estiver `WORKING`, também para, para não gastar tentativas.
 6. Pega até 20 mensagens pendentes, das mais antigas para as mais novas.
 7. Para cada uma:
+   - mensagem do grupo da equipe (`chat_id_destino` = `…@g.us`): vai direto para o grupo. Um destino que não é grupo fica `falhou`;
    - se o membro ainda não tem `whatsapp_chat_id`, resolve com `check-exists` (o 9º dígito dos números brasileiros) e guarda;
    - número fora do WhatsApp ou membro sem número: a mensagem fica `falhou`, com aviso na aba Membros.
 8. Envia com `POST /api/sendText`, esperando 1 a 3 s entre um envio e outro.
@@ -115,3 +117,5 @@ Nenhuma delas leva o prefixo `VITE_`.
 | Chip "Wa-ha · desconectado" ou "aguardando o QR code" | A sessão `eva` caiu no WAHA. Reconecte pelo painel |
 | Mensagens paradas em "Agendada" | Envio desligado em Configurações, ou sessão fora de `WORKING` |
 | "O número … não está no WhatsApp" na aba Membros | O número cadastrado está errado ou não tem WhatsApp |
+| Lista de grupos vazia em Configurações | O número da EVA não está em nenhum grupo, a sessão não está `WORKING` ou a VPS roda um pacote anterior a 14/Out. Veja no `journalctl` se aparece "Não consegui ler os grupos do WAHA" |
+| Mensagem do grupo parada em "Agendada" | Fora do horário (dia útil, 7h às 20h): ela sai na próxima janela |

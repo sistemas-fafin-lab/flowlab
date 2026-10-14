@@ -2,12 +2,14 @@
 // (tools/agente-ti-whatsapp/send-outbox.ts): lê as pendentes e envia pelo WAHA local.
 // O banco fica atrás de RepositorioFila para a rotina ser testável sem Supabase.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { depoisDaFalha, intervaloEntreEnvios, venceuNaFila, type DepoisDaFalha } from '../../../src/modules/eva/domain/whatsapp.js';
-import { ehTipoDeCobranca, proximaJanelaDeCobranca } from '../../../src/modules/eva/domain/cobranca.js';
-import type { ClienteWaha } from './waha.js';
+import { depoisDaFalha, ehChatDeGrupo, intervaloEntreEnvios, venceuNaFila, type DepoisDaFalha } from '../../../src/modules/eva/domain/whatsapp.js';
+import { proximaJanelaDeCobranca, respeitaHorario } from '../../../src/modules/eva/domain/cobranca.js';
+import type { ClienteWaha, GrupoWaha } from './waha.js';
 
 /** Quantas mensagens por execução (§11.2, passo 2). */
 export const LIMITE_POR_EXECUCAO = 20;
+/** De quanto em quanto tempo a lista de grupos do WAHA é relida (Configurações → Grupo da equipe). */
+export const GRUPOS_A_CADA_MS = 30 * 60 * 1000;
 /** Situação gravada quando o WAHA nem responde: o chip do Início mostra "fora do ar". */
 export const WAHA_INACESSIVEL = 'INACESSIVEL';
 export const ERRO_VENCIDA = 'Venceu na fila sem ser enviada (WhatsApp desligado ou WAHA fora do ar por muito tempo).';
@@ -20,12 +22,17 @@ export interface ItemFila {
   proxima_tentativa_em: string | null;
   tentativas: number;
   texto: string;
+  /** Grupo da equipe (…@g.us). Quando preenchido, a mensagem vai para ele, não para o membro (D29). */
+  chat_id_destino: string | null;
   membro: { id: string; whatsapp: string | null; whatsapp_chat_id: string | null } | null;
 }
 
 export interface RepositorioFila {
   whatsappAtivo(): Promise<boolean>;
   gravarSituacaoSessao(status: string, em: string): Promise<void>;
+  /** Quando a lista de grupos foi lida pela última vez (null = nunca, ou Configurações pediu de novo). */
+  gruposLidosEm(): Promise<string | null>;
+  gravarGrupos(grupos: GrupoWaha[], em: string): Promise<void>;
   pendentes(agoraIso: string, limite: number): Promise<ItemFila[]>;
   guardarChatId(membroId: string, chatId: string): Promise<void>;
   marcarEnviada(id: string, wahaId: string | null, em: string): Promise<void>;
@@ -43,8 +50,26 @@ export interface ResultadoFila {
   definitivas: number;
   /** Venceram na fila e não saem mais (ver venceuNaFila). */
   vencidas: number;
-  /** Cobranças fora do horário (dia útil, 7h às 20h), reagendadas para a próxima janela. */
+  /** Cobranças e mensagens do grupo fora do horário (dia útil, 7h às 20h), reagendadas para a próxima janela. */
   adiadas: number;
+  /** Grupos lidos do WAHA nesta execução (null = não era hora de ler). */
+  grupos: number | null;
+  /** A leitura dos grupos falhou (não impede o envio). */
+  erroGrupos: string | null;
+}
+
+/** Relê os grupos da sessão a cada 30 min, ou na hora quando Configurações pede (gruposLidosEm = null). */
+async function atualizarGrupos(repo: RepositorioFila, waha: ClienteWaha, agora: number, resultado: ResultadoFila) {
+  try {
+    const lidosEm = await repo.gruposLidosEm();
+    if (lidosEm && agora - new Date(lidosEm).getTime() < GRUPOS_A_CADA_MS) return;
+    const g = await waha.listarGrupos();
+    if ('erro' in g) { resultado.erroGrupos = g.erro; return; }
+    await repo.gravarGrupos(g.grupos, new Date(agora).toISOString());
+    resultado.grupos = g.grupos.length;
+  } catch (e) {
+    resultado.erroGrupos = e instanceof Error ? e.message : String(e);
+  }
 }
 
 export async function esvaziarFila(
@@ -54,12 +79,16 @@ export async function esvaziarFila(
 ): Promise<ResultadoFila> {
   const agora = opcoes.agora ?? Date.now;
   const esperar = opcoes.esperar ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
-  const resultado: ResultadoFila = { sessao: '', desligado: false, enviadas: 0, falhas: 0, definitivas: 0, vencidas: 0, adiadas: 0 };
+  const resultado: ResultadoFila = {
+    sessao: '', desligado: false, enviadas: 0, falhas: 0, definitivas: 0, vencidas: 0, adiadas: 0, grupos: null, erroGrupos: null,
+  };
 
   // Passo 6: a situação da sessão é gravada a cada execução, mesmo com o envio desligado (D25).
   const s = await waha.sessao();
   resultado.sessao = s.ok ? s.status : WAHA_INACESSIVEL;
   await repo.gravarSituacaoSessao(resultado.sessao, new Date(agora()).toISOString());
+  // A lista de grupos serve para escolher o grupo da equipe antes de ligar o envio: lê mesmo desligado.
+  if (resultado.sessao === 'WORKING') await atualizarGrupos(repo, waha, agora(), resultado);
 
   // Mensagem velha não sai depois de uma queda longa (a cobrança da manhã diz "pendências de
   // hoje"). Vence mesmo com o envio desligado ou a sessão caída, para a fila mostrar a verdade.
@@ -72,9 +101,9 @@ export async function esvaziarFila(
       resultado.vencidas += 1;
       continue;
     }
-    // Cobrança só em dia útil, das 7h às 20h. Fora disso, espera a próxima janela, e o
-    // reagendamento a tira da busca até lá (não ocupa o lugar de um teste ou confirmação).
-    if (janela !== null && ehTipoDeCobranca(item.tipo)) {
+    // Cobrança e grupo só em dia útil, das 7h às 20h. Fora disso, esperam a próxima janela, e o
+    // reagendamento as tira da busca até lá (não ocupam o lugar de um teste ou confirmação).
+    if (janela !== null && respeitaHorario(item.tipo)) {
       await repo.adiar(item.id, new Date(janela).toISOString());
       resultado.adiadas += 1;
       continue;
@@ -101,13 +130,18 @@ export async function esvaziarFila(
       if (depois.status === 'falhou') resultado.definitivas += 1;
     };
 
-    if (!item.membro?.whatsapp) {
+    // Grupo da equipe: o destino vem pronto (escolhido em Configurações), sem check-exists.
+    if (item.chat_id_destino && !ehChatDeGrupo(item.chat_id_destino)) {
+      await falhaDefinitiva(`Destino inválido: ${item.chat_id_destino} não é um grupo.`);
+      continue;
+    }
+    if (!item.chat_id_destino && !item.membro?.whatsapp) {
       await falhaDefinitiva('Membro sem WhatsApp cadastrado.');
       continue;
     }
 
     // Passo 3: resolve o chatId uma vez e guarda (o 9º dígito dos números brasileiros, §3).
-    let chatId = item.membro.whatsapp_chat_id;
+    let chatId = item.chat_id_destino ?? item.membro!.whatsapp_chat_id;
     if (!chatId) {
       const v = await waha.verificarNumero(item.membro.whatsapp);
       if ('erro' in v) { await falhaTemporaria(v.erro); continue; }
@@ -141,10 +175,19 @@ export function repositorioSupabase(db: SupabaseClient): RepositorioFila {
       const { error } = await db.from('ti_agente_config').update({ waha_status: status, waha_verificado_em: em }).eq('id', true);
       falhou(error);
     },
+    async gruposLidosEm() {
+      const { data, error } = await db.from('ti_agente_config').select('waha_grupos_em').eq('id', true).maybeSingle();
+      falhou(error);
+      return (data?.waha_grupos_em as string | null | undefined) ?? null;
+    },
+    async gravarGrupos(grupos, em) {
+      const { error } = await db.from('ti_agente_config').update({ waha_grupos: grupos, waha_grupos_em: em }).eq('id', true);
+      falhou(error);
+    },
     async pendentes(agoraIso, limite) {
       const { data, error } = await db
         .from('ti_agente_mensagens')
-        .select('id, tipo, created_at, proxima_tentativa_em, tentativas, texto, membro:ti_agente_membros(id, whatsapp, whatsapp_chat_id)')
+        .select('id, tipo, created_at, proxima_tentativa_em, tentativas, texto, chat_id_destino, membro:ti_agente_membros(id, whatsapp, whatsapp_chat_id)')
         .eq('direcao', 'saida')
         .eq('status', 'pendente')
         .or(`proxima_tentativa_em.is.null,proxima_tentativa_em.lte.${agoraIso}`)

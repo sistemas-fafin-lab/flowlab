@@ -26,7 +26,7 @@ const horaSP = (iso: string) =>
 async function lerFila(db: SupabaseClient, soDe: string | null): Promise<MensagemFila[]> {
   const { data, error } = await db
     .from('ti_agente_mensagens')
-    .select('direcao, status, texto, created_at, membro:ti_agente_membros(user_id, perfil:user_profiles!ti_agente_membros_user_id_fkey(name))')
+    .select('direcao, status, texto, created_at, chat_id_destino, membro:ti_agente_membros(user_id, perfil:user_profiles!ti_agente_membros_user_id_fkey(name))')
     .neq('tipo', 'teste')
     .order('created_at', { ascending: false })
     .limit(soDe ? 50 : MAX_FILA);
@@ -37,7 +37,7 @@ async function lerFila(db: SupabaseClient, soDe: string | null): Promise<Mensage
     .slice(0, MAX_FILA)
     .map((m) => ({
       quando: horaSP(m.created_at as string),
-      para: (m.membro as unknown as Membro)?.perfil?.name ?? 'número desconhecido',
+      para: m.chat_id_destino ? 'o grupo da equipe' : (m.membro as unknown as Membro)?.perfil?.name ?? 'número desconhecido',
       direcao: m.direcao as MensagemFila['direcao'],
       status: m.status as string,
       texto: m.texto as string,

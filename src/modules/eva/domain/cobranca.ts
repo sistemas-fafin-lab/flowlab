@@ -149,6 +149,9 @@ export function proximaJanelaDeCobranca(agora: number): number | null {
 
 export const ehTipoDeCobranca = (tipo: string) => tipo === 'cobranca' || tipo === 'cobranca_manual';
 
+/** Também as mensagens do grupo da equipe (fechamento, resumo de reunião, aviso) respeitam o horário (D29). */
+export const respeitaHorario = (tipo: string) => ehTipoDeCobranca(tipo) || tipo === 'grupo';
+
 // ── Cobrança sob demanda (D22, RN16) ─────────────────────────────────────────
 
 export type ModoCobranca = 'cobrar' | 'lembrar';

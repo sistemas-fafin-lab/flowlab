@@ -2,8 +2,9 @@
 // tools/agente-ti-whatsapp/send-outbox.ts
 //
 // Fila de saída do WhatsApp da EVA, a agente de TI (issue 12, plano §11.2). Roda na VPS a
-// cada minuto (timer systemd, ver install.sh): grava a situação da sessão do WAHA em
-// ti_agente_config e envia as mensagens pendentes de ti_agente_mensagens pelo WAHA LOCAL.
+// cada minuto (timer systemd, ver install.sh): grava a situação da sessão do WAHA e, a cada
+// 30 min, a lista de grupos (D29) em ti_agente_config, e envia as mensagens pendentes de
+// ti_agente_mensagens pelo WAHA LOCAL.
 // A Vercel não alcança o WAHA (D9), por isso o envio sai daqui.
 //
 // A rotina fica em api/_lib/ti-agente/outbox.ts (com testes); este arquivo só lê o
@@ -57,12 +58,14 @@ async function main(): Promise<number> {
       sessao: 'erro' in sessao ? `erro: ${sessao.erro}` : sessao.status,
       whatsappAtivo: ativo,
       pendentes: fila.length,
-      semNumero: fila.filter((m) => !m.membro?.whatsapp).length,
+      paraOGrupo: fila.filter((m) => m.chat_id_destino).length,
+      semNumero: fila.filter((m) => !m.chat_id_destino && !m.membro?.whatsapp).length,
     }, null, 2));
     return 0;
   }
 
   const r = await esvaziarFila(repo, waha);
+  if (r.erroGrupos) console.error(`[${SCRIPT}] Não consegui ler os grupos do WAHA: ${r.erroGrupos}`);
   const vencidas = r.vencidas ? `; ${r.vencidas} vencida(s) na fila` : '';
   const resumo = r.desligado
     ? `envio desligado em Configurações${vencidas}`

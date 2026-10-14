@@ -7,6 +7,7 @@ import { useConfigEva, useSituacaoEva, useUsoIA } from '../../hooks/useAgenteAdm
 import { agenteAdmin } from '../../services/agenteAdmin';
 import type { AvisoEva } from '../../hooks/useEvaHome';
 import { BOTAO_PRIMARIO, CAMPO, LINHA, ROTULO } from './estilos';
+import GrupoEquipeCard from './GrupoEquipeCard';
 
 const quando = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca');
 const FINALIDADE: Record<string, string> = { analise_reuniao: 'Reuniões', chat: 'Chat', resposta_whatsapp: 'WhatsApp' };
@@ -140,10 +141,12 @@ const ConfiguracoesPage: React.FC = () => {
             </p>
           </div>
           <p className="text-[11px] text-slate-400">
-            As mensagens saem pelo script da VPS (tools/agente-ti-whatsapp), a cada minuto. Cobranças e lembretes só saem em dia útil, das 7h às 20h;
-            fora disso, esperam a próxima janela. A cobrança diária é montada às 08h, nos dias úteis.
+            As mensagens saem pelo script da VPS (tools/agente-ti-whatsapp), a cada minuto. Cobranças, lembretes e mensagens do grupo só saem em dia útil,
+            das 7h às 20h; fora disso, esperam a próxima janela. A cobrança diária é montada às 08h, nos dias úteis.
           </p>
         </GlassCard>
+
+        <GrupoEquipeCard config={c ?? null} salvando={salvando} salvar={salvar} recarregar={config.recarregar} avisar={setAviso} />
       </div>
 
       <GlassCard className="gap-4">

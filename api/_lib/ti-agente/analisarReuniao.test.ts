@@ -6,6 +6,7 @@ vi.mock('./dados.js', async (original) => ({
   avisarGestores: vi.fn(),
 }));
 vi.mock('./ia/gerarEstruturado.js', () => ({ gerarEstruturado: vi.fn() }));
+vi.mock('./grupo.js', () => ({ enviarResumoDaReuniao: vi.fn(async () => null) }));
 
 import { avisarGestores, lerContexto, lerGestores } from './dados.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';

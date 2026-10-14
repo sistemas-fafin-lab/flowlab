@@ -161,7 +161,7 @@ export const evaService = {
   async lerFila(desde: Date): Promise<MensagemFila[]> {
     const { data, error } = await supabase
       .from('ti_agente_mensagens')
-      .select('id, membro_id, direcao, tipo, texto, card_ids, status, erro, created_at, enviada_em, proxima_tentativa_em, membro:ti_agente_membros(user_id, perfil:user_profiles!ti_agente_membros_user_id_fkey(name))')
+      .select('id, membro_id, direcao, tipo, texto, card_ids, status, erro, created_at, enviada_em, proxima_tentativa_em, chat_id_destino, membro:ti_agente_membros(user_id, perfil:user_profiles!ti_agente_membros_user_id_fkey(name))')
       .gte('created_at', desde.toISOString())
       .order('created_at', { ascending: false })
       .limit(300);

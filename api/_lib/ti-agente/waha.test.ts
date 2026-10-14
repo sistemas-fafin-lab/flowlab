@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { criarClienteWaha, idDaMensagem } from './waha.js';
+import { criarClienteWaha, idDaMensagem, lerGrupos } from './waha.js';
 
 const resposta = (status: number, corpo: unknown) =>
   new Response(typeof corpo === 'string' ? corpo : JSON.stringify(corpo), { status });
@@ -37,6 +37,20 @@ describe('cliente WAHA', () => {
 
   it('situação da sessão', async () => {
     expect(await criarClienteWaha(cfg, async () => resposta(200, { name: 'ti_agente', status: 'WORKING' })).sessao()).toEqual({ ok: true, status: 'WORKING' });
+  });
+
+  it('grupos nos formatos dos engines (WEBJS, NOWEB, GOWS), só @g.us, sem repetir, por nome', async () => {
+    expect(lerGrupos([
+      { id: { _serialized: '1203630002@g.us' }, name: 'Zeta' },
+      { JID: '1203630001@g.us', Name: 'Alfa' },
+      { id: '5561999924986@c.us', name: 'contato' },
+      { JID: '1203630001@g.us', Name: 'Alfa de novo' },
+    ])).toEqual([{ id: '1203630001@g.us', nome: 'Alfa' }, { id: '1203630002@g.us', nome: 'Zeta' }]);
+    expect(lerGrupos({ '1203630003@g.us': { id: '1203630003@g.us', subject: 'TI' } })).toEqual([{ id: '1203630003@g.us', nome: 'TI' }]);
+    expect(lerGrupos(null)).toEqual([]);
+    const fetch = vi.fn(async () => resposta(200, [{ JID: '1203630001@g.us', GroupName: { Name: 'TI FAFIN' } }]));
+    expect(await criarClienteWaha(cfg, fetch).listarGrupos()).toEqual({ ok: true, grupos: [{ id: '1203630001@g.us', nome: 'TI FAFIN' }] });
+    expect((fetch.mock.calls[0] as unknown as [string])[0]).toBe('http://127.0.0.1:3000/api/ti_agente/groups');
   });
 
   it('id da mensagem nos formatos dos engines', () => {

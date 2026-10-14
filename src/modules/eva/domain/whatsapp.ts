@@ -34,6 +34,9 @@ export function mesmoNumero(a: string | null | undefined, b: string | null | und
 
 export const chatIdDoNumero = (digitos: string) => `${digitos.replace(/\D/g, '')}@c.us`;
 
+/** Id de grupo do WhatsApp ("1203…@g.us"): o único destino fora da lista de membros (D29). */
+export const ehChatDeGrupo = (chatId: string | null | undefined): chatId is string => !!chatId && /^[\w.-]+@g\.us$/.test(chatId);
+
 // ── Envio e novas tentativas (§11.2, passo 5) ────────────────────────────────
 
 /** Atraso das novas tentativas, em minutos. Na 4ª falha, a mensagem fica "falhou". */
@@ -94,8 +97,10 @@ export interface MensagemFila {
   membro_user_id: string | null;
   membro_nome: string | null;
   direcao: 'saida' | 'entrada';
-  tipo: 'cobranca' | 'cobranca_manual' | 'teste' | 'confirmacao' | 'recebida';
+  tipo: 'cobranca' | 'cobranca_manual' | 'teste' | 'confirmacao' | 'recebida' | 'grupo';
   texto: string;
+  /** Grupo da equipe (…@g.us): a mensagem não é de um membro (D29). */
+  chat_id_destino?: string | null;
   card_ids: string[];
   status: string;
   erro: string | null;

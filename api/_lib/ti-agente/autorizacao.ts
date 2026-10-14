@@ -1,5 +1,6 @@
 // Autorização das rotas /api/ti/* da EVA — espelha api/_lib/rh/autorizacao.ts.
 import type { VercelRequest } from '@vercel/node';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '../supabase.js';
 
 export interface FalhaAutorizacao {
@@ -47,6 +48,25 @@ export async function autorizar(token: string | null, algumaDe: string[]): Promi
     return { status: 403, payload: { success: false, error: 'Sem permissão para usar a EVA.' } };
   }
   return usuario;
+}
+
+/**
+ * As permissões de quem escreveu pelo WhatsApp (D29): lá não há sessão, só o membro ligado ao
+ * número. Removido ou desativado no FlowLab = null (sem permissão nenhuma), como no RLS.
+ */
+export async function usuarioPorId(db: SupabaseClient, userId: string): Promise<Usuario | null> {
+  const { data: perfil, error } = await db
+    .from('user_profiles')
+    .select('role, deleted_at, disabled_at, custom_roles(permissions)')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  if (!perfil || perfil.deleted_at || perfil.disabled_at) return null;
+  return {
+    userId,
+    permissoes: (perfil.custom_roles as { permissions?: string[] } | null)?.permissions ?? [],
+    ehAdmin: perfil.role === 'admin',
+  };
 }
 
 /** Crons da Vercel: `Authorization: Bearer <CRON_SECRET>` (como umami-inatividade-cron). */

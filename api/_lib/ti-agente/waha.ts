@@ -32,6 +32,37 @@ export interface ClienteWaha {
   verificarNumero(digitos: string): Promise<{ ok: true; existe: boolean; chatId: string | null } | Falha>;
   /** POST /api/sendText */
   enviarTexto(chatId: string, texto: string): Promise<{ ok: true; id: string | null } | Falha>;
+  /** GET /api/{sessao}/groups — os grupos do número da EVA, para escolher o da equipe (D29). */
+  listarGrupos(): Promise<{ ok: true; grupos: GrupoWaha[] } | Falha>;
+}
+
+export interface GrupoWaha { id: string; nome: string }
+
+/** Grupos guardados por execução: o bastante para escolher o da equipe numa lista. */
+export const MAX_GRUPOS = 200;
+
+const texto = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
+
+/**
+ * A lista de grupos vem num formato por engine: WEBJS (id._serialized, name), NOWEB (um objeto
+ * por id, com subject) e GOWS (JID, Name). Fica só o que tem id de grupo (@g.us), sem repetir.
+ */
+export function lerGrupos(dados: unknown): GrupoWaha[] {
+  const lista = Array.isArray(dados) ? dados : dados && typeof dados === 'object' ? Object.values(dados as Record<string, unknown>) : [];
+  const vistos = new Set<string>();
+  const grupos: GrupoWaha[] = [];
+  for (const bruto of lista) {
+    const g = (bruto ?? {}) as Record<string, unknown>;
+    const idObj = g.id as { _serialized?: unknown } | undefined;
+    const id = texto(g.id) ?? texto(idObj?._serialized) ?? texto(g.JID) ?? texto(g.jid);
+    if (!id || !/@g\.us$/.test(id) || vistos.has(id)) continue;
+    const nomeObj = g.GroupName as { Name?: unknown } | undefined;
+    const nome = texto(g.name) ?? texto(g.subject) ?? texto(g.Name) ?? texto(g.Subject) ?? texto(nomeObj?.Name) ?? id;
+    vistos.add(id);
+    grupos.push({ id, nome: nome.slice(0, 120) });
+    if (grupos.length >= MAX_GRUPOS) break;
+  }
+  return grupos.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
 }
 
 /** O WAHA devolve o id da mensagem em formatos diferentes conforme o engine. */
@@ -101,6 +132,12 @@ export function criarClienteWaha(cfg: ConfigWaha, fetchImpl: FetchLike = fetch):
       });
       if ('erro' in r) return r;
       return { ok: true, id: idDaMensagem(r.dados) };
+    },
+
+    async listarGrupos() {
+      const r = await chamar(`/api/${encodeURIComponent(cfg.sessao)}/groups`, { headers: cabecalhos() });
+      if ('erro' in r) return r;
+      return { ok: true, grupos: lerGrupos(r.dados) };
     },
   };
 }

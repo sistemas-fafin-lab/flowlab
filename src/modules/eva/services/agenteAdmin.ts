@@ -91,7 +91,20 @@ export interface ConfigEva {
   dias_parado: number;
   waha_status: string | null;
   waha_verificado_em: string | null;
+  /** Grupo da equipe no WhatsApp (…@g.us) e o nome, como estava na lista quando foi escolhido (D29). */
+  whatsapp_grupo_id: string | null;
+  whatsapp_grupo_nome: string | null;
+  /** Grupos do número da EVA, lidos pela VPS a cada 30 min. */
+  waha_grupos: { id: string; nome: string }[];
+  /** null = a VPS relê na próxima execução (botão "Atualizar lista"). */
+  waha_grupos_em: string | null;
+  fechamento_diario_ativo: boolean;
+  resumo_reuniao_grupo_ativo: boolean;
 }
+
+type CampoEditavel =
+  | 'granola_folder_id' | 'whatsapp_ativo' | 'cobranca_ativa' | 'dias_parado'
+  | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo';
 
 export interface Pessoa { id: string; name: string }
 
@@ -280,14 +293,20 @@ export const agenteAdmin = {
   async lerConfig(): Promise<ConfigEva | null> {
     const { data, error } = await supabase
       .from('ti_agente_config')
-      .select('granola_folder_id, granola_ultima_sync_em, granola_verificado_em, granola_ultimo_erro, whatsapp_ativo, cobranca_ativa, dias_parado, waha_status, waha_verificado_em')
+      .select(`granola_folder_id, granola_ultima_sync_em, granola_verificado_em, granola_ultimo_erro, whatsapp_ativo, cobranca_ativa, dias_parado,
+        waha_status, waha_verificado_em, whatsapp_grupo_id, whatsapp_grupo_nome, waha_grupos, waha_grupos_em, fechamento_diario_ativo, resumo_reuniao_grupo_ativo`)
       .eq('id', true)
       .maybeSingle();
     erro(error);
-    return data as ConfigEva | null;
+    if (!data) return null;
+    const c = data as unknown as ConfigEva;
+    return { ...c, waha_grupos: Array.isArray(c.waha_grupos) ? c.waha_grupos : [] };
   },
 
-  async salvarConfig(mudanca: Partial<Pick<ConfigEva, 'granola_folder_id' | 'whatsapp_ativo' | 'cobranca_ativa' | 'dias_parado'>>): Promise<void> {
+  /** "Enviar teste" do grupo da equipe (Configurações): mesma fila e mesmo acompanhamento do teste de membro. */
+  enviarTesteGrupo: () => chamarEva<{ mensagemId: string }>('agente-teste', { grupo: true }),
+
+  async salvarConfig(mudanca: Partial<Pick<ConfigEva, CampoEditavel>>): Promise<void> {
     const { data, error } = await supabase.from('ti_agente_config').update(mudanca).eq('id', true).select('id');
     erro(error);
     if (!data?.length) throw new Error('Sem permissão para alterar a configuração da EVA.');

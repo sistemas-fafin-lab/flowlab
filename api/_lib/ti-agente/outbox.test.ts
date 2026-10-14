@@ -1,18 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ERRO_VENCIDA, esvaziarFila, WAHA_INACESSIVEL, type ItemFila, type RepositorioFila } from './outbox.js';
-import type { ClienteWaha } from './waha.js';
+import type { ClienteWaha, GrupoWaha } from './waha.js';
 
-function repo(itens: ItemFila[], ativo = true) {
+function repo(itens: ItemFila[], ativo = true, gruposLidosEm: string | null = '2026-10-13T11:59:00Z') {
   const r = {
     situacao: [] as string[],
     enviadas: [] as { id: string; wahaId: string | null }[],
     falhas: [] as { id: string; status: string; tentativas: number; erro: string }[],
     chatIds: [] as [string, string][],
     adiadas: [] as { id: string; para: string }[],
+    grupos: [] as GrupoWaha[][],
   };
   const repositorio: RepositorioFila = {
     whatsappAtivo: async () => ativo,
     gravarSituacaoSessao: async (s) => { r.situacao.push(s); },
+    gruposLidosEm: async () => gruposLidosEm,
+    gravarGrupos: async (g) => { r.grupos.push(g); },
     pendentes: async () => itens,
     guardarChatId: async (m, c) => { r.chatIds.push([m, c]); },
     marcarEnviada: async (id, wahaId) => { r.enviadas.push({ id, wahaId }); },
@@ -26,11 +29,12 @@ const waha = (over: Partial<ClienteWaha> = {}): ClienteWaha => ({
   sessao: async () => ({ ok: true, status: 'WORKING' }),
   verificarNumero: async () => ({ ok: true, existe: true, chatId: '556199924986@c.us' }),
   enviarTexto: async () => ({ ok: true, id: 'true_556199924986@c.us_ABC' }),
+  listarGrupos: async () => ({ ok: true, grupos: [{ id: '120363000000000001@g.us', nome: 'TI FAFIN' }] }),
   ...over,
 });
 
 const item = (id: string, membro: ItemFila['membro'] = { id: 'm1', whatsapp: '5561999924986', whatsapp_chat_id: null }, tentativas = 0, extra: Partial<ItemFila> = {}): ItemFila =>
-  ({ id, tipo: 'cobranca_manual', created_at: '2026-10-13T11:58:00Z', proxima_tentativa_em: null, tentativas, texto: 'Oi', membro, ...extra });
+  ({ id, tipo: 'cobranca_manual', created_at: '2026-10-13T11:58:00Z', proxima_tentativa_em: null, tentativas, texto: 'Oi', chat_id_destino: null, membro, ...extra });
 
 const semEspera = { esperar: async () => undefined, agora: () => Date.UTC(2026, 9, 13, 12, 0) };
 
@@ -102,6 +106,42 @@ describe('esvaziarFila (§11.2)', () => {
     expect(res).toMatchObject({ adiadas: 1, enviadas: 2 });
     expect(r.adiadas).toEqual([{ id: 'cob', para: '2026-10-19T10:00:00.000Z' }]);
     expect(r.enviadas.map((e) => e.id)).toEqual(['teste', 'conf']);
+  });
+
+  it('grupo da equipe: envia para o grupo, sem check-exists; destino que não é grupo falha de vez (D29)', async () => {
+    const grupo = item('g', null, 0, { tipo: 'grupo', chat_id_destino: '120363000000000001@g.us' });
+    const errado = item('x', null, 0, { tipo: 'grupo', chat_id_destino: '5561999924986@c.us' });
+    const { r, repositorio } = repo([grupo, errado]);
+    const verificar = vi.fn();
+    const enviar = vi.fn(async () => ({ ok: true as const, id: 'G1' }));
+    const res = await esvaziarFila(repositorio, waha({ verificarNumero: verificar, enviarTexto: enviar }), semEspera);
+    expect(res).toMatchObject({ enviadas: 1, definitivas: 1 });
+    expect(enviar).toHaveBeenCalledWith('120363000000000001@g.us', 'Oi');
+    expect(verificar).not.toHaveBeenCalled();
+    expect(r.falhas[0]).toMatchObject({ id: 'x', status: 'falhou' });
+  });
+
+  it('mensagem do grupo também espera o horário (sábado → segunda às 7h)', async () => {
+    const sabado = { ...semEspera, agora: () => Date.parse('2026-10-17T10:00:00-03:00') };
+    const { r, repositorio } = repo([item('g', null, 0, { tipo: 'grupo', created_at: '2026-10-17T12:59:00Z', chat_id_destino: '120363000000000001@g.us' })]);
+    const res = await esvaziarFila(repositorio, waha(), sabado);
+    expect(res).toMatchObject({ adiadas: 1, enviadas: 0 });
+    expect(r.adiadas).toEqual([{ id: 'g', para: '2026-10-19T10:00:00.000Z' }]);
+  });
+
+  it('lista de grupos: relida a cada 30 min ou quando pedida, mesmo com o envio desligado; falha não para o envio', async () => {
+    const recente = repo([], false);
+    await esvaziarFila(recente.repositorio, waha(), semEspera);
+    expect(recente.r.grupos).toEqual([]);
+
+    const pedida = repo([], false, null);
+    const res = await esvaziarFila(pedida.repositorio, waha(), semEspera);
+    expect(res.grupos).toBe(1);
+    expect(pedida.r.grupos).toEqual([[{ id: '120363000000000001@g.us', nome: 'TI FAFIN' }]]);
+
+    const velha = repo([item('a')], true, '2026-10-13T11:00:00Z');
+    const r2 = await esvaziarFila(velha.repositorio, waha({ listarGrupos: async () => ({ ok: false, erro: 'WAHA HTTP 404' }) }), semEspera);
+    expect(r2).toMatchObject({ erroGrupos: 'WAHA HTTP 404', enviadas: 1 });
   });
 
   it('erro no envio volta para a fila com atraso; na 4ª tentativa, falhou', async () => {
