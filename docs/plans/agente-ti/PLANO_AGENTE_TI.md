@@ -415,7 +415,8 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
   - Devolve o id da sugestão.
 - **`ti_agente_cobrancas_hoje() RETURNS integer`** (D24): `SECURITY DEFINER`, exige `canManageIT`. Conta as mensagens `cobranca` e `cobranca_manual` enviadas hoje (dia de Brasília), sem expor texto nem destinatário. Alimenta o indicador do Início para quem não é gestor.
 - **`ti_agente_aprovar_sugestao_como(p_id, p_proposta, p_aprovador)`** e **`ti_agente_rejeitar_sugestao_como(p_id, p_motivo, p_aprovador)`** (D29) são as duas de cima, com quem decide como parâmetro. É o caminho dos comandos pelo WhatsApp, onde não há sessão.
-  - Conferem `user_has_permission(p_aprovador, 'canApproveAgenteTI')`, a regra das policies, que ignora usuário removido ou desativado.
+  - Conferem `ti_agente_eh_gestor(p_aprovador)` (`20261014170000_eva_gestor_mesma_regra.sql`). É a regra de `current_user_has_permission` para um usuário dado: admin, ou cargo com `canApproveAgenteTI`, e nunca removido ou desativado.
+  - A primeira versão usava `user_has_permission`, que tem um fallback de role legado e dá ao `operator` quase todas as chaves. O servidor já barrava antes, mas o banco agora tem a mesma regra da tela e das policies.
   - Só a `service_role` executa: `REVOKE` de `PUBLIC`, `anon` e `authenticated`.
   - Desde essa migration, `ti_agente_aprovar_sugestao` e `ti_agente_rejeitar_sugestao` conferem a sessão e delegam para elas, com `auth.uid()`.
 
@@ -753,7 +754,8 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts` (testada); o executável só mon
 | `avisar_grupo` | gestor | Mostra o texto exato ("📢 Aviso de Ana: …") e, no SIM, grava na fila do grupo |
 | `outro` | todos | Ajuda curta com os comandos (a de gestor inclui os dele) |
 
-**Aprovar sem sessão:** pelo WhatsApp não há `auth.uid()`. `ti_agente_aprovar_sugestao_como(p_id, p_proposta, p_aprovador)` e `ti_agente_rejeitar_sugestao_como` recebem quem decide e conferem `user_has_permission(p_aprovador, 'canApproveAgenteTI')`, a mesma regra das policies, que ignora usuário removido ou desativado.
+**Aprovar sem sessão:** pelo WhatsApp não há `auth.uid()`. `ti_agente_aprovar_sugestao_como(p_id, p_proposta, p_aprovador)` e `ti_agente_rejeitar_sugestao_como` recebem quem decide e conferem `ti_agente_eh_gestor(p_aprovador)`, a mesma regra das policies: admin, ou cargo com `canApproveAgenteTI`; o `operator` legado não conta, e usuário removido ou desativado também não.
+- **Quem é gestor** aparece na aba Membros: selo "Gestor" e o nome do cargo (`ehGestorEva`, a mesma regra).
 - Só a service role executa essas duas funções; o cliente, não, para não se passar por outro gestor.
 - As RPCs da tela passaram a delegar para elas, então a lógica de aplicar a sugestão fica num lugar só.
 

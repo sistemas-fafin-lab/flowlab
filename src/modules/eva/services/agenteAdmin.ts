@@ -2,6 +2,7 @@
 // das tabelas ti_agente_*); escrita só por RPC (sugestões) ou pelas policies de gestor
 // (membros, config). Ver supabase/migrations/20261013150000_eva_tabelas.sql.
 import { supabase } from '../../../lib/supabase';
+import { ehGestorEva } from '../domain/pessoas';
 import { chamarEva } from './agenteApi';
 
 export type TipoSugestao = 'criar_card' | 'atualizar_card' | 'comentar_card';
@@ -77,6 +78,10 @@ export interface Membro {
   recebe_cobranca: boolean;
   ativo: boolean;
   nome: string;
+  /** Pode mandar comandos de gestor pelo WhatsApp (ehGestorEva: admin ou cargo com canApproveAgenteTI). */
+  gestor: boolean;
+  /** Nome do cargo no FlowLab (Usuários → Cargos e Permissões); "Administrador" para o admin sem cargo. */
+  cargo: string | null;
 }
 
 export interface ConfigEva {
@@ -190,12 +195,22 @@ export const agenteAdmin = {
   async listarMembros(): Promise<Membro[]> {
     const { data, error } = await supabase
       .from('ti_agente_membros')
-      .select('id, user_id, apelidos, whatsapp, recebe_cobranca, ativo, perfil:user_profiles!ti_agente_membros_user_id_fkey(name)')
+      .select(`id, user_id, apelidos, whatsapp, recebe_cobranca, ativo,
+        perfil:user_profiles!ti_agente_membros_user_id_fkey(name, role, deleted_at, disabled_at, custom_roles(name, permissions))`)
       .order('created_at');
     erro(error);
+    type Perfil = {
+      name: string; role: string | null; deleted_at: string | null; disabled_at: string | null;
+      custom_roles: { name: string; permissions: unknown } | null;
+    } | null;
     return (data ?? []).map((m) => {
-      const { perfil, ...resto } = m as unknown as Membro & { perfil: { name: string } | null };
-      return { ...resto, nome: perfil?.name ?? '—' };
+      const { perfil, ...resto } = m as unknown as Omit<Membro, 'nome' | 'gestor' | 'cargo'> & { perfil: Perfil };
+      return {
+        ...resto,
+        nome: perfil?.name ?? '—',
+        gestor: ehGestorEva(perfil && { ...perfil, permissoes: perfil.custom_roles?.permissions }),
+        cargo: perfil?.custom_roles?.name ?? (perfil?.role === 'admin' ? 'Administrador' : null),
+      };
     });
   },
 
