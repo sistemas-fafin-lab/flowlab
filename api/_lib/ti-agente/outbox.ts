@@ -3,6 +3,7 @@
 // O banco fica atrás de RepositorioFila para a rotina ser testável sem Supabase.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { depoisDaFalha, intervaloEntreEnvios, venceuNaFila, type DepoisDaFalha } from '../../../src/modules/eva/domain/whatsapp.js';
+import { ehTipoDeCobranca, proximaJanelaDeCobranca } from '../../../src/modules/eva/domain/cobranca.js';
 import type { ClienteWaha } from './waha.js';
 
 /** Quantas mensagens por execução (§11.2, passo 2). */
@@ -15,6 +16,8 @@ export interface ItemFila {
   id: string;
   tipo: string;
   created_at: string;
+  /** Agendada (horário de cobrança) ou próxima tentativa depois de uma falha. */
+  proxima_tentativa_em: string | null;
   tentativas: number;
   texto: string;
   membro: { id: string; whatsapp: string | null; whatsapp_chat_id: string | null } | null;
@@ -27,6 +30,8 @@ export interface RepositorioFila {
   guardarChatId(membroId: string, chatId: string): Promise<void>;
   marcarEnviada(id: string, wahaId: string | null, em: string): Promise<void>;
   marcarFalha(id: string, depois: DepoisDaFalha | { status: 'falhou'; tentativas: number }, erro: string): Promise<void>;
+  /** Fora do horário de cobrança: a mensagem continua pendente, para o instante dado. */
+  adiar(id: string, para: string): Promise<void>;
 }
 
 export interface ResultadoFila {
@@ -38,6 +43,8 @@ export interface ResultadoFila {
   definitivas: number;
   /** Venceram na fila e não saem mais (ver venceuNaFila). */
   vencidas: number;
+  /** Cobranças fora do horário (dia útil, 7h às 20h), reagendadas para a próxima janela. */
+  adiadas: number;
 }
 
 export async function esvaziarFila(
@@ -47,7 +54,7 @@ export async function esvaziarFila(
 ): Promise<ResultadoFila> {
   const agora = opcoes.agora ?? Date.now;
   const esperar = opcoes.esperar ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
-  const resultado: ResultadoFila = { sessao: '', desligado: false, enviadas: 0, falhas: 0, definitivas: 0, vencidas: 0 };
+  const resultado: ResultadoFila = { sessao: '', desligado: false, enviadas: 0, falhas: 0, definitivas: 0, vencidas: 0, adiadas: 0 };
 
   // Passo 6: a situação da sessão é gravada a cada execução, mesmo com o envio desligado (D25).
   const s = await waha.sessao();
@@ -58,10 +65,21 @@ export async function esvaziarFila(
   // hoje"). Vence mesmo com o envio desligado ou a sessão caída, para a fila mostrar a verdade.
   const pendentes = await repo.pendentes(new Date(agora()).toISOString(), opcoes.limite ?? LIMITE_POR_EXECUCAO);
   const fila: ItemFila[] = [];
+  const janela = proximaJanelaDeCobranca(agora());
   for (const item of pendentes) {
-    if (!venceuNaFila(item.tipo, item.created_at, agora())) { fila.push(item); continue; }
-    await repo.marcarFalha(item.id, { status: 'falhou', tentativas: item.tentativas }, ERRO_VENCIDA);
-    resultado.vencidas += 1;
+    if (venceuNaFila(item.tipo, item.created_at, agora(), item.proxima_tentativa_em)) {
+      await repo.marcarFalha(item.id, { status: 'falhou', tentativas: item.tentativas }, ERRO_VENCIDA);
+      resultado.vencidas += 1;
+      continue;
+    }
+    // Cobrança só em dia útil, das 7h às 20h. Fora disso, espera a próxima janela, e o
+    // reagendamento a tira da busca até lá (não ocupa o lugar de um teste ou confirmação).
+    if (janela !== null && ehTipoDeCobranca(item.tipo)) {
+      await repo.adiar(item.id, new Date(janela).toISOString());
+      resultado.adiadas += 1;
+      continue;
+    }
+    fila.push(item);
   }
 
   // Passo 1: liga/desliga geral (RF20).
@@ -126,7 +144,7 @@ export function repositorioSupabase(db: SupabaseClient): RepositorioFila {
     async pendentes(agoraIso, limite) {
       const { data, error } = await db
         .from('ti_agente_mensagens')
-        .select('id, tipo, created_at, tentativas, texto, membro:ti_agente_membros(id, whatsapp, whatsapp_chat_id)')
+        .select('id, tipo, created_at, proxima_tentativa_em, tentativas, texto, membro:ti_agente_membros(id, whatsapp, whatsapp_chat_id)')
         .eq('direcao', 'saida')
         .eq('status', 'pendente')
         .or(`proxima_tentativa_em.is.null,proxima_tentativa_em.lte.${agoraIso}`)
@@ -144,6 +162,10 @@ export function repositorioSupabase(db: SupabaseClient): RepositorioFila {
         .from('ti_agente_mensagens')
         .update({ status: 'enviada', waha_message_id: wahaId, enviada_em: em, erro: null, proxima_tentativa_em: null })
         .eq('id', id);
+      falhou(error);
+    },
+    async adiar(id, para) {
+      const { error } = await db.from('ti_agente_mensagens').update({ proxima_tentativa_em: para }).eq('id', id).eq('status', 'pendente');
       falhou(error);
     },
     async marcarFalha(id, depois, erro) {

@@ -655,6 +655,13 @@ Início: https://<app>/it/inicio
 
 Seções vazias não aparecem. Acima de 8 itens, a mensagem termina com "e outras N no Início". Os cards ocultos do Kanban (`kanban_hidden`) ficam de fora.
 
+**Horário de cobrança** (decidido com o usuário em 14/Out): cobranças e lembretes, automáticos ou manuais, **só saem em dia útil, das 7h às 20h de Brasília**. Nunca no fim de semana.
+- Fora disso, o botão Cobrar grava a mensagem já agendada para a próxima janela (`proxima_tentativa_em`), e a tela avisa: "agendada para segunda (19/10) às 07:00".
+- O script da VPS segura qualquer cobrança que chegue fora da janela e a reagenda para a abertura.
+- A validade de 12 h da fila conta a partir da hora agendada.
+- Teste e confirmação de resposta saem a qualquer hora.
+- Feriados ficam de fora na v1, como em `ehDiaUtil`.
+
 **Sob demanda (D22, RN16):** o botão Cobrar/Lembrar do bloco de atrasadas chama `agente-cobrar`.
 - O servidor confere a permissão: Lembrar = o próprio card com `canManageIT`; Cobrar = card de outra pessoa com `canApproveAgenteTI`.
 - Também confere a janela de 4 h por card e se o responsável tem WhatsApp com adesão.

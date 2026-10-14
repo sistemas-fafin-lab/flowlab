@@ -140,7 +140,8 @@ const ConfiguracoesPage: React.FC = () => {
             </p>
           </div>
           <p className="text-[11px] text-slate-400">
-            As mensagens saem pelo script da VPS (tools/agente-ti-whatsapp), a cada minuto. A cobrança diária é montada às 08h, nos dias úteis.
+            As mensagens saem pelo script da VPS (tools/agente-ti-whatsapp), a cada minuto. Cobranças e lembretes só saem em dia útil, das 7h às 20h;
+            fora disso, esperam a próxima janela. A cobrança diária é montada às 08h, nos dias úteis.
           </p>
         </GlassCard>
       </div>

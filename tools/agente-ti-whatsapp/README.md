@@ -10,14 +10,15 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts`, com testes. Este diretório só
 
 1. Lê `GET /api/sessions/eva` e grava `waha_status` e `waha_verificado_em`. Isso roda mesmo com o envio desligado. Se o WAHA não responde, grava `INACESSIVEL`.
 2. Marca como `falhou` as mensagens que venceram na fila, para não saírem atrasadas depois de uma queda longa. A cobrança da manhã só vale no próprio dia, porque diz "pendências de hoje"; as demais valem 12 h. Isso também roda com o envio desligado ou a sessão caída.
-3. Se o WhatsApp estiver desligado em **EVA → Configurações**, para por aí.
-4. Se a sessão não estiver `WORKING`, também para, para não gastar tentativas.
-5. Pega até 20 mensagens pendentes, das mais antigas para as mais novas.
-6. Para cada uma:
+3. Fora do horário de cobrança (dia útil, das 7h às 20h de Brasília), reagenda as cobranças e os lembretes para a próxima janela; nunca saem no fim de semana. Teste e confirmação saem a qualquer hora.
+4. Se o WhatsApp estiver desligado em **EVA → Configurações**, para por aí.
+5. Se a sessão não estiver `WORKING`, também para, para não gastar tentativas.
+6. Pega até 20 mensagens pendentes, das mais antigas para as mais novas.
+7. Para cada uma:
    - se o membro ainda não tem `whatsapp_chat_id`, resolve com `check-exists` (o 9º dígito dos números brasileiros) e guarda;
    - número fora do WhatsApp ou membro sem número: a mensagem fica `falhou`, com aviso na aba Membros.
-7. Envia com `POST /api/sendText`, esperando 1 a 3 s entre um envio e outro.
-8. Se der certo, a mensagem fica `enviada`, com o id do WAHA. Se falhar, ganha nova tentativa depois de 1, 5 e 15 minutos. Na 4ª falha, fica `falhou`.
+8. Envia com `POST /api/sendText`, esperando 1 a 3 s entre um envio e outro.
+9. Se der certo, a mensagem fica `enviada`, com o id do WAHA. Se falhar, ganha nova tentativa depois de 1, 5 e 15 minutos. Na 4ª falha, fica `falhou`.
 
 **Se o WAHA ou a VPS caírem, o resto da EVA continua funcionando:** Início, chat, reuniões, sugestões, aprovações e o botão Cobrar. As mensagens esperam na fila e saem quando o WAHA voltar, se ainda estiverem dentro da validade.
 

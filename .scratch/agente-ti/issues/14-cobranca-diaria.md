@@ -78,6 +78,14 @@ Plano: §2 (D11, D13, D22), §4.3 (RF18, RF25), §4.4 (RN12, RN16), §10, §12.1
   - fila e contagem são relidas a cada minuto com a página aberta.
 - **Link do Início:** usa `APP_URL` (`api/_lib/appUrl.ts`).
 - **Configurações:** mostra a última cobrança diária e, nos últimos 7 dias, quantas mensagens foram enviadas, quantas falharam e quantas estão na fila.
+- **Horário de cobrança (14/Out, pedido do usuário: "não deve cobrar aos fins de semana"):** cobranças e lembretes só saem em dia útil, das 7h às 20h.
+  - O domínio ganhou `proximaJanelaDeCobranca`.
+  - O botão Cobrar grava a mensagem agendada e devolve `agendadaPara`; a tela mostra "Cobrança agendada para segunda (19/10) às 07:00".
+  - O script da VPS reagenda qualquer cobrança fora da janela, para ela não ocupar a fila.
+  - A validade de 12 h conta da hora agendada.
+  - Teste e confirmação saem sempre.
+  
+  Testes: janela (manhã, noite, sexta à noite, sábado e domingo), fila num sábado e rota num sábado.
 - **Conferido no banco do app (14/Out), sem gravar:**
   - o cron em `dryRun` respondeu "A cobrança diária está desligada" e não montou mensagens: há 1 membro cadastrado, ainda sem WhatsApp e adesão;
   - a prévia do texto desse membro, ignorando a adesão, saiu no modelo, com 1 card parado desde 08/09.

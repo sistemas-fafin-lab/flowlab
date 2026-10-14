@@ -1,7 +1,7 @@
 // Cobrança da EVA pelo WhatsApp (issue 14, plano §10; D11, D13, D22; RN12, RN16).
 // Pura: recebe `hoje` e `agora`. Usada pelo cron e pelo botão Cobrar (api/) e pelo
 // Início, então os imports levam ".js" (a api/ compila com NodeNext).
-import { diaDaSemana, diaDoPrazo, diaSP, diferencaDias, formatarDiaMes, pluralDias, proximoDiaUtil, type Dia } from './datas.js';
+import { diaDaSemana, diaDoPrazo, diaSP, diferencaDias, ehDiaUtil, formatarDiaMes, pluralDias, proximoDiaUtil, type Dia } from './datas.js';
 import {
   compararDestaque, diaVencimento, diasDeAtraso, ehDoUsuario, estaAberto, estaAtrasado, estaParado, ordenarAtrasados,
   type CardTI,
@@ -122,6 +122,32 @@ export function montarMensagemDiaria(e: EntradaMensagemDiaria): string | null {
 
 /** RN12: uma cobrança automática por pessoa por dia, mesmo se o cron rodar duas vezes. */
 export const chaveDia = (membroId: string, hoje: Dia) => `cobranca:${membroId}:${hoje}`;
+
+// ── Horário de cobrança (14/Out) ─────────────────────────────────────────────
+
+/** Cobranças e lembretes só saem em dia útil, das 7h às 20h de Brasília. Teste e confirmação saem sempre. */
+export const COBRANCA_DAS_HORAS = 7;
+export const COBRANCA_ATE_AS_HORAS = 20;
+/** Brasília é UTC−3 o ano todo (sem horário de verão desde 2019). */
+const OFFSET_SP_HORAS = 3;
+
+const horaSPNumero = (instante: number) =>
+  Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hourCycle: 'h23' }).format(new Date(instante)));
+
+/**
+ * null = pode cobrar agora. Fora do horário, devolve o instante (ms) em que a próxima janela
+ * abre: hoje às 7h, se for madrugada de dia útil; senão, o próximo dia útil às 7h.
+ * Feriados ficam de fora na v1, como em `ehDiaUtil`.
+ */
+export function proximaJanelaDeCobranca(agora: number): number | null {
+  const dia = diaSP(new Date(agora));
+  const hora = horaSPNumero(agora);
+  if (ehDiaUtil(dia) && hora >= COBRANCA_DAS_HORAS && hora < COBRANCA_ATE_AS_HORAS) return null;
+  const alvo = ehDiaUtil(dia) && hora < COBRANCA_DAS_HORAS ? dia : proximoDiaUtil(dia);
+  return Date.parse(`${alvo}T${String(COBRANCA_DAS_HORAS + OFFSET_SP_HORAS).padStart(2, '0')}:00:00Z`);
+}
+
+export const ehTipoDeCobranca = (tipo: string) => tipo === 'cobranca' || tipo === 'cobranca_manual';
 
 // ── Cobrança sob demanda (D22, RN16) ─────────────────────────────────────────
 

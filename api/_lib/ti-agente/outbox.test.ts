@@ -8,6 +8,7 @@ function repo(itens: ItemFila[], ativo = true) {
     enviadas: [] as { id: string; wahaId: string | null }[],
     falhas: [] as { id: string; status: string; tentativas: number; erro: string }[],
     chatIds: [] as [string, string][],
+    adiadas: [] as { id: string; para: string }[],
   };
   const repositorio: RepositorioFila = {
     whatsappAtivo: async () => ativo,
@@ -16,6 +17,7 @@ function repo(itens: ItemFila[], ativo = true) {
     guardarChatId: async (m, c) => { r.chatIds.push([m, c]); },
     marcarEnviada: async (id, wahaId) => { r.enviadas.push({ id, wahaId }); },
     marcarFalha: async (id, d, erro) => { r.falhas.push({ id, status: d.status, tentativas: d.tentativas, erro }); },
+    adiar: async (id, para) => { r.adiadas.push({ id, para }); },
   };
   return { r, repositorio };
 }
@@ -28,7 +30,7 @@ const waha = (over: Partial<ClienteWaha> = {}): ClienteWaha => ({
 });
 
 const item = (id: string, membro: ItemFila['membro'] = { id: 'm1', whatsapp: '5561999924986', whatsapp_chat_id: null }, tentativas = 0, extra: Partial<ItemFila> = {}): ItemFila =>
-  ({ id, tipo: 'cobranca_manual', created_at: '2026-10-13T11:58:00Z', tentativas, texto: 'Oi', membro, ...extra });
+  ({ id, tipo: 'cobranca_manual', created_at: '2026-10-13T11:58:00Z', proxima_tentativa_em: null, tentativas, texto: 'Oi', membro, ...extra });
 
 const semEspera = { esperar: async () => undefined, agora: () => Date.UTC(2026, 9, 13, 12, 0) };
 
@@ -84,6 +86,22 @@ describe('esvaziarFila (§11.2)', () => {
       ['b', 'falhou', ERRO_VENCIDA],
     ]);
     expect(enviar).not.toHaveBeenCalled();
+  });
+
+  it('fora do horário de cobrança: cobrança é reagendada para as 7h; teste e confirmação saem', async () => {
+    // Sábado 10h em Brasília: a próxima janela é segunda às 7h (10h UTC).
+    const sabado = { ...semEspera, agora: () => Date.parse('2026-10-17T10:00:00-03:00') };
+    const criada = '2026-10-17T12:59:00Z';
+    const itens = [
+      item('cob', undefined, 0, { tipo: 'cobranca_manual', created_at: criada }),
+      item('teste', { id: 'm2', whatsapp: '5561988887777', whatsapp_chat_id: '5561988887777@c.us' }, 0, { tipo: 'teste', created_at: criada }),
+      item('conf', { id: 'm2', whatsapp: '5561988887777', whatsapp_chat_id: '5561988887777@c.us' }, 0, { tipo: 'confirmacao', created_at: criada }),
+    ];
+    const { r, repositorio } = repo(itens);
+    const res = await esvaziarFila(repositorio, waha(), sabado);
+    expect(res).toMatchObject({ adiadas: 1, enviadas: 2 });
+    expect(r.adiadas).toEqual([{ id: 'cob', para: '2026-10-19T10:00:00.000Z' }]);
+    expect(r.enviadas.map((e) => e.id)).toEqual(['teste', 'conf']);
   });
 
   it('erro no envio volta para a fila com atraso; na 4ª tentativa, falhou', async () => {

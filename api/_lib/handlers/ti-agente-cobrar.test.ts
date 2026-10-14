@@ -10,6 +10,7 @@ vi.mock('../ti-agente/autorizacao.js', async (original) => ({
 import { getSupabaseAdminClient } from '../supabase.js';
 import { autorizar } from '../ti-agente/autorizacao.js';
 import handler from './ti-agente-cobrar.js';
+import { cobrarCard } from '../ti-agente/cobranca.js';
 
 const dbMock = getSupabaseAdminClient as ReturnType<typeof vi.fn>;
 const autorizarMock = autorizar as ReturnType<typeof vi.fn>;
@@ -94,6 +95,14 @@ describe('POST /api/ti/agente-cobrar (D22, RN16)', () => {
     const b = res();
     await handler(req({ card_id: 'c1' }), b.api);
     expect(b.r).toMatchObject({ statusCode: 422, body: { error: 'O WhatsApp da EVA está desligado (EVA → Configurações).' } });
+  });
+
+  it('no fim de semana, a cobrança vai agendada para segunda às 7h', async () => {
+    const { db, inserts } = criarDb();
+    const sabado = new Date('2026-10-17T10:00:00-03:00');
+    const r = await cobrarCard(db as never, usuario(['canApproveAgenteTI']), 'c1', sabado);
+    expect(r).toMatchObject({ ok: true, agendadaPara: '2026-10-19T10:00:00.000Z' });
+    expect(inserts[0]).toEqual([expect.objectContaining({ proxima_tentativa_em: '2026-10-19T10:00:00.000Z' })]);
   });
 
   it('Lembrar o próprio card com canManageIT', async () => {
