@@ -40,11 +40,11 @@ Plano: §3 (formato da nota), §4.4 (RN07 a RN11, RN14, RN15), §9 inteiro e §1
 - `dados.ts`: enquanto a aba Membros estiver vazia, usa as pessoas do departamento TI como membros, com o primeiro nome como apelido.
 - 11 testes da extração com reunião fictícia.
 
-**Dry-run com a reunião real de 21/09** (sem gravar; contexto: 7 pessoas, 18 cards abertos, 6 projetos, 3 sprints):
+**Dry-run com a reunião real da pasta** (sem gravar; contexto: 7 pessoas, 18 cards abertos, 6 projetos, 3 sprints). O conteúdo da reunião não fica no repositório; só o comportamento da IA:
 - **Primeira rodada do Claude:** 7 sugestões, todas "criar card", mesmo havendo cards abertos sobre os mesmos assuntos. Isso geraria duplicados.
-- **Gemini, com as mesmas instruções:** ligou os itens aos cards IT-056, IT-120, IT-118 e IT-050.
-- **Correção:** as instruções passaram a mandar procurar primeiro na lista de cards, comparando pelo sentido (a transcrição escreve "Área", "Áurea" e "Oria" para o Oria), e a sempre preencher o responsável.
-- **Segunda rodada do Claude:** comentou no IT-120 (auditoria no Oria: falta o deploy) e no IT-118 (Hub interno do Oria). Criou 4 cards novos: robô de pré-faturamento; chamado para o Jonathan, com o Gabriel; validação do Hub de Laudos; reunião com a Erika. O "Hub de Laudos" pode ou não ser o IT-050 ("Envio de Laudos Via API"); quem aprova decide.
+- **Gemini, com as mesmas instruções:** ligou os itens a 4 cards abertos.
+- **Correção:** as instruções passaram a mandar procurar primeiro na lista de cards, comparando pelo sentido (a transcrição muda a grafia dos nomes de sistemas), e a sempre preencher o responsável.
+- **Segunda rodada do Claude:** comentou em 2 cards existentes e criou 4 cards novos. Um deles pode ou não ser um card aberto com nome parecido; quem aprova decide.
 - **Custo medido:** cerca de 11 mil tokens de entrada e 2 mil de saída (~US$ 0,04 por reunião), em 10 a 15 s. Esforço `medium` mantido.
 
 **13/Out/2026 — primeira análise real pela tela (Reuniões → "Buscar reuniões agora") e correção.**

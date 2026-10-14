@@ -77,3 +77,18 @@ O chip "Granola" do Início não podia usar o cursor `granola_ultima_sync_em`, q
 - as quatro funções existem, e o anon é barrado em todas.
 
 As Fases 3 e 4 (14/Out) não precisaram de migration nova: "Enviar teste" e "Cobrar" passam por rotas do servidor, já que a fila não tem policy de INSERT.
+
+**14/Out/2026 — catálogo `supabase/MIGRATIONS.md`.** O arquivo ainda não está em nenhuma branch: é trabalho em andamento de outra sessão. Quando ele entrar no `main`, faltam:
+- a linha `| [TI — EVA (agente de TI)](#ti--eva-agente-de-ti) | `eva_` | 2 |` na tabela de domínios, com o total subindo 2;
+- a seção abaixo:
+
+```markdown
+## TI — EVA (agente de TI)
+
+Tabelas `ti_agente_*` da EVA, a agente de TI ([plano](../docs/plans/agente-ti/PLANO_AGENTE_TI.md)).
+
+| Migration | O que faz |
+|---|---|
+| [`20261013150000_eva_tabelas`](migrations/20261013150000_eva_tabelas.sql) | Seis tabelas `ti_agente_*` (config, membros, reuniões, mensagens, sugestões, chamadas de IA) com RLS |
+| [`20261013151000_eva_rpcs`](migrations/20261013151000_eva_rpcs.sql) | RPCs de aprovar, rejeitar e propor sugestões, e a contagem de cobranças do dia |
+```

@@ -92,7 +92,7 @@ Entregáveis, na ordem em que geram valor:
 Foram feitas só leituras, sem gravar nada e sem enviar mensagens.
 
 **Granola: funciona.**
-- `GET https://public-api.granola.ai/v1/notes` com a chave do `.env`: HTTP 200, **uma nota visível**. É a reunião "Planejamento de sprint e acompanhamento de demandas com Gabriel, João e Vinícius", criada em 21/09 e editada em 05/10, cujo dono é "Tecnologia e AI" (`ti@laboratoriolab.com.br`).
+- `GET https://public-api.granola.ai/v1/notes` com a chave do `.env`: HTTP 200, **uma nota visível**: uma reunião de planejamento de sprint da equipe, criada em 21/09 e editada em 05/10, cujo dono é a conta "Tecnologia e AI" da TI.
 - A nota está na pasta **"Team meetings"** (`fol_WEROcYgPA0ti68`) do espaço **"TI Lab team"** (`spa_DcGoa4LgJ9TMR4`). A busca do agente filtra por essa pasta (`folder_id`), que fica configurável.
 - `GET /v1/notes/{id}` devolve `summary_markdown` (14,5 mil caracteres, cerca de 4 a 5 mil tokens), `attendees`, `folder_membership`, `web_url` e `updated_at`. A transcrição só vem com `?include=transcript`, e o resumo basta.
 - O resumo segue um **modelo fixo**:
