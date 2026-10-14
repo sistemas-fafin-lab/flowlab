@@ -41,9 +41,22 @@ export type ResultadoEstruturado<T> =
   | { ok: true; dados: T; provedor: 'claude' | 'gemini'; motivoReserva: string | null; tentativas: TentativaIA[] }
   | { ok: false; erros: string[]; tentativas: TentativaIA[] };
 
-/** O JSON Schema que os dois provedores recebem: o do zod 4, sem o "$schema". */
+/**
+ * Limites que a saída estruturada do Claude recusa com 400 ("For 'integer' type, properties maximum,
+ * minimum are not supported"). O zod 4 põe minimum/maximum em todo `.int()`. Saem do schema enviado;
+ * o zod continua conferindo a resposta depois.
+ */
+const SEM_SUPORTE = new Set(['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minLength', 'maxLength']);
+
+function semLimites(no: unknown): unknown {
+  if (Array.isArray(no)) return no.map(semLimites);
+  if (!no || typeof no !== 'object') return no;
+  return Object.fromEntries(Object.entries(no as Record<string, unknown>).filter(([k]) => !SEM_SUPORTE.has(k)).map(([k, v]) => [k, semLimites(v)]));
+}
+
+/** O JSON Schema que os dois provedores recebem: o do zod 4, sem o "$schema" e sem os limites acima. */
 export function paraJsonSchema(schema: z.ZodType): Record<string, unknown> {
-  const json = { ...(z.toJSONSchema(schema) as Record<string, unknown>) };
+  const json = semLimites(z.toJSONSchema(schema)) as Record<string, unknown>;
   delete json.$schema;
   return json;
 }

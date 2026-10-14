@@ -96,3 +96,16 @@ Plano: §2 (D29), §6.2/§6.3 e §11.4.
 **Ordem de implantação:** primeiro a migration, depois o deploy da Vercel e o pacote novo da VPS.
 - O pacote novo lê `chat_id_destino` e `waha_grupos_em`. Antes da migration, ele falharia a cada minuto.
 - A tela de Configurações também lê as colunas novas.
+
+**14/Out/2026 — "a EVA está demorando muito para responder" (primeiro teste real).** Medido no banco, na primeira mensagem real:
+- a mensagem chegou às 17:00:06 e a resposta ficou pronta às 17:00:13 (7 s);
+- a resposta só saiu às 17:01:01: **48 s esperando a VPS**, que olhava a fila uma vez por minuto.
+
+Também apareceu um erro escondido: o **Claude recusava o schema** dos comandos com 400 ("For 'integer' type, properties maximum, minimum are not supported"). O `z.number().int()` do campo `numeros` vira `minimum`/`maximum` no JSON Schema. O Gemini assumia em 2,7 s, então a resposta saía, mas sempre pela reserva.
+
+Correções:
+- `paraJsonSchema` tira do schema enviado os limites que o Claude não aceita (`minimum`, `maximum`, `exclusive*`, `multipleOf`, `minLength`, `maxLength`); o zod continua conferindo a resposta. `numeros` ficou sem `.int()`, com a conferência em `prepararDecisao`.
+  - Conferido com uma chamada real ao Claude: `ok` em 4,8 s, intenção "aprovar" com os números 1 e 3.
+- A VPS, em cada execução do timer, relê a fila a cada 5 s por até 50 s (`send-outbox.ts`). A resposta sai em segundos, sem mudar o timer nem o `install.sh`, e por isso sem sudo. `--uma-vez` faz uma passada só.
+
+Tempo esperado agora: uns 7 a 10 s para a resposta ficar pronta, mais até 5 s até a VPS enviar. A exceção são os 10 s do fim de cada minuto, entre uma execução e a próxima.
