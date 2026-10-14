@@ -14,6 +14,7 @@ import {
   Unlink,
 } from 'lucide-react';
 import type {
+  AlteracaoLancamento,
   FiltroGlosaTitulo,
   OperadoraResumo,
   TituloBaixa,
@@ -34,6 +35,7 @@ import {
   responsaveisDoTitulo,
 } from '../utils/formato';
 import { dataEnvioEfetiva } from '../utils/envioAoVivo';
+import { descreverAlteracao } from '../utils/correcaoLancamento';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
@@ -137,6 +139,9 @@ interface Props {
   buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
   /** Issue 39: histórico de baixas do título, buscado ao expandir a linha. */
   buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
+  /** Correções de baixas/glosas do título (.scratch/titulos-edicao-lancamentos),
+   *  buscadas junto com as baixas ao expandir a linha. */
+  buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
 }
 
 /** Badge de atraso. Só aparece quando há vencimento e o título ainda tem saldo. */
@@ -180,6 +185,7 @@ const TitulosList: React.FC<Props> = ({
   buscarGuias,
   buscarEnvioLotes,
   buscarBaixas,
+  buscarAlteracoes,
 }) => {
   const [expandido, setExpandido] = useState<string | null>(null);
   const [loteAberto, setLoteAberto] = useState<string | null>(null);
@@ -203,6 +209,10 @@ const TitulosList: React.FC<Props> = ({
   const [baixasVersao, setBaixasVersao] = useState<Record<string, string>>({});
   const [carregandoBaixas, setCarregandoBaixas] = useState<Record<string, boolean>>({});
   const [erroBaixas, setErroBaixas] = useState<Record<string, string>>({});
+  // Correções de lançamentos: mesma chave e mesma versão das baixas — uma
+  // correção sempre recalcula o título e avança `statusAtualizadoEm`.
+  const [alteracoes, setAlteracoes] = useState<Record<string, AlteracaoLancamento[]>>({});
+  const [erroAlteracoes, setErroAlteracoes] = useState<Record<string, string>>({});
   const [busca, setBusca] = useState(filtros.busca);
   // Por título: DtaEnvio ao vivo dos seus lotes, chave = aplisId (issue 15).
   // Ausente = ainda não revalidado ou a consulta falhou — dataEnvioEfetiva cai
@@ -254,7 +264,23 @@ const TitulosList: React.FC<Props> = ({
 
     setCarregandoBaixas((atual) => ({ ...atual, [notaId]: true }));
     setErroBaixas((atual) => ({ ...atual, [notaId]: '' }));
+    setErroAlteracoes((atual) => ({ ...atual, [notaId]: '' }));
     let cancelado = false;
+    // Falha do histórico não derruba as baixas: cada um mostra o próprio erro.
+    void buscarAlteracoes(notaId)
+      .then((lista) => {
+        if (!cancelado) {
+          setAlteracoes((atual) => ({ ...atual, [notaId]: lista }));
+        }
+      })
+      .catch((err) => {
+        if (!cancelado) {
+          setErroAlteracoes((atual) => ({
+            ...atual,
+            [notaId]: err instanceof Error ? err.message : 'Não foi possível carregar as alterações.',
+          }));
+        }
+      });
     void buscarBaixas(notaId)
       .then((lista) => {
         if (!cancelado) {
@@ -786,6 +812,48 @@ const TitulosList: React.FC<Props> = ({
                                 </table>
                               )}
                             </div>
+
+                            {/* Correções de baixas/glosas pelo "Editar título" — só
+                                aparece quando houve alguma (ou quando a busca falhou). */}
+                            {(erroAlteracoes[titulo.id] || (alteracoes[titulo.id]?.length ?? 0) > 0) && (
+                              <div className="mb-3">
+                                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                  Alterações
+                                </p>
+                                {erroAlteracoes[titulo.id] ? (
+                                  <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    {erroAlteracoes[titulo.id]}
+                                  </p>
+                                ) : (
+                                  <table className="w-full max-w-3xl text-xs">
+                                    <thead>
+                                      <tr className="text-left text-gray-400">
+                                        <th className="py-1">Quando</th>
+                                        <th className="py-1">O quê</th>
+                                        <th className="py-1">De → para</th>
+                                        <th className="py-1">Motivo</th>
+                                        <th className="py-1">Por</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {alteracoes[titulo.id]?.map((alteracao) => {
+                                        const { oQue, de, para } = descreverAlteracao(alteracao);
+                                        return (
+                                          <tr key={alteracao.id} className="text-gray-600 dark:text-gray-300 align-top">
+                                            <td className="py-1 pr-3 whitespace-nowrap">{formatDataHora(alteracao.feitoEm)}</td>
+                                            <td className="py-1 pr-3 whitespace-nowrap">{oQue}</td>
+                                            <td className="py-1 pr-3 tabular-nums">{de} → {para}</td>
+                                            <td className="py-1 pr-3">{alteracao.motivo}</td>
+                                            <td className="py-1 whitespace-nowrap">{alteracao.feitoPorNome}</td>
+                                          </tr>
+                                        );
+                                      })}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            )}
 
                             <div className="space-y-1">
                               {titulo.lotes.length === 0 ? (

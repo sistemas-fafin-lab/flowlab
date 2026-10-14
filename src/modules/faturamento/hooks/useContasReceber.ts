@@ -2,8 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { diasDeAtraso } from '../utils/formato';
 import type {
+  AlteracaoLancamento,
   BaixaInput,
+  CorrecaoLancamentoPayload,
+  GlosaLancada,
   GlosaLancamentoInput,
+  GlosaStatus,
+  LancamentosTitulo,
   OperadoraResumo,
   TituloBaixa,
   TituloGuia,
@@ -25,6 +30,17 @@ import { STATUS_GLOSA_EM_DISPUTA, STATUS_TITULOS_PENDENTES } from '../types';
 // título fica mentindo entre um statement e outro.
 
 const TAMANHO_PADRAO = 25;
+
+/** Nome (`user_profiles.name`) por id. `registrado_por_id` referencia
+ *  auth.users, não user_profiles — sem FK direta o PostgREST não embeda o nome
+ *  num select só, então resolve numa segunda ida. */
+async function nomesDosUsuarios(ids: (string | null)[]): Promise<Record<string, string>> {
+  const distintos = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (distintos.length === 0) return {};
+  const { data, error } = await supabase.from('user_profiles').select('id, name').in('id', distintos);
+  if (error) throw new Error(error.message);
+  return Object.fromEntries((data ?? []).map((p) => [p.id as string, p.name as string]));
+}
 
 async function getToken(): Promise<string | null> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -182,6 +198,15 @@ interface UseContasReceberResult {
   /** Baixas (`recebimentos`) do título, mais recente primeiro, com o nome de
    *  quem registrou já resolvido — issue 39. Sempre um array, nunca undefined. */
   buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
+  /** Baixas (com todos os campos digitados e as glosas de cada uma) e glosas
+   *  sem baixa do título, para a correção pelo "Editar título". */
+  buscarLancamentos: (notaId: string) => Promise<LancamentosTitulo>;
+  /** Histórico de correções de lançamentos do título, mais recente primeiro. */
+  buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
+  /** Corrige uma baixa (ou as glosas sem baixa) — ver utils/correcaoLancamento.ts. */
+  corrigirLancamento: (payload: CorrecaoLancamentoPayload) => Promise<string | null>;
+  /** Exclui uma baixa e as glosas dela, com motivo obrigatório. */
+  excluirBaixa: (recebimentoId: string, motivo: string) => Promise<string | null>;
   criarTitulo: (dados: {
     idsLote: number[];
     numeroNota: string;
@@ -393,10 +418,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   }, []);
 
   // Issue 39: histórico de baixas por título, sob demanda ao expandir a linha
-  // (mesmo padrão de buscarGuias). `registrado_por_id` referencia auth.users,
-  // não user_profiles — sem FK direta entre as duas tabelas o PostgREST não
-  // embeda o nome num select só, então resolve em duas idas: as baixas, depois
-  // os nomes dos ids distintos encontrados.
+  // (mesmo padrão de buscarGuias).
   const buscarBaixas = useCallback(async (notaId: string): Promise<TituloBaixa[]> => {
     const { data, error: erro } = await supabase
       .from('recebimentos')
@@ -406,19 +428,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       .order('created_at', { ascending: false });
     if (erro) throw new Error(erro.message);
     const linhas = data ?? [];
-
-    const idsUsuarios = [...new Set(
-      linhas.map((l) => l.registrado_por_id as string | null).filter((id): id is string => Boolean(id)),
-    )];
-    let nomePorId: Record<string, string> = {};
-    if (idsUsuarios.length > 0) {
-      const { data: perfis, error: erroPerfis } = await supabase
-        .from('user_profiles')
-        .select('id, name')
-        .in('id', idsUsuarios);
-      if (erroPerfis) throw new Error(erroPerfis.message);
-      nomePorId = Object.fromEntries((perfis ?? []).map((p) => [p.id as string, p.name as string]));
-    }
+    const nomePorId = await nomesDosUsuarios(linhas.map((l) => l.registrado_por_id as string | null));
 
     return linhas.map((linha) => ({
       id: linha.id_receb as string,
@@ -428,6 +438,84 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         ? (nomePorId[linha.registrado_por_id as string] ?? null)
         : null,
       createdAt: linha.created_at as string,
+    }));
+  }, []);
+
+  // Correção de lançamentos (.scratch/titulos-edicao-lancamentos): baixas com
+  // todos os campos digitados, cada uma com as glosas lançadas junto, mais as
+  // glosas sem baixa ("Lançar glosa" e backfill).
+  const buscarLancamentos = useCallback(async (notaId: string): Promise<LancamentosTitulo> => {
+    const [recebimentos, glosas] = await Promise.all([
+      supabase
+        .from('recebimentos')
+        .select('id_receb, data_receb, valor_recebido, forma_recebimento, banco_nome, banco_conta, observacoes, registrado_por_id, created_at')
+        .eq('nota_id', notaId)
+        // Só as que contam no recebido do título (filtro de fat_recalcular_nota);
+        // as 'previsto' do legado não são pagamento e a RPC recusa corrigi-las.
+        .in('status', ['recebido', 'parcial'])
+        .order('data_receb', { ascending: false, nullsFirst: false })
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('glosas')
+        .select('id_glosa, recebimento_id, valor, motivo, requisicao_id, lote_id, status')
+        .eq('nota_id', notaId)
+        .order('created_at', { ascending: true }),
+    ]);
+    if (recebimentos.error) throw new Error(recebimentos.error.message);
+    if (glosas.error) throw new Error(glosas.error.message);
+
+    const porBaixa = new Map<string | null, GlosaLancada[]>();
+    for (const linha of glosas.data ?? []) {
+      const chave = (linha.recebimento_id as string | null) ?? null;
+      const lista = porBaixa.get(chave) ?? [];
+      lista.push({
+        id: linha.id_glosa as string,
+        valor: num(linha.valor as number),
+        motivo: (linha.motivo as string | null) ?? '',
+        requisicaoId: (linha.requisicao_id as string | null) ?? null,
+        loteId: (linha.lote_id as string | null) ?? null,
+        status: linha.status as GlosaStatus,
+      });
+      porBaixa.set(chave, lista);
+    }
+
+    const linhas = recebimentos.data ?? [];
+    const nomePorId = await nomesDosUsuarios(linhas.map((l) => l.registrado_por_id as string | null));
+    return {
+      baixas: linhas.map((linha) => ({
+        id: linha.id_receb as string,
+        valorRecebido: num(linha.valor_recebido as number),
+        dataReceb: (linha.data_receb as string | null) ?? null,
+        formaRecebimento: (linha.forma_recebimento as string | null) ?? null,
+        bancoNome: (linha.banco_nome as string | null) ?? null,
+        bancoConta: (linha.banco_conta as string | null) ?? null,
+        observacoes: (linha.observacoes as string | null) ?? null,
+        registradoPorNome: linha.registrado_por_id
+          ? (nomePorId[linha.registrado_por_id as string] ?? null)
+          : null,
+        glosas: porBaixa.get(linha.id_receb as string) ?? [],
+      })),
+      glosasSemBaixa: porBaixa.get(null) ?? [],
+    };
+  }, []);
+
+  const buscarAlteracoes = useCallback(async (notaId: string): Promise<AlteracaoLancamento[]> => {
+    const { data, error: erro } = await supabase
+      .from('notas_lancamentos_audit_logs')
+      .select('id, entidade, acao, campo, valor_anterior, valor_novo, motivo, performed_by_name, performed_at')
+      .eq('nota_id', notaId)
+      .order('performed_at', { ascending: false });
+    if (erro) throw new Error(erro.message);
+    return (data ?? []).map((linha) => ({
+      id: linha.id as string,
+      entidade: linha.entidade as AlteracaoLancamento['entidade'],
+      acao: linha.acao as AlteracaoLancamento['acao'],
+      campo: (linha.campo as string | null) ?? null,
+      valorAnterior: (linha.valor_anterior as string | null) ?? null,
+      valorNovo: (linha.valor_novo as string | null) ?? null,
+      motivo: linha.motivo as string,
+      feitoPorNome: linha.performed_by_name as string,
+      feitoEm: linha.performed_at as string,
     }));
   }, []);
 
@@ -538,6 +626,42 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Não foi possível cancelar o título.';
+      setError(msg);
+      return msg;
+    }
+  }, [refetch]);
+
+  // RPC direto, como fat_registrar_baixa: não depende de nada que o navegador
+  // não alcance, e a RPC revalida canManageBilling e grava a auditoria na
+  // mesma transação.
+  const corrigirLancamento = useCallback(async (
+    payload: CorrecaoLancamentoPayload,
+  ): Promise<string | null> => {
+    setError(null);
+    try {
+      const { error: erro } = await supabase.rpc('fat_corrigir_lancamento', { p: payload });
+      if (erro) throw new Error(erro.message);
+      await refetch();
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Não foi possível corrigir o lançamento.';
+      setError(msg);
+      return msg;
+    }
+  }, [refetch]);
+
+  const excluirBaixa = useCallback(async (recebimentoId: string, motivo: string): Promise<string | null> => {
+    setError(null);
+    try {
+      const { error: erro } = await supabase.rpc('fat_excluir_baixa', {
+        p_recebimento_id: recebimentoId,
+        p_motivo: motivo,
+      });
+      if (erro) throw new Error(erro.message);
+      await refetch();
+      return null;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Não foi possível excluir a baixa.';
       setError(msg);
       return msg;
     }
@@ -690,6 +814,10 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     buscarGuias,
     buscarEnvioLotes,
     buscarBaixas,
+    buscarLancamentos,
+    buscarAlteracoes,
+    corrigirLancamento,
+    excluirBaixa,
     criarTitulo,
     registrarBaixa,
     lancarGlosas,

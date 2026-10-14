@@ -876,3 +876,72 @@ export interface ImagemRequisicaoLegado {
   /** false quando a linha existe no apLIS mas ainda não foi digitalizada. */
   disponivel: boolean;
 }
+
+// ============================================================================
+// CORREÇÃO DE LANÇAMENTOS (.scratch/titulos-edicao-lancamentos)
+// ============================================================================
+
+/** Campos digitados de uma baixa — os que a correção pode alterar. */
+export interface BaixaCampos {
+  valorRecebido: number;
+  /** YYYY-MM-DD. */
+  dataReceb: string | null;
+  formaRecebimento: string | null;
+  bancoNome: string | null;
+  bancoConta: string | null;
+  observacoes: string | null;
+}
+
+/** Campos digitados de uma glosa que a correção pode alterar. O status fica
+ *  de fora de propósito: tem fluxo próprio em Glosas & Recursos. */
+export interface GlosaCampos {
+  valor: number;
+  motivo: string;
+  requisicaoId: string | null;
+  loteId: string | null;
+}
+
+export interface GlosaLancada extends GlosaCampos {
+  id: string;
+  status: GlosaStatus;
+}
+
+/** Uma baixa do título com as glosas lançadas junto dela. */
+export interface BaixaLancada extends BaixaCampos {
+  id: string;
+  registradoPorNome: string | null;
+  glosas: GlosaLancada[];
+}
+
+/** Tudo o que foi lançado à mão num título: as baixas (com suas glosas) e as
+ *  glosas sem baixa ("Lançar glosa" e backfill). */
+export interface LancamentosTitulo {
+  baixas: BaixaLancada[];
+  glosasSemBaixa: GlosaLancada[];
+}
+
+/** Corpo de `fat_corrigir_lancamento`. `recebimentoId` null = grupo das glosas
+ *  sem baixa do título (aí `baixa` nunca vem). */
+export interface CorrecaoLancamentoPayload {
+  notaId: string;
+  recebimentoId: string | null;
+  motivo: string;
+  /** Presente só quando algum campo da baixa mudou — e então completo. */
+  baixa?: BaixaCampos;
+  glosasAlteradas: (GlosaCampos & { id: string })[];
+  glosasNovas: (GlosaCampos & { status: GlosaStatus })[];
+  glosasExcluidas: string[];
+}
+
+/** Linha de `notas_lancamentos_audit_logs`, para a seção "Alterações". */
+export interface AlteracaoLancamento {
+  id: string;
+  entidade: 'baixa' | 'glosa';
+  acao: 'alteracao' | 'inclusao' | 'exclusao';
+  campo: string | null;
+  valorAnterior: string | null;
+  valorNovo: string | null;
+  motivo: string;
+  feitoPorNome: string;
+  feitoEm: string;
+}

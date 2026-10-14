@@ -115,7 +115,8 @@ const ContasReceberPage: React.FC = () => {
 
   const {
     titulos, operadoras, total, loading, error, refetch, refetchOperadoras,
-    buscarGuias, buscarEnvioLotes, buscarBaixas, criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
+    buscarGuias, buscarEnvioLotes, buscarBaixas, buscarLancamentos, buscarAlteracoes, corrigirLancamento, excluirBaixa,
+    criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
     atualizarNumeroNota, desvincularLote, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
   } = useContasReceber(parametros);
 
@@ -323,6 +324,7 @@ const ContasReceberPage: React.FC = () => {
           buscarGuias={buscarGuias}
           buscarEnvioLotes={buscarEnvioLotes}
           buscarBaixas={buscarBaixas}
+          buscarAlteracoes={buscarAlteracoes}
         />
       )}
 
@@ -403,6 +405,10 @@ const ContasReceberPage: React.FC = () => {
         titulo={tituloEditar}
         onFechar={() => setTituloEditar(null)}
         onSalvar={atualizarNumeroNota}
+        buscarLancamentos={buscarLancamentos}
+        buscarGuias={buscarGuias}
+        onCorrigirLancamento={corrigirLancamento}
+        onExcluirBaixa={excluirBaixa}
       />
     </div>
   );
