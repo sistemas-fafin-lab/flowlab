@@ -16,7 +16,7 @@ temporário.
 
 **Blocked by:** 04, 05
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] Usuário com `canManageAllBoards` e acesso a mais de um board vê um
       seletor ao entrar em `/board`.
@@ -26,3 +26,7 @@ temporário.
 - [ ] Usuário com acesso a exatamente um board (o do próprio cargo, sem
       `canManageAllBoards`) não vê seletor — cai direto no seu board.
 - [ ] `npm run lint` e typecheck limpos.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

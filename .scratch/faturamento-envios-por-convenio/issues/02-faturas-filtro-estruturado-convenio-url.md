@@ -25,7 +25,7 @@ cá ainda.
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [ ] É possível filtrar a lista de lotes por um convênio específico de
       forma exata (por id), sem depender de correspondência aproximada de
@@ -37,3 +37,7 @@ cá ainda.
       (período padrão local, sem filtro de convênio, busca livre como está)
 - [ ] O filtro de busca livre existente continua funcionando normalmente,
       sem regressão
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

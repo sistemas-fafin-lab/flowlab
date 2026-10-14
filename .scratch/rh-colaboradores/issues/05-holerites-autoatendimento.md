@@ -22,7 +22,7 @@ Escopo mínimo de propósito: resolver a dor de acesso a holerite. Fica de fora 
 **Blocked by:** Nenhuma pendente — 01 (schema/backfill de colaboradores) e 03
 (vínculo usuário↔colaborador) já foram implementadas.
 
-**Status:** ready-for-agent
+**Status:** done
 
 ## Schema e storage
 
@@ -105,3 +105,7 @@ Escopo mínimo de propósito: resolver a dor de acesso a holerite. Fica de fora 
 - Campo de "data de corte" agendada para acesso de ex-colaborador — o controle de quando
   desativar o acesso continua manual, via `disabled_at` (já existente em `user_profiles`);
   RH simplesmente não desativa a conta até a janela de acesso a rescisão/IR terminar.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).

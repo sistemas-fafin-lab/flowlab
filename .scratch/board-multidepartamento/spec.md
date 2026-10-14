@@ -1,6 +1,6 @@
 # Board (Kanban) multi-departamento
 
-Status: ready-for-agent
+Status: done
 
 Spec resultante de sessão de grilling com o usuário em 2026-08-21. Generaliza o
 Kanban hoje exclusivo do time de TI (`src/components/IT/ITKanbanBoard.tsx`,
@@ -219,3 +219,7 @@ co-localizado.
   outras permissions) — o usuário confirmou que fará ele mesmo o trabalho de
   marcar `canManageBoard` e vincular `board_id` nesses cargos existentes,
   então a spec não prevê criação de cargo novo dedicado.
+
+## Comments
+
+14/10/2026 — conferido no código: implementado (o status estava desatualizado).
