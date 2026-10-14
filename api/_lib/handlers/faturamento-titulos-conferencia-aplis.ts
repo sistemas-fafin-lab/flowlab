@@ -20,16 +20,13 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { recebidosDosLotes } from '../faturamento/bdLab.js';
 import { conferirTitulo } from '../faturamento/conferenciaAplis.js';
 import type { DivergenciaAplis, TipoDivergenciaAplis, TituloConferencia } from '../faturamento/conferenciaAplis.js';
+import { ErroSupabase, titulosParaConferir } from '../faturamento/titulosConferencia.js';
 import { getSupabaseUserClient } from '../supabase.js';
-
-/** Página do PostgREST (max-rows padrão do Supabase). */
-const PAGINA_NOTAS = 1000;
 
 /** Ordem de exibição: o dinheiro que entrou e não foi lançado primeiro. */
 const ORDEM_TIPO: Record<TipoDivergenciaAplis, number> = {
@@ -38,62 +35,6 @@ const ORDEM_TIPO: Record<TipoDivergenciaAplis, number> = {
   'sistema-maior': 2,
   'lote-ausente': 3,
 };
-
-class ErroSupabase extends Error {}
-
-/** numeric do Postgres pode chegar como string; nulo conta como 0. */
-function valor(bruto: unknown): number {
-  const n = Number(bruto ?? 0);
-  return Number.isFinite(n) ? n : 0;
-}
-
-/** Títulos não cancelados cujos lotes têm todos `aplis_id`. */
-async function titulosParaConferir(supabase: SupabaseClient): Promise<TituloConferencia[]> {
-  const titulos: TituloConferencia[] = [];
-  for (let offset = 0; ; offset += PAGINA_NOTAS) {
-    const { data, error } = await supabase
-      .from('notas')
-      .select(
-        'id_nota, numero_nota, status, data_emissao, valor_total, valor_recebido, valor_glosado, '
-        + 'operadoras(nome), nota_lote(lotes(aplis_id))',
-      )
-      .neq('status', 'cancelada')
-      .order('id_nota', { ascending: true })
-      .range(offset, offset + PAGINA_NOTAS - 1);
-    if (error) throw new ErroSupabase(`notas: ${error.message}`);
-    const pagina = (data ?? []) as unknown as {
-      id_nota: string;
-      numero_nota: string | null;
-      status: string;
-      data_emissao: string | null;
-      valor_total: unknown;
-      valor_recebido: unknown;
-      valor_glosado: unknown;
-      operadoras: { nome: string | null } | null;
-      nota_lote: { lotes: { aplis_id: string | null } | null }[] | null;
-    }[];
-    for (const nota of pagina) {
-      const vinculos = nota.nota_lote ?? [];
-      const idsLote = vinculos
-        .map((vinculo) => Number(vinculo.lotes?.aplis_id ?? NaN))
-        .filter((id) => Number.isInteger(id) && id > 0);
-      if (vinculos.length === 0 || idsLote.length !== vinculos.length) continue;
-      titulos.push({
-        idNota: nota.id_nota,
-        numeroNota: nota.numero_nota || null,
-        operadora: nota.operadoras?.nome ?? '—',
-        status: nota.status,
-        dataEmissao: nota.data_emissao,
-        valorTotal: valor(nota.valor_total),
-        recebidoSistema: valor(nota.valor_recebido),
-        glosadoSistema: valor(nota.valor_glosado),
-        idsLote,
-      });
-    }
-    if (pagina.length < PAGINA_NOTAS) break;
-  }
-  return titulos;
-}
 
 function diferenca(d: DivergenciaAplis): number {
   return Math.abs((d.recebidoAplis ?? 0) - d.recebidoSistema);

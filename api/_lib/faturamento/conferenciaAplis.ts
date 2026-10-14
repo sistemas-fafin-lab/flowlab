@@ -38,7 +38,8 @@ export interface DivergenciaAplis extends Omit<TituloConferencia, 'idsLote'> {
   tipo: TipoDivergenciaAplis;
 }
 
-function centavos(valor: number): number {
+/** Real → centavos inteiros: régua de comparação sem erro de ponto flutuante. */
+export function centavos(valor: number): number {
   return Math.round(valor * 100);
 }
 

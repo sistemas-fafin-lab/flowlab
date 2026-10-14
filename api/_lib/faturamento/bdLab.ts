@@ -961,6 +961,59 @@ export async function recebidosDosLotes(idsLote: number[]): Promise<RecebidosDos
   });
 }
 
+/** Recebido no apLIS de um lote numa data — as baixas sugeridas dos títulos. */
+export interface RecebidoLoteNaData {
+  /** YYYY-MM-DD (`DATE(DtaRecebido)`). */
+  data: string;
+  valor: number;
+}
+
+export type RecebidosPorDataDosLotesResultado =
+  | { porLote: Record<number, RecebidoLoteNaData[]> }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Recebido no apLIS por lote e por data: `SUM(ValorRecebido)` dos procedimentos
+ * das requisições do lote agrupado por `DATE(DtaRecebido)`, só com
+ * `ValorRecebido > 0` (glosa total não é depósito). Cada data vira uma baixa
+ * sugerida (.scratch/faturamento-baixas-automaticas-aplis/spec.md). Lote sem
+ * recebimento fica fora do mapa. Blocos de 1.000 lotes, como `recebidosDosLotes`.
+ *
+ * O GROUP BY repete o DATE_FORMAT do SELECT: a réplica roda com
+ * `only_full_group_by` e recusa `GROUP BY DATE(...)` com o SELECT formatado.
+ */
+export async function recebidosPorDataDosLotes(idsLote: number[]): Promise<RecebidosPorDataDosLotesResultado> {
+  const ids = [...new Set(idsLote.map((n) => Math.trunc(n)))];
+  if (ids.length === 0) return { porLote: {} };
+
+  return comConexao('recebidosPorDataDosLotes', async (conn) => {
+    const porLote: Record<number, RecebidoLoteNaData[]> = {};
+    for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
+      const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
+      const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT r.Lote AS IdLote,
+                DATE_FORMAT(p.DtaRecebido, '%Y-%m-%d') AS Data,
+                SUM(p.ValorRecebido) AS Valor
+           FROM requisicao r
+           JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
+          WHERE r.Lote IN (${bloco.map(() => '?').join(', ')})
+            AND p.ValorRecebido > 0
+            AND p.DtaRecebido IS NOT NULL
+          GROUP BY r.Lote, DATE_FORMAT(p.DtaRecebido, '%Y-%m-%d')
+          ORDER BY r.Lote, Data`,
+        bloco,
+      );
+      for (const linha of linhas) {
+        const data = dataIso(linha.Data);
+        if (!data) continue;
+        const idLote = numero(linha.IdLote);
+        (porLote[idLote] ??= []).push({ data, valor: numero(linha.Valor) });
+      }
+    }
+    return { porLote };
+  });
+}
+
 // Uma consulta só, achatada (requisição × procedimento), agrupada em memória: são
 // dezenas de linhas por lote (o maior lote de julho deu 50) e duas viagens ao túnel
 // custariam mais que o agrupamento.
