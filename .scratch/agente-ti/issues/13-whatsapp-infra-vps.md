@@ -23,7 +23,7 @@ Plano: §2 (D9), §3 (WAHA), §11 e §16.
   - `SUPABASE_URL` e `SUPABASE_SERVICE_ROLE_KEY` do projeto **do app** (o do `VITE_SUPABASE_URL`), não o de teste.
   
   Todas sem prefixo `VITE_`. O `install.sh` grava essas variáveis em `/etc/flowlab/eva-whatsapp.env` (600).
-- [ ] Depois da 12: instalar o timer e conferir com `systemctl list-timers`. Modo recomendado, sem clonar o repositório:
+- [x] Depois da 12: instalar o timer e conferir com `systemctl list-timers`. Modo recomendado, sem clonar o repositório:
   1. `npm run eva-build-outbox` na máquina de desenvolvimento;
   2. copiar `dist/eva-whatsapp.mjs` e `dist/install.sh` para a VPS;
   3. rodar `sudo ARQUIVO=~/eva-whatsapp.mjs SUPABASE_URL=… SUPABASE_SERVICE_ROLE_KEY=… WAHA_API_KEY=… bash ~/install.sh`.
@@ -32,6 +32,21 @@ Plano: §2 (D9), §3 (WAHA), §11 e §16.
 - [ ] Depois da 12: cadastrar pelo menos um membro com WhatsApp, ligar o WhatsApp em Configurações e usar **"Enviar teste"**. A mensagem precisa chegar no celular.
 
 ## Comments
+
+**14/Out/2026 — timer instalado na VPS** (`vmi3236168`, modo arquivo único em `/opt/flowlab-eva`).
+- **O WAHA desta VPS** está publicado em `127.0.0.1:4000`, não na 3000. O `WAHA_URL` gravado é `http://127.0.0.1:4000`.
+- **A chave do WAHA** foi lida do próprio container (`WAHA_API_KEY`, texto puro) na hora da instalação, sem passar pelo chat.
+- **Conferido:**
+  - `--dry-run` na VPS com `"sessao": "WORKING"`;
+  - o timer roda a cada minuto (`Result=success`);
+  - no banco, `waha_status = WORKING`, com `waha_verificado_em` atualizado.
+- **Tropeços no caminho:**
+  - o script rodado fora de um checkout deu `ERR_MODULE_NOT_FOUND`, o que levou ao arquivo único;
+  - a porta 3000 deu "fetch failed";
+  - o `…` das instruções colado no lugar da chave deu "Cannot convert argument to a ByteString".
+  
+  Os três agora têm mensagem clara no script.
+- **Falta:** cadastrar o WhatsApp e a adesão de um membro e usar "Enviar teste".
 
 **14/Out/2026 — sessão criada e endpoint conferido.**
 - **Sessão:** chama-se **`eva`** (não `ti_agente`, como planejado). O código passou a usar `eva` por padrão no script da VPS, no instalador e no webhook, e `WAHA_SESSION` só é preciso se o nome mudar.
