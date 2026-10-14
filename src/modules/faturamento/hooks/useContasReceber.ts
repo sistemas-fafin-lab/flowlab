@@ -139,6 +139,11 @@ interface LinhaTitulo {
   }[] | null;
 }
 
+const SELECT_TITULO = `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
+  valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes, updated_at,
+  operadoras(nome),
+  nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes, responsavel_fechamento))`;
+
 const num = (bruto: number | string | null | undefined): number => {
   const n = Number(bruto ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -188,6 +193,9 @@ interface UseContasReceberResult {
   refetch: () => Promise<void>;
   /** Recarrega o seletor de operadoras — chamado depois de sincronizar com o apLIS. */
   refetchOperadoras: () => Promise<void>;
+  /** Um título pelo id, fora dos filtros da lista — a conferência com o apLIS
+   *  abre títulos que não estão na página atual. */
+  buscarTitulo: (notaId: string) => Promise<TituloReceber>;
   /** Guias congeladas de um lote, sob demanda ao expandir a linha. Sempre um
    *  array — nunca undefined, mesmo sem nenhuma guia. */
   buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
@@ -262,13 +270,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     try {
       let query = supabase
         .from('notas')
-        .select(
-          `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
-           valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes, updated_at,
-           operadoras(nome),
-           nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes, responsavel_fechamento))${glosa ? ', glosas(id_glosa)' : ''}`,
-          { count: 'exact' },
-        )
+        .select(`${SELECT_TITULO}${glosa ? ', glosas(id_glosa)' : ''}`, { count: 'exact' })
         // Referência do período é a EMISSÃO (revisão de 2026-09-24 sobre a
         // issue 40, que tinha escolhido vencimento): filtrar por vencimento
         // fazia um título emitido em agosto sumir do período de agosto. A
@@ -390,6 +392,17 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   useEffect(() => {
     void refetchOperadoras();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const buscarTitulo = useCallback(async (notaId: string): Promise<TituloReceber> => {
+    const { data, error: erro } = await supabase
+      .from('notas')
+      .select(SELECT_TITULO)
+      .eq('id_nota', notaId)
+      .maybeSingle();
+    if (erro) throw new Error(erro.message);
+    if (!data) throw new Error('Título não encontrado.');
+    return normalizar(data as unknown as LinhaTitulo);
   }, []);
 
   const buscarGuias = useCallback(async (loteId: string) => {
@@ -813,6 +826,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     error,
     refetch,
     refetchOperadoras,
+    buscarTitulo,
     buscarGuias,
     buscarEnvioLotes,
     buscarBaixas,

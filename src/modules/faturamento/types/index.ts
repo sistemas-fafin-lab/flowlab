@@ -223,6 +223,34 @@ export interface PreviaAplis {
   nfsAPreencher: NfAPreencherAplis[];
 }
 
+/** Tipos da conferência das baixas com o apLIS
+ *  (.scratch/faturamento-conferencia-baixas-aplis), na ordem de exibição. */
+export type TipoDivergenciaAplis = 'so-no-aplis' | 'aplis-maior' | 'sistema-maior' | 'lote-ausente';
+
+/** Título divergente (GET /api/faturamento/titulos-conferencia-aplis). */
+export interface DivergenciaAplis {
+  idNota: string;
+  numeroNota: string | null;
+  operadora: string;
+  status: string;
+  dataEmissao: string | null;
+  valorTotal: number;
+  recebidoSistema: number;
+  glosadoSistema: number;
+  /** null quando algum lote não existe no MySQL (`lote-ausente`). */
+  recebidoAplis: number | null;
+  primeiroRecebimentoAplis: string | null;
+  ultimoRecebimentoAplis: string | null;
+  lotes: { aplisId: number; statusAplis: string | null; recebidoAplis: number | null }[];
+  tipo: TipoDivergenciaAplis;
+}
+
+export interface ConferenciaAplis {
+  /** Último dia que a réplica do apLIS tem (YYYY-MM-DD). */
+  dadoAte: string | null;
+  titulos: DivergenciaAplis[];
+}
+
 export interface LotesMeta {
   pagina: number;
   tamanho: number;
