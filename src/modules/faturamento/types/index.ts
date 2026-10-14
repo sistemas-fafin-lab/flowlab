@@ -266,6 +266,8 @@ export type StatusGlosaAplis = Exclude<GlosaStatus, 'revertida'>;
 export interface GlosaSugeridaAplis {
   /** `aplis_id` do lote. */
   idLote: number;
+  /** `lotes.id_lote` — o lote que `fat_lancar_glosas_aplis` grava na glosa. */
+  loteId: string;
   codigo: string | null;
   motivo: string;
   status: StatusGlosaAplis;
@@ -276,7 +278,7 @@ export interface GlosaSugeridaAplis {
 /** Por que o título não tem glosa a lançar. 'tipo': `sistema-maior` ou `lote-ausente`. */
 export type PuladoGlosaAplis = 'sem-motivo' | 'glosa-manual' | 'passa-do-saldo' | 'sem-nota' | 'tipo';
 
-/** Título da prévia "Aplicar baixas do apLIS"
+/** Título da prévia "Aplicar baixas e glosas do apLIS"
  *  (GET /api/faturamento/titulos-baixas-aplis-previa). */
 export interface TituloPreviaBaixasAplis {
   idNota: string;

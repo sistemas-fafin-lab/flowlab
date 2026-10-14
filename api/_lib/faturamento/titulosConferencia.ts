@@ -6,6 +6,13 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TituloConferencia } from './conferenciaAplis.js';
 
+/** Título da conferência com o id no sistema de cada lote — a prévia das glosas
+ *  grava a glosa no lote (`glosas.lote_id`). */
+export interface TituloParaConferir extends TituloConferencia {
+  /** `aplis_id` → `lotes.id_lote`. */
+  idLoteSistema: Record<number, string>;
+}
+
 /** Página do PostgREST (max-rows padrão do Supabase). */
 const PAGINA_NOTAS = 1000;
 
@@ -23,14 +30,14 @@ export function valorNumerico(bruto: unknown): number {
  * sem `aplis_id` (criado fora do apLIS) fica de fora: o recebido do apLIS seria
  * só de parte dele.
  */
-export async function titulosParaConferir(supabase: SupabaseClient): Promise<TituloConferencia[]> {
-  const titulos: TituloConferencia[] = [];
+export async function titulosParaConferir(supabase: SupabaseClient): Promise<TituloParaConferir[]> {
+  const titulos: TituloParaConferir[] = [];
   for (let offset = 0; ; offset += PAGINA_NOTAS) {
     const { data, error } = await supabase
       .from('notas')
       .select(
         'id_nota, numero_nota, status, data_emissao, valor_total, valor_recebido, valor_glosado, '
-        + 'operadoras(nome), nota_lote(lotes(aplis_id))',
+        + 'operadoras(nome), nota_lote(lotes(id_lote, aplis_id))',
       )
       .neq('status', 'cancelada')
       .order('id_nota', { ascending: true })
@@ -45,13 +52,18 @@ export async function titulosParaConferir(supabase: SupabaseClient): Promise<Tit
       valor_recebido: unknown;
       valor_glosado: unknown;
       operadoras: { nome: string | null } | null;
-      nota_lote: { lotes: { aplis_id: string | null } | null }[] | null;
+      nota_lote: { lotes: { id_lote: string; aplis_id: string | null } | null }[] | null;
     }[];
     for (const nota of pagina) {
       const vinculos = nota.nota_lote ?? [];
-      const idsLote = vinculos
-        .map((vinculo) => Number(vinculo.lotes?.aplis_id ?? NaN))
-        .filter((id) => Number.isInteger(id) && id > 0);
+      const idsLote: number[] = [];
+      const idLoteSistema: Record<number, string> = {};
+      for (const { lotes } of vinculos) {
+        const id = Number(lotes?.aplis_id ?? NaN);
+        if (!lotes || !Number.isInteger(id) || id <= 0) continue;
+        idsLote.push(id);
+        idLoteSistema[id] = lotes.id_lote;
+      }
       if (vinculos.length === 0 || idsLote.length !== vinculos.length) continue;
       titulos.push({
         idNota: nota.id_nota,
@@ -63,6 +75,7 @@ export async function titulosParaConferir(supabase: SupabaseClient): Promise<Tit
         recebidoSistema: valorNumerico(nota.valor_recebido),
         glosadoSistema: valorNumerico(nota.valor_glosado),
         idsLote,
+        idLoteSistema,
       });
     }
     if (pagina.length < PAGINA_NOTAS) break;

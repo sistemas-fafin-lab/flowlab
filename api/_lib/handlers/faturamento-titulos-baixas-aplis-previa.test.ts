@@ -117,7 +117,7 @@ function nota(idNota: string, aplisIds: (string | null)[], extra: Linha = {}): L
     valor_recebido: 0,
     valor_glosado: 0,
     operadoras: { nome: 'AMHP-DF' },
-    nota_lote: aplisIds.map((aplis) => ({ lotes: { aplis_id: aplis } })),
+    nota_lote: aplisIds.map((aplis) => ({ lotes: { id_lote: `uuid-${aplis}`, aplis_id: aplis } })),
     ...extra,
   };
 }
@@ -188,6 +188,20 @@ function diferenca(idLote: number, overrides: Partial<DiferencaAplis> = {}): Dif
     valor: 867.86,
     procedimentos: 475,
     ...overrides,
+  };
+}
+
+// Glosa já lançada, no formato do select de glosas (lote embutido).
+function glosaLancada(notaId: string, extra: Linha = {}): Linha {
+  return {
+    nota_id: notaId,
+    origem: null,
+    codigo_glosa: null,
+    motivo: 'Glosa digitada',
+    status: 'aberta',
+    valor: 100,
+    lotes: null,
+    ...extra,
   };
 }
 
@@ -361,6 +375,7 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
         saldo: 867.86,
         glosas: [{
           idLote: 6228,
+          loteId: 'uuid-6228',
           codigo: '2902',
           motivo: 'GLOSA MANTIDA',
           status: 'aberta',
@@ -421,17 +436,51 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
       })]);
     });
 
-    it('título com glosa já lançada sai com a glosa pulada (glosa-manual)', async () => {
+    it('título com glosa digitada à mão sai com a glosa pulada (glosa-manual)', async () => {
       const res = await executar(
         {
           notas: [nota('nf-9124', ['6228'], { valor_total: 2000, valor_recebido: 1132.14, valor_glosado: 100 })],
-          glosas: [{ nota_id: 'nf-9124' }, { nota_id: 'outro' }],
+          glosas: [glosaLancada('nf-9124'), glosaLancada('outro')],
         },
         { 6228: recebido(1132.14) },
         {},
         { 6228: [diferenca(6228)] },
       );
       expect(res.body.titulos).toEqual([expect.objectContaining({ glosas: [], puladoGlosa: 'glosa-manual' })]);
+    });
+
+    it('glosa do apLIS já lançada: sugere só o que o apLIS glosou a mais no lote + código', async () => {
+      const res = await executar(
+        {
+          notas: [nota('nf-9124', ['6228'], { valor_total: 2000, valor_recebido: 1132.14, valor_glosado: 800 })],
+          glosas: [glosaLancada('nf-9124', {
+            origem: 'aplis', codigo_glosa: '2902', motivo: 'GLOSA MANTIDA', valor: '800.00', lotes: { aplis_id: '6228' },
+          })],
+        },
+        { 6228: recebido(1132.14) },
+        {},
+        { 6228: [diferenca(6228)] },
+      );
+      expect(res.body.titulos).toEqual([expect.objectContaining({
+        saldo: 67.86,
+        glosas: [expect.objectContaining({ idLote: 6228, loteId: 'uuid-6228', codigo: '2902', valor: 67.86 })],
+        puladoGlosa: null,
+      })]);
+    });
+
+    it('glosa do apLIS lançada inteira e título fechado: fica fora da prévia', async () => {
+      const res = await executar(
+        {
+          notas: [nota('nf-9124', ['6228'], { valor_total: 2000, valor_recebido: 1132.14, valor_glosado: 867.86 })],
+          glosas: [glosaLancada('nf-9124', {
+            origem: 'aplis', codigo_glosa: '2902', valor: 867.86, lotes: { aplis_id: '6228' },
+          })],
+        },
+        { 6228: recebido(1132.14) },
+        {},
+        { 6228: [diferenca(6228)] },
+      );
+      expect(res.body.titulos).toEqual([]);
     });
 
     it('diferença só sem motivo: entra pulada (sem-motivo)', async () => {
@@ -450,7 +499,7 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
           notas: [nota('fechado', ['6228'], {
             status: 'liquidada', valor_total: 2000, valor_recebido: 1132.14, valor_glosado: 867.86,
           })],
-          glosas: [{ nota_id: 'fechado' }],
+          glosas: [glosaLancada('fechado')],
         },
         { 6228: recebido(1132.14) },
         {},

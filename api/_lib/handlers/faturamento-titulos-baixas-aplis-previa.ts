@@ -14,7 +14,9 @@
  * (`puladoGlosa`), regra em faturamento/glosasAplis.ts. Entra também o título sem
  * baixa a lançar — recebido batendo, `sistema-maior` ou `lote-ausente` — quando
  * tem saldo aberto (≥ R$ 1,00) e diferença no apLIS; fechado, ficaria na prévia
- * para sempre como pulado.
+ * para sempre como pulado. As glosas já lançadas do apLIS (`glosas.origem`)
+ * descontam da sugestão; cada glosa leva o `loteId` (uuid do lote no sistema)
+ * que `fat_lancar_glosas_aplis` grava.
  *
  * Fonte do apLIS: MySQL de backup (`recebidosDosLotes`, `recebidosPorDataDosLotes`
  * e `diferencasDosLotes`), ~1 dia de atraso — `meta.dadoAte` diz até quando.
@@ -35,8 +37,9 @@ import type { BaixaSistema, BaixaSugerida, RecebidoAplisNaData, TipoComBaixa } f
 import { centavos, conferirTitulo, somaCentavos } from '../faturamento/conferenciaAplis.js';
 import type { DivergenciaAplis, TipoDivergenciaAplis, TituloConferencia } from '../faturamento/conferenciaAplis.js';
 import { glosasSugeridas } from '../faturamento/glosasAplis.js';
-import type { GlosaSugerida, PuladoGlosa } from '../faturamento/glosasAplis.js';
+import type { GlosaSistema, GlosaSugerida, PuladoGlosa } from '../faturamento/glosasAplis.js';
 import { ErroSupabase, titulosParaConferir, valorNumerico } from '../faturamento/titulosConferencia.js';
+import type { TituloParaConferir } from '../faturamento/titulosConferencia.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
 /** Ids por `.in()`: uuid de 36 caracteres → ~4 KB de URL por bloco. */
@@ -58,7 +61,7 @@ interface TituloPrevia {
   pulado: 'sem-nota' | null;
   /** Saldo do título depois das baixas sugeridas. */
   saldo: number;
-  glosas: GlosaSugerida[];
+  glosas: (GlosaSugerida & { loteId: string })[];
   puladoGlosa: PuladoGlosa | null;
 }
 
@@ -89,20 +92,38 @@ async function baixasDoSistema(
   return porNota;
 }
 
-/** Quantas glosas cada título já tem no sistema (qualquer status). */
+/** Glosas que cada título já tem no sistema (qualquer status), com a origem e o lote. */
 async function glosasDoSistema(
   supabase: SupabaseClient,
   idsNota: string[],
-): Promise<Map<string, number>> {
-  const porNota = new Map<string, number>();
+): Promise<Map<string, GlosaSistema[]>> {
+  const porNota = new Map<string, GlosaSistema[]>();
   for (let i = 0; i < idsNota.length; i += BLOCO_IDS_NOTA) {
     const { data, error } = await supabase
       .from('glosas')
-      .select('nota_id')
+      .select('nota_id, origem, codigo_glosa, motivo, status, valor, lotes(aplis_id)')
       .in('nota_id', idsNota.slice(i, i + BLOCO_IDS_NOTA));
     if (error) throw new ErroSupabase(`glosas: ${error.message}`);
-    for (const linha of (data ?? []) as { nota_id: string }[]) {
-      porNota.set(linha.nota_id, (porNota.get(linha.nota_id) ?? 0) + 1);
+    for (const linha of (data ?? []) as unknown as {
+      nota_id: string;
+      origem: string | null;
+      codigo_glosa: string | null;
+      motivo: string | null;
+      status: GlosaSistema['status'];
+      valor: unknown;
+      lotes: { aplis_id: string | null } | null;
+    }[]) {
+      const idLote = Number(linha.lotes?.aplis_id ?? NaN);
+      const glosas = porNota.get(linha.nota_id) ?? [];
+      glosas.push({
+        origem: linha.origem === 'aplis' ? 'aplis' : null,
+        idLote: Number.isInteger(idLote) ? idLote : null,
+        codigo: linha.codigo_glosa,
+        motivo: linha.motivo ?? '',
+        status: linha.status,
+        valor: valorNumerico(linha.valor),
+      });
+      porNota.set(linha.nota_id, glosas);
     }
   }
   return porNota;
@@ -155,7 +176,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     const supabase = getSupabaseUserClient(token as string);
 
-    let titulos: TituloConferencia[];
+    let titulos: TituloParaConferir[];
     try {
       titulos = await titulosParaConferir(supabase);
     } catch (err) {
@@ -195,7 +216,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const diferencasDoTitulo = (t: TituloConferencia) => t.idsLote.flatMap((id) => diferencas.porLote[id] ?? []);
 
     let baixasSistema: Record<string, BaixaSistema[]>;
-    let glosasSistema: Map<string, number>;
+    let glosasSistema: Map<string, GlosaSistema[]>;
     try {
       baixasSistema = await baixasDoSistema(
         supabase,
@@ -233,7 +254,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         tipo: divergencia?.tipo ?? null,
         temNota: titulo.numeroNota !== null,
         saldo: saldoCentavos / 100,
-        glosasSistema: glosasSistema.get(titulo.idNota) ?? 0,
+        glosasSistema: glosasSistema.get(titulo.idNota) ?? [],
         diferencas: diferencasDoTitulo(titulo),
       });
       const entraPelaGlosa = saldoCentavos >= SALDO_MINIMO_CENTAVOS && (glosas.length > 0 || puladoGlosa !== null);
@@ -248,7 +269,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         baixas,
         pulado: geraBaixa && !titulo.numeroNota ? 'sem-nota' : null,
         saldo: saldoCentavos / 100,
-        glosas,
+        glosas: glosas.map((glosa) => ({ ...glosa, loteId: titulo.idLoteSistema[glosa.idLote] })),
         puladoGlosa,
       });
     }

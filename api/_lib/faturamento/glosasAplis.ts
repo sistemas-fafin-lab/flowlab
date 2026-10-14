@@ -44,6 +44,18 @@ export interface DiferencaAplis {
   procedimentos: number;
 }
 
+/** Glosa já lançada no título. */
+export interface GlosaSistema {
+  /** 'aplis': lançada pelo "Aplicar baixas e glosas do apLIS"; null: digitada à mão. */
+  origem: 'aplis' | null;
+  /** `aplis_id` do lote da glosa. */
+  idLote: number | null;
+  codigo: string | null;
+  motivo: string;
+  status: StatusGlosaAplis | 'revertida';
+  valor: number;
+}
+
 export interface GlosaSugerida {
   idLote: number;
   codigo: string | null;
@@ -59,8 +71,9 @@ export interface EntradaGlosasSugeridas {
   temNota: boolean;
   /** Saldo do título depois das baixas sugeridas. */
   saldo: number;
-  /** Glosas já lançadas no título (qualquer status): por ora todas contam como manuais. */
-  glosasSistema: number;
+  /** Glosas já lançadas no título (qualquer status). As do apLIS descontam da
+   *  sugestão; qualquer outra (digitada à mão) pula o título. */
+  glosasSistema: GlosaSistema[];
   diferencas: DiferencaAplis[];
 }
 
@@ -88,12 +101,41 @@ function codigoEMotivo(d: DiferencaAplis): { codigo: string | null; motivo: stri
   return { codigo: null, motivo: des };
 }
 
+/** Lote + código (sem código, o motivo em texto livre): a chave do desconto. */
+function chaveLoteCodigo(idLote: number | null, codigo: string | null, motivo: string): string {
+  return `${idLote}|${codigo ?? `texto:${motivo}`}`;
+}
+
+/**
+ * Desconta dos grupos, por lote + código, o que já foi lançado do apLIS (fora as
+ * revertidas). Primeiro do grupo de mesmo status, depois dos outros: a glosa
+ * lançada aberta continua contando quando o apLIS passa a requisição a definitiva
+ * (atualizar o status é fora do escopo).
+ */
+function descontarLancadas(
+  grupos: Map<string, { centavos: number; status: StatusGlosaAplis }>,
+  glosasSistema: GlosaSistema[],
+): void {
+  for (const lancada of glosasSistema) {
+    if (lancada.origem !== 'aplis' || lancada.status === 'revertida') continue;
+    const chave = chaveLoteCodigo(lancada.idLote, lancada.codigo, lancada.motivo);
+    const doLote = [...grupos].filter(([k]) => k.startsWith(`${chave}|`)).map(([, g]) => g);
+    doLote.sort((a, b) => Number(b.status === lancada.status) - Number(a.status === lancada.status));
+    let restante = centavos(lancada.valor);
+    for (const grupo of doLote) {
+      const desconto = Math.min(restante, grupo.centavos);
+      grupo.centavos -= desconto;
+      restante -= desconto;
+    }
+  }
+}
+
 /**
  * Glosas a lançar num título, ou o motivo de não lançar nenhuma. Uma por lote +
- * código + status (sem código, por motivo), com o valor somado em centavos;
- * grupo abaixo de R$ 0,01 fica fora. Título `sistema-maior`/`lote-ausente`, sem
- * número, com glosa já lançada ou cuja glosa passaria do saldo (tolerância
- * R$ 1,00) não recebe nenhuma.
+ * código + status (sem código, por motivo), com o valor somado em centavos e
+ * descontado o que já foi lançado do apLIS; grupo abaixo de R$ 0,01 fica fora.
+ * Título `sistema-maior`/`lote-ausente`, sem número, com glosa digitada à mão ou
+ * cuja glosa passaria do saldo (tolerância R$ 1,00) não recebe nenhuma.
  */
 export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosasSugeridas {
   const grupos = new Map<string, GlosaSugerida & { centavos: number }>();
@@ -105,13 +147,14 @@ export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosa
       continue;
     }
     const status = statusDa(d);
-    const chave = `${d.idLote}|${identificacao.codigo ?? `texto:${identificacao.motivo}`}|${status}`;
+    const chave = `${chaveLoteCodigo(d.idLote, identificacao.codigo, identificacao.motivo)}|${status}`;
     const grupo = grupos.get(chave)
       ?? { idLote: d.idLote, ...identificacao, status, valor: 0, procedimentos: 0, centavos: 0 };
     grupo.centavos += centavos(d.valor);
     grupo.procedimentos += d.procedimentos;
     grupos.set(chave, grupo);
   }
+  descontarLancadas(grupos, entrada.glosasSistema);
 
   const glosas = [...grupos.values()]
     .filter((g) => g.centavos >= 1)
@@ -129,7 +172,7 @@ export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosa
   if (entrada.tipo === 'sistema-maior' || entrada.tipo === 'lote-ausente') return pular('tipo');
   if (!entrada.temNota) return pular('sem-nota');
   if (glosas.length === 0) return pular('sem-motivo');
-  if (entrada.glosasSistema > 0) return pular('glosa-manual');
+  if (entrada.glosasSistema.some((g) => g.origem === null)) return pular('glosa-manual');
   if (somaCentavos(glosas) - centavos(entrada.saldo) > TOLERANCIA_SALDO_CENTAVOS) return pular('passa-do-saldo');
 
   return { glosas, puladoGlosa: null };

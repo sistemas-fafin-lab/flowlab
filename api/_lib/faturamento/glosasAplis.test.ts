@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { glosasSugeridas } from './glosasAplis.js';
-import type { DiferencaAplis, EntradaGlosasSugeridas } from './glosasAplis.js';
+import type { DiferencaAplis, EntradaGlosasSugeridas, GlosaSistema } from './glosasAplis.js';
 
 function diferenca(overrides: Partial<DiferencaAplis> = {}): DiferencaAplis {
   return {
@@ -16,12 +16,24 @@ function diferenca(overrides: Partial<DiferencaAplis> = {}): DiferencaAplis {
   };
 }
 
+function glosaSistema(overrides: Partial<GlosaSistema> = {}): GlosaSistema {
+  return {
+    origem: 'aplis',
+    idLote: 6228,
+    codigo: '2902',
+    motivo: 'GLOSA MANTIDA',
+    status: 'aberta',
+    valor: 100,
+    ...overrides,
+  };
+}
+
 function entrada(overrides: Partial<EntradaGlosasSugeridas> = {}): EntradaGlosasSugeridas {
   return {
     tipo: null,
     temNota: true,
     saldo: 10_000,
-    glosasSistema: 0,
+    glosasSistema: [],
     diferencas: [diferenca()],
     ...overrides,
   };
@@ -133,7 +145,9 @@ describe('glosasSugeridas', () => {
 
     it('sem diferença no apLIS → nada, sem pulado', () => {
       expect(glosasSugeridas(entrada({ diferencas: [] }))).toEqual({ glosas: [], puladoGlosa: null });
-      expect(glosasSugeridas(entrada({ diferencas: [], tipo: 'sistema-maior', temNota: false, glosasSistema: 2 })))
+      expect(glosasSugeridas(entrada({
+        diferencas: [], tipo: 'sistema-maior', temNota: false, glosasSistema: [glosaSistema({ origem: null })],
+      })))
         .toEqual({ glosas: [], puladoGlosa: null });
     });
 
@@ -155,8 +169,17 @@ describe('glosasSugeridas', () => {
       expect(glosasSugeridas(entrada({ temNota: false }))).toEqual({ glosas: [], puladoGlosa: 'sem-nota' });
     });
 
-    it('título com glosa já lançada no sistema → glosa-manual', () => {
-      expect(glosasSugeridas(entrada({ glosasSistema: 1 }))).toEqual({ glosas: [], puladoGlosa: 'glosa-manual' });
+    it('título com glosa digitada à mão (sem origem) → glosa-manual', () => {
+      expect(glosasSugeridas(entrada({ glosasSistema: [glosaSistema({ origem: null, idLote: null, codigo: null })] })))
+        .toEqual({ glosas: [], puladoGlosa: 'glosa-manual' });
+    });
+
+    it('glosa já lançada do apLIS não conta como manual', () => {
+      const resultado = glosasSugeridas(entrada({
+        glosasSistema: [glosaSistema({ idLote: 6229, valor: 30 })],
+      }));
+      expect(resultado.puladoGlosa).toBeNull();
+      expect(resultado.glosas).toHaveLength(1);
     });
 
     it('glosa que passa do saldo por mais de R$ 1,00 → passa-do-saldo', () => {
@@ -175,6 +198,60 @@ describe('glosasSugeridas', () => {
         diferencas: [diferenca({ valor: 100 }), diferenca({ idLote: 6229, valor: 100 })],
       }));
       expect(resultado).toEqual({ glosas: [], puladoGlosa: 'passa-do-saldo' });
+    });
+  });
+
+  describe('glosas do apLIS já lançadas', () => {
+    it('lançada inteira: não sugere de novo, nem como pulado', () => {
+      expect(glosasSugeridas(entrada({ glosasSistema: [glosaSistema({ valor: 100 })] })))
+        .toEqual({ glosas: [], puladoGlosa: null });
+    });
+
+    it('o apLIS aumentou a glosa do lote: sugere só a diferença', () => {
+      const resultado = glosasSugeridas(entrada({
+        diferencas: [diferenca({ valor: 150, procedimentos: 3 })],
+        glosasSistema: [glosaSistema({ valor: 100 })],
+      }));
+      expect(resultado.glosas).toEqual([expect.objectContaining({ idLote: 6228, codigo: '2902', valor: 50 })]);
+    });
+
+    it('desconta por título + lote + código: outro lote ou outro código não desconta', () => {
+      const resultado = glosasSugeridas(entrada({
+        diferencas: [diferenca({ valor: 100 }), diferenca({ idLote: 6229, valor: 40 })],
+        glosasSistema: [glosaSistema({ idLote: 6229, codigo: '1801', valor: 40 })],
+      }));
+      expect(resultado.glosas.map((g) => [g.idLote, g.valor])).toEqual([[6228, 100], [6229, 40]]);
+    });
+
+    it('a lançada desconta mesmo que o status no apLIS tenha mudado depois', () => {
+      // Lançada aberta; a requisição passou a 18 (definitiva) — atualizar o status fica fora do escopo.
+      const resultado = glosasSugeridas(entrada({
+        diferencas: [diferenca({ codEventoFatur: 18, valor: 100 })],
+        glosasSistema: [glosaSistema({ status: 'aberta', valor: 100 })],
+      }));
+      expect(resultado).toEqual({ glosas: [], puladoGlosa: null });
+    });
+
+    it('com mais de um status no lote + código, desconta primeiro do mesmo status', () => {
+      const resultado = glosasSugeridas(entrada({
+        diferencas: [diferenca({ codEventoFatur: 6, valor: 30 }), diferenca({ codEventoFatur: 18, valor: 70 })],
+        glosasSistema: [glosaSistema({ status: 'definitiva', valor: 70 })],
+      }));
+      expect(resultado.glosas.map((g) => [g.status, g.valor])).toEqual([['aberta', 30]]);
+    });
+
+    it('a revertida não desconta', () => {
+      const resultado = glosasSugeridas(entrada({ glosasSistema: [glosaSistema({ status: 'revertida', valor: 100 })] }));
+      expect(resultado.glosas).toEqual([expect.objectContaining({ valor: 100 })]);
+    });
+
+    it('sem código: desconta pelo motivo em texto livre', () => {
+      const texto = { motivoCodigo: null, motivoDescricao: null, desMotivoGlosa: 'Guia vencida' };
+      const resultado = glosasSugeridas(entrada({
+        diferencas: [diferenca({ ...texto, valor: 100 })],
+        glosasSistema: [glosaSistema({ codigo: null, motivo: 'Guia vencida', valor: 60 })],
+      }));
+      expect(resultado.glosas).toEqual([expect.objectContaining({ codigo: null, valor: 40 })]);
     });
   });
 });

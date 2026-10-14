@@ -8,6 +8,7 @@ import type {
   CorrecaoLancamentoPayload,
   GlosaLancada,
   GlosaLancamentoInput,
+  GlosaSugeridaAplis,
   GlosaStatus,
   LancamentosTitulo,
   OperadoraResumo,
@@ -110,7 +111,7 @@ export async function chamarApi<T = unknown>(
 }
 
 /** Uma baixa (com suas glosas) pela RPC `fat_registrar_baixa`, sem reler nada.
- *  Também usado pelo "Aplicar baixas do apLIS", que lança várias em sequência. */
+ *  Também usado pelo "Aplicar baixas e glosas do apLIS", que lança várias em sequência. */
 export async function rpcRegistrarBaixa(dados: BaixaInput): Promise<void> {
   const { error } = await supabase.rpc('fat_registrar_baixa', {
     p: {
@@ -128,6 +129,24 @@ export async function rpcRegistrarBaixa(dados: BaixaInput): Promise<void> {
         status: g.status ?? 'aberta',
         requisicaoId: g.requisicaoId ?? null,
         loteId: g.loteId ?? null,
+      })),
+    },
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** As glosas do apLIS de um título (`fat_lancar_glosas_aplis`): todas ou nenhuma,
+ *  com origem 'aplis'. Sem refetch, como `rpcRegistrarBaixa`: quem chama relê. */
+export async function rpcLancarGlosasAplis(notaId: string, glosas: GlosaSugeridaAplis[]): Promise<void> {
+  const { error } = await supabase.rpc('fat_lancar_glosas_aplis', {
+    p: {
+      notaId,
+      glosas: glosas.map((g) => ({
+        loteId: g.loteId,
+        codigo: g.codigo,
+        motivo: g.motivo,
+        status: g.status,
+        valor: g.valor,
       })),
     },
   });

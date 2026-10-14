@@ -1,11 +1,11 @@
-// Regras puras do "Aplicar baixas do apLIS"
-// (.scratch/faturamento-baixas-automaticas-aplis/spec.md): o que a prévia
-// oferece para lançar, o total marcado e o resumo da execução. As baixas
-// sugeridas vêm prontas da rota (api/_lib/faturamento/baixasAplis.ts), e as
-// glosas também (api/_lib/faturamento/glosasAplis.ts) — por ora só para
-// conferência, sem lançar (.scratch/faturamento-glosas-automaticas-aplis, issue 01).
+// Regras do "Aplicar baixas e glosas do apLIS"
+// (.scratch/faturamento-baixas-automaticas-aplis/spec.md e
+// .scratch/faturamento-glosas-automaticas-aplis/spec.md): o que a prévia
+// oferece para lançar, o total marcado, a execução de um título e o resumo. As
+// baixas sugeridas vêm prontas da rota (api/_lib/faturamento/baixasAplis.ts), e
+// as glosas também (api/_lib/faturamento/glosasAplis.ts).
 
-import type { TituloPreviaBaixasAplis } from '../types';
+import type { BaixaInput, GlosaSugeridaAplis, TituloPreviaBaixasAplis } from '../types';
 import { plural } from './formato';
 
 export type MotivoPulado = 'sem número da nota' | 'sem data de recebimento no apLIS';
@@ -79,67 +79,192 @@ export function titulosComBaixaRepetida(titulos: TituloPreviaBaixasAplis[]): Set
   return repetidos;
 }
 
-/** Seleção inicial: os títulos com baixa a lançar, menos os que repetem baixa
- *  de outro título (o operador escolhe em qual dos dois lançar). */
-export function selecaoPadraoBaixas(titulos: TituloPreviaBaixasAplis[]): Set<string> {
-  const comBaixa = titulos.filter(temBaixaAplicavel);
-  const repetidos = titulosComBaixaRepetida(comBaixa);
-  return new Set(comBaixa.filter((t) => !repetidos.has(t.idNota)).map((t) => t.idNota));
+/** Títulos com glosa sugerida num lote que também tem glosa sugerida em outro
+ *  título (lote vinculado aos dois): lançar nos dois glosaria o lote em dobro —
+ *  o desconto das já lançadas é por título. */
+export function titulosComGlosaRepetida(titulos: TituloPreviaBaixasAplis[]): Set<string> {
+  const porLote = new Map<number, Set<string>>();
+  for (const titulo of titulos) {
+    for (const glosa of titulo.glosas) {
+      const idsNota = porLote.get(glosa.idLote) ?? new Set<string>();
+      idsNota.add(titulo.idNota);
+      porLote.set(glosa.idLote, idsNota);
+    }
+  }
+  const repetidos = new Set<string>();
+  for (const idsNota of porLote.values()) {
+    if (idsNota.size > 1) idsNota.forEach((id) => repetidos.add(id));
+  }
+  return repetidos;
 }
 
-/** Quanto os títulos marcados vão lançar. Soma em centavos (0,1 + 0,2). */
+/** Títulos marcados em cada checkbox (por `idNota`). */
+export interface SelecaoAplicacao {
+  baixas: ReadonlySet<string>;
+  glosas: ReadonlySet<string>;
+}
+
+/** Seleção inicial: as baixas e as glosas a lançar, menos as dos títulos que
+ *  repetem baixa ou glosa de lote de outro título (o operador escolhe em qual
+ *  dos dois lançar). */
+export function selecaoPadrao(titulos: TituloPreviaBaixasAplis[]): SelecaoAplicacao {
+  const comBaixa = titulos.filter(temBaixaAplicavel);
+  const baixasRepetidas = titulosComBaixaRepetida(comBaixa);
+  const glosasRepetidas = titulosComGlosaRepetida(titulos);
+  return {
+    baixas: new Set(comBaixa.filter((t) => !baixasRepetidas.has(t.idNota)).map((t) => t.idNota)),
+    glosas: new Set(titulos.filter((t) => t.glosas.length > 0 && !glosasRepetidas.has(t.idNota)).map((t) => t.idNota)),
+  };
+}
+
+/** Quanto o que está marcado vai lançar, baixas e glosas separadas. Soma em
+ *  centavos (0,1 + 0,2). `titulos`: com ao menos um dos dois marcado. */
 export function totalALancar(
   titulos: TituloPreviaBaixasAplis[],
-  marcados: ReadonlySet<string>,
-): { titulos: number; baixas: number; valor: number } {
+  selecao: SelecaoAplicacao,
+): { titulos: number; baixas: { qtd: number; valor: number }; glosas: { qtd: number; valor: number } } {
   let qtdTitulos = 0;
-  let baixas = 0;
-  let centavos = 0;
+  const baixas = { qtd: 0, centavos: 0 };
+  const glosas = { qtd: 0, centavos: 0 };
   for (const titulo of titulos) {
-    if (!marcados.has(titulo.idNota)) continue;
+    const comBaixas = selecao.baixas.has(titulo.idNota) && temBaixaAplicavel(titulo);
+    const comGlosas = selecao.glosas.has(titulo.idNota) && titulo.glosas.length > 0;
+    if (!comBaixas && !comGlosas) continue;
     qtdTitulos += 1;
-    baixas += titulo.baixas.length;
-    for (const baixa of titulo.baixas) centavos += Math.round(baixa.valor * 100);
+    if (comBaixas) {
+      baixas.qtd += titulo.baixas.length;
+      for (const baixa of titulo.baixas) baixas.centavos += Math.round(baixa.valor * 100);
+    }
+    if (comGlosas) {
+      glosas.qtd += titulo.glosas.length;
+      for (const glosa of titulo.glosas) glosas.centavos += Math.round(glosa.valor * 100);
+    }
   }
-  return { titulos: qtdTitulos, baixas, valor: centavos / 100 };
+  return {
+    titulos: qtdTitulos,
+    baixas: { qtd: baixas.qtd, valor: baixas.centavos / 100 },
+    glosas: { qtd: glosas.qtd, valor: glosas.centavos / 100 },
+  };
 }
 
-/** Glosas sugeridas na prévia (ainda só para conferência). Soma em centavos. */
-export function totalGlosasSugeridas(
-  titulos: TituloPreviaBaixasAplis[],
-): { titulos: number; glosas: number; valor: number } {
-  let qtdTitulos = 0;
-  let glosas = 0;
-  let centavos = 0;
-  for (const titulo of titulos) {
-    if (titulo.glosas.length === 0) continue;
-    qtdTitulos += 1;
-    glosas += titulo.glosas.length;
-    for (const glosa of titulo.glosas) centavos += Math.round(glosa.valor * 100);
-  }
-  return { titulos: qtdTitulos, glosas, valor: centavos / 100 };
-}
-
-/** 'parcial': uma baixa do título falhou depois de outra já lançada — o
- *  restante dele não é tentado (fica para a próxima prévia). */
+/** 'parcial': algo do título entrou e depois algo falhou — o restante dele não
+ *  é tentado (fica para a próxima prévia). */
 export type EstadoAplicacao = 'aguardando' | 'lancando' | 'lancado' | 'parcial' | 'falhou';
 
-export function resumoAplicacao(estados: Iterable<EstadoAplicacao>): {
+export interface ResultadoTitulo {
+  estado: EstadoAplicacao;
+  baixasLancadas: number;
+  glosasLancadas: number;
+  /** Uma baixa falhou e as glosas marcadas do título não foram tentadas. */
+  glosasNaoLancadas: boolean;
+  mensagem?: string;
+}
+
+export interface DependenciasAplicacao {
+  registrarBaixa: (baixa: BaixaInput) => Promise<void>;
+  /** Todas as glosas do título numa chamada (`fat_lancar_glosas_aplis`): todas ou nenhuma. */
+  lancarGlosas: (notaId: string, glosas: GlosaSugeridaAplis[]) => Promise<void>;
+  /** false: o modal fechou — não começa o próximo lançamento. */
+  continuar: () => boolean;
+  /** Depois de cada lançamento que entrou. */
+  onProgresso?: (parcial: ResultadoTitulo) => void;
+}
+
+/**
+ * Lança o que está marcado num título: as baixas em ordem (a primeira que falhar
+ * encerra o título — as seguintes dependem do saldo que a RPC recalcula) e
+ * depois as glosas numa chamada só, apenas se todas as baixas marcadas entraram.
+ */
+export async function aplicarTitulo(
+  alvo: { titulo: TituloPreviaBaixasAplis; baixas: boolean; glosas: boolean },
+  deps: DependenciasAplicacao,
+): Promise<ResultadoTitulo> {
+  const { titulo } = alvo;
+  const glosas = alvo.glosas ? titulo.glosas : [];
+  const atual: ResultadoTitulo = { estado: 'lancando', baixasLancadas: 0, glosasLancadas: 0, glosasNaoLancadas: false };
+  const falhou = (err: unknown, padrao: string): ResultadoTitulo => ({
+    ...atual,
+    estado: atual.baixasLancadas + atual.glosasLancadas > 0 ? 'parcial' : 'falhou',
+    mensagem: err instanceof Error ? err.message : padrao,
+  });
+
+  for (const baixa of alvo.baixas ? titulo.baixas : []) {
+    if (!deps.continuar()) return { ...atual, estado: 'lancado' };
+    try {
+      await deps.registrarBaixa({
+        notaId: titulo.idNota,
+        valorRecebido: baixa.valor,
+        dataRecebimento: baixa.data,
+        observacoes: baixa.observacoes,
+        glosas: [],
+      });
+    } catch (err) {
+      atual.glosasNaoLancadas = glosas.length > 0;
+      return falhou(err, 'Não foi possível registrar a baixa.');
+    }
+    atual.baixasLancadas += 1;
+    deps.onProgresso?.({ ...atual });
+  }
+
+  if (glosas.length > 0 && deps.continuar()) {
+    try {
+      await deps.lancarGlosas(titulo.idNota, glosas);
+    } catch (err) {
+      return falhou(err, 'Não foi possível lançar as glosas.');
+    }
+    atual.glosasLancadas = glosas.length;
+    deps.onProgresso?.({ ...atual });
+  }
+  return { ...atual, estado: 'lancado' };
+}
+
+/** O resultado de um título já executado, em texto para o operador. */
+export function descricaoResultado(r: ResultadoTitulo): string {
+  const baixas = plural(r.baixasLancadas, 'baixa', 'baixas');
+  if (r.estado === 'lancado') {
+    const partes = [];
+    if (r.baixasLancadas > 0) partes.push(baixas);
+    if (r.glosasLancadas > 0) partes.push(plural(r.glosasLancadas, 'glosa', 'glosas'));
+    return partes.length > 0 ? `lançado: ${partes.join(' e ')}` : 'nada lançado';
+  }
+  const lancadas = r.baixasLancadas > 0
+    ? `${plural(r.baixasLancadas, 'baixa lançada', 'baixas lançadas')}, `
+    : '';
+  if (r.glosasNaoLancadas) {
+    return `${lancadas}${lancadas ? 'depois a ' : ''}baixa falhou, glosas não lançadas: ${r.mensagem}`;
+  }
+  if (r.estado === 'parcial') return `${lancadas}glosas falharam: ${r.mensagem}`;
+  return `falhou: ${r.mensagem}`;
+}
+
+export function resumoAplicacao(resultados: Iterable<ResultadoTitulo>): {
   lancados: number;
   parciais: number;
   falharam: number;
+  glosasNaoLancadas: number;
   texto: string;
 } {
   let lancados = 0;
   let parciais = 0;
   let falharam = 0;
-  for (const estado of estados) {
+  let glosasNaoLancadas = 0;
+  for (const { estado, glosasNaoLancadas: naoLancadas } of resultados) {
     if (estado === 'lancado') lancados += 1;
     else if (estado === 'parcial') parciais += 1;
     else if (estado === 'falhou') falharam += 1;
+    if (naoLancadas) glosasNaoLancadas += 1;
   }
   const partes = [plural(lancados, 'título lançado', 'títulos lançados')];
   if (parciais > 0) partes.push(plural(parciais, 'lançado em parte', 'lançados em parte'));
   if (falharam > 0) partes.push(`${falharam} ${falharam === 1 ? 'falhou' : 'falharam'}`);
-  return { lancados, parciais, falharam, texto: partes.join(', ') };
+  const texto = partes.join(', ');
+  return {
+    lancados,
+    parciais,
+    falharam,
+    glosasNaoLancadas,
+    texto: glosasNaoLancadas > 0
+      ? `${texto} (${glosasNaoLancadas} com as glosas não lançadas porque a baixa falhou)`
+      : texto,
+  };
 }

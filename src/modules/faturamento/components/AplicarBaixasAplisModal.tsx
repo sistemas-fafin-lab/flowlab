@@ -1,32 +1,33 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
-import { chamarApi, rpcRegistrarBaixa } from '../hooks/useContasReceber';
+import { chamarApi, rpcLancarGlosasAplis, rpcRegistrarBaixa } from '../hooks/useContasReceber';
 import type { PreviaBaixasAplis, StatusGlosaAplis, TituloPreviaBaixasAplis } from '../types';
 import { formatCurrency, formatData, plural } from '../utils/formato';
 import {
+  aplicarTitulo,
+  descricaoResultado,
   motivoPuladoBaixa,
   motivoPuladoGlosa,
   resumoAplicacao,
-  selecaoPadraoBaixas,
+  selecaoPadrao,
   separarPrevia,
   temBaixaAplicavel,
   titulosComBaixaRepetida,
+  titulosComGlosaRepetida,
   totalALancar,
-  totalGlosasSugeridas,
 } from '../utils/aplicarBaixasAplis';
-import type { EstadoAplicacao } from '../utils/aplicarBaixasAplis';
+import type { ResultadoTitulo } from '../utils/aplicarBaixasAplis';
 
-// "Aplicar baixas do apLIS" (.scratch/faturamento-baixas-automaticas-aplis):
-// prévia das baixas que faltam lançar, uma por data de recebimento no apLIS. O
-// operador desmarca o que não quiser e confirma; cada baixa vai pela mesma RPC
-// do "Registrar baixa" (`fat_registrar_baixa`), sem glosas. Uma baixa por vez:
-// a RPC recalcula o título a cada uma.
-//
-// As glosas do apLIS (.scratch/faturamento-glosas-automaticas-aplis, issue 01)
-// aparecem por título, só para conferência: ainda não são lançadas. Entram
-// também os títulos com o recebido batendo e só a glosa a lançar.
+// "Aplicar baixas e glosas do apLIS" (.scratch/faturamento-baixas-automaticas-aplis
+// e .scratch/faturamento-glosas-automaticas-aplis): prévia das baixas que faltam
+// lançar, uma por data de recebimento no apLIS, e das glosas do apLIS, uma por
+// lote + código + status. O operador marca baixas e glosas de cada título em
+// separado e confirma. Título a título, em sequência: as baixas pela mesma RPC
+// do "Registrar baixa" (`fat_registrar_baixa`, uma por vez — a RPC recalcula o
+// título a cada uma) e depois as glosas numa chamada de `fat_lancar_glosas_aplis`,
+// só se todas as baixas marcadas entraram.
 
-const MENSAGEM_PADRAO = 'Não foi possível montar a prévia das baixas do apLIS.';
+const MENSAGEM_PADRAO = 'Não foi possível montar a prévia das baixas e glosas do apLIS.';
 
 const ROTULO_STATUS_GLOSA: Record<StatusGlosaAplis, string> = {
   aberta: 'aberta',
@@ -43,15 +44,8 @@ const BOTAO_SECUNDARIO =
 interface Props {
   aberto: boolean;
   onFechar: () => void;
-  /** Fechou depois de lançar ao menos uma baixa: relê a lista e a conferência. */
+  /** Fechou depois de lançar ao menos uma baixa ou glosa: relê a lista e a conferência. */
   onAlterados: () => void;
-}
-
-interface ResultadoTitulo {
-  estado: EstadoAplicacao;
-  /** Baixas já lançadas deste título. */
-  lancadas: number;
-  mensagem?: string;
 }
 
 async function buscarPrevia(): Promise<PreviaBaixasAplis> {
@@ -103,26 +97,27 @@ function GlosasDoTitulo({ titulo }: { titulo: TituloPreviaBaixasAplis }) {
 
 function EstadoTitulo({ resultado, total }: { resultado: ResultadoTitulo | undefined; total: number }) {
   if (!resultado) return null;
-  const { estado, lancadas, mensagem } = resultado;
+  const { estado, baixasLancadas } = resultado;
   if (estado === 'aguardando') return <span className="text-xs text-gray-400">na fila</span>;
   if (estado === 'lancando') {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-        <Loader2 className="w-3.5 h-3.5 animate-spin" /> lançando{total > 1 ? ` ${lancadas + 1} de ${total}` : ''}…
+        <Loader2 className="w-3.5 h-3.5 animate-spin" /> lançando
+        {total > 1 && baixasLancadas < total ? ` baixa ${baixasLancadas + 1} de ${total}` : ''}…
       </span>
     );
   }
   if (estado === 'lancado') {
     return (
       <span className="inline-flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400">
-        <CheckCircle2 className="w-3.5 h-3.5" /> lançado
+        <CheckCircle2 className="w-3.5 h-3.5" /> {descricaoResultado(resultado)}
       </span>
     );
   }
   return (
     <span className="inline-flex items-start gap-1 text-xs text-red-600 dark:text-red-400">
       <XCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-      {estado === 'parcial' ? `lançadas ${lancadas} de ${total}, depois falhou` : 'falhou'}: {mensagem}
+      {descricaoResultado(resultado)}
     </span>
   );
 }
@@ -131,15 +126,16 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
   const [previa, setPrevia] = useState<PreviaBaixasAplis | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  const [baixasMarcadas, setBaixasMarcadas] = useState<Set<string>>(new Set());
+  const [glosasMarcadas, setGlosasMarcadas] = useState<Set<string>>(new Set());
   const [resultados, setResultados] = useState<Map<string, ResultadoTitulo>>(new Map());
   const [executando, setExecutando] = useState(false);
   const [resumo, setResumo] = useState<string | null>(null);
   // Leitura e execução em curso. Fechar troca o id: a leitura velha é
-  // descartada e a execução para de iniciar baixas (a que está no ar termina
-  // no servidor; reabrir mostra o que falta).
+  // descartada e a execução para de iniciar lançamentos (o que está no ar
+  // termina no servidor; reabrir mostra o que falta).
   const execucaoRef = useRef(0);
-  // Ao menos uma baixa lançada desde que abriu: fechar relê lista e conferência.
+  // Ao menos um lançamento desde que abriu: fechar relê lista e conferência.
   const lancouRef = useRef(false);
 
   const carregar = useCallback(async () => {
@@ -150,7 +146,9 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
       const resultado = await buscarPrevia();
       if (leitura !== execucaoRef.current) return;
       setPrevia(resultado);
-      setSelecionados(selecaoPadraoBaixas(resultado.titulos));
+      const selecao = selecaoPadrao(resultado.titulos);
+      setBaixasMarcadas(new Set(selecao.baixas));
+      setGlosasMarcadas(new Set(selecao.glosas));
       setResultados(new Map());
       setResumo(null);
     } catch (err) {
@@ -183,7 +181,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
     if (
       executando &&
       !window.confirm(
-        'As baixas ainda estão sendo lançadas. Se fechar agora, o que ainda não começou fica para a próxima vez (o que já foi lançado não é desfeito). Fechar mesmo assim?',
+        'As baixas e glosas ainda estão sendo lançadas. Se fechar agora, o que ainda não começou fica para a próxima vez (o que já foi lançado não é desfeito). Fechar mesmo assim?',
       )
     ) {
       return;
@@ -192,7 +190,8 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
     setPrevia(null);
     setErro(null);
     setCarregando(false);
-    setSelecionados(new Set());
+    setBaixasMarcadas(new Set());
+    setGlosasMarcadas(new Set());
     setResultados(new Map());
     setExecutando(false);
     setResumo(null);
@@ -203,8 +202,8 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
     onFechar();
   };
 
-  const alternar = (idNota: string) => {
-    setSelecionados((atual) => {
+  const alternar = (setMarcados: typeof setBaixasMarcadas, idNota: string) => {
+    setMarcados((atual) => {
       const novo = new Set(atual);
       if (novo.has(idNota)) novo.delete(idNota);
       else novo.add(idNota);
@@ -213,13 +212,22 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
   };
 
   const confirmar = async () => {
-    const alvos = (previa?.titulos ?? []).filter((t) => temBaixaAplicavel(t) && selecionados.has(t.idNota));
+    const alvos = (previa?.titulos ?? [])
+      .map((titulo) => ({
+        titulo,
+        baixas: temBaixaAplicavel(titulo) && baixasMarcadas.has(titulo.idNota),
+        glosas: titulo.glosas.length > 0 && glosasMarcadas.has(titulo.idNota),
+      }))
+      .filter((alvo) => alvo.baixas || alvo.glosas);
     if (alvos.length === 0) return;
 
     const execucao = ++execucaoRef.current;
     const vigente = () => execucaoRef.current === execucao;
     const estados = new Map<string, ResultadoTitulo>(
-      alvos.map((t) => [t.idNota, { estado: 'aguardando', lancadas: 0 }]),
+      alvos.map(({ titulo }) => [
+        titulo.idNota,
+        { estado: 'aguardando', baixasLancadas: 0, glosasLancadas: 0, glosasNaoLancadas: false },
+      ]),
     );
     const marcar = (idNota: string, resultado: ResultadoTitulo) => {
       estados.set(idNota, resultado);
@@ -230,39 +238,26 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
     setResumo(null);
     setExecutando(true);
 
-    // Lançou algo nesta execução — se o modal fechar no meio, a baixa que
+    // Lançou algo nesta execução — se o modal fechar no meio, o lançamento que
     // estava no ar só entra depois do fechar, e a releitura fica para o fim.
     let lancou = false;
-    for (const titulo of alvos) {
+    for (const alvo of alvos) {
       if (!vigente()) break;
-      let lancadas = 0;
-      marcar(titulo.idNota, { estado: 'lancando', lancadas });
-      try {
-        // As baixas de um título em ordem; a primeira que falhar encerra o
-        // título (as seguintes dependem do saldo que a RPC recalcula).
+      const { idNota } = alvo.titulo;
+      marcar(idNota, { ...(estados.get(idNota) as ResultadoTitulo), estado: 'lancando' });
+      // Um erro num título não para os outros: aplicarTitulo devolve o erro no resultado.
+      const resultado = await aplicarTitulo(alvo, {
         // Não usa o registrarBaixa do hook: ele relê a lista a cada baixa.
-        for (const baixa of titulo.baixas) {
-          if (!vigente()) break;
-          await rpcRegistrarBaixa({
-            notaId: titulo.idNota,
-            valorRecebido: baixa.valor,
-            dataRecebimento: baixa.data,
-            observacoes: baixa.observacoes,
-            glosas: [],
-          });
-          lancadas += 1;
+        registrarBaixa: rpcRegistrarBaixa,
+        lancarGlosas: rpcLancarGlosasAplis,
+        continuar: vigente,
+        onProgresso: (parcial) => {
           lancou = true;
           if (vigente()) lancouRef.current = true;
-          marcar(titulo.idNota, { estado: 'lancando', lancadas });
-        }
-        marcar(titulo.idNota, { estado: 'lancado', lancadas });
-      } catch (err) {
-        marcar(titulo.idNota, {
-          estado: lancadas > 0 ? 'parcial' : 'falhou',
-          lancadas,
-          mensagem: err instanceof Error ? err.message : 'Não foi possível registrar a baixa.',
-        });
-      }
+          marcar(idNota, parcial);
+        },
+      });
+      marcar(idNota, resultado);
     }
 
     if (!vigente()) {
@@ -270,19 +265,21 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
       return;
     }
     setExecutando(false);
-    setResumo(resumoAplicacao([...estados.values()].map((r) => r.estado)).texto);
+    setResumo(resumoAplicacao(estados.values()).texto);
   };
 
   if (!aberto) return null;
 
   const { aplicaveis, pulados } = separarPrevia(previa?.titulos ?? []);
   const comBaixa = aplicaveis.filter(temBaixaAplicavel);
-  const repetidos = titulosComBaixaRepetida(comBaixa);
-  const total = totalALancar(comBaixa, selecionados);
-  const glosasSugeridas = totalGlosasSugeridas(aplicaveis);
+  // Lote vinculado a mais de um título: a baixa ou a glosa dele começa desmarcada.
+  const repetidos = new Set([...titulosComBaixaRepetida(comBaixa), ...titulosComGlosaRepetida(aplicaveis)]);
+  const comGlosa = aplicaveis.filter((t) => t.glosas.length > 0);
+  const total = totalALancar(aplicaveis, { baixas: baixasMarcadas, glosas: glosasMarcadas });
   // Depois de confirmar, a prévia vira o relatório da execução.
   const travado = executando || resultados.size > 0;
-  const todosMarcados = comBaixa.length > 0 && total.titulos === comBaixa.length;
+  const todasBaixasMarcadas = comBaixa.length > 0 && comBaixa.every((t) => baixasMarcadas.has(t.idNota));
+  const todasGlosasMarcadas = comGlosa.length > 0 && comGlosa.every((t) => glosasMarcadas.has(t.idNota));
   const concluidos = [...resultados.values()].filter(
     (r) => r.estado !== 'aguardando' && r.estado !== 'lancando',
   ).length;
@@ -293,10 +290,11 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col animate-scale-in">
         <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-700">
           <div>
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Aplicar baixas do apLIS</h2>
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Aplicar baixas e glosas do apLIS</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Baixas recebidas no apLIS que faltam lançar aqui, uma por data de recebimento · as glosas do apLIS
-              aparecem só para conferência, ainda não são lançadas · dados do apLIS {dadoAte}
+              Baixas recebidas no apLIS que faltam lançar aqui, uma por data de recebimento, e glosas do apLIS, uma
+              por lote, código e status · as glosas de um título só entram se as baixas marcadas dele entrarem ·
+              dados do apLIS {dadoAte}
             </p>
           </div>
           <button
@@ -347,42 +345,50 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
                   <table className="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
                     <thead className="bg-gray-50 dark:bg-gray-900/50">
                       <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
-                        <th className="px-3 py-2 w-8">
-                          <input
-                            type="checkbox"
-                            checked={todosMarcados}
-                            disabled={travado || comBaixa.length === 0}
-                            onChange={() =>
-                              setSelecionados(todosMarcados ? new Set() : new Set(comBaixa.map((t) => t.idNota)))
-                            }
-                            className="rounded border-gray-300 dark:border-gray-600"
-                            aria-label="Marcar todos"
-                          />
-                        </th>
                         <th className="px-3 py-2">Título</th>
                         <th className="px-3 py-2">Operadora</th>
                         <th className="px-3 py-2 text-right">Recebido no sistema</th>
                         <th className="px-3 py-2 text-right">Recebido no apLIS</th>
-                        <th className="px-3 py-2">Baixas a lançar</th>
-                        <th className="px-3 py-2">Glosas do apLIS (conferência)</th>
+                        <th className="px-3 py-2">
+                          <label className="inline-flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={todasBaixasMarcadas}
+                              disabled={travado || comBaixa.length === 0}
+                              onChange={() =>
+                                setBaixasMarcadas(
+                                  todasBaixasMarcadas ? new Set() : new Set(comBaixa.map((t) => t.idNota)),
+                                )
+                              }
+                              className="rounded border-gray-300 dark:border-gray-600"
+                              aria-label="Marcar todas as baixas"
+                            />
+                            Baixas a lançar
+                          </label>
+                        </th>
+                        <th className="px-3 py-2">
+                          <label className="inline-flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={todasGlosasMarcadas}
+                              disabled={travado || comGlosa.length === 0}
+                              onChange={() =>
+                                setGlosasMarcadas(
+                                  todasGlosasMarcadas ? new Set() : new Set(comGlosa.map((t) => t.idNota)),
+                                )
+                              }
+                              className="rounded border-gray-300 dark:border-gray-600"
+                              aria-label="Marcar todas as glosas"
+                            />
+                            Glosas a lançar
+                          </label>
+                        </th>
                         <th className="px-3 py-2">Resultado</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
                       {aplicaveis.map((titulo) => (
                         <tr key={titulo.idNota} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors align-top">
-                          <td className="px-3 py-2">
-                            {temBaixaAplicavel(titulo) && (
-                              <input
-                                type="checkbox"
-                                checked={selecionados.has(titulo.idNota)}
-                                disabled={travado}
-                                onChange={() => alternar(titulo.idNota)}
-                                className="rounded border-gray-300 dark:border-gray-600"
-                                aria-label={`Lançar as baixas do título ${titulo.numeroNota}`}
-                              />
-                            )}
-                          </td>
                           <td className="px-3 py-2 whitespace-nowrap">
                             <div className="font-medium text-gray-900 dark:text-gray-100 tabular-nums">
                               {titulo.numeroNota}
@@ -407,27 +413,54 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
                           </td>
                           <td className="px-3 py-2">
                             {titulo.baixas.length === 0 && <BaixaPulada titulo={titulo} />}
-                            <ul className="space-y-0.5">
-                              {titulo.baixas.map((baixa) => (
-                                <li
-                                  key={baixa.data}
-                                  className="tabular-nums whitespace-nowrap text-gray-700 dark:text-gray-200"
-                                  title={baixa.observacoes}
-                                >
-                                  {formatData(baixa.data)}
-                                  {' · '}
-                                  <span className="font-medium text-blue-700 dark:text-blue-300">
-                                    {formatCurrency(baixa.valor)}
-                                  </span>
-                                </li>
-                              ))}
-                            </ul>
+                            <div className="flex items-start gap-2">
+                              {temBaixaAplicavel(titulo) && (
+                                <input
+                                  type="checkbox"
+                                  checked={baixasMarcadas.has(titulo.idNota)}
+                                  disabled={travado}
+                                  onChange={() => alternar(setBaixasMarcadas, titulo.idNota)}
+                                  className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
+                                  aria-label={`Lançar as baixas do título ${titulo.numeroNota}`}
+                                />
+                              )}
+                              <ul className="space-y-0.5">
+                                {titulo.baixas.map((baixa) => (
+                                  <li
+                                    key={baixa.data}
+                                    className="tabular-nums whitespace-nowrap text-gray-700 dark:text-gray-200"
+                                    title={baixa.observacoes}
+                                  >
+                                    {formatData(baixa.data)}
+                                    {' · '}
+                                    <span className="font-medium text-blue-700 dark:text-blue-300">
+                                      {formatCurrency(baixa.valor)}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
                           </td>
                           <td className="px-3 py-2 text-xs">
-                            <GlosasDoTitulo titulo={titulo} />
+                            <div className="flex items-start gap-2">
+                              {titulo.glosas.length > 0 && (
+                                <input
+                                  type="checkbox"
+                                  checked={glosasMarcadas.has(titulo.idNota)}
+                                  disabled={travado}
+                                  onChange={() => alternar(setGlosasMarcadas, titulo.idNota)}
+                                  className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
+                                  aria-label={`Lançar as glosas do título ${titulo.numeroNota}`}
+                                />
+                              )}
+                              <GlosasDoTitulo titulo={titulo} />
+                            </div>
                           </td>
-                          <td className="px-3 py-2 max-w-[260px]">
-                            <EstadoTitulo resultado={resultados.get(titulo.idNota)} total={titulo.baixas.length} />
+                          <td className="px-3 py-2 max-w-[280px]">
+                            <EstadoTitulo
+                              resultado={resultados.get(titulo.idNota)}
+                              total={temBaixaAplicavel(titulo) && baixasMarcadas.has(titulo.idNota) ? titulo.baixas.length : 0}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -479,15 +512,12 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
               resumo
             ) : previa && aplicaveis.length > 0 ? (
               <>
-                {plural(total.titulos, 'título', 'títulos')} · {plural(total.baixas, 'baixa', 'baixas')}
-                {' · '}<strong>{formatCurrency(total.valor)}</strong> a lançar
-                {glosasSugeridas.glosas > 0 && (
-                  <>
-                    {' · '}
-                    {plural(glosasSugeridas.glosas, 'glosa', 'glosas')} do apLIS ({formatCurrency(glosasSugeridas.valor)})
-                    {' '}só para conferência
-                  </>
-                )}
+                {plural(total.titulos, 'título', 'títulos')}
+                {' · '}{plural(total.baixas.qtd, 'baixa', 'baixas')}{' '}
+                <strong className="text-blue-700 dark:text-blue-300">{formatCurrency(total.baixas.valor)}</strong>
+                {' · '}{plural(total.glosas.qtd, 'glosa', 'glosas')}{' '}
+                <strong className="text-rose-700 dark:text-rose-300">{formatCurrency(total.glosas.valor)}</strong>
+                {' '}a lançar
               </>
             ) : null}
           </span>
@@ -518,7 +548,12 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
                 disabled={carregando || total.titulos === 0}
                 className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {total.baixas > 0 ? `Lançar ${plural(total.baixas, 'baixa', 'baixas')}` : 'Nada marcado'}
+                {total.titulos === 0
+                  ? 'Nada marcado'
+                  : `Lançar ${[
+                    total.baixas.qtd > 0 ? plural(total.baixas.qtd, 'baixa', 'baixas') : null,
+                    total.glosas.qtd > 0 ? plural(total.glosas.qtd, 'glosa', 'glosas') : null,
+                  ].filter(Boolean).join(' e ')}`}
               </button>
             )}
           </div>
