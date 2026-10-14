@@ -16,6 +16,15 @@ export interface ConfigWaha {
 
 export type Falha = { ok: false; erro: string };
 
+/** Os motivos de falha de conexão mais comuns, em português, para o log da VPS. */
+const MOTIVOS: Record<string, string> = {
+  ECONNREFUSED: 'conexão recusada: nada escutando nessa porta',
+  ENOTFOUND: 'endereço não encontrado',
+  EHOSTUNREACH: 'máquina inalcançável',
+  ETIMEDOUT: 'tempo esgotado na conexão',
+  ECONNRESET: 'conexão interrompida',
+};
+
 export interface ClienteWaha {
   /** GET /api/sessions/{sessao} → WORKING, SCAN_QR_CODE, STARTING, FAILED, STOPPED… */
   sessao(): Promise<{ ok: true; status: string } | Falha>;
@@ -60,7 +69,11 @@ export function criarClienteWaha(cfg: ConfigWaha, fetchImpl: FetchLike = fetch):
       }
     } catch (e) {
       const nome = e instanceof Error ? e.name : '';
-      return { ok: false, erro: nome === 'TimeoutError' || nome === 'AbortError' ? 'WAHA não respondeu a tempo.' : `Sem conexão com o WAHA (${e instanceof Error ? e.message : String(e)}).` };
+      if (nome === 'TimeoutError' || nome === 'AbortError') return { ok: false, erro: `WAHA não respondeu a tempo em ${base}.` };
+      // O fetch do Node só diz "fetch failed"; o motivo de verdade (ECONNREFUSED…) vem em `cause`.
+      const causa = (e as { cause?: { code?: unknown; message?: unknown } })?.cause;
+      const motivo = typeof causa?.code === 'string' ? (MOTIVOS[causa.code] ?? causa.code) : typeof causa?.message === 'string' ? causa.message : e instanceof Error ? e.message : String(e);
+      return { ok: false, erro: `Sem conexão com o WAHA em ${base} (${motivo}).` };
     }
   }
 

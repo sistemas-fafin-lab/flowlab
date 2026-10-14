@@ -29,7 +29,10 @@ describe('cliente WAHA', () => {
     expect(r1).toMatchObject({ ok: false });
     expect(JSON.stringify(r1)).not.toContain('chave-secreta');
     const rede = criarClienteWaha(cfg, async () => { throw new Error('connect ECONNREFUSED 127.0.0.1:3000'); });
-    expect(await rede.enviarTexto('x@c.us', 'Oi')).toEqual({ ok: false, erro: 'Sem conexão com o WAHA (connect ECONNREFUSED 127.0.0.1:3000).' });
+    expect(await rede.enviarTexto('x@c.us', 'Oi')).toEqual({ ok: false, erro: 'Sem conexão com o WAHA em http://127.0.0.1:3000 (connect ECONNREFUSED 127.0.0.1:3000).' });
+    // O fetch do Node: "fetch failed", com o motivo em `cause`.
+    const node = criarClienteWaha(cfg, async () => { throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } }); });
+    expect(await node.sessao()).toEqual({ ok: false, erro: 'Sem conexão com o WAHA em http://127.0.0.1:3000 (conexão recusada: nada escutando nessa porta).' });
   });
 
   it('situação da sessão', async () => {
