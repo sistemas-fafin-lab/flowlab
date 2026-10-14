@@ -68,7 +68,7 @@ function AcaoLinha({ rotulo, icone: Icone, carregando, desabilitado, onClick }: 
       type="button"
       onClick={onClick}
       disabled={desabilitado}
-      className="px-3 py-1.5 rounded-xl text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 inline-flex items-center gap-1 disabled:opacity-50"
+      className="px-2 py-1 rounded-xl text-xs font-medium whitespace-nowrap text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 inline-flex items-center gap-1 disabled:opacity-50"
     >
       {carregando ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Icone className="w-3.5 h-3.5" />}
       {rotulo}
@@ -251,7 +251,7 @@ const ConferenciaAplisModal: React.FC<Props> = ({ aberto, onFechar, versao, pode
                               </div>
                               <div className="text-xs text-gray-500 dark:text-gray-400">{titulo.status}</div>
                             </td>
-                            <td className="px-3 py-2 text-gray-700 dark:text-gray-200 truncate max-w-[200px]" title={titulo.operadora}>
+                            <td className="px-3 py-2 text-gray-700 dark:text-gray-200 truncate max-w-[160px]" title={titulo.operadora}>
                               {titulo.operadora}
                             </td>
                             <td className="px-3 py-2 text-gray-600 dark:text-gray-300 tabular-nums whitespace-nowrap">
@@ -293,21 +293,24 @@ const ConferenciaAplisModal: React.FC<Props> = ({ aberto, onFechar, versao, pode
                               )}
                             </td>
                             {podeAbrirTitulo && (
-                              <td className="px-3 py-2 text-right whitespace-nowrap">
-                                <AcaoLinha
-                                  rotulo="Lançar baixa"
-                                  icone={Wallet}
-                                  carregando={abrindo?.idNota === titulo.idNota && abrindo.acao === 'baixa'}
-                                  desabilitado={abrindo !== null}
-                                  onClick={() => void abrir(titulo.idNota, 'baixa')}
-                                />
-                                <AcaoLinha
-                                  rotulo="Abrir título"
-                                  icone={ExternalLink}
-                                  carregando={abrindo?.idNota === titulo.idNota && abrindo.acao === 'editar'}
-                                  desabilitado={abrindo !== null}
-                                  onClick={() => void abrir(titulo.idNota, 'editar')}
-                                />
+                              <td className="px-2 py-1">
+                                {/* Empilhadas: lado a lado empurravam a tabela para fora do modal. */}
+                                <div className="flex flex-col items-start">
+                                  <AcaoLinha
+                                    rotulo="Lançar baixa"
+                                    icone={Wallet}
+                                    carregando={abrindo?.idNota === titulo.idNota && abrindo.acao === 'baixa'}
+                                    desabilitado={abrindo !== null}
+                                    onClick={() => void abrir(titulo.idNota, 'baixa')}
+                                  />
+                                  <AcaoLinha
+                                    rotulo="Abrir título"
+                                    icone={ExternalLink}
+                                    carregando={abrindo?.idNota === titulo.idNota && abrindo.acao === 'editar'}
+                                    desabilitado={abrindo !== null}
+                                    onClick={() => void abrir(titulo.idNota, 'editar')}
+                                  />
+                                </div>
                               </td>
                             )}
                           </tr>
