@@ -35,9 +35,12 @@ Plano: §2 (D29), §6.2/§6.3 e §11.4.
 - [x] VPS: lista de grupos a cada 30 min (`GET /api/eva/groups`), envio ao grupo sem `check-exists`, horário também para o grupo.
 - [x] Configurações: escolher o grupo, "Atualizar lista", "Enviar teste ao grupo", os dois liga/desliga e a ajuda dos comandos.
 - [x] Fila do Início: mensagem do grupo aparece como "Grupo da equipe"; a falha do grupo leva a Configurações.
-- [ ] Aplicar a migration no projeto do app.
-- [ ] Atualizar o pacote da VPS (`eva-whatsapp.mjs`) e conferir que a lista de grupos aparece em Configurações.
-- [ ] Cadastrar o próprio gestor na aba Membros, com WhatsApp, para ele poder mandar comandos.
+- [x] Aplicar a migration no projeto do app (14/Out; conferido pelo REST: tabela e colunas existem, anon barrado na versão "como").
+- [x] Atualizar o pacote da VPS (14/Out, sem sudo; a lista de grupos foi lida e voltou vazia: o número da EVA ainda não estava em grupo).
+- [x] Aba Membros mostra quem é gestor: selo "Gestor" e o nome do cargo.
+- [ ] Aplicar `20261014170000_eva_gestor_mesma_regra.sql` (a regra de gestor no banco igual à das policies).
+- [ ] Pôr o número da EVA no grupo da equipe, escolher o grupo em Configurações e enviar o teste.
+- [ ] Cadastrar o WhatsApp de cada gestor na aba Membros, para ele poder mandar comandos.
 - [ ] Conferir com o celular: uma pergunta, um "cobra o IT-…" com SIM, "sugestões pendentes" → "aprovar 1" → SIM, e um aviso no grupo.
 
 ## Comments
@@ -79,6 +82,14 @@ Plano: §2 (D29), §6.2/§6.3 e §11.4.
     - as RPCs da tela delegam para ela;
     - a mensagem de grupo entra sem membro;
     - a config recusa um contato no lugar do grupo.
+
+**14/Out/2026 — regra de gestor no banco (`20261014170000_eva_gestor_mesma_regra.sql`).** As funções "como" conferiam o aprovador com `user_has_permission`. Essa função tem um fallback de role legado que dá ao `operator` quase todas as chaves, inclusive `canApproveAgenteTI`; as policies, a tela e o servidor não dão.
+- Não havia brecha: o servidor confere `tem(usuario, 'canApproveAgenteTI')` antes de chamar.
+- Mesmo assim, o banco agora usa `ti_agente_eh_gestor(uuid)`, a regra de `current_user_has_permission` para um usuário dado: admin, ou cargo com a chave, e nunca removido ou desativado.
+- O corpo das duas funções é o mesmo da migration anterior; só a linha da checagem mudou.
+- Mais 8 cenários no PGlite: operator recusado, admin aceito, gestor desativado recusado, o corpo ainda aprova, e o cliente não chama a função.
+
+**Quem é gestor na aba Membros:** selo "Gestor" e "Cargo: …" em cada membro, pela mesma regra (`ehGestorEva` em `domain/pessoas.ts`). Gestor sem WhatsApp recebe a dica de cadastrar o número. No banco do app, em 14/Out, os dois membros cadastrados são admins, portanto gestores; só um tinha WhatsApp.
 
 **Nome da migration:** nasceu como `20261014120000_…`, mas o `main` ganhou no mesmo dia a `20261014120000_fat_corrigir_lancamentos.sql`. O Supabase usa o timestamp como versão, então as duas colidiriam. Por isso ficou `20261014160000_eva_comandos_whatsapp.sql`.
 

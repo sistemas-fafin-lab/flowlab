@@ -129,6 +129,11 @@ const MembrosPage: React.FC = () => {
           estiver vazia, a EVA usa as pessoas do departamento TI. A cobrança pelo WhatsApp só vai para quem tem a adesão marcada;
           as respostas só valem de números cadastrados aqui.
         </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          <strong className="font-semibold text-slate-600 dark:text-slate-300">Gestor</strong> é quem tem um cargo com a permissão "Aprovar sugestões e
+          configurar a EVA" (Usuários → Cargos e Permissões), ou é administrador. Pelo WhatsApp, só o gestor cobra, aprova ou rejeita
+          sugestões e manda avisos no grupo. Para isso, ele também precisa estar aqui, com o WhatsApp cadastrado.
+        </p>
         {erro && <p className="text-sm text-red-600 dark:text-red-400">Não consegui carregar os membros: {erro}</p>}
         {!erro && !carregando && membros.length === 0 && (
           <div className="py-10 text-center">
@@ -146,7 +151,11 @@ const MembrosPage: React.FC = () => {
                   <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">{m.nome}</p>
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     Apelidos: {m.apelidos.length ? m.apelidos.join(', ') : '—'} · WhatsApp: {formatarWhatsapp(m.whatsapp)}
+                    {m.cargo ? ` · Cargo: ${m.cargo}` : ''}
                   </p>
+                  {m.gestor && !m.whatsapp && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Cadastre o WhatsApp para mandar comandos de gestor pela EVA.</p>
+                  )}
                   {temDuplicado && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Há um apelido igual em outro membro: a EVA não vai saber quem é quem.</p>}
                   {falha && (
                     <p className="mt-1 text-xs text-red-600 dark:text-red-400 [overflow-wrap:anywhere]">
@@ -155,6 +164,11 @@ const MembrosPage: React.FC = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
+                  {m.gestor && (
+                    <span title="Pelo WhatsApp, pode cobrar, aprovar ou rejeitar sugestões e mandar avisos no grupo">
+                      <StatusBadge tone="info">Gestor</StatusBadge>
+                    </span>
+                  )}
                   {m.recebe_cobranca && <StatusBadge tone="success">Recebe cobrança</StatusBadge>}
                   {!m.ativo && <StatusBadge tone="neutral">Inativo</StatusBadge>}
                   {m.whatsapp && m.ativo && (
