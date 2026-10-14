@@ -1,10 +1,12 @@
-// API Route: POST /api/ti/agente-teste — "Enviar teste" da aba Membros (RF19, issue 12).
-// Body: { membro_id }. Só gestor (canApproveAgenteTI). Põe uma mensagem `teste` na fila;
-// a tela acompanha o status até "enviada" ou "falhou".
+// API Route: POST /api/ti/agente-teste — "Enviar teste" (RF19, issues 12 e 18).
+// Body: { membro_id } (aba Membros) ou { grupo: true } (Configurações → Grupo da equipe).
+// Só gestor (canApproveAgenteTI). Põe uma mensagem `teste` na fila; a tela acompanha o status
+// até "enviada" ou "falhou".
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { autorizar, ehFalha, tokenDoHeader } from '../ti-agente/autorizacao.js';
 import { enfileirarTeste } from '../ti-agente/cobranca.js';
+import { enfileirarTesteGrupo } from '../ti-agente/grupo.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store');
@@ -17,13 +19,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(auth.status).json(auth.payload);
     return;
   }
-  const membroId = (req.body as { membro_id?: unknown } | undefined)?.membro_id;
-  if (typeof membroId !== 'string' || !membroId) {
+  const corpo = (req.body ?? {}) as { membro_id?: unknown; grupo?: unknown };
+  const paraGrupo = corpo.grupo === true;
+  const membroId = corpo.membro_id;
+  if (!paraGrupo && (typeof membroId !== 'string' || !membroId)) {
     res.status(400).json({ success: false, error: 'Informe o membro.' });
     return;
   }
   try {
-    const r = await enfileirarTeste(getSupabaseAdminClient(), auth, membroId);
+    const db = getSupabaseAdminClient();
+    const r = paraGrupo ? await enfileirarTesteGrupo(db, auth) : await enfileirarTeste(db, auth, membroId as string);
     if ('erro' in r) {
       res.status(r.status).json({ success: false, error: r.erro });
       return;

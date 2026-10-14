@@ -8,7 +8,7 @@ import { hojeSP, pluralDias } from '../domain/datas';
 import { estaConcluido, type CardTI, type ColunaKanban, type StatusChamado } from '../domain/demandas';
 import { montarSnapshot } from '../domain/inicio';
 import { JANELA_COBRANCA_MS } from '../domain/cobranca';
-import { ultimoContato, type MensagemFila } from '../domain/whatsapp';
+import { quandoSera, ultimoContato, type MensagemFila } from '../domain/whatsapp';
 import type { EvaView, OverdueFilter, OverdueTask } from '../types';
 
 export interface OverdueRow extends OverdueTask {
@@ -72,7 +72,7 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
   const [fila, setFila] = useState<MensagemFila[] | null>(null);
   const [comWhatsapp, setComWhatsapp] = useState<Set<string> | null>(null);
   /** Cobranças feitas nesta tela, até a fila confirmar (resposta otimista do handoff). */
-  const [cobradasAgora, setCobradasAgora] = useState<Record<string, string>>({});
+  const [cobradasAgora, setCobradasAgora] = useState<Record<string, { em: string; texto: string }>>({});
   const [agora, setAgora] = useState(() => Date.now());
 
   const requestIdRef = useRef(0);
@@ -140,7 +140,7 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
 
   // Cobranças desta tela que a contagem do servidor ainda não viu (saem da fila em até 1 min).
   const cobrancasLocais = useMemo(
-    () => Object.values(cobradasAgora).filter((em) => new Date(em).getTime() > agora).length,
+    () => Object.values(cobradasAgora).filter((c) => !c.texto.startsWith('Cobrança agendada') && new Date(c.em).getTime() > agora).length,
     [cobradasAgora, agora],
   );
 
@@ -177,7 +177,7 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
         charged,
         memberName: (t.memberId && snapshot.members[t.memberId]?.name) || 'Sem responsável',
         lateLabel: pluralDias(t.daysLate),
-        statusText: local ? 'Cobrança enviada agora via WhatsApp' : contato?.texto ?? '',
+        statusText: local ? local.texto : contato?.texto ?? '',
         chargeable: whatsappAtivo && donos.length > 0 && (t.isMine || ehGestor),
         chargeHint,
       };
@@ -295,15 +295,16 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
   const cobrarCard = useCallback(
     async (cardId: string): Promise<boolean> => {
       const codigo = dados?.cards.find((c) => c.id === cardId)?.codigo ?? 'card';
-      setCobradasAgora((c) => ({ ...c, [cardId]: new Date().toISOString() }));
+      const em = new Date().toISOString();
+      setCobradasAgora((c) => ({ ...c, [cardId]: { em, texto: 'Cobrança enviada agora via WhatsApp' } }));
       try {
         const r = await evaService.sendCharge(cardId);
-        avisar(
-          r.modo === 'lembrar'
-            ? `Lembrete do ${codigo} na fila do WhatsApp.`
-            : `Cobrança do ${codigo} para ${r.destinatarios.join(', ')} na fila do WhatsApp.`,
-          'sucesso',
-        );
+        // Fora do horário de cobrança (dia útil, 7h às 20h), ela foi agendada para a próxima janela.
+        const quando = r.agendadaPara ? quandoSera(r.agendadaPara, hojeSP()) : null;
+        if (quando) setCobradasAgora((c) => ({ ...c, [cardId]: { em, texto: `Cobrança agendada para ${quando}` } }));
+        const oQue = r.modo === 'lembrar' ? `Lembrete do ${codigo}` : `Cobrança do ${codigo} para ${r.destinatarios.join(', ')}`;
+        const agendado = r.modo === 'lembrar' ? 'agendado' : 'agendada';
+        avisar(quando ? `${oQue} ${agendado} para ${quando} (fora do horário de cobrança).` : `${oQue} na fila do WhatsApp.`, 'sucesso');
         void carregarWhatsapp();
         return true;
       } catch (e) {

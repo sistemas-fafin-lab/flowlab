@@ -810,6 +810,7 @@ function tiApiPlugin(env: Record<string, string>): Plugin {
     'agente-analisar': 'POST',
     'agente-perguntar': 'POST',
     'agente-cobranca-cron': 'GET',
+    'agente-fechamento-cron': 'GET',
     'agente-cobrar': 'POST',
     'agente-teste': 'POST',
     'waha-webhook': 'POST',

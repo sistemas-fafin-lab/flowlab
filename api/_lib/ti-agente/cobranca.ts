@@ -6,12 +6,12 @@ import { ehDiaUtil, hojeSP, type Dia } from '../../../src/modules/eva/domain/dat
 import type { CardTI } from '../../../src/modules/eva/domain/demandas.js';
 import {
   chaveDia, destinatarios, montarCobrancaManual, montarMensagemDiaria, pendenciasDoMembro, podeCobrar, podeReceber,
-  totalPendencias, type MembroCobranca, type ModoCobranca,
+  proximaJanelaDeCobranca, totalPendencias, type MembroCobranca, type ModoCobranca,
 } from '../../../src/modules/eva/domain/cobranca.js';
 import { tem, type Usuario } from './autorizacao.js';
 import { lerTudo } from './dados.js';
 
-const CAMPOS_CARD = 'id, codigo, title, priority, status, kanban_status, assigned_to, due_date, kanban_hidden, project_id, sprint_id, updated_at, created_at';
+export const CAMPOS_CARD ='id, codigo, title, priority, status, kanban_status, assigned_to, due_date, kanban_hidden, project_id, sprint_id, updated_at, created_at';
 
 type Pagina<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
@@ -128,10 +128,25 @@ export async function gerarCobrancasDoDia(
 // ── Cobrar / Lembrar (D22, RN16) ─────────────────────────────────────────────
 
 export type ResultadoCobrar =
-  | { ok: true; modo: ModoCobranca; destinatarios: string[] }
+  /** `agendadaPara`: fora do horário de cobrança, o instante (ISO) em que ela sai; null = sai já. */
+  | { ok: true; modo: ModoCobranca; destinatarios: string[]; agendadaPara: string | null }
   | { ok: false; status: 403 | 404 | 409 | 422; erro: string };
 
-export async function cobrarCard(db: SupabaseClient, usuario: Usuario, cardId: string, agora = new Date()): Promise<ResultadoCobrar> {
+export type ChecagemCobranca =
+  | { ok: true; card: CardTI; modo: ModoCobranca; alvos: MembroCobranca[] }
+  | { ok: false; status: 403 | 404 | 409 | 422; erro: string };
+
+/**
+ * Tudo o que o Cobrar confere, sem gravar: permissão, WhatsApp ligado, card atrasado, janela de
+ * 4 h e quem recebe. Os comandos pelo WhatsApp (D29) usam para mostrar o que vai sair antes do SIM.
+ */
+export async function checarCobranca(
+  db: SupabaseClient,
+  usuario: Usuario,
+  cardId: string,
+  agora = new Date(),
+  membros?: MembroCobranca[],
+): Promise<ChecagemCobranca> {
   const { data: card, error } = await db.from('it_requests').select(CAMPOS_CARD).eq('id', cardId).maybeSingle<CardTI>();
   if (error) throw new Error(error.message);
   if (!card || card.kanban_hidden) return { ok: false, status: 404, erro: 'Card não encontrado.' };
@@ -161,7 +176,7 @@ export async function cobrarCard(db: SupabaseClient, usuario: Usuario, cardId: s
   });
   if ('motivo' in r) return { ok: false, status: r.status, erro: r.motivo };
 
-  const alvos = destinatarios(c, r.modo, usuario.userId, await lerMembrosCobranca(db));
+  const alvos = destinatarios(c, r.modo, usuario.userId, membros ?? (await lerMembrosCobranca(db)));
   if (alvos.length === 0) {
     return {
       ok: false,
@@ -171,14 +186,25 @@ export async function cobrarCard(db: SupabaseClient, usuario: Usuario, cardId: s
         : 'Nenhum responsável do card tem WhatsApp cadastrado com adesão à cobrança (EVA → Membros).',
     };
   }
+  return { ok: true, card: c, modo: r.modo, alvos };
+}
+
+export async function cobrarCard(db: SupabaseClient, usuario: Usuario, cardId: string, agora = new Date()): Promise<ResultadoCobrar> {
+  const ch = await checarCobranca(db, usuario, cardId, agora);
+  if ('erro' in ch) return ch;
+  const { card: c, modo, alvos } = ch;
+  const hoje = hojeSP(agora);
+  // Fora do horário de cobrança (dia útil, 7h às 20h), a cobrança fica agendada para a próxima janela.
+  const janela = proximaJanelaDeCobranca(agora.getTime());
+  const agendadaPara = janela === null ? null : new Date(janela).toISOString();
   const { error: eIns } = await db.from('ti_agente_mensagens').insert(
     alvos.map((m) => ({
       membro_id: m.id, direcao: 'saida', tipo: 'cobranca_manual', status: 'pendente', card_ids: [c.id], enviada_por: usuario.userId,
-      texto: montarCobrancaManual({ nome: m.nome, card: c, hoje, modo: r.modo }),
+      texto: montarCobrancaManual({ nome: m.nome, card: c, hoje, modo }), proxima_tentativa_em: agendadaPara,
     })),
   );
   if (eIns) throw new Error(eIns.message);
-  return { ok: true, modo: r.modo, destinatarios: alvos.map((m) => m.nome) };
+  return { ok: true, modo, destinatarios: alvos.map((m) => m.nome), agendadaPara };
 }
 
 // ── Enviar teste (RF19) ──────────────────────────────────────────────────────

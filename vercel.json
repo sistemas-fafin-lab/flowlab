@@ -9,6 +9,7 @@
     { "path": "/api/umami/inatividade-cron", "schedule": "0 11 * * 1" },
     { "path": "/api/notifications/requests-digest-cron", "schedule": "0 20 * * *" },
     { "path": "/api/ti/agente-sync-cron", "schedule": "0 12 * * 1-5" },
-    { "path": "/api/ti/agente-cobranca-cron", "schedule": "0 11 * * 1-5" }
+    { "path": "/api/ti/agente-cobranca-cron", "schedule": "0 11 * * 1-5" },
+    { "path": "/api/ti/agente-fechamento-cron", "schedule": "0 21 * * 1-5" }
   ]
 }

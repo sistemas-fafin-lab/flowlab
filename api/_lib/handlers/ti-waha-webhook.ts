@@ -2,14 +2,15 @@
 // Configurar na sessão `eva` com os eventos `message` e `message.ack` (issue 13).
 // - message.ack: acende Entregue/Lida na mensagem de saída (RF26), sem voltar para trás.
 // - message: só de membro ativo (RN13). Grava a recebida (idempotente por waha_message_id),
-//   responde 200 e interpreta em segundo plano (waitUntil): comentário no card, sugestão na
-//   fila e confirmação (D12). Número desconhecido fica registrado como `ignorada`, sem resposta.
+//   responde 200 e trata em segundo plano (waitUntil) pelo roteador de comandos (D29):
+//   atualização de card (comentário, sugestão e confirmação, D12), pergunta ou pedido de gestor
+//   com SIM. Número desconhecido fica registrado como `ignorada`, sem resposta.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { waitUntil } from '@vercel/functions';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { idCurtoWaha, statusPeloAck } from '../../../src/modules/eva/domain/whatsapp.js';
 import { acharMembro, lerEvento, tokenValido, type MembroWebhook } from '../ti-agente/webhook.js';
-import { processarRecebida } from '../ti-agente/respostas.js';
+import { processarRecebida } from '../ti-agente/comandos.js';
 import { dependenciasIA } from '../ti-agente/servicos.js';
 
 const DUPLICADA = '23505';

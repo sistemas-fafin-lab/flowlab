@@ -1,7 +1,7 @@
 // WhatsApp da EVA (issues 12, 14 e 15; plano §11): números, novas tentativas, confirmações
 // de entrega e o "último contato" de cada card. Puro. Usado pela api/, pela VPS e pelo
 // Início, então os imports levam ".js".
-import { diaSP, formatarDiaMes, somarDias, type Dia } from './datas.js';
+import { diaDaSemana, diaSP, formatarDiaMes, somarDias, type Dia } from './datas.js';
 
 // ── Números ──────────────────────────────────────────────────────────────────
 
@@ -34,6 +34,9 @@ export function mesmoNumero(a: string | null | undefined, b: string | null | und
 
 export const chatIdDoNumero = (digitos: string) => `${digitos.replace(/\D/g, '')}@c.us`;
 
+/** Id de grupo do WhatsApp ("1203…@g.us"): o único destino fora da lista de membros (D29). */
+export const ehChatDeGrupo = (chatId: string | null | undefined): chatId is string => !!chatId && /^[\w.-]+@g\.us$/.test(chatId);
+
 // ── Envio e novas tentativas (§11.2, passo 5) ────────────────────────────────
 
 /** Atraso das novas tentativas, em minutos. Na 4ª falha, a mensagem fica "falhou". */
@@ -54,11 +57,13 @@ export const VALIDADE_FILA_MS = 12 * 60 * 60 * 1000;
 
 /**
  * A mensagem venceu na fila? A cobrança da manhã só vale no próprio dia ("pendências de hoje");
- * as demais (cobrança manual, teste, confirmação) valem por 12 h.
+ * as demais (cobrança manual, teste, confirmação) valem por 12 h, contadas da criação ou, se
+ * ela foi agendada (horário de cobrança), da hora agendada.
  */
-export function venceuNaFila(tipo: string, criadaEm: string, agora: number): boolean {
+export function venceuNaFila(tipo: string, criadaEm: string, agora: number, agendadaPara: string | null = null): boolean {
   if (tipo === 'cobranca') return diaSP(criadaEm) !== diaSP(new Date(agora));
-  return agora - new Date(criadaEm).getTime() > VALIDADE_FILA_MS;
+  const desde = Math.max(new Date(criadaEm).getTime(), agendadaPara ? new Date(agendadaPara).getTime() : 0);
+  return agora - desde > VALIDADE_FILA_MS;
 }
 
 /** 1 a 3 s entre envios, para não parecer disparo em massa (§11.2, passo 4). */
@@ -92,13 +97,17 @@ export interface MensagemFila {
   membro_user_id: string | null;
   membro_nome: string | null;
   direcao: 'saida' | 'entrada';
-  tipo: 'cobranca' | 'cobranca_manual' | 'teste' | 'confirmacao' | 'recebida';
+  tipo: 'cobranca' | 'cobranca_manual' | 'teste' | 'confirmacao' | 'recebida' | 'grupo';
   texto: string;
+  /** Grupo da equipe (…@g.us): a mensagem não é de um membro (D29). */
+  chat_id_destino?: string | null;
   card_ids: string[];
   status: string;
   erro: string | null;
   created_at: string;
   enviada_em: string | null;
+  /** Agendada (horário de cobrança) ou próxima tentativa depois de uma falha. */
+  proxima_tentativa_em?: string | null;
 }
 
 const ehCobranca = (m: MensagemFila) => m.direcao === 'saida' && (m.tipo === 'cobranca' || m.tipo === 'cobranca_manual');
@@ -114,6 +123,16 @@ export function quandoFoi(iso: string, hoje: Dia): string {
   if (dia === hoje) return `às ${horaSP(iso)}`;
   if (dia === somarDias(hoje, -1)) return `ontem às ${horaSP(iso)}`;
   return `em ${formatarDiaMes(dia)} às ${horaSP(iso)}`;
+}
+
+const NOME_DIA = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'];
+
+/** Para o futuro: "hoje às 07:00", "amanhã às 07:00", "segunda (19/10) às 07:00". */
+export function quandoSera(iso: string, hoje: Dia): string {
+  const dia = diaSP(iso);
+  if (dia === hoje) return `hoje às ${horaSP(iso)}`;
+  if (dia === somarDias(hoje, 1)) return `amanhã às ${horaSP(iso)}`;
+  return `${NOME_DIA[diaDaSemana(dia)]} (${formatarDiaMes(dia)}) às ${horaSP(iso)}`;
 }
 
 /** Coluna de horário da fila do Início: "10:12" hoje, "13/10" nos outros dias. */
@@ -146,7 +165,10 @@ export function ultimoContato(
 
   const ultima = cobrancas[0];
   if (!ultima) return { texto: 'Ainda não cobrada', cobradaNaJanela, ultimaManualEm, semResposta: null };
-  if (ultima.status === 'pendente') return { texto: 'Cobrança na fila', cobradaNaJanela, ultimaManualEm, semResposta: null };
+  if (ultima.status === 'pendente') {
+    const agendada = ultima.proxima_tentativa_em && new Date(ultima.proxima_tentativa_em).getTime() > agora;
+    return { texto: agendada ? `Cobrança agendada para ${quandoSera(ultima.proxima_tentativa_em!, hoje)}` : 'Cobrança na fila', cobradaNaJanela, ultimaManualEm, semResposta: null };
+  }
   if (ultima.status === 'falhou') return { texto: `A cobrança ${quandoFoi(ultima.created_at, hoje)} falhou`, cobradaNaJanela, ultimaManualEm, semResposta: null };
 
   const enviadaEm = quando(ultima);

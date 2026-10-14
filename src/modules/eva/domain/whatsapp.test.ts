@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  depoisDaFalha, digitosDoChatId, horarioNaFila, idCurtoWaha, mesmoNumero, quandoFoi, statusPeloAck, ultimoContato, venceuNaFila,
+  depoisDaFalha, digitosDoChatId, horarioNaFila, idCurtoWaha, mesmoNumero, quandoFoi, quandoSera, statusPeloAck, ultimoContato, venceuNaFila,
   type MensagemFila,
 } from './whatsapp';
 
@@ -52,6 +52,20 @@ describe('validade na fila (queda longa do WAHA)', () => {
     expect(venceuNaFila('cobranca_manual', '2026-10-14T01:00:00Z', agora)).toBe(false);
     expect(venceuNaFila('confirmacao', '2026-10-13T23:00:00Z', agora)).toBe(true);
   });
+  it('agendada para fora do fim de semana: as 12 h contam da hora agendada', () => {
+    // Criada sexta 21h, agendada para segunda 07h (10h UTC): vale até segunda 19h.
+    const segunda9h = new Date('2026-10-19T12:00:00Z').getTime();
+    expect(venceuNaFila('cobranca_manual', '2026-10-17T00:00:00Z', segunda9h, '2026-10-19T10:00:00Z')).toBe(false);
+    expect(venceuNaFila('cobranca_manual', '2026-10-17T00:00:00Z', segunda9h)).toBe(true);
+  });
+});
+
+describe('quandoSera', () => {
+  it('hoje, amanhã e outro dia', () => {
+    expect(quandoSera('2026-10-13T10:00:00Z', HOJE)).toBe('hoje às 07:00');
+    expect(quandoSera('2026-10-14T10:00:00Z', HOJE)).toBe('amanhã às 07:00');
+    expect(quandoSera('2026-10-19T10:00:00Z', HOJE)).toBe('segunda (19/10) às 07:00');
+  });
 });
 
 describe('confirmações de entrega (RF26)', () => {
@@ -100,6 +114,8 @@ describe('ultimoContato (D24)', () => {
 
   it('na fila, falhou, e a cobrança diária também conta', () => {
     expect(ultimoContato('c1', ['u-bruno'], [msg({ status: 'pendente', enviada_em: null })], agora, HOJE, JANELA).texto).toBe('Cobrança na fila');
+    expect(ultimoContato('c1', ['u-bruno'], [msg({ status: 'pendente', enviada_em: null, proxima_tentativa_em: '2026-10-14T10:00:00Z' })], agora, HOJE, JANELA).texto)
+      .toBe('Cobrança agendada para amanhã às 07:00');
     expect(ultimoContato('c1', ['u-bruno'], [msg({ status: 'falhou', enviada_em: null })], agora, HOJE, JANELA).texto).toBe('A cobrança às 10:12 falhou');
     const diaria = msg({ tipo: 'cobranca', created_at: '2026-10-13T11:05:00Z', enviada_em: '2026-10-13T11:05:10Z' });
     expect(ultimoContato('c1', ['u-bruno'], [diaria], agora, HOJE, JANELA)).toMatchObject({ texto: 'Cobrada às 08:05 · sem resposta', cobradaNaJanela: false });

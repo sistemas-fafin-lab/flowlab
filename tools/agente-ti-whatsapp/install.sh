@@ -16,11 +16,29 @@
 #        ./install.sh
 # Uso (checkout): troque ARQUIVO=… por REPO_DIR=/caminho/do/flowlab.
 #   (WAHA_URL padrão: http://127.0.0.1:3000; WAHA_SESSION padrão: eva)
-# Para atualizar, rode de novo com o arquivo novo (as chaves são regravadas).
+# Reinstalar: sem as variáveis, reaproveita o /etc/flowlab/eva-whatsapp.env já gravado:
+#   sudo ARQUIVO=./eva-whatsapp.mjs bash ./install.sh
+# O serviço roda como quem chamou o sudo (RUN_AS, padrão $SUDO_USER), não como root, e
+# /opt/flowlab-eva fica com esse usuário: as próximas atualizações do arquivo não pedem sudo.
 set -euo pipefail
 
 if [ "$(id -u)" -ne 0 ]; then
   echo "Rode com sudo." >&2
+  exit 1
+fi
+
+ENV_FILE=/etc/flowlab/eva-whatsapp.env
+if [ -z "${SUPABASE_URL:-}" ] && [ -f "$ENV_FILE" ]; then
+  echo "→ Reaproveitando as chaves de $ENV_FILE"
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+fi
+
+RUN_AS="${RUN_AS:-${SUDO_USER:-root}}"
+if [ "$RUN_AS" != "root" ] && ! id "$RUN_AS" >/dev/null 2>&1; then
+  echo "Usuário RUN_AS ($RUN_AS) não existe." >&2
   exit 1
 fi
 
@@ -63,6 +81,9 @@ if [ -n "${ARQUIVO:-}" ]; then
   echo "→ Copiando $ARQUIVO para $APP_DIR/eva-whatsapp.mjs"
   install -d -m 755 "$APP_DIR"
   install -m 644 "$ARQUIVO" "$APP_DIR/eva-whatsapp.mjs"
+  # Dono = quem roda o serviço: atualizar o arquivo depois não precisa de sudo. Como o serviço
+  # roda com esse mesmo usuário (não root), isso não abre caminho para virar root.
+  chown -R "$RUN_AS" "$APP_DIR"
   WORK_DIR="$APP_DIR"
   EXEC_START="$NODE_BIN $APP_DIR/eva-whatsapp.mjs"
   DRY_RUN="$NODE_BIN $APP_DIR/eva-whatsapp.mjs --dry-run"
@@ -78,9 +99,7 @@ else
   DRY_RUN="$NPX_BIN tsx tools/agente-ti-whatsapp/send-outbox.ts --dry-run"
 fi
 
-ENV_FILE=/etc/flowlab/eva-whatsapp.env
-
-echo "→ Gravando $ENV_FILE (só root lê)"
+echo "→ Gravando $ENV_FILE (só root lê; o systemd lê antes de trocar de usuário)"
 install -d -m 700 /etc/flowlab
 umask 077
 cat > "$ENV_FILE" <<EOF
@@ -93,7 +112,12 @@ EOF
 chmod 600 "$ENV_FILE"
 umask 022
 
-echo "→ Criando unidades systemd"
+USER_LINE=""
+if [ "$RUN_AS" != "root" ]; then
+  USER_LINE="User=$RUN_AS"
+fi
+
+echo "→ Criando unidades systemd (o serviço roda como $RUN_AS)"
 cat > /etc/systemd/system/flowlab-eva-whatsapp.service <<EOF
 [Unit]
 Description=FlowLAB — EVA: fila de WhatsApp (envio pelo WAHA local)
@@ -102,6 +126,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
+$USER_LINE
 WorkingDirectory=$WORK_DIR
 Environment=PATH=/usr/bin:/usr/local/bin:$(dirname "$NODE_BIN")
 EnvironmentFile=$ENV_FILE

@@ -150,6 +150,13 @@ describe('regras com a fila do WhatsApp (gestor, D24)', () => {
     expect(c.acao).toEqual({ tipo: 'navegar', para: '/it/eva/membros' });
     expect(comentarioWhatsapp(entrada({ config: cfg, fila: [msg({ status: 'falhou', created_at: '2026-10-12T11:45:00Z' })] }))).toBeUndefined();
   });
+
+  it('mensagem do grupo que falhou leva às configurações (D29)', () => {
+    const fila = [msg({ status: 'falhou', erro: 'WAHA HTTP 500', membro_id: null, membro_user_id: null, membro_nome: null, tipo: 'grupo', chat_id_destino: '120363000000000001@g.us', created_at: '2026-10-13T11:45:00Z' })];
+    const c = comentarioWhatsapp(entrada({ config: cfg, fila }))!;
+    expect(c.text).toBe('Uma mensagem para o grupo da equipe falhou às 08:45: WAHA HTTP 500');
+    expect(c.acao).toEqual({ tipo: 'navegar', para: '/it/eva/configuracoes' });
+  });
 });
 
 describe('regra de ouro (D28)', () => {

@@ -113,6 +113,7 @@ HANDLERS.set('POST /api/ti/agente-sincronizar', () => import('./_lib/handlers/ti
 HANDLERS.set('POST /api/ti/agente-analisar',    () => import('./_lib/handlers/ti-agente-analisar.js'));
 HANDLERS.set('POST /api/ti/agente-perguntar',   () => import('./_lib/handlers/ti-agente-perguntar.js'));
 HANDLERS.set('GET /api/ti/agente-cobranca-cron', () => import('./_lib/handlers/ti-agente-cobranca-cron.js'));
+HANDLERS.set('GET /api/ti/agente-fechamento-cron', () => import('./_lib/handlers/ti-agente-fechamento-cron.js'));
 HANDLERS.set('POST /api/ti/agente-cobrar',      () => import('./_lib/handlers/ti-agente-cobrar.js'));
 HANDLERS.set('POST /api/ti/agente-teste',       () => import('./_lib/handlers/ti-agente-teste.js'));
 HANDLERS.set('POST /api/ti/waha-webhook',       () => import('./_lib/handlers/ti-waha-webhook.js'));

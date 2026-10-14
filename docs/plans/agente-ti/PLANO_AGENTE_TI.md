@@ -3,6 +3,7 @@
 > **Status:** 🚧 **Código completo, em conferência** (branch `feat/agente-ti`).
 > - **Fases 0 a 2 (13/Out/2026):** Início com dados reais, reuniões do Granola, sugestões com aprovação, chat e comentários. As migrations foram aplicadas no projeto do app, e a primeira análise real rodou pela tela.
 > - **Fases 3 e 4 (14/Out/2026):** fila do WhatsApp com o script da VPS, cobrança diária e sob demanda, e respostas pelo webhook.
+> - **Comandos pelo WhatsApp e grupo da equipe (14/Out/2026, D29):** perguntas, cobranças, aprovação de sugestões e avisos, com SIM; fechamento do dia e resumo de reunião no grupo (§11.4, issue 18).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
 > Protótipo da interface em `docs/flowlab_agent/` (§12).
@@ -14,7 +15,7 @@
 > - D24: a fila do WhatsApp é **só para gestores**.
 >
 > **Desenvolvimento autorizado em 13/Out.**
-> **Issues:** `.scratch/agente-ti/spec.md` e `.scratch/agente-ti/issues/01` a `17`.
+> **Issues:** `.scratch/agente-ti/spec.md` e `.scratch/agente-ti/issues/01` a `18`.
 
 ---
 
@@ -79,11 +80,12 @@ Entregáveis, na ordem em que geram valor:
 | **D21** | Comentários da EVA nos blocos | ✅ **Fechado (13/Out):** na v1, saem de **regras fixas**, sem IA, calculadas na leitura (`domain/comentarios.ts`). A exceção é o de Projetos, que usa a última reunião analisada.<br>• A ação de um comentário pode navegar, abrir o chat ou **executar uma ação com aprovação prévia** (D28). Exemplo: "Redistribuir" vira a proposta "mover IT-045 e IT-052 da Ana para o Diego".<br>• Comentários de agenda ficam de fora (§12.2). | Fase 1 e 2 |
 | **D22** | Botão Cobrar/Lembrar | ✅ **Fechado (13/Out):** entra na Fase 3, pela mesma fila (D9).<br>• **Lembrar** (o próprio card): quem tem `canManageIT`.<br>• **Cobrar** (card de outra pessoa, "em nome do gestor"): só `canApproveAgenteTI`.<br>• No máximo 1 por card a cada 4 h (RN16), com o texto do protótipo como modelo fixo.<br>• Sem WhatsApp cadastrado, o botão fica desabilitado, com dica. | Fase 3 |
 | **D23** | Minhas tasks do dia | ✅ **Fechado (13/Out):** são os meus cards abertos que vencem hoje, mais os atrasados. Não há agenda nem horário na v1.<br>• Marcar **conclui o card** (`done` + `status = 'resolved'`, a mesma regra do Board), com opção de desfazer por alguns segundos.<br>• É ação da própria pessoa, não sugestão da EVA, então não passa por aprovação. | Fase 1 |
-| **D24** | Quem vê a fila do WhatsApp | ✅ **Fechado (13/Out): só gestores** (`canApproveAgenteTI`).<br>• O bloco "Fila do WhatsApp" e o "último contato da EVA" nas atrasadas só aparecem para eles, que leem `ti_agente_mensagens` direto (a RLS já é deles).<br>• Para os demais, o bloco de atrasadas ocupa a linha inteira.<br>• O indicador "Cobranças hoje" continua para todos, por uma função que devolve **só a contagem** (`ti_agente_cobrancas_hoje()`, §6.3).<br>• Entregue/Lida vêm das confirmações do WAHA (`message.ack`) na Fase 4.<br>• Mensagens ao grupo da equipe ficam fora da v1. | Fase 3 |
+| **D24** | Quem vê a fila do WhatsApp | ✅ **Fechado (13/Out): só gestores** (`canApproveAgenteTI`).<br>• O bloco "Fila do WhatsApp" e o "último contato da EVA" nas atrasadas só aparecem para eles, que leem `ti_agente_mensagens` direto (a RLS já é deles).<br>• Para os demais, o bloco de atrasadas ocupa a linha inteira.<br>• O indicador "Cobranças hoje" continua para todos, por uma função que devolve **só a contagem** (`ti_agente_cobrancas_hoje()`, §6.3).<br>• Entregue/Lida vêm das confirmações do WAHA (`message.ack`) na Fase 4.<br>• Mensagens ao grupo da equipe ficaram fora da v1 e entraram depois, com a D29 (14/Out). Na fila, aparecem como "Grupo da equipe". | Fase 3 |
 | **D25** | Chips de situação no Início | ✅ **Fechado (13/Out):**<br>• **Granola:** horário da última sincronização.<br>• **Wa-ha:** situação da sessão, gravada a cada minuto pelo script da VPS em `ti_agente_config` (a Vercel não alcança o WAHA, D9).<br>• **Aprovadores:** chip extra "N sugestões aguardando", que o protótipo não tem e leva a `/it/eva`. | Fase 1 a 3 |
 | **D26** | Ditado por voz | ✅ **Fechado (13/Out):** como no handoff. Web Speech API do navegador (Chrome/Edge, HTTPS), sem servidor e sem custo. No Chrome, o áudio é processado pelo serviço de voz do Google. | Fase 2 |
 | **D27** | Projeto "em risco" | ✅ **Fechado (13/Out), vem do protótipo:** além das regras da RN05, o projeto fica em **Atenção** quando o progresso da sprint ativa está mais de 20 pontos abaixo do tempo já decorrido dela. Exemplo do protótipo: 35% feito com 60% da sprint passada. | Fase 1 |
 | **D28** | Como a EVA executa ações | ✅ **Fechado (13/Out):** a EVA **executa ações, sempre com aprovação prévia**.<br>• Toda ação (comentário, chat, reunião, WhatsApp) vira uma **proposta concreta** em `ti_agente_sugestoes`, com o que muda em cada card.<br>• **Gestor** (`canApproveAgenteTI`): vê a proposta num diálogo de confirmação. Confirmar é aprovar, e a EVA executa na hora, na mesma transação, registrando quem aprovou.<br>• **Os demais:** a proposta vai para a fila e espera um gestor.<br>• Nada muda no Kanban sem um gestor ter aprovado antes. Isso reforça a D6, não a substitui. | Fase 1 a 4 |
+| **D29** | Comandos pelo WhatsApp e grupo da equipe | ✅ **Fechado (14/Out), pedido do usuário ("quero seguir com todos os comandos"):** pelo WhatsApp, a EVA faz o que já fazia na tela, com confirmação. Detalhes na §11.4.<br>• **Qualquer membro:** atualiza os próprios cards (o fluxo da D12) e faz perguntas, com as mesmas regras do chat.<br>• **Só gestor** (`canApproveAgenteTI`, conferido de novo na hora do SIM): pedir cobranças, ver as sugestões pendentes numa lista numerada, aprovar ou rejeitar por número e mandar avisos no grupo.<br>• **Nada sai sem o SIM:** a EVA mostra o que vai fazer e espera "SIM" por 30 min.<br>• Aprovar pelo WhatsApp **é** a aprovação da D28: a mesma lógica da tela, em nome do gestor dono do número (`ti_agente_aprovar_sugestao_como`).<br>• **Grupo da equipe:** escolhido em Configurações, a partir da lista que a VPS lê do WAHA. Recebe o fechamento do dia (dias úteis, 18h), o resumo de cada reunião analisada e os avisos de gestor. Os dois primeiros têm liga/desliga, que nasce desligado. Tudo respeita o horário de cobrança (§10). | Fase 4 |
 
 ---
 
@@ -386,6 +388,15 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
 | `ti_agente_sugestoes` | `canManageIT` ou `canApproveAgenteTI` | nenhuma (só pelas RPCs) |
 | `ti_agente_mensagens` | `canApproveAgenteTI` | nenhuma (servidor e VPS, com service role) |
 | `ti_agente_chamadas_ia` | `canManageIT` ou `canApproveAgenteTI` (só metadados) | nenhuma (só o servidor grava) |
+| `ti_agente_comandos` (D29) | `canApproveAgenteTI` | nenhuma (só o servidor grava) |
+
+**D29 (`20261014160000_eva_comandos_whatsapp.sql`):**
+- `ti_agente_comandos` guarda os pedidos de gestor pelo WhatsApp: `cobrar`, `aprovar`, `rejeitar`, `avisar_grupo` (status `aguardando` → `executado` ou `cancelado`) e a última lista de sugestões (`lista_sugestoes`, status `lista`). Cada um tem `dados` em jsonb e `expira_em`.
+- `ti_agente_mensagens` ganha `chat_id_destino`, o grupo, e o tipo `grupo`.
+- `ti_agente_config` ganha:
+  - `whatsapp_grupo_id`, que só aceita `…@g.us`, e `whatsapp_grupo_nome`;
+  - `waha_grupos` (jsonb) e `waha_grupos_em`;
+  - `fechamento_diario_ativo` e `resumo_reuniao_grupo_ativo`, os dois desligados por padrão.
 
 ### 6.3 RPCs
 
@@ -403,6 +414,10 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
   - Com `p_aprovar = true`, exige `canApproveAgenteTI` e chama a aprovação **na mesma transação**: o gestor confirmou no diálogo, e a EVA executa na hora.
   - Devolve o id da sugestão.
 - **`ti_agente_cobrancas_hoje() RETURNS integer`** (D24): `SECURITY DEFINER`, exige `canManageIT`. Conta as mensagens `cobranca` e `cobranca_manual` enviadas hoje (dia de Brasília), sem expor texto nem destinatário. Alimenta o indicador do Início para quem não é gestor.
+- **`ti_agente_aprovar_sugestao_como(p_id, p_proposta, p_aprovador)`** e **`ti_agente_rejeitar_sugestao_como(p_id, p_motivo, p_aprovador)`** (D29) são as duas de cima, com quem decide como parâmetro. É o caminho dos comandos pelo WhatsApp, onde não há sessão.
+  - Conferem `user_has_permission(p_aprovador, 'canApproveAgenteTI')`, a regra das policies, que ignora usuário removido ou desativado.
+  - Só a `service_role` executa: `REVOKE` de `PUBLIC`, `anon` e `authenticated`.
+  - Desde essa migration, `ti_agente_aprovar_sugestao` e `ti_agente_rejeitar_sugestao` conferem a sessão e delegam para elas, com `auth.uid()`.
 
 ---
 
@@ -655,6 +670,13 @@ Início: https://<app>/it/inicio
 
 Seções vazias não aparecem. Acima de 8 itens, a mensagem termina com "e outras N no Início". Os cards ocultos do Kanban (`kanban_hidden`) ficam de fora.
 
+**Horário de cobrança** (decidido com o usuário em 14/Out): cobranças e lembretes, automáticos ou manuais, **só saem em dia útil, das 7h às 20h de Brasília**. Nunca no fim de semana.
+- Fora disso, o botão Cobrar grava a mensagem já agendada para a próxima janela (`proxima_tentativa_em`), e a tela avisa: "agendada para segunda (19/10) às 07:00".
+- O script da VPS segura qualquer cobrança que chegue fora da janela e a reagenda para a abertura.
+- A validade de 12 h da fila conta a partir da hora agendada.
+- Teste e confirmação de resposta saem a qualquer hora.
+- Feriados ficam de fora na v1, como em `ehDiaUtil`.
+
 **Sob demanda (D22, RN16):** o botão Cobrar/Lembrar do bloco de atrasadas chama `agente-cobrar`.
 - O servidor confere a permissão: Lembrar = o próprio card com `canManageIT`; Cobrar = card de outra pessoa com `canApproveAgenteTI`.
 - Também confere a janela de 4 h por card e se o responsável tem WhatsApp com adesão.
@@ -707,6 +729,49 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts` (testada); o executável só mon
    - Até 5 cards por mensagem. Acima de 20 mensagens de um membro no mesmo dia, as próximas ficam registradas sem interpretação e sem resposta. Isso segura o custo e evita um laço com robô de resposta automática.
 4. Enfileira a confirmação: "Anotei no IT-045: 'concluída'. A mudança de status vai para aprovação."
 5. **Confirmações de entrega (RF26):** o webhook também assina o evento `message.ack`. Com ele, a mensagem de saída de mesmo `waha_message_id` passa a `entregue` ou `lida`, o que acende os selos da fila no Início. O status nunca volta para trás: `lida` não vira `entregue`.
+
+**Desde 14/Out (D29),** os passos 3 e 4 passam pelo roteador de comandos da §11.4. A atualização de cards continua igual, como uma das intenções.
+
+### 11.4 Comandos e grupo da equipe (D29)
+
+`api/_lib/ti-agente/comandos.ts` (`processarRecebida`). Toda mensagem de membro segue esta ordem:
+1. **SIM ou NÃO** responde ao último pedido de gestor que espera confirmação.
+   - O pedido vale por 30 min (`ti_agente_comandos`, status `aguardando`). Um SIM depois disso responde que expirou.
+   - Qualquer outra mensagem tira o pedido de cena: um SIM mais tarde não confirma o que ficou para trás.
+   - O pedido é marcado como `executado` **antes** de rodar, então um SIM repetido não executa duas vezes.
+2. **"aprovar 1 e 3", "aprovar todas", "rejeitar 2 motivo"** valem para a última lista numerada que a EVA mandou ao gestor (status `lista`, 2 h). São lidos sem IA.
+3. **"ok", "obrigado", 👍** não recebem resposta, para não virar pingue-pongue.
+4. **O resto vai para a IA numa chamada só** (`gerarEstruturado`, finalidade `resposta_whatsapp`, Sonnet 5.5 com `effort: 'low'`). Ela devolve uma intenção:
+
+| Intenção | Quem | O que a EVA faz |
+|---|---|---|
+| `atualizar_cards` | todos (gestor: qualquer card aberto) | Comentário, sugestão e confirmação, como na §11.3 |
+| `pergunta` | todos | Responde em até 8 linhas, com o contexto do chat (membros, cards, projetos, última reunião). Sem `canManageIT`, só os próprios cards (RN17). A fila do WhatsApp não entra (D24) |
+| `cobrar` | gestor | Por card ou pela pessoa (os atrasados dela), até 5 cards. Mostra quem recebe e o que não dá para cobrar (as regras do botão Cobrar: atrasado, janela de 4 h, adesão). No SIM, chama o mesmo `cobrarCard` |
+| `ver_sugestoes` | gestor | Lista numerada com até 10 pendentes, como "… e mais N no Início" |
+| `aprovar` / `rejeitar` | gestor | Mostra o que será decidido e espera o SIM. Rejeitar exige motivo; sem ele, a EVA pergunta |
+| `avisar_grupo` | gestor | Mostra o texto exato ("📢 Aviso de Ana: …") e, no SIM, grava na fila do grupo |
+| `outro` | todos | Ajuda curta com os comandos (a de gestor inclui os dele) |
+
+**Aprovar sem sessão:** pelo WhatsApp não há `auth.uid()`. `ti_agente_aprovar_sugestao_como(p_id, p_proposta, p_aprovador)` e `ti_agente_rejeitar_sugestao_como` recebem quem decide e conferem `user_has_permission(p_aprovador, 'canApproveAgenteTI')`, a mesma regra das policies, que ignora usuário removido ou desativado.
+- Só a service role executa essas duas funções; o cliente, não, para não se passar por outro gestor.
+- As RPCs da tela passaram a delegar para elas, então a lógica de aplicar a sugestão fica num lugar só.
+
+**Limites:** 20 mensagens por dia por membro e 40 por gestor, que manda mais por causa dos SIMs e dos números. Acima disso, a mensagem fica registrada sem resposta, como antes.
+
+**Grupo da equipe:**
+- **Lista de grupos:** o script da VPS lê `GET /api/eva/groups` a cada 30 min, mesmo com o envio desligado, e grava em `ti_agente_config.waha_grupos`.
+  - O botão "Atualizar lista" de Configurações zera `waha_grupos_em`, e a VPS relê no minuto seguinte.
+  - A leitura aceita os formatos dos engines WEBJS, NOWEB e GOWS.
+- **Envio:** a mensagem vai para a fila com `membro_id` nulo e `chat_id_destino` = o grupo (`…@g.us`). O script envia para ele sem `check-exists`, e um destino que não é grupo falha de vez.
+- **Horário:** o tipo `grupo` segue o horário de cobrança (§10). Fora dele, a mensagem fica agendada, e o pedido do gestor já avisa quando ela sai. O teste do grupo sai a qualquer hora.
+- **Fechamento do dia:** cron `agente-fechamento-cron` (`0 21 * * 1-5`, 18h de Brasília), com `chave_dia = fechamento:<dia>` e `dryRun`.
+  - Traz até 6 itens por seção: concluídas hoje, atrasadas, e o que vence até o próximo dia útil, cada um com o primeiro nome do responsável.
+  - Não há coluna de conclusão: "concluída hoje" é estar na coluna Concluído com `updated_at` de hoje, a mesma aproximação de `concluidoNaSemana`.
+  - Sem nada a dizer, não manda.
+- **Resumo de reunião:** ao terminar a análise (`analisarReuniao`), traz as principais decisões e quantas sugestões aguardam aprovação.
+  - Uma vez por reunião (`chave_dia = reuniao:<id>`), então reanalisar não repete.
+  - Reunião realizada há mais de 3 dias não vai: a primeira sincronização do Granola traz o histórico.
 
 ---
 

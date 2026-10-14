@@ -6,6 +6,8 @@ import {
   INSTRUCOES_EXTRACAO, SchemaSugestoes, montarContexto, montarConteudo, validarSugestoes, type SugestaoValidada,
 } from './extracao.js';
 import { avisarGestores, lerContexto } from './dados.js';
+import { enviarResumoDaReuniao } from './grupo.js';
+import { APP_BASE_URL } from '../appUrl.js';
 
 export interface ResultadoAnalise {
   ok: boolean;
@@ -98,6 +100,14 @@ export async function analisarReuniao(
       if (r.provedor === 'gemini') await avisarSeReservaSeguida(db, r.motivoReserva);
     } catch (e) {
       console.error('[EVA/analise] Análise gravada, mas o aviso aos gestores falhou:', e);
+    }
+    // Resumo no grupo da equipe (D29), se ligado em Configurações. Falha não desfaz a análise.
+    try {
+      await enviarResumoDaReuniao(db, {
+        id: reuniaoId, titulo: reuniao.titulo, realizadaEm: reuniao.realizada_em, observacoes: r.dados.observacoes, sugestoes: sugestoes.length,
+      }, `${APP_BASE_URL}/it/inicio`);
+    } catch (e) {
+      console.error('[EVA/analise] Análise gravada, mas o resumo para o grupo falhou:', e);
     }
     return resultado;
   } catch (e) {

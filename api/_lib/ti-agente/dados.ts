@@ -2,6 +2,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LinhaChamadaIA } from './ia/gerarEstruturado.js';
 import type { CardCtx, ContextoExtracao, MembroCtx, ProjetoCtx, SprintCtx } from './extracao.js';
+import type { UltimaReuniao } from './chat.js';
 
 const PAGINA = 1000;
 
@@ -64,6 +65,28 @@ export async function lerContexto(db: SupabaseClient): Promise<ContextoExtracao>
       db.from('it_sprints').select('id, project_id, name, start_date, end_date, status').in('status', ['active', 'planned']).range(de, ate) as unknown as Pagina<SprintCtx>),
   ]);
   return { membros, cards: cards.map((c) => ({ ...c, assigned_to: c.assigned_to ?? [] })), projetos, sprints };
+}
+
+/** A última reunião analisada, para o chat e as perguntas pelo WhatsApp. */
+export async function lerUltimaReuniao(db: SupabaseClient): Promise<UltimaReuniao | null> {
+  const { data, error } = await db
+    .from('ti_agente_reunioes')
+    .select('titulo, realizada_em, observacoes, resumo_markdown')
+    .eq('status', 'analisada')
+    .order('analisada_em', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return data ? { titulo: data.titulo, realizadaEm: data.realizada_em, observacoes: data.observacoes, resumo: data.resumo_markdown } : null;
+}
+
+/** Nome de cada pessoa (perfil), para os textos da EVA. */
+export async function lerNomes(db: SupabaseClient, ids: string[]): Promise<Record<string, string>> {
+  const unicos = Array.from(new Set(ids.filter(Boolean)));
+  if (unicos.length === 0) return {};
+  const { data, error } = await db.from('user_profiles').select('id, name').in('id', unicos);
+  if (error) throw new Error(error.message);
+  return Object.fromEntries((data ?? []).map((p) => [p.id as string, (p.name as string) ?? '']));
 }
 
 /** Registro de uso da IA (RN14). */

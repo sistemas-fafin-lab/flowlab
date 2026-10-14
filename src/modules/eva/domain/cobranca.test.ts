@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  JANELA_COBRANCA_MS, chaveDia, destinatarios, montarCobrancaManual, montarMensagemDiaria, pendenciasDoMembro, podeCobrar,
+  JANELA_COBRANCA_MS, chaveDia, destinatarios, montarCobrancaManual, montarMensagemDiaria, pendenciasDoMembro, podeCobrar, proximaJanelaDeCobranca,
   type MembroCobranca,
 } from './cobranca';
 import { card } from './testes/fabricas';
@@ -86,6 +86,23 @@ describe('montarMensagemDiaria (D11)', () => {
 
   it('uma chave por pessoa por dia', () => {
     expect(chaveDia('m1', HOJE)).toBe('cobranca:m1:2026-10-13');
+  });
+});
+
+describe('horário de cobrança: dia útil, das 7h às 20h de Brasília', () => {
+  const sp = (isoLocal: string) => Date.parse(`${isoLocal}-03:00`);
+  it('dentro da janela pode cobrar agora', () => {
+    expect(proximaJanelaDeCobranca(sp('2026-10-13T07:00:00'))).toBeNull();
+    expect(proximaJanelaDeCobranca(sp('2026-10-13T19:59:00'))).toBeNull();
+  });
+  it('noite de dia útil: no dia seguinte às 7h; madrugada: no mesmo dia', () => {
+    expect(proximaJanelaDeCobranca(sp('2026-10-13T20:00:00'))).toBe(sp('2026-10-14T07:00:00'));
+    expect(proximaJanelaDeCobranca(sp('2026-10-14T05:30:00'))).toBe(sp('2026-10-14T07:00:00'));
+  });
+  it('fim de semana nunca: sexta à noite, sábado e domingo vão para segunda às 7h', () => {
+    expect(proximaJanelaDeCobranca(sp('2026-10-16T21:00:00'))).toBe(sp('2026-10-19T07:00:00'));
+    expect(proximaJanelaDeCobranca(sp('2026-10-17T10:00:00'))).toBe(sp('2026-10-19T07:00:00'));
+    expect(proximaJanelaDeCobranca(sp('2026-10-18T23:00:00'))).toBe(sp('2026-10-19T07:00:00'));
   });
 });
 

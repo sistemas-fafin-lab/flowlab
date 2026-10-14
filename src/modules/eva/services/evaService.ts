@@ -143,9 +143,12 @@ export const evaService = {
   ask: (pergunta: string, visao: EvaView, historico: { de: 'eva' | 'eu'; texto: string }[]) =>
     chamarEva<RespostaEva>('agente-perguntar', { pergunta, visao, historico }),
 
-  /** Botão Cobrar/Lembrar (D22): põe a cobrança na fila; o script da VPS envia em até 1 min. */
+  /**
+   * Botão Cobrar/Lembrar (D22): põe a cobrança na fila; o script da VPS envia em até 1 min.
+   * Fora do horário de cobrança (dia útil, 7h às 20h), ela vai agendada (`agendadaPara`).
+   */
   sendCharge: (cardId: string) =>
-    chamarEva<{ modo: 'cobrar' | 'lembrar'; destinatarios: string[] }>('agente-cobrar', { card_id: cardId }),
+    chamarEva<{ modo: 'cobrar' | 'lembrar'; destinatarios: string[]; agendadaPara: string | null }>('agente-cobrar', { card_id: cardId }),
 
   /** Cobranças enviadas hoje. Só a contagem (D24): qualquer um com canManageIT vê o número. */
   async cobrancasHoje(): Promise<number> {
@@ -158,7 +161,7 @@ export const evaService = {
   async lerFila(desde: Date): Promise<MensagemFila[]> {
     const { data, error } = await supabase
       .from('ti_agente_mensagens')
-      .select('id, membro_id, direcao, tipo, texto, card_ids, status, erro, created_at, enviada_em, membro:ti_agente_membros(user_id, perfil:user_profiles!ti_agente_membros_user_id_fkey(name))')
+      .select('id, membro_id, direcao, tipo, texto, card_ids, status, erro, created_at, enviada_em, proxima_tentativa_em, chat_id_destino, membro:ti_agente_membros(user_id, perfil:user_profiles!ti_agente_membros_user_id_fkey(name))')
       .gte('created_at', desde.toISOString())
       .order('created_at', { ascending: false })
       .limit(300);

@@ -95,9 +95,10 @@ describe('blocos do Início (fumaça)', () => {
       { id: 'a', membro_id: 'm', membro_user_id: 'u', membro_nome: 'Ana Costa', direcao: 'saida', tipo: 'cobranca', texto: 'Bom dia, Ana!', card_ids: [], status: 'enviada', erro: null, created_at: '2026-10-13T11:05:00Z', enviada_em: '2026-10-13T11:05:10Z' },
       { id: 'b', membro_id: 'm', membro_user_id: 'u', membro_nome: 'Ana Costa', direcao: 'entrada', tipo: 'recebida', texto: 'IT-045 concluída', card_ids: [], status: 'recebida', erro: null, created_at: '2026-10-13T11:20:00Z', enviada_em: null },
       { id: 'c', membro_id: 'm2', membro_user_id: 'u2', membro_nome: 'Diego Lima', direcao: 'saida', tipo: 'teste', texto: 'Teste', card_ids: [], status: 'falhou', erro: 'O número não está no WhatsApp.', created_at: '2026-10-13T11:45:00Z', enviada_em: null },
+      { id: 'd', membro_id: null, membro_user_id: null, membro_nome: null, direcao: 'saida', tipo: 'grupo', texto: 'Fechamento do dia', card_ids: [], status: 'pendente', erro: null, created_at: '2026-10-13T21:00:00Z', enviada_em: null, chat_id_destino: '120363000000000001@g.us' },
     ];
     const msgs = mensagensDaFila(fila, HOJE, null);
-    expect(msgs.map((m) => [m.to, m.status, m.time])).toEqual([['Ana Costa', 'sent', '08:05'], ['Diego Lima', 'failed', '08:45']]);
+    expect(msgs.map((m) => [m.to, m.status, m.time])).toEqual([['Ana Costa', 'sent', '08:05'], ['Diego Lima', 'failed', '08:45'], ['Grupo da equipe', 'scheduled', '18:00']]);
     expect(mensagensDaFila(fila, HOJE, 'u2')).toHaveLength(1);
     const html = render(h(WhatsAppQueueCard, { messages: msgs, ativa: true }));
     expect(html).toContain('Ao vivo');

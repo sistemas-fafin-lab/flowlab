@@ -2,12 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 vi.mock('../supabase.js', () => ({ getSupabaseAdminClient: vi.fn() }));
-vi.mock('../ti-agente/respostas.js', () => ({ processarRecebida: vi.fn(async () => ({ ok: true })) }));
+vi.mock('../ti-agente/comandos.js', () => ({ processarRecebida: vi.fn(async () => ({ ok: true })) }));
 vi.mock('../ti-agente/servicos.js', () => ({ dependenciasIA: vi.fn(() => ({})) }));
 vi.mock('@vercel/functions', () => ({ waitUntil: vi.fn() }));
 
 import { getSupabaseAdminClient } from '../supabase.js';
-import { processarRecebida } from '../ti-agente/respostas.js';
+import { processarRecebida } from '../ti-agente/comandos.js';
 import handler from './ti-waha-webhook.js';
 
 const dbMock = getSupabaseAdminClient as ReturnType<typeof vi.fn>;

@@ -19,6 +19,7 @@ import agenteAnalisar from '../_lib/handlers/ti-agente-analisar.js';
 import agentePerguntar from '../_lib/handlers/ti-agente-perguntar.js';
 import agenteCobrancaCron from '../_lib/handlers/ti-agente-cobranca-cron.js';
 import agenteCobrar from '../_lib/handlers/ti-agente-cobrar.js';
+import agenteFechamentoCron from '../_lib/handlers/ti-agente-fechamento-cron.js';
 import agenteTeste from '../_lib/handlers/ti-agente-teste.js';
 import wahaWebhook from '../_lib/handlers/ti-waha-webhook.js';
 
@@ -32,6 +33,7 @@ const ROTAS: Record<string, Handler> = {
   'agente-perguntar': agentePerguntar,
   'agente-cobranca-cron': agenteCobrancaCron,
   'agente-cobrar': agenteCobrar,
+  'agente-fechamento-cron': agenteFechamentoCron,
   'agente-teste': agenteTeste,
   'waha-webhook': wahaWebhook,
 };

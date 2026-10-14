@@ -206,15 +206,17 @@ export function comentarioWhatsapp(e: EntradaComentarios): EvaInsightData | unde
   // Mensagem que falhou hoje (a mais recente).
   const falha = (e.fila ?? []).find((m) => m.direcao === 'saida' && m.status === 'falhou' && diaSP(m.created_at) === e.hoje);
   if (falha) {
-    const nome = primeiroNome(falha.membro_nome ?? '') || 'um membro';
+    // Mensagem do grupo da equipe (D29): o grupo se confere em Configurações, não em Membros.
+    const grupo = !!falha.chat_id_destino;
+    const nome = grupo ? 'o grupo da equipe' : primeiroNome(falha.membro_nome ?? '') || 'um membro';
     return {
       id: `whatsapp:falha:${falha.id}`,
       source: `Wa-ha · ${quandoFoi(falha.created_at, e.hoje)}`,
       text: `Uma mensagem para ${nome} falhou ${quandoFoi(falha.created_at, e.hoje)}${falha.erro ? `: ${falha.erro}` : '.'}`,
-      ctaLabel: 'Ver no histórico',
-      doneText: 'Abri a aba Membros.',
+      ctaLabel: grupo ? 'Ver configurações' : 'Ver no histórico',
+      doneText: grupo ? 'Abri as configurações.' : 'Abri a aba Membros.',
       askPrompt: 'Por que uma mensagem do WhatsApp falha?',
-      acao: { tipo: 'navegar', para: '/it/eva/membros' },
+      acao: { tipo: 'navegar', para: grupo ? '/it/eva/configuracoes' : '/it/eva/membros' },
     };
   }
   return undefined;
