@@ -16,15 +16,35 @@
 //   WAHA_API_KEY  → a chave de API do WAHA (X-Api-Key)
 //   WAHA_SESSION  → eva (padrão; a sessão do número da EVA no WAHA)
 //
+// Cada execução do timer (a cada minuto) roda a fila e, por até 50 s, olha de novo a cada 5 s:
+// a resposta da EVA a uma mensagem sai em segundos, não no minuto seguinte. O timer continua
+// abrindo uma execução por vez (Type=oneshot), e os 50 s terminam antes do próximo minuto.
+//
 // Uso:
-//   npx tsx tools/agente-ti-whatsapp/send-outbox.ts            (envia)
+//   npx tsx tools/agente-ti-whatsapp/send-outbox.ts            (envia; fica até 50 s olhando a fila)
+//   npx tsx tools/agente-ti-whatsapp/send-outbox.ts --uma-vez  (uma passada só)
 //   npx tsx tools/agente-ti-whatsapp/send-outbox.ts --dry-run  (só mostra sessão e fila; não grava nem envia)
 
 import { getSupabaseAdminClient } from '../../api/_lib/supabase.js';
 import { criarClienteWaha } from '../../api/_lib/ti-agente/waha.js';
-import { LIMITE_POR_EXECUCAO, esvaziarFila, repositorioSupabase } from '../../api/_lib/ti-agente/outbox.js';
+import { LIMITE_POR_EXECUCAO, esvaziarFila, repositorioSupabase, type ResultadoFila } from '../../api/_lib/ti-agente/outbox.js';
 
 const SCRIPT = 'eva-whatsapp';
+/** De quanto em quanto tempo a fila é relida dentro de uma execução, e por quanto tempo. */
+const INTERVALO_MS = 5_000;
+const JANELA_MS = 50_000;
+
+/** Só loga quando há o que dizer, para o journal não encher. */
+function registrar(r: ResultadoFila) {
+  if (r.erroGrupos) console.error(`[${SCRIPT}] Não consegui ler os grupos do WAHA: ${r.erroGrupos}`);
+  const vencidas = r.vencidas ? `; ${r.vencidas} vencida(s) na fila` : '';
+  const resumo = r.desligado
+    ? `envio desligado em Configurações${vencidas}`
+    : r.sessao !== 'WORKING'
+      ? `sessão não conectada; nada enviado${vencidas}`
+      : `${r.enviadas} enviada(s), ${r.falhas} falha(s)${r.definitivas ? `, ${r.definitivas} definitiva(s)` : ''}${vencidas}`;
+  if (r.enviadas || r.falhas || r.vencidas || r.sessao !== 'WORKING') console.error(`[${SCRIPT}] sessão ${r.sessao}: ${resumo}`);
+}
 
 async function main(): Promise<number> {
   const dryRun = process.argv.includes('--dry-run');
@@ -64,17 +84,24 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const r = await esvaziarFila(repo, waha);
-  if (r.erroGrupos) console.error(`[${SCRIPT}] Não consegui ler os grupos do WAHA: ${r.erroGrupos}`);
-  const vencidas = r.vencidas ? `; ${r.vencidas} vencida(s) na fila` : '';
-  const resumo = r.desligado
-    ? `envio desligado em Configurações${vencidas}`
-    : r.sessao !== 'WORKING'
-      ? `sessão não conectada; nada enviado${vencidas}`
-      : `${r.enviadas} enviada(s), ${r.falhas} falha(s)${r.definitivas ? `, ${r.definitivas} definitiva(s)` : ''}${vencidas}`;
-  // Só loga quando há o que dizer, para o journal não encher a cada minuto.
-  if (r.enviadas || r.falhas || r.vencidas || r.sessao !== 'WORKING') console.error(`[${SCRIPT}] sessão ${r.sessao}: ${resumo}`);
-  return r.falhas > 0 && r.enviadas === 0 ? 1 : 0;
+  const inicio = Date.now();
+  let r = await esvaziarFila(repo, waha);
+  registrar(r);
+  let enviadas = r.enviadas;
+  let falhas = r.falhas;
+  // Desligado ou sem sessão: nada a fazer até o próximo minuto.
+  const continuar = () => !process.argv.includes('--uma-vez') && !r.desligado && r.sessao === 'WORKING';
+  while (continuar() && Date.now() - inicio + INTERVALO_MS < JANELA_MS) {
+    await new Promise((ok) => setTimeout(ok, INTERVALO_MS));
+    // Leitura barata: só roda a fila inteira (sessão, envio) quando há mensagem pronta para sair.
+    const prontas = await repo.pendentes(new Date().toISOString(), 1);
+    if (prontas.length === 0) continue;
+    r = await esvaziarFila(repo, waha);
+    registrar(r);
+    enviadas += r.enviadas;
+    falhas += r.falhas;
+  }
+  return falhas > 0 && enviadas === 0 ? 1 : 0;
 }
 
 main()

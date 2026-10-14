@@ -22,6 +22,20 @@ async function rodar(claude: ClienteIA, gemini: ClienteIA) {
   return { r, linhas };
 }
 
+describe('paraJsonSchema', () => {
+  it('tira os limites numéricos e de tamanho que o Claude recusa (400), sem mudar o resto', () => {
+    const json = paraJsonSchema(z.object({ n: z.array(z.number().int()), t: z.string().min(1).max(5), d: z.enum(['a', 'b']).nullable() }));
+    const texto = JSON.stringify(json);
+    for (const k of ['minimum', 'maximum', 'minLength', 'maxLength', '$schema']) expect(texto).not.toContain(`"${k}"`);
+    expect(json).toMatchObject({ type: 'object', required: ['n', 't', 'd'], properties: { n: { type: 'array', items: { type: 'integer' } }, t: { type: 'string' } } });
+  });
+
+  it('os schemas da EVA vão sem esses limites', async () => {
+    const { SchemaMensagem } = await import('../comandos.js');
+    expect(JSON.stringify(paraJsonSchema(SchemaMensagem))).not.toMatch(/"(minimum|maximum|minLength|maxLength)"/);
+  });
+});
+
 describe('gerarEstruturado — reserva (D17)', () => {
   it('Claude ok: o Gemini não é chamado', async () => {
     const claude = falso('claude', { texto: VALIDO });

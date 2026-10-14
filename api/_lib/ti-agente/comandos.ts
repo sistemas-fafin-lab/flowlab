@@ -205,7 +205,8 @@ export const SchemaMensagem = z.object({
   resposta: z.string().nullable(),
   cobrar_codigos: z.array(z.string()),
   cobrar_pessoa_id: z.string().nullable(),
-  numeros: z.array(z.number().int()),
+  // Sem .int(): o número da lista é conferido em prepararDecisao (1 até o tamanho da lista).
+  numeros: z.array(z.number()),
   todas: z.boolean(),
   motivo: z.string().nullable(),
   aviso: z.string().nullable(),
@@ -410,7 +411,7 @@ async function prepararDecisao(db: SupabaseClient, membro: Remetente, pedido: Pe
   const lista = await ultimoComando(db, membro.id, 'lista', agora.toISOString());
   if (!lista) return SEM_LISTA;
   const ids = ((lista.dados.ids as string[] | undefined) ?? []).filter(Boolean);
-  const numeros = pedido.todas ? ids.map((_, i) => i + 1) : pedido.numeros;
+  const numeros = pedido.todas ? ids.map((_, i) => i + 1) : Array.from(new Set(pedido.numeros.filter(Number.isInteger)));
   if (numeros.length === 0) return 'Quais? Mande os números da lista (ex.: "aprovar 1 e 3").';
   const fora = numeros.filter((n) => n < 1 || n > ids.length);
   const validos = numeros.filter((n) => n >= 1 && n <= ids.length);

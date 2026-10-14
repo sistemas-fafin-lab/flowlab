@@ -22,9 +22,11 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts`, com testes. Este diretório só
 8. Envia com `POST /api/sendText`, esperando 1 a 3 s entre um envio e outro.
 9. Se der certo, a mensagem fica `enviada`, com o id do WAHA. Se falhar, ganha nova tentativa depois de 1, 5 e 15 minutos. Na 4ª falha, fica `falhou`.
 
+10. Por até 50 s, relê a fila a cada 5 s e repete os passos acima quando há mensagem pronta. Assim, a resposta da EVA a uma mensagem sai em segundos, e não no minuto seguinte. Com o envio desligado ou a sessão fora de `WORKING`, a execução termina logo.
+
 **Se o WAHA ou a VPS caírem, o resto da EVA continua funcionando:** Início, chat, reuniões, sugestões, aprovações e o botão Cobrar. As mensagens esperam na fila e saem quando o WAHA voltar, se ainda estiverem dentro da validade.
 
-O systemd não abre uma execução nova enquanto a anterior está rodando (`Type=oneshot`), então uma mensagem não sai duas vezes.
+O systemd não abre uma execução nova enquanto a anterior está rodando (`Type=oneshot`), então uma mensagem não sai duas vezes. A janela de 50 s termina antes do minuto seguinte, então o timer não pula nenhuma execução.
 
 ## Instalação (systemd)
 
@@ -93,7 +95,7 @@ SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... WAHA_API_KEY=... node eva-whatsap
 SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... WAHA_API_KEY=... npx tsx tools/agente-ti-whatsapp/send-outbox.ts --dry-run
 ```
 
-O `--dry-run` mostra a situação da sessão, se o envio está ligado e quantas mensagens esperam na fila. Não grava nem envia nada. Sem `--dry-run`, roda uma execução de verdade.
+O `--dry-run` mostra a situação da sessão, se o envio está ligado e quantas mensagens esperam na fila. Não grava nem envia nada. Sem `--dry-run`, roda uma execução de verdade, que fica até 50 s olhando a fila. Para uma passada só, use `--uma-vez`.
 
 O comando tem de rodar de dentro do checkout, ou apontar para o `eva-whatsapp.mjs`. Rodado na pasta pessoal, o `npx tsx tools/...` dá `ERR_MODULE_NOT_FOUND`.
 
