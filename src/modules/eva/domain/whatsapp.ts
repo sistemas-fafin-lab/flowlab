@@ -49,6 +49,18 @@ export function depoisDaFalha(tentativasAntes: number, agora: number): DepoisDaF
   return { status: 'pendente', tentativas, proxima_tentativa_em: new Date(agora + ATRASOS_REENVIO_MIN[tentativas - 1] * 60_000).toISOString() };
 }
 
+/** Uma mensagem parada na fila além disto não sai mais: depois de uma queda longa do WAHA, ela já não faz sentido. */
+export const VALIDADE_FILA_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * A mensagem venceu na fila? A cobrança da manhã só vale no próprio dia ("pendências de hoje");
+ * as demais (cobrança manual, teste, confirmação) valem por 12 h.
+ */
+export function venceuNaFila(tipo: string, criadaEm: string, agora: number): boolean {
+  if (tipo === 'cobranca') return diaSP(criadaEm) !== diaSP(new Date(agora));
+  return agora - new Date(criadaEm).getTime() > VALIDADE_FILA_MS;
+}
+
 /** 1 a 3 s entre envios, para não parecer disparo em massa (§11.2, passo 4). */
 export const intervaloEntreEnvios = (aleatorio = Math.random()) => 1000 + Math.round(aleatorio * 2000);
 

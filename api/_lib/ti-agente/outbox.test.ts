@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { esvaziarFila, WAHA_INACESSIVEL, type ItemFila, type RepositorioFila } from './outbox.js';
+import { ERRO_VENCIDA, esvaziarFila, WAHA_INACESSIVEL, type ItemFila, type RepositorioFila } from './outbox.js';
 import type { ClienteWaha } from './waha.js';
 
 function repo(itens: ItemFila[], ativo = true) {
@@ -27,8 +27,8 @@ const waha = (over: Partial<ClienteWaha> = {}): ClienteWaha => ({
   ...over,
 });
 
-const item = (id: string, membro: ItemFila['membro'] = { id: 'm1', whatsapp: '5561999924986', whatsapp_chat_id: null }, tentativas = 0): ItemFila =>
-  ({ id, tentativas, texto: 'Oi', membro });
+const item = (id: string, membro: ItemFila['membro'] = { id: 'm1', whatsapp: '5561999924986', whatsapp_chat_id: null }, tentativas = 0, extra: Partial<ItemFila> = {}): ItemFila =>
+  ({ id, tipo: 'cobranca_manual', created_at: '2026-10-13T11:58:00Z', tentativas, texto: 'Oi', membro, ...extra });
 
 const semEspera = { esperar: async () => undefined, agora: () => Date.UTC(2026, 9, 13, 12, 0) };
 
@@ -69,6 +69,21 @@ describe('esvaziarFila (§11.2)', () => {
       ['a', 'falhou', 'O número 5561999924986 não está no WhatsApp.'],
       ['b', 'falhou', 'Membro sem WhatsApp cadastrado.'],
     ]);
+  });
+
+  it('depois de uma queda longa, a mensagem velha vence e não sai, mesmo com a sessão caída', async () => {
+    const ontem = item('a', undefined, 0, { tipo: 'cobranca', created_at: '2026-10-12T11:05:00Z' });
+    const velha = item('b', undefined, 0, { tipo: 'confirmacao', created_at: '2026-10-12T20:00:00Z' });
+    const nova = item('c');
+    const { r, repositorio } = repo([ontem, velha, nova]);
+    const enviar = vi.fn(async () => ({ ok: true as const, id: 'x' }));
+    const caida = await esvaziarFila(repositorio, waha({ sessao: async () => ({ ok: false, erro: 'x' }), enviarTexto: enviar }), semEspera);
+    expect(caida).toMatchObject({ vencidas: 2, enviadas: 0 });
+    expect(r.falhas.map((f) => [f.id, f.status, f.erro])).toEqual([
+      ['a', 'falhou', ERRO_VENCIDA],
+      ['b', 'falhou', ERRO_VENCIDA],
+    ]);
+    expect(enviar).not.toHaveBeenCalled();
   });
 
   it('erro no envio volta para a fila com atraso; na 4ª tentativa, falhou', async () => {

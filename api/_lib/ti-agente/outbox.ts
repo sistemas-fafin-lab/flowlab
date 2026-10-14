@@ -2,16 +2,19 @@
 // (tools/agente-ti-whatsapp/send-outbox.ts): lê as pendentes e envia pelo WAHA local.
 // O banco fica atrás de RepositorioFila para a rotina ser testável sem Supabase.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { depoisDaFalha, intervaloEntreEnvios, type DepoisDaFalha } from '../../../src/modules/eva/domain/whatsapp.js';
+import { depoisDaFalha, intervaloEntreEnvios, venceuNaFila, type DepoisDaFalha } from '../../../src/modules/eva/domain/whatsapp.js';
 import type { ClienteWaha } from './waha.js';
 
 /** Quantas mensagens por execução (§11.2, passo 2). */
 export const LIMITE_POR_EXECUCAO = 20;
 /** Situação gravada quando o WAHA nem responde: o chip do Início mostra "fora do ar". */
 export const WAHA_INACESSIVEL = 'INACESSIVEL';
+export const ERRO_VENCIDA = 'Venceu na fila sem ser enviada (WhatsApp desligado ou WAHA fora do ar por muito tempo).';
 
 export interface ItemFila {
   id: string;
+  tipo: string;
+  created_at: string;
   tentativas: number;
   texto: string;
   membro: { id: string; whatsapp: string | null; whatsapp_chat_id: string | null } | null;
@@ -33,6 +36,8 @@ export interface ResultadoFila {
   falhas: number;
   /** Falharam de vez (número fora do WhatsApp, membro sem número, 4ª tentativa). */
   definitivas: number;
+  /** Venceram na fila e não saem mais (ver venceuNaFila). */
+  vencidas: number;
 }
 
 export async function esvaziarFila(
@@ -42,19 +47,28 @@ export async function esvaziarFila(
 ): Promise<ResultadoFila> {
   const agora = opcoes.agora ?? Date.now;
   const esperar = opcoes.esperar ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
-  const resultado: ResultadoFila = { sessao: '', desligado: false, enviadas: 0, falhas: 0, definitivas: 0 };
+  const resultado: ResultadoFila = { sessao: '', desligado: false, enviadas: 0, falhas: 0, definitivas: 0, vencidas: 0 };
 
   // Passo 6: a situação da sessão é gravada a cada execução, mesmo com o envio desligado (D25).
   const s = await waha.sessao();
   resultado.sessao = s.ok ? s.status : WAHA_INACESSIVEL;
   await repo.gravarSituacaoSessao(resultado.sessao, new Date(agora()).toISOString());
 
+  // Mensagem velha não sai depois de uma queda longa (a cobrança da manhã diz "pendências de
+  // hoje"). Vence mesmo com o envio desligado ou a sessão caída, para a fila mostrar a verdade.
+  const pendentes = await repo.pendentes(new Date(agora()).toISOString(), opcoes.limite ?? LIMITE_POR_EXECUCAO);
+  const fila: ItemFila[] = [];
+  for (const item of pendentes) {
+    if (!venceuNaFila(item.tipo, item.created_at, agora())) { fila.push(item); continue; }
+    await repo.marcarFalha(item.id, { status: 'falhou', tentativas: item.tentativas }, ERRO_VENCIDA);
+    resultado.vencidas += 1;
+  }
+
   // Passo 1: liga/desliga geral (RF20).
   if (!(await repo.whatsappAtivo())) return { ...resultado, desligado: true };
   // Sem sessão conectada, enviar só gastaria as tentativas: as mensagens esperam a sessão voltar.
   if (resultado.sessao !== 'WORKING') return resultado;
 
-  const fila = await repo.pendentes(new Date(agora()).toISOString(), opcoes.limite ?? LIMITE_POR_EXECUCAO);
   let primeiro = true;
   for (const item of fila) {
     const falhaDefinitiva = async (erro: string) => {
@@ -112,7 +126,7 @@ export function repositorioSupabase(db: SupabaseClient): RepositorioFila {
     async pendentes(agoraIso, limite) {
       const { data, error } = await db
         .from('ti_agente_mensagens')
-        .select('id, tentativas, texto, membro:ti_agente_membros(id, whatsapp, whatsapp_chat_id)')
+        .select('id, tipo, created_at, tentativas, texto, membro:ti_agente_membros(id, whatsapp, whatsapp_chat_id)')
         .eq('direcao', 'saida')
         .eq('status', 'pendente')
         .or(`proxima_tentativa_em.is.null,proxima_tentativa_em.lte.${agoraIso}`)

@@ -686,6 +686,9 @@ Seções vazias não aparecem. Acima de 8 itens, a mensagem termina com "e outra
 5. Sucesso: `enviada`, com `waha_message_id` e `enviada_em`. Falha: `tentativas + 1` e nova tentativa depois de 1, 5 e 15 min. Na 4ª falha, `falhou`.
 6. A cada execução, lê `GET /api/sessions/eva` e grava `waha_status` e `waha_verificado_em` em `ti_agente_config`. É o que alimenta o chip "Wa-ha" do Início (D25). Roda mesmo com o liga/desliga desligado. Se o WAHA nem responde, grava `INACESSIVEL` (chip "fora do ar").
 7. *(Implementação, 14/Out)* Com a sessão fora de `WORKING`, o script não tenta enviar: as mensagens esperam a sessão voltar, sem gastar tentativas.
+8. *(Implementação, 14/Out)* **Validade na fila:** a cobrança da manhã só vale no próprio dia, porque diz "pendências de hoje"; as demais mensagens valem 12 h. Vencida, a mensagem vira `falhou` com o motivo e não sai mais. A regra roda em toda execução, mesmo com o envio desligado ou a sessão caída. Assim, uma queda longa do WAHA não resulta numa leva de mensagens atrasadas quando ele volta.
+
+**A EVA não depende do WhatsApp.** Início, chat, reuniões, sugestões e aprovações não falam com o WAHA. O botão Cobrar e o cron da manhã só gravam na fila. Se o WAHA ou a VPS caírem, o chip mostra "fora do ar" ou "sem sinal da VPS", as mensagens esperam, e o resto segue igual. O webhook (§11.3) é só a entrada das respostas: token errado, ou WAHA fora do ar, afeta apenas o recebimento das respostas.
 
 Roda a partir de um checkout do repositório com `npx tsx`, como `tools/quotation-approval-digest/`. A rotina fica em `api/_lib/ti-agente/outbox.ts` (testada); o executável só monta os clientes. As chaves ficam num arquivo de ambiente `600`, não nas units do systemd.
 
