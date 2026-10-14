@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { diasDeAtraso } from '../utils/formato';
+import { padraoContem, valorCitadoPostgrest } from '../utils/buscaLike';
 import type {
   AlteracaoLancamento,
   BaixaInput,
@@ -298,13 +299,14 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       }
       if (busca?.trim()) {
         const termo = busca.trim();
-        // `%` e `_` do operador viram curinga do LIKE; escapa antes de compor.
-        // Aspas duplas escapam vírgula/parênteses do termo dentro do or() do PostgREST.
-        const termoLike = termo.replace(/[%_]/g, '\\$&').replace(/"/g, '\\"');
+        // `%` e `_` digitados são literais, não curinga — ver utils/buscaLike.ts
+        // (dentro do or() o escape precisa sobreviver ao parser do PostgREST).
+        const padrao = padraoContem(termo);
+        const citado = valorCitadoPostgrest(padrao);
         const condicoes = [
-          `numero_nota.ilike."%${termoLike}%"`,
-          `competencia.ilike."%${termoLike}%"`,
-          `observacoes.ilike."%${termoLike}%"`,
+          `numero_nota.ilike.${citado}`,
+          `competencia.ilike.${citado}`,
+          `observacoes.ilike.${citado}`,
         ];
         // Nome da operadora não dá pra filtrar direto no embed aninhado do or() —
         // resolve os ids pela lista já carregada (mesma origem do dropdown) e
@@ -322,7 +324,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         const { data: lotesBatidos } = await supabase
           .from('nota_lote')
           .select('id_nota, lotes!inner(codigo_lote)')
-          .ilike('lotes.codigo_lote', `%${termoLike}%`);
+          .ilike('lotes.codigo_lote', padrao);
         const idsPorLote = [...new Set((lotesBatidos ?? []).map((l) => l.id_nota as string))];
         if (idsPorLote.length > 0) {
           condicoes.push(`id_nota.in.(${idsPorLote.join(',')})`);
