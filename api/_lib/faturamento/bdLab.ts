@@ -897,6 +897,70 @@ export async function nfesDosLotes(idsLote: number[]): Promise<NfesDosLotesResul
   });
 }
 
+/** Recebido no apLIS de um lote — a conferência das baixas dos títulos. */
+export interface RecebidoLoteAplis {
+  /** `fatlote.Status` (STLOT). */
+  status: number;
+  statusLabel: string;
+  /** SUM(fatrequisicaoprocedimento.ValorRecebido) das requisições do lote. */
+  recebido: number;
+  /** YYYY-MM-DD do primeiro/último `DtaRecebido` com valor; null sem recebimento. */
+  primeiroRecebimento: string | null;
+  ultimoRecebimento: string | null;
+}
+
+export type RecebidosDosLotesResultado =
+  | { porLote: Record<number, RecebidoLoteAplis>; dadoAte: string | null }
+  | { erro: { status: number; mensagem: string } };
+
+/** Ids por `IN (...)`: ~1.700 lotes com título hoje → 2 consultas (medido 14/10). */
+const BLOCO_RECEBIDOS = 1000;
+
+/**
+ * Recebido no apLIS por lote: `SUM(ValorRecebido)` e a faixa de `DtaRecebido`
+ * dos procedimentos das requisições do lote (`requisicao.Lote`). É o mesmo dado
+ * da tela de Baixa do apLIS (`listarBaixa`, conferido no lote 6329: R$ 2.034,81
+ * em 22/09/2026). `fatrps.DataRecebido` não serve: vem vazio na maioria dos lotes.
+ *
+ * A data ignora procedimento com ValorRecebido 0 (glosa total): o operador usa
+ * a data para achar o depósito. Lote que não existe no MySQL fica fora do mapa.
+ * Sem cache: o operador quer o estado logo depois de lançar a baixa.
+ */
+export async function recebidosDosLotes(idsLote: number[]): Promise<RecebidosDosLotesResultado> {
+  const ids = [...new Set(idsLote.map((n) => Math.trunc(n)))];
+  if (ids.length === 0) return { porLote: {}, dadoAte: null };
+
+  return comConexao('recebidosDosLotes', async (conn) => {
+    const porLote: Record<number, RecebidoLoteAplis> = {};
+    for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
+      const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
+      const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT l.IdLote, l.Status,
+                SUM(p.ValorRecebido) AS Recebido,
+                DATE_FORMAT(MIN(CASE WHEN p.ValorRecebido > 0 THEN p.DtaRecebido END), '%Y-%m-%d') AS Primeiro,
+                DATE_FORMAT(MAX(CASE WHEN p.ValorRecebido > 0 THEN p.DtaRecebido END), '%Y-%m-%d') AS Ultimo
+           FROM fatlote l
+           LEFT JOIN requisicao r ON r.Lote = l.IdLote
+           LEFT JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
+          WHERE l.IdLote IN (${bloco.map(() => '?').join(', ')})
+          GROUP BY l.IdLote, l.Status`,
+        bloco,
+      );
+      for (const linha of linhas) {
+        const status = numero(linha.Status);
+        porLote[numero(linha.IdLote)] = {
+          status,
+          statusLabel: STLOT_LABELS[status] ?? `Status ${status}`,
+          recebido: numero(linha.Recebido),
+          primeiroRecebimento: dataIso(linha.Primeiro),
+          ultimoRecebimento: dataIso(linha.Ultimo),
+        };
+      }
+    }
+    return { porLote, dadoAte: await dadoAte(conn, 'requisicao', 'DtaSolicitacao') };
+  });
+}
+
 // Uma consulta só, achatada (requisição × procedimento), agrupada em memória: são
 // dezenas de linhas por lote (o maior lote de julho deu 50) e duas viagens ao túnel
 // custariam mais que o agrupamento.
