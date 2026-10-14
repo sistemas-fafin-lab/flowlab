@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type {
   AlteracaoLancamento,
+  DivergenciaAplis,
   FiltroGlosaTitulo,
   OperadoraResumo,
   TituloBaixa,
@@ -37,6 +38,7 @@ import {
 import { dataEnvioEfetiva } from '../utils/envioAoVivo';
 import { descreverAlteracao } from '../utils/correcaoLancamento';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
+import { COR_TIPO, seloDivergencia } from '../utils/conferenciaAplis';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
@@ -100,6 +102,11 @@ interface Props {
   total: number;
   loading: boolean;
   error: string | null;
+  /** Conferência com o apLIS por `idNota` (só os divergentes); null enquanto
+   *  não chegou ou se falhou — aí a linha sai sem selo. */
+  divergencias: Map<string, DivergenciaAplis> | null;
+  /** Falha da conferência: aviso discreto, a lista segue normal. */
+  erroConferencia: string | null;
   podeEditar: boolean;
   filtros: {
     desde: string;
@@ -114,6 +121,8 @@ interface Props {
     somentePendentes: boolean;
     /** Recorte por glosa lançada no título — ver FiltroGlosaTitulo. */
     glosa: FiltroGlosaTitulo;
+    /** Só os títulos que divergem do apLIS (ids da conferência). */
+    divergenteAplis: boolean;
     pagina: number;
     tamanho: number;
   };
@@ -163,12 +172,29 @@ const Atraso: React.FC<{ titulo: TituloReceber }> = ({ titulo }) => {
   );
 };
 
+/** Selo do título divergente do apLIS; os dois valores no tooltip. */
+const SeloAplis: React.FC<{ divergencia: DivergenciaAplis }> = ({ divergencia }) => {
+  const selo = seloDivergencia(divergencia);
+  return (
+    <div className="mt-1">
+      <span
+        title={selo.detalhe}
+        className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${COR_TIPO[divergencia.tipo]}`}
+      >
+        {selo.texto}
+      </span>
+    </div>
+  );
+};
+
 const TitulosList: React.FC<Props> = ({
   titulos,
   operadoras,
   total,
   loading,
   error,
+  divergencias,
+  erroConferencia,
   podeEditar,
   filtros,
   onFiltrar,
@@ -390,10 +416,11 @@ const TitulosList: React.FC<Props> = ({
       ocultarParceiras: filtros.ocultarParceiras,
       somentePendentes: filtros.somentePendentes,
       glosa: filtros.glosa,
+      divergenteAplis: filtros.divergenteAplis,
     }),
     [
       filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca,
-      filtros.ocultarParceiras, filtros.somentePendentes, filtros.glosa,
+      filtros.ocultarParceiras, filtros.somentePendentes, filtros.glosa, filtros.divergenteAplis,
     ],
   );
 
@@ -510,6 +537,18 @@ const TitulosList: React.FC<Props> = ({
               />
               Ocultar clínicas parceiras
             </label>
+            <label
+              className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400"
+              title="Títulos cujo recebido aqui difere do recebido no apLIS (dados do apLIS até ontem)"
+            >
+              <input
+                type="checkbox"
+                checked={filtros.divergenteAplis}
+                onChange={(e) => onFiltrar({ divergenteAplis: e.target.checked, pagina: 1 })}
+                className="rounded border-gray-300 dark:border-gray-600"
+              />
+              Divergente do apLIS
+            </label>
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
@@ -586,15 +625,35 @@ const TitulosList: React.FC<Props> = ({
         </div>
       )}
 
+      {/* Sem a conferência a lista segue normal, só sem selos — mas o operador
+          precisa saber que "nenhum selo" não quer dizer "nada divergente". */}
+      {erroConferencia && (
+        <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            Conferência com o apLIS indisponível ({erroConferencia}): os títulos divergentes não estão marcados
+            {filtros.divergenteAplis && ' e o filtro "Divergente do apLIS" não pôde ser aplicado'}.
+          </span>
+        </div>
+      )}
+
       {/* ── Tabela ───────────────────────────────────────────────────────── */}
       {loading ? (
         <div className="flex justify-center py-16"><LoadingSpinner /></div>
+      ) : titulos.length === 0 && filtros.divergenteAplis && erroConferencia ? (
+        // Vazia por falta da conferência, não por falta de título: ampliar o
+        // período (a dica de baixo) não resolveria.
+        <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
+          Sem a conferência com o apLIS não dá para saber quais títulos divergem.
+          Desligue "Divergente do apLIS" para ver a lista ou tente "Atualizar".
+        </div>
       ) : titulos.length === 0 ? (
         <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
           Nenhum título de {formatData(filtros.desde)} até {formatData(filtros.ate)}
           {filtros.status
             ? ` com status "${STATUS_ROTULOS[filtros.status]}"`
-            : filtros.somentePendentes && ' com o atalho "Somente pendentes" ativado'}.
+            : filtros.somentePendentes && ' com o atalho "Somente pendentes" ativado'}
+          {filtros.divergenteAplis && ' divergente do apLIS'}.
           {' '}Amplie o período de emissão acima — trocar o Status não muda
           a lista se o período já não cobrir nenhum título.
           {podeEditar && ' Use "Novo título" para agrupar lotes do apLIS numa cobrança.'}
@@ -625,6 +684,7 @@ const TitulosList: React.FC<Props> = ({
                   const aberto = expandido === titulo.id;
                   const encerrado = titulo.status === 'cancelada' || titulo.valorSaldo <= 0;
                   const responsaveis = responsaveisDoTitulo(titulo.lotes);
+                  const divergencia = divergencias?.get(titulo.id);
                   return (
                     <React.Fragment key={titulo.id}>
                       <tr
@@ -714,6 +774,7 @@ const TitulosList: React.FC<Props> = ({
                           <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_CORES[titulo.status]}`}>
                             {STATUS_ROTULOS[titulo.status]}
                           </span>
+                          {divergencia && <SeloAplis divergencia={divergencia} />}
                           {/* Mesmos poucos títulos revisitados em dias diferentes mudam de
                               status (Aberta → Parcial → Recebida) conforme as baixas chegam —
                               sem isto, a mudança parece uma NF "semelhante" duplicada. */}

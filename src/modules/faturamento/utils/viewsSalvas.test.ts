@@ -23,6 +23,7 @@ const BASE_TITULOS: TitulosViewFiltros = {
   ocultarParceiras: false,
   somentePendentes: true,
   glosa: '',
+  divergenteAplis: false,
 };
 
 describe('sanitizarFiltrosPainel', () => {
@@ -101,6 +102,7 @@ describe('sanitizarFiltrosTitulos', () => {
       ocultarParceiras: true,
       somentePendentes: false,
       glosa: 'sem',
+      divergenteAplis: true,
     };
     expect(sanitizarFiltrosTitulos(view, BASE_TITULOS)).toEqual(view);
   });
@@ -155,6 +157,19 @@ describe('sanitizarFiltrosTitulos', () => {
 
   it('glosa fora do union cai em sem recorte', () => {
     expect(sanitizarFiltrosTitulos({ glosa: 'todas' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
+  });
+
+  it('divergenteAplis salvo é preservado', () => {
+    expect(sanitizarFiltrosTitulos({ divergenteAplis: true }, BASE_TITULOS))
+      .toEqual({ ...BASE_TITULOS, divergenteAplis: true });
+  });
+
+  it('view antiga sem divergenteAplis fica sem o recorte, mesmo com a tela filtrando', () => {
+    expect(sanitizarFiltrosTitulos({}, { ...BASE_TITULOS, divergenteAplis: true })).toEqual(BASE_TITULOS);
+  });
+
+  it('divergenteAplis fora do tipo boolean fica sem o recorte', () => {
+    expect(sanitizarFiltrosTitulos({ divergenteAplis: 'sim' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
   });
 });
 

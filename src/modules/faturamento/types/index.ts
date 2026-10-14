@@ -576,6 +576,12 @@ export interface TitulosFiltros {
   somentePendentes?: boolean;
   /** Recorte por glosa lançada no título (tabela `glosas`). Vazio = sem recorte. */
   glosa?: FiltroGlosaTitulo;
+  /** Só os títulos que divergem do apLIS (.scratch/faturamento-conferencia-baixas-aplis). */
+  divergenteAplis?: boolean;
+  /** Ids da conferência com o apLIS, quando `divergenteAplis` está ligado.
+   *  null = a conferência ainda não chegou ou falhou: a lista fica vazia em vez
+   *  de mostrar títulos que talvez não divirjam. */
+  idsDivergentesAplis?: string[] | null;
   pagina?: number;
   tamanho?: number;
 }
@@ -598,6 +604,7 @@ export interface TitulosViewFiltros {
   ocultarParceiras: boolean;
   somentePendentes: boolean;
   glosa: FiltroGlosaTitulo;
+  divergenteAplis: boolean;
 }
 
 /** Glosa lançada junto de uma baixa, no formato que `fat_registrar_baixa` espera

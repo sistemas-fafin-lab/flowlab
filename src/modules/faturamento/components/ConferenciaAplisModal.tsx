@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Download, ExternalLink, Loader2, RefreshCw, Wallet, X } from 'lucide-react';
-import { chamarApi } from '../hooks/useContasReceber';
+import { buscarConferenciaAplis } from '../hooks/useConferenciaAplis';
 import type { ConferenciaAplis, DivergenciaAplis, TipoDivergenciaAplis } from '../types';
 import { formatCurrency, formatData, hojeIso } from '../utils/formato';
-import { csvConferencia, diferencaAplis, secoesConferencia, statusLoteAplis } from '../utils/conferenciaAplis';
+import { COR_TIPO, csvConferencia, diferencaAplis, secoesConferencia, statusLoteAplis } from '../utils/conferenciaAplis';
 import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
 
 // "Conferir baixas com o apLIS" (.scratch/faturamento-conferencia-baixas-aplis):
@@ -30,13 +30,6 @@ const DESCRICAO_TIPO: Record<TipoDivergenciaAplis, string> = {
   'aplis-maior': 'o apLIS recebeu mais do que o lançado aqui',
   'sistema-maior': 'lançado aqui a mais que o apLIS — confira a glosa ou a baixa',
   'lote-ausente': 'lote vinculado que não existe no apLIS — sem valor para comparar',
-};
-
-const COR_TIPO: Record<TipoDivergenciaAplis, string> = {
-  'so-no-aplis': 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300',
-  'aplis-maior': 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
-  'sistema-maior': 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300',
-  'lote-ausente': 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300',
 };
 
 const BOTAO_SECUNDARIO =
@@ -98,12 +91,9 @@ const ConferenciaAplisModal: React.FC<Props> = ({ aberto, onFechar, versao, pode
     setCarregando(true);
     setErro(null);
     try {
-      const body = await chamarApi<{ meta?: { dadoAte?: string | null }; titulos?: DivergenciaAplis[] }>(
-        '/api/faturamento/titulos-conferencia-aplis',
-        'Não foi possível conferir as baixas com o apLIS.',
-      );
+      const resultado = await buscarConferenciaAplis();
       if (leitura !== leituraRef.current) return;
-      setConferencia({ dadoAte: body.meta?.dadoAte ?? null, titulos: body.titulos ?? [] });
+      setConferencia(resultado);
     } catch (err) {
       if (leitura !== leituraRef.current) return;
       // Nunca uma lista velha ou vazia no lugar do erro: seria lida como "tudo certo".

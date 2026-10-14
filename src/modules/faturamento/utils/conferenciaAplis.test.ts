@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { DivergenciaAplis } from '../types';
-import { csvConferencia, diferencaAplis, secoesConferencia } from './conferenciaAplis';
+import {
+  csvConferencia,
+  diferencaAplis,
+  idsDivergentesNoPeriodo,
+  secoesConferencia,
+  seloDivergencia,
+} from './conferenciaAplis';
 
 function divergencia(parcial: Partial<DivergenciaAplis> = {}): DivergenciaAplis {
   return {
@@ -106,5 +112,67 @@ describe('csvConferencia', () => {
   it('põe entre aspas o campo com ";" ou aspas', () => {
     const csv = csvConferencia([divergencia({ operadora: 'Saúde; "Plena"' })]);
     expect(csv).toContain(';"Saúde; ""Plena""";');
+  });
+});
+
+/** Intl separa "R$" do valor com espaço não quebrável; o teste não liga pra isso. */
+const semNbsp = (texto: string | undefined): string | undefined => texto?.replace(/\u00a0/g, ' ');
+
+describe('seloDivergencia', () => {
+  it('recebido só no apLIS: valor e dia/mês do último recebimento lá', () => {
+    const selo = seloDivergencia(divergencia());
+    expect(semNbsp(selo.texto)).toBe('apLIS: recebido R$ 2.034,81 em 22/09');
+    expect(semNbsp(selo.detalhe)).toBe('Recebido no sistema: R$ 0,00 · Recebido no apLIS: R$ 2.034,81');
+  });
+
+  it('apLIS maior: mesmo texto, com o total recebido lá', () => {
+    const selo = seloDivergencia(divergencia({ tipo: 'aplis-maior', recebidoSistema: 1000, recebidoAplis: 3034.81 }));
+    expect(semNbsp(selo.texto)).toBe('apLIS: recebido R$ 3.034,81 em 22/09');
+    expect(semNbsp(selo.detalhe)).toBe('Recebido no sistema: R$ 1.000,00 · Recebido no apLIS: R$ 3.034,81');
+  });
+
+  it('sem data de recebimento no apLIS, sai só o valor', () => {
+    const selo = seloDivergencia(divergencia({ primeiroRecebimentoAplis: null, ultimoRecebimentoAplis: null }));
+    expect(semNbsp(selo.texto)).toBe('apLIS: recebido R$ 2.034,81');
+  });
+
+  it('sistema maior com nada recebido no apLIS: "recebido só no sistema"', () => {
+    const selo = seloDivergencia(divergencia({
+      tipo: 'sistema-maior', recebidoSistema: 500, recebidoAplis: 0,
+      primeiroRecebimentoAplis: null, ultimoRecebimentoAplis: null,
+    }));
+    expect(selo.texto).toBe('recebido só no sistema');
+    expect(semNbsp(selo.detalhe)).toBe('Recebido no sistema: R$ 500,00 · Recebido no apLIS: R$ 0,00');
+  });
+
+  it('sistema maior com parte recebida no apLIS: "recebido a mais no sistema"', () => {
+    const selo = seloDivergencia(divergencia({ tipo: 'sistema-maior', recebidoSistema: 500, recebidoAplis: 200 }));
+    expect(selo.texto).toBe('recebido a mais no sistema');
+  });
+
+  it('lote ausente: sem valor do apLIS', () => {
+    const selo = seloDivergencia(divergencia({
+      tipo: 'lote-ausente', recebidoAplis: null,
+      lotes: [{ aplisId: 4905, statusAplis: null, recebidoAplis: null }],
+    }));
+    expect(selo.texto).toBe('lote ausente no apLIS');
+    expect(semNbsp(selo.detalhe)).toBe('Recebido no sistema: R$ 0,00 · Lotes: 4905 (não encontrado)');
+  });
+});
+
+describe('idsDivergentesNoPeriodo', () => {
+  it('só os títulos emitidos no período, inclusive nas pontas', () => {
+    const ids = idsDivergentesNoPeriodo([
+      divergencia({ idNota: 'antes', dataEmissao: '2026-06-30' }),
+      divergencia({ idNota: 'inicio', dataEmissao: '2026-07-01' }),
+      divergencia({ idNota: 'fim', dataEmissao: '2026-09-30' }),
+      divergencia({ idNota: 'depois', dataEmissao: '2026-10-01' }),
+    ], '2026-07-01', '2026-09-30');
+    expect(ids).toEqual(['inicio', 'fim']);
+  });
+
+  it('título sem emissão fica (a lista é quem decide)', () => {
+    expect(idsDivergentesNoPeriodo([divergencia({ idNota: 'x', dataEmissao: null })], '2026-07-01', '2026-09-30'))
+      .toEqual(['x']);
   });
 });

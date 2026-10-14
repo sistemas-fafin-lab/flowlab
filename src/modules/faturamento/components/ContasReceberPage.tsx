@@ -4,7 +4,9 @@ import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
 import { useContasReceber } from '../hooks/useContasReceber';
+import { useConferenciaAplis } from '../hooks/useConferenciaAplis';
 import { periodoEsteMes } from '../utils/formato';
+import { idsDivergentesNoPeriodo } from '../utils/conferenciaAplis';
 import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
 import type { DashboardReceberFiltros, FiltroGlosaTitulo, SubAbaPendencias, TituloReceber, TituloStatus } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
@@ -79,6 +81,7 @@ const ContasReceberPage: React.FC = () => {
     // precisa selecionar Status manualmente a cada visita pra ver o que falta receber.
     somentePendentes: true,
     glosa: '' as FiltroGlosaTitulo,
+    divergenteAplis: false,
     pagina: 1,
     tamanho: 25,
   });
@@ -91,9 +94,10 @@ const ContasReceberPage: React.FC = () => {
   const [novoAberto, setNovoAberto] = useState(false);
   const [atualizarAplisAberto, setAtualizarAplisAberto] = useState(false);
   const [conferenciaAberta, setConferenciaAberta] = useState(false);
-  // Trocada quando o "Lançar baixa" ou o "Editar título" fecha depois de salvar:
-  // a conferência com o apLIS (se aberta) refaz a leitura e o título acertado
-  // sai da lista.
+  // Trocada quando o "Lançar baixa" ou o "Editar título" fecha depois de salvar
+  // (e no cancelamento e no "Atualizar" da lista): a conferência com o apLIS — a
+  // do modal, se aberto, e a dos selos da aba Títulos — refaz a leitura e o
+  // título acertado sai da lista.
   const [versaoConferencia, setVersaoConferencia] = useState(0);
   const tituloSalvoRef = useRef(false);
   const [parceirasAberto, setParceirasAberto] = useState(false);
@@ -108,6 +112,24 @@ const ContasReceberPage: React.FC = () => {
   // com cara de aviso positivo.
   const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
 
+  // Selos e filtro "Divergente do apLIS" da aba Títulos: lida a cada entrada na
+  // aba, sem segurar a lista (que carrega por conta própria).
+  const conferencia = useConferenciaAplis(aba === 'titulos', versaoConferencia);
+
+  // undefined = filtro desligado; null = ligado, mas a conferência ainda não
+  // chegou ou falhou (a lista fica vazia, ver useContasReceber).
+  // Chaveado pelo conteúdo: cada releitura da conferência traz um array novo,
+  // e um array novo com os mesmos ids refaria a consulta da lista à toa.
+  const chaveIdsDivergentes = useMemo(() => {
+    if (!filtros.divergenteAplis) return undefined;
+    if (!conferencia.titulos) return null;
+    return idsDivergentesNoPeriodo(conferencia.titulos, filtros.desde, filtros.ate).join(',');
+  }, [filtros.divergenteAplis, filtros.desde, filtros.ate, conferencia.titulos]);
+  const idsDivergentesAplis = useMemo((): string[] | null | undefined => {
+    if (typeof chaveIdsDivergentes !== 'string') return chaveIdsDivergentes;
+    return chaveIdsDivergentes === '' ? [] : chaveIdsDivergentes.split(',');
+  }, [chaveIdsDivergentes]);
+
   const parametros = useMemo(() => ({
     desde: filtros.desde,
     ate: filtros.ate,
@@ -117,9 +139,11 @@ const ContasReceberPage: React.FC = () => {
     ocultarParceiras: filtros.ocultarParceiras,
     somentePendentes: filtros.somentePendentes,
     glosa: filtros.glosa,
+    divergenteAplis: filtros.divergenteAplis,
+    idsDivergentesAplis,
     pagina: filtros.pagina,
     tamanho: filtros.tamanho,
-  }), [filtros]);
+  }), [filtros, idsDivergentesAplis]);
 
   const {
     titulos, operadoras, total, loading, error, refetch, refetchOperadoras, buscarTitulo,
@@ -253,6 +277,8 @@ const ContasReceberPage: React.FC = () => {
     if (!ok) return;
     const erro = await cancelarTitulo(titulo.id);
     if (erro) setAviso({ tipo: 'erro', texto: erro });
+    // Título cancelado sai da conferência.
+    else setVersaoConferencia((v) => v + 1);
   };
 
   return (
@@ -361,12 +387,19 @@ const ContasReceberPage: React.FC = () => {
           titulos={titulos}
           operadoras={operadoras}
           total={total}
-          loading={loading}
+          // Com o filtro "Divergente do apLIS" ligado, a lista depende da
+          // conferência: até ela chegar, é "carregando", não "nenhum título".
+          loading={loading || (filtros.divergenteAplis && !conferencia.titulos && !conferencia.erro)}
           error={error}
+          divergencias={conferencia.porTitulo}
+          erroConferencia={conferencia.erro}
           podeEditar={podeEditar}
           filtros={filtros}
           onFiltrar={aplicarFiltro}
-          onAtualizar={() => void refetch()}
+          onAtualizar={() => {
+            void refetch();
+            setVersaoConferencia((v) => v + 1);
+          }}
           onNovoTitulo={() => setNovoAberto(true)}
           onGerenciarParceiras={() => setParceirasAberto(true)}
           onGerenciarRegraNf={() => setRegraNfAberto(true)}
@@ -423,7 +456,11 @@ const ContasReceberPage: React.FC = () => {
       <AtualizarAplisModal
         aberto={atualizarAplisAberto}
         onFechar={() => setAtualizarAplisAberto(false)}
-        onAlterados={() => void refetch()}
+        onAlterados={() => {
+          void refetch();
+          // Títulos novos ou lotes revinculados mudam a conferência.
+          setVersaoConferencia((v) => v + 1);
+        }}
       />
 
       <ConferenciaAplisModal

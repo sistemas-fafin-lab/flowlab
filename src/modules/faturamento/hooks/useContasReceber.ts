@@ -253,7 +253,10 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
 
   // Desestruturado para que as deps do useCallback sejam primitivas — com o
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
-  const { desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa, pagina, tamanho } = filtros;
+  const {
+    desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
+    divergenteAplis, idsDivergentesAplis, pagina, tamanho,
+  } = filtros;
 
   // Descarta respostas de buscas antigas: trocar de página/filtro rápido pode
   // devolver fora de ordem e sobrescrever o resultado novo com o velho.
@@ -266,6 +269,16 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
 
     const porPagina = tamanho ?? TAMANHO_PADRAO;
     const inicio = ((pagina ?? 1) - 1) * porPagina;
+
+    // Filtro "Divergente do apLIS" sem divergente a mostrar (ou sem a
+    // conferência, que a tela avisa à parte): nem vai ao banco — `in.()`
+    // vazio e "ignorar o filtro" seriam as duas respostas erradas.
+    if (divergenteAplis && (!idsDivergentesAplis || idsDivergentesAplis.length === 0)) {
+      setTitulos([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
 
     try {
       let query = supabase
@@ -289,6 +302,9 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         query = query.in('status', STATUS_TITULOS_PENDENTES);
       }
       if (operadoraId) query = query.eq('operadora_id', operadoraId);
+      // Os ids vêm da conferência (rota própria, MySQL do apLIS) — recorte no
+      // servidor para contagem e paginação continuarem certas.
+      if (divergenteAplis && idsDivergentesAplis) query = query.in('id_nota', idsDivergentesAplis);
       // Filtro "Glosa": o embed `glosas(id_glosa)` só entra no select quando o
       // filtro está ativo, e o recorte é feito no servidor (is null / not is null
       // sobre o embed), então contagem e paginação continuam certas.
@@ -364,7 +380,10 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa, pagina, tamanho, operadoras]);
+  }, [
+    desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
+    divergenteAplis, idsDivergentesAplis, pagina, tamanho, operadoras,
+  ]);
 
   useEffect(() => {
     void refetch();
