@@ -55,7 +55,7 @@ export async function lerCardsAbertos(db: SupabaseClient): Promise<CardTI[]> {
 }
 
 /** Último comentário de cada card em andamento ou revisão (RN04: comentário conta como mudança). */
-async function ultimosComentarios(db: SupabaseClient, cards: CardTI[]): Promise<Record<string, string>> {
+export async function ultimosComentarios(db: SupabaseClient, cards: CardTI[]): Promise<Record<string, string>> {
   const ids = cards.filter((c) => c.kanban_status === 'in_progress' || c.kanban_status === 'review').map((c) => c.id);
   const ultimo: Record<string, string> = {};
   for (let i = 0; i < ids.length; i += 200) {

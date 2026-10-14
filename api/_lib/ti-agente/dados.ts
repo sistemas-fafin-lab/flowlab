@@ -71,13 +71,13 @@ export async function lerContexto(db: SupabaseClient): Promise<ContextoExtracao>
 export async function lerUltimaReuniao(db: SupabaseClient): Promise<UltimaReuniao | null> {
   const { data, error } = await db
     .from('ti_agente_reunioes')
-    .select('titulo, realizada_em, observacoes, resumo_markdown')
+    .select('id, titulo, realizada_em, observacoes, resumo_markdown')
     .eq('status', 'analisada')
     .order('analisada_em', { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return data ? { titulo: data.titulo, realizadaEm: data.realizada_em, observacoes: data.observacoes, resumo: data.resumo_markdown } : null;
+  return data ? { id: data.id, titulo: data.titulo, realizadaEm: data.realizada_em, observacoes: data.observacoes, resumo: data.resumo_markdown } : null;
 }
 
 /** Nome de cada pessoa (perfil), para os textos da EVA. */

@@ -22,7 +22,8 @@ export function mensagensDaFila(fila: MensagemFila[], hoje: Dia, soDe: string | 
       id: m.id,
       time: horarioNaFila(m.enviada_em ?? m.created_at, hoje),
       to: m.chat_id_destino ? 'Grupo da equipe' : m.membro_nome ?? 'Membro removido',
-      text: m.texto,
+      // Lembrete é da pessoa (D30): o gestor vê que existe, não o que diz.
+      text: m.tipo === 'lembrete' ? 'Lembrete pessoal' : m.texto,
       status: STATUS[m.status],
       note: m.status === 'falhou' ? m.erro ?? 'Falhou' : undefined,
     }));

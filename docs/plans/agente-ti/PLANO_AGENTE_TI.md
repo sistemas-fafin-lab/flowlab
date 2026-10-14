@@ -4,6 +4,7 @@
 > - **Fases 0 a 2 (13/Out/2026):** Início com dados reais, reuniões do Granola, sugestões com aprovação, chat e comentários. As migrations foram aplicadas no projeto do app, e a primeira análise real rodou pela tela.
 > - **Fases 3 e 4 (14/Out/2026):** fila do WhatsApp com o script da VPS, cobrança diária e sob demanda, e respostas pelo webhook.
 > - **Comandos pelo WhatsApp e grupo da equipe (14/Out/2026, D29):** perguntas, cobranças, aprovação de sugestões e avisos, com SIM; fechamento do dia e resumo de reunião no grupo (§11.4, issue 18).
+> - **Agente pessoal no WhatsApp (14/Out/2026, D30):** conversa natural com memória, o dia da pessoa, pedidos de mudança no Kanban e lembretes pessoais (§11.5, issue 19).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
 > Protótipo da interface em `docs/flowlab_agent/` (§12).
@@ -15,7 +16,7 @@
 > - D24: a fila do WhatsApp é **só para gestores**.
 >
 > **Desenvolvimento autorizado em 13/Out.**
-> **Issues:** `.scratch/agente-ti/spec.md` e `.scratch/agente-ti/issues/01` a `18`.
+> **Issues:** `.scratch/agente-ti/spec.md` e `.scratch/agente-ti/issues/01` a `19`.
 
 ---
 
@@ -86,6 +87,7 @@ Entregáveis, na ordem em que geram valor:
 | **D27** | Projeto "em risco" | ✅ **Fechado (13/Out), vem do protótipo:** além das regras da RN05, o projeto fica em **Atenção** quando o progresso da sprint ativa está mais de 20 pontos abaixo do tempo já decorrido dela. Exemplo do protótipo: 35% feito com 60% da sprint passada. | Fase 1 |
 | **D28** | Como a EVA executa ações | ✅ **Fechado (13/Out):** a EVA **executa ações, sempre com aprovação prévia**.<br>• Toda ação (comentário, chat, reunião, WhatsApp) vira uma **proposta concreta** em `ti_agente_sugestoes`, com o que muda em cada card.<br>• **Gestor** (`canApproveAgenteTI`): vê a proposta num diálogo de confirmação. Confirmar é aprovar, e a EVA executa na hora, na mesma transação, registrando quem aprovou.<br>• **Os demais:** a proposta vai para a fila e espera um gestor.<br>• Nada muda no Kanban sem um gestor ter aprovado antes. Isso reforça a D6, não a substitui. | Fase 1 a 4 |
 | **D29** | Comandos pelo WhatsApp e grupo da equipe | ✅ **Fechado (14/Out), pedido do usuário ("quero seguir com todos os comandos"):** pelo WhatsApp, a EVA faz o que já fazia na tela, com confirmação. Detalhes na §11.4.<br>• **Qualquer membro:** atualiza os próprios cards (o fluxo da D12) e faz perguntas, com as mesmas regras do chat.<br>• **Só gestor** (`canApproveAgenteTI`, conferido de novo na hora do SIM): pedir cobranças, ver as sugestões pendentes numa lista numerada, aprovar ou rejeitar por número e mandar avisos no grupo.<br>• **Nada sai sem o SIM:** a EVA mostra o que vai fazer e espera "SIM" por 30 min.<br>• Aprovar pelo WhatsApp **é** a aprovação da D28: a mesma lógica da tela, em nome do gestor dono do número (`ti_agente_aprovar_sugestao_como`).<br>• **Grupo da equipe:** escolhido em Configurações, a partir da lista que a VPS lê do WAHA. Recebe o fechamento do dia (dias úteis, 18h), o resumo de cada reunião analisada e os avisos de gestor. Os dois primeiros têm liga/desliga, que nasce desligado. Tudo respeita o horário de cobrança (§10). | Fase 4 |
+| **D30** | A EVA como agente pessoal no WhatsApp | ✅ **Fechado (14/Out), pedido do usuário depois do primeiro teste real** ("acho que podemos aprimorar… para que ela possa agir como um agente pessoal"). Ele escolheu os quatro itens propostos e o tom "próxima e objetiva". Detalhes na §11.5.<br>• **Conversa natural:** a EVA lembra as últimas falas (24 h) e responde cumprimentos e perguntas na voz dela, pelo primeiro nome, com frases curtas e no máximo um emoji.<br>• **Assistente do dia:** conhece o dia de quem escreve (atrasadas, o que vence, paradas, o que a última reunião combinou para a pessoa e os lembretes) e sugere por onde começar.<br>• **Ações como no chat:** pedir pelo WhatsApp para criar card ou mudar prioridade, responsável, coluna ou prazo, ou comentar. Vira sugestão: o gestor confirma com SIM; os demais mandam para a fila.<br>• **Lembretes pessoais:** "me lembra amanhã às 9h de…", no horário da EVA (dia útil, das 7h às 20h).<br>• **Continua valendo:** nada muda no Kanban sem gestor (D28). As prévias de gestor e os registros continuam com texto montado pelo sistema, e a confirmação escrita pela IA só entra quando bate com o que foi registrado. | Fase 4 |
 
 ---
 
@@ -774,6 +776,47 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts` (testada); o executável só mon
 - **Resumo de reunião:** ao terminar a análise (`analisarReuniao`), traz as principais decisões e quantas sugestões aguardam aprovação.
   - Uma vez por reunião (`chave_dia = reuniao:<id>`), então reanalisar não repete.
   - Reunião realizada há mais de 3 dias não vai: a primeira sincronização do Granola traz o histórico.
+
+### 11.5 A EVA como agente pessoal (D30)
+
+Mesmo roteador da §11.4, com quatro acréscimos (`api/_lib/ti-agente/pessoal.ts`).
+
+**Tom (pedido do usuário: "próxima e objetiva"):** primeiro nome, simpática, frases curtas, sem formalidade, no máximo um emoji. Vale para o que a IA escreve e para os textos fixos.
+
+**Conversa natural.**
+- A IA recebe as últimas 12 falas com a pessoa (24 h, `<conversa_recente>`) e, se for mais antiga, a última cobrança. Assim, "e o da Ana?" e "e amanhã?" funcionam.
+- Cobrança e lembrete agendados ainda não chegaram à pessoa e ficam de fora.
+- Cumprimento, conversa e "o que você faz?" (intenção `conversa`) recebem resposta da IA; a ajuda fixa só entra se ela não responder.
+- "Obrigado" recebe "Por nada, Ana! 😊" sem IA; "ok" e 👍 continuam sem resposta.
+
+**Assistente do dia.** O contexto ganha "O DIA DE …", com as mesmas regras do Início e da cobrança da manhã (`pendenciasDoMembro`):
+- atrasadas, o que vence até o próximo dia útil e paradas, com prioridade;
+- o que a última reunião analisada combinou para a pessoa (sugestões em que ela é responsável, com a situação de cada uma);
+- os lembretes marcados.
+
+Para "o que eu tenho hoje?", a EVA ordena (atrasado, o que vence, parado) e sugere por onde começar.
+
+**Ações como no chat (intenção `propor`).**
+- Criar card, mudar prioridade, responsável, coluna ou prazo, ou comentar, no formato das sugestões de reunião (`SugestaoIA`), com a validação do chat (`validarRespostaChat`).
+- Até 5 por mensagem, gravadas com `origem = 'whatsapp'` e `proposta_por`.
+- **Gestor:** a EVA mostra a prévia e cria um pedido `aprovar` (`dados.daProposta`). O SIM aprova pela mesma lógica da tela; um NÃO ou outra mensagem deixam a proposta na fila do Início.
+- **Equipe** (`canManageIT`): vai para a fila, e os gestores são avisados no sino.
+- Sem `canManageIT`, é recusado.
+- Contar andamento ("terminei", "vai para sexta") continua sendo `atualizar_cards`.
+
+**Confirmação na voz da IA, com reserva.** Em `atualizar_cards`, a IA escreve a confirmação, que só é usada quando bate com o que foi registrado (`respostaFiel`): os mesmos cards e, para concluir e mudar prazo, uma sugestão de verdade. Senão, vale o texto do sistema. As prévias de gestor (cobrar, aprovar, avisar, propor) continuam montadas pelo sistema, porque dizem exatamente o que o SIM vai fazer.
+
+**Lembretes pessoais.**
+- "Me lembra amanhã às 9h de…" vira uma mensagem `lembrete` na fila, com `proxima_tentativa_em` = a hora pedida. A VPS já só envia o que venceu, então não há cron nem tabela nova (`20261014180000_eva_lembretes.sql`: tipo `lembrete` e status `cancelada`).
+- A IA devolve a hora em Brasília (sem hora, 09:00).
+- Regras: só no futuro, até 60 dias, e no máximo 20 marcados por pessoa.
+- No horário da EVA: fora dele, o lembrete vai para a próxima janela, e a resposta avisa.
+- "Cancela o lembrete do fornecedor": a IA escolhe pelo id da lista do contexto, e só o dono cancela.
+- A fila do Início mostra "Lembrete pessoal", não o texto: a fila é de gestor (D24), e o lembrete é da pessoa.
+
+**Limites da API do Claude encontrados no caminho:**
+- a saída estruturada recusa `minimum`/`maximum` (`paraJsonSchema` tira);
+- ela também recusa schemas com campos "ou nulo" demais: o da resposta do WhatsApp tinha 20. Os textos opcionais desse schema vão como `""` (vazio = não se aplica), e um teste mantém os schemas da EVA com no máximo 12.
 
 ---
 

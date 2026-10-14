@@ -13,9 +13,10 @@ const ROTULO: Record<string, { texto: string; tom: BadgeTone }> = {
   falhou: { texto: 'Falhou', tom: 'danger' },
   recebida: { texto: 'Recebida', tom: 'success' },
   ignorada: { texto: 'Ignorada', tom: 'neutral' },
+  cancelada: { texto: 'Cancelado', tom: 'neutral' },
 };
 const TIPO: Record<string, string> = {
-  cobranca: 'Cobrança diária', cobranca_manual: 'Cobrança', teste: 'Teste', confirmacao: 'Confirmação', recebida: 'Resposta',
+  cobranca: 'Cobrança diária', cobranca_manual: 'Cobrança', teste: 'Teste', confirmacao: 'Resposta da EVA', recebida: 'Mensagem', lembrete: 'Lembrete',
 };
 const quando = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 
