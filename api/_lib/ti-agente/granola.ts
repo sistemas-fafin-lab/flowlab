@@ -33,6 +33,24 @@ export interface OpcoesGranola {
   fetch?: Fetch;
 }
 
+/** O que o Granola diz no corpo do erro: {"details":[{"field":"updated_after","issue":"Invalid date"}]} → "updated_after: Invalid date". */
+function detalheDoErro(corpo: unknown): string | null {
+  const c = corpo as { message?: unknown; details?: { field?: unknown; issue?: unknown }[] } | null;
+  if (!c || typeof c !== 'object') return null;
+  const itens = Array.isArray(c.details) ? c.details.map((d) => [d.field, d.issue].filter((x) => typeof x === 'string').join(': ')).filter(Boolean) : [];
+  const texto = itens.length ? itens.join('; ') : typeof c.message === 'string' ? c.message : '';
+  return texto ? texto.slice(0, 200) : null;
+}
+
+/**
+ * O filtro de data como a API aceita: ISO com "Z" ("2026-10-05T18:52:59.797Z"). O Postgres devolve
+ * o cursor como "2026-10-05T18:52:59.797+00:00", que ela recusa com 400 "Invalid date" (15/Out).
+ */
+export function paraDataGranola(valor: string): string | null {
+  const d = new Date(valor);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
 async function pedir<T>(f: Fetch, apiKey: string, caminho: string): Promise<Resultado<T>> {
   try {
     const resp = await f(`${BASE}${caminho}`, {
@@ -45,7 +63,8 @@ async function pedir<T>(f: Fetch, apiKey: string, caminho: string): Promise<Resu
         resp.status === 403 ? 'a chave do Granola não tem acesso a esta pasta' :
         resp.status === 429 ? 'limite de requisições do Granola atingido' :
         `Granola respondeu HTTP ${resp.status}`;
-      return { ok: false, status: resp.status, erro: motivo };
+      const detalhe = detalheDoErro(await resp.json().catch(() => null));
+      return { ok: false, status: resp.status, erro: detalhe ? `${motivo} (${detalhe})` : motivo };
     }
     return { ok: true, dados: (await resp.json()) as T };
   } catch (e) {
@@ -64,9 +83,10 @@ export function criarClienteGranola(opcoes: OpcoesGranola) {
       if (!apiKey) return { ok: false, status: null, erro: 'GRANOLA_API_KEY não configurada.' };
       const notas: ResumoNotaGranola[] = [];
       let cursor: string | null = null;
+      const depois = params.atualizadasDepois ? paraDataGranola(params.atualizadasDepois) : null;
       for (let pagina = 0; pagina < MAX_PAGINAS; pagina += 1) {
         const q = new URLSearchParams({ folder_id: params.pastaId, page_size: String(TAMANHO_PAGINA) });
-        if (params.atualizadasDepois) q.set('updated_after', params.atualizadasDepois);
+        if (depois) q.set('updated_after', depois);
         if (cursor) q.set('cursor', cursor);
         const r = await pedir<{ notes?: ResumoNotaGranola[]; hasMore?: boolean; cursor?: string | null }>(f, apiKey, `/notes?${q}`);
         if ('erro' in r) return { ok: false, status: r.status, erro: r.erro };
