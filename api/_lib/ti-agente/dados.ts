@@ -97,23 +97,27 @@ export function registradorDeChamadas(db: SupabaseClient) {
   };
 }
 
-/** Ids dos gestores da EVA ativos: cargo com canApproveAgenteTI ou role admin. */
-export async function lerGestores(db: SupabaseClient): Promise<string[]> {
+/**
+ * Ids das pessoas ativas com a chave: cargo com ela, ou role admin (D31). Cada aviso do sino vai
+ * para quem tem o papel dele: sugestão nova para quem aprova, bloqueio para o gestor, falha da IA
+ * para quem configura.
+ */
+export async function lerQuemTem(db: SupabaseClient, chave: string): Promise<string[]> {
   // custom_roles.permissions é jsonb: o filtro vai como JSON (["…"]). Um array JS viraria
   // o literal de array do Postgres ({…}) e daria "invalid input syntax for type json".
-  const { data: cargos, error } = await db.from('custom_roles').select('id').contains('permissions', JSON.stringify(['canApproveAgenteTI']));
+  const { data: cargos, error } = await db.from('custom_roles').select('id').contains('permissions', JSON.stringify([chave]));
   if (error) throw new Error(error.message);
   const ids = (cargos ?? []).map((c) => c.id as string);
   const filtro = ids.length ? `role.eq.admin,custom_role_id.in.(${ids.join(',')})` : 'role.eq.admin';
-  const { data: pessoas, error: e2 } = await db.from('user_profiles').select('id').is('deleted_at', null).or(filtro);
+  const { data: pessoas, error: e2 } = await db.from('user_profiles').select('id').is('deleted_at', null).is('disabled_at', null).or(filtro);
   if (e2) throw new Error(e2.message);
   return (pessoas ?? []).map((p) => p.id as string);
 }
 
-export async function avisarGestores(db: SupabaseClient, aviso: { titulo: string; conteudo: string; link: string; tipo?: string }) {
-  const gestores = await lerGestores(db);
-  if (gestores.length === 0) return;
+export async function avisarQuemTem(db: SupabaseClient, chave: string, aviso: { titulo: string; conteudo: string; link: string; tipo?: string }) {
+  const pessoas = await lerQuemTem(db, chave);
+  if (pessoas.length === 0) return;
   await db.from('user_notifications').insert(
-    gestores.map((id) => ({ user_id: id, title: aviso.titulo, content: aviso.conteudo, module: 'IT', type: aviso.tipo ?? 'info', link: aviso.link })),
+    pessoas.map((id) => ({ user_id: id, title: aviso.titulo, content: aviso.conteudo, module: 'IT', type: aviso.tipo ?? 'info', link: aviso.link })),
   );
 }

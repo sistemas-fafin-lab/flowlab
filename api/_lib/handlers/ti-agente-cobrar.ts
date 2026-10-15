@@ -1,6 +1,6 @@
 // API Route: POST /api/ti/agente-cobrar — botão Cobrar/Lembrar das atrasadas (D22, RN16).
 // Body: { card_id }. Lembrar = o próprio card, com canManageIT; Cobrar = card de outra
-// pessoa, só canApproveAgenteTI. 403 sem permissão, 409 dentro da janela de 4 h, 422 sem
+// pessoa, só o gestor da EVA (canManageAgenteTI, D31). 403 sem permissão, 409 dentro da janela de 4 h, 422 sem
 // WhatsApp (ou WhatsApp desligado, ou card em dia). A mensagem vai para a fila (D9).
 // Fora do horário de cobrança (dia útil, 7h às 20h), ela vai agendada: `agendadaPara`.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(405).json({ success: false, error: 'Use POST.' });
     return;
   }
-  const auth = await autorizar(tokenDoHeader(req.headers.authorization), ['canManageIT', 'canApproveAgenteTI']);
+  const auth = await autorizar(tokenDoHeader(req.headers.authorization), ['canManageIT', 'canManageAgenteTI']);
   if (ehFalha(auth)) {
     res.status(auth.status).json(auth.payload);
     return;

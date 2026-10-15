@@ -1,7 +1,7 @@
 // API Route: POST /api/ti/agente-teste — "Enviar teste" (RF19, issues 12 e 18).
 // Body: { membro_id } (aba Membros) ou { grupo: true } (Configurações → Grupo da equipe).
-// Só gestor (canApproveAgenteTI). Põe uma mensagem `teste` na fila; a tela acompanha o status
-// até "enviada" ou "falhou".
+// Só quem configura a EVA (canConfigureAgenteTI, D31). Põe uma mensagem `teste` na fila; a tela
+// acompanha o status até "enviada" ou "falhou".
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { autorizar, ehFalha, tokenDoHeader } from '../ti-agente/autorizacao.js';
@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(405).json({ success: false, error: 'Use POST.' });
     return;
   }
-  const auth = await autorizar(tokenDoHeader(req.headers.authorization), ['canApproveAgenteTI']);
+  const auth = await autorizar(tokenDoHeader(req.headers.authorization), ['canConfigureAgenteTI']);
   if (ehFalha(auth)) {
     res.status(auth.status).json(auth.payload);
     return;

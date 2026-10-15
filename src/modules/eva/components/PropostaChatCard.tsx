@@ -6,7 +6,7 @@ import type { PropostaEva } from '../types';
 
 interface Props {
   p: PropostaEva;
-  ehGestor: boolean;
+  podeAprovar: boolean;
   nome: (id: string) => string;
   onConfirmar: () => void;
   onDescartar: () => void;
@@ -16,7 +16,7 @@ interface Props {
  * Proposta da EVA dentro do chat (RN17, D28): mostra o que muda e só executa quando a
  * pessoa confirma. Gestor: "Aprovar e executar". Demais: "Enviar para aprovação".
  */
-export const PropostaChatCard: React.FC<Props> = ({ p, ehGestor, nome, onConfirmar, onDescartar }) => {
+export const PropostaChatCard: React.FC<Props> = ({ p, podeAprovar, nome, onConfirmar, onDescartar }) => {
   const enviando = p.estado === 'enviando';
   return (
     <div className={`mt-1 rounded-2xl border px-3.5 py-3 text-[12px] ${p.estado === 'descartada' ? 'opacity-60 border-slate-200 dark:border-slate-700' : 'border-indigo-200/80 dark:border-indigo-500/30 bg-indigo-50/40 dark:bg-indigo-500/[.06]'}`}>
@@ -43,7 +43,7 @@ export const PropostaChatCard: React.FC<Props> = ({ p, ehGestor, nome, onConfirm
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-gradient-to-r from-blue-500 to-blue-600 text-white text-[12px] font-semibold shadow-md shadow-blue-500/25 active:scale-[.98] transition disabled:opacity-60"
           >
             {enviando && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {ehGestor ? 'Aprovar e executar' : 'Enviar para aprovação'}
+            {podeAprovar ? 'Aprovar e executar' : 'Enviar para aprovação'}
           </button>
           <button
             type="button"

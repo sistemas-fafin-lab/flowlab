@@ -12,7 +12,7 @@ import { BOTAO_PERIGO, BOTAO_PRIMARIO, BOTAO_SECUNDARIO, LINHA } from './estilos
 interface Props {
   s: Sugestao;
   nome: (id: string) => string;
-  ehGestor: boolean;
+  podeAprovar: boolean;
   ocupado: boolean;
   onAprovar: () => void;
   onEditar: () => void;
@@ -29,7 +29,7 @@ const ORIGEM: Record<Sugestao['origem'], { rotulo: string; Icon: React.Component
   whatsapp: { rotulo: 'WhatsApp', Icon: Bot },
 };
 
-const SugestaoCard: React.FC<Props> = ({ s, nome, ehGestor, ocupado, onAprovar, onEditar, onRejeitar }) => {
+const SugestaoCard: React.FC<Props> = ({ s, nome, podeAprovar, ocupado, onAprovar, onEditar, onRejeitar }) => {
   const origem = ORIGEM[s.origem];
   const linhas = descreverProposta(s.tipo, s.proposta, s.card, nome);
   const pendente = s.status === 'pendente';
@@ -84,14 +84,14 @@ const SugestaoCard: React.FC<Props> = ({ s, nome, ehGestor, ocupado, onAprovar, 
         </p>
       )}
 
-      {pendente && ehGestor && (
+      {pendente && podeAprovar && (
         <div className="flex flex-wrap gap-2">
           <button type="button" className={BOTAO_PRIMARIO} onClick={onAprovar} disabled={ocupado || (!s.card && s.tipo !== 'criar_card')}>Aprovar e executar</button>
           <button type="button" className={BOTAO_SECUNDARIO} onClick={onEditar} disabled={ocupado || (!s.card && s.tipo !== 'criar_card')}>Editar</button>
           <button type="button" className={BOTAO_PERIGO} onClick={onRejeitar} disabled={ocupado}>Rejeitar</button>
         </div>
       )}
-      {pendente && !ehGestor && (
+      {pendente && !podeAprovar && (
         <p className="text-xs text-slate-500 dark:text-slate-400">Aguardando um gestor aprovar.</p>
       )}
     </div>

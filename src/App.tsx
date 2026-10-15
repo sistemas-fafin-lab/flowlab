@@ -491,8 +491,9 @@ const AuthenticatedApp: React.FC = () => {
             dentro do próprio componente, conforme canManageHolerites. */}
         <Route path="/rh/holerites" element={<HoleritesPage />} />
         {/* IT Module Routes */}
-        {/* EVA, o agente de TI (docs/plans/agente-ti). O Início é da equipe de TI;
-            a administração também abre para quem só aprova (canApproveAgenteTI). */}
+        {/* EVA, o agente de TI (docs/plans/agente-ti). O Início é da equipe de TI.
+            Sugestões e Reuniões abrem para a equipe, quem aprova e quem configura; Membros e
+            Configurações, só para quem configura (canConfigureAgenteTI, D31). */}
         <Route
           path="/it/inicio"
           element={
@@ -504,7 +505,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/it/eva"
           element={
-            <ProtectedRoute anyOf={['canManageIT', 'canApproveAgenteTI']} permissions={userPermissions}>
+            <ProtectedRoute anyOf={['canManageIT', 'canApproveAgenteTI', 'canConfigureAgenteTI']} permissions={userPermissions}>
               <EvaSugestoesPage />
             </ProtectedRoute>
           }
@@ -512,7 +513,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/it/eva/reunioes"
           element={
-            <ProtectedRoute anyOf={['canManageIT', 'canApproveAgenteTI']} permissions={userPermissions}>
+            <ProtectedRoute anyOf={['canManageIT', 'canApproveAgenteTI', 'canConfigureAgenteTI']} permissions={userPermissions}>
               <EvaReunioesPage />
             </ProtectedRoute>
           }
@@ -520,7 +521,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/it/eva/membros"
           element={
-            <ProtectedRoute permission="canApproveAgenteTI" permissions={userPermissions}>
+            <ProtectedRoute permission="canConfigureAgenteTI" permissions={userPermissions}>
               <EvaMembrosPage />
             </ProtectedRoute>
           }
@@ -528,7 +529,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/it/eva/configuracoes"
           element={
-            <ProtectedRoute permission="canApproveAgenteTI" permissions={userPermissions}>
+            <ProtectedRoute permission="canConfigureAgenteTI" permissions={userPermissions}>
               <EvaConfiguracoesPage />
             </ProtectedRoute>
           }

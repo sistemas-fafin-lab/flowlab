@@ -59,20 +59,6 @@ export function casarMembro(nomeCitado: string, membros: MembroComApelidos[]): s
   return achado?.id ?? null;
 }
 
-/**
- * Gestor da EVA (canApproveAgenteTI): admin, ou cargo com a chave. É a regra das policies e de
- * ti_agente_eh_gestor no banco; o role legado "operator" não conta. Removido ou desativado, não.
- */
-export function ehGestorEva(perfil: {
-  role?: string | null;
-  permissoes?: unknown;
-  deleted_at?: string | null;
-  disabled_at?: string | null;
-} | null): boolean {
-  if (!perfil || perfil.deleted_at || perfil.disabled_at) return false;
-  return perfil.role === 'admin' || (Array.isArray(perfil.permissoes) && perfil.permissoes.includes('canApproveAgenteTI'));
-}
-
 /** 5561999924986 → +55 61 99992-4986 (só exibição); sem número, "—". */
 export function formatarWhatsapp(digitos: string | null): string {
   if (!digitos) return '—';

@@ -8,6 +8,7 @@ import {
   chaveDia, destinatarios, montarCobrancaManual, montarMensagemDiaria, pendenciasDoMembro, podeCobrar, podeReceber,
   proximaJanelaDeCobranca, totalPendencias, type MembroCobranca, type ModoCobranca,
 } from '../../../src/modules/eva/domain/cobranca.js';
+import { CHAVE_GESTOR } from '../../../src/modules/eva/domain/papeis.js';
 import { tem, type Usuario } from './autorizacao.js';
 import { lerTudo } from './dados.js';
 
@@ -167,7 +168,7 @@ export async function checarCobranca(
   const r = podeCobrar({
     card: c,
     usuarioId: usuario.userId,
-    ehGestor: tem(usuario, 'canApproveAgenteTI'),
+    ehGestor: tem(usuario, CHAVE_GESTOR),
     podeGerenciar: tem(usuario, 'canManageIT'),
     whatsappAtivo: cfg.whatsapp_ativo,
     ultimaManualEm: (ultima?.created_at as string | undefined) ?? null,

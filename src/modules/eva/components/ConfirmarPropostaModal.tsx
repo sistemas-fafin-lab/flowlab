@@ -9,7 +9,7 @@ interface Props {
   aberto: boolean;
   titulo: string;
   propostas: PropostaDeComentario[];
-  ehGestor: boolean;
+  podeAprovar: boolean;
   nome: (id: string) => string;
   enviando: boolean;
   erro: string | null;
@@ -21,17 +21,17 @@ interface Props {
  * Diálogo de confirmação das ações da EVA (D28): cada card com antes → depois. O gestor
  * aprova e a EVA executa na hora; os demais mandam a proposta para a fila de aprovação.
  */
-export const ConfirmarPropostaModal: React.FC<Props> = ({ aberto, titulo, propostas, ehGestor, nome, enviando, erro, onConfirmar, onFechar }) => (
+export const ConfirmarPropostaModal: React.FC<Props> = ({ aberto, titulo, propostas, podeAprovar, nome, enviando, erro, onConfirmar, onFechar }) => (
   <EvaModal
     aberto={aberto}
     titulo={titulo}
-    subtitulo={ehGestor ? 'Nada mudou ainda. Ao aprovar, a EVA aplica no board.' : 'Nada mudou ainda. Um gestor aprova antes de a EVA aplicar.'}
+    subtitulo={podeAprovar ? 'Nada mudou ainda. Ao aprovar, a EVA aplica no board.' : 'Nada mudou ainda. Quem aprova sugestões revisa antes de a EVA aplicar.'}
     onFechar={enviando ? () => undefined : onFechar}
     rodape={
       <>
         <button type="button" className={BOTAO_SECUNDARIO} onClick={onFechar} disabled={enviando}>Cancelar</button>
         <button type="button" className={BOTAO_PRIMARIO} onClick={onConfirmar} disabled={enviando || propostas.length === 0}>
-          {enviando ? 'Enviando…' : ehGestor ? 'Aprovar e executar' : 'Enviar para aprovação'}
+          {enviando ? 'Enviando…' : podeAprovar ? 'Aprovar e executar' : 'Enviar para aprovação'}
         </button>
       </>
     }

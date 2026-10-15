@@ -8,7 +8,8 @@ import { z } from 'zod';
 import { diaDoPrazo, formatarDiaMes, type Dia } from '../../../src/modules/eva/domain/datas.js';
 import { estaConcluido, type CardTI } from '../../../src/modules/eva/domain/demandas.js';
 import { primeiroNome } from '../../../src/modules/eva/domain/pessoas.js';
-import { avisarGestores } from './dados.js';
+import { CHAVE_APROVAR, CHAVE_GESTOR } from '../../../src/modules/eva/domain/papeis.js';
+import { avisarQuemTem } from './dados.js';
 
 export const ItemRespostaIA = z.object({
   card_codigo: z.string().nullable(),
@@ -143,14 +144,14 @@ export async function registrarAtualizacoes(
   // Avisos no sino: falha aqui não desfaz o que já foi gravado.
   try {
     if (sugestoes.length > 0) {
-      await avisarGestores(db, {
+      await avisarQuemTem(db, CHAVE_APROVAR, {
         titulo: 'Sugestão nova da EVA (WhatsApp)',
         conteudo: `${primeiroNome(nome) || 'Um membro'} respondeu pelo WhatsApp: ${sugestoes.length} ${sugestoes.length === 1 ? 'mudança aguarda' : 'mudanças aguardam'} aprovação.`,
         link: '/it/eva',
       });
     }
     for (const i of itens.filter((x) => x.intencao === 'bloquear')) {
-      await avisarGestores(db, {
+      await avisarQuemTem(db, CHAVE_GESTOR, {
         titulo: `${i.card.codigo} bloqueado`,
         conteudo: `${primeiroNome(nome) || 'Um membro'} avisou pelo WhatsApp: "${texto.slice(0, 200)}"`,
         link: '/it/kanban',

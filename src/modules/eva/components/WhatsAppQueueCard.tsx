@@ -11,7 +11,7 @@ interface Props {
   footer?: React.ReactNode;
 }
 
-// D24: só gestores (canApproveAgenteTI) veem este card — quem renderiza decide.
+// D24: só o gestor da EVA (canManageAgenteTI, D31) vê este card — quem renderiza decide.
 export const WhatsAppQueueCard: React.FC<Props> = ({ messages, ativa, footer }) => (
   <GlassCard>
     <SectionHeader

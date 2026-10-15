@@ -56,7 +56,7 @@ describe('POST /api/ti/agente-cobrar (D22, RN16)', () => {
   it('gestor cobra o card de outra pessoa: uma mensagem por responsável, com quem clicou', async () => {
     const { db, inserts } = criarDb();
     dbMock.mockReturnValue(db);
-    autorizarMock.mockResolvedValue(usuario(['canApproveAgenteTI']));
+    autorizarMock.mockResolvedValue(usuario(['canManageAgenteTI']));
     const { r, api } = res();
     await handler(req({ card_id: 'c1' }), api);
     expect(r).toMatchObject({ statusCode: 200, body: { modo: 'cobrar', destinatarios: ['Bruno Mendes'] } });
@@ -76,7 +76,7 @@ describe('POST /api/ti/agente-cobrar (D22, RN16)', () => {
   it('cobrança manual há menos de 4 h: 409', async () => {
     const { db, inserts } = criarDb({ ultimaManual: new Date(Date.now() - 60 * 60 * 1000).toISOString() });
     dbMock.mockReturnValue(db);
-    autorizarMock.mockResolvedValue(usuario(['canApproveAgenteTI']));
+    autorizarMock.mockResolvedValue(usuario(['canManageAgenteTI']));
     const { r, api } = res();
     await handler(req({ card_id: 'c1' }), api);
     expect(r.statusCode).toBe(409);
@@ -86,7 +86,7 @@ describe('POST /api/ti/agente-cobrar (D22, RN16)', () => {
   it('responsável sem adesão ou WhatsApp desligado: 422', async () => {
     const semAdesao = criarDb({ membros: [{ id: 'm-bruno', user_id: 'u-bruno', whatsapp: '5561999924986', recebe_cobranca: false, ativo: true, perfil: { name: 'Bruno', deleted_at: null } }] });
     dbMock.mockReturnValue(semAdesao.db);
-    autorizarMock.mockResolvedValue(usuario(['canApproveAgenteTI']));
+    autorizarMock.mockResolvedValue(usuario(['canManageAgenteTI']));
     const a = res();
     await handler(req({ card_id: 'c1' }), a.api);
     expect(a.r.statusCode).toBe(422);
@@ -100,7 +100,7 @@ describe('POST /api/ti/agente-cobrar (D22, RN16)', () => {
   it('no fim de semana, a cobrança vai agendada para segunda às 7h', async () => {
     const { db, inserts } = criarDb();
     const sabado = new Date('2026-10-17T10:00:00-03:00');
-    const r = await cobrarCard(db as never, usuario(['canApproveAgenteTI']), 'c1', sabado);
+    const r = await cobrarCard(db as never, usuario(['canManageAgenteTI']), 'c1', sabado);
     expect(r).toMatchObject({ ok: true, agendadaPara: '2026-10-19T10:00:00.000Z' });
     expect(inserts[0]).toEqual([expect.objectContaining({ proxima_tentativa_em: '2026-10-19T10:00:00.000Z' })]);
   });

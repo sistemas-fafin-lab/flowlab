@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('./dados.js', () => ({ avisarGestores: vi.fn(async () => undefined) }));
+vi.mock('./dados.js', () => ({ avisarQuemTem: vi.fn(async () => undefined) }));
 
-import { avisarGestores } from './dados.js';
+import { avisarQuemTem } from './dados.js';
 import {
   NAO_ACHEI_CARD, linhaDoCard, montarConfirmacao, propostaDoItem, registrarAtualizacoes, respostaFiel, validarResposta, type SaidaResposta,
 } from './respostas.js';
@@ -91,7 +91,7 @@ describe('registrarAtualizacoes', () => {
     expect(inserts[0].linhas).toEqual([{ task_id: 'c1', user_id: 'u-bruno', content: 'via WhatsApp: IT-045 concluída' }]);
     expect(inserts[1].linhas).toMatchObject([{ origem: 'whatsapp', mensagem_id: 'msg1', proposta_por: 'u-bruno', tipo: 'atualizar_card', card_id: 'c1', proposta: { kanban_status: 'done' } }]);
     expect([...inserts.map((i) => i.tabela), ...updates.map((u) => u.tabela)]).not.toContain('it_requests');
-    expect(avisarGestores).toHaveBeenCalledTimes(1);
+    expect(avisarQuemTem).toHaveBeenCalledTimes(1);
   });
 
   it('bloqueio vira aviso aos gestores, sem sugestão', async () => {
@@ -102,6 +102,6 @@ describe('registrarAtualizacoes', () => {
     });
     expect(r.sugestoes).toBe(0);
     expect(inserts.map((i) => i.tabela)).toEqual(['it_task_comments']);
-    expect(avisarGestores).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ titulo: 'IT-045 bloqueado', tipo: 'warning' }));
+    expect(avisarQuemTem).toHaveBeenCalledWith(expect.anything(), 'canManageAgenteTI', expect.objectContaining({ titulo: 'IT-045 bloqueado', tipo: 'warning' }));
   });
 });

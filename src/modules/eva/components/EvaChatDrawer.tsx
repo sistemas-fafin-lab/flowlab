@@ -20,7 +20,7 @@ interface Props {
   voiceNotice: string;
   onMic?: () => void;
   /** Propostas (D28): gestor executa, os demais mandam para a fila. */
-  ehGestor?: boolean;
+  podeAprovar?: boolean;
   nome?: (id: string) => string;
   onConfirmar?: (p: PropostaEva) => void;
   onDescartar?: (p: PropostaEva) => void;
@@ -33,7 +33,7 @@ const semNome = () => 'alguém';
 /** Drawer de conversa (portal no body, mesmo padrão do CategoryEditorModal do Layout). */
 export const EvaChatDrawer: React.FC<Props> = ({
   open, thinking, messages, onClose, onSend, listening, transcript, voiceNotice, onMic,
-  ehGestor = false, nome = semNome, onConfirmar, onDescartar, onOpenCard,
+  podeAprovar = false, nome = semNome, onConfirmar, onDescartar, onOpenCard,
 }) => {
   const [draft, setDraft] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
@@ -109,7 +109,7 @@ export const EvaChatDrawer: React.FC<Props> = ({
                         <PropostaChatCard
                           key={p.id}
                           p={p}
-                          ehGestor={ehGestor}
+                          podeAprovar={podeAprovar}
                           nome={nome}
                           onConfirmar={() => onConfirmar?.(p)}
                           onDescartar={() => onDescartar?.(p)}

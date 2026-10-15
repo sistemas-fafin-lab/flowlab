@@ -6,7 +6,7 @@
  * `req.query.action` e escolhe o handler em api/_lib/handlers/ti-*.ts.
  *
  * Autorização dentro de cada handler: os crons exigem CRON_SECRET; as ações da tela
- * exigem a sessão do usuário com canManageIT ou canApproveAgenteTI; o webhook do WAHA
+ * exigem a sessão do usuário com canManageIT ou um dos papéis da EVA (D31); o webhook do WAHA
  * exige o token secreto na URL (WAHA_WEBHOOK_SECRET).
  *
  * Espelha api/notifications/[action].ts.

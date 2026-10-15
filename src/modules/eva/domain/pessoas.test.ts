@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { casarMembro, ehGestorEva, formatarWhatsapp, gradientePara, iniciais, normalizarNome } from './pessoas';
+import { casarMembro, formatarWhatsapp, gradientePara, iniciais, normalizarNome } from './pessoas';
 
 describe('iniciais e cor do avatar', () => {
   it('primeira e última inicial; nome único usa as duas primeiras letras', () => {
@@ -32,20 +32,6 @@ describe('casarMembro (RN08)', () => {
   it('"Equipe" e nomes desconhecidos ficam sem responsável', () => {
     expect(casarMembro('Equipe', membros)).toBeNull();
     expect(casarMembro('@Erika', membros)).toBeNull();
-  });
-});
-
-describe('ehGestorEva (D29)', () => {
-  it('admin ou cargo com canApproveAgenteTI; o operator legado não conta', () => {
-    expect(ehGestorEva({ role: 'user', permissoes: ['canManageIT', 'canApproveAgenteTI'] })).toBe(true);
-    expect(ehGestorEva({ role: 'admin', permissoes: null })).toBe(true);
-    expect(ehGestorEva({ role: 'operator', permissoes: null })).toBe(false);
-    expect(ehGestorEva({ role: 'user', permissoes: ['canManageIT'] })).toBe(false);
-  });
-  it('removido ou desativado nunca é gestor', () => {
-    expect(ehGestorEva({ role: 'admin', disabled_at: '2026-10-01T00:00:00Z' })).toBe(false);
-    expect(ehGestorEva({ role: 'user', permissoes: ['canApproveAgenteTI'], deleted_at: '2026-10-01T00:00:00Z' })).toBe(false);
-    expect(ehGestorEva(null)).toBe(false);
   });
 });
 

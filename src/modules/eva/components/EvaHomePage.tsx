@@ -4,11 +4,10 @@ import { MotionConfig } from 'framer-motion';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import './eva.css';
 import { useAuth } from '../../../hooks/useAuth';
-import { hasPermission } from '../../../utils/permissions';
 import ITTaskDrawer from '../../../components/IT/ITTaskDrawer';
 import { useEvaHome } from '../hooks/useEvaHome';
 import { useEvaChat } from '../hooks/useEvaChat';
-import { useEvaNoInicio } from '../hooks/useAgenteAdmin';
+import { useEvaNoInicio, usePapeisEva } from '../hooks/useAgenteAdmin';
 import { useEvaComentarios } from '../hooks/useEvaComentarios';
 import { useScrolledPast } from '../hooks/useScrolledPast';
 import { useVoiceInput } from '../hooks/useVoiceInput';
@@ -44,15 +43,18 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
   const { userProfile } = useAuth();
   const navigate = useNavigate();
   const nome = primeiroNome(userProfile?.name ?? '');
-  const ehGestor = hasPermission(userProfile?.permissions || [], 'canApproveAgenteTI');
+  // D31: o gestor vê a fila e cobra os outros; quem aprova aprova na hora e vê as pendentes.
+  const papeis = usePapeisEva();
+  const ehGestor = papeis.gestor;
+  const podeAprovar = papeis.aprova;
 
-  const eva = useEvaNoInicio(ehGestor);
+  const eva = useEvaNoInicio(podeAprovar);
   const whatsappAtivo = eva.dados?.config?.whatsapp_ativo === true;
   const home = useEvaHome(defaultView, { ehGestor, whatsappAtivo });
   const chat = useEvaChat({
     primeiroNome: nome,
     view: home.view,
-    ehGestor,
+    podeAprovar,
     ultimaReuniaoEm: eva.dados?.ultimaReuniao?.analisada_em ?? null,
     onExecutada: () => {
       void home.recarregar();
@@ -63,8 +65,8 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
   const s = home.snapshot;
 
   const integracoes = useMemo(
-    () => montarIntegracoes(eva.dados?.config ?? null, eva.dados?.pendentes ?? null, ehGestor),
-    [eva.dados, ehGestor],
+    () => montarIntegracoes(eva.dados?.config ?? null, eva.dados?.pendentes ?? null, podeAprovar),
+    [eva.dados, podeAprovar],
   );
   const nomePessoa = (id: string) => chat.nomes[id] ?? home.nomes[id] ?? 'alguém';
   const abrirCitado = (codigo: string) => {
@@ -93,7 +95,7 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
     [s, home.hoje, home.view, home.usuarioId, home.cards, home.nomes, ehGestor, eva.dados, home.fila, home.agora],
   );
   const acoes = useEvaComentarios({
-    ehGestor,
+    podeAprovar,
     navegar: navigate,
     abrirCard: (id) => void home.abrirCard(id),
     perguntar: (texto) => void chat.ask(texto),
@@ -237,7 +239,7 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
           transcript={voice.transcript}
           voiceNotice={chat.open ? voice.notice : ''}
           onMic={() => voice.toggle('chat')}
-          ehGestor={ehGestor}
+          podeAprovar={podeAprovar}
           nome={nomePessoa}
           onConfirmar={(p) => void chat.confirmar(p)}
           onDescartar={chat.descartar}
@@ -248,7 +250,7 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
           aberto={!!acoes.dialogo}
           titulo={acoes.dialogo?.acao.titulo ?? ''}
           propostas={acoes.dialogo?.acao.propostas ?? []}
-          ehGestor={ehGestor}
+          podeAprovar={podeAprovar}
           nome={nomePessoa}
           enviando={acoes.enviando}
           erro={acoes.erro}

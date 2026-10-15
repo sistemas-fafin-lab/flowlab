@@ -2,7 +2,7 @@
 // das tabelas ti_agente_*); escrita só por RPC (sugestões) ou pelas policies de gestor
 // (membros, config). Ver supabase/migrations/20261013150000_eva_tabelas.sql.
 import { supabase } from '../../../lib/supabase';
-import { ehGestorEva } from '../domain/pessoas';
+import { papeisDoPerfil, type PapeisEva } from '../domain/papeis';
 import { chamarEva } from './agenteApi';
 
 export type TipoSugestao = 'criar_card' | 'atualizar_card' | 'comentar_card';
@@ -78,8 +78,8 @@ export interface Membro {
   recebe_cobranca: boolean;
   ativo: boolean;
   nome: string;
-  /** Pode mandar comandos de gestor pelo WhatsApp (ehGestorEva: admin ou cargo com canApproveAgenteTI). */
-  gestor: boolean;
+  /** Os papéis da EVA pela regra do banco (papeisDoPerfil): admin tem os três (D31). */
+  papeis: PapeisEva;
   /** Nome do cargo no FlowLab (Usuários → Cargos e Permissões); "Administrador" para o admin sem cargo. */
   cargo: string | null;
 }
@@ -204,11 +204,11 @@ export const agenteAdmin = {
       custom_roles: { name: string; permissions: unknown } | null;
     } | null;
     return (data ?? []).map((m) => {
-      const { perfil, ...resto } = m as unknown as Omit<Membro, 'nome' | 'gestor' | 'cargo'> & { perfil: Perfil };
+      const { perfil, ...resto } = m as unknown as Omit<Membro, 'nome' | 'papeis' | 'cargo'> & { perfil: Perfil };
       return {
         ...resto,
         nome: perfil?.name ?? '—',
-        gestor: ehGestorEva(perfil && { ...perfil, permissoes: perfil.custom_roles?.permissions }),
+        papeis: papeisDoPerfil(perfil && { ...perfil, permissoes: perfil.custom_roles?.permissions }),
         cargo: perfil?.custom_roles?.name ?? (perfil?.role === 'admin' ? 'Administrador' : null),
       };
     });

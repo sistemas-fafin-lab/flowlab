@@ -28,7 +28,7 @@ const DIAS_FILA = 3;
 const ATUALIZAR_WHATSAPP_MS = 60_000;
 
 interface OpcoesInicio {
-  /** canApproveAgenteTI: vê a fila e o último contato (D24) e cobra cards dos outros (D22). */
+  /** Gestor da EVA (canManageAgenteTI, D31): vê a fila e o último contato (D24) e cobra cards dos outros (D22). */
   ehGestor: boolean;
   /** ti_agente_config.whatsapp_ativo: sem ele, o botão Cobrar/Lembrar não aparece. */
   whatsappAtivo: boolean;

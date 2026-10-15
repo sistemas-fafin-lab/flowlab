@@ -5,7 +5,7 @@ import type { AcaoInsight, EvaInsightData } from '../types';
 type Proposta = Extract<AcaoInsight, { tipo: 'propor' }>;
 
 interface Opcoes {
-  ehGestor: boolean;
+  podeAprovar: boolean;
   navegar: (para: string) => void;
   abrirCard: (id: string) => void;
   perguntar: (texto: string) => void;
@@ -22,7 +22,7 @@ interface Opcoes {
  * chat, ou abre o diálogo de confirmação de uma proposta. Nada escreve direto em it_requests:
  * a mudança passa por ti_agente_propor_sugestao.
  */
-export function useEvaComentarios({ ehGestor, navegar, abrirCard, perguntar, cobrar, onExecutada, onFeito }: Opcoes) {
+export function useEvaComentarios({ podeAprovar, navegar, abrirCard, perguntar, cobrar, onExecutada, onFeito }: Opcoes) {
   /** Texto de "feito" de cada comentário já aceito, pelo id do comentário. */
   const [feitos, setFeitos] = useState<Record<string, string>>({});
   const [dialogo, setDialogo] = useState<{ insightId: string; acao: Proposta } | null>(null);
@@ -60,16 +60,16 @@ export function useEvaComentarios({ ehGestor, navegar, abrirCard, perguntar, cob
     // Uma proposta por card: se uma falhar, as outras seguem e o diálogo diz qual ficou.
     for (const p of dialogo.acao.propostas) {
       try {
-        await agenteAdmin.propor({ tipo: p.tipo, cardId: p.card_id, proposta: p.proposta, trecho: p.trecho, origem: 'comentario', aprovar: ehGestor });
+        await agenteAdmin.propor({ tipo: p.tipo, cardId: p.card_id, proposta: p.proposta, trecho: p.trecho, origem: 'comentario', aprovar: podeAprovar });
         feitas += 1;
       } catch (e) {
         falhas.push(`${p.card.codigo}: ${e instanceof Error ? e.message : 'não deu certo'}`);
       }
     }
     setEnviando(false);
-    if (ehGestor && feitas > 0) onExecutadaRef.current();
+    if (podeAprovar && feitas > 0) onExecutadaRef.current();
     if (falhas.length > 0) {
-      setErro(`${feitas > 0 ? `${feitas} de ${dialogo.acao.propostas.length} ${ehGestor ? 'executadas' : 'enviadas'}. ` : ''}Não consegui: ${falhas.join('; ')}`);
+      setErro(`${feitas > 0 ? `${feitas} de ${dialogo.acao.propostas.length} ${podeAprovar ? 'executadas' : 'enviadas'}. ` : ''}Não consegui: ${falhas.join('; ')}`);
       // O que já foi não pode ser enviado de novo: o diálogo fica só com o que falhou.
       if (feitas > 0) {
         const ok = new Set(dialogo.acao.propostas.map((p) => p.card.codigo).filter((c) => !falhas.some((f) => f.startsWith(`${c}:`))));
@@ -77,12 +77,12 @@ export function useEvaComentarios({ ehGestor, navegar, abrirCard, perguntar, cob
       }
       return;
     }
-    const texto = ehGestor ? dialogo.acao.feitoGestor : dialogo.acao.feitoFila;
+    const texto = podeAprovar ? dialogo.acao.feitoGestor : dialogo.acao.feitoFila;
     setFeitos((f) => ({ ...f, [dialogo.insightId]: texto }));
     // O board relido pode tirar o comentário da tela; o aviso garante que a pessoa veja.
     onFeitoRef.current?.(texto);
     setDialogo(null);
-  }, [dialogo, ehGestor]);
+  }, [dialogo, podeAprovar]);
 
   const fechar = useCallback(() => {
     if (!enviando) setDialogo(null);

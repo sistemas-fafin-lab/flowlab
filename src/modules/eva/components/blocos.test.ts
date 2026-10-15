@@ -71,12 +71,12 @@ describe('blocos do Início (fumaça)', () => {
       proposta: { kanban_status: 'review' },
       card: { id: 'c1', codigo: 'IT-045', title: 'Robô de pré-faturamento', kanban_status: 'in_progress', priority: 'high', due_date: null, assigned_to: [] },
     };
-    const gestor = render(h(PropostaChatCard, { p, ehGestor: true, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }));
+    const gestor = render(h(PropostaChatCard, { p, podeAprovar: true, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }));
     expect(gestor).toContain('Aprovar e executar');
     expect(gestor).toContain('Em Progresso');
     expect(gestor).toContain('Revisão');
-    expect(render(h(PropostaChatCard, { p, ehGestor: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviar para aprovação');
-    expect(render(h(PropostaChatCard, { p: { ...p, estado: 'na_fila' }, ehGestor: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviada para aprovação');
+    expect(render(h(PropostaChatCard, { p, podeAprovar: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviar para aprovação');
+    expect(render(h(PropostaChatCard, { p: { ...p, estado: 'na_fila' }, podeAprovar: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviada para aprovação');
   });
 
   it('Cobrar/Lembrar só onde pode; sem WhatsApp, desabilitado com a dica (D22)', () => {

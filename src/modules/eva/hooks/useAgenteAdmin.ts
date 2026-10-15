@@ -2,12 +2,14 @@
 // contra resposta atrasada, e expõe as ações que recarregam a lista ao terminar.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
-import { hasPermission } from '../../../utils/permissions';
+import { papeisEva, type PapeisEva } from '../domain/papeis';
 import { agenteAdmin, type ConfigEva, type Membro, type Pessoa, type Reuniao, type StatusSugestao, type Sugestao } from '../services/agenteAdmin';
 
-export function useEhGestor(): boolean {
+/** Os papéis da EVA de quem está logado (D31): configurar, gestor, aprovar. */
+export function usePapeisEva(): PapeisEva {
   const { userProfile } = useAuth();
-  return hasPermission(userProfile?.permissions || [], 'canApproveAgenteTI');
+  const permissoes = userProfile?.permissions;
+  return useMemo(() => papeisEva(permissoes), [permissoes]);
 }
 
 function useLista<T>(carregar: () => Promise<T>, deps: unknown[]) {
@@ -86,18 +88,18 @@ export function useResponsaveis() {
 }
 
 /**
- * O que o Início precisa da EVA: config (chips), pendentes (só gestor) e a última reunião
- * analisada (chat e comentário de Projetos). Cada leitura falha sozinha: sem as tabelas
+ * O que o Início precisa da EVA: config (chips), pendentes (só para quem aprova) e a última
+ * reunião analisada (chat e comentário de Projetos). Cada leitura falha sozinha: sem as tabelas
  * da EVA, o Início continua de pé e os chips dizem "ainda não configurado".
  */
-export function useEvaNoInicio(ehGestor: boolean) {
+export function useEvaNoInicio(podeAprovar: boolean) {
   return useLista(async () => {
     const [config, pendentes, ultimaReuniao] = await Promise.all([
       agenteAdmin.lerConfig().catch(() => null),
-      ehGestor ? agenteAdmin.contarPendentes().catch(() => null) : Promise.resolve(null),
+      podeAprovar ? agenteAdmin.contarPendentes().catch(() => null) : Promise.resolve(null),
       agenteAdmin.ultimaReuniaoAnalisada().catch(() => null),
     ]);
     const pendentesDaReuniao = ultimaReuniao ? await agenteAdmin.contarPendentes(ultimaReuniao.id).catch(() => null) : null;
     return { config, pendentes, ultimaReuniao, pendentesDaReuniao };
-  }, [ehGestor]);
+  }, [podeAprovar]);
 }
