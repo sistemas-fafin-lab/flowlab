@@ -147,6 +147,10 @@ export const evaService = {
    * Botão Cobrar/Lembrar (D22): põe a cobrança na fila; o script da VPS envia em até 1 min.
    * Fora do horário de cobrança (dia útil, 7h às 20h), ela vai agendada (`agendadaPara`).
    */
+  /** Aviso do gestor para uma pessoa pelo WhatsApp (D32): vai para a fila, no horário da EVA. */
+  sendAviso: (userId: string, texto: string) =>
+    chamarEva<{ mensagemId: string; para: string; agendadaPara: string | null }>('agente-avisar', { user_id: userId, texto }),
+
   sendCharge: (cardId: string) =>
     chamarEva<{ modo: 'cobrar' | 'lembrar'; destinatarios: string[]; agendadaPara: string | null }>('agente-cobrar', { card_id: cardId }),
 
@@ -187,5 +191,7 @@ export interface RespostaEva {
   cardsCitados: string[];
   propostas: Omit<PropostaEva, 'id' | 'estado' | 'erro'>[];
   nomes: Record<string, string>;
+  /** Avisos pelo WhatsApp para o gestor confirmar (D32); vazio para os demais. */
+  avisos?: { pessoaId: string; nome: string; texto: string }[];
   provedor: 'claude' | 'gemini';
 }

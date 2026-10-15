@@ -6,8 +6,9 @@ import { EvaOrb } from './EvaOrb';
 import { GlowFrame } from './EvaGlow';
 import { MicButton, VoiceNotice } from './ui';
 import { PropostaChatCard } from './PropostaChatCard';
+import { AvisoChatCard } from './AvisoChatCard';
 import { EVA_SUGGESTIONS } from '../constants';
-import type { ChatMessage, PropostaEva } from '../types';
+import type { AvisoEva, ChatMessage, PropostaEva } from '../types';
 
 interface Props {
   open: boolean;
@@ -24,6 +25,9 @@ interface Props {
   nome?: (id: string) => string;
   onConfirmar?: (p: PropostaEva) => void;
   onDescartar?: (p: PropostaEva) => void;
+  /** Avisos pelo WhatsApp (D32): o gestor confere o texto e envia. */
+  onEnviarAviso?: (a: AvisoEva, texto: string) => void;
+  onDescartarAviso?: (a: AvisoEva) => void;
   /** Abre o card citado pelo código. */
   onOpenCard?: (codigo: string) => void;
 }
@@ -33,7 +37,7 @@ const semNome = () => 'alguém';
 /** Drawer de conversa (portal no body, mesmo padrão do CategoryEditorModal do Layout). */
 export const EvaChatDrawer: React.FC<Props> = ({
   open, thinking, messages, onClose, onSend, listening, transcript, voiceNotice, onMic,
-  podeAprovar = false, nome = semNome, onConfirmar, onDescartar, onOpenCard,
+  podeAprovar = false, nome = semNome, onConfirmar, onDescartar, onEnviarAviso, onDescartarAviso, onOpenCard,
 }) => {
   const [draft, setDraft] = useState('');
   const listRef = useRef<HTMLDivElement>(null);
@@ -113,6 +117,14 @@ export const EvaChatDrawer: React.FC<Props> = ({
                           nome={nome}
                           onConfirmar={() => onConfirmar?.(p)}
                           onDescartar={() => onDescartar?.(p)}
+                        />
+                      ))}
+                      {m.avisos?.map((a) => (
+                        <AvisoChatCard
+                          key={a.id}
+                          a={a}
+                          onEnviar={(texto) => onEnviarAviso?.(a, texto)}
+                          onDescartar={() => onDescartarAviso?.(a)}
                         />
                       ))}
                     </div>

@@ -20,8 +20,14 @@ vi.mock('./grupo.js', async (original) => ({
   enfileirarNoGrupo: vi.fn(async () => ({ gravada: true, id: 'g1', agendadaPara: null })),
 }));
 vi.mock('./ia/gerarEstruturado.js', () => ({ gerarEstruturado: vi.fn() }));
+vi.mock('./aviso.js', async (original) => ({
+  ...(await original<typeof import('./aviso.js')>()),
+  checarAvisoPessoal: vi.fn(async () => ({ ok: true, membroId: 'm-bruno', userId: 'u-bruno', nome: 'Bruno Mendes' })),
+  enviarAvisoPessoal: vi.fn(async () => ({ ok: true, id: 'a1', para: 'Bruno Mendes', agendadaPara: null })),
+}));
 
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
+import { enviarAvisoPessoal } from './aviso.js';
 import { avisarQuemTem, lerContexto } from './dados.js';
 import { enfileirarNoGrupo, lerConfigGrupo } from './grupo.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
@@ -56,7 +62,7 @@ const sug = (s: Partial<SugestaoLista>): SugestaoLista => ({
 
 const saida = (s: Partial<SaidaMensagem>): SaidaMensagem => ({
   intencao: 'conversa', resposta: '', itens: [], propostas: [], lembrete_texto: '', lembrete_quando: '', lembrete_id: '',
-  cobrar_codigos: [], cobrar_pessoa_id: '', numeros: [], todas: false, motivo: '', aviso: '', confianca: 'alta', ...s,
+  cobrar_codigos: [], cobrar_pessoa_id: '', numeros: [], todas: false, motivo: '', aviso: '', aviso_pessoa_id: '', confianca: 'alta', ...s,
 });
 const proposta = (p: Partial<SaidaMensagem['propostas'][number]>): SaidaMensagem['propostas'][number] => ({
   tipo: 'atualizar_card', card_codigo: 'IT-045', titulo: null, descricao: null, responsaveis: [], prazo: null, prazo_texto: null,
@@ -466,6 +472,27 @@ describe('processarRecebida: gestor', () => {
     expect(r).toMatchObject({ acao: 'sem_permissao' });
     expect(r.resposta).toContain('Só quem aprova sugestões');
     expect(banco.rpcs).toEqual([]);
+  });
+
+  it('aviso para uma pessoa (D32): mostra o texto exato, e só manda depois do SIM', async () => {
+    ia({ intencao: 'avisar_pessoa', aviso_pessoa_id: 'u-bruno', aviso: 'A reunião mudou para as 10h.' });
+    const r1 = await mandar('avisa o Bruno que a reunião mudou para as 10h');
+    expect(r1.resposta).toBe(`Vou mandar para Bruno pelo WhatsApp:\n\n📢 Aviso de Ana:\nA reunião mudou para as 10h.\n\n${PEDIR_SIM}`);
+    expect(enviarAvisoPessoal).not.toHaveBeenCalled();
+    expect(estado.comandos).toMatchObject([{ tipo: 'avisar_pessoa', status: 'aguardando', dados: { destino: 'u-bruno' } }]);
+    const r2 = await mandar('sim');
+    expect(enviarAvisoPessoal).toHaveBeenCalledWith(banco.db, expect.objectContaining({ userId: 'u-ana' }), 'u-bruno', '📢 Aviso de Ana:\nA reunião mudou para as 10h.', AGORA);
+    expect(r2.resposta).toBe('Pronto: o aviso para Bruno sai em instantes.');
+  });
+
+  it('aviso para uma pessoa: só gestor; pessoa desconhecida, pergunta quem', async () => {
+    estado.permissoes = ['canManageIT', 'canApproveAgenteTI'];
+    ia({ intencao: 'avisar_pessoa', aviso_pessoa_id: 'u-bruno', aviso: 'oi' });
+    expect((await mandar('avisa o Bruno que oi')).resposta).toContain('Só gestores da EVA podem mandar avisos para outras pessoas');
+    estado.permissoes = GESTOR;
+    ia({ intencao: 'avisar_pessoa', aviso_pessoa_id: 'u-fulano', aviso: 'oi' });
+    expect((await mandar('avisa o Fulano que oi')).resposta).toMatch(/^Para quem é o aviso\?/);
+    expect(estado.comandos).toEqual([]);
   });
 
   it('a ajuda fixa mostra só o que o papel da pessoa permite', () => {

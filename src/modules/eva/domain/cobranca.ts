@@ -151,9 +151,9 @@ export const ehTipoDeCobranca = (tipo: string) => tipo === 'cobranca' || tipo ==
 
 /**
  * Também respeitam o horário as mensagens do grupo da equipe (fechamento, resumo de reunião,
- * aviso; D29) e os lembretes pessoais (D30), que já nascem dentro dele.
+ * aviso; D29), os lembretes pessoais (D30) e o aviso de gestor para uma pessoa (D32).
  */
-export const respeitaHorario = (tipo: string) => ehTipoDeCobranca(tipo) || tipo === 'grupo' || tipo === 'lembrete';
+export const respeitaHorario = (tipo: string) => ehTipoDeCobranca(tipo) || tipo === 'grupo' || tipo === 'lembrete' || tipo === 'aviso';
 
 // ── Cobrança sob demanda (D22, RN16) ─────────────────────────────────────────
 
