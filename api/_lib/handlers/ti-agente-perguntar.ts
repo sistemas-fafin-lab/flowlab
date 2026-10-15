@@ -1,7 +1,8 @@
 // API Route: POST /api/ti/agente-perguntar — chat com a EVA (issue 16).
 // Body: { pergunta, visao: 'team' | 'me', historico: [{ de: 'eva' | 'eu', texto }] }
 // Exige canManageIT, ou um dos papéis da EVA (aprovar ou gestor). A fila do WhatsApp só entra no
-// contexto do gestor (D24, D31). Limite de 30 perguntas por pessoa por dia (RN17).
+// contexto do gestor (D24, D31), e só ele recebe avisos para confirmar (D32). Limite de 30
+// perguntas por pessoa por dia (RN17).
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '../supabase.js';
@@ -110,6 +111,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           reuniao ? { titulo: reuniao.titulo, realizadaEm: reuniao.realizada_em, observacoes: reuniao.observacoes, resumo: reuniao.resumo_markdown } : null,
           hoje,
           fila,
+          ehGestor,
         ),
         conteudo: montarConteudoChat(pergunta, historico),
         schema: SchemaChat,
@@ -122,7 +124,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(502).json({ success: false, error: 'Não consegui consultar o board agora. Tente novamente em alguns segundos.', erros: r.erros });
       return;
     }
-    res.status(200).json({ success: true, provedor: r.provedor, ...validarRespostaChat(r.dados, ctx) });
+    const resposta = validarRespostaChat(r.dados, ctx);
+    // D32: aviso pelo WhatsApp só para o gestor; a rota agente-avisar confere de novo no envio.
+    res.status(200).json({ success: true, provedor: r.provedor, ...resposta, avisos: ehGestor ? resposta.avisos : [] });
   } catch (e) {
     console.error('[ti/agente-perguntar]', e);
     res.status(500).json({ success: false, error: 'Não consegui consultar o board agora. Tente novamente em alguns segundos.' });

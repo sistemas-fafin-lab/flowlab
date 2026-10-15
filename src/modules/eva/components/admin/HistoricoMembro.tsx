@@ -16,7 +16,7 @@ const ROTULO: Record<string, { texto: string; tom: BadgeTone }> = {
   cancelada: { texto: 'Cancelado', tom: 'neutral' },
 };
 const TIPO: Record<string, string> = {
-  cobranca: 'Cobrança diária', cobranca_manual: 'Cobrança', teste: 'Teste', confirmacao: 'Resposta da EVA', recebida: 'Mensagem', lembrete: 'Lembrete',
+  cobranca: 'Cobrança diária', cobranca_manual: 'Cobrança', teste: 'Teste', confirmacao: 'Resposta da EVA', recebida: 'Mensagem', lembrete: 'Lembrete', aviso: 'Aviso de gestor',
 };
 const quando = (iso: string) => new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 

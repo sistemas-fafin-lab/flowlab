@@ -13,10 +13,11 @@ import { MyTasksCard } from './MyTasksCard';
 import { WhatsAppQueueCard } from './WhatsAppQueueCard';
 import { EvaStatCards } from './EvaStatCards';
 import { PropostaChatCard } from './PropostaChatCard';
+import { AvisoChatCard } from './AvisoChatCard';
 import { mensagensDaFila } from './fila';
 import type { OverdueRow } from '../hooks/useEvaHome';
 import type { MensagemFila } from '../domain/whatsapp';
-import type { PropostaEva } from '../types';
+import type { AvisoEva, PropostaEva } from '../types';
 
 const HOJE = '2026-10-13';
 const EU = 'u-eu';
@@ -119,5 +120,18 @@ describe('blocos do Início (fumaça)', () => {
     expect(html).toContain('Nenhum projeto com sprint ativa ou card aberto.');
     expect(html).toContain('Nenhum card seu vence hoje');
     expect(html).toContain('Ainda não ligada');
+  });
+});
+
+describe('aviso pelo WhatsApp no chat (D32)', () => {
+  const aviso: AvisoEva = { id: 'a1', pessoaId: 'u-bruno', nome: 'Bruno Mendes', texto: 'A reunião mudou para as 10h.', estado: 'aberto' };
+  it('mostra para quem vai, o texto editável e o botão de enviar; depois, onde está', () => {
+    const aberto = render(h(AvisoChatCard, { a: aviso, onEnviar: () => undefined, onDescartar: () => undefined }));
+    expect(aberto).toContain('Aviso pelo WhatsApp · para Bruno');
+    expect(aberto).toContain('A reunião mudou para as 10h.</textarea>');
+    expect(aberto).toContain('Enviar pelo WhatsApp');
+    expect(render(h(AvisoChatCard, { a: { ...aviso, estado: 'enviado', agendadaPara: null }, onEnviar: () => undefined, onDescartar: () => undefined }))).toContain('Na fila do WhatsApp: sai em instantes.');
+    expect(render(h(AvisoChatCard, { a: { ...aviso, estado: 'enviado', agendadaPara: '2026-10-19T10:00:00.000Z' }, onEnviar: () => undefined, onDescartar: () => undefined }))).toContain('Fora do horário da EVA: sai');
+    expect(render(h(AvisoChatCard, { a: { ...aviso, estado: 'descartado' }, onEnviar: () => undefined, onDescartar: () => undefined }))).toContain('Nada foi enviado.');
   });
 });

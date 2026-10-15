@@ -60,15 +60,15 @@ describe('contexto e conteúdo do chat', () => {
 
 describe('validarRespostaChat', () => {
   it('descarta códigos citados que não estão no contexto', () => {
-    const r = validarRespostaChat({ resposta: ' ok ', cards_citados: ['it-010', 'IT-999', 'IT-010'], propostas: [] }, CTX);
-    expect(r).toEqual({ resposta: 'ok', cardsCitados: ['IT-010'], propostas: [], nomes: {} });
+    const r = validarRespostaChat({ resposta: ' ok ', cards_citados: ['it-010', 'IT-999', 'IT-010'], propostas: [], avisos: [] }, CTX);
+    expect(r).toEqual({ resposta: 'ok', cardsCitados: ['IT-010'], propostas: [], nomes: {}, avisos: [] });
   });
 
   it('proposta passa pela mesma validação das reuniões e leva o card para exibição', () => {
     const r = validarRespostaChat({
       resposta: 'Preparei a proposta.',
       cards_citados: ['IT-011'],
-      propostas: [proposta({ card_codigo: 'IT-011', kanban_status: 'in_progress' }), proposta({ card_codigo: 'IT-010', kanban_status: 'in_progress' })],
+      propostas: [proposta({ card_codigo: 'IT-011', kanban_status: 'in_progress' }), proposta({ card_codigo: 'IT-010', kanban_status: 'in_progress' })], avisos: [],
     }, CTX);
     // A segunda não muda nada (o card já está em andamento): fica de fora.
     expect(r.propostas).toHaveLength(1);
@@ -77,12 +77,30 @@ describe('validarRespostaChat', () => {
   });
 
   it('pedido sobre card fora do contexto não vira card novo, como na reunião', () => {
-    const r = validarRespostaChat({ resposta: 'x', cards_citados: [], propostas: [proposta({ card_codigo: 'IT-999', titulo: 'Algo', kanban_status: 'done' })] }, CTX);
+    const r = validarRespostaChat({ resposta: 'x', cards_citados: [], propostas: [proposta({ card_codigo: 'IT-999', titulo: 'Algo', kanban_status: 'done' })], avisos: [] }, CTX);
     expect(r.propostas).toEqual([]);
   });
 
-  it('o schema exige os três campos', () => {
-    expect(SchemaChat.safeParse({ resposta: 'oi', cards_citados: [], propostas: [] }).success).toBe(true);
+  it('aviso pelo WhatsApp (D32): só para pessoa conhecida, com texto, no máximo 3', () => {
+    const r = validarRespostaChat({
+      resposta: 'Preparei o aviso.', cards_citados: [], propostas: [],
+      avisos: [
+        { pessoa_id: 'u-bruno', texto: '  A reunião mudou para as 10h.  ' },
+        { pessoa_id: 'u-desconhecido', texto: 'oi' },
+        { pessoa_id: 'u-bruno', texto: '   ' },
+      ],
+    }, CTX);
+    expect(r.avisos).toEqual([{ pessoaId: 'u-bruno', nome: 'Bruno Mendes', texto: 'A reunião mudou para as 10h.' }]);
+    expect(INSTRUCOES_CHAT).toContain('"avisos"');
+  });
+
+  it('o contexto diz se quem pergunta pode mandar avisos', () => {
+    expect(montarContextoChat(CTX, null, '2026-10-13', null, true)).toContain('Quem pergunta: gestor da EVA (pode mandar avisos pelo WhatsApp).');
+    expect(montarContextoChat(CTX, null, '2026-10-13')).toContain('Quem pergunta: equipe (não manda avisos pelo WhatsApp).');
+  });
+
+  it('o schema exige os campos', () => {
+    expect(SchemaChat.safeParse({ resposta: 'oi', cards_citados: [], propostas: [], avisos: [] }).success).toBe(true);
     expect(SchemaChat.safeParse({ resposta: 'oi' }).success).toBe(false);
   });
 });

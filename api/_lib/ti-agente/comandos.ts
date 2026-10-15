@@ -26,6 +26,7 @@ import { checarCobranca, cobrarCard, lerCardsAbertos, lerMembrosCobranca } from 
 import { CHAVE_APROVAR, CHAVE_GESTOR } from '../../../src/modules/eva/domain/papeis.js';
 import { avisarQuemTem, lerContexto, lerNomes, lerUltimaReuniao } from './dados.js';
 import { SugestaoIA, montarContexto, type ContextoExtracao } from './extracao.js';
+import { MAX_AVISO_PESSOAL, checarAvisoPessoal, enviarAvisoPessoal } from './aviso.js';
 import { enfileirarNoGrupo, lerConfigGrupo, montarAviso, motivoSemGrupo } from './grupo.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
 import {
@@ -86,7 +87,7 @@ export const AJUDA_EQUIPE = [
 /** A ajuda fixa, com as partes de cada papel de quem pergunta. */
 export function ajuda(p: PapeisWhatsApp): string {
   const extras = [
-    ...(p.gestor ? ['• "cobra o IT-045" ou "cobra a Ana"', '• "avisa no grupo que …"'] : []),
+    ...(p.gestor ? ['• "cobra o IT-045" ou "cobra a Ana"', '• "avisa o Gabriel que …"', '• "avisa no grupo que …"'] : []),
     ...(p.aprova ? ['• "sugestões pendentes", depois "aprovar 1 e 3" ou "rejeitar 2 <motivo>"'] : []),
   ];
   if (extras.length === 0) return AJUDA_EQUIPE;
@@ -247,7 +248,7 @@ const ItemWhatsApp = ItemRespostaIA.extend({
 export const SchemaMensagem = z.object({
   intencao: z.enum([
     'atualizar_cards', 'propor', 'pergunta', 'lembrete_criar', 'lembrete_cancelar', 'conversa',
-    'cobrar', 'ver_sugestoes', 'aprovar', 'rejeitar', 'avisar_grupo',
+    'cobrar', 'ver_sugestoes', 'aprovar', 'rejeitar', 'avisar_grupo', 'avisar_pessoa',
   ]),
   resposta: z.string(),
   itens: z.array(ItemWhatsApp),
@@ -262,6 +263,7 @@ export const SchemaMensagem = z.object({
   todas: z.boolean(),
   motivo: z.string(),
   aviso: z.string(),
+  aviso_pessoa_id: z.string(),
   confianca: z.enum(['alta', 'media', 'baixa']),
 });
 export type SaidaMensagem = z.infer<typeof SchemaMensagem>;
@@ -294,6 +296,7 @@ INTENÇÕES (uma por mensagem; os campos das outras ficam vazios: [] nas listas,
 - Só para gestor ("Quem escreve" diz os papéis da pessoa):
   - "cobrar": "cobra o IT-045", "cobra a Ana". Os códigos vão em "cobrar_codigos"; a pessoa, pelo id de MEMBROS DA EQUIPE, em "cobrar_pessoa_id".
   - "avisar_grupo": "avisa no grupo que a reunião de amanhã é às 10h". Em "aviso", só o conteúdo do aviso, claro e curto, sem saudação e sem inventar nada.
+  - "avisar_pessoa": avisar, mandar uma mensagem, falar ou lembrar uma pessoa da equipe de algo ("avisa o Gabriel que a reunião mudou para as 10h", "manda uma mensagem para a Ana dizendo…", "fala para o Bruno…"). Em "aviso_pessoa_id", o id da pessoa (de MEMBROS DA EQUIPE); em "aviso", só o conteúdo, claro e curto, sem saudação, sem assinatura e sem inventar nada. Atenda sempre que o pedido for para outra pessoa; lembrete para a própria pessoa é "lembrete_criar".
 - Só para quem aprova sugestões:
   - "ver_sugestoes": "sugestões pendentes", "o que tem para aprovar?".
   - "aprovar": aprova itens da última lista numerada que você mandou ("aprova a 1 e a 3", "pode aprovar todas"). Números em "numeros", ou "todas": true.
@@ -318,7 +321,7 @@ GERAL
 
 O QUE VOCÊ FAZ (para explicar quando perguntarem)
 - Para todos: registrar o andamento dos cards ("IT-045 concluída", "IT-052 vai para sexta"); pedir mudanças no Kanban ("cria um card para…", "passa o IT-060 para a Ana"), que vão para aprovação; responder sobre as demandas e o dia ("o que eu tenho hoje?"); e marcar lembretes ("me lembra amanhã às 9h de…"), que saem em dia útil, das 7h às 20h.
-- Para gestores, além disso: cobrar ("cobra o IT-045", "cobra a Ana") e avisar o grupo da equipe ("avisa no grupo que…").
+- Para gestores, além disso: cobrar ("cobra o IT-045", "cobra a Ana"), mandar um aviso para uma pessoa ("avisa o Gabriel que…") e avisar o grupo da equipe ("avisa no grupo que…").
 - Para quem aprova sugestões: ver e decidir as sugestões ("sugestões pendentes", "aprovar 1 e 3"), e ter um pedido de mudança aplicado na hora.
 - Antes de executar algo desses papéis, você mostra o que vai fazer e espera o SIM. Fale só do que a pessoa pode fazer, pelos papéis de "Quem escreve".`;
 
@@ -352,7 +355,7 @@ export function montarContextoMensagem(e: {
 
 // ── Banco: comandos, respostas e sugestões ───────────────────────────────────
 
-type TipoComando = 'cobrar' | 'aprovar' | 'rejeitar' | 'avisar_grupo' | 'lista_sugestoes';
+type TipoComando = 'cobrar' | 'aprovar' | 'rejeitar' | 'avisar_grupo' | 'avisar_pessoa' | 'lista_sugestoes';
 interface Comando { id: string; tipo: TipoComando; dados: Record<string, unknown>; status: string; expira_em: string; created_at: string }
 
 async function ultimoComando(db: SupabaseClient, membroId: string, status: 'aguardando' | 'lista', expiraDepoisDe: string): Promise<Comando | null> {
@@ -423,7 +426,7 @@ const nomesDasSugestoes = (db: SupabaseClient, itens: SugestaoLista[]) =>
 async function prepararPropostas(
   db: SupabaseClient, membro: Remetente, s: SaidaMensagem, ctx: ContextoExtracao, podeAprovar: boolean, mensagemId: string, agora: Date,
 ): Promise<string> {
-  const validas = validarRespostaChat({ resposta: '', cards_citados: [], propostas: s.propostas.slice(0, MAX_PROPOSTAS) }, ctx).propostas;
+  const validas = validarRespostaChat({ resposta: '', cards_citados: [], propostas: s.propostas.slice(0, MAX_PROPOSTAS), avisos: [] }, ctx).propostas;
   if (validas.length === 0) {
     return 'Não consegui montar essa mudança 🤔 Me diz o card e o que mudar (ex.: "muda a prioridade do IT-045 para alta").';
   }
@@ -568,6 +571,22 @@ async function prepararAviso(db: SupabaseClient, membro: Remetente, aviso: strin
   return [`Vou mandar no grupo "${cfg.grupoNome ?? 'da equipe'}":`, '', texto, '', ...(horario ? [horario] : []), PEDIR_SIM].join('\n');
 }
 
+/** "Avisa o Gabriel que…" (D32): a mesma conferência da tela (aviso.ts), o texto exato e o SIM. */
+async function prepararAvisoPessoa(
+  db: SupabaseClient, usuario: Usuario, membro: Remetente, s: SaidaMensagem, ctx: ContextoExtracao, mensagemId: string, agora: Date,
+): Promise<string> {
+  const destinoId = vazio(s.aviso_pessoa_id);
+  if (!destinoId || !ctx.membros.some((m) => m.id === destinoId)) return 'Para quem é o aviso? Ex.: "avisa o Gabriel que a reunião mudou para as 10h".';
+  const corpo = (s.aviso ?? '').trim();
+  if (!corpo) return 'O que eu aviso? Ex.: "avisa o Gabriel que a reunião mudou para as 10h".';
+  const d = await checarAvisoPessoal(db, usuario, destinoId);
+  if ('erro' in d) return `Não consigo mandar: ${d.erro}`;
+  const texto = montarAviso(membro.nome, corpo.slice(0, MAX_AVISO_PESSOAL));
+  await criarComando(db, { membro, tipo: 'avisar_pessoa', dados: { destino: destinoId, nome: d.nome, texto }, mensagemId, agora });
+  const horario = notaHorario(agora);
+  return [`Vou mandar para ${primeiroNome(d.nome) || d.nome} pelo WhatsApp:`, '', texto, '', ...(horario ? [horario] : []), PEDIR_SIM].join('\n');
+}
+
 // ── Executar (depois do SIM) ─────────────────────────────────────────────────
 
 async function executarCobrar(db: SupabaseClient, cmd: Comando, usuario: Usuario, agora: Date): Promise<string> {
@@ -622,10 +641,19 @@ async function executarAviso(db: SupabaseClient, cmd: Comando, usuario: Usuario,
     : `Pronto: o aviso vai para o grupo "${cfg.grupoNome ?? 'da equipe'}" em instantes.`;
 }
 
+async function executarAvisoPessoa(db: SupabaseClient, cmd: Comando, usuario: Usuario, agora: Date): Promise<string> {
+  const r = await enviarAvisoPessoal(db, usuario, String(cmd.dados.destino ?? ''), String(cmd.dados.texto ?? ''), agora);
+  if ('erro' in r) return `Não mandei: ${r.erro}`;
+  const n = primeiroNome(r.para) || r.para;
+  return r.agendadaPara
+    ? `Pronto: o aviso para ${n} fica agendado para ${quandoSera(r.agendadaPara, hojeSP(agora))}.`
+    : `Pronto: o aviso para ${n} sai em instantes.`;
+}
+
 async function executarComando(db: SupabaseClient, cmd: Comando, usuario: Usuario | null, agora: Date): Promise<{ acao: Acao; texto: string }> {
   // A permissão vale na hora do SIM, pelo papel do pedido (D31): quem perdeu o papel nesse
   // meio-tempo não executa. Cobrar e avisar são do gestor; aprovar e rejeitar, de quem aprova.
-  const deGestor = cmd.tipo === 'cobrar' || cmd.tipo === 'avisar_grupo';
+  const deGestor = cmd.tipo === 'cobrar' || cmd.tipo === 'avisar_grupo' || cmd.tipo === 'avisar_pessoa';
   const chave = deGestor ? CHAVE_GESTOR : CHAVE_APROVAR;
   if (!usuario || !tem(usuario, chave)) {
     await fecharComando(db, cmd.id, `Sem ${chave} na hora do SIM.`, agora);
@@ -645,7 +673,8 @@ async function executarComando(db: SupabaseClient, cmd: Comando, usuario: Usuari
   try {
     texto = cmd.tipo === 'cobrar' ? await executarCobrar(db, cmd, usuario, agora)
       : cmd.tipo === 'avisar_grupo' ? await executarAviso(db, cmd, usuario, agora)
-        : await executarDecisao(db, cmd, usuario);
+        : cmd.tipo === 'avisar_pessoa' ? await executarAvisoPessoa(db, cmd, usuario, agora)
+          : await executarDecisao(db, cmd, usuario);
   } catch (e) {
     console.error('[EVA/comandos] Falha ao executar', cmd.tipo, e);
     texto = ERRO_INTERNO;
@@ -802,6 +831,9 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
       case 'avisar_grupo':
         if (!papeis.gestor) return fim('sem_permissao', soGestor('mandar avisos no grupo'));
         return fim('avisar_grupo', await prepararAviso(db, membro, s.aviso, msg.id as string, agora));
+      case 'avisar_pessoa':
+        if (!papeis.gestor) return fim('sem_permissao', soGestor('mandar avisos para outras pessoas'));
+        return fim('avisar_pessoa', await prepararAvisoPessoa(db, usuario!, membro, s, ctxCompleto, msg.id as string, agora));
       default: {
         // Conversa: a IA responde na voz dela; sem resposta, a ajuda fixa.
         const resp = (s.resposta ?? '').trim();

@@ -115,6 +115,7 @@ HANDLERS.set('POST /api/ti/agente-perguntar',   () => import('./_lib/handlers/ti
 HANDLERS.set('GET /api/ti/agente-cobranca-cron', () => import('./_lib/handlers/ti-agente-cobranca-cron.js'));
 HANDLERS.set('GET /api/ti/agente-fechamento-cron', () => import('./_lib/handlers/ti-agente-fechamento-cron.js'));
 HANDLERS.set('POST /api/ti/agente-cobrar',      () => import('./_lib/handlers/ti-agente-cobrar.js'));
+HANDLERS.set('POST /api/ti/agente-avisar',      () => import('./_lib/handlers/ti-agente-avisar.js'));
 HANDLERS.set('POST /api/ti/agente-teste',       () => import('./_lib/handlers/ti-agente-teste.js'));
 HANDLERS.set('POST /api/ti/waha-webhook',       () => import('./_lib/handlers/ti-waha-webhook.js'));
 HANDLERS.set('POST /api/analises-clinicas/deliver-coleta',     () => import('./_lib/handlers/deliver-coleta.js'));

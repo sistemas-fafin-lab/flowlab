@@ -6,6 +6,7 @@
 > - **Comandos pelo WhatsApp e grupo da equipe (14/Out/2026, D29):** perguntas, cobranças, aprovação de sugestões e avisos, com SIM; fechamento do dia e resumo de reunião no grupo (§11.4, issue 18).
 > - **Agente pessoal no WhatsApp (14/Out/2026, D30):** conversa natural com memória, o dia da pessoa, pedidos de mudança no Kanban e lembretes pessoais (§11.5, issue 19).
 > - **Permissões separadas (15/Out/2026, D31):** configurar, gestor e aprovar sugestões viram três chaves (§7, issue 20).
+> - **Aviso para uma pessoa (15/Out/2026, D32):** pelo chat do Início ou pelo WhatsApp, só gestor, com confirmação (§11.6, issue 21).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
 > Protótipo da interface em `docs/flowlab_agent/` (§12).
@@ -17,7 +18,7 @@
 > - D24: a fila do WhatsApp é **só para gestores**.
 >
 > **Desenvolvimento autorizado em 13/Out.**
-> **Issues:** `.scratch/agente-ti/spec.md` e `.scratch/agente-ti/issues/01` a `20`.
+> **Issues:** `.scratch/agente-ti/spec.md` e `.scratch/agente-ti/issues/01` a `21`.
 
 ---
 
@@ -90,6 +91,7 @@ Entregáveis, na ordem em que geram valor:
 | **D29** | Comandos pelo WhatsApp e grupo da equipe | ✅ **Fechado (14/Out), pedido do usuário ("quero seguir com todos os comandos"):** pelo WhatsApp, a EVA faz o que já fazia na tela, com confirmação. Detalhes na §11.4.<br>• **Qualquer membro:** atualiza os próprios cards (o fluxo da D12) e faz perguntas, com as mesmas regras do chat.<br>• **Só gestor** (`canApproveAgenteTI`, conferido de novo na hora do SIM): pedir cobranças, ver as sugestões pendentes numa lista numerada, aprovar ou rejeitar por número e mandar avisos no grupo.<br>• **Nada sai sem o SIM:** a EVA mostra o que vai fazer e espera "SIM" por 30 min.<br>• Aprovar pelo WhatsApp **é** a aprovação da D28: a mesma lógica da tela, em nome do gestor dono do número (`ti_agente_aprovar_sugestao_como`).<br>• **Grupo da equipe:** escolhido em Configurações, a partir da lista que a VPS lê do WAHA. Recebe o fechamento do dia (dias úteis, 18h), o resumo de cada reunião analisada e os avisos de gestor. Os dois primeiros têm liga/desliga, que nasce desligado. Tudo respeita o horário de cobrança (§10). | Fase 4 |
 | **D30** | A EVA como agente pessoal no WhatsApp | ✅ **Fechado (14/Out), pedido do usuário depois do primeiro teste real** ("acho que podemos aprimorar… para que ela possa agir como um agente pessoal"). Ele escolheu os quatro itens propostos e o tom "próxima e objetiva". Detalhes na §11.5.<br>• **Conversa natural:** a EVA lembra as últimas falas (24 h) e responde cumprimentos e perguntas na voz dela, pelo primeiro nome, com frases curtas e no máximo um emoji.<br>• **Assistente do dia:** conhece o dia de quem escreve (atrasadas, o que vence, paradas, o que a última reunião combinou para a pessoa e os lembretes) e sugere por onde começar.<br>• **Ações como no chat:** pedir pelo WhatsApp para criar card ou mudar prioridade, responsável, coluna ou prazo, ou comentar. Vira sugestão: o gestor confirma com SIM; os demais mandam para a fila.<br>• **Lembretes pessoais:** "me lembra amanhã às 9h de…", no horário da EVA (dia útil, das 7h às 20h).<br>• **Continua valendo:** nada muda no Kanban sem gestor (D28). As prévias de gestor e os registros continuam com texto montado pelo sistema, e a confirmação escrita pela IA só entra quando bate com o que foi registrado. | Fase 4 |
 | **D31** | Permissões separadas | ✅ **Fechado (15/Out), pedido do usuário** ("vamos separar as permissões, sobre quem pode configurar, quem é gestor e quem pode aprovar sugestões"). A chave `canApproveAgenteTI` fazia os três papéis; agora são três chaves (§7):<br>• `canConfigureAgenteTI`: configurar.<br>• `canManageAgenteTI`: gestor (cobrar, avisar o grupo, fila do WhatsApp).<br>• `canApproveAgenteTI`: aprovar sugestões.<br>• **Fila do WhatsApp no Início: só o gestor** (escolha do usuário). Quem configura lê as mensagens no banco, para o histórico de cada membro, o "Enviar teste" e a situação em Configurações.<br>• **Transição: nenhuma migration grava nos cargos** (escolha do usuário, como a D15). Quem tinha só a chave antiga fica só com Aprovar até as chaves novas serem marcadas. Admin tem as três no banco e no servidor.<br>• Migration `20261015120000_eva_papeis.sql` (RLS e `ti_agente_tem_permissao(uuid, chave)`, que substitui `ti_agente_eh_gestor`). | Fase 4 |
+| **D32** | Aviso de gestor para uma pessoa | ✅ **Fechado (15/Out), pedido do usuário** ("quando eu pedir para ela mandar um aviso ou uma mensagem para alguém, pelo chat ou por WhatsApp, ela deve atender"). Detalhes na §11.6.<br>• **Onde:** no chat do Início (cartão com o texto editável e "Enviar pelo WhatsApp") e pelo WhatsApp ("avisa o Gabriel que…", com SIM).<br>• **Quem pede:** só o gestor (`canManageAgenteTI`).<br>• **Para quem:** qualquer membro ativo da aba Membros com WhatsApp. A adesão "Recebe cobrança" vale só para as cobranças (escolha do usuário).<br>• **Como chega:** "📢 Aviso de <quem pediu>: …", no horário da EVA (dia útil, das 7h às 20h).<br>• Migration `20261015140000_eva_aviso_pessoal.sql`: tipo `aviso` na fila e o comando `avisar_pessoa`. | Fase 4 |
 
 ---
 
@@ -834,6 +836,25 @@ Para "o que eu tenho hoje?", a EVA ordena (atrasado, o que vence, parado) e suge
 **Limites da API do Claude encontrados no caminho:**
 - a saída estruturada recusa `minimum`/`maximum` (`paraJsonSchema` tira);
 - ela também recusa schemas com campos "ou nulo" demais: o da resposta do WhatsApp tinha 20. Os textos opcionais desse schema vão como `""` (vazio = não se aplica), e um teste mantém os schemas da EVA com no máximo 12.
+
+### 11.6 Aviso de gestor para uma pessoa (D32)
+
+`api/_lib/ti-agente/aviso.ts`, com dois caminhos que usam a mesma conferência e o mesmo envio:
+- **Chat do Início:** o gestor pede ("avisa o Gabriel que…", "manda uma mensagem para a Ana…", "fala para o Bruno…").
+  - O chat devolve `avisos` (pessoa de MEMBROS DA EQUIPE e o texto pronto), e o drawer mostra um cartão com o texto editável.
+  - Nada sai antes de "Enviar pelo WhatsApp", que chama `agente-avisar` (POST, `canManageAgenteTI`).
+  - O contexto do chat diz "Quem pergunta: gestor da EVA". Para os demais, a rota não devolve avisos.
+- **WhatsApp:** intenção `avisar_pessoa`, com o mesmo SIM dos outros pedidos de gestor (comando `avisar_pessoa`, conferido de novo no SIM).
+
+**Conferência (`checarAvisoPessoal`):**
+- quem pede é gestor;
+- o WhatsApp da EVA está ligado;
+- a pessoa está ativa na aba Membros, com WhatsApp e sem usuário removido ou desativado. A adesão "Recebe cobrança" não conta: ela é das cobranças.
+
+**Envio:**
+- a mensagem `aviso` vai para a fila do membro com `enviada_por` e o texto "📢 Aviso de <quem pediu>: …";
+- segue o horário da EVA: fora dele, fica agendada, e o chat e o WhatsApp dizem quando sai;
+- entra na conversa recente de quem recebe (§11.5), para a EVA entender a resposta.
 
 ---
 

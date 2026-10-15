@@ -44,7 +44,7 @@ export async function lerConversa(db: SupabaseClient, membroId: string, antesDe:
     db.from('ti_agente_mensagens')
       .select('direcao, tipo, status, texto, created_at')
       .eq('membro_id', membroId)
-      .in('tipo', ['recebida', 'confirmacao', 'cobranca', 'cobranca_manual', 'lembrete'])
+      .in('tipo', ['recebida', 'confirmacao', 'cobranca', 'cobranca_manual', 'lembrete', 'aviso'])
       .in('status', ['recebida', 'pendente', ...SAIU])
       .lt('created_at', antesDe)
       .gte('created_at', desde)

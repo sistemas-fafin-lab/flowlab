@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { evaService } from '../services/evaService';
 import { agenteAdmin } from '../services/agenteAdmin';
 import { FALHA_CHAT, historicoParaEnvio, mensagemInicial } from '../domain/chatReplies';
-import type { ChatMessage, EvaView, PropostaEva } from '../types';
+import type { AvisoEva, ChatMessage, EvaView, PropostaEva } from '../types';
 
 let seq = 0;
 const uid = () => `msg-${Date.now()}-${seq++}`;
@@ -56,8 +56,9 @@ export function useEvaChat({ primeiroNome, view, podeAprovar, ultimaReuniaoEm, o
       const r = await evaService.ask(q, view, historico);
       if (!alive.current) return;
       const propostas: PropostaEva[] = r.propostas.map((p) => ({ ...p, id: uid(), estado: 'aberta' }));
+      const avisos: AvisoEva[] = (r.avisos ?? []).map((a) => ({ ...a, id: uid(), estado: 'aberto' }));
       setNomes((n) => ({ ...n, ...r.nomes }));
-      setConversa((m) => [...m, { id: uid(), from: 'eva', text: r.resposta, cardsCitados: r.cardsCitados, propostas }]);
+      setConversa((m) => [...m, { id: uid(), from: 'eva', text: r.resposta, cardsCitados: r.cardsCitados, propostas, avisos }]);
     } catch (e) {
       if (!alive.current) return;
       setConversa((m) => [...m, { id: uid(), from: 'eva', text: textoDoErro(e), falhou: true }]);
@@ -92,7 +93,29 @@ export function useEvaChat({ primeiroNome, view, podeAprovar, ultimaReuniaoEm, o
     if (p.estado === 'aberta') mudarProposta(p.id, { estado: 'descartada', erro: undefined });
   }, [mudarProposta]);
 
-  return { open, setOpen, thinking, messages, nomes, ask, confirmar, descartar, close: () => setOpen(false) };
+  const mudarAviso = useCallback((id: string, mudanca: Partial<AvisoEva>) => {
+    setConversa((m) => m.map((msg) => (msg.avisos?.some((a) => a.id === id)
+      ? { ...msg, avisos: msg.avisos.map((a) => (a.id === id ? { ...a, ...mudanca } : a)) }
+      : msg)));
+  }, []);
+
+  /** D32: o gestor conferiu (e talvez editou) o texto; o aviso vai para a fila do WhatsApp. */
+  const enviarAviso = useCallback(async (a: AvisoEva, texto: string) => {
+    if (a.estado !== 'aberto' || !texto.trim()) return;
+    mudarAviso(a.id, { estado: 'enviando', texto, erro: undefined });
+    try {
+      const r = await evaService.sendAviso(a.pessoaId, texto.trim());
+      if (alive.current) mudarAviso(a.id, { estado: 'enviado', agendadaPara: r.agendadaPara });
+    } catch (e) {
+      if (alive.current) mudarAviso(a.id, { estado: 'aberto', erro: e instanceof Error ? e.message : 'Não consegui enviar o aviso.' });
+    }
+  }, [mudarAviso]);
+
+  const descartarAviso = useCallback((a: AvisoEva) => {
+    if (a.estado === 'aberto') mudarAviso(a.id, { estado: 'descartado', erro: undefined });
+  }, [mudarAviso]);
+
+  return { open, setOpen, thinking, messages, nomes, ask, confirmar, descartar, enviarAviso, descartarAviso, close: () => setOpen(false) };
 }
 
 export type EvaChatState = ReturnType<typeof useEvaChat>;

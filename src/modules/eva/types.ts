@@ -158,6 +158,18 @@ export interface PropostaEva {
   erro?: string;
 }
 
+/** Aviso pelo WhatsApp para uma pessoa, preparado pela EVA no chat (D32): só sai quando o gestor confirma. */
+export interface AvisoEva {
+  id: string;
+  pessoaId: string;
+  nome: string;
+  texto: string;
+  estado: 'aberto' | 'enviando' | 'enviado' | 'descartado';
+  /** Fora do horário da EVA, quando ele sai (ISO). */
+  agendadaPara?: string | null;
+  erro?: string;
+}
+
 export interface ChatMessage {
   id: string;
   from: 'eva' | 'me';
@@ -165,6 +177,7 @@ export interface ChatMessage {
   /** Códigos dos cards que a EVA citou (só os que existem no board). */
   cardsCitados?: string[];
   propostas?: PropostaEva[];
+  avisos?: AvisoEva[];
   /** Resposta de erro (limite do dia, IA fora): mostrada sem cartões. */
   falhou?: boolean;
 }

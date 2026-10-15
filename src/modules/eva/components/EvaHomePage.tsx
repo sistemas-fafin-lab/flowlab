@@ -243,6 +243,8 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
           nome={nomePessoa}
           onConfirmar={(p) => void chat.confirmar(p)}
           onDescartar={chat.descartar}
+          onEnviarAviso={(a, texto) => void chat.enviarAviso(a, texto)}
+          onDescartarAviso={chat.descartarAviso}
           onOpenCard={abrirCitado}
         />
         <EvaToast aviso={home.aviso} onClose={home.fecharAviso} />
