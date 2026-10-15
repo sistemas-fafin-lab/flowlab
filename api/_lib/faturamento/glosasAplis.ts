@@ -26,7 +26,7 @@ const SO_DIGITOS = /^\d+$/;
 
 export type StatusGlosaAplis = 'aberta' | 'em_recurso' | 'definitiva';
 
-export type PuladoGlosa = 'sem-motivo' | 'glosa-manual' | 'passa-do-saldo' | 'sem-nota' | 'tipo';
+export type PuladoGlosa = 'sem-motivo' | 'glosa-manual' | 'passa-do-saldo' | 'tipo';
 
 /** Procedimentos de um lote recebidos a menor no apLIS, já somados por motivo e situação. */
 export interface DiferencaAplis {
@@ -78,7 +78,6 @@ export type ConferenciaDemonstrativo = 'confere' | 'difere';
 export interface EntradaGlosasSugeridas {
   /** Tipo da conferência do recebido; null quando o recebido bate. */
   tipo: TipoDivergenciaAplis | null;
-  temNota: boolean;
   /** Saldo do título depois das baixas sugeridas. */
   saldo: number;
   /** Glosas já lançadas no título (qualquer status). As do apLIS descontam da
@@ -161,7 +160,7 @@ function conferirDemonstrativo(
  * Glosas a lançar num título, ou o motivo de não lançar nenhuma. Uma por lote +
  * código + status (sem código, por motivo), com o valor somado em centavos e
  * descontado o que já foi lançado do apLIS; grupo abaixo de R$ 0,01 fica fora.
- * Título `sistema-maior`/`lote-ausente`, sem número, com glosa digitada à mão ou
+ * Título `sistema-maior`/`lote-ausente`, com glosa digitada à mão ou
  * cuja glosa passaria do saldo (tolerância R$ 1,00) não recebe nenhuma. Cada
  * glosa leva a conferência com o demonstrativo, que não muda nada disso.
  */
@@ -208,7 +207,6 @@ export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosa
   // para o título inteiro, com ou sem motivo no apLIS.
   const pular = (puladoGlosa: PuladoGlosa): ResultadoGlosasSugeridas => ({ glosas: [], puladoGlosa });
   if (entrada.tipo === 'sistema-maior' || entrada.tipo === 'lote-ausente') return pular('tipo');
-  if (!entrada.temNota) return pular('sem-nota');
   if (glosas.length === 0) return pular('sem-motivo');
   if (entrada.glosasSistema.some((g) => g.origem === null)) return pular('glosa-manual');
   if (somaCentavos(glosas) - centavos(entrada.saldo) > TOLERANCIA_SALDO_CENTAVOS) return pular('passa-do-saldo');

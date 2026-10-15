@@ -5,9 +5,8 @@
  * para cada título que a conferência aponta como `so-no-aplis` ou `aplis-maior`,
  * as baixas a lançar — uma por data de recebimento no apLIS, regra em
  * faturamento/baixasAplis.ts. `sistema-maior` e `lote-ausente` nunca geram baixa.
- * Título sem número da nota vai junto como `pulado: 'sem-nota'` (o
- * `fat_registrar_baixa` recusaria). Sem escrita: quem lança é o operador, ao
- * confirmar a prévia.
+ * Título sem número da nota entra como qualquer outro (15/10: exceção, mas
+ * aceita). Sem escrita: quem lança é o operador, ao confirmar a prévia.
  *
  * Glosas (.scratch/faturamento-glosas-automaticas-aplis/spec.md): cada título
  * leva as glosas a lançar a partir do apLIS (`glosas`) ou o motivo de não haver
@@ -58,7 +57,6 @@ interface TituloPrevia {
   /** null quando algum lote não existe no apLIS (`lote-ausente`). */
   recebidoAplis: number | null;
   baixas: BaixaSugerida[];
-  pulado: 'sem-nota' | null;
   /** Saldo do título depois das baixas sugeridas. */
   saldo: number;
   glosas: (GlosaSugerida & { loteId: string })[];
@@ -239,7 +237,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const previa: TituloPrevia[] = [];
     for (const { titulo, divergencia } of conferidos) {
       const geraBaixa = temBaixaSugerida(divergencia);
-      const baixas = geraBaixa && titulo.numeroNota
+      const baixas = geraBaixa
         ? baixasSugeridas({
           tipo: divergencia.tipo,
           recebidoSistema: divergencia.recebidoSistema,
@@ -252,7 +250,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         - centavos(titulo.glosadoSistema) - somaCentavos(baixas);
       const { glosas, puladoGlosa } = glosasSugeridas({
         tipo: divergencia?.tipo ?? null,
-        temNota: titulo.numeroNota !== null,
         saldo: saldoCentavos / 100,
         glosasSistema: glosasSistema.get(titulo.idNota) ?? [],
         diferencas: diferencasDoTitulo(titulo),
@@ -267,7 +264,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         recebidoSistema: titulo.recebidoSistema,
         recebidoAplis: divergencia ? divergencia.recebidoAplis : recebidoAplisDoTitulo(titulo.idsLote, recebidos.porLote),
         baixas,
-        pulado: geraBaixa && !titulo.numeroNota ? 'sem-nota' : null,
         saldo: saldoCentavos / 100,
         glosas: glosas.map((glosa) => ({ ...glosa, loteId: titulo.idLoteSistema[glosa.idLote] })),
         puladoGlosa,

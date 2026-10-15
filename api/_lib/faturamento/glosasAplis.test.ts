@@ -32,7 +32,6 @@ function glosaSistema(overrides: Partial<GlosaSistema> = {}): GlosaSistema {
 function entrada(overrides: Partial<EntradaGlosasSugeridas> = {}): EntradaGlosasSugeridas {
   return {
     tipo: null,
-    temNota: true,
     saldo: 10_000,
     glosasSistema: [],
     diferencas: [diferenca()],
@@ -147,7 +146,7 @@ describe('glosasSugeridas', () => {
     it('sem diferença no apLIS → nada, sem pulado', () => {
       expect(glosasSugeridas(entrada({ diferencas: [] }))).toEqual({ glosas: [], puladoGlosa: null });
       expect(glosasSugeridas(entrada({
-        diferencas: [], tipo: 'sistema-maior', temNota: false, glosasSistema: [glosaSistema({ origem: null })],
+        diferencas: [], tipo: 'sistema-maior', glosasSistema: [glosaSistema({ origem: null })],
       })))
         .toEqual({ glosas: [], puladoGlosa: null });
     });
@@ -160,14 +159,9 @@ describe('glosasSugeridas', () => {
       expect(glosasSugeridas(entrada({ tipo })).glosas).toHaveLength(1);
     });
 
-    it('tipo e sem-nota vêm antes de sem-motivo: o motivo mais forte aparece', () => {
+    it('tipo vem antes de sem-motivo: o motivo mais forte aparece', () => {
       const semMotivo = [diferenca({ motivoCodigo: null, motivoDescricao: null, desMotivoGlosa: null })];
       expect(glosasSugeridas(entrada({ tipo: 'sistema-maior', diferencas: semMotivo })).puladoGlosa).toBe('tipo');
-      expect(glosasSugeridas(entrada({ temNota: false, diferencas: semMotivo })).puladoGlosa).toBe('sem-nota');
-    });
-
-    it('título sem número da nota → sem-nota', () => {
-      expect(glosasSugeridas(entrada({ temNota: false }))).toEqual({ glosas: [], puladoGlosa: 'sem-nota' });
     });
 
     it('título com glosa digitada à mão (sem origem) → glosa-manual', () => {

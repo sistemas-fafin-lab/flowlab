@@ -32,7 +32,6 @@ interface CorpoResposta {
   titulos: (Record<string, unknown> & {
     idNota: string;
     tipo: string | null;
-    pulado: string | null;
     puladoGlosa: string | null;
     glosas: Record<string, unknown>[];
     baixas: { data: string; valor: number; observacoes: string }[];
@@ -271,7 +270,6 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
         valor: 2034.81,
         observacoes: 'Baixa do apLIS — lote(s) 6329 (recebido em 22/09/2026)',
       }],
-      pulado: null,
       saldo: 0,
       glosas: [],
       puladoGlosa: null,
@@ -293,7 +291,7 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
     expect(res.body.titulos).toEqual([]);
   });
 
-  it('título sem número da nota sai pulado, sem baixas e sem ir à réplica por data', async () => {
+  it('título sem número da nota recebe as baixas como qualquer outro', async () => {
     const res = await executar(
       { notas: [nota('sem-nota', ['6329'], { numero_nota: null })] },
       { 6329: recebido(2034.81) },
@@ -303,10 +301,8 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
       idNota: 'sem-nota',
       numeroNota: null,
       tipo: 'so-no-aplis',
-      baixas: [],
-      pulado: 'sem-nota',
+      baixas: [expect.objectContaining({ data: '2026-09-22', valor: 2034.81 })],
     })]);
-    expect(recebidosPorDataDosLotesMock).toHaveBeenCalledWith([]);
   });
 
   it('aplis-maior junta as datas dos lotes do título e descarta as datas já lançadas no sistema', async () => {
@@ -372,7 +368,6 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
         recebidoSistema: 1132.14,
         recebidoAplis: 1132.14,
         baixas: [],
-        pulado: null,
         saldo: 867.86,
         glosas: [{
           idLote: 6228,
@@ -423,7 +418,7 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
       expect(res.body.titulos[1].recebidoAplis).toBeNull();
     });
 
-    it('título sem número da nota sai com a glosa pulada', async () => {
+    it('título sem número da nota recebe as glosas como qualquer outro', async () => {
       const res = await executar(
         { notas: [nota('sem-nota', ['6228'], { numero_nota: null, valor_recebido: 1132.14 })] },
         { 6228: recebido(1132.14) },
@@ -432,9 +427,8 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
       );
       expect(res.body.titulos).toEqual([expect.objectContaining({
         tipo: null,
-        pulado: null,
-        glosas: [],
-        puladoGlosa: 'sem-nota',
+        glosas: [expect.objectContaining({ idLote: 6228, valor: 867.86 })],
+        puladoGlosa: null,
       })]);
     });
 

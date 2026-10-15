@@ -282,7 +282,7 @@ export interface GlosaSugeridaAplis {
 export type ConferenciaDemonstrativoAplis = 'confere' | 'difere';
 
 /** Por que o título não tem glosa a lançar. 'tipo': `sistema-maior` ou `lote-ausente`. */
-export type PuladoGlosaAplis = 'sem-motivo' | 'glosa-manual' | 'passa-do-saldo' | 'sem-nota' | 'tipo';
+export type PuladoGlosaAplis = 'sem-motivo' | 'glosa-manual' | 'passa-do-saldo' | 'tipo';
 
 /** Título da prévia "Aplicar baixas e glosas do apLIS"
  *  (GET /api/faturamento/titulos-baixas-aplis-previa). */
@@ -296,8 +296,6 @@ export interface TituloPreviaBaixasAplis {
   /** null quando algum lote não existe no apLIS. */
   recebidoAplis: number | null;
   baixas: BaixaSugeridaAplis[];
-  /** 'sem-nota': o `fat_registrar_baixa` recusaria (issue 34). */
-  pulado: 'sem-nota' | null;
   /** Saldo do título depois das baixas sugeridas. */
   saldo: number;
   glosas: GlosaSugeridaAplis[];

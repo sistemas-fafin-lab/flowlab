@@ -21,7 +21,6 @@ function titulo(parcial: Partial<TituloPreviaBaixasAplis> & { idNota: string }):
     recebidoSistema: 0,
     recebidoAplis: 100,
     baixas: [{ data: '2026-09-22', valor: 100, observacoes: 'Baixa do apLIS' }],
-    pulado: null,
     saldo: 0,
     glosas: [],
     puladoGlosa: null,
@@ -40,16 +39,10 @@ describe('separarPrevia', () => {
     expect(pulados).toEqual([]);
   });
 
-  it('título sem número da nota é pulado — sem número da nota', () => {
-    const { aplicaveis, pulados } = separarPrevia([
-      titulo({ idNota: 'a', numeroNota: null, baixas: [], pulado: 'sem-nota' }),
-    ]);
-    expect(aplicaveis).toEqual([]);
-    expect(pulados).toEqual([{
-      titulo: expect.objectContaining({ idNota: 'a' }),
-      motivo: 'sem número da nota',
-      motivoGlosa: null,
-    }]);
+  it('título sem número da nota com baixas vai para os aplicáveis', () => {
+    const { aplicaveis, pulados } = separarPrevia([titulo({ idNota: 'a', numeroNota: null })]);
+    expect(aplicaveis.map((t) => t.idNota)).toEqual(['a']);
+    expect(pulados).toEqual([]);
   });
 
   it('título com número mas sem baixa sugerida é pulado — sem data de recebimento no apLIS', () => {
@@ -132,7 +125,6 @@ describe('motivoPuladoGlosa', () => {
     ['sem-motivo', null, 'diferença sem motivo no apLIS'],
     ['glosa-manual', null, 'título já tem glosa lançada'],
     ['passa-do-saldo', null, 'glosa passa do saldo do título'],
-    ['sem-nota', 'so-no-aplis', 'sem número da nota'],
     ['tipo', 'sistema-maior', 'recebido aqui maior que no apLIS'],
     ['tipo', 'lote-ausente', 'lote não encontrado no apLIS'],
   ] as const)('%s (%s) → %s', (puladoGlosa, tipo, texto) => {
@@ -304,9 +296,14 @@ describe('selecaoPadrao', () => {
       titulo({ idNota: 'b', baixas: [repetida] }),
       titulo({ idNota: 'c' }),
       titulo({ idNota: 'd', tipo: null, baixas: [], glosas: [glosa({ idLote: 6300 })] }),
-      titulo({ idNota: 'e', numeroNota: null, baixas: [], pulado: 'sem-nota' }),
+      titulo({
+        idNota: 'e',
+        numeroNota: null,
+        baixas: [{ data: '2026-09-30', valor: 50, observacoes: 'lote 6400' }],
+        glosas: [glosa({ idLote: 6400 })],
+      }),
     ];
-    expect(selecaoPadrao(titulos)).toEqual({ baixas: new Set(['c']), glosas: new Set(['a', 'd']) });
+    expect(selecaoPadrao(titulos)).toEqual({ baixas: new Set(['c', 'e']), glosas: new Set(['a', 'd', 'e']) });
   });
 
   it('não marca as glosas de um lote sugeridas em mais de um título (lote vinculado aos dois)', () => {

@@ -413,7 +413,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
                         <tr key={titulo.idNota} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors align-top">
                           <td className="px-3 py-2 whitespace-nowrap">
                             <div className="font-medium text-gray-900 dark:text-gray-100 tabular-nums">
-                              {titulo.numeroNota}
+                              {titulo.numeroNota ?? 'sem número'}
                             </div>
                             {repetidos.has(titulo.idNota) && (
                               <span
@@ -443,7 +443,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
                                   disabled={travado}
                                   onChange={() => alternar(setBaixasMarcadas, titulo.idNota)}
                                   className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
-                                  aria-label={`Lançar as baixas do título ${titulo.numeroNota}`}
+                                  aria-label={`Lançar as baixas do título ${titulo.numeroNota ?? 'sem número'}`}
                                 />
                               )}
                               <ul className="space-y-0.5">
@@ -472,7 +472,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
                                   disabled={travado}
                                   onChange={() => alternar(setGlosasMarcadas, titulo.idNota)}
                                   className="mt-0.5 rounded border-gray-300 dark:border-gray-600"
-                                  aria-label={`Lançar as glosas do título ${titulo.numeroNota}`}
+                                  aria-label={`Lançar as glosas do título ${titulo.numeroNota ?? 'sem número'}`}
                                 />
                               )}
                               <GlosasDoTitulo titulo={titulo} />

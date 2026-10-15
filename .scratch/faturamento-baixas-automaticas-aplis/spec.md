@@ -24,8 +24,8 @@ continua sem lançar sozinha — quem lança é o operador, ao confirmar a prév
 1. **Gatilho:** botão com prévia e confirmação (sem cron).
 2. **Só a baixa:** lança o valor recebido no apLIS. Glosa continua manual (motivo
    e código vêm do demonstrativo do convênio); o saldo fica em aberto até lá.
-3. **Título sem número da nota:** fica fora (a regra da issue 34 continua) e
-   aparece na prévia como "pulado — sem número da nota".
+3. **Título sem número da nota:** ~~fica fora (a regra da issue 34 continua) e
+   aparece na prévia como "pulado — sem número da nota".~~ revisto em 15/10/2026: título sem número da nota é exceção, mas aceita — o `fat_registrar_baixa` deixou de recusar (migration `20261015100000_fat_registrar_baixa_aceita_sem_nota.sql`) e a prévia lança baixa e glosa nele como em qualquer outro.
 4. **Uma baixa por data de recebimento no apLIS** — no sistema cada baixa é um
    depósito com data própria, e o apLIS registra o pagamento principal e os
    complementos (recurso) em datas diferentes. Levantamento de 14/10 (lotes

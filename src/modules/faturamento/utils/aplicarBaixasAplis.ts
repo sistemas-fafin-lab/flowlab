@@ -8,7 +8,7 @@
 import type { BaixaInput, GlosaSugeridaAplis, TituloPreviaBaixasAplis } from '../types';
 import { plural } from './formato';
 
-export type MotivoPulado = 'sem número da nota' | 'sem data de recebimento no apLIS';
+export type MotivoPulado = 'sem data de recebimento no apLIS';
 
 export interface TituloPulado {
   titulo: TituloPreviaBaixasAplis;
@@ -17,17 +17,16 @@ export interface TituloPulado {
   motivoGlosa: string | null;
 }
 
-/** Tem baixa que dá para lançar (número da nota e ao menos uma baixa). */
+/** Tem baixa que dá para lançar. */
 export function temBaixaAplicavel(titulo: TituloPreviaBaixasAplis): boolean {
-  return titulo.pulado === null && titulo.baixas.length > 0;
+  return titulo.baixas.length > 0;
 }
 
 /** Por que a baixa do título ficou de fora. Só o título com recebido a lançar
- *  tem baixa; com número e sem baixa é o lote com valor recebido mas sem
- *  `DtaRecebido` no apLIS: sem data não há como lançar. */
+ *  tem baixa; sem baixa é o lote com valor recebido mas sem `DtaRecebido` no
+ *  apLIS: sem data não há como lançar. */
 export function motivoPuladoBaixa(titulo: TituloPreviaBaixasAplis): MotivoPulado | null {
   if (titulo.tipo !== 'so-no-aplis' && titulo.tipo !== 'aplis-maior') return null;
-  if (titulo.pulado === 'sem-nota') return 'sem número da nota';
   if (titulo.baixas.length === 0) return 'sem data de recebimento no apLIS';
   return null;
 }
@@ -38,7 +37,6 @@ export function motivoPuladoGlosa(titulo: TituloPreviaBaixasAplis): string | nul
     case 'sem-motivo': return 'diferença sem motivo no apLIS';
     case 'glosa-manual': return 'título já tem glosa lançada';
     case 'passa-do-saldo': return 'glosa passa do saldo do título';
-    case 'sem-nota': return 'sem número da nota';
     case 'tipo': return titulo.tipo === 'lote-ausente' ? 'lote não encontrado no apLIS' : 'recebido aqui maior que no apLIS';
     default: return null;
   }

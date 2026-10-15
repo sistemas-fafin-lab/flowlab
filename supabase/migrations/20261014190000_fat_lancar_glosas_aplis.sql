@@ -41,7 +41,6 @@ AS $$
 DECLARE
   v_nota_id     UUID := NULLIF(p->>'notaId', '')::UUID;
   v_glosas      JSONB := COALESCE(p->'glosas', '[]'::jsonb);
-  v_numero_nota TEXT;
   v_total       DECIMAL(15, 2);
   v_glosado     DECIMAL(15, 2);
   v_soma        DECIMAL(15, 2);
@@ -60,12 +59,6 @@ BEGIN
   -- Trava o título e recusa cancelado; devolve o total e o glosado de partida.
   SELECT t.v_valor_total, t.v_glosado INTO v_total, v_glosado
     FROM fat_travar_titulo_lancamento(v_nota_id) t;
-
-  -- Mesma regra da baixa do apLIS: sem número da nota, nada é lançado.
-  SELECT NULLIF(TRIM(numero_nota), '') INTO v_numero_nota FROM notas WHERE id_nota = v_nota_id;
-  IF v_numero_nota IS NULL THEN
-    RAISE EXCEPTION 'Não é possível lançar glosa: título sem número da nota.';
-  END IF;
 
   -- Teto antes de qualquer INSERT: glosado de hoje (fora as revertidas) mais as
   -- novas não passa do valor do título.
@@ -119,7 +112,7 @@ END;
 $$;
 
 COMMENT ON FUNCTION public.fat_lancar_glosas_aplis(JSONB) IS
-  'Lança as glosas do apLIS de um título (todas ou nenhuma): avulsas, com origem = ''aplis'', lote, código, status e responsável, e auditoria da inclusão. Exige canManageBilling. Recusa título cancelado ou sem número, lote de outro título, glosa sem lote/motivo/valor, status fora de aberta/em_recurso/definitiva e glosado acima do valor do título.';
+  'Lança as glosas do apLIS de um título (todas ou nenhuma): avulsas, com origem = ''aplis'', lote, código, status e responsável, e auditoria da inclusão. Exige canManageBilling. Aceita título sem número da nota. Recusa título cancelado, lote de outro título, glosa sem lote/motivo/valor, status fora de aberta/em_recurso/definitiva e glosado acima do valor do título.';
 
 REVOKE ALL ON FUNCTION public.fat_lancar_glosas_aplis(JSONB) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.fat_lancar_glosas_aplis(JSONB) TO authenticated;
@@ -169,7 +162,8 @@ GRANT EXECUTE ON FUNCTION public.fat_lancar_glosas_aplis(JSONB) TO authenticated
 -- 6. Usuário sem canManageBilling (troque o sub do set_config) →
 --    'Sem permissão para gerenciar contas a receber.' (42501)
 --
--- 7. Título sem número / cancelado → 'título sem número da nota' /
---    'Título cancelado não aceita correção de lançamentos.'
+-- 7. Título cancelado → 'Título cancelado não aceita correção de lançamentos.'
+--
+-- 8. Título sem número da nota (numero_nota nulo) → lança normalmente.
 --
 --   ROLLBACK;

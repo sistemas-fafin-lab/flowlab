@@ -63,7 +63,9 @@ lança as baixas e, se todas entraram, as glosas do título numa RPC nova.
     - título com glosa lançada à mão (sem origem apLIS);
     - glosa que não cabe no saldo depois das baixas da prévia (tolerância
       R$ 1,00);
-    - título sem número da nota;
+    - ~~título sem número da nota;~~ (revisto em 15/10/2026: entra como
+      qualquer outro — título sem número é exceção, mas aceito; a trava saiu
+      também do `fat_registrar_baixa`);
     - títulos `sistema-maior` e `lote-ausente`.
 12. **Execução:** em sequência, título a título; as glosas do título só entram
     se todas as baixas dele entraram.
@@ -91,7 +93,7 @@ lança as baixas e, se todas entraram, as glosas do título numa RPC nova.
 16. Como operador, quero que a diferença sem motivo no apLIS fique de fora e apareça como pulada, para não glosar o que pode ser só pagamento atrasado.
 17. Como operador, quero que o título com glosa lançada à mão tenha a glosa pulada com aviso, para eu conferir em vez de o sistema adivinhar.
 18. Como operador, quero que a glosa que passaria do saldo do título seja pulada com aviso, para a inconsistência do apLIS não virar saldo negativo.
-19. Como operador, quero que título sem número da nota tenha a glosa pulada, pela mesma regra da baixa.
+19. ~~Como operador, quero que título sem número da nota tenha a glosa pulada, pela mesma regra da baixa.~~ (revisto em 15/10/2026: entra como qualquer outro.)
 20. Como operador, quero que títulos com recebido a mais no sistema ou com lote ausente no apLIS não recebam glosa, para não mascarar um lançamento errado.
 21. Como operador, quero que reabrir a prévia depois de lançar não sugira de novo a mesma glosa, para não glosar em dobro.
 22. Como operador, quero que, se o apLIS aumentar a glosa de um lote depois que lancei, a prévia sugira só a diferença.
@@ -123,7 +125,7 @@ lança as baixas e, se todas entraram, as glosas do título numa RPC nova.
   da conferência e se tem número. Saída: lista de glosas `{ idLote (aplis_id),
   codigo, motivo, status, valor, procedimentos, demonstrativo: 'confere' |
   'difere' | null }` e, quando não há glosa, `puladoGlosa` com o motivo
-  (`sem-motivo`, `glosa-manual`, `passa-do-saldo`, `sem-nota`, `tipo`). Regra:
+  (`sem-motivo`, `glosa-manual`, `passa-do-saldo`, `tipo`; o `sem-nota` saiu em 15/10/2026). Regra:
   diferença por procedimento ≥ R$ 0,01 com motivo; agrupa por lote + código +
   status; desconta, por lote + código, as glosas de origem apLIS não revertidas;
   descarta grupos < R$ 0,01.
