@@ -1,8 +1,9 @@
 // Leituras e ações da administração da EVA (/it/eva). Leitura direto no Supabase (RLS
-// das tabelas ti_agente_*); escrita só por RPC (sugestões) ou pelas policies de gestor
-// (membros, config). Ver supabase/migrations/20261013150000_eva_tabelas.sql.
+// das tabelas ti_agente_*); escrita só por RPC (sugestões, permissões) ou pelas policies
+// de quem configura (membros, config). Ver supabase/migrations/20261013150000_eva_tabelas.sql
+// e 20261015160000_eva_papeis_por_pessoa.sql.
 import { supabase } from '../../../lib/supabase';
-import { papeisDoPerfil, type PapeisEva } from '../domain/papeis';
+import { origemDosPapeis, papeisDoCargo, papeisDoPerfil, type LinhaPapeis, type OrigemPapeis, type PapeisEva } from '../domain/papeis';
 import { chamarEva } from './agenteApi';
 
 export type TipoSugestao = 'criar_card' | 'atualizar_card' | 'comentar_card';
@@ -78,8 +79,10 @@ export interface Membro {
   recebe_cobranca: boolean;
   ativo: boolean;
   nome: string;
-  /** Os papéis da EVA pela regra do banco (papeisDoPerfil): admin tem os três (D31). */
+  /** Os papéis da EVA pela regra do banco (papeisDoPerfil): admin tem os três (D31); a aba Permissões vale no lugar do cargo (D33). */
   papeis: PapeisEva;
+  /** De onde vêm os papéis: do cargo, da aba Permissões ou do admin. */
+  origemPapeis: OrigemPapeis;
   /** Nome do cargo no FlowLab (Usuários → Cargos e Permissões); "Administrador" para o admin sem cargo. */
   cargo: string | null;
 }
@@ -111,7 +114,28 @@ type CampoEditavel =
   | 'granola_folder_id' | 'whatsapp_ativo' | 'cobranca_ativa' | 'dias_parado'
   | 'whatsapp_grupo_id' | 'whatsapp_grupo_nome' | 'waha_grupos_em' | 'fechamento_diario_ativo' | 'resumo_reuniao_grupo_ativo';
 
-export interface Pessoa { id: string; name: string }
+export interface Pessoa { id: string; name: string; department?: string | null }
+
+/** Uma pessoa na aba Permissões (D33): os papéis que valem e de onde vêm. */
+export interface PessoaPermissoes {
+  id: string;
+  nome: string;
+  departamento: string | null;
+  /** Nome do cargo; "Administrador" para o admin sem cargo. */
+  cargo: string | null;
+  origem: OrigemPapeis;
+  /** Os que valem (admin, linha ou cargo). */
+  papeis: PapeisEva;
+  /** Os que o cargo dá: para onde "Voltar ao cargo" leva. */
+  doCargo: PapeisEva;
+  definidoPor: string | null;
+  definidoEm: string | null;
+}
+
+type LinhaComCarimbo = LinhaPapeis & { user_id: string; updated_at?: string | null; updated_by?: string | null };
+
+const porPessoa = (linhas: LinhaComCarimbo[] | null) =>
+  new Map((linhas ?? []).map((l) => [l.user_id, l]));
 
 const SELECT_SUGESTAO = `id, reuniao_id, origem, proposta_por, tipo, card_id, proposta, trecho, confianca, avisos, status,
   decidido_por, decidido_em, motivo_rejeicao, card_resultante_id, created_at,
@@ -193,25 +217,87 @@ export const agenteAdmin = {
     chamarEva<{ novas: number; atualizadas: number; analisadas: unknown[]; pendentesRestantes: number }>('agente-sincronizar', {}),
 
   async listarMembros(): Promise<Membro[]> {
-    const { data, error } = await supabase
-      .from('ti_agente_membros')
-      .select(`id, user_id, apelidos, whatsapp, recebe_cobranca, ativo,
-        perfil:user_profiles!ti_agente_membros_user_id_fkey(name, role, deleted_at, disabled_at, custom_roles(name, permissions))`)
-      .order('created_at');
+    const [{ data, error }, papeis] = await Promise.all([
+      supabase
+        .from('ti_agente_membros')
+        .select(`id, user_id, apelidos, whatsapp, recebe_cobranca, ativo,
+          perfil:user_profiles!ti_agente_membros_user_id_fkey(name, role, deleted_at, disabled_at, custom_roles(name, permissions))`)
+        .order('created_at'),
+      supabase.from('ti_agente_papeis').select('user_id, configura, gestor, aprova'),
+    ]);
     erro(error);
+    // Sem a tabela (migration ainda não aplicada), os papéis seguem o cargo.
+    const linhas = porPessoa(papeis.error ? [] : (papeis.data as LinhaComCarimbo[]));
     type Perfil = {
       name: string; role: string | null; deleted_at: string | null; disabled_at: string | null;
       custom_roles: { name: string; permissions: unknown } | null;
     } | null;
     return (data ?? []).map((m) => {
-      const { perfil, ...resto } = m as unknown as Omit<Membro, 'nome' | 'papeis' | 'cargo'> & { perfil: Perfil };
+      const { perfil, ...resto } = m as unknown as Omit<Membro, 'nome' | 'papeis' | 'origemPapeis' | 'cargo'> & { perfil: Perfil };
+      const perfilPapeis = perfil && { ...perfil, permissoes: perfil.custom_roles?.permissions };
+      const linha = linhas.get(resto.user_id) ?? null;
       return {
         ...resto,
         nome: perfil?.name ?? '—',
-        papeis: papeisDoPerfil(perfil && { ...perfil, permissoes: perfil.custom_roles?.permissions }),
+        papeis: papeisDoPerfil(perfilPapeis, linha),
+        origemPapeis: origemDosPapeis(perfilPapeis, linha),
         cargo: perfil?.custom_roles?.name ?? (perfil?.role === 'admin' ? 'Administrador' : null),
       };
     });
+  },
+
+  /** Aba Permissões (D33): todas as pessoas ativas, com os papéis que valem e de onde vêm. */
+  async listarPermissoes(): Promise<PessoaPermissoes[]> {
+    const [p, l] = await Promise.all([
+      supabase
+        .from('user_profiles')
+        .select('id, name, department, role, deleted_at, disabled_at, custom_roles(name, permissions)')
+        .is('deleted_at', null)
+        .is('disabled_at', null)
+        .order('name')
+        .limit(1000),
+      supabase.from('ti_agente_papeis').select('user_id, configura, gestor, aprova, updated_at, updated_by'),
+    ]);
+    erro(p.error);
+    erro(l.error);
+    type Linha = {
+      id: string; name: string | null; department: string | null; role: string | null;
+      deleted_at: string | null; disabled_at: string | null;
+      custom_roles: { name: string; permissions: unknown } | null;
+    };
+    const pessoas = (p.data ?? []) as unknown as Linha[];
+    const linhas = porPessoa(l.data as LinhaComCarimbo[]);
+    const nomes = new Map(pessoas.map((x) => [x.id, x.name ?? '']));
+    return pessoas.map((x) => {
+      const perfil = { role: x.role, permissoes: x.custom_roles?.permissions, deleted_at: x.deleted_at, disabled_at: x.disabled_at };
+      const linha = linhas.get(x.id) ?? null;
+      const origem = origemDosPapeis(perfil, linha);
+      return {
+        id: x.id,
+        nome: x.name ?? '—',
+        departamento: x.department ?? null,
+        cargo: x.custom_roles?.name ?? (x.role === 'admin' ? 'Administrador' : null),
+        origem,
+        papeis: papeisDoPerfil(perfil, linha),
+        doCargo: origem === 'admin' ? papeisDoPerfil(perfil) : papeisDoCargo(perfil),
+        definidoPor: linha?.updated_by ? nomes.get(linha.updated_by) || null : null,
+        definidoEm: linha?.updated_at ?? null,
+      };
+    });
+  },
+
+  /** Define as três da pessoa, no lugar do cargo. */
+  async definirPapeis(userId: string, papeis: PapeisEva): Promise<void> {
+    const { error } = await supabase.rpc('ti_agente_definir_papeis', {
+      p_user: userId, p_configura: papeis.configura, p_gestor: papeis.gestor, p_aprova: papeis.aprova,
+    });
+    erro(error);
+  },
+
+  /** Apaga o que foi definido: a pessoa volta a seguir o cargo. */
+  async voltarAoCargo(userId: string): Promise<void> {
+    const { error } = await supabase.rpc('ti_agente_voltar_ao_cargo', { p_user: userId });
+    erro(error);
   },
 
   /** Projetos e sprints (ativas e planejadas) para o card novo de uma sugestão. */
@@ -292,7 +378,7 @@ export const agenteAdmin = {
   },
 
   async pessoasAtivas(): Promise<Pessoa[]> {
-    const { data, error } = await supabase.from('user_profiles').select('id, name').is('deleted_at', null).order('name').limit(1000);
+    const { data, error } = await supabase.from('user_profiles').select('id, name, department').is('deleted_at', null).order('name').limit(1000);
     erro(error);
     return (data ?? []) as Pessoa[];
   },

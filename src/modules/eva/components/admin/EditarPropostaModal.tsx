@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Select from '../../../../components/Select';
+import MultiSelect from '../../../../components/MultiSelect';
 import DatePicker from '../../../../components/DatePicker';
 import { KANBAN_STATUS_LABELS, PRIORITY_CONFIG } from '../../constants';
 import type { Pessoa, PropostaCard, TipoSugestao } from '../../services/agenteAdmin';
@@ -32,16 +33,14 @@ const EditarPropostaModal: React.FC<Props> = ({ aberto, tipo, proposta, pessoas,
   const set = <K extends keyof PropostaCard>(k: K, v: PropostaCard[K]) => setP((x) => ({ ...x, [k]: v }));
   // Quem a IA já escolheu continua na lista, mesmo se saiu dos membros.
   const opcoesPessoas = [
-    ...pessoas,
-    ...(p.responsaveis ?? []).filter((id) => !pessoas.some((x) => x.id === id)).map((id) => ({ id, name: 'Fora dos membros' })),
+    ...pessoas.map((x) => ({ value: x.id, label: x.name, description: x.department || undefined })),
+    ...(p.responsaveis ?? []).filter((id) => !pessoas.some((x) => x.id === id)).map((id) => ({ value: id, label: 'Fora dos membros' })),
   ];
   const opcoesProjeto = [{ value: '', label: 'Sem projeto' }, ...projetos.map((x) => ({ value: x.id, label: x.name }))];
   const opcoesSprint = [
     { value: '', label: 'Sem sprint' },
     ...sprints.filter((s) => s.project_id === p.projeto_id).map((s) => ({ value: s.id, label: `${s.name}${s.status === 'active' ? ' (ativa)' : ''}` })),
   ];
-  const alternarPessoa = (id: string) =>
-    set('responsaveis', (p.responsaveis ?? []).includes(id) ? (p.responsaveis ?? []).filter((x) => x !== id) : [...(p.responsaveis ?? []), id]);
 
   const ehCriar = tipo === 'criar_card';
   const mostra = (campo: keyof PropostaCard) => ehCriar || campo in proposta;
@@ -97,24 +96,17 @@ const EditarPropostaModal: React.FC<Props> = ({ aberto, tipo, proposta, pessoas,
         {mostra('responsaveis') && (
           <div>
             <span className={ROTULO}>Responsáveis</span>
-            <div className="max-h-40 overflow-y-auto flex flex-wrap gap-1.5 p-2 rounded-xl border border-slate-200 dark:border-slate-700">
-              {opcoesPessoas.map((pessoa) => {
-                const marcado = (p.responsaveis ?? []).includes(pessoa.id);
-                return (
-                  <button
-                    key={pessoa.id}
-                    type="button"
-                    onClick={() => alternarPessoa(pessoa.id)}
-                    aria-pressed={marcado}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
-                      marcado ? 'bg-blue-500/10 border-blue-500/30 text-blue-700 dark:text-blue-300' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300'
-                    }`}
-                  >
-                    {pessoa.name}
-                  </button>
-                );
-              })}
-            </div>
+            <MultiSelect
+              tone="vidro"
+              value={p.responsaveis ?? []}
+              onChange={(v) => set('responsaveis', v)}
+              options={opcoesPessoas}
+              placeholder="Ninguém ainda"
+              searchPlaceholder="Buscar nome ou departamento"
+              emptyText="Ninguém com esse nome."
+              controlClass={`${CAMPO} min-h-[38px] !py-1.5`}
+              ariaLabel="Responsáveis"
+            />
           </div>
         )}
         {ehCriar && (
@@ -126,6 +118,9 @@ const EditarPropostaModal: React.FC<Props> = ({ aberto, tipo, proposta, pessoas,
                 value={p.projeto_id ?? ''}
                 onChange={(v) => setP((x) => ({ ...x, projeto_id: v || null, sprint_id: null }))}
                 options={opcoesProjeto}
+                searchable
+                searchPlaceholder="Buscar projeto"
+                emptyText="Nenhum projeto com esse nome."
                 controlClass={CAMPO}
                 ariaLabel="Projeto"
               />
@@ -137,6 +132,9 @@ const EditarPropostaModal: React.FC<Props> = ({ aberto, tipo, proposta, pessoas,
                 value={p.sprint_id ?? ''}
                 onChange={(v) => set('sprint_id', v || null)}
                 options={opcoesSprint}
+                searchable
+                searchPlaceholder="Buscar sprint"
+                emptyText="Nenhuma sprint com esse nome."
                 controlClass={CAMPO}
                 ariaLabel="Sprint"
                 disabled={!p.projeto_id}

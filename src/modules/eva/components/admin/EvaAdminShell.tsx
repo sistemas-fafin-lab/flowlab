@@ -1,7 +1,7 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
-import { CalendarClock, ClipboardCheck, Settings, Users, type LucideIcon } from 'lucide-react';
+import { CalendarClock, ClipboardCheck, Settings, ShieldCheck, Users, type LucideIcon } from 'lucide-react';
 import { usePapeisEva } from '../../hooks/useAgenteAdmin';
 import { EvaOrb } from '../EvaOrb';
 
@@ -19,6 +19,7 @@ const ABAS: Aba[] = [
   { to: '/it/eva', rotulo: 'Sugestões', Icon: ClipboardCheck },
   { to: '/it/eva/reunioes', rotulo: 'Reuniões', Icon: CalendarClock },
   { to: '/it/eva/membros', rotulo: 'Membros', Icon: Users, soQuemConfigura: true },
+  { to: '/it/eva/permissoes', rotulo: 'Permissões', Icon: ShieldCheck, soQuemConfigura: true },
   { to: '/it/eva/configuracoes', rotulo: 'Configurações', Icon: Settings, soQuemConfigura: true },
 ];
 

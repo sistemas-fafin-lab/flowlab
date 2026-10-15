@@ -2,6 +2,7 @@
 import type { VercelRequest } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '../supabase.js';
+import { comPapeisDaPessoa, type LinhaPapeis } from '../../../src/modules/eva/domain/papeis.js';
 
 export interface FalhaAutorizacao {
   status: number;
@@ -32,17 +33,21 @@ export async function autorizar(token: string | null, algumaDe: string[]): Promi
   const { data: caller, error } = await supabase.auth.getUser(token);
   if (error || !caller?.user) return { status: 401, payload: { success: false, error: 'Sessão inválida ou expirada.' } };
 
-  const { data: perfil } = await supabase
-    .from('user_profiles')
-    .select('role, deleted_at, custom_roles(permissions)')
-    .eq('id', caller.user.id)
-    .single();
+  const [{ data: perfil }, linha] = await Promise.all([
+    supabase
+      .from('user_profiles')
+      .select('role, deleted_at, custom_roles(permissions)')
+      .eq('id', caller.user.id)
+      .single(),
+    lerLinhaPapeis(supabase, caller.user.id),
+  ]);
   if (!perfil || perfil.deleted_at) return { status: 403, payload: { success: false, error: 'Usuário inativo.' } };
 
+  const ehAdmin = perfil.role === 'admin';
   const usuario: Usuario = {
     userId: caller.user.id,
-    permissoes: (perfil.custom_roles as { permissions?: string[] } | null)?.permissions ?? [],
-    ehAdmin: perfil.role === 'admin',
+    permissoes: comPapeisDaPessoa((perfil.custom_roles as { permissions?: string[] } | null)?.permissions, linha, ehAdmin),
+    ehAdmin,
   };
   if (!algumaDe.some((p) => tem(usuario, p))) {
     return { status: 403, payload: { success: false, error: 'Sem permissão para usar a EVA.' } };
@@ -55,18 +60,45 @@ export async function autorizar(token: string | null, algumaDe: string[]): Promi
  * número. Removido ou desativado no FlowLab = null (sem permissão nenhuma), como no RLS.
  */
 export async function usuarioPorId(db: SupabaseClient, userId: string): Promise<Usuario | null> {
-  const { data: perfil, error } = await db
-    .from('user_profiles')
-    .select('role, deleted_at, disabled_at, custom_roles(permissions)')
-    .eq('id', userId)
-    .maybeSingle();
+  const [{ data: perfil, error }, linha] = await Promise.all([
+    db
+      .from('user_profiles')
+      .select('role, deleted_at, disabled_at, custom_roles(permissions)')
+      .eq('id', userId)
+      .maybeSingle(),
+    lerLinhaPapeis(db, userId),
+  ]);
   if (error) throw new Error(error.message);
   if (!perfil || perfil.deleted_at || perfil.disabled_at) return null;
+  const ehAdmin = perfil.role === 'admin';
   return {
     userId,
-    permissoes: (perfil.custom_roles as { permissions?: string[] } | null)?.permissions ?? [],
-    ehAdmin: perfil.role === 'admin',
+    permissoes: comPapeisDaPessoa((perfil.custom_roles as { permissions?: string[] } | null)?.permissions, linha, ehAdmin),
+    ehAdmin,
   };
+}
+
+// Sem a migration 20261015160000 aplicada, a tabela não existe: vale o cargo, como antes.
+const TABELA_AUSENTE = new Set(['42P01', 'PGRST205']);
+
+/** As permissões da EVA definidas para a pessoa na aba Permissões (D33); null = segue o cargo. */
+export async function lerLinhaPapeis(db: SupabaseClient, userId: string): Promise<LinhaPapeis | null> {
+  const { data, error } = await db.from('ti_agente_papeis').select('configura, gestor, aprova').eq('user_id', userId).maybeSingle();
+  if (error) {
+    if (TABELA_AUSENTE.has(error.code ?? '')) return null;
+    throw new Error(error.message);
+  }
+  return (data as LinhaPapeis | null) ?? null;
+}
+
+/** Todas as linhas da aba Permissões, por pessoa (para listar quem tem um papel). */
+export async function lerLinhasPapeis(db: SupabaseClient): Promise<Map<string, LinhaPapeis>> {
+  const { data, error } = await db.from('ti_agente_papeis').select('user_id, configura, gestor, aprova').limit(1000);
+  if (error) {
+    if (TABELA_AUSENTE.has(error.code ?? '')) return new Map();
+    throw new Error(error.message);
+  }
+  return new Map((data ?? []).map((l) => [l.user_id as string, { configura: !!l.configura, gestor: !!l.gestor, aprova: !!l.aprova }]));
 }
 
 /** Crons da Vercel: `Authorization: Bearer <CRON_SECRET>` (como umami-inatividade-cron). */

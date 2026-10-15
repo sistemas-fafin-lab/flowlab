@@ -79,7 +79,7 @@ O chip "Granola" do Início não podia usar o cursor `granola_ultima_sync_em`, q
 As Fases 3 e 4 (14/Out) não precisaram de migration nova: "Enviar teste" e "Cobrar" passam por rotas do servidor, já que a fila não tem policy de INSERT.
 
 **14/Out/2026 — catálogo `supabase/MIGRATIONS.md`.** O arquivo ainda não está em nenhuma branch: é trabalho em andamento de outra sessão. Quando ele entrar no `main`, faltam:
-- a linha `| [TI — EVA (agente de TI)](#ti--eva-agente-de-ti) | `eva_` | 7 |` na tabela de domínios, com o total subindo 7 (a terceira e a quarta vieram com a issue 18, a quinta com a 19, a sexta com a 20, a sétima com a 21);
+- a linha `| [TI — EVA (agente de TI)](#ti--eva-agente-de-ti) | `eva_` | 8 |` na tabela de domínios, com o total subindo 8 (a terceira e a quarta vieram com a issue 18, a quinta com a 19, a sexta com a 20, a sétima com a 21, a oitava com a 22);
 - a seção abaixo:
 
 ```markdown
@@ -96,4 +96,5 @@ Tabelas `ti_agente_*` da EVA, a agente de TI ([plano](../docs/plans/agente-ti/PL
 | [`20261014180000_eva_lembretes`](migrations/20261014180000_eva_lembretes.sql) | Lembretes pessoais pelo WhatsApp: tipo `lembrete` e status `cancelada` na fila de mensagens |
 | [`20261015120000_eva_papeis`](migrations/20261015120000_eva_papeis.sql) | Três permissões separadas (configurar, gestor, aprovar): RLS e `ti_agente_tem_permissao` |
 | [`20261015140000_eva_aviso_pessoal`](migrations/20261015140000_eva_aviso_pessoal.sql) | Aviso de gestor para uma pessoa: tipo `aviso` na fila e o comando `avisar_pessoa` |
+| [`20261015160000_eva_papeis_por_pessoa`](migrations/20261015160000_eva_papeis_por_pessoa.sql) | Permissões da EVA por pessoa (`ti_agente_papeis`), no lugar do cargo: `ti_agente_pode` nas policies e RPCs, definir e voltar ao cargo |
 ```

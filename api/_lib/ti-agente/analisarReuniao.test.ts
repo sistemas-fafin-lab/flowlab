@@ -70,4 +70,40 @@ describe('lerQuemTem', () => {
     const contains = filtros.find((f) => f.metodo === 'contains');
     expect(contains?.args).toEqual(['permissions', '["canApproveAgenteTI"]']);
   });
+
+  it('aplica a aba Permissões (D33): a linha dá ou tira a chave; admin sempre', async () => {
+    const tabelas: Record<string, unknown[]> = {
+      custom_roles: [{ id: 'cargo-aprova' }],
+      ti_agente_papeis: [
+        { user_id: 'tirou', configura: false, gestor: true, aprova: false },
+        { user_id: 'ganhou', configura: false, gestor: false, aprova: true },
+        { user_id: 'admin-com-linha', configura: false, gestor: false, aprova: false },
+      ],
+      // O que o banco devolveria para o filtro: admins, gente do cargo e quem ganhou pela linha.
+      user_profiles: [
+        { id: 'admin-com-linha', role: 'admin' },
+        { id: 'pelo-cargo', role: 'user' },
+        { id: 'tirou', role: 'user' },
+        { id: 'ganhou', role: 'user' },
+      ],
+    };
+    const ors: string[] = [];
+    const db = {
+      from: (tabela: string) => {
+        const q: Record<string, unknown> = {};
+        for (const m of ['select', 'eq', 'is', 'contains', 'limit']) q[m] = () => q;
+        q.or = (f: string) => { ors.push(f); return q; };
+        q.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: tabelas[tabela] ?? [], error: null }).then(ok);
+        return q;
+      },
+    };
+    const ids = await lerQuemTem(db as never, 'canApproveAgenteTI');
+    expect(ids.sort()).toEqual(['admin-com-linha', 'ganhou', 'pelo-cargo']);
+    expect(ors[0]).toBe('role.eq.admin,custom_role_id.in.(cargo-aprova),id.in.(ganhou)');
+
+    // Fora das chaves da EVA, a aba Permissões não entra.
+    ors.length = 0;
+    expect((await lerQuemTem(db as never, 'canManageIT')).sort()).toEqual(['admin-com-linha', 'ganhou', 'pelo-cargo', 'tirou']);
+    expect(ors[0]).toBe('role.eq.admin,custom_role_id.in.(cargo-aprova)');
+  });
 });

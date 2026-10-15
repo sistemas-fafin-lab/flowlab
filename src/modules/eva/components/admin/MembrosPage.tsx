@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Send, UserPlus, Users } from 'lucide-react';
 import EvaAdminShell from './EvaAdminShell';
 import EvaModal from './EvaModal';
 import HistoricoMembro from './HistoricoMembro';
 import Select from '../../../../components/Select';
+import Switch from '../../../../components/Switch';
 import { GlassCard, StatusBadge } from '../ui';
 import { EvaToast } from '../EvaToast';
 import { useMembros, usePessoas } from '../../hooks/useAgenteAdmin';
@@ -116,7 +118,7 @@ const MembrosPage: React.FC = () => {
   const jaMembros = new Set(membros.map((m) => m.user_id));
   const opcoesPessoas = pessoas.lista
     .filter((p) => !jaMembros.has(p.id) || p.id === rascunho?.user_id)
-    .map((p) => ({ value: p.id, label: p.name }));
+    .map((p) => ({ value: p.id, label: p.name, description: p.department || undefined }));
 
   return (
     <EvaAdminShell
@@ -130,9 +132,10 @@ const MembrosPage: React.FC = () => {
           as respostas só valem de números cadastrados aqui.
         </p>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Os papéis vêm do cargo de cada pessoa (Usuários → Cargos e Permissões), e o administrador tem os três:{' '}
-          <strong className="font-semibold text-slate-600 dark:text-slate-300">Configura</strong> (abas Membros e Configurações),{' '}
-          <strong className="font-semibold text-slate-600 dark:text-slate-300">Gestor</strong> (cobrar a equipe, avisar o grupo, ver a fila do WhatsApp) e{' '}
+          Os papéis vêm do cargo de cada pessoa ou da aba{' '}
+          <Link to="/it/eva/permissoes" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">Permissões</Link>, e o administrador tem os três:{' '}
+          <strong className="font-semibold text-slate-600 dark:text-slate-300">Configura</strong> (abas Membros, Permissões e Configurações),{' '}
+          <strong className="font-semibold text-slate-600 dark:text-slate-300">Gestor</strong> (cobrar a equipe, avisar o grupo e as pessoas, ver a fila do WhatsApp) e{' '}
           <strong className="font-semibold text-slate-600 dark:text-slate-300">Aprova</strong> (aprovar e rejeitar sugestões). Para usar o papel pelo
           WhatsApp, a pessoa também precisa estar aqui, com o WhatsApp cadastrado.
         </p>
@@ -154,6 +157,7 @@ const MembrosPage: React.FC = () => {
                   <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                     Apelidos: {m.apelidos.length ? m.apelidos.join(', ') : '—'} · WhatsApp: {formatarWhatsapp(m.whatsapp)}
                     {m.cargo ? ` · Cargo: ${m.cargo}` : ''}
+                    {m.origemPapeis === 'definido' ? ' · Papéis definidos na aba Permissões' : ''}
                   </p>
                   {(m.papeis.gestor || m.papeis.aprova) && !m.whatsapp && (
                     <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Cadastre o WhatsApp para usar o papel pelo WhatsApp da EVA.</p>
@@ -217,7 +221,19 @@ const MembrosPage: React.FC = () => {
           <div className="flex flex-col gap-4">
             <div>
               <span className={ROTULO}>Pessoa</span>
-              <Select tone="vidro" value={rascunho.user_id} onChange={escolherPessoa} options={opcoesPessoas} placeholder="Escolha um usuário" controlClass={CAMPO} ariaLabel="Pessoa" disabled={!!rascunho.id} />
+              <Select
+                tone="vidro"
+                searchable
+                value={rascunho.user_id}
+                onChange={escolherPessoa}
+                options={opcoesPessoas}
+                placeholder="Escolha um usuário"
+                searchPlaceholder="Buscar nome ou departamento"
+                emptyText="Ninguém com esse nome."
+                controlClass={CAMPO}
+                ariaLabel="Pessoa"
+                disabled={!!rascunho.id}
+              />
             </div>
             <div>
               <label className={ROTULO} htmlFor="eva-apelidos">Apelidos nas reuniões (separados por vírgula)</label>
@@ -228,12 +244,12 @@ const MembrosPage: React.FC = () => {
               <input id="eva-whatsapp" inputMode="tel" className={CAMPO} value={rascunho.whatsapp} onChange={(e) => setRascunho({ ...rascunho, whatsapp: e.target.value })} placeholder="+55 61 99999-9999" />
               {!whatsappValido(rascunho.whatsapp) && <p className="mt-1 text-[11px] text-red-600">Use DDI + DDD + número, só dígitos (12 ou 13).</p>}
             </div>
-            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-              <input type="checkbox" checked={rascunho.recebe_cobranca} disabled={!soDigitos(rascunho.whatsapp)} onChange={(e) => setRascunho({ ...rascunho, recebe_cobranca: e.target.checked })} />
+            <label className={`flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-200 ${soDigitos(rascunho.whatsapp) ? 'cursor-pointer' : 'opacity-60'}`}>
+              <Switch size="sm" checked={rascunho.recebe_cobranca} disabled={!soDigitos(rascunho.whatsapp)} onChange={(v) => setRascunho({ ...rascunho, recebe_cobranca: v })} />
               Recebe cobrança pelo WhatsApp
             </label>
-            <label className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-              <input type="checkbox" checked={rascunho.ativo} onChange={(e) => setRascunho({ ...rascunho, ativo: e.target.checked })} />
+            <label className="flex items-center gap-2.5 text-sm text-slate-700 dark:text-slate-200 cursor-pointer">
+              <Switch size="sm" checked={rascunho.ativo} onChange={(v) => setRascunho({ ...rascunho, ativo: v })} />
               Ativo
             </label>
           </div>
