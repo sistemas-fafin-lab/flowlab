@@ -30,7 +30,7 @@ function titulo(parcial: Partial<TituloPreviaBaixasAplis> & { idNota: string }):
 }
 
 function glosa(parcial: Partial<GlosaSugeridaAplis> = {}): GlosaSugeridaAplis {
-  return { idLote: 6228, loteId: 'uuid-6228', codigo: '2902', motivo: 'GLOSA MANTIDA', status: 'aberta', valor: 867.86, procedimentos: 475, ...parcial };
+  return { idLote: 6228, loteId: 'uuid-6228', codigo: '2902', motivo: 'GLOSA MANTIDA', status: 'aberta', valor: 867.86, procedimentos: 475, demonstrativo: null, ...parcial };
 }
 
 describe('separarPrevia', () => {
@@ -317,5 +317,14 @@ describe('selecaoPadrao', () => {
     ];
     expect(titulosComGlosaRepetida(titulos)).toEqual(new Set(['a', 'b']));
     expect(selecaoPadrao(titulos).glosas).toEqual(new Set(['c']));
+  });
+
+  it('o selo do demonstrativo não muda a seleção: a glosa que difere também vem marcada', () => {
+    const titulos = [
+      titulo({ idNota: 'a', baixas: [], glosas: [glosa({ idLote: 6228, demonstrativo: 'confere' })] }),
+      titulo({ idNota: 'b', baixas: [], glosas: [glosa({ idLote: 6300, demonstrativo: 'difere' })] }),
+      titulo({ idNota: 'c', baixas: [], glosas: [glosa({ idLote: 6400, demonstrativo: null })] }),
+    ];
+    expect(selecaoPadrao(titulos).glosas).toEqual(new Set(['a', 'b', 'c']));
   });
 });

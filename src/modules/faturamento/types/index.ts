@@ -273,7 +273,13 @@ export interface GlosaSugeridaAplis {
   status: StatusGlosaAplis;
   valor: number;
   procedimentos: number;
+  /** Conferência com o demonstrativo importado no apLIS (só informação, não muda a
+   *  seleção); null quando nenhum procedimento do grupo tem demonstrativo. */
+  demonstrativo: ConferenciaDemonstrativoAplis | null;
 }
+
+/** A glosa do apLIS bate com a do demonstrativo importado (tolerância R$ 0,01)? */
+export type ConferenciaDemonstrativoAplis = 'confere' | 'difere';
 
 /** Por que o título não tem glosa a lançar. 'tipo': `sistema-maior` ou `lote-ausente`. */
 export type PuladoGlosaAplis = 'sem-motivo' | 'glosa-manual' | 'passa-do-saldo' | 'sem-nota' | 'tipo';

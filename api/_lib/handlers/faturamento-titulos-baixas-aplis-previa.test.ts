@@ -187,6 +187,7 @@ function diferenca(idLote: number, overrides: Partial<DiferencaAplis> = {}): Dif
     emRecurso: false,
     valor: 867.86,
     procedimentos: 475,
+    demonstrativoValor: 867.86,
     ...overrides,
   };
 }
@@ -381,6 +382,7 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
           status: 'aberta',
           valor: 867.86,
           procedimentos: 475,
+          demonstrativo: 'confere',
         }],
         puladoGlosa: null,
       }]);

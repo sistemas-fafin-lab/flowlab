@@ -12,6 +12,7 @@ function diferenca(overrides: Partial<DiferencaAplis> = {}): DiferencaAplis {
     emRecurso: false,
     valor: 100,
     procedimentos: 1,
+    demonstrativoValor: null,
     ...overrides,
   };
 }
@@ -51,9 +52,9 @@ describe('glosasSugeridas', () => {
     }));
     expect(resultado.puladoGlosa).toBeNull();
     expect(resultado.glosas).toEqual([
-      { idLote: 6228, codigo: '1801', motivo: 'PROCEDIMENTO INVÁLIDO', status: 'aberta', valor: 20, procedimentos: 1 },
-      { idLote: 6228, codigo: '2902', motivo: 'GLOSA MANTIDA', status: 'aberta', valor: 0.92, procedimentos: 5 },
-      { idLote: 6229, codigo: '2902', motivo: 'GLOSA MANTIDA', status: 'aberta', valor: 50, procedimentos: 1 },
+      { idLote: 6228, codigo: '1801', motivo: 'PROCEDIMENTO INVÁLIDO', status: 'aberta', valor: 20, procedimentos: 1, demonstrativo: null },
+      { idLote: 6228, codigo: '2902', motivo: 'GLOSA MANTIDA', status: 'aberta', valor: 0.92, procedimentos: 5, demonstrativo: null },
+      { idLote: 6229, codigo: '2902', motivo: 'GLOSA MANTIDA', status: 'aberta', valor: 50, procedimentos: 1, demonstrativo: null },
     ]);
   });
 
@@ -252,6 +253,54 @@ describe('glosasSugeridas', () => {
         glosasSistema: [glosaSistema({ codigo: null, motivo: 'Guia vencida', valor: 60 })],
       }));
       expect(resultado.glosas).toEqual([expect.objectContaining({ codigo: null, valor: 40 })]);
+    });
+  });
+
+  describe('conferência com o demonstrativo importado no apLIS', () => {
+    const demonstrativoDe = (diferencas: DiferencaAplis[], glosasSistema: GlosaSistema[] = []) =>
+      glosasSugeridas(entrada({ diferencas, glosasSistema })).glosas.map((g) => g.demonstrativo);
+
+    it('glosa do grupo igual à do demonstrativo → confere', () => {
+      expect(demonstrativoDe([diferenca({ valor: 254.44, procedimentos: 2, demonstrativoValor: 254.44 })]))
+        .toEqual(['confere']);
+    });
+
+    it('confere com diferença de até R$ 0,01 (arredondamento)', () => {
+      expect(demonstrativoDe([diferenca({ valor: 100, demonstrativoValor: 100.01 })])).toEqual(['confere']);
+    });
+
+    it('glosa do grupo diferente da do demonstrativo → difere', () => {
+      expect(demonstrativoDe([diferenca({ valor: 100, demonstrativoValor: 100.02 })])).toEqual(['difere']);
+      expect(demonstrativoDe([diferenca({ valor: 100, demonstrativoValor: 0 })])).toEqual(['difere']);
+    });
+
+    it('sem demonstrativo para nenhum procedimento do grupo → nada', () => {
+      expect(demonstrativoDe([diferenca({ valor: 507.15, demonstrativoValor: null })])).toEqual([null]);
+    });
+
+    it('compara o grupo inteiro: parte sem demonstrativo conta como diferença', () => {
+      expect(demonstrativoDe([
+        diferenca({ valor: 60, demonstrativoValor: 60 }),
+        diferenca({ valor: 40, codEventoFatur: 5, demonstrativoValor: null }),
+      ])).toEqual(['difere']);
+      expect(demonstrativoDe([
+        diferenca({ valor: 60, demonstrativoValor: 60 }),
+        diferenca({ valor: 40, codEventoFatur: 5, demonstrativoValor: 40 }),
+      ])).toEqual(['confere']);
+    });
+
+    it('cada grupo (lote + código + status) é conferido à parte', () => {
+      expect(demonstrativoDe([
+        diferenca({ valor: 73.44, codEventoFatur: 18, demonstrativoValor: 73.44 }),
+        diferenca({ valor: 254.44, codEventoFatur: 6, demonstrativoValor: 200 }),
+      ])).toEqual(['difere', 'confere']); // aberta, depois definitiva
+    });
+
+    it('confere o glosado do apLIS, não o que sobra depois de descontar o já lançado', () => {
+      expect(demonstrativoDe(
+        [diferenca({ valor: 150, demonstrativoValor: 150 })],
+        [glosaSistema({ valor: 100 })],
+      )).toEqual(['confere']);
     });
   });
 });

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
 import { chamarApi, rpcLancarGlosasAplis, rpcRegistrarBaixa } from '../hooks/useContasReceber';
-import type { PreviaBaixasAplis, StatusGlosaAplis, TituloPreviaBaixasAplis } from '../types';
+import type { ConferenciaDemonstrativoAplis, PreviaBaixasAplis, StatusGlosaAplis, TituloPreviaBaixasAplis } from '../types';
 import { formatCurrency, formatData, plural } from '../utils/formato';
 import {
   aplicarTitulo,
@@ -33,6 +33,20 @@ const ROTULO_STATUS_GLOSA: Record<StatusGlosaAplis, string> = {
   aberta: 'aberta',
   em_recurso: 'em recurso',
   definitiva: 'definitiva',
+};
+
+// Selo do demonstrativo na glosa sugerida: só informação, a seleção não muda.
+const SELO_DEMONSTRATIVO: Record<ConferenciaDemonstrativoAplis, { rotulo: string; titulo: string; classe: string }> = {
+  confere: {
+    rotulo: 'confere',
+    titulo: 'A glosa bate com o demonstrativo importado no apLIS.',
+    classe: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300',
+  },
+  difere: {
+    rotulo: 'difere do demonstrativo',
+    titulo: 'A glosa não bate com o demonstrativo importado no apLIS — confira antes de lançar.',
+    classe: 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300',
+  },
 };
 
 const SELO_PULADO =
@@ -89,6 +103,14 @@ function GlosasDoTitulo({ titulo }: { titulo: TituloPreviaBaixasAplis }) {
           <span className="font-medium tabular-nums text-rose-700 dark:text-rose-300 whitespace-nowrap">
             {formatCurrency(glosa.valor)}
           </span>
+          {glosa.demonstrativo && (
+            <span
+              className={`ml-1.5 px-2 py-0.5 text-[11px] rounded-full whitespace-nowrap ${SELO_DEMONSTRATIVO[glosa.demonstrativo].classe}`}
+              title={SELO_DEMONSTRATIVO[glosa.demonstrativo].titulo}
+            >
+              {SELO_DEMONSTRATIVO[glosa.demonstrativo].rotulo}
+            </span>
+          )}
         </li>
       ))}
     </ul>

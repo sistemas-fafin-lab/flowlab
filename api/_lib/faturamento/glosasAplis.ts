@@ -13,6 +13,8 @@ import type { TipoDivergenciaAplis } from './conferenciaAplis.js';
 
 /** Quanto a soma das glosas pode passar do saldo do título (arredondamento). */
 const TOLERANCIA_SALDO_CENTAVOS = 100;
+/** Quanto a glosa do apLIS pode diferir da do demonstrativo e ainda "conferir". */
+const TOLERANCIA_DEMONSTRATIVO_CENTAVOS = 1;
 
 /** `requisicao.CodEventoFatur` de recurso de glosa (1º / 2º). */
 const EVENTOS_EM_RECURSO = new Set([7, 16]);
@@ -42,6 +44,9 @@ export interface DiferencaAplis {
   /** Σ(ValorLiquido − ValorRecebido). */
   valor: number;
   procedimentos: number;
+  /** Σ `VlrGlosa` do demonstrativo mais recente dos procedimentos que têm
+   *  demonstrativo; null quando nenhum tem. */
+  demonstrativoValor: number | null;
 }
 
 /** Glosa já lançada no título. */
@@ -63,7 +68,12 @@ export interface GlosaSugerida {
   status: StatusGlosaAplis;
   valor: number;
   procedimentos: number;
+  /** A glosa do apLIS bate com a do demonstrativo importado (só informação, não
+   *  muda a seleção); null quando nenhum procedimento do grupo tem demonstrativo. */
+  demonstrativo: ConferenciaDemonstrativo | null;
 }
+
+export type ConferenciaDemonstrativo = 'confere' | 'difere';
 
 export interface EntradaGlosasSugeridas {
   /** Tipo da conferência do recebido; null quando o recebido bate. */
@@ -130,15 +140,33 @@ function descontarLancadas(
   }
 }
 
+type GrupoGlosa = Omit<GlosaSugerida, 'demonstrativo'> & {
+  /** O que falta lançar: o glosado no apLIS menos o já lançado (`descontarLancadas`). */
+  centavos: number;
+  /** O glosado no apLIS, sem desconto — o que se confere com o demonstrativo. */
+  brutoCentavos: number;
+  demonstrativoCentavos: number | null;
+};
+
+/** Compara o glosado do grupo no apLIS com o do demonstrativo. Procedimento do
+ *  grupo sem demonstrativo conta como 0 nele. */
+function conferirDemonstrativo(
+  grupo: Pick<GrupoGlosa, 'brutoCentavos' | 'demonstrativoCentavos'>,
+): ConferenciaDemonstrativo | null {
+  if (grupo.demonstrativoCentavos === null) return null;
+  return Math.abs(grupo.brutoCentavos - grupo.demonstrativoCentavos) <= TOLERANCIA_DEMONSTRATIVO_CENTAVOS ? 'confere' : 'difere';
+}
+
 /**
  * Glosas a lançar num título, ou o motivo de não lançar nenhuma. Uma por lote +
  * código + status (sem código, por motivo), com o valor somado em centavos e
  * descontado o que já foi lançado do apLIS; grupo abaixo de R$ 0,01 fica fora.
  * Título `sistema-maior`/`lote-ausente`, sem número, com glosa digitada à mão ou
- * cuja glosa passaria do saldo (tolerância R$ 1,00) não recebe nenhuma.
+ * cuja glosa passaria do saldo (tolerância R$ 1,00) não recebe nenhuma. Cada
+ * glosa leva a conferência com o demonstrativo, que não muda nada disso.
  */
 export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosasSugeridas {
-  const grupos = new Map<string, GlosaSugerida & { centavos: number }>();
+  const grupos = new Map<string, GrupoGlosa>();
   let semMotivo = false;
   for (const d of entrada.diferencas) {
     const identificacao = codigoEMotivo(d);
@@ -148,9 +176,15 @@ export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosa
     }
     const status = statusDa(d);
     const chave = `${chaveLoteCodigo(d.idLote, identificacao.codigo, identificacao.motivo)}|${status}`;
-    const grupo = grupos.get(chave)
-      ?? { idLote: d.idLote, ...identificacao, status, valor: 0, procedimentos: 0, centavos: 0 };
+    const grupo = grupos.get(chave) ?? {
+      idLote: d.idLote, ...identificacao, status, valor: 0, procedimentos: 0,
+      centavos: 0, brutoCentavos: 0, demonstrativoCentavos: null,
+    };
     grupo.centavos += centavos(d.valor);
+    grupo.brutoCentavos += centavos(d.valor);
+    if (d.demonstrativoValor !== null) {
+      grupo.demonstrativoCentavos = (grupo.demonstrativoCentavos ?? 0) + centavos(d.demonstrativoValor);
+    }
     grupo.procedimentos += d.procedimentos;
     grupos.set(chave, grupo);
   }
@@ -162,7 +196,11 @@ export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosa
       || (a.codigo ?? '').localeCompare(b.codigo ?? '', 'pt-BR', { numeric: true })
       || a.motivo.localeCompare(b.motivo, 'pt-BR')
       || a.status.localeCompare(b.status))
-    .map(({ centavos: valorCentavos, ...g }) => ({ ...g, valor: valorCentavos / 100 }));
+    .map(({ centavos: valorCentavos, brutoCentavos, demonstrativoCentavos, ...g }) => ({
+      ...g,
+      valor: valorCentavos / 100,
+      demonstrativo: conferirDemonstrativo({ brutoCentavos, demonstrativoCentavos }),
+    }));
 
   if (glosas.length === 0 && !semMotivo) return { glosas: [], puladoGlosa: null };
 

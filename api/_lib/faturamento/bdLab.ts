@@ -1032,6 +1032,14 @@ export type DiferencasDosLotesResultado =
  * total). O lote de recurso entra por tabela derivada: `fatloterecursoprocedimento`
  * não tem índice em `IdRequisicaoProcedimento` (~4 mil linhas). Lote sem
  * diferença fica fora do mapa. Blocos de 1.000 lotes, como `recebidosDosLotes`.
+ *
+ * Cada grupo leva também a glosa do demonstrativo importado (`demonstrativoValor`,
+ * para o selo "confere"/"difere"): Σ `VlrGlosa` por requisição + código do
+ * procedimento, como em `glosasDoDemonstrativo`, mas só do demonstrativo mais
+ * recente de cada par (não de cada guia: um recurso reimporta só as linhas
+ * contestadas) — reimportado, somaria a mesma glosa duas vezes — e com
+ * todas as linhas dele, inclusive as sem glosa (o demonstrativo que pagou tudo
+ * também conta: "difere"). Custa ~1 s a mais por bloco (medido 15/10: 2,6 s).
  */
 export async function diferencasDosLotes(idsLote: number[]): Promise<DiferencasDosLotesResultado> {
   const ids = [...new Set(idsLote.map((n) => Math.trunc(n)))];
@@ -1041,23 +1049,47 @@ export async function diferencasDosLotes(idsLote: number[]): Promise<DiferencasD
     const porLote: Record<number, DiferencaAplis[]> = {};
     for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
       const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
+      const marcadores = bloco.map(() => '?').join(', ');
       const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-        `SELECT r.Lote AS IdLote, fmg.Codigo AS MotivoCodigo, fmg.Descricao AS MotivoDescricao,
-                NULLIF(TRIM(p.DesMotivoGlosa), '') AS DesMotivoGlosa, r.CodEventoFatur,
-                (rp.IdRequisicaoProcedimento IS NOT NULL) AS EmRecurso,
-                SUM(p.ValorLiquido - p.ValorRecebido) AS Valor, COUNT(*) AS Procedimentos
-           FROM requisicao r
-           JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
-           LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = p.IdMotivoGlosa
-           LEFT JOIN (SELECT DISTINCT IdRequisicaoProcedimento FROM fatloterecursoprocedimento
-                       WHERE IdRequisicaoProcedimento IS NOT NULL) rp
-                  ON rp.IdRequisicaoProcedimento = p.IdRequisicaoProcedimento
-          WHERE r.Lote IN (${bloco.map(() => '?').join(', ')})
-            AND p.ValorRecebido IS NOT NULL
-            AND p.ValorLiquido - p.ValorRecebido >= 0.01
-          GROUP BY r.Lote, fmg.Codigo, fmg.Descricao, NULLIF(TRIM(p.DesMotivoGlosa), ''), r.CodEventoFatur,
-                   (rp.IdRequisicaoProcedimento IS NOT NULL)`,
-        bloco,
+        // Primeiro por requisição + código do procedimento, depois por grupo: o
+        // demonstrativo vem somado por esse par, e casá-lo com cada procedimento
+        // contaria duas vezes o código repetido na requisição (18 pares em 15/10).
+        `SELECT x.IdLote, x.MotivoCodigo, x.MotivoDescricao, x.DesMotivoGlosa, x.CodEventoFatur, x.EmRecurso,
+                SUM(x.Valor) AS Valor, SUM(x.Procedimentos) AS Procedimentos,
+                SUM(dem.VlrGlosa) AS DemonstrativoValor
+           FROM (SELECT r.Lote AS IdLote, r.IdRequisicao, tp.Codigo,
+                        fmg.Codigo AS MotivoCodigo, fmg.Descricao AS MotivoDescricao,
+                        NULLIF(TRIM(p.DesMotivoGlosa), '') AS DesMotivoGlosa, r.CodEventoFatur,
+                        (rp.IdRequisicaoProcedimento IS NOT NULL) AS EmRecurso,
+                        SUM(p.ValorLiquido - p.ValorRecebido) AS Valor, COUNT(*) AS Procedimentos
+                   FROM requisicao r
+                   JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
+                   LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = p.IdMotivoGlosa
+                   LEFT JOIN (SELECT DISTINCT IdRequisicaoProcedimento FROM fatloterecursoprocedimento
+                               WHERE IdRequisicaoProcedimento IS NOT NULL) rp
+                          ON rp.IdRequisicaoProcedimento = p.IdRequisicaoProcedimento
+                   LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = p.IdConvenioProcedimento
+                   LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
+                  WHERE r.Lote IN (${marcadores})
+                    AND p.ValorRecebido IS NOT NULL
+                    AND p.ValorLiquido - p.ValorRecebido >= 0.01
+                  GROUP BY r.Lote, r.IdRequisicao, tp.Codigo, fmg.Codigo, fmg.Descricao,
+                           NULLIF(TRIM(p.DesMotivoGlosa), ''), r.CodEventoFatur,
+                           (rp.IdRequisicaoProcedimento IS NOT NULL)) x
+           LEFT JOIN (SELECT IdRequisicao, Codigo, SUM(COALESCE(VlrGlosa, 0)) AS VlrGlosa
+                        FROM (SELECT g.IdRequisicao, dp.Codigo, dp.VlrGlosa,
+                                     DENSE_RANK() OVER (PARTITION BY g.IdRequisicao, dp.Codigo
+                                                        ORDER BY d.DtaImportacao DESC, g.IdDemonstrativo DESC) AS Ordem
+                                FROM fatdemonstrativoguia g
+                                JOIN fatdemonstrativo d ON d.IdDemonstrativo = g.IdDemonstrativo
+                                JOIN fatdemonstrativoguiaprocedimento dp ON dp.IdGuia = g.IdGuia
+                               WHERE g.IdRequisicao IN (SELECT IdRequisicao FROM requisicao WHERE Lote IN (${marcadores}))
+                                 AND COALESCE(d.Inativo, 0) = 0) ultimo
+                       WHERE Ordem = 1
+                       GROUP BY IdRequisicao, Codigo) dem
+                  ON dem.IdRequisicao = x.IdRequisicao AND dem.Codigo = x.Codigo
+          GROUP BY x.IdLote, x.MotivoCodigo, x.MotivoDescricao, x.DesMotivoGlosa, x.CodEventoFatur, x.EmRecurso`,
+        [...bloco, ...bloco],
       );
       for (const linha of linhas) {
         const idLote = numero(linha.IdLote);
@@ -1070,6 +1102,7 @@ export async function diferencasDosLotes(idsLote: number[]): Promise<DiferencasD
           emRecurso: numero(linha.EmRecurso) === 1,
           valor: numero(linha.Valor),
           procedimentos: numero(linha.Procedimentos),
+          demonstrativoValor: linha.DemonstrativoValor === null ? null : numero(linha.DemonstrativoValor),
         });
       }
     }
