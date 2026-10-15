@@ -3,6 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { UserProfile, UserRole } from "../types";
 import { getPermissionsForLegacyRole } from "../utils/permissions";
+import { comPapeisDaPessoa } from "../modules/eva/domain/papeis";
 
 interface AuthContextType {
   user: User | null;
@@ -41,11 +42,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const loadUserProfile = useCallback(async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from("user_profiles")
-        .select("*, custom_roles(id, name, permissions, board_id)")
-        .eq("id", userId)
-        .single();
+      const [{ data, error }, papeisEva] = await Promise.all([
+        supabase
+          .from("user_profiles")
+          .select("*, custom_roles(id, name, permissions, board_id)")
+          .eq("id", userId)
+          .single(),
+        // EVA (D33): as três permissões dela podem vir da aba Permissões, no lugar do cargo.
+        supabase
+          .from("ti_agente_papeis")
+          .select("configura, gestor, aprova")
+          .eq("user_id", userId)
+          .maybeSingle(),
+      ]);
 
       if (error && error.code !== "PGRST116") {
         console.error("Erro ao carregar perfil:", error);
@@ -55,8 +64,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (data) {
         const customRole = data.custom_roles as any;
-        const permissions: string[] =
-          customRole?.permissions || getPermissionsForLegacyRole(data.role);
+        const permissions: string[] = comPapeisDaPessoa(
+          customRole?.permissions || getPermissionsForLegacyRole(data.role),
+          papeisEva.error ? null : papeisEva.data,
+          data.role === "admin",
+        );
 
         setUserProfile({
           id: data.id,

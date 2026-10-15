@@ -1,5 +1,7 @@
-import React, { useEffect, useId, useRef, useState } from 'react';
-import { Check, ChevronDown } from 'lucide-react';
+import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Check, ChevronDown, Search } from 'lucide-react';
+import { ehTeclaDeTexto, filtrarOpcoes } from './selectBusca';
+import { deveAbrirParaCima, PANEL_MAX_PX, SEARCH_PX, TONS, type TomSelect } from './selectPainel';
 
 /**
  * Dropdown do design system.
@@ -8,6 +10,11 @@ import { Check, ChevronDown } from 'lucide-react';
  * sistema operacional: não acompanha o tema escuro do app nem a moldura dos
  * outros campos. Aqui a lista é um painel próprio — mesmas cores, cantos e
  * estados de hover do resto da interface.
+ *
+ * Com `searchable`, o painel abre com um campo de busca no topo (listas longas,
+ * como a de pessoas): a busca ignora acentos e maiúsculas e olha o rótulo, a
+ * descrição e os `keywords` de cada opção. Digitar com o controle fechado já
+ * abre a busca com a letra digitada.
  *
  * Teclado: setas navegam, Enter/Espaço escolhem, Esc fecha, Home/End vão para as
  * pontas. Fecha ao clicar fora.
@@ -18,6 +25,10 @@ export interface SelectOption {
   label: string;
   /** desenha um divisor acima desta opção (ex.: separar uma ação da lista) */
   separatorBefore?: boolean;
+  /** segunda linha, menor (ex.: o cargo de uma pessoa); a busca também olha aqui */
+  description?: string;
+  /** termos que a busca encontra sem mostrar (ex.: e-mail, apelidos) */
+  keywords?: string;
 }
 
 interface SelectProps {
@@ -38,50 +49,29 @@ interface SelectProps {
    * vidro slate/violeta dos dashboards de TI, com entrada animada.
    */
   tone?: 'padrao' | 'vidro';
+  /** campo de busca no topo da lista */
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  /** texto quando a busca não acha nada */
+  emptyText?: string;
 }
 
-// Altura máxima do painel; também serve de folga para decidir se abre para cima.
-const PANEL_MAX_PX = 260;
-
-// Classes que mudam por tom. As de 'padrao' são exatamente as de antes do `tone`.
-const TONS = {
-  padrao: {
-    painel: 'py-1 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 shadow-xl shadow-black/10 dark:shadow-black/40',
-    separador: 'my-1 border-t border-gray-100 dark:border-gray-700',
-    opcao: '',
-    ativo: 'bg-blue-50 dark:bg-blue-900/30',
-    escolhido: 'font-medium text-blue-600 dark:text-blue-300',
-    normal: 'text-gray-700 dark:text-gray-200',
-    vazio: 'text-gray-400 dark:text-gray-500',
-    seta: 'text-gray-400',
-  },
-  vidro: {
-    painel:
-      'p-1 rounded-2xl border border-slate-200/70 dark:border-slate-700/60 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl shadow-[0_12px_40px_-8px_rgba(15,23,42,0.22)] dark:shadow-[0_12px_40px_-8px_rgba(0,0,0,0.6)] [scrollbar-width:thin] animate-scale-in',
-    separador: 'my-1 mx-2 border-t border-slate-100 dark:border-slate-800',
-    opcao: 'rounded-lg',
-    ativo: 'bg-violet-50 dark:bg-violet-500/15',
-    escolhido: 'font-semibold text-violet-700 dark:text-violet-300',
-    normal: 'text-slate-700 dark:text-slate-200',
-    vazio: 'text-slate-400 dark:text-slate-500',
-    seta: 'text-slate-400',
-  },
-} as const;
-
-// Limites verticais de quem realmente corta o painel: o ancestral que rola
-// (o corpo do modal, por exemplo) ou, na falta dele, a viewport.
-const limitesDoContainer = (el: HTMLElement | null): { top: number; bottom: number } => {
-  let node = el?.parentElement ?? null;
-  while (node) {
-    const { overflowY } = getComputedStyle(node);
-    if (overflowY === 'auto' || overflowY === 'scroll' || overflowY === 'hidden') {
-      const rect = node.getBoundingClientRect();
-      return { top: rect.top, bottom: rect.bottom };
-    }
-    node = node.parentElement;
-  }
-  return { top: 0, bottom: window.innerHeight };
-};
+/** Campo de busca do topo do painel (Select e MultiSelect). */
+export const CampoBusca = React.forwardRef<
+  HTMLInputElement,
+  { tone: TomSelect } & React.InputHTMLAttributes<HTMLInputElement>
+>(({ tone, className = '', ...props }, ref) => {
+  const t = TONS[tone];
+  return (
+    <div className={t.busca}>
+      <div className="relative">
+        <Search className={`absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 ${t.seta}`} aria-hidden />
+        <input ref={ref} type="text" autoComplete="off" spellCheck={false} className={`${t.campoBusca} ${className}`} {...props} />
+      </div>
+    </div>
+  );
+});
+CampoBusca.displayName = 'CampoBusca';
 
 const Select: React.FC<SelectProps> = ({
   value,
@@ -94,19 +84,25 @@ const Select: React.FC<SelectProps> = ({
   disabled,
   ariaLabel,
   tone = 'padrao',
+  searchable = false,
+  searchPlaceholder = 'Buscar…',
+  emptyText = 'Nada encontrado.',
 }) => {
   const t = TONS[tone];
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [dropUp, setDropUp] = useState(false);
+  const [busca, setBusca] = useState('');
   const wrapperRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
   const autoId = useId();
   const listId = `${id ?? autoId}-listbox`;
 
-  const selectedIndex = options.findIndex(o => o.value === value);
-  const selected = selectedIndex >= 0 ? options[selectedIndex] : undefined;
+  const selected = options.find(o => o.value === value);
+  const visiveis = useMemo(() => (searchable ? filtrarOpcoes(options, busca) : options), [searchable, options, busca]);
+  const filtrando = searchable && busca.trim() !== '';
 
   // Fecha ao clicar fora do componente.
   useEffect(() => {
@@ -118,6 +114,11 @@ const Select: React.FC<SelectProps> = ({
     return () => document.removeEventListener('mousedown', onPointerDown);
   }, [open]);
 
+  // Com busca, o foco vai para o campo assim que o painel abre.
+  useEffect(() => {
+    if (open && searchable) searchRef.current?.focus({ preventScroll: true });
+  }, [open, searchable]);
+
   // Mantém o item ativo visível ao navegar pelo teclado.
   useEffect(() => {
     if (!open || activeIndex < 0) return;
@@ -126,26 +127,72 @@ const Select: React.FC<SelectProps> = ({
       ?.scrollIntoView({ block: 'nearest' });
   }, [open, activeIndex]);
 
-  const abrir = () => {
+  const abrir = (inicio = '') => {
     if (disabled) return;
-    // Abre para cima quando não cabe embaixo (dentro do modal o espaço é curto).
-    const rect = triggerRef.current?.getBoundingClientRect();
-    if (rect) {
-      const limites = limitesDoContainer(triggerRef.current);
-      const espacoAbaixo = Math.min(window.innerHeight, limites.bottom) - rect.bottom;
-      const espacoAcima = rect.top - Math.max(0, limites.top);
-      setDropUp(espacoAbaixo < PANEL_MAX_PX && espacoAcima > espacoAbaixo);
-    }
-    setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0);
+    setDropUp(deveAbrirParaCima(triggerRef.current, PANEL_MAX_PX + (searchable ? SEARCH_PX : 0)));
+    setBusca(inicio);
+    const lista = searchable ? filtrarOpcoes(options, inicio) : options;
+    const indiceEscolhido = lista.findIndex(o => o.value === value);
+    setActiveIndex(indiceEscolhido >= 0 ? indiceEscolhido : lista.length ? 0 : -1);
     setOpen(true);
   };
 
+  const fechar = (devolverFoco: boolean) => {
+    setOpen(false);
+    if (devolverFoco) triggerRef.current?.focus();
+  };
+
   const escolher = (index: number) => {
-    const opcao = options[index];
+    const opcao = visiveis[index];
     if (!opcao) return;
     onChange(opcao.value);
-    setOpen(false);
-    triggerRef.current?.focus();
+    fechar(true);
+  };
+
+  const mudarBusca = (texto: string) => {
+    setBusca(texto);
+    setActiveIndex(filtrarOpcoes(options, texto).length ? 0 : -1);
+  };
+
+  // Setas, Enter e Esc: os mesmos no botão (sem busca) e no campo de busca.
+  const navegar = (e: React.KeyboardEvent, noCampo: boolean): boolean => {
+    switch (e.key) {
+      case 'Escape':
+        e.preventDefault();
+        fechar(true);
+        return true;
+      case 'ArrowDown':
+        e.preventDefault();
+        setActiveIndex(i => Math.min(visiveis.length - 1, i + 1));
+        return true;
+      case 'ArrowUp':
+        e.preventDefault();
+        setActiveIndex(i => Math.max(0, i - 1));
+        return true;
+      case 'Enter':
+        e.preventDefault();
+        if (activeIndex >= 0) escolher(activeIndex);
+        return true;
+      case 'Tab':
+        setOpen(false);
+        return true;
+    }
+    if (noCampo) return false;
+    switch (e.key) {
+      case 'Home':
+        e.preventDefault();
+        setActiveIndex(0);
+        return true;
+      case 'End':
+        e.preventDefault();
+        setActiveIndex(visiveis.length - 1);
+        return true;
+      case ' ':
+        e.preventDefault();
+        if (activeIndex >= 0) escolher(activeIndex);
+        return true;
+    }
+    return false;
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -153,40 +200,16 @@ const Select: React.FC<SelectProps> = ({
       if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
         abrir();
+      } else if (searchable && ehTeclaDeTexto(e)) {
+        e.preventDefault();
+        abrir(e.key);
       }
       return;
     }
-    switch (e.key) {
-      case 'Escape':
-        e.preventDefault();
-        setOpen(false);
-        break;
-      case 'ArrowDown':
-        e.preventDefault();
-        setActiveIndex(i => Math.min(options.length - 1, i + 1));
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        setActiveIndex(i => Math.max(0, i - 1));
-        break;
-      case 'Home':
-        e.preventDefault();
-        setActiveIndex(0);
-        break;
-      case 'End':
-        e.preventDefault();
-        setActiveIndex(options.length - 1);
-        break;
-      case 'Enter':
-      case ' ':
-        e.preventDefault();
-        if (activeIndex >= 0) escolher(activeIndex);
-        break;
-      case 'Tab':
-        setOpen(false);
-        break;
-    }
+    navegar(e, false);
   };
+
+  const activeId = open && activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined;
 
   return (
     <div ref={wrapperRef} className={`relative ${wrapperClass}`}>
@@ -213,44 +236,72 @@ const Select: React.FC<SelectProps> = ({
 
       {open && (
         <div
-          ref={listRef}
-          id={listId}
-          role="listbox"
-          aria-activedescendant={activeIndex >= 0 ? `${listId}-${activeIndex}` : undefined}
-          className={`absolute left-0 z-50 min-w-full w-max max-w-[min(24rem,90vw)] max-h-[260px] overflow-y-auto ${t.painel} ${
+          className={`absolute left-0 z-50 ${searchable ? 'min-w-[max(100%,18rem)]' : 'min-w-full'} w-max max-w-[min(24rem,90vw)] flex flex-col ${t.painel} ${
             dropUp ? `bottom-full mb-1${tone === 'vidro' ? ' origin-bottom' : ''}` : `top-full mt-1${tone === 'vidro' ? ' origin-top' : ''}`
           }`}
         >
-          {options.map((opcao, index) => {
-            const ativo = index === activeIndex;
-            const escolhido = opcao.value === value;
-            return (
-              <React.Fragment key={opcao.value}>
-                {opcao.separatorBefore && (
-                  <div className={t.separador} />
-                )}
-                <button
-                  type="button"
-                  id={`${listId}-${index}`}
-                  data-index={index}
-                  role="option"
-                  aria-selected={escolhido}
-                  onMouseEnter={() => setActiveIndex(index)}
-                  onClick={() => escolher(index)}
-                  className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left transition-colors ${t.opcao} ${
-                    ativo ? t.ativo : ''
-                  } ${
-                    escolhido
-                      ? t.escolhido
-                      : t.normal
-                  }`}
-                >
-                  <span className="truncate">{opcao.label}</span>
-                  {escolhido && <Check className="w-4 h-4 flex-shrink-0" />}
-                </button>
-              </React.Fragment>
-            );
-          })}
+          {searchable && (
+            <CampoBusca
+              ref={searchRef}
+              tone={tone}
+              value={busca}
+              onChange={e => mudarBusca(e.target.value)}
+              onKeyDown={e => navegar(e, true)}
+              placeholder={searchPlaceholder}
+              role="combobox"
+              aria-expanded
+              aria-controls={listId}
+              aria-autocomplete="list"
+              aria-activedescendant={activeId}
+              aria-label={ariaLabel ? `Buscar: ${ariaLabel}` : 'Buscar'}
+            />
+          )}
+          <div
+            ref={listRef}
+            id={listId}
+            role="listbox"
+            aria-label={ariaLabel}
+            aria-activedescendant={searchable ? undefined : activeId}
+            className="min-h-0 max-h-[260px] overflow-y-auto [scrollbar-width:thin]"
+          >
+            {visiveis.length === 0 && (
+              <p className={`px-3 py-2 text-sm ${t.vazio}`}>{emptyText}</p>
+            )}
+            {visiveis.map((opcao, index) => {
+              const ativo = index === activeIndex;
+              const escolhido = opcao.value === value;
+              return (
+                <React.Fragment key={opcao.value}>
+                  {opcao.separatorBefore && !filtrando && (
+                    <div className={t.separador} />
+                  )}
+                  <button
+                    type="button"
+                    tabIndex={-1}
+                    id={`${listId}-${index}`}
+                    data-index={index}
+                    role="option"
+                    aria-selected={escolhido}
+                    onMouseEnter={() => setActiveIndex(index)}
+                    onClick={() => escolher(index)}
+                    className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left transition-colors ${t.opcao} ${
+                      ativo ? t.ativo : ''
+                    } ${
+                      escolhido
+                        ? t.escolhido
+                        : t.normal
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate">{opcao.label}</span>
+                      {opcao.description && <span className={`block truncate ${t.descricao}`}>{opcao.description}</span>}
+                    </span>
+                    {escolhido && <Check className="w-4 h-4 flex-shrink-0" />}
+                  </button>
+                </React.Fragment>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

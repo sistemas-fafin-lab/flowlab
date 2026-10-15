@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Bot, CalendarClock, MessageCircle } from 'lucide-react';
 import EvaAdminShell from './EvaAdminShell';
+import Switch from '../../../../components/Switch';
 import { GlassCard, SectionHeader, StatusBadge } from '../ui';
 import { EvaToast } from '../EvaToast';
 import { useConfigEva, useSituacaoEva, useUsoIA } from '../../hooks/useAgenteAdmin';
@@ -124,12 +125,10 @@ const ConfiguracoesPage: React.FC = () => {
                 <span className="block text-[13px] font-semibold text-slate-800 dark:text-slate-100">{t.titulo}</span>
                 <span className="block text-xs text-slate-500 dark:text-slate-400">{t.texto}</span>
               </span>
-              <input
-                type="checkbox"
-                className="w-5 h-5"
+              <Switch
                 checked={!!c?.[t.campo]}
                 disabled={salvando || !c}
-                onChange={(e) => void salvar({ [t.campo]: e.target.checked }, `${t.titulo} ${e.target.checked ? 'ligado' : 'desligado'}.`)}
+                onChange={(v) => void salvar({ [t.campo]: v }, `${t.titulo} ${v ? 'ligado' : 'desligado'}.`)}
               />
             </label>
           ))}

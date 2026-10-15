@@ -7,6 +7,7 @@
 > - **Agente pessoal no WhatsApp (14/Out/2026, D30):** conversa natural com memória, o dia da pessoa, pedidos de mudança no Kanban e lembretes pessoais (§11.5, issue 19).
 > - **Permissões separadas (15/Out/2026, D31):** configurar, gestor e aprovar sugestões viram três chaves (§7, issue 20).
 > - **Aviso para uma pessoa (15/Out/2026, D32):** pelo chat do Início ou pelo WhatsApp, só gestor, com confirmação (§11.6, issue 21).
+> - **Permissões por pessoa (15/Out/2026, D33):** aba Permissões, sem criar cargos; seletores próprios, com busca nas listas de pessoas (§7, issue 22).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
 > Protótipo da interface em `docs/flowlab_agent/` (§12).
@@ -92,6 +93,7 @@ Entregáveis, na ordem em que geram valor:
 | **D30** | A EVA como agente pessoal no WhatsApp | ✅ **Fechado (14/Out), pedido do usuário depois do primeiro teste real** ("acho que podemos aprimorar… para que ela possa agir como um agente pessoal"). Ele escolheu os quatro itens propostos e o tom "próxima e objetiva". Detalhes na §11.5.<br>• **Conversa natural:** a EVA lembra as últimas falas (24 h) e responde cumprimentos e perguntas na voz dela, pelo primeiro nome, com frases curtas e no máximo um emoji.<br>• **Assistente do dia:** conhece o dia de quem escreve (atrasadas, o que vence, paradas, o que a última reunião combinou para a pessoa e os lembretes) e sugere por onde começar.<br>• **Ações como no chat:** pedir pelo WhatsApp para criar card ou mudar prioridade, responsável, coluna ou prazo, ou comentar. Vira sugestão: o gestor confirma com SIM; os demais mandam para a fila.<br>• **Lembretes pessoais:** "me lembra amanhã às 9h de…", no horário da EVA (dia útil, das 7h às 20h).<br>• **Continua valendo:** nada muda no Kanban sem gestor (D28). As prévias de gestor e os registros continuam com texto montado pelo sistema, e a confirmação escrita pela IA só entra quando bate com o que foi registrado. | Fase 4 |
 | **D31** | Permissões separadas | ✅ **Fechado (15/Out), pedido do usuário** ("vamos separar as permissões, sobre quem pode configurar, quem é gestor e quem pode aprovar sugestões"). A chave `canApproveAgenteTI` fazia os três papéis; agora são três chaves (§7):<br>• `canConfigureAgenteTI`: configurar.<br>• `canManageAgenteTI`: gestor (cobrar, avisar o grupo, fila do WhatsApp).<br>• `canApproveAgenteTI`: aprovar sugestões.<br>• **Fila do WhatsApp no Início: só o gestor** (escolha do usuário). Quem configura lê as mensagens no banco, para o histórico de cada membro, o "Enviar teste" e a situação em Configurações.<br>• **Transição: nenhuma migration grava nos cargos** (escolha do usuário, como a D15). Quem tinha só a chave antiga fica só com Aprovar até as chaves novas serem marcadas. Admin tem as três no banco e no servidor.<br>• Migration `20261015120000_eva_papeis.sql` (RLS e `ti_agente_tem_permissao(uuid, chave)`, que substitui `ti_agente_eh_gestor`). | Fase 4 |
 | **D32** | Aviso de gestor para uma pessoa | ✅ **Fechado (15/Out), pedido do usuário** ("quando eu pedir para ela mandar um aviso ou uma mensagem para alguém, pelo chat ou por WhatsApp, ela deve atender"). Detalhes na §11.6.<br>• **Onde:** no chat do Início (cartão com o texto editável e "Enviar pelo WhatsApp") e pelo WhatsApp ("avisa o Gabriel que…", com SIM).<br>• **Quem pede:** só o gestor (`canManageAgenteTI`).<br>• **Para quem:** qualquer membro ativo da aba Membros com WhatsApp. A adesão "Recebe cobrança" vale só para as cobranças (escolha do usuário).<br>• **Como chega:** "📢 Aviso de <quem pediu>: …", no horário da EVA (dia útil, das 7h às 20h).<br>• Migration `20261015140000_eva_aviso_pessoal.sql`: tipo `aviso` na fila e o comando `avisar_pessoa`. | Fase 4 |
+| **D33** | Permissões da EVA por pessoa | ✅ **Fechado (15/Out), pedido do usuário** ("quero conseguir controlar a nível usuário as permissões que são tocantes a ela, já que não quero criar diversos cargos só para isso"). Detalhes na §7.<br>• **Onde:** aba **Permissões** (`/it/eva/permissoes`), só para quem configura. Três chaves por pessoa (Configura, Gestor, Aprova) e "Voltar ao cargo".<br>• **Regra, só para as três chaves da EVA:** admin tem as três, sempre; quem tem linha em `ti_agente_papeis` vale a linha, **no lugar do cargo**, inclusive para tirar uma chave que o cargo dá; sem linha, vale o cargo, como antes.<br>• **A mesma regra em todo lugar:** policies e RPCs (`ti_agente_pode`), WhatsApp (`ti_agente_tem_permissao`), servidor (`autorizar`, `usuarioPorId`, `lerQuemTem`) e a sessão do front (`AuthContext`).<br>• **Travas:** ninguém tira a própria permissão de configurar, nem volta ao cargo se o cargo não configura (ficaria fora da tela); admin não recebe linha.<br>• **Quando vale:** no banco, no servidor e no WhatsApp, na hora; nas telas, quando a pessoa abre o FlowLab de novo (para quem muda as próprias, na hora).<br>• Migration `20261015160000_eva_papeis_por_pessoa.sql`. | Fase 4 |
 
 ---
 
@@ -395,8 +397,11 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
 | `ti_agente_mensagens` | `canManageAgenteTI` ou `canConfigureAgenteTI` | nenhuma (servidor e VPS, com service role) |
 | `ti_agente_chamadas_ia` | `canManageIT`, `canApproveAgenteTI` ou `canConfigureAgenteTI` (só metadados) | nenhuma (só o servidor grava) |
 | `ti_agente_comandos` (D29) | `canManageAgenteTI` ou `canApproveAgenteTI` | nenhuma (só o servidor grava) |
+| `ti_agente_papeis` (D33) | a própria linha, ou todas com `canConfigureAgenteTI` | nenhuma (só pelas RPCs `ti_agente_definir_papeis` e `ti_agente_voltar_ao_cargo`) |
 
 Desde a D31 (`20261015120000_eva_papeis.sql`). Antes, `canApproveAgenteTI` fazia os três papéis.
+
+Desde a D33 (`20261015160000_eva_papeis_por_pessoa.sql`), as chaves da EVA nas policies são conferidas por `ti_agente_pode(chave)`, e não mais por `current_user_has_permission`: admin; a linha de `ti_agente_papeis`, quando a pessoa tem uma; senão, o cargo. `canManageIT` continua por `current_user_has_permission`. As policies chamam as funções dentro de `(SELECT …)`, para o Postgres avaliar uma vez por consulta.
 
 **D29 (`20261014160000_eva_comandos_whatsapp.sql`):**
 - `ti_agente_comandos` guarda os pedidos de gestor pelo WhatsApp: `cobrar`, `aprovar`, `rejeitar`, `avisar_grupo` (status `aguardando` → `executado` ou `cancelado`) e a última lista de sugestões (`lista_sugestoes`, status `lista`). Cada um tem `dados` em jsonb e `expira_em`.
@@ -427,6 +432,11 @@ Desde a D31 (`20261015120000_eva_papeis.sql`). Antes, `canApproveAgenteTI` fazia
   - A primeira versão usava `user_has_permission`, que tem um fallback de role legado e dá ao `operator` quase todas as chaves. O servidor já barrava antes, mas o banco agora tem a mesma regra da tela e das policies.
   - Só a `service_role` executa: `REVOKE` de `PUBLIC`, `anon` e `authenticated`.
   - Desde essa migration, `ti_agente_aprovar_sugestao` e `ti_agente_rejeitar_sugestao` conferem a sessão e delegam para elas, com `auth.uid()`.
+- **Permissões por pessoa (D33, `20261015160000_eva_papeis_por_pessoa.sql`):**
+  - `ti_agente_tem_permissao(p_user, p_chave)` passa a aplicar a linha de `ti_agente_papeis` nas três chaves da EVA. Continua só da `service_role`.
+  - `ti_agente_pode(p_chave)` é a mesma regra para `auth.uid()`; `authenticated` executa. As RPCs da tela (aprovar, rejeitar, propor, `ti_agente_cobrancas_hoje`) trocam `current_user_has_permission` por ela nas chaves da EVA.
+  - `ti_agente_definir_papeis(p_user, p_configura, p_gestor, p_aprova)`: upsert da linha, com `updated_by`. Exige `canConfigureAgenteTI`; recusa admin, usuário removido e tirar a própria permissão de configurar.
+  - `ti_agente_voltar_ao_cargo(p_user)`: apaga a linha. Exige `canConfigureAgenteTI`; recusa voltar a si mesmo quando o cargo não configura.
 
 ---
 
@@ -436,15 +446,19 @@ Desde a D31 (`20261015120000_eva_papeis.sql`). Antes, `canApproveAgenteTI` fazia
 
 | Chave | Rótulo em Cargos e Permissões | O que libera |
 |---|---|---|
-| `canConfigureAgenteTI` | Configurar a EVA (membros, WhatsApp, Granola) | Abas Membros e Configurações, "Enviar teste" (membro e grupo), "Buscar reuniões agora"; aviso no sino quando o Claude para de responder |
+| `canConfigureAgenteTI` | Configurar a EVA (membros, WhatsApp, Granola) | Abas Membros, Permissões e Configurações, "Enviar teste" (membro e grupo), "Buscar reuniões agora"; aviso no sino quando o Claude para de responder |
 | `canManageAgenteTI` | Gestor da EVA (cobrar a equipe, avisar o grupo, ver a fila do WhatsApp) | Cobrar cards de outras pessoas (botão e WhatsApp), avisar o grupo pelo WhatsApp, a fila do WhatsApp e o "último contato" no Início, os comentários da EVA sobre a fila; aviso no sino de card bloqueado |
 | `canApproveAgenteTI` | Aprovar sugestões da EVA | Aprovar e rejeitar na tela e pelo WhatsApp, a lista "sugestões pendentes", aplicar na hora um pedido de mudança (chat, comentário, WhatsApp), reanalisar reunião, o chip "N sugestões aguardando"; aviso no sino de sugestão nova |
 
 - As três entram na lista de exclusão do `operator` legado, com casos em `permissions.test.ts`.
 - **Nenhuma migration grava em `custom_roles` (D15).** Na separação, o usuário escolheu marcar as chaves novas nos cargos ele mesmo.
-- **Admin:** no banco e no servidor, `role = 'admin'` tem as três.
-  - Na tela, um admin **com cargo** fica só com as chaves do cargo, como em todo o FlowLab (`AuthContext`: `customRole.permissions || legado`).
-  - A aba Membros mostra os papéis pela regra do banco (`papeisDoPerfil`).
+- **Admin:** `role = 'admin'` tem as três no banco, no servidor e, desde a D33, também na tela (antes, um admin com cargo ficava só com as chaves do cargo).
+- **Por pessoa (D33):** a aba **Permissões** define as três de cada pessoa, no lugar do cargo, sem criar cargos.
+  - Lista o admin, quem tem alguma das três (pelo cargo ou definida ali) e quem está definido ali sem nenhuma. "Dar permissão a outra pessoa" é um seletor com busca de todas as pessoas ativas.
+  - Cada linha mostra de onde vêm os papéis ("Pelo cargo", "Definido aqui", "Administrador"), quem definiu e quando, e o que o cargo daria. "Voltar ao cargo" apaga a linha.
+  - A sessão do front aplica a linha: `AuthContext` lê a própria linha de `ti_agente_papeis` e passa as permissões por `comPapeisDaPessoa` (`eva/domain/papeis.ts`). O servidor faz o mesmo em `autorizar` e `usuarioPorId`, e `lerQuemTem` (avisos do sino) segue a mesma regra.
+  - Sem a migration aplicada, a tabela não existe e tudo segue o cargo, como antes.
+  - As abas Membros e Permissões mostram os papéis pela regra do banco (`papeisDoPerfil(perfil, linha)`).
 - O Início continua com `canManageIT`, então a fila e o botão Cobrar aparecem para quem tem as duas chaves.
 - Pelo WhatsApp, cada comando confere a chave dele, de novo, na hora do SIM.
 
@@ -456,6 +470,7 @@ Desde a D31 (`20261015120000_eva_papeis.sql`). Antes, `canApproveAgenteTI` fazia
 | `/it/eva` | Administração da EVA, aba Sugestões | `anyOf: canManageIT, canApproveAgenteTI, canConfigureAgenteTI` |
 | `/it/eva/reunioes` | Reuniões + colar reunião | idem |
 | `/it/eva/membros` | Membros | `canConfigureAgenteTI` |
+| `/it/eva/permissoes` | Permissões por pessoa (D33) | `canConfigureAgenteTI` |
 | `/it/eva/configuracoes` | Liga/desliga, pasta do Granola, dias parado, grupo da equipe, situação das integrações | `canConfigureAgenteTI` |
 
 Quem tem só `canManageIT` vê as sugestões, mas os botões de aprovar e rejeitar só aparecem com `canApproveAgenteTI`. Quem só configura entra pela aba Configurações.
@@ -503,7 +518,13 @@ src/modules/eva/
     │                              # OverdueCard, WhatsAppQueueCard, ProjectsCard, MyTasksCard, EvaInsight,
     │                              # EvaChatDrawer, EvaFloatingChat, EvaOrb, EvaGlow, ui, eva.css…
     └── admin/                     # (+) EvaAdminShell (abas), SugestoesPage, SugestaoCard, EditarSugestaoModal,
-                                   #     ReunioesPage, ColarReuniaoModal, MembrosPage, ConfiguracoesPage
+                                   #     ReunioesPage, ColarReuniaoModal, MembrosPage, PermissoesPage (D33), ConfiguracoesPage
+
+src/components/                    # design system, usado pela EVA (D33)
+├── Select.tsx                     # dropdown próprio; `searchable` põe busca no topo (sem acento, olha descrição e keywords)
+├── MultiSelect.tsx                # várias escolhas com busca e chips (responsáveis de um card)
+├── Switch.tsx                     # chave liga/desliga no lugar do checkbox nativo
+└── selectBusca.ts (+ .test), selectPainel.ts   # filtro da busca; tons e posição do painel
 
 api/ti/[action].ts                 # dispatcher (espelha api/notifications/[action].ts)
 api/_lib/handlers/

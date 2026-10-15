@@ -3,6 +3,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { LinhaChamadaIA } from './ia/gerarEstruturado.js';
 import type { CardCtx, ContextoExtracao, MembroCtx, ProjetoCtx, SprintCtx } from './extracao.js';
 import type { UltimaReuniao } from './chat.js';
+import { lerLinhasPapeis } from './autorizacao.js';
+import { CHAVES_EVA, chavesDosPapeis, type LinhaPapeis } from '../../../src/modules/eva/domain/papeis.js';
 
 const PAGINA = 1000;
 
@@ -98,20 +100,32 @@ export function registradorDeChamadas(db: SupabaseClient) {
 }
 
 /**
- * Ids das pessoas ativas com a chave: cargo com ela, ou role admin (D31). Cada aviso do sino vai
+ * Ids das pessoas ativas com a chave, pela regra de ti_agente_tem_permissao: admin; nas chaves da
+ * EVA, a linha da aba Permissões quando existe (D33); senão, o cargo (D31). Cada aviso do sino vai
  * para quem tem o papel dele: sugestão nova para quem aprova, bloqueio para o gestor, falha da IA
  * para quem configura.
  */
 export async function lerQuemTem(db: SupabaseClient, chave: string): Promise<string[]> {
   // custom_roles.permissions é jsonb: o filtro vai como JSON (["…"]). Um array JS viraria
   // o literal de array do Postgres ({…}) e daria "invalid input syntax for type json".
-  const { data: cargos, error } = await db.from('custom_roles').select('id').contains('permissions', JSON.stringify([chave]));
+  const [{ data: cargos, error }, linhas] = await Promise.all([
+    db.from('custom_roles').select('id').contains('permissions', JSON.stringify([chave])),
+    CHAVES_EVA.includes(chave) ? lerLinhasPapeis(db) : Promise.resolve(new Map<string, LinhaPapeis>()),
+  ]);
   if (error) throw new Error(error.message);
+  const temNaLinha = (l: LinhaPapeis) => chavesDosPapeis(l).includes(chave);
   const ids = (cargos ?? []).map((c) => c.id as string);
-  const filtro = ids.length ? `role.eq.admin,custom_role_id.in.(${ids.join(',')})` : 'role.eq.admin';
-  const { data: pessoas, error: e2 } = await db.from('user_profiles').select('id').is('deleted_at', null).is('disabled_at', null).or(filtro);
+  const concedidos = [...linhas].filter(([, l]) => temNaLinha(l)).map(([id]) => id);
+  const filtro = [
+    'role.eq.admin',
+    ids.length ? `custom_role_id.in.(${ids.join(',')})` : '',
+    concedidos.length ? `id.in.(${concedidos.join(',')})` : '',
+  ].filter(Boolean).join(',');
+  const { data: pessoas, error: e2 } = await db.from('user_profiles').select('id, role').is('deleted_at', null).is('disabled_at', null).or(filtro);
   if (e2) throw new Error(e2.message);
-  return (pessoas ?? []).map((p) => p.id as string);
+  return (pessoas ?? [])
+    .filter((p) => p.role === 'admin' || !linhas.has(p.id as string) || temNaLinha(linhas.get(p.id as string)!))
+    .map((p) => p.id as string);
 }
 
 export async function avisarQuemTem(db: SupabaseClient, chave: string, aviso: { titulo: string; conteudo: string; link: string; tipo?: string }) {

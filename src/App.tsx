@@ -52,7 +52,7 @@ import {
 import { BoardPage } from './modules/board';
 import { ColaboradoresPage, HoleritesPage } from './modules/rh';
 import { FinopsDashboardPage, DespesasPage, MesAMesPage, OrcamentoPage } from './modules/gastos-ti';
-import { EvaHomePage, EvaSugestoesPage, EvaReunioesPage, EvaMembrosPage, EvaConfiguracoesPage } from './modules/eva';
+import { EvaHomePage, EvaSugestoesPage, EvaReunioesPage, EvaMembrosPage, EvaPermissoesPage, EvaConfiguracoesPage } from './modules/eva';
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{
@@ -492,8 +492,8 @@ const AuthenticatedApp: React.FC = () => {
         <Route path="/rh/holerites" element={<HoleritesPage />} />
         {/* IT Module Routes */}
         {/* EVA, o agente de TI (docs/plans/agente-ti). O Início é da equipe de TI.
-            Sugestões e Reuniões abrem para a equipe, quem aprova e quem configura; Membros e
-            Configurações, só para quem configura (canConfigureAgenteTI, D31). */}
+            Sugestões e Reuniões abrem para a equipe, quem aprova e quem configura; Membros,
+            Permissões e Configurações, só para quem configura (canConfigureAgenteTI, D31, D33). */}
         <Route
           path="/it/inicio"
           element={
@@ -523,6 +523,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canConfigureAgenteTI" permissions={userPermissions}>
               <EvaMembrosPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/it/eva/permissoes"
+          element={
+            <ProtectedRoute permission="canConfigureAgenteTI" permissions={userPermissions}>
+              <EvaPermissoesPage />
             </ProtectedRoute>
           }
         />

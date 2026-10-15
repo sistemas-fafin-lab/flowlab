@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../../hooks/useAuth';
 import { papeisEva, type PapeisEva } from '../domain/papeis';
-import { agenteAdmin, type ConfigEva, type Membro, type Pessoa, type Reuniao, type StatusSugestao, type Sugestao } from '../services/agenteAdmin';
+import { agenteAdmin, type ConfigEva, type Membro, type Pessoa, type PessoaPermissoes, type Reuniao, type StatusSugestao, type Sugestao } from '../services/agenteAdmin';
 
-/** Os papéis da EVA de quem está logado (D31): configurar, gestor, aprovar. */
+/**
+ * Os papéis da EVA de quem está logado (D31): configurar, gestor, aprovar. As permissões da
+ * sessão já vêm com a aba Permissões aplicada (AuthContext, D33).
+ */
 export function usePapeisEva(): PapeisEva {
   const { userProfile } = useAuth();
   const permissoes = userProfile?.permissions;
@@ -56,6 +59,11 @@ export function useReunioes() {
 
 export function useMembros() {
   return useLista<Membro[]>(() => agenteAdmin.listarMembros(), []);
+}
+
+/** Aba Permissões (D33): todas as pessoas ativas com os papéis da EVA e de onde vêm. */
+export function usePermissoesEva() {
+  return useLista<PessoaPermissoes[]>(() => agenteAdmin.listarPermissoes(), []);
 }
 
 export function useConfigEva() {

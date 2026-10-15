@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { RefreshCw, Send, Users } from 'lucide-react';
+import Select from '../../../../components/Select';
+import Switch from '../../../../components/Switch';
 import { GlassCard, SectionHeader } from '../ui';
 import { agenteAdmin, type ConfigEva } from '../../services/agenteAdmin';
 import type { AvisoEva } from '../../hooks/useEvaHome';
@@ -72,14 +74,27 @@ const GrupoEquipeCard: React.FC<Props> = ({ config: c, salvando, salvar, recarre
   };
 
   return (
-    <GlassCard className="gap-4">
+    // relative z-10: o vidro (backdrop-blur) empilha à parte, e a lista de grupos ficaria atrás do cartão de baixo.
+    <GlassCard className="gap-4 relative z-10">
       <SectionHeader icon={Users} tone="from-teal-500 to-emerald-600 shadow-teal-500/25" title="Grupo da equipe" subtitle="Fechamento do dia, resumos de reunião e avisos" />
       <div>
-        <label className={ROTULO} htmlFor="eva-grupo">Grupo no WhatsApp</label>
-        <select id="eva-grupo" className={CAMPO} value={escolhido} disabled={salvando || !c} onChange={(e) => escolher(e.target.value)}>
-          <option value="">Nenhum</option>
-          {opcoes.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}
-        </select>
+        <span className={ROTULO}>Grupo no WhatsApp</span>
+        <Select
+          tone="vidro"
+          searchable
+          value={escolhido}
+          onChange={escolher}
+          options={[
+            { value: '', label: 'Nenhum' },
+            ...opcoes.map((g, i) => ({ value: g.id, label: g.nome, separatorBefore: i === 0 })),
+          ]}
+          placeholder="Nenhum"
+          searchPlaceholder="Buscar grupo"
+          emptyText="Nenhum grupo com esse nome."
+          controlClass={CAMPO}
+          ariaLabel="Grupo no WhatsApp"
+          disabled={salvando || !c}
+        />
         <div className="mt-1.5 flex items-center justify-between gap-2 flex-wrap">
           <p className="text-[11px] text-slate-400">
             {c?.waha_grupos_em ? `Lista lida da VPS: ${quando(c.waha_grupos_em)}` : 'A VPS ainda não leu a lista de grupos.'}
@@ -102,12 +117,10 @@ const GrupoEquipeCard: React.FC<Props> = ({ config: c, salvando, salvar, recarre
             <span className="block text-[13px] font-semibold text-slate-800 dark:text-slate-100">{t.titulo}</span>
             <span className="block text-xs text-slate-500 dark:text-slate-400">{t.texto}</span>
           </span>
-          <input
-            type="checkbox"
-            className="w-5 h-5"
+          <Switch
             checked={!!c?.[t.campo]}
             disabled={salvando || !c || !temGrupo}
-            onChange={(e) => void salvar({ [t.campo]: e.target.checked }, `${t.titulo} ${e.target.checked ? 'ligado' : 'desligado'}.`)}
+            onChange={(v) => void salvar({ [t.campo]: v }, `${t.titulo} ${v ? 'ligado' : 'desligado'}.`)}
           />
         </label>
       ))}

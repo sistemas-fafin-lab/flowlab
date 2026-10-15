@@ -76,6 +76,8 @@ interface Estado {
   membro: typeof BRUNO;
   /** null = perfil removido no FlowLab. */
   permissoes: string[] | null;
+  /** A linha da aba Permissões (ti_agente_papeis, D33); sem ela, vale o cargo. */
+  linha?: { configura: boolean; gestor: boolean; aprova: boolean } | null;
   contagem: number;
   comandos: Record<string, unknown>[];
   sugestoes: SugestaoLista[];
@@ -143,6 +145,7 @@ function criarDb(e: Estado) {
         };
       }
       if (tabela === 'ti_agente_comandos') { const l = e.comandos.filter(casa); return { data: l[l.length - 1] ?? null, error: null }; }
+      if (tabela === 'ti_agente_papeis') return { data: e.linha ?? null, error: null };
       return { data: null, error: null };
     };
     return q;
@@ -454,6 +457,20 @@ describe('processarRecebida: gestor', () => {
     ia({ intencao: 'aprovar', numeros: [1] });
     expect((await mandar('aprovar 1')).resposta).toContain('Só quem aprova sugestões');
     expect(estado.comandos).toEqual([]);
+  });
+
+  it('a aba Permissões vale no lugar do cargo (D33): dá a chave sem cargo e tira a do cargo', async () => {
+    estado.permissoes = ['canManageIT'];
+    estado.linha = { configura: false, gestor: true, aprova: false };
+    ia({ intencao: 'avisar_grupo', aviso: 'Reunião às 10h' });
+    expect((await mandar('avisa no grupo que a reunião é às 10h')).resposta).not.toContain('Só gestores');
+    expect(estado.comandos.map((c) => c.tipo)).toEqual(['avisar_grupo']);
+
+    estado.permissoes = GESTOR;
+    estado.linha = { configura: true, gestor: false, aprova: true };
+    ia({ intencao: 'cobrar', cobrar_codigos: ['IT-045'] });
+    expect((await mandar('cobra o IT-045')).resposta).toContain('Só gestores da EVA podem pedir cobranças');
+    expect(checarCobranca).not.toHaveBeenCalled();
   });
 
   it('pedido de mudança de um gestor que não aprova: vai para a fila, sem SIM', async () => {
