@@ -55,7 +55,8 @@ export async function sincronizarGranola(
   let maiorAtualizacao = (config?.granola_ultima_sync_em as string | null) ?? null;
 
   for (const resumo of notas) {
-    if (!maiorAtualizacao || resumo.updated_at > maiorAtualizacao) maiorAtualizacao = resumo.updated_at;
+    // Compara como data: o cursor vem do banco ("+00:00") e a nota, do Granola ("Z").
+    if (!maiorAtualizacao || Date.parse(resumo.updated_at) > Date.parse(maiorAtualizacao)) maiorAtualizacao = resumo.updated_at;
     const { data: existente } = await db.from('ti_agente_reunioes').select('id').eq('granola_note_id', resumo.id).maybeSingle();
     if (existente) {
       // D14: nota já guardada não é reanalisada sozinha; só acende o selo na tela.

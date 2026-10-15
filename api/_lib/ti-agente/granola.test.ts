@@ -15,9 +15,22 @@ describe('cliente do Granola', () => {
     expect(r.ok && r.dados.map((n) => n.id)).toEqual(['not_a', 'not_b']);
     const [url1, init1] = f.mock.calls[0];
     expect(url1).toContain('folder_id=fol_1');
-    expect(url1).toContain('updated_after=2026-10-01T00%3A00%3A00Z');
+    expect(url1).toContain('updated_after=2026-10-01T00%3A00%3A00.000Z');
     expect(init1.headers.Authorization).toBe('Bearer grn_x');
     expect(f.mock.calls[1][0]).toContain('cursor=c2');
+  });
+
+  it('o cursor do banco ("+00:00") vai como a API aceita ("Z"): era o HTTP 400 de 15/Out', async () => {
+    const f = vi.fn().mockResolvedValue(resposta(200, { notes: [], hasMore: false }));
+    await criarClienteGranola({ apiKey: 'grn_x', fetch: f }).listarNotas({ pastaId: 'fol_1', atualizadasDepois: '2026-10-05T18:52:59.797+00:00' });
+    expect(f.mock.calls[0][0]).toContain('updated_after=2026-10-05T18%3A52%3A59.797Z');
+    expect(f.mock.calls[0][0]).not.toContain('%2B00%3A00');
+  });
+
+  it('o detalhe do erro do Granola vai junto na mensagem', async () => {
+    const corpo = { code: 'VALIDATION_ERROR', message: 'Invalid query parameters', details: [{ field: 'updated_after', issue: 'Invalid date' }] };
+    const r = await criarClienteGranola({ apiKey: 'grn_x', fetch: vi.fn().mockResolvedValue(resposta(400, corpo)) }).listarNotas({ pastaId: 'fol_1' });
+    expect('erro' in r && r.erro).toBe('Granola respondeu HTTP 400 (updated_after: Invalid date)');
   });
 
   it.each([
