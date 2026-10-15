@@ -93,4 +93,12 @@ describe('getPermissionsForLegacyRole — canApproveAgenteTI (EVA)', () => {
   it('mantém canApproveAgenteTI para admin legado (role=admin é reconhecida pelo RLS)', () => {
     expect(getPermissionsForLegacyRole('admin')).toContain('canApproveAgenteTI');
   });
+
+  it('as três chaves da EVA (D31): só admin no legado; operator e requester não', () => {
+    for (const k of ['canConfigureAgenteTI', 'canManageAgenteTI', 'canApproveAgenteTI']) {
+      expect(getPermissionsForLegacyRole('admin')).toContain(k);
+      expect(getPermissionsForLegacyRole('operator')).not.toContain(k);
+      expect(getPermissionsForLegacyRole('requester')).not.toContain(k);
+    }
+  });
 });

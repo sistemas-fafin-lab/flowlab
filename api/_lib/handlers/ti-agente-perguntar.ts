@@ -1,6 +1,7 @@
 // API Route: POST /api/ti/agente-perguntar — chat com a EVA (issue 16).
 // Body: { pergunta, visao: 'team' | 'me', historico: [{ de: 'eva' | 'eu', texto }] }
-// Exige canManageIT ou canApproveAgenteTI. Limite de 30 perguntas por pessoa por dia (RN17).
+// Exige canManageIT, ou um dos papéis da EVA (aprovar ou gestor). A fila do WhatsApp só entra no
+// contexto do gestor (D24, D31). Limite de 30 perguntas por pessoa por dia (RN17).
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '../supabase.js';
@@ -50,7 +51,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(405).json({ success: false, error: 'Use POST.' });
     return;
   }
-  const auth = await autorizar(tokenDoHeader(req.headers.authorization), ['canManageIT', 'canApproveAgenteTI']);
+  const auth = await autorizar(tokenDoHeader(req.headers.authorization), ['canManageIT', 'canApproveAgenteTI', 'canManageAgenteTI']);
   if (ehFalha(auth)) {
     res.status(auth.status).json(auth.payload);
     return;
@@ -85,7 +86,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const ehGestor = tem(auth, 'canApproveAgenteTI');
+    const ehGestor = tem(auth, 'canManageAgenteTI');
     const [ctxCompleto, { data: reuniao }, fila] = await Promise.all([
       lerContexto(db),
       db.from('ti_agente_reunioes')

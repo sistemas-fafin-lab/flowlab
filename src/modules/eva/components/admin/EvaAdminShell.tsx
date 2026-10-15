@@ -2,16 +2,15 @@ import React from 'react';
 import { NavLink } from 'react-router-dom';
 import { MotionConfig } from 'framer-motion';
 import { CalendarClock, ClipboardCheck, Settings, Users, type LucideIcon } from 'lucide-react';
-import { useAuth } from '../../../../hooks/useAuth';
-import { hasPermission } from '../../../../utils/permissions';
+import { usePapeisEva } from '../../hooks/useAgenteAdmin';
 import { EvaOrb } from '../EvaOrb';
 
 interface Aba {
   to: string;
   rotulo: string;
   Icon: LucideIcon;
-  /** Abas com dados sensíveis (telefones, configuração) só para gestores (§7). */
-  soGestor?: boolean;
+  /** Abas com dados sensíveis (telefones, configuração) só para quem configura a EVA (§7, D31). */
+  soQuemConfigura?: boolean;
 }
 
 // Cada aba é uma rota própria (/it/eva/*): link compartilhável e "voltar" funcionando.
@@ -19,8 +18,8 @@ interface Aba {
 const ABAS: Aba[] = [
   { to: '/it/eva', rotulo: 'Sugestões', Icon: ClipboardCheck },
   { to: '/it/eva/reunioes', rotulo: 'Reuniões', Icon: CalendarClock },
-  { to: '/it/eva/membros', rotulo: 'Membros', Icon: Users, soGestor: true },
-  { to: '/it/eva/configuracoes', rotulo: 'Configurações', Icon: Settings, soGestor: true },
+  { to: '/it/eva/membros', rotulo: 'Membros', Icon: Users, soQuemConfigura: true },
+  { to: '/it/eva/configuracoes', rotulo: 'Configurações', Icon: Settings, soQuemConfigura: true },
 ];
 
 interface Props {
@@ -31,9 +30,8 @@ interface Props {
 
 /** Cabeçalho + abas da administração da EVA, no visual do Gastos de TI e do Hub. */
 const EvaAdminShell: React.FC<Props> = ({ subtitulo, acoes, children }) => {
-  const { userProfile } = useAuth();
-  const ehGestor = hasPermission(userProfile?.permissions || [], 'canApproveAgenteTI');
-  const abas = ABAS.filter((a) => !a.soGestor || ehGestor);
+  const { configura } = usePapeisEva();
+  const abas = ABAS.filter((a) => !a.soQuemConfigura || configura);
 
   return (
     <MotionConfig reducedMotion="user">

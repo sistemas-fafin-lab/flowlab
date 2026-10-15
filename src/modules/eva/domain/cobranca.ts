@@ -198,7 +198,7 @@ export type ResultadoPodeCobrar =
 export function podeCobrar(e: {
   card: CardTI;
   usuarioId: string;
-  /** canApproveAgenteTI (ou admin). */
+  /** Gestor da EVA: canManageAgenteTI (ou admin), D31. */
   ehGestor: boolean;
   /** canManageIT (ou admin). */
   podeGerenciar: boolean;

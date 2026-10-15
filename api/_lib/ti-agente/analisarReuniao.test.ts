@@ -3,16 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('./dados.js', async (original) => ({
   ...(await original<typeof import('./dados.js')>()),
   lerContexto: vi.fn(),
-  avisarGestores: vi.fn(),
+  avisarQuemTem: vi.fn(),
 }));
 vi.mock('./ia/gerarEstruturado.js', () => ({ gerarEstruturado: vi.fn() }));
 vi.mock('./grupo.js', () => ({ enviarResumoDaReuniao: vi.fn(async () => null) }));
 
-import { avisarGestores, lerContexto, lerGestores } from './dados.js';
+import { avisarQuemTem, lerContexto, lerQuemTem } from './dados.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
 import { analisarReuniao } from './analisarReuniao.js';
 
-const avisarMock = avisarGestores as ReturnType<typeof vi.fn>;
+const avisarMock = avisarQuemTem as ReturnType<typeof vi.fn>;
 const gerarMock = gerarEstruturado as ReturnType<typeof vi.fn>;
 (lerContexto as ReturnType<typeof vi.fn>).mockResolvedValue({ membros: [], cards: [], projetos: [], sprints: [] });
 
@@ -63,10 +63,10 @@ describe('analisarReuniao', () => {
   });
 });
 
-describe('lerGestores', () => {
+describe('lerQuemTem', () => {
   it('filtra custom_roles.permissions (jsonb) com JSON, não com literal de array', async () => {
     const { db, filtros } = criarDb();
-    await lerGestores(db as never);
+    await lerQuemTem(db as never, 'canApproveAgenteTI');
     const contains = filtros.find((f) => f.metodo === 'contains');
     expect(contains?.args).toEqual(['permissions', '["canApproveAgenteTI"]']);
   });

@@ -6,7 +6,7 @@ import EvaModal from './EvaModal';
 import DatePicker from '../../../../components/DatePicker';
 import { GlassCard, StatusBadge } from '../ui';
 import { EvaToast } from '../EvaToast';
-import { useEhGestor, useReunioes } from '../../hooks/useAgenteAdmin';
+import { usePapeisEva, useReunioes } from '../../hooks/useAgenteAdmin';
 import { agenteAdmin, type Reuniao } from '../../services/agenteAdmin';
 import { hojeSP } from '../../domain/datas';
 import type { AvisoEva } from '../../hooks/useEvaHome';
@@ -24,7 +24,7 @@ const MAX_RESUMO = 60_000;
 
 /** /it/eva/reunioes — reuniões lidas pela EVA, colar à mão e buscar no Granola (issues 09 e 10). */
 const ReunioesPage: React.FC = () => {
-  const ehGestor = useEhGestor();
+  const { aprova: podeAprovar } = usePapeisEva();
   const { dados, erro, carregando, recarregar } = useReunioes();
   const [colando, setColando] = useState(false);
   const [titulo, setTitulo] = useState('');
@@ -138,7 +138,7 @@ const ReunioesPage: React.FC = () => {
                     <ExternalLink className="w-4 h-4" />
                   </a>
                 )}
-                {ehGestor && (r.status === 'analisada' || r.status === 'erro') && (
+                {podeAprovar && (r.status === 'analisada' || r.status === 'erro') && (
                   <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void reanalisar(r)} disabled={trabalhando !== null}>
                     {trabalhando === r.id ? 'Reanalisando…' : 'Reanalisar'}
                   </button>

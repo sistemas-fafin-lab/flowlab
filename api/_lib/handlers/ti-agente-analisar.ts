@@ -1,6 +1,6 @@
 // API Route: POST /api/ti/agente-analisar (issues 08 e 09)
 //   { titulo, resumo, realizada_em? }  → cola uma reunião e analisa na hora (canManageIT ou gestor)
-//   { reuniao_id }                     → reanalisa (só gestor, canApproveAgenteTI — D14)
+//   { reuniao_id }                     → reanalisa (só quem aprova sugestões, canApproveAgenteTI — D14, D31)
 //   ?dryRun=true                       → devolve as sugestões validadas sem gravar nada
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../supabase.js';

@@ -504,7 +504,10 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const boardAccess = useBoardAccess();
   const isAdmin = hasPermission(userPermissions, 'canManageUsers');
   const canManageIT = hasPermission(userPermissions, 'canManageIT');
+  // EVA (D31): quem aprova sugestões abre a administração pelas Sugestões; quem só configura, pelas Configurações.
   const canApproveAgenteTI = hasPermission(userPermissions, 'canApproveAgenteTI');
+  const canConfigureAgenteTI = hasPermission(userPermissions, 'canConfigureAgenteTI');
+  const entradaEva = canManageIT || canApproveAgenteTI ? '/it/eva' : '/it/eva/configuracoes';
 
   // ─── Persist collapsed state ────────────────────────────────────────────────
   const toggleCollapsed = useCallback(() => {
@@ -723,15 +726,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {
         name: 'Tecnologia',
         // O pai abre o Início da EVA para a equipe de TI (D8). Quem não tem
-        // canManageIT (ex.: Financeiro com Gastos de TI, ou um gestor que só aprova
-        // sugestões da EVA) não pode cair em "Acesso Negado" — mesmo cuidado do item RH acima.
-        href: canManageIT ? '/it/inicio' : canApproveAgenteTI ? '/it/eva' : '/it/gastos',
+        // canManageIT (ex.: Financeiro com Gastos de TI, ou quem só aprova sugestões ou só
+        // configura a EVA) não pode cair em "Acesso Negado" — mesmo cuidado do item RH acima.
+        href: canManageIT ? '/it/inicio' : canApproveAgenteTI || canConfigureAgenteTI ? entradaEva : '/it/gastos',
         icon: Server,
-        anyOf: ['canManageIT', 'canViewGastosTI', 'canManageGastosTI', 'canApproveAgenteTI'],
+        anyOf: ['canManageIT', 'canViewGastosTI', 'canManageGastosTI', 'canApproveAgenteTI', 'canConfigureAgenteTI'],
         category: 'TECNOLOGIA',
         subItems: [
           { name: 'Início', href: '/it/inicio', icon: Sparkles, permission: 'canManageIT', badge: 'EVA' },
-          { name: 'EVA', href: '/it/eva', icon: Bot, anyOf: ['canManageIT', 'canApproveAgenteTI'], matchNested: true },
+          { name: 'EVA', href: entradaEva, icon: Bot, anyOf: ['canManageIT', 'canApproveAgenteTI', 'canConfigureAgenteTI'], matchNested: true },
           { name: 'Hub de Aplicações', href: '/it/dashboard', icon: Server, permission: 'canManageIT' },
           { name: 'Board', href: '/it/kanban', icon: KanbanSquare, permission: 'canManageIT' },
           { name: 'Mind Map', href: '/it/mindmap', icon: Map, permission: 'canManageIT' },
@@ -739,7 +742,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ],
       },
     ],
-    [boardAccess, canManageIT, canApproveAgenteTI]
+    [boardAccess, canManageIT, canApproveAgenteTI, canConfigureAgenteTI, entradaEva]
   );
 
   // ─── Navigation helpers ─────────────────────────────────────────────────────

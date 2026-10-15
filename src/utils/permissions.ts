@@ -34,10 +34,14 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // valores — e quem vê os gastos (ex.: Financeiro) não precisa do resto da TI.
   { key: 'canViewGastosTI', label: 'Visualizar Gastos de TI', group: 'Tecnologia' },
   { key: 'canManageGastosTI', label: 'Gerenciar Gastos de TI', group: 'Tecnologia' },
-  // EVA, o agente de TI (docs/plans/agente-ti): quem tem esta chave é "gestor" para a
-  // EVA — aprova o que ela propõe (D28), cobra pelo WhatsApp em nome do gestor e vê a
-  // fila de mensagens. O Início e a leitura da fila de sugestões ficam com canManageIT.
-  { key: 'canApproveAgenteTI', label: 'Aprovar sugestões e configurar a EVA', group: 'Tecnologia' },
+  // EVA, o agente de TI (docs/plans/agente-ti): três chaves separadas (D31). O Início e a
+  // leitura da fila de sugestões ficam com canManageIT.
+  // - Configurar: abas Membros e Configurações (telefones, liga/desliga, Granola, grupo).
+  // - Gestor: cobrar a equipe, avisar o grupo e ver a fila do WhatsApp.
+  // - Aprovar: aprovar e rejeitar o que a EVA propõe (D28), na tela e pelo WhatsApp.
+  { key: 'canConfigureAgenteTI', label: 'Configurar a EVA (membros, WhatsApp, Granola)', group: 'Tecnologia' },
+  { key: 'canManageAgenteTI', label: 'Gestor da EVA (cobrar a equipe, avisar o grupo, ver a fila do WhatsApp)', group: 'Tecnologia' },
+  { key: 'canApproveAgenteTI', label: 'Aprovar sugestões da EVA', group: 'Tecnologia' },
   { key: 'canManageWhitelist', label: 'Gerenciar Whitelist', group: 'Administração' },
   // ── Análises Clínicas ──────────────────────────────────────────────────────
   { key: 'canViewAnalisesClinicas', label: 'Visualizar Análises Clínicas', group: 'Análises Clínicas' },
@@ -101,7 +105,7 @@ export const SOLICITANTE_ROLE_ID = 'a0000000-0000-0000-0000-000000000003';
 const LEGACY_ROLE_PERMISSIONS: Record<UserRole, string[]> = {
   admin: ALL_PERMISSION_KEYS.map(p => p.key),
   operator: ALL_PERMISSION_KEYS.map(p => p.key).filter(
-    k => !['canViewDashboard', 'canManageUsers', 'canDeleteUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards', 'canViewColaboradores', 'canManageHolerites', 'canViewAllHolerites', 'canViewHoleritesEquipe', 'canViewGastosTI', 'canManageGastosTI', 'canApproveAgenteTI'].includes(k)
+    k => !['canViewDashboard', 'canManageUsers', 'canDeleteUsers', 'canManageRoles', 'canManageIT', 'canViewQualidade', 'canManageQualidade', 'canManageBoard', 'canManageAllBoards', 'canViewColaboradores', 'canManageHolerites', 'canViewAllHolerites', 'canViewHoleritesEquipe', 'canViewGastosTI', 'canManageGastosTI', 'canApproveAgenteTI', 'canConfigureAgenteTI', 'canManageAgenteTI'].includes(k)
   ),
   requester: ['canViewRequests', 'canAddRequests'],
 };

@@ -6,7 +6,7 @@ import EditarPropostaModal from './EditarPropostaModal';
 import EvaModal from './EvaModal';
 import { GlassCard, Segmented } from '../ui';
 import { EvaToast } from '../EvaToast';
-import { useEhGestor, usePessoas, useProjetosESprints, useResponsaveis, useSugestoes } from '../../hooks/useAgenteAdmin';
+import { usePapeisEva, usePessoas, useProjetosESprints, useResponsaveis, useSugestoes } from '../../hooks/useAgenteAdmin';
 import { agenteAdmin, type StatusSugestao, type Sugestao } from '../../services/agenteAdmin';
 import type { AvisoEva } from '../../hooks/useEvaHome';
 import { BOTAO_PERIGO, BOTAO_SECUNDARIO, CAMPO, ROTULO } from './estilos';
@@ -15,7 +15,7 @@ type Filtro = StatusSugestao | 'todas';
 
 /** /it/eva — fila de sugestões (issue 11). Gestor aprova (a EVA executa), edita ou rejeita. */
 const SugestoesPage: React.FC = () => {
-  const ehGestor = useEhGestor();
+  const { aprova: podeAprovar } = usePapeisEva();
   const pessoas = usePessoas();
   const responsaveis = useResponsaveis();
   const estrutura = useProjetosESprints();
@@ -82,7 +82,7 @@ const SugestoesPage: React.FC = () => {
               { value: 'todas', label: 'Todas' },
             ]}
           />
-          {ehGestor && filtro === 'pendente' && altasPendentes > 0 && (
+          {podeAprovar && filtro === 'pendente' && altasPendentes > 0 && (
             <button type="button" className={BOTAO_SECUNDARIO} onClick={() => void aprovarAltas()} disabled={ocupado !== null}>
               <CheckCheck className="w-4 h-4" /> Aprovar as {altasPendentes} de confiança alta
             </button>
@@ -104,7 +104,7 @@ const SugestoesPage: React.FC = () => {
               key={s.id}
               s={s}
               nome={pessoas.nome}
-              ehGestor={ehGestor}
+              podeAprovar={podeAprovar}
               ocupado={ocupado !== null}
               onAprovar={() => void executar(s, () => agenteAdmin.aprovar(s.id), 'Aprovada. A EVA executou a mudança.')}
               onEditar={() => setEditando(s)}

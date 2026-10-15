@@ -130,9 +130,11 @@ const MembrosPage: React.FC = () => {
           as respostas só valem de números cadastrados aqui.
         </p>
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          <strong className="font-semibold text-slate-600 dark:text-slate-300">Gestor</strong> é quem tem um cargo com a permissão "Aprovar sugestões e
-          configurar a EVA" (Usuários → Cargos e Permissões), ou é administrador. Pelo WhatsApp, só o gestor cobra, aprova ou rejeita
-          sugestões e manda avisos no grupo. Para isso, ele também precisa estar aqui, com o WhatsApp cadastrado.
+          Os papéis vêm do cargo de cada pessoa (Usuários → Cargos e Permissões), e o administrador tem os três:{' '}
+          <strong className="font-semibold text-slate-600 dark:text-slate-300">Configura</strong> (abas Membros e Configurações),{' '}
+          <strong className="font-semibold text-slate-600 dark:text-slate-300">Gestor</strong> (cobrar a equipe, avisar o grupo, ver a fila do WhatsApp) e{' '}
+          <strong className="font-semibold text-slate-600 dark:text-slate-300">Aprova</strong> (aprovar e rejeitar sugestões). Para usar o papel pelo
+          WhatsApp, a pessoa também precisa estar aqui, com o WhatsApp cadastrado.
         </p>
         {erro && <p className="text-sm text-red-600 dark:text-red-400">Não consegui carregar os membros: {erro}</p>}
         {!erro && !carregando && membros.length === 0 && (
@@ -153,8 +155,8 @@ const MembrosPage: React.FC = () => {
                     Apelidos: {m.apelidos.length ? m.apelidos.join(', ') : '—'} · WhatsApp: {formatarWhatsapp(m.whatsapp)}
                     {m.cargo ? ` · Cargo: ${m.cargo}` : ''}
                   </p>
-                  {m.gestor && !m.whatsapp && (
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Cadastre o WhatsApp para mandar comandos de gestor pela EVA.</p>
+                  {(m.papeis.gestor || m.papeis.aprova) && !m.whatsapp && (
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Cadastre o WhatsApp para usar o papel pelo WhatsApp da EVA.</p>
                   )}
                   {temDuplicado && <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">Há um apelido igual em outro membro: a EVA não vai saber quem é quem.</p>}
                   {falha && (
@@ -164,9 +166,19 @@ const MembrosPage: React.FC = () => {
                   )}
                 </div>
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {m.gestor && (
-                    <span title="Pelo WhatsApp, pode cobrar, aprovar ou rejeitar sugestões e mandar avisos no grupo">
+                  {m.papeis.configura && (
+                    <span title="Abas Membros e Configurações da EVA">
+                      <StatusBadge tone="neutral">Configura</StatusBadge>
+                    </span>
+                  )}
+                  {m.papeis.gestor && (
+                    <span title="Cobra a equipe, avisa o grupo e vê a fila do WhatsApp">
                       <StatusBadge tone="info">Gestor</StatusBadge>
+                    </span>
+                  )}
+                  {m.papeis.aprova && (
+                    <span title="Aprova e rejeita as sugestões da EVA, na tela e pelo WhatsApp">
+                      <StatusBadge tone="warning">Aprova</StatusBadge>
                     </span>
                   )}
                   {m.recebe_cobranca && <StatusBadge tone="success">Recebe cobrança</StatusBadge>}

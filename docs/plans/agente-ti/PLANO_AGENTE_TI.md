@@ -5,6 +5,7 @@
 > - **Fases 3 e 4 (14/Out/2026):** fila do WhatsApp com o script da VPS, cobrança diária e sob demanda, e respostas pelo webhook.
 > - **Comandos pelo WhatsApp e grupo da equipe (14/Out/2026, D29):** perguntas, cobranças, aprovação de sugestões e avisos, com SIM; fechamento do dia e resumo de reunião no grupo (§11.4, issue 18).
 > - **Agente pessoal no WhatsApp (14/Out/2026, D30):** conversa natural com memória, o dia da pessoa, pedidos de mudança no Kanban e lembretes pessoais (§11.5, issue 19).
+> - **Permissões separadas (15/Out/2026, D31):** configurar, gestor e aprovar sugestões viram três chaves (§7, issue 20).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
 > Protótipo da interface em `docs/flowlab_agent/` (§12).
@@ -16,7 +17,7 @@
 > - D24: a fila do WhatsApp é **só para gestores**.
 >
 > **Desenvolvimento autorizado em 13/Out.**
-> **Issues:** `.scratch/agente-ti/spec.md` e `.scratch/agente-ti/issues/01` a `19`.
+> **Issues:** `.scratch/agente-ti/spec.md` e `.scratch/agente-ti/issues/01` a `20`.
 
 ---
 
@@ -88,6 +89,7 @@ Entregáveis, na ordem em que geram valor:
 | **D28** | Como a EVA executa ações | ✅ **Fechado (13/Out):** a EVA **executa ações, sempre com aprovação prévia**.<br>• Toda ação (comentário, chat, reunião, WhatsApp) vira uma **proposta concreta** em `ti_agente_sugestoes`, com o que muda em cada card.<br>• **Gestor** (`canApproveAgenteTI`): vê a proposta num diálogo de confirmação. Confirmar é aprovar, e a EVA executa na hora, na mesma transação, registrando quem aprovou.<br>• **Os demais:** a proposta vai para a fila e espera um gestor.<br>• Nada muda no Kanban sem um gestor ter aprovado antes. Isso reforça a D6, não a substitui. | Fase 1 a 4 |
 | **D29** | Comandos pelo WhatsApp e grupo da equipe | ✅ **Fechado (14/Out), pedido do usuário ("quero seguir com todos os comandos"):** pelo WhatsApp, a EVA faz o que já fazia na tela, com confirmação. Detalhes na §11.4.<br>• **Qualquer membro:** atualiza os próprios cards (o fluxo da D12) e faz perguntas, com as mesmas regras do chat.<br>• **Só gestor** (`canApproveAgenteTI`, conferido de novo na hora do SIM): pedir cobranças, ver as sugestões pendentes numa lista numerada, aprovar ou rejeitar por número e mandar avisos no grupo.<br>• **Nada sai sem o SIM:** a EVA mostra o que vai fazer e espera "SIM" por 30 min.<br>• Aprovar pelo WhatsApp **é** a aprovação da D28: a mesma lógica da tela, em nome do gestor dono do número (`ti_agente_aprovar_sugestao_como`).<br>• **Grupo da equipe:** escolhido em Configurações, a partir da lista que a VPS lê do WAHA. Recebe o fechamento do dia (dias úteis, 18h), o resumo de cada reunião analisada e os avisos de gestor. Os dois primeiros têm liga/desliga, que nasce desligado. Tudo respeita o horário de cobrança (§10). | Fase 4 |
 | **D30** | A EVA como agente pessoal no WhatsApp | ✅ **Fechado (14/Out), pedido do usuário depois do primeiro teste real** ("acho que podemos aprimorar… para que ela possa agir como um agente pessoal"). Ele escolheu os quatro itens propostos e o tom "próxima e objetiva". Detalhes na §11.5.<br>• **Conversa natural:** a EVA lembra as últimas falas (24 h) e responde cumprimentos e perguntas na voz dela, pelo primeiro nome, com frases curtas e no máximo um emoji.<br>• **Assistente do dia:** conhece o dia de quem escreve (atrasadas, o que vence, paradas, o que a última reunião combinou para a pessoa e os lembretes) e sugere por onde começar.<br>• **Ações como no chat:** pedir pelo WhatsApp para criar card ou mudar prioridade, responsável, coluna ou prazo, ou comentar. Vira sugestão: o gestor confirma com SIM; os demais mandam para a fila.<br>• **Lembretes pessoais:** "me lembra amanhã às 9h de…", no horário da EVA (dia útil, das 7h às 20h).<br>• **Continua valendo:** nada muda no Kanban sem gestor (D28). As prévias de gestor e os registros continuam com texto montado pelo sistema, e a confirmação escrita pela IA só entra quando bate com o que foi registrado. | Fase 4 |
+| **D31** | Permissões separadas | ✅ **Fechado (15/Out), pedido do usuário** ("vamos separar as permissões, sobre quem pode configurar, quem é gestor e quem pode aprovar sugestões"). A chave `canApproveAgenteTI` fazia os três papéis; agora são três chaves (§7):<br>• `canConfigureAgenteTI`: configurar.<br>• `canManageAgenteTI`: gestor (cobrar, avisar o grupo, fila do WhatsApp).<br>• `canApproveAgenteTI`: aprovar sugestões.<br>• **Fila do WhatsApp no Início: só o gestor** (escolha do usuário). Quem configura lê as mensagens no banco, para o histórico de cada membro, o "Enviar teste" e a situação em Configurações.<br>• **Transição: nenhuma migration grava nos cargos** (escolha do usuário, como a D15). Quem tinha só a chave antiga fica só com Aprovar até as chaves novas serem marcadas. Admin tem as três no banco e no servidor.<br>• Migration `20261015120000_eva_papeis.sql` (RLS e `ti_agente_tem_permissao(uuid, chave)`, que substitui `ti_agente_eh_gestor`). | Fase 4 |
 
 ---
 
@@ -384,13 +386,15 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
 
 | Tabela | Ler | Gravar pelo cliente |
 |---|---|---|
-| `ti_agente_config` | `canManageIT` ou `canApproveAgenteTI` | update: `canApproveAgenteTI` |
-| `ti_agente_membros` | `canApproveAgenteTI` (tem telefone) | `canApproveAgenteTI` |
-| `ti_agente_reunioes` | `canManageIT` ou `canApproveAgenteTI` | nenhuma (só o servidor grava) |
+| `ti_agente_config` | `canManageIT`, ou um dos três papéis da EVA | update: `canConfigureAgenteTI` |
+| `ti_agente_membros` | `canConfigureAgenteTI` ou `canManageAgenteTI` (tem telefone) | `canConfigureAgenteTI` |
+| `ti_agente_reunioes` | `canManageIT`, `canApproveAgenteTI` ou `canConfigureAgenteTI` | nenhuma (só o servidor grava) |
 | `ti_agente_sugestoes` | `canManageIT` ou `canApproveAgenteTI` | nenhuma (só pelas RPCs) |
-| `ti_agente_mensagens` | `canApproveAgenteTI` | nenhuma (servidor e VPS, com service role) |
-| `ti_agente_chamadas_ia` | `canManageIT` ou `canApproveAgenteTI` (só metadados) | nenhuma (só o servidor grava) |
-| `ti_agente_comandos` (D29) | `canApproveAgenteTI` | nenhuma (só o servidor grava) |
+| `ti_agente_mensagens` | `canManageAgenteTI` ou `canConfigureAgenteTI` | nenhuma (servidor e VPS, com service role) |
+| `ti_agente_chamadas_ia` | `canManageIT`, `canApproveAgenteTI` ou `canConfigureAgenteTI` (só metadados) | nenhuma (só o servidor grava) |
+| `ti_agente_comandos` (D29) | `canManageAgenteTI` ou `canApproveAgenteTI` | nenhuma (só o servidor grava) |
+
+Desde a D31 (`20261015120000_eva_papeis.sql`). Antes, `canApproveAgenteTI` fazia os três papéis.
 
 **D29 (`20261014160000_eva_comandos_whatsapp.sql`):**
 - `ti_agente_comandos` guarda os pedidos de gestor pelo WhatsApp: `cobrar`, `aprovar`, `rejeitar`, `avisar_grupo` (status `aguardando` → `executado` ou `cancelado`) e a última lista de sugestões (`lista_sugestoes`, status `lista`). Cada um tem `dados` em jsonb e `expira_em`.
@@ -417,7 +421,7 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
   - Devolve o id da sugestão.
 - **`ti_agente_cobrancas_hoje() RETURNS integer`** (D24): `SECURITY DEFINER`, exige `canManageIT`. Conta as mensagens `cobranca` e `cobranca_manual` enviadas hoje (dia de Brasília), sem expor texto nem destinatário. Alimenta o indicador do Início para quem não é gestor.
 - **`ti_agente_aprovar_sugestao_como(p_id, p_proposta, p_aprovador)`** e **`ti_agente_rejeitar_sugestao_como(p_id, p_motivo, p_aprovador)`** (D29) são as duas de cima, com quem decide como parâmetro. É o caminho dos comandos pelo WhatsApp, onde não há sessão.
-  - Conferem `ti_agente_eh_gestor(p_aprovador)` (`20261014170000_eva_gestor_mesma_regra.sql`). É a regra de `current_user_has_permission` para um usuário dado: admin, ou cargo com `canApproveAgenteTI`, e nunca removido ou desativado.
+  - Conferem `ti_agente_tem_permissao(p_aprovador, 'canApproveAgenteTI')` (`20261015120000_eva_papeis.sql`, D31; antes, `ti_agente_eh_gestor`, de `20261014170000`). É a regra de `current_user_has_permission` para um usuário dado: admin, ou cargo com a chave, e nunca removido ou desativado.
   - A primeira versão usava `user_has_permission`, que tem um fallback de role legado e dá ao `operator` quase todas as chaves. O servidor já barrava antes, mas o banco agora tem a mesma regra da tela e das policies.
   - Só a `service_role` executa: `REVOKE` de `PUBLIC`, `anon` e `authenticated`.
   - Desde essa migration, `ti_agente_aprovar_sugestao` e `ti_agente_rejeitar_sugestao` conferem a sessão e delegam para elas, com `auth.uid()`.
@@ -426,28 +430,40 @@ Prefixo **`ti_agente_`**, seguindo Gastos de TI. O prefixo `it_` pertence às ta
 
 ## 7. Permissões, rotas e menu
 
-**Chave nova** em `src/utils/permissions.ts`, grupo `'Tecnologia'`:
-- `canApproveAgenteTI`: "Aprovar sugestões e configurar a EVA".
-- Entra na lista de exclusão do `operator` legado, com caso novo em `permissions.test.ts`. Nenhuma migration grava em `custom_roles` (D15).
+**Três chaves** em `src/utils/permissions.ts`, grupo `'Tecnologia'` (D31, 15/Out; até ali, `canApproveAgenteTI` fazia os três papéis):
+
+| Chave | Rótulo em Cargos e Permissões | O que libera |
+|---|---|---|
+| `canConfigureAgenteTI` | Configurar a EVA (membros, WhatsApp, Granola) | Abas Membros e Configurações, "Enviar teste" (membro e grupo), "Buscar reuniões agora"; aviso no sino quando o Claude para de responder |
+| `canManageAgenteTI` | Gestor da EVA (cobrar a equipe, avisar o grupo, ver a fila do WhatsApp) | Cobrar cards de outras pessoas (botão e WhatsApp), avisar o grupo pelo WhatsApp, a fila do WhatsApp e o "último contato" no Início, os comentários da EVA sobre a fila; aviso no sino de card bloqueado |
+| `canApproveAgenteTI` | Aprovar sugestões da EVA | Aprovar e rejeitar na tela e pelo WhatsApp, a lista "sugestões pendentes", aplicar na hora um pedido de mudança (chat, comentário, WhatsApp), reanalisar reunião, o chip "N sugestões aguardando"; aviso no sino de sugestão nova |
+
+- As três entram na lista de exclusão do `operator` legado, com casos em `permissions.test.ts`.
+- **Nenhuma migration grava em `custom_roles` (D15).** Na separação, o usuário escolheu marcar as chaves novas nos cargos ele mesmo.
+- **Admin:** no banco e no servidor, `role = 'admin'` tem as três.
+  - Na tela, um admin **com cargo** fica só com as chaves do cargo, como em todo o FlowLab (`AuthContext`: `customRole.permissions || legado`).
+  - A aba Membros mostra os papéis pela regra do banco (`papeisDoPerfil`).
+- O Início continua com `canManageIT`, então a fila e o botão Cobrar aparecem para quem tem as duas chaves.
+- Pelo WhatsApp, cada comando confere a chave dele, de novo, na hora do SIM.
 
 **Rotas** em `src/App.tsx`, no bloco de TI:
 
 | Rota | Tela | Permissão |
 |---|---|---|
 | `/it/inicio` | Início da EVA (o protótipo, §12) | `canManageIT` (D7) |
-| `/it/eva` | Administração da EVA, aba Sugestões | `anyOf: canManageIT, canApproveAgenteTI` |
+| `/it/eva` | Administração da EVA, aba Sugestões | `anyOf: canManageIT, canApproveAgenteTI, canConfigureAgenteTI` |
 | `/it/eva/reunioes` | Reuniões + colar reunião | idem |
-| `/it/eva/membros` | Membros | `canApproveAgenteTI` |
-| `/it/eva/configuracoes` | Liga/desliga, pasta do Granola, dias parado, situação das integrações | `canApproveAgenteTI` |
+| `/it/eva/membros` | Membros | `canConfigureAgenteTI` |
+| `/it/eva/configuracoes` | Liga/desliga, pasta do Granola, dias parado, grupo da equipe, situação das integrações | `canConfigureAgenteTI` |
 
-Quem tem só `canManageIT` vê as sugestões, mas os botões de aprovar e rejeitar só aparecem com `canApproveAgenteTI`.
+Quem tem só `canManageIT` vê as sugestões, mas os botões de aprovar e rejeitar só aparecem com `canApproveAgenteTI`. Quem só configura entra pela aba Configurações.
 
 **Menu** em `src/components/Layout.tsx`, como no README do handoff (`docs/flowlab_agent/design_handoff_eva_home/README.md`, passo 3):
 - **Início:** primeiro subitem de "Tecnologia", com ícone `Sparkles` e a pílula **EVA**.
   - A pílula pede uma propriedade nova, `badge?: string`, em `NavigationItem`.
   - O `Link` do subitem passa de `block` para `flex items-center`.
 - **EVA:** subitem novo para a administração (`/it/eva`), com `matchNested` (criado em Gastos de TI).
-- **Item pai "Tecnologia":** ganha `canApproveAgenteTI` no `anyOf`. Pela D8, o `href` do pai vira `/it/inicio` para quem tem `canManageIT`.
+- **Item pai "Tecnologia":** ganha `canApproveAgenteTI` e `canConfigureAgenteTI` no `anyOf`. Pela D8, o `href` do pai vira `/it/inicio` para quem tem `canManageIT`; para quem só configura, `/it/eva/configuracoes`.
 - Rotas novas na lista que abre o grupo automaticamente.
 
 ---
@@ -756,7 +772,8 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts` (testada); o executável só mon
 | `avisar_grupo` | gestor | Mostra o texto exato ("📢 Aviso de Ana: …") e, no SIM, grava na fila do grupo |
 | `outro` | todos | Ajuda curta com os comandos (a de gestor inclui os dele) |
 
-**Aprovar sem sessão:** pelo WhatsApp não há `auth.uid()`. `ti_agente_aprovar_sugestao_como(p_id, p_proposta, p_aprovador)` e `ti_agente_rejeitar_sugestao_como` recebem quem decide e conferem `ti_agente_eh_gestor(p_aprovador)`, a mesma regra das policies: admin, ou cargo com `canApproveAgenteTI`; o `operator` legado não conta, e usuário removido ou desativado também não.
+**Aprovar sem sessão:** pelo WhatsApp não há `auth.uid()`. `ti_agente_aprovar_sugestao_como(p_id, p_proposta, p_aprovador)` e `ti_agente_rejeitar_sugestao_como` recebem quem decide e conferem `ti_agente_tem_permissao(p_aprovador, 'canApproveAgenteTI')`, a mesma regra das policies: admin, ou cargo com a chave; o `operator` legado não conta, e usuário removido ou desativado também não.
+- **Cada comando confere o papel dele (D31):** cobrar e avisar o grupo exigem `canManageAgenteTI`; ver, aprovar e rejeitar sugestões, e aplicar na hora um pedido de mudança, exigem `canApproveAgenteTI`. A conferência se repete no SIM.
 - **Quem é gestor** aparece na aba Membros: selo "Gestor" e o nome do cargo (`ehGestorEva`, a mesma regra).
 - Só a service role executa essas duas funções; o cliente, não, para não se passar por outro gestor.
 - As RPCs da tela passaram a delegar para elas, então a lógica de aplicar a sugestão fica num lugar só.

@@ -1,6 +1,6 @@
 // API Route: POST /api/ti/agente-sincronizar
 // Botão "Buscar reuniões agora" (issue 10): a mesma rotina do cron, com a sessão do
-// usuário. Exige canManageIT ou canApproveAgenteTI.
+// usuário. Exige canManageIT, canApproveAgenteTI ou canConfigureAgenteTI (D31).
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { autorizar, ehFalha, tokenDoHeader } from '../ti-agente/autorizacao.js';
@@ -14,7 +14,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.status(405).json({ success: false, error: 'Use POST.' });
     return;
   }
-  const auth = await autorizar(tokenDoHeader(req.headers.authorization), ['canManageIT', 'canApproveAgenteTI']);
+  const auth = await autorizar(tokenDoHeader(req.headers.authorization), ['canManageIT', 'canApproveAgenteTI', 'canConfigureAgenteTI']);
   if (ehFalha(auth)) {
     res.status(auth.status).json(auth.payload);
     return;

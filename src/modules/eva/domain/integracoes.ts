@@ -43,9 +43,9 @@ function waha(cfg: ConfigIntegracoes | null, agora: number): IntegrationStatus {
 }
 
 /** `pendentes` só conta para gestor (D25): para os demais, o chip não aparece. */
-export function montarIntegracoes(cfg: ConfigIntegracoes | null, pendentes: number | null, ehGestor: boolean, agora = Date.now()): IntegrationStatus[] {
+export function montarIntegracoes(cfg: ConfigIntegracoes | null, pendentes: number | null, podeAprovar: boolean, agora = Date.now()): IntegrationStatus[] {
   const chips = [granola(cfg, agora), waha(cfg, agora)];
-  if (ehGestor && pendentes && pendentes > 0) {
+  if (podeAprovar && pendentes && pendentes > 0) {
     chips.push({
       id: 'sugestoes',
       name: `${pendentes} ${pendentes === 1 ? 'sugestão' : 'sugestões'}`,

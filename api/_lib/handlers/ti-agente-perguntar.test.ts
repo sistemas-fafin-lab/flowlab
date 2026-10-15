@@ -131,7 +131,7 @@ describe('POST /api/ti/agente-perguntar', () => {
   it('gestor leva a fila do WhatsApp no contexto', async () => {
     const { db, tabelas } = criarDb(0);
     dbMock.mockReturnValue(db);
-    autorizarMock.mockResolvedValue(usuario(['canApproveAgenteTI']));
+    autorizarMock.mockResolvedValue(usuario(['canManageAgenteTI']));
     gerarMock.mockResolvedValue({ ok: true, provedor: 'claude', motivoReserva: null, tentativas: [], dados: { resposta: 'ok', cards_citados: [], propostas: [] } });
     const { api } = res();
     await handler(req({ pergunta: 'quem foi cobrado?' }), api);

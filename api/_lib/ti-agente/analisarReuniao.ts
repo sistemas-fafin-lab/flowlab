@@ -5,7 +5,8 @@ import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
 import {
   INSTRUCOES_EXTRACAO, SchemaSugestoes, montarContexto, montarConteudo, validarSugestoes, type SugestaoValidada,
 } from './extracao.js';
-import { avisarGestores, lerContexto } from './dados.js';
+import { CHAVE_APROVAR, CHAVE_CONFIGURAR } from '../../../src/modules/eva/domain/papeis.js';
+import { avisarQuemTem, lerContexto } from './dados.js';
 import { enviarResumoDaReuniao } from './grupo.js';
 import { APP_BASE_URL } from '../appUrl.js';
 
@@ -91,7 +92,7 @@ export async function analisarReuniao(
     // A análise já está gravada: falha no aviso do sino não pode marcar a reunião como erro.
     try {
       if (sugestoes.length > 0) {
-        await avisarGestores(db, {
+        await avisarQuemTem(db, CHAVE_APROVAR, {
           titulo: 'Sugestões novas da EVA',
           conteudo: `${sugestoes.length} ${sugestoes.length === 1 ? 'sugestão' : 'sugestões'} da reunião "${reuniao.titulo}" aguardando aprovação.`,
           link: '/it/eva',
@@ -117,7 +118,7 @@ export async function analisarReuniao(
   }
 }
 
-/** Avisa os gestores quando o Gemini acabou de assumir a 3ª análise seguida (uma vez só). */
+/** Avisa quem configura a EVA quando o Gemini acabou de assumir a 3ª análise seguida (uma vez só). */
 async function avisarSeReservaSeguida(db: SupabaseClient, motivo: string | null) {
   const { data } = await db
     .from('ti_agente_reunioes')
@@ -129,7 +130,7 @@ async function avisarSeReservaSeguida(db: SupabaseClient, motivo: string | null)
   const seguidas = provedores.slice(0, SEGUIDAS_PARA_AVISO).every((p) => p === 'gemini') && provedores.length >= SEGUIDAS_PARA_AVISO;
   const primeiraVez = provedores.length === SEGUIDAS_PARA_AVISO || provedores[SEGUIDAS_PARA_AVISO] !== 'gemini';
   if (seguidas && primeiraVez) {
-    await avisarGestores(db, {
+    await avisarQuemTem(db, CHAVE_CONFIGURAR, {
       titulo: 'O Claude não está respondendo',
       conteudo: `O Gemini assumiu as últimas ${SEGUIDAS_PARA_AVISO} análises de reunião. Último erro: ${motivo ?? 'desconhecido'}`,
       link: '/it/eva/configuracoes',

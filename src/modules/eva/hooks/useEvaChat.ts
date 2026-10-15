@@ -14,7 +14,7 @@ interface Opcoes {
   primeiroNome: string;
   view: EvaView;
   /** Gestor confirma e a EVA executa; os demais mandam a proposta para a fila (D28). */
-  ehGestor: boolean;
+  podeAprovar: boolean;
   /** analisada_em da última reunião, para a abertura do drawer. */
   ultimaReuniaoEm: string | null;
   /** Chamado depois que uma proposta foi executada, para o Início reler o board. */
@@ -22,7 +22,7 @@ interface Opcoes {
 }
 
 /** Chat com a EVA (issue 16): pergunta pela ação `agente-perguntar`; nada muda sem confirmação. */
-export function useEvaChat({ primeiroNome, view, ehGestor, ultimaReuniaoEm, onExecutada }: Opcoes) {
+export function useEvaChat({ primeiroNome, view, podeAprovar, ultimaReuniaoEm, onExecutada }: Opcoes) {
   const [open, setOpen] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [conversa, setConversa] = useState<ChatMessage[]>([]);
@@ -78,15 +78,15 @@ export function useEvaChat({ primeiroNome, view, ehGestor, ultimaReuniaoEm, onEx
     if (p.estado !== 'aberta') return;
     mudarProposta(p.id, { estado: 'enviando', erro: undefined });
     try {
-      await agenteAdmin.propor({ tipo: p.tipo, cardId: p.card_id, proposta: p.proposta, trecho: p.trecho, origem: 'chat', aprovar: ehGestor });
+      await agenteAdmin.propor({ tipo: p.tipo, cardId: p.card_id, proposta: p.proposta, trecho: p.trecho, origem: 'chat', aprovar: podeAprovar });
       if (!alive.current) return;
-      mudarProposta(p.id, { estado: ehGestor ? 'executada' : 'na_fila' });
-      if (ehGestor) onExecutadaRef.current?.();
+      mudarProposta(p.id, { estado: podeAprovar ? 'executada' : 'na_fila' });
+      if (podeAprovar) onExecutadaRef.current?.();
     } catch (e) {
       if (!alive.current) return;
       mudarProposta(p.id, { estado: 'aberta', erro: e instanceof Error ? e.message : 'Não consegui registrar a proposta.' });
     }
-  }, [ehGestor, mudarProposta]);
+  }, [podeAprovar, mudarProposta]);
 
   const descartar = useCallback((p: PropostaEva) => {
     if (p.estado === 'aberta') mudarProposta(p.id, { estado: 'descartada', erro: undefined });

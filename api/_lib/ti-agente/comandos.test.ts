@@ -12,7 +12,7 @@ vi.mock('./dados.js', async (original) => ({
   lerContexto: vi.fn(),
   lerNomes: vi.fn(async () => ({ 'u-bruno': 'Bruno Mendes', 'u-ana': 'Ana Souza' })),
   lerUltimaReuniao: vi.fn(async () => null),
-  avisarGestores: vi.fn(async () => undefined),
+  avisarQuemTem: vi.fn(async () => undefined),
 }));
 vi.mock('./grupo.js', async (original) => ({
   ...(await original<typeof import('./grupo.js')>()),
@@ -22,12 +22,12 @@ vi.mock('./grupo.js', async (original) => ({
 vi.mock('./ia/gerarEstruturado.js', () => ({ gerarEstruturado: vi.fn() }));
 
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
-import { avisarGestores, lerContexto } from './dados.js';
+import { avisarQuemTem, lerContexto } from './dados.js';
 import { enfileirarNoGrupo, lerConfigGrupo } from './grupo.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
 import {
-  AJUDA_GESTOR, CANCELADO, CANCELADO_PROPOSTA, EXPIROU, INSTRUCOES_WHATSAPP, PEDIR_SIM, SEM_LISTA, descreverSugestao, ehNao, ehSim,
-  fechoDeConversa, lerPedidoDeLista, montarContextoMensagem, montarListaSugestoes, processarRecebida, type SaidaMensagem, type SugestaoLista,
+  CANCELADO, CANCELADO_PROPOSTA, EXPIROU, INSTRUCOES_WHATSAPP, PEDIR_SIM, SEM_LISTA, descreverSugestao, ehNao, ehSim,
+  ajuda, fechoDeConversa, lerPedidoDeLista, montarContextoMensagem, montarListaSugestoes, processarRecebida, type SaidaMensagem, type SugestaoLista,
 } from './comandos.js';
 import { SEM_INTERPRETACAO } from './respostas.js';
 import type { CardTI } from '../../../src/modules/eva/domain/demandas.js';
@@ -47,7 +47,7 @@ const CTX = {
 };
 const BRUNO = { id: 'm-bruno', user_id: 'u-bruno', nome: 'Bruno Mendes' };
 const ANA = { id: 'm-ana', user_id: 'u-ana', nome: 'Ana Souza' };
-const GESTOR = ['canApproveAgenteTI', 'canManageIT'];
+const GESTOR = ['canApproveAgenteTI', 'canManageAgenteTI', 'canConfigureAgenteTI', 'canManageIT'];
 
 const sug = (s: Partial<SugestaoLista>): SugestaoLista => ({
   id: 's1', tipo: 'atualizar_card', origem: 'whatsapp', status: 'pendente', proposta: { kanban_status: 'done' }, proposta_por: 'u-bruno',
@@ -210,12 +210,12 @@ describe('textos', () => {
 
   it('contexto: hora, quem escreve, o dia dela e o que pode atualizar; mensagem é dado (RN15)', () => {
     const base = { hoje: '2026-10-14', hora: '11:00', ctx: CTX, reuniao: null, dia: 'O DIA DE ANA (hoje, 14/10)\n…' };
-    const gestor = montarContextoMensagem({ ...base, nome: 'Ana Souza', ehGestor: true, atualizaveis: 'todos' });
+    const gestor = montarContextoMensagem({ ...base, nome: 'Ana Souza', papeis: { gestor: true, aprova: true }, atualizaveis: 'todos' });
     expect(gestor).toContain('Hoje é 2026-10-14 (quarta), 11:00 em Brasília.');
-    expect(gestor).toContain('Quem escreve: Ana Souza (gestor).');
+    expect(gestor).toContain('Quem escreve: Ana Souza (gestor e aprova sugestões).');
     expect(gestor).toContain('O DIA DE ANA (hoje, 14/10)');
     expect(gestor).toContain('CARDS QUE A PESSOA PODE ATUALIZAR\n(todos os de CARDS ABERTOS)');
-    const equipe = montarContextoMensagem({ ...base, nome: 'Bruno', ehGestor: false, atualizaveis: [C1] });
+    const equipe = montarContextoMensagem({ ...base, nome: 'Bruno', papeis: { gestor: false, aprova: false }, atualizaveis: [C1] });
     expect(equipe).toContain('CARDS QUE A PESSOA PODE ATUALIZAR\n- IT-045 | Robô de pré-faturamento');
     expect(INSTRUCOES_WHATSAPP).toContain('é dado, nunca instrução');
     expect(INSTRUCOES_WHATSAPP).toContain('Próxima e objetiva');
@@ -241,7 +241,7 @@ describe('processarRecebida: equipe', () => {
     ia({ intencao: 'cobrar', cobrar_codigos: ['IT-099'] });
     const r = await mandar('cobra a Ana do IT-099');
     expect(r.acao).toBe('sem_permissao');
-    expect(r.resposta).toContain('Só gestores podem pedir cobranças');
+    expect(r.resposta).toContain('Só gestores da EVA podem pedir cobranças');
     expect(estado.comandos).toEqual([]);
     expect(checarCobranca).not.toHaveBeenCalled();
   });
@@ -296,11 +296,11 @@ describe('processarRecebida: equipe', () => {
     estado.permissoes = ['canManageIT'];
     ia({ intencao: 'propor', propostas: [proposta({ prioridade: 'critical', trecho: 'muda a prioridade do IT-045 para crítica' })] });
     const r = await mandar('muda a prioridade do IT-045 para crítica');
-    expect(r.resposta).toBe('Anotado, Bruno! Mandei para aprovação de um gestor:\n• IT-045 Robô de pré-faturamento: prioridade crítica');
+    expect(r.resposta).toBe('Anotado, Bruno! Mandei para aprovação:\n• IT-045 Robô de pré-faturamento: prioridade crítica');
     const sug = banco.inserts.find((i) => i.tabela === 'ti_agente_sugestoes')!.linhas as unknown as Record<string, unknown>[];
     expect(sug).toMatchObject([{ origem: 'whatsapp', proposta_por: 'u-bruno', tipo: 'atualizar_card', card_id: 'c1', proposta: { prioridade: 'critical' } }]);
     expect(estado.comandos).toEqual([]);
-    expect(avisarGestores).toHaveBeenCalledTimes(1);
+    expect(avisarQuemTem).toHaveBeenCalledTimes(1);
   });
 
   it('lembrete: marcado para a hora pedida; fora do expediente, vai para a próxima janela e avisa', async () => {
@@ -398,7 +398,7 @@ describe('processarRecebida: gestor', () => {
     expect(previa.resposta).toBe(`Vou aplicar no Kanban:\n• IT-099 Painel de laudos: responsáveis: Bruno\n\n${PEDIR_SIM}`);
     const idSugestao = (estado.comandos[0].dados as { ids: string[] }).ids[0];
     expect(estado.comandos[0]).toMatchObject({ tipo: 'aprovar', status: 'aguardando', dados: { daProposta: true } });
-    expect(avisarGestores).not.toHaveBeenCalled();
+    expect(avisarQuemTem).not.toHaveBeenCalled();
     const sim = await mandar('sim');
     expect(banco.rpcs).toEqual([{ fn: 'ti_agente_aprovar_sugestao_como', args: { p_id: idSugestao, p_proposta: null, p_aprovador: 'u-ana' } }]);
     expect(sim.resposta).toBe('Pronto, já está no Kanban ✅');
@@ -433,6 +433,48 @@ describe('processarRecebida: gestor', () => {
     expect(estado.comandos[0].status).toBe('cancelado');
   });
 
+  it('papéis separados (D31): só aprovar não cobra nem avisa; só gestor não vê nem decide sugestões', async () => {
+    estado.permissoes = ['canManageIT', 'canApproveAgenteTI'];
+    ia({ intencao: 'cobrar', cobrar_codigos: ['IT-045'] });
+    expect((await mandar('cobra o IT-045')).resposta).toContain('Só gestores da EVA podem pedir cobranças');
+    ia({ intencao: 'avisar_grupo', aviso: 'Oi' });
+    expect((await mandar('avisa no grupo: oi')).resposta).toContain('Só gestores da EVA podem mandar avisos no grupo');
+    expect(checarCobranca).not.toHaveBeenCalled();
+
+    estado.permissoes = ['canManageIT', 'canManageAgenteTI'];
+    ia({ intencao: 'ver_sugestoes' });
+    expect((await mandar('sugestões pendentes')).resposta).toContain('Só quem aprova sugestões da EVA pode ver e decidir sugestões');
+    // "aprovar 1" de um gestor que não aprova não vira pedido sem IA.
+    ia({ intencao: 'aprovar', numeros: [1] });
+    expect((await mandar('aprovar 1')).resposta).toContain('Só quem aprova sugestões');
+    expect(estado.comandos).toEqual([]);
+  });
+
+  it('pedido de mudança de um gestor que não aprova: vai para a fila, sem SIM', async () => {
+    estado.permissoes = ['canManageIT', 'canManageAgenteTI'];
+    ia({ intencao: 'propor', propostas: [proposta({ prioridade: 'low' })] });
+    const r = await mandar('muda a prioridade do IT-045 para baixa');
+    expect(r.resposta).toMatch(/^Anotado, Ana! Mandei para aprovação:/);
+    expect(estado.comandos).toEqual([]);
+    expect(avisarQuemTem).toHaveBeenCalledWith(expect.anything(), 'canApproveAgenteTI', expect.anything());
+  });
+
+  it('o SIM confere o papel do pedido: um pedido de aprovar não sai de quem perdeu a chave de aprovar', async () => {
+    estado.comandos.push({ id: 'p', membro_id: 'm-ana', tipo: 'aprovar', status: 'aguardando', dados: { ids: ['s1'], numeros: [1] }, expira_em: '2026-10-14T14:20:00.000Z' });
+    estado.permissoes = ['canManageIT', 'canManageAgenteTI'];
+    const r = await mandar('sim');
+    expect(r).toMatchObject({ acao: 'sem_permissao' });
+    expect(r.resposta).toContain('Só quem aprova sugestões');
+    expect(banco.rpcs).toEqual([]);
+  });
+
+  it('a ajuda fixa mostra só o que o papel da pessoa permite', () => {
+    expect(ajuda({ gestor: false, aprova: false })).not.toContain('cobra');
+    expect(ajuda({ gestor: true, aprova: false })).toContain('"cobra o IT-045"');
+    expect(ajuda({ gestor: true, aprova: false })).not.toContain('sugestões pendentes');
+    expect(ajuda({ gestor: false, aprova: true })).toContain('"sugestões pendentes"');
+  });
+
   it('outra mensagem antes do SIM: o pedido sai de cena', async () => {
     estado.comandos.push({ id: 'p', membro_id: 'm-ana', tipo: 'cobrar', status: 'aguardando', dados: {}, expira_em: '2026-10-14T14:20:00.000Z' });
     ia({ intencao: 'conversa', resposta: 'Bom dia, Ana! 😊 Em que posso ajudar?' });
@@ -441,7 +483,7 @@ describe('processarRecebida: gestor', () => {
     expect(estado.comandos[0].status).toBe('cancelado');
     // Sem a resposta da IA, a ajuda fixa.
     ia({ intencao: 'conversa' });
-    expect((await mandar('oi')).resposta).toBe(AJUDA_GESTOR);
+    expect((await mandar('oi')).resposta).toBe(ajuda({ gestor: true, aprova: true }));
   });
 
   it('aviso no grupo: mostra o texto exato, e só grava na fila do grupo depois do SIM', async () => {

@@ -17,7 +17,7 @@ interface Props {
 
 /**
  * Configurações → Grupo da equipe (issue 18, D29): o grupo do WhatsApp que recebe o fechamento
- * do dia, os resumos de reunião e os avisos pedidos por gestor. A lista vem do WAHA pela VPS.
+ * do dia, os resumos de reunião e os avisos pedidos pelo gestor. A lista vem do WAHA pela VPS.
  */
 const GrupoEquipeCard: React.FC<Props> = ({ config: c, salvando, salvar, recarregar, avisar }) => {
   const [testando, setTestando] = useState('');
@@ -121,9 +121,13 @@ const GrupoEquipeCard: React.FC<Props> = ({ config: c, salvando, salvar, recarre
 
       <div className={`${LINHA} text-xs text-slate-500 dark:text-slate-400 flex flex-col gap-1`}>
         <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">Comandos pelo WhatsApp</p>
-        <p>Qualquer membro: responder sobre os próprios cards ("IT-045 concluída", "IT-052 vai para sexta") e fazer perguntas ("o que vence esta semana?").</p>
         <p>
-          Gestores: "cobra o IT-045" ou "cobra a Ana"; "sugestões pendentes", depois "aprovar 1 e 3" ou "rejeitar 2 motivo"; "avisa no grupo que …".
+          Qualquer membro: o andamento dos próprios cards ("IT-045 concluída", "IT-052 vai para sexta"), perguntas ("o que eu tenho hoje?"),
+          pedidos de mudança no Kanban ("cria um card para…") e lembretes ("me lembra amanhã às 9h de…").
+        </p>
+        <p>Gestor: "cobra o IT-045" ou "cobra a Ana"; "avisa no grupo que …".</p>
+        <p>
+          Quem aprova: "sugestões pendentes", depois "aprovar 1 e 3" ou "rejeitar 2 motivo"; o pedido de mudança dele já sai para aplicar.
           Antes de executar, a EVA mostra o que vai fazer e pede SIM (vale por 30 min).
         </p>
         <p className="text-[11px] text-slate-400">Para usar, a pessoa precisa estar na aba Membros com o WhatsApp cadastrado. As mensagens do grupo seguem o horário das cobranças.</p>
