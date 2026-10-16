@@ -6,7 +6,7 @@ Decisões e detalhes: `docs/plans/permissoes/PLANO_PERMISSOES_SEM_ROLE.md`.
 
 **Blocked by:** nada.
 
-**Status:** done no código (16/Out/2026); falta aplicar a migration, publicar e conferir no navegador
+**Status:** done (16/Out/2026): migration aplicada, merge no `main` (PR #14) e deploy no ar; falta a conferência no navegador
 
 - [x] Migration `20261015180000_perm_sem_role_legado.sql`:
   - cargo Administrador com todo o catálogo;
@@ -28,7 +28,7 @@ Decisões e detalhes: `docs/plans/permissoes/PLANO_PERMISSOES_SEM_ROLE.md`.
 - [x] Prévia de impacto, só leitura: `supabase/scripts/perm_sem_role_previa_impacto.sql`. Testada no PGlite em 12 cenários; depois dos ajustes, ela bate com a migration aplicada.
 - [ ] Rodar a prévia no projeto do app e ajustar cargos até sobrar só o que deve mudar (procedimento no plano, "Como aplicar sem impacto").
 - [ ] Cópia de segurança de `custom_roles` e `user_approval_limits` (schema `backup`).
-- [ ] Aplicar a migration e, logo em seguida, fazer o merge.
+- [x] Aplicar a migration e, logo em seguida, fazer o merge.
 - [ ] Conferir no navegador:
   - um ex-admin com outro cargo não vê mais o que o cargo não dá;
   - o cargo Administrador vê tudo;
@@ -48,3 +48,13 @@ Decisões e detalhes: `docs/plans/permissoes/PLANO_PERMISSOES_SEM_ROLE.md`.
 - **Tipos e lint:**
   - `tsc`: nenhum erro novo no front (os 25 do MindMap já existiam) e nenhum nas 11 entradas da API;
   - ESLint: nenhuma mensagem nas linhas alteradas.
+
+**16/Out/2026 — aplicada e publicada.**
+- O usuário aplicou a migration no projeto do app (`jqxe…`) e fez o merge (PR #14).
+- Conferência só com a chave pública, sem ler nem gravar dados:
+  - `perm_ultimo_que_gerencia_cargos` existe e o anon é barrado;
+  - as duas views foram recriadas e o anon não as lê mais;
+  - as funções da EVA e das alçadas continuam existindo.
+- Deploy em produção (`flow-lab.vercel.app`):
+  - o bundle já traz as chaves novas;
+  - a API responde 401 sem token.
