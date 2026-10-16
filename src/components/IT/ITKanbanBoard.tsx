@@ -417,7 +417,8 @@ const InlineAddTaskForm: React.FC<{
 const ITKanbanBoard: React.FC = () => {
   const { userProfile } = useAuth();
   const userId = userProfile?.id ?? '';
-  const isITManager = userProfile?.role === 'admin' || userProfile?.department === 'TI';
+  // Gerir projetos: a mesma chave das policies de it_projects/it_sprints (20261015180000).
+  const isITManager = (userProfile?.permissions ?? []).includes('canManageIT');
   const { notification, showError, showSuccess, hideNotification } = useNotification();
   const { sendNotification } = useNotificationCenter(userId);
   const [requests, setRequests] = useState<ITRequest[]>([]);

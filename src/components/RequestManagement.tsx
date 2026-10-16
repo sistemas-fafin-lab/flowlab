@@ -57,6 +57,10 @@ async function notifyStockOfNewRequest(requestId: string | undefined): Promise<v
 
 const RequestManagement: React.FC = () => {
   const { user, userProfile } = useAuth();
+  // Aprovar, iniciar cotação, finalizar e ver todos os setores vêm do cargo (canApproveRequests);
+  // quem não aprova segue o período de solicitações e vê só o próprio departamento.
+  const aprovaSolicitacoes = (userProfile?.permissions ?? []).includes('canApproveRequests');
+  const criaSolicitacoes = (userProfile?.permissions ?? []).includes('canAddRequests');
   const {
     requests,
     products,
@@ -309,7 +313,7 @@ const SPECIAL_PERIOD_DEPARTMENTS = ['Área técnica', 'Biologia Molecular', 'Qua
 
 useEffect(() => {
   const checkRequestPeriod = async () => {
-    if (userProfile?.role !== 'requester') return;
+    if (!userProfile || aprovaSolicitacoes) return;
 
     const userDepartment = userProfile?.department as string;
     const department = SPECIAL_PERIOD_DEPARTMENTS.includes(userDepartment) ? 'Área técnica' : 'general';
@@ -345,7 +349,7 @@ useEffect(() => {
     setShowTypeSelectionModal(false);
     
     // Para SC, sempre permitir. Para SM, verificar período
-    if (type === 'SC' || isPeriodOpen || userProfile?.role !== 'requester') {
+    if (type === 'SC' || isPeriodOpen || aprovaSolicitacoes) {
       setShowAddRequest(true);
     } else {
       showInfo(
@@ -389,10 +393,8 @@ useEffect(() => {
       )
     );
     
-    // Se for admin ou operator, pode ver todas as solicitações
-    // Se for requester, só pode ver as do seu departamento
-    const matchesUserAccess = userProfile?.role === 'admin' || 
-                             userProfile?.role === 'operator' || 
+    // Quem aprova vê todas as solicitações; os demais, só as do próprio departamento.
+    const matchesUserAccess = aprovaSolicitacoes ||
                              request.department === userProfile?.department;
     
     return matchesType && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
@@ -914,7 +916,7 @@ const handleCompleteRequest = async (request: Request) => {
     }
   };
 
-  const canApprove = userProfile?.role === 'admin' || userProfile?.role === 'operator';
+  const canApprove = aprovaSolicitacoes;
   
       const matchedProduct = products.find(
         (p) => p.name.toLowerCase().trim() === productSearch.toLowerCase().trim()
@@ -1639,7 +1641,7 @@ const handleCompleteRequest = async (request: Request) => {
                   <div>
                     <h3 className="font-semibold text-gray-800 dark:text-gray-100">Solicitação de Material (SM)</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">Para retirada de produtos do estoque</p>
-                    {!isPeriodOpen && userProfile?.role === 'requester' && (
+                    {!isPeriodOpen && !aprovaSolicitacoes && (
                       <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-medium">⚠ Período fechado</p>
                     )}
                   </div>
@@ -1901,7 +1903,7 @@ const handleCompleteRequest = async (request: Request) => {
           </div>
 
           {/* Departamento */}
-          {['admin', 'operator'].includes(userProfile?.role) && (
+          {aprovaSolicitacoes && (
             <div className="col-span-1 lg:col-span-2">
               <label className="block text-sm font-medium text-slate-600 dark:text-slate-300 mb-1.5">Departamento</label>
               <div className="relative">
@@ -1980,8 +1982,8 @@ const handleCompleteRequest = async (request: Request) => {
         </div>
       </div>
 
-      {/* Stats Cards - Apenas para admin e operator (informação de gestão) */}
-      {userProfile?.role !== 'requester' && (
+      {/* Stats Cards - Só para quem aprova (informação de gestão) */}
+      {aprovaSolicitacoes && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           {/* Pendentes */}
           <button
@@ -2082,7 +2084,7 @@ const handleCompleteRequest = async (request: Request) => {
       )}
 
       {/* Indicador de filtros ativos por cards */}
-      {selectedStatusFilters.size > 0 && userProfile?.role !== 'requester' && (
+      {selectedStatusFilters.size > 0 && aprovaSolicitacoes && (
         <div className="flex items-center gap-2 animate-fade-in">
           <span className="text-sm text-gray-500 dark:text-gray-400">Filtros ativos:</span>
           {Array.from(selectedStatusFilters).map(status => (
@@ -2362,7 +2364,7 @@ const handleCompleteRequest = async (request: Request) => {
                   <span className="hidden sm:inline">Rejeitar</span>
                 </button>
                 
-                {userProfile?.role === 'operator' && (
+                {aprovaSolicitacoes && (
                   <button
                     onClick={() => handleCompleteRequest(request)}
                     className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-xs sm:text-sm"
@@ -2383,7 +2385,7 @@ const handleCompleteRequest = async (request: Request) => {
                   <span className="hidden sm:inline">Iniciar Cotação</span>
                 </button>
             
-              {(['admin', 'operator'].includes(userProfile?.role) || userProfile?.name === request.requestedBy) && (
+              {(aprovaSolicitacoes || userProfile?.name === request.requestedBy) && (
                 <button
                   onClick={() => handleCompleteRequest(request)}
                   className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-xs sm:text-sm"
@@ -2448,12 +2450,12 @@ const handleCompleteRequest = async (request: Request) => {
         </div>
         <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-2">Nenhuma solicitação encontrada</h3>
         <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
-          {userProfile?.role === 'requester' 
+          {!aprovaSolicitacoes && criaSolicitacoes
             ? 'Crie a primeira solicitação de retirada de materiais.'
             : 'Nenhuma solicitação corresponde aos filtros aplicados.'
           }
         </p>
-        {userProfile?.role === 'requester' && (
+        {!aprovaSolicitacoes && criaSolicitacoes && (
           <button
             onClick={handleNewRequestClick}
             className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 inline-flex items-center"

@@ -55,7 +55,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
-import { hasPermission, getRoleLabel } from '../utils/permissions';
+import { hasPermission } from '../utils/permissions';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { useTheme } from '../hooks/useTheme';
@@ -497,7 +497,6 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [categories, setCategories] = useState<CategoryConfig[]>(DEFAULT_CATEGORIES);
   const [isCategoryEditorOpen, setIsCategoryEditorOpen] = useState(false);
 
-  const userRole = userProfile?.role || 'requester';
   const userPermissions = userProfile?.permissions || [];
   // Ver src/modules/board/domain/resolveBoardAccess: item "Board" some do menu
   // sem checar uma permission string — depende de custom_roles.board_id.
@@ -1025,7 +1024,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                     {userProfile?.name || user?.email}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {userProfile?.roleName || getRoleLabel(userRole as any)}
+                    {userProfile?.roleName || 'Sem cargo'}
                   </p>
                 </div>
                 <button
@@ -1154,7 +1153,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                         {userProfile?.name || user?.email}
                       </p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {userProfile?.roleName || getRoleLabel(userRole as any)}
+                        {userProfile?.roleName || 'Sem cargo'}
                       </p>
                       {userProfile?.department && (
                         <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">{userProfile.department}</p>

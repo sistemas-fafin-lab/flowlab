@@ -87,7 +87,7 @@ function consulta(linhas: Linha[], erro: string | undefined) {
 function criarSupabaseMock(cenario: Cenario = {}) {
   const usuario = cenario.usuario === undefined ? { id: 'user-1' } : cenario.usuario;
   const perfil = cenario.perfil === undefined
-    ? { role: 'user', custom_roles: { permissions: ['canManageBilling'] } }
+    ? { custom_roles: { permissions: ['canManageBilling'] } }
     : cenario.perfil;
   const tabelas: Record<string, Linha[]> = {
     user_profiles: perfil ? [{ id: 'user-1', ...perfil }] : [],
@@ -203,7 +203,7 @@ describe('GET /api/faturamento/titulos-aplis-previa', () => {
 
     it('só canViewBilling devolve 403: a prévia só existe para quem vai criar', async () => {
       const res = await executar(
-        { perfil: { role: 'user', custom_roles: { permissions: ['canViewBilling'] } } },
+        { perfil: { custom_roles: { permissions: ['canViewBilling'] } } },
         [lote()],
       );
       expect(res.statusCode).toBe(403);

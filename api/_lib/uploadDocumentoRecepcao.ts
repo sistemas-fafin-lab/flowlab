@@ -51,14 +51,13 @@ async function autorizarOperador(token: string | null): Promise<FlowResult | nul
 
   const { data: callerProfile } = await supabase
     .from('user_profiles')
-    .select('role, custom_roles(permissions)')
+    .select('custom_roles(permissions)')
     .eq('id', caller.user.id)
     .single();
 
   const callerPermissions: string[] =
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
-  const authorized =
-    callerProfile?.role === 'admin' || callerPermissions.includes('canManageColetas');
+  const authorized = callerPermissions.includes('canManageColetas');
 
   if (!authorized) {
     return { status: 403, payload: { success: false, error: 'Sem permissão para anexar documentos.' } };

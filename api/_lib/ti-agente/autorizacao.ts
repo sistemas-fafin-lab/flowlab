@@ -11,8 +11,8 @@ export interface FalhaAutorizacao {
 
 export interface Usuario {
   userId: string;
+  /** As do cargo, com a aba Permissões da EVA aplicada (D33). O role legado não conta. */
   permissoes: string[];
-  ehAdmin: boolean;
 }
 
 /** Extrai o access_token do header `Authorization: Bearer <jwt>`. */
@@ -22,7 +22,7 @@ export function tokenDoHeader(authorization: string | undefined): string | null 
 }
 
 export function tem(u: Usuario, permissao: string): boolean {
-  return u.ehAdmin || u.permissoes.includes(permissao);
+  return u.permissoes.includes(permissao);
 }
 
 /** Valida a sessão e exige QUALQUER uma das permissões de `algumaDe`. */
@@ -36,18 +36,16 @@ export async function autorizar(token: string | null, algumaDe: string[]): Promi
   const [{ data: perfil }, linha] = await Promise.all([
     supabase
       .from('user_profiles')
-      .select('role, deleted_at, custom_roles(permissions)')
+      .select('deleted_at, custom_roles(permissions)')
       .eq('id', caller.user.id)
       .single(),
     lerLinhaPapeis(supabase, caller.user.id),
   ]);
   if (!perfil || perfil.deleted_at) return { status: 403, payload: { success: false, error: 'Usuário inativo.' } };
 
-  const ehAdmin = perfil.role === 'admin';
   const usuario: Usuario = {
     userId: caller.user.id,
-    permissoes: comPapeisDaPessoa((perfil.custom_roles as { permissions?: string[] } | null)?.permissions, linha, ehAdmin),
-    ehAdmin,
+    permissoes: comPapeisDaPessoa((perfil.custom_roles as { permissions?: string[] } | null)?.permissions, linha),
   };
   if (!algumaDe.some((p) => tem(usuario, p))) {
     return { status: 403, payload: { success: false, error: 'Sem permissão para usar a EVA.' } };
@@ -63,18 +61,16 @@ export async function usuarioPorId(db: SupabaseClient, userId: string): Promise<
   const [{ data: perfil, error }, linha] = await Promise.all([
     db
       .from('user_profiles')
-      .select('role, deleted_at, disabled_at, custom_roles(permissions)')
+      .select('deleted_at, disabled_at, custom_roles(permissions)')
       .eq('id', userId)
       .maybeSingle(),
     lerLinhaPapeis(db, userId),
   ]);
   if (error) throw new Error(error.message);
   if (!perfil || perfil.deleted_at || perfil.disabled_at) return null;
-  const ehAdmin = perfil.role === 'admin';
   return {
     userId,
-    permissoes: comPapeisDaPessoa((perfil.custom_roles as { permissions?: string[] } | null)?.permissions, linha, ehAdmin),
-    ehAdmin,
+    permissoes: comPapeisDaPessoa((perfil.custom_roles as { permissions?: string[] } | null)?.permissions, linha),
   };
 }
 

@@ -45,7 +45,7 @@ export async function autorizarFaturamento(
 
   const { data: callerProfile } = await supabase
     .from('user_profiles')
-    .select('role, custom_roles(permissions)')
+    .select('custom_roles(permissions)')
     .eq('id', caller.user.id)
     .single();
 
@@ -53,8 +53,7 @@ export async function autorizarFaturamento(
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
   const aceitas: string[] =
     permissao === 'canViewBilling' ? ['canViewBilling', 'canManageBilling'] : ['canManageBilling'];
-  const authorized =
-    callerProfile?.role === 'admin' || aceitas.some((p) => callerPermissions.includes(p));
+  const authorized = aceitas.some((p) => callerPermissions.includes(p));
 
   if (!authorized) {
     return {

@@ -63,7 +63,7 @@ interface OperadorAutorizado {
 // ATENÇÃO: `token` é o JWT de SESSÃO do operador, não a FLOWLAB_API_KEY. Ver o
 // cabeçalho de api/analises-clinicas/get-documentos.ts.
 //
-// `permissoes` é anyOf: basta uma das keys (admin passa sempre). A correção de
+// `permissoes` é anyOf: basta uma das keys do cargo. A correção de
 // identidade usa uma key própria, então a busca de pacientes — que ela precisa —
 // aceita as duas.
 async function identificarOperador(
@@ -83,14 +83,13 @@ async function identificarOperador(
 
   const { data: callerProfile } = await supabase
     .from('user_profiles')
-    .select('name, email, role, custom_roles(permissions)')
+    .select('name, email, custom_roles(permissions)')
     .eq('id', caller.user.id)
     .single();
 
   const callerPermissions: string[] =
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
-  const authorized =
-    callerProfile?.role === 'admin' || permissoes.some((p) => callerPermissions.includes(p));
+  const authorized = permissoes.some((p) => callerPermissions.includes(p));
 
   if (!authorized) {
     return { erro: { status: 403, payload: { success: false, error: `Sem permissão para ${acao}.` } } };

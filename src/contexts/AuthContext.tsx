@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback } from "react";
 import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
-import { UserProfile, UserRole } from "../types";
-import { getPermissionsForLegacyRole } from "../utils/permissions";
+import { UserProfile } from "../types";
 import { comPapeisDaPessoa } from "../modules/eva/domain/papeis";
 
 interface AuthContextType {
@@ -15,11 +14,6 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ data: any; error: any }>;
   signOut: () => Promise<{ error: any }>;
   resetPassword: (email: string) => Promise<{ data: any; error: any }>;
-  updateUserRole: (
-    userId: string,
-    newRole: UserRole,
-    customRoleId?: string,
-  ) => Promise<{ success: boolean; error?: any }>;
   refreshProfile: () => void;
   authenticated: boolean;
   clearPendingAuthError: () => void;
@@ -63,18 +57,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (data) {
+        // As permissões vêm só do cargo (custom_roles). A coluna legada role não conta
+        // (20261015180000_perm_sem_role_legado): sem cargo, nenhuma permissão.
         const customRole = data.custom_roles as any;
         const permissions: string[] = comPapeisDaPessoa(
-          customRole?.permissions || getPermissionsForLegacyRole(data.role),
+          customRole?.permissions ?? [],
           papeisEva.error ? null : papeisEva.data,
-          data.role === "admin",
         );
 
         setUserProfile({
           id: data.id,
           email: data.email,
           name: data.name,
-          role: data.role,
           department: data.department,
           createdAt: data.created_at,
           updatedAt: data.updated_at,
@@ -196,36 +190,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return { error };
   };
 
-  const updateUserRole = async (
-    userId: string,
-    newRole: UserRole,
-    customRoleId?: string,
-  ) => {
-    try {
-      const updateData: any = {
-        role: newRole,
-        updated_at: new Date().toISOString(),
-      };
-      if (customRoleId) updateData.custom_role_id = customRoleId;
-
-      const { error } = await supabase
-        .from("user_profiles")
-        .update(updateData)
-        .eq("id", userId);
-
-      if (error) throw error;
-
-      if (userId === user?.id) {
-        await loadUserProfile(userId);
-      }
-
-      return { success: true };
-    } catch (error) {
-      console.error("Erro ao atualizar role do usuário:", error);
-      return { success: false, error };
-    }
-  };
-
   const clearPendingAuthError = useCallback(() => {
     setPendingAuthError(null);
   }, []);
@@ -246,7 +210,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         signIn,
         signOut,
         resetPassword,
-        updateUserRole,
         refreshProfile,
         authenticated: !!session,
         clearPendingAuthError,

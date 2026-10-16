@@ -4,8 +4,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { useDialog } from '../hooks/useDialog';
 import { supabase } from '../lib/supabase';
-import { UserProfile, UserRole, Department, CustomRole } from '../types';
-import { DEPARTMENTS, getRoleForDepartment, getRoleLabel, getDepartmentLabel, ALL_PERMISSION_KEYS, hasPermission } from '../utils/permissions';
+import { UserProfile, Department, CustomRole } from '../types';
+import { DEPARTMENTS, getDepartmentLabel, ALL_PERMISSION_KEYS, hasPermission } from '../utils/permissions';
 import { useBoards } from '../modules/board';
 import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
@@ -154,7 +154,6 @@ const UserManagement: React.FC = () => {
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role,
           department: user.department,
           createdAt: user.created_at,
           updatedAt: user.updated_at,
@@ -652,7 +651,9 @@ const UserManagement: React.FC = () => {
       (getDepartmentLabel(user.department) || '').toLowerCase().includes(q) ||
       (user.roleName || '').toLowerCase().includes(q);
     const matchesDept = filterDept === 'all' || user.department === filterDept;
-    const matchesRole = filterRole === 'all' || user.role === filterRole;
+    const matchesRole =
+      filterRole === 'all' ||
+      (filterRole === 'none' ? !user.customRoleId : user.customRoleId === filterRole);
     return matchesSearch && matchesDept && matchesRole;
   });
 
@@ -1139,28 +1140,18 @@ const UserManagement: React.FC = () => {
           <div className="flex items-center gap-2 flex-wrap">
             <SlidersHorizontal className="w-4 h-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
 
-            {/* Role filter */}
-            {(
-              [['all', 'Todos'], ['admin', 'Admin'], ['operator', 'Operador'], ['requester', 'Solicitante']] as [string, string][]
-            ).map(([val, label]) => (
-              <button
-                key={val}
-                onClick={() => setFilterRole(val)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all duration-150 whitespace-nowrap ${
-                  filterRole === val
-                    ? val === 'all'
-                      ? 'bg-gray-800 dark:bg-gray-100 text-white dark:text-gray-900 border-gray-800 dark:border-gray-100 shadow-sm'
-                      : val === 'admin'
-                      ? 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border-red-300 dark:border-red-700'
-                      : val === 'operator'
-                      ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
-                      : 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700'
-                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+            {/* Cargo filter (o perfil vem só do cargo; a coluna legada role não conta) */}
+            <select
+              value={filterRole}
+              onChange={e => setFilterRole(e.target.value)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-150 cursor-pointer"
+            >
+              <option value="all">Todos os cargos</option>
+              {customRoles.map(role => (
+                <option key={role.id} value={role.id}>{role.name}</option>
+              ))}
+              <option value="none">Sem cargo</option>
+            </select>
 
             {/* Dept filter */}
             <select
@@ -1211,28 +1202,19 @@ const UserManagement: React.FC = () => {
             </thead>
             <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-100 dark:divide-gray-700">
               {filteredUsers.map((user) => {
-                // Ícone e cor baseados no perfil do usuário
-                const getRoleIcon = (role: UserRole) => {
-                  switch (role) {
-                    case 'admin':
-                      return <ShieldCheck className="w-5 h-5 text-white" />;
-                    case 'operator':
-                      return <UserCog className="w-5 h-5 text-white" />;
-                    default:
-                      return <User className="w-5 h-5 text-white" />;
-                  }
-                };
-                
-                const getRoleGradient = (role: UserRole) => {
-                  switch (role) {
-                    case 'admin':
-                      return 'bg-gradient-to-br from-red-500 to-rose-500 shadow-red-500/25';
-                    case 'operator':
-                      return 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-blue-500/25';
-                    default:
-                      return 'bg-gradient-to-br from-green-500 to-emerald-500 shadow-green-500/25';
-                  }
-                };
+                // Ícone e cor pelo que o cargo permite: gerencia cargos (administração),
+                // aprova solicitações (operação) ou nenhum dos dois.
+                const nivel: 'admin' | 'operacao' | 'basico' = hasPermission(user.permissions, 'canManageRoles')
+                  ? 'admin'
+                  : hasPermission(user.permissions, 'canApproveRequests') ? 'operacao' : 'basico';
+                const roleIcon = nivel === 'admin'
+                  ? <ShieldCheck className="w-5 h-5 text-white" />
+                  : nivel === 'operacao' ? <UserCog className="w-5 h-5 text-white" /> : <User className="w-5 h-5 text-white" />;
+                const roleGradient = nivel === 'admin'
+                  ? 'bg-gradient-to-br from-red-500 to-rose-500 shadow-red-500/25'
+                  : nivel === 'operacao'
+                  ? 'bg-gradient-to-br from-blue-500 to-indigo-500 shadow-blue-500/25'
+                  : 'bg-gradient-to-br from-green-500 to-emerald-500 shadow-green-500/25';
 
                 // Get approval limit info
                 const userLimit = userApprovalLimits[user.id];
@@ -1244,8 +1226,8 @@ const UserManagement: React.FC = () => {
                 <tr key={user.id} className="hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-colors duration-150">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mr-3 shadow-md ${getRoleGradient(user.role)}`}>
-                        {getRoleIcon(user.role)}
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center mr-3 shadow-md ${roleGradient}`}>
+                        {roleIcon}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
@@ -1269,11 +1251,11 @@ const UserManagement: React.FC = () => {
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                      user.role === 'admin' ? 'bg-gradient-to-r from-red-100 to-rose-100 dark:from-red-900/50 dark:to-rose-900/50 text-red-800 dark:text-red-200' :
-                      user.role === 'operator' ? 'bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 text-blue-800 dark:text-blue-200' :
+                      nivel === 'admin' ? 'bg-gradient-to-r from-red-100 to-rose-100 dark:from-red-900/50 dark:to-rose-900/50 text-red-800 dark:text-red-200' :
+                      nivel === 'operacao' ? 'bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/50 dark:to-indigo-900/50 text-blue-800 dark:text-blue-200' :
                       'bg-gradient-to-r from-green-100 to-emerald-100 dark:from-green-900/50 dark:to-emerald-900/50 text-green-800 dark:text-green-200'
                     }`}>
-                      {user.roleName || getRoleLabel(user.role)}
+                      {user.roleName || 'Sem cargo'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">

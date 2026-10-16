@@ -15,7 +15,7 @@ export interface FalhaAutorizacao {
   payload: Record<string, unknown>;
 }
 
-/** Devolve o `userId` da sessão validada quando autorizado (`canManageHolerites` ou admin legado), ou a falha a devolver. */
+/** Devolve o `userId` da sessão validada quando o cargo tem `canManageHolerites`, ou a falha a devolver. */
 export async function autorizarRhERetornarUsuario(token: string | null): Promise<FalhaAutorizacao | { userId: string }> {
   if (!token) {
     return { status: 401, payload: { success: false, error: 'Token de autenticação ausente.' } };
@@ -29,13 +29,13 @@ export async function autorizarRhERetornarUsuario(token: string | null): Promise
 
   const { data: callerProfile } = await supabase
     .from('user_profiles')
-    .select('role, custom_roles(permissions)')
+    .select('custom_roles(permissions)')
     .eq('id', caller.user.id)
     .single();
 
   const callerPermissions: string[] =
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
-  const authorized = callerProfile?.role === 'admin' || callerPermissions.includes('canManageHolerites');
+  const authorized = callerPermissions.includes('canManageHolerites');
 
   if (!authorized) {
     return { status: 403, payload: { success: false, error: 'Sem permissão para gerenciar holerites.' } };

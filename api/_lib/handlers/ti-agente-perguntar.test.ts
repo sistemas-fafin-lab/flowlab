@@ -70,7 +70,7 @@ function res() {
   return { r, api: api as unknown as VercelResponse };
 }
 
-const usuario = (permissoes: string[]) => ({ userId: 'u-bruno', permissoes, ehAdmin: false });
+const usuario = (permissoes: string[]) => ({ userId: 'u-bruno', permissoes });
 
 beforeEach(() => {
   vi.clearAllMocks();

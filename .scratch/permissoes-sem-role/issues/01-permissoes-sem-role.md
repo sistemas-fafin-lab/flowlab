@@ -1,0 +1,51 @@
+# 01 — Permissões só pelo cargo: o FlowLab para de ler `user_profiles.role`
+
+**What to build:** o usuário viu, na aba Permissões da EVA, pessoas marcadas como "Administrador" que ele já tinha trocado de cargo. A causa: a coluna legada `role` (`admin`/`operator`/`requester`) ainda valia no banco, no servidor e no front, por cima do cargo. Pedido (15/Out): "a coluna role é legacy; o FlowLab deve consultar integralmente a tabela custom_roles".
+
+Decisões e detalhes: `docs/plans/permissoes/PLANO_PERMISSOES_SEM_ROLE.md`.
+
+**Blocked by:** nada.
+
+**Status:** done no código (16/Out/2026); falta aplicar a migration, publicar e conferir no navegador
+
+- [x] Migration `20261015180000_perm_sem_role_legado.sql`:
+  - cargo Administrador com todo o catálogo;
+  - trava de "ninguém administrando";
+  - alçadas explícitas;
+  - funções, views e 32 policies pela chave do cargo;
+  - trigger contra se promover pela API.
+- [x] Seis chaves novas no catálogo: `canApprovePayments`, `canManageMaintenance`, `canManageEmailTemplates`, `canViewAllStockDepart`, `canViewAllNotifications`, `canAdministerQuotations`.
+- [x] Servidor: oito autorizações sem `role === 'admin'`; a EVA sem `ehAdmin`; `createUser` sem gravar `role`.
+- [x] Front:
+  - `AuthContext` só com o cargo;
+  - `UserProfile` sem `role`;
+  - os helpers legados saíram;
+  - Solicitações, Pagamentos, Manutenção, TI, Estoque, templates e Cotações pelas chaves;
+  - Usuários filtra por cargo.
+- [x] Testes:
+  - PGlite: 55 cenários (`testar-perm-sem-role.mjs`, fora do repositório);
+  - vitest: o cargo Administrador da migration = o catálogo; a EVA sem admin.
+- [ ] Antes de aplicar: conferir quem tem o cargo Administrador (consulta no plano).
+- [ ] Aplicar a migration no projeto do app.
+- [ ] Marcar as chaves novas nos cargos que precisam:
+  - Operador: Aprovar Pagamentos, Gerenciar Manutenção;
+  - outros cargos, conforme o caso.
+- [ ] Conferir no navegador:
+  - um ex-admin com outro cargo não vê mais o que o cargo não dá;
+  - o cargo Administrador vê tudo;
+  - a aba Permissões da EVA não mostra mais "Administrador".
+
+## Comments
+
+**16/Out/2026 — implementado no código.**
+- **Inventário:** três varreduras em paralelo (banco, servidor e front) acharam:
+  - 14 funções, 3 views e 30 policies que liam `role`;
+  - 12 leituras no servidor;
+  - cerca de 75 no front.
+- **Achado de segurança:** "Allow users to update their own profile" (20250616124417) não restringe colunas. Pela API, qualquer pessoa logada podia trocar o próprio `custom_role_id`, `role` ou `department`. O trigger `perm_protege_perfil` fecha isso para a escrita direta do cliente. Policies, RPCs SECURITY DEFINER e o servidor seguem funcionando.
+- **Testes:**
+  - PGlite: 55 cenários, incluindo a migration recusada sem administrador, a reaplicação, as alçadas, a trava do último que gerencia cargos, o trigger e as policies de TI, manutenção, templates, cargos e agenda;
+  - vitest: 1468.
+- **Tipos e lint:**
+  - `tsc`: nenhum erro novo no front (os 25 do MindMap já existiam) e nenhum nas 11 entradas da API;
+  - ESLint: nenhuma mensagem nas linhas alteradas.

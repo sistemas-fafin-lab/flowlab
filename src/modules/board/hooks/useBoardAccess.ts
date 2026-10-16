@@ -4,9 +4,8 @@ import { resolveBoardAccess, type BoardAccess } from '../domain/resolveBoardAcce
 
 /**
  * Usuário sem `custom_role_id` não tem cargo algum — passa `null` para
- * `resolveBoardAccess`, que trata isso como "sem acesso", mesmo que o
- * fallback de permissions de role legada (`getPermissionsForLegacyRole`)
- * concedesse `canManageAllBoards` a um `admin` sem cargo. Ver
+ * `resolveBoardAccess`, que trata isso como "sem acesso". As permissões vêm só
+ * do cargo (a coluna legada role não conta desde 20261015180000). Ver
  * `resolveBoardAccess.ts` e a nota em `utils/permissions.ts`.
  */
 export function useBoardAccess(): BoardAccess {

@@ -100,10 +100,10 @@ export function registradorDeChamadas(db: SupabaseClient) {
 }
 
 /**
- * Ids das pessoas ativas com a chave, pela regra de ti_agente_tem_permissao: admin; nas chaves da
- * EVA, a linha da aba Permissões quando existe (D33); senão, o cargo (D31). Cada aviso do sino vai
- * para quem tem o papel dele: sugestão nova para quem aprova, bloqueio para o gestor, falha da IA
- * para quem configura.
+ * Ids das pessoas ativas com a chave, pela regra de ti_agente_tem_permissao: nas chaves da EVA, a
+ * linha da aba Permissões quando existe (D33); senão, o cargo (D31). O role legado não conta
+ * (20261015180000). Cada aviso do sino vai para quem tem o papel dele: sugestão nova para quem
+ * aprova, bloqueio para o gestor, falha da IA para quem configura.
  */
 export async function lerQuemTem(db: SupabaseClient, chave: string): Promise<string[]> {
   // custom_roles.permissions é jsonb: o filtro vai como JSON (["…"]). Um array JS viraria
@@ -117,14 +117,14 @@ export async function lerQuemTem(db: SupabaseClient, chave: string): Promise<str
   const ids = (cargos ?? []).map((c) => c.id as string);
   const concedidos = [...linhas].filter(([, l]) => temNaLinha(l)).map(([id]) => id);
   const filtro = [
-    'role.eq.admin',
     ids.length ? `custom_role_id.in.(${ids.join(',')})` : '',
     concedidos.length ? `id.in.(${concedidos.join(',')})` : '',
   ].filter(Boolean).join(',');
-  const { data: pessoas, error: e2 } = await db.from('user_profiles').select('id, role').is('deleted_at', null).is('disabled_at', null).or(filtro);
+  if (!filtro) return [];
+  const { data: pessoas, error: e2 } = await db.from('user_profiles').select('id').is('deleted_at', null).is('disabled_at', null).or(filtro);
   if (e2) throw new Error(e2.message);
   return (pessoas ?? [])
-    .filter((p) => p.role === 'admin' || !linhas.has(p.id as string) || temNaLinha(linhas.get(p.id as string)!))
+    .filter((p) => !linhas.has(p.id as string) || temNaLinha(linhas.get(p.id as string)!))
     .map((p) => p.id as string);
 }
 

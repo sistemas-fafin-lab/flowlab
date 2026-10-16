@@ -29,7 +29,6 @@ interface ModuleCard {
 const RequestHub: React.FC = () => {
   const navigate = useNavigate();
   const { userProfile } = useAuth();
-  const userRole = userProfile?.role || 'requester';
   const userPermissions = userProfile?.permissions || [];
 
   const modules: ModuleCard[] = [
