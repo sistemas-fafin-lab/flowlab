@@ -25,11 +25,10 @@ Decisões e detalhes: `docs/plans/permissoes/PLANO_PERMISSOES_SEM_ROLE.md`.
 - [x] Testes:
   - PGlite: 55 cenários (`testar-perm-sem-role.mjs`, fora do repositório);
   - vitest: o cargo Administrador da migration = o catálogo; a EVA sem admin.
-- [ ] Antes de aplicar: conferir quem tem o cargo Administrador (consulta no plano).
-- [ ] Aplicar a migration no projeto do app.
-- [ ] Marcar as chaves novas nos cargos que precisam:
-  - Operador: Aprovar Pagamentos, Gerenciar Manutenção;
-  - outros cargos, conforme o caso.
+- [x] Prévia de impacto, só leitura: `supabase/scripts/perm_sem_role_previa_impacto.sql`. Testada no PGlite em 12 cenários; depois dos ajustes, ela bate com a migration aplicada.
+- [ ] Rodar a prévia no projeto do app e ajustar cargos até sobrar só o que deve mudar (procedimento no plano, "Como aplicar sem impacto").
+- [ ] Cópia de segurança de `custom_roles` e `user_approval_limits` (schema `backup`).
+- [ ] Aplicar a migration e, logo em seguida, fazer o merge.
 - [ ] Conferir no navegador:
   - um ex-admin com outro cargo não vê mais o que o cargo não dá;
   - o cargo Administrador vê tudo;

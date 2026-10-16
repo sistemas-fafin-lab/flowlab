@@ -74,12 +74,34 @@ Na prática: quem tinha `role = 'admin'` e trocou de cargo continuava administra
 - as cópias antigas em `docs/standalone-modules/`;
 - o script `supabase/scripts/prod-upgrade-user-soft-delete.sql`.
 
-## Antes de aplicar
+## Como aplicar sem impacto para os usuários
 
-1. Confira quem tem o cargo Administrador. Depois da migration, só essas pessoas são administradoras:
+O código só lê o cargo. Para ninguém perceber a mudança, cada pessoa precisa ter **no cargo**, no momento da troca, o acesso que hoje vem do role. É um ajuste de dados, feito antes.
+
+1. **Prévia (só leitura):** rode `supabase/scripts/perm_sem_role_previa_impacto.sql` no SQL Editor do projeto do app. Cada linha é uma pessoa ativa que vai perder ou ganhar algo:
+   - o que vinha do role `admin` e o cargo não tem (por chave);
+   - o que vinha do role `operator`: Pagamentos, Manutenção, os dias de exceção da agenda, ver e criar cotações;
+   - o que vinha do departamento TI;
+   - quem está sem cargo;
+   - o que o cargo Administrador passa a dar a quem já está nele;
+   - o que as decisões abrem a mais: apagar itens de TI com Gerenciar TI, editar alçadas com Gerenciar Usuários.
+2. **Ajuste, linha por linha:**
+   - perda que você quer, como quem você já tirou de admin: deixe;
+   - perda que não deve acontecer: coloque a pessoa no cargo certo (ex.: Administrador) ou acrescente as chaves ao cargo dela. As chaves novas já podem ser gravadas antes do deploy:
+     ```sql
+     UPDATE custom_roles SET permissions = permissions || '["canApprovePayments","canManageMaintenance"]'::jsonb
+      WHERE name = 'Operador';
+     ```
+     Acrescentar a um cargo vale para todos que estão nele. Se só uma parte deve receber, crie outro cargo para essa parte;
+   - sem cargo: dê um cargo à pessoa.
+3. **Repita a prévia** até sobrar só o que você quer que mude.
+4. **Cópia de segurança** (num schema que a API não expõe):
    ```sql
-   SELECT p.name, p.email, cr.name AS cargo
-     FROM user_profiles p JOIN custom_roles cr ON cr.id = p.custom_role_id
-    WHERE cr.name = 'Administrador' AND p.deleted_at IS NULL AND p.disabled_at IS NULL;
+   CREATE SCHEMA IF NOT EXISTS backup;
+   CREATE TABLE backup.custom_roles_20261016 AS SELECT * FROM public.custom_roles;
+   CREATE TABLE backup.user_approval_limits_20261016 AS SELECT * FROM public.user_approval_limits;
    ```
-2. Quem usa o role `operator` para aprovar pagamentos ou cuidar da manutenção precisa das chaves novas no cargo.
+5. **Aplique a migration e faça o merge logo em seguida, nessa ordem.**
+   - Entre os dois, o código antigo ainda aceita o role. Com a prévia limpa, isso não muda nada para ninguém.
+   - Ao contrário (código novo antes da migration), quem é admin perderia na tela as chaves que o cargo Administrador ainda não tem.
+6. **Depois do deploy,** as pessoas veem as telas novas quando recarregarem o FlowLab. Confira com um administrador e um operador.
