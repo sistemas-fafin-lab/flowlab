@@ -444,7 +444,8 @@ const ITProjectMindMap: React.FC = () => {
     return () => observer.disconnect();
   }, [visionData, selectedProjectId]);
 
-  const isManager = userProfile?.role === 'admin' || userProfile?.department === 'TI';
+  // Criar e editar o mapa: a mesma chave da policy de it_project_visions (20261015180000).
+  const isManager = (userProfile?.permissions ?? []).includes('canManageIT');
 
   // Fetch projects
   useEffect(() => {

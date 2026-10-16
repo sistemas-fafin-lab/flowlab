@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { checarAvisoPessoal, enviarAvisoPessoal } from './aviso.js';
 import type { Usuario } from './autorizacao.js';
 
-const GESTOR: Usuario = { userId: 'u-ana', permissoes: ['canManageIT', 'canManageAgenteTI'], ehAdmin: false };
-const SO_APROVA: Usuario = { userId: 'u-ana', permissoes: ['canApproveAgenteTI'], ehAdmin: false };
+const GESTOR: Usuario = { userId: 'u-ana', permissoes: ['canManageIT', 'canManageAgenteTI'] };
+const SO_APROVA: Usuario = { userId: 'u-ana', permissoes: ['canApproveAgenteTI'] };
 
 type Membro = { id: string; user_id: string; whatsapp: string | null; ativo: boolean; perfil: { name: string; deleted_at: string | null; disabled_at: string | null } | null };
 const BRUNO: Membro = { id: 'm-bruno', user_id: 'u-bruno', whatsapp: '5561999924986', ativo: true, perfil: { name: 'Bruno Mendes', deleted_at: null, disabled_at: null } };

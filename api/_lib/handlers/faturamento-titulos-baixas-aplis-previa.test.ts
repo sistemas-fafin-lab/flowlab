@@ -83,7 +83,7 @@ interface Cenario {
 
 function mockarSupabase(cenario: Cenario = {}) {
   const usuario = cenario.usuario === undefined ? { id: 'user-1' } : cenario.usuario;
-  const perfil = { id: 'user-1', role: 'user', custom_roles: { permissions: cenario.permissoes ?? ['canManageBilling'] } };
+  const perfil = { id: 'user-1', custom_roles: { permissions: cenario.permissoes ?? ['canManageBilling'] } };
   getSupabaseAdminClientMock.mockReturnValue({
     auth: {
       getUser: vi.fn(async () => (usuario

@@ -88,8 +88,8 @@ const MaintenanceRequestManagement: React.FC = () => {
   const [dateFilter, setDateFilter] = useState('');
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<string>>(new Set());
 
-  // Permission check
-  const canManage = userProfile?.role === 'admin' || userProfile?.role === 'operator';
+  // Iniciar, concluir, excluir e ver todas: a mesma chave das policies de maintenance_requests (20261015180000).
+  const canManage = (userProfile?.permissions ?? []).includes('canManageMaintenance');
 
   // Toggle status card filter (multi-select)
   const toggleStatusCardFilter = (status: string) => {
@@ -891,8 +891,8 @@ const MaintenanceRequestManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Cards - Apenas para admin e operator (informação de gestão) */}
-      {userProfile?.role !== 'requester' && (
+      {/* Stats Cards - Só para quem gerencia a manutenção (informação de gestão) */}
+      {canManage && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           {/* Pendentes */}
           <button
@@ -993,7 +993,7 @@ const MaintenanceRequestManagement: React.FC = () => {
       )}
 
       {/* Indicador de filtros ativos por cards */}
-      {selectedStatusFilters.size > 0 && userProfile?.role !== 'requester' && (
+      {selectedStatusFilters.size > 0 && canManage && (
         <div className="flex items-center gap-2 animate-fade-in">
           <span className="text-sm text-gray-500 dark:text-gray-400">Filtros ativos:</span>
           {Array.from(selectedStatusFilters).map(status => (

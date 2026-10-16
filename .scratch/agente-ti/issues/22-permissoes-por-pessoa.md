@@ -13,7 +13,7 @@ Plano: §2 (D33), §6.2, §6.3 e §7.
 
 **Blocked by:** 20.
 
-**Status:** done no código (15/Out/2026); falta aplicar a migration, publicar e conferir no navegador
+**Status:** done (15/Out/2026): migration aplicada e conferida, merge no `main` (PR #13); falta a conferência no navegador
 
 - [x] Migration `20261015160000_eva_papeis_por_pessoa.sql`:
   - tabela `ti_agente_papeis`;
@@ -34,7 +34,7 @@ Plano: §2 (D33), §6.2, §6.3 e §7.
   - responsáveis da sugestão com `MultiSelect`;
   - o `<select>` nativo do grupo saiu;
   - liga/desliga de Configurações e do grupo, e "Recebe cobrança"/"Ativo" de Membros, com `Switch`.
-- [ ] Aplicar a migration no projeto do app.
+- [x] Aplicar a migration no projeto do app.
 - [ ] Conferir no navegador:
   - dar Gestor a alguém sem cargo e ver o botão Cobrar para essa pessoa;
   - tirar Aprova de quem tem pelo cargo;
@@ -51,3 +51,9 @@ Plano: §2 (D33), §6.2, §6.3 e §7.
   - a aba Permissões com o seletor aberto.
 - **Achado na conferência:** o cartão de vidro (`backdrop-blur`) empilha à parte, e a lista aberta ficava atrás do cartão de baixo. Os cartões com seletor (Permissões, Grupo da equipe) ganharam `relative z-10`.
 - **Escopo dos seletores:** a EVA. Os componentes ficam em `src/components/` e servem para o resto do FlowLab; os outros `<select>` nativos do app não foram trocados.
+
+**15/Out/2026 — aplicada e publicada.**
+- O usuário aplicou a migration no projeto do app (`jqxe…`) e fez o merge (PR #13).
+- Conferência só com a chave pública, sem ler nem gravar dados:
+  - `ti_agente_papeis` existe, com todas as colunas;
+  - `ti_agente_pode`, `ti_agente_definir_papeis`, `ti_agente_voltar_ao_cargo` e `ti_agente_tem_permissao` existem, e o anon é barrado nas quatro.

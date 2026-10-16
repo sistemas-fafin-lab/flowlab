@@ -1,4 +1,4 @@
-import { Department, UserRole } from '../../../types';
+import { Department } from '../../../types';
 
 // ============================================
 // QUOTATION WORKFLOW STATUS
@@ -109,7 +109,6 @@ export interface ApprovalThreshold {
   level: ApprovalLevel;
   label: string;
   maxAmount: number;
-  roles: UserRole[];
   description: string;
 }
 
@@ -118,28 +117,24 @@ export const APPROVAL_THRESHOLDS: ApprovalThreshold[] = [
     level: 'level_1',
     label: 'Nível 1 - Operacional',
     maxAmount: 5000,
-    roles: ['operator'],
     description: 'Cotações até R$ 5.000,00',
   },
   {
     level: 'level_2',
     label: 'Nível 2 - Gerencial',
     maxAmount: 25000,
-    roles: ['admin'],
     description: 'Cotações de R$ 5.000,01 até R$ 25.000,00',
   },
   {
     level: 'level_3',
     label: 'Nível 3 - Diretoria',
     maxAmount: 100000,
-    roles: ['admin'],
     description: 'Cotações de R$ 25.000,01 até R$ 100.000,00',
   },
   {
     level: 'level_4',
     label: 'Nível 4 - Presidência',
     maxAmount: Infinity,
-    roles: ['admin'],
     description: 'Cotações acima de R$ 100.000,00',
   },
 ];
@@ -289,7 +284,8 @@ export interface QuotationApproval {
   status: 'pending' | 'approved' | 'rejected';
   approverId?: string;
   approverName?: string;
-  approverRole?: UserRole;
+  /** Nome do cargo de quem decidiu (quotation_approvals.approver_role). */
+  approverRole?: string;
   amount: number;
   comment?: string;
   approvedAt?: string;

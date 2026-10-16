@@ -83,7 +83,7 @@ export interface Membro {
   papeis: PapeisEva;
   /** De onde vêm os papéis: do cargo, da aba Permissões ou do admin. */
   origemPapeis: OrigemPapeis;
-  /** Nome do cargo no FlowLab (Usuários → Cargos e Permissões); "Administrador" para o admin sem cargo. */
+  /** Nome do cargo no FlowLab (Usuários → Cargos e Permissões); null sem cargo. */
   cargo: string | null;
 }
 
@@ -121,7 +121,7 @@ export interface PessoaPermissoes {
   id: string;
   nome: string;
   departamento: string | null;
-  /** Nome do cargo; "Administrador" para o admin sem cargo. */
+  /** Nome do cargo; null sem cargo. */
   cargo: string | null;
   origem: OrigemPapeis;
   /** Os que valem (admin, linha ou cargo). */
@@ -221,7 +221,7 @@ export const agenteAdmin = {
       supabase
         .from('ti_agente_membros')
         .select(`id, user_id, apelidos, whatsapp, recebe_cobranca, ativo,
-          perfil:user_profiles!ti_agente_membros_user_id_fkey(name, role, deleted_at, disabled_at, custom_roles(name, permissions))`)
+          perfil:user_profiles!ti_agente_membros_user_id_fkey(name, deleted_at, disabled_at, custom_roles(name, permissions))`)
         .order('created_at'),
       supabase.from('ti_agente_papeis').select('user_id, configura, gestor, aprova'),
     ]);
@@ -229,7 +229,7 @@ export const agenteAdmin = {
     // Sem a tabela (migration ainda não aplicada), os papéis seguem o cargo.
     const linhas = porPessoa(papeis.error ? [] : (papeis.data as LinhaComCarimbo[]));
     type Perfil = {
-      name: string; role: string | null; deleted_at: string | null; disabled_at: string | null;
+      name: string; deleted_at: string | null; disabled_at: string | null;
       custom_roles: { name: string; permissions: unknown } | null;
     } | null;
     return (data ?? []).map((m) => {
@@ -241,7 +241,7 @@ export const agenteAdmin = {
         nome: perfil?.name ?? '—',
         papeis: papeisDoPerfil(perfilPapeis, linha),
         origemPapeis: origemDosPapeis(perfilPapeis, linha),
-        cargo: perfil?.custom_roles?.name ?? (perfil?.role === 'admin' ? 'Administrador' : null),
+        cargo: perfil?.custom_roles?.name ?? null,
       };
     });
   },
@@ -251,7 +251,7 @@ export const agenteAdmin = {
     const [p, l] = await Promise.all([
       supabase
         .from('user_profiles')
-        .select('id, name, department, role, deleted_at, disabled_at, custom_roles(name, permissions)')
+        .select('id, name, department, deleted_at, disabled_at, custom_roles(name, permissions)')
         .is('deleted_at', null)
         .is('disabled_at', null)
         .order('name')
@@ -261,7 +261,7 @@ export const agenteAdmin = {
     erro(p.error);
     erro(l.error);
     type Linha = {
-      id: string; name: string | null; department: string | null; role: string | null;
+      id: string; name: string | null; department: string | null;
       deleted_at: string | null; disabled_at: string | null;
       custom_roles: { name: string; permissions: unknown } | null;
     };
@@ -269,17 +269,17 @@ export const agenteAdmin = {
     const linhas = porPessoa(l.data as LinhaComCarimbo[]);
     const nomes = new Map(pessoas.map((x) => [x.id, x.name ?? '']));
     return pessoas.map((x) => {
-      const perfil = { role: x.role, permissoes: x.custom_roles?.permissions, deleted_at: x.deleted_at, disabled_at: x.disabled_at };
+      const perfil = { permissoes: x.custom_roles?.permissions, deleted_at: x.deleted_at, disabled_at: x.disabled_at };
       const linha = linhas.get(x.id) ?? null;
       const origem = origemDosPapeis(perfil, linha);
       return {
         id: x.id,
         nome: x.name ?? '—',
         departamento: x.department ?? null,
-        cargo: x.custom_roles?.name ?? (x.role === 'admin' ? 'Administrador' : null),
+        cargo: x.custom_roles?.name ?? null,
         origem,
         papeis: papeisDoPerfil(perfil, linha),
-        doCargo: origem === 'admin' ? papeisDoPerfil(perfil) : papeisDoCargo(perfil),
+        doCargo: papeisDoCargo(perfil),
         definidoPor: linha?.updated_by ? nomes.get(linha.updated_by) || null : null,
         definidoEm: linha?.updated_at ?? null,
       };

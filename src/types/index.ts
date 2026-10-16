@@ -156,9 +156,6 @@ export interface FinancialMetrics {
   };
 }
 
-// New types for role-based access control
-export type UserRole = 'admin' | 'operator' | 'requester';
-
 export type Department =
   | 'TRANSPORTE'
   | 'ESTOQUE'
@@ -199,12 +196,13 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
-  role: UserRole;
   department: Department;
   createdAt: string;
   updatedAt: string;
   customRoleId?: string;
+  /** As do cargo (custom_roles.permissions). Desde 20261015180000, o role legado não conta. */
   permissions: string[];
+  /** Nome do cargo. */
   roleName?: string;
   /** custom_roles.board_id do cargo — ver src/modules/board/domain/resolveBoardAccess. */
   boardId?: string | null;

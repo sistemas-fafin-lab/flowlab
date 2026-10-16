@@ -16,10 +16,9 @@ import { BOTAO_SECUNDARIO, CAMPO, LINHA, ROTULO } from './estilos';
 
 const dia = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-const ORIGEM: Record<PessoaPermissoes['origem'], { rotulo: string; tom: 'neutral' | 'info' | 'success' }> = {
+const ORIGEM: Record<PessoaPermissoes['origem'], { rotulo: string; tom: 'neutral' | 'info' }> = {
   cargo: { rotulo: 'Pelo cargo', tom: 'neutral' },
   definido: { rotulo: 'Definido aqui', tom: 'info' },
-  admin: { rotulo: 'Administrador', tom: 'success' },
   inativo: { rotulo: 'Inativo', tom: 'neutral' },
 };
 
@@ -92,7 +91,7 @@ const PermissoesPage: React.FC = () => {
         </div>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           O que você marcar aqui vale no lugar do cargo, só para a EVA ("Definido aqui"). Sem nada marcado aqui, a pessoa segue o cargo
-          (Usuários → Cargos e Permissões). O administrador tem as três, sempre. No WhatsApp e no servidor, a mudança vale na hora; nas telas,
+          (Usuários → Cargos e Permissões); o cargo Administrador tem as três. No WhatsApp e no servidor, a mudança vale na hora; nas telas,
           quando a pessoa abrir o FlowLab de novo.
         </p>
         <div className="max-w-md">

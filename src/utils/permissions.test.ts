@@ -1,104 +1,34 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { getPermissionsForLegacyRole } from './permissions';
+import { ALL_PERMISSION_KEYS } from './permissions';
 
-// O RLS do banco (current_user_has_permission) só reconhece
-// custom_roles.permissions ou role = 'admin' — um operator/requester legado
-// sem cargo customizado tem ZERO permissões no banco. Se o fallback do
-// frontend sintetizar chaves que o RLS não concede, o usuário vê botões
-// habilitados e leva 403 ao clicar (issue 04: frontend de Qualidade não
-// checava canManageQualidade).
-describe('getPermissionsForLegacyRole — chaves do módulo Qualidade', () => {
-  it('não concede canViewQualidade nem canManageQualidade a operator legado', () => {
-    const permissoes = getPermissionsForLegacyRole('operator');
-    expect(permissoes).not.toContain('canViewQualidade');
-    expect(permissoes).not.toContain('canManageQualidade');
+// Desde 20261015180000_perm_sem_role_legado, as permissões vêm só do cargo (custom_roles), no
+// front, no servidor e no banco. "Administrador" é quem tem o cargo Administrador, e por isso
+// esse cargo precisa ter todas as chaves do catálogo: a migration grava a lista abaixo nele.
+const MIGRATION = new URL('../../supabase/migrations/20261015180000_perm_sem_role_legado.sql', import.meta.url);
+
+/** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */
+function chavesDoAdministrador(): string[] {
+  const sql = readFileSync(MIGRATION, 'utf8');
+  const bloco = sql.slice(sql.indexOf('SELECT unnest(ARRAY['), sql.indexOf('])', sql.indexOf('SELECT unnest(ARRAY[')));
+  return [...bloco.matchAll(/'(can\w+)'/g)].map((m) => m[1]);
+}
+
+describe('catálogo de permissões', () => {
+  it('não repete chave', () => {
+    const chaves = ALL_PERMISSION_KEYS.map((p) => p.key);
+    expect(new Set(chaves).size).toBe(chaves.length);
   });
 
-  it('não concede chaves de Qualidade a requester legado', () => {
-    const permissoes = getPermissionsForLegacyRole('requester');
-    expect(permissoes).not.toContain('canViewQualidade');
-    expect(permissoes).not.toContain('canManageQualidade');
+  it('o cargo Administrador da migration tem exatamente as chaves do catálogo', () => {
+    const catalogo = ALL_PERMISSION_KEYS.map((p) => p.key).sort();
+    expect(chavesDoAdministrador().sort()).toEqual(catalogo);
   });
 
-  it('mantém as chaves de Qualidade para admin legado (role=admin é reconhecida pelo RLS)', () => {
-    const permissoes = getPermissionsForLegacyRole('admin');
-    expect(permissoes).toContain('canViewQualidade');
-    expect(permissoes).toContain('canManageQualidade');
-  });
-});
-
-describe('getPermissionsForLegacyRole — canViewColaboradores (módulo RH)', () => {
-  it('não concede canViewColaboradores a operator legado', () => {
-    const permissoes = getPermissionsForLegacyRole('operator');
-    expect(permissoes).not.toContain('canViewColaboradores');
-  });
-
-  it('não concede canViewColaboradores a requester legado', () => {
-    const permissoes = getPermissionsForLegacyRole('requester');
-    expect(permissoes).not.toContain('canViewColaboradores');
-  });
-
-  it('mantém canViewColaboradores para admin legado (role=admin é reconhecida pelo RLS)', () => {
-    const permissoes = getPermissionsForLegacyRole('admin');
-    expect(permissoes).toContain('canViewColaboradores');
-  });
-});
-
-describe('getPermissionsForLegacyRole — canManageHolerites (issue 05)', () => {
-  it('não concede canManageHolerites a operator legado', () => {
-    const permissoes = getPermissionsForLegacyRole('operator');
-    expect(permissoes).not.toContain('canManageHolerites');
-  });
-
-  it('não concede canManageHolerites a requester legado', () => {
-    const permissoes = getPermissionsForLegacyRole('requester');
-    expect(permissoes).not.toContain('canManageHolerites');
-  });
-
-  it('mantém canManageHolerites para admin legado (role=admin é reconhecida pelo RLS)', () => {
-    const permissoes = getPermissionsForLegacyRole('admin');
-    expect(permissoes).toContain('canManageHolerites');
-  });
-});
-
-describe('getPermissionsForLegacyRole — chaves do módulo Gastos de TI', () => {
-  it('não concede canViewGastosTI nem canManageGastosTI a operator legado', () => {
-    const permissoes = getPermissionsForLegacyRole('operator');
-    expect(permissoes).not.toContain('canViewGastosTI');
-    expect(permissoes).not.toContain('canManageGastosTI');
-  });
-
-  it('não concede chaves de Gastos de TI a requester legado', () => {
-    const permissoes = getPermissionsForLegacyRole('requester');
-    expect(permissoes).not.toContain('canViewGastosTI');
-    expect(permissoes).not.toContain('canManageGastosTI');
-  });
-
-  it('mantém as chaves de Gastos de TI para admin legado (role=admin é reconhecida pelo RLS)', () => {
-    const permissoes = getPermissionsForLegacyRole('admin');
-    expect(permissoes).toContain('canViewGastosTI');
-    expect(permissoes).toContain('canManageGastosTI');
-  });
-});
-
-describe('getPermissionsForLegacyRole — canApproveAgenteTI (EVA)', () => {
-  it('não concede canApproveAgenteTI a operator legado', () => {
-    expect(getPermissionsForLegacyRole('operator')).not.toContain('canApproveAgenteTI');
-  });
-
-  it('não concede canApproveAgenteTI a requester legado', () => {
-    expect(getPermissionsForLegacyRole('requester')).not.toContain('canApproveAgenteTI');
-  });
-
-  it('mantém canApproveAgenteTI para admin legado (role=admin é reconhecida pelo RLS)', () => {
-    expect(getPermissionsForLegacyRole('admin')).toContain('canApproveAgenteTI');
-  });
-
-  it('as três chaves da EVA (D31): só admin no legado; operator e requester não', () => {
-    for (const k of ['canConfigureAgenteTI', 'canManageAgenteTI', 'canApproveAgenteTI']) {
-      expect(getPermissionsForLegacyRole('admin')).toContain(k);
-      expect(getPermissionsForLegacyRole('operator')).not.toContain(k);
-      expect(getPermissionsForLegacyRole('requester')).not.toContain(k);
+  it('as chaves que substituem o role legado estão no catálogo', () => {
+    const chaves = ALL_PERMISSION_KEYS.map((p) => p.key);
+    for (const k of ['canApprovePayments', 'canManageMaintenance', 'canManageEmailTemplates', 'canViewAllStockDepart', 'canViewAllNotifications', 'canAdministerQuotations']) {
+      expect(chaves).toContain(k);
     }
   });
 });

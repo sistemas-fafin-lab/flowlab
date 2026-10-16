@@ -43,13 +43,13 @@ export async function authorizeUmamiRequest(
 
     const { data: profile } = await supabase
       .from('user_profiles')
-      .select('role, custom_roles(permissions)')
+      .select('custom_roles(permissions)')
       .eq('id', caller.user.id)
       .single();
 
     const permissions: string[] =
       (profile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
-    const authorized = profile?.role === 'admin' || permissions.includes(REQUIRED_PERMISSION);
+    const authorized = permissions.includes(REQUIRED_PERMISSION);
 
     if (!authorized) {
       return { ok: false, status: 403, error: 'Sem permissão para ver as métricas de uso.' };

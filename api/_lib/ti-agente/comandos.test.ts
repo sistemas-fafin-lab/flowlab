@@ -139,8 +139,8 @@ function criarDb(e: Estado) {
       if (tabela === 'user_profiles') {
         return {
           data: e.permissoes === null
-            ? { role: 'user', deleted_at: '2026-10-01T00:00:00Z', disabled_at: null, custom_roles: null }
-            : { role: 'user', deleted_at: null, disabled_at: null, custom_roles: { permissions: e.permissoes } },
+            ? { deleted_at: '2026-10-01T00:00:00Z', disabled_at: null, custom_roles: null }
+            : { deleted_at: null, disabled_at: null, custom_roles: { permissions: e.permissoes } },
           error: null,
         };
       }

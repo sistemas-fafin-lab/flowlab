@@ -261,11 +261,11 @@ const EstoqueDepartamental: React.FC = () => {
   // Entrada direta: itens que chegam direto no setor, sem passar pelo estoque central.
   const canAddEntry = hasPermission(userProfile?.permissions || [], 'canAddStockDepart');
 
-  // Cada pessoa enxerga apenas o estoque do seu próprio setor. O admin mantém a
-  // visão de todos os setores (supervisão). O setor da pessoa é o local com
+  // Cada pessoa enxerga apenas o estoque do seu próprio setor. Quem tem
+  // canViewAllStockDepart vê todos os setores (supervisão). O setor da pessoa é o local com
   // controla_consumo cujo `department` bate com o department do perfil — o perfil
   // guarda o enum (ex.: AREA_TECNICA) e o local guarda o rótulo (ex.: Área técnica).
-  const isAdmin = userProfile?.role === 'admin';
+  const isAdmin = hasPermission(userProfile?.permissions || [], 'canViewAllStockDepart');
   const userDept = userProfile?.department;
   // department pode vir como enum ('AREA_TECNICA') ou como rótulo ('Área técnica');
   // normaliza sempre para o rótulo (formato guardado em stock_locations.department).

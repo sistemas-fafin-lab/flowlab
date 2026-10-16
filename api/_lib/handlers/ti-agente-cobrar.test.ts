@@ -48,7 +48,7 @@ function res() {
   const api = { setHeader: () => api, status: (c: number) => { r.statusCode = c; return api; }, json: (b: Record<string, unknown>) => { r.body = b; return api; } };
   return { r, api: api as unknown as VercelResponse };
 }
-const usuario = (permissoes: string[], userId = 'u-gestor') => ({ userId, permissoes, ehAdmin: false });
+const usuario = (permissoes: string[], userId = 'u-gestor') => ({ userId, permissoes });
 
 beforeEach(() => vi.clearAllMocks());
 

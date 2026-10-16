@@ -14,15 +14,10 @@ interface UseQuotationsAwaitingApprovalCountResult {
   loading: boolean;
 }
 
-// Versão enxuta do fallback de fetchUserApprovalLimit em useQuotation.ts:
-// tenta a view (que já resolve limite customizado ou por nível) e, sem
-// registro, cai direto para o padrão por role — sem o tier intermediário de
-// consultar user_approval_limits + approval_level_config em separado, que só
-// importa se a própria view falhar (caso raro de RLS/permissão na view).
-const fetchApprovalConfig = async (
-  userId: string,
-  role: string | undefined,
-): Promise<ApprovalConfig> => {
+// Versão enxuta de fetchUserApprovalLimit em useQuotation.ts: lê a view (que já
+// resolve limite customizado ou por nível). Sem registro, não aprova — a regra de
+// get_user_approval_limit desde 20261015180000 (o padrão por role legado saiu).
+const fetchApprovalConfig = async (userId: string): Promise<ApprovalConfig> => {
   const { data } = await supabase
     .from('user_approval_limits_with_details')
     .select('effective_max_amount, can_approve')
@@ -36,11 +31,7 @@ const fetchApprovalConfig = async (
     };
   }
 
-  const effectiveRole = role || 'requester';
-  return {
-    maxAmount: effectiveRole === 'admin' ? Infinity : effectiveRole === 'operator' ? 5000 : 0,
-    canApprove: effectiveRole === 'admin' || effectiveRole === 'operator',
-  };
+  return { maxAmount: 0, canApprove: false };
 };
 
 /**
@@ -52,13 +43,12 @@ const fetchApprovalConfig = async (
 export const useQuotationsAwaitingApprovalCount = (
   enabled: boolean,
 ): UseQuotationsAwaitingApprovalCountResult => {
-  const { user, userProfile } = useAuth();
+  const { user } = useAuth();
   const [count, setCount] = useState(0);
   const [canApprove, setCanApprove] = useState(false);
   const [loading, setLoading] = useState(true);
 
   const userId = user?.id;
-  const role = userProfile?.role;
 
   const run = useCallback(async () => {
     if (!enabled || !userId) {
@@ -70,7 +60,7 @@ export const useQuotationsAwaitingApprovalCount = (
 
     setLoading(true);
     try {
-      const config = await fetchApprovalConfig(userId, role);
+      const config = await fetchApprovalConfig(userId);
 
       if (!config.canApprove) {
         setCanApprove(false);
@@ -92,7 +82,7 @@ export const useQuotationsAwaitingApprovalCount = (
     } finally {
       setLoading(false);
     }
-  }, [enabled, userId, role]);
+  }, [enabled, userId]);
 
   useEffect(() => {
     run();

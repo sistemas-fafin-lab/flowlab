@@ -4,7 +4,7 @@
 // para ser relayed tanto pela rota Vercel quanto pelo middleware de dev do Vite.
 //
 // Fluxo (ordem importa — a whitelist precede o CPF por causa da FK):
-//   1. Autoriza o chamador (token JWT) → exige canManageUsers (ou role=admin).
+//   1. Autoriza o chamador (token JWT) → exige canManageUsers no cargo.
 //   2. Valida entradas e CPF.
 //   3. Recusa se o CPF já pertence a outro perfil (antes de criar qualquer coisa).
 //   4. Upsert em user_whitelist.
@@ -83,13 +83,12 @@ export async function createUserFlow(
 
   const { data: callerProfile } = await supabase
     .from('user_profiles')
-    .select('role, custom_roles(permissions)')
+    .select('custom_roles(permissions)')
     .eq('id', caller.user.id)
     .single();
 
   const callerPermissions: string[] = (callerProfile?.custom_roles as any)?.permissions ?? [];
-  const authorized =
-    callerProfile?.role === 'admin' || callerPermissions.includes('canManageUsers');
+  const authorized = callerPermissions.includes('canManageUsers');
 
   if (!authorized) {
     return { status: 403, payload: { success: false, error: 'Sem permissão para cadastrar usuários.' } };
@@ -173,15 +172,15 @@ export async function createUserFlow(
   const userId = created.user.id;
 
   // ── 6. Grava o perfil ───────────────────────────────────────────────────────
-  // Todo cadastro nasce com role legada 'requester'; o cargo vem do formulário e
-  // nunca fica nulo (cai em Solicitante). Em bancos onde o trigger de criação de
-  // perfil ainda existe a linha já está lá e o UPDATE resolve; onde ele foi
-  // removido (20260721130000) o UPDATE não acha nada e o INSERT abaixo cria.
+  // As permissões vêm só do cargo, que vem do formulário e nunca fica nulo (cai em
+  // Solicitante). A coluna legada role não é gravada: o default do banco basta e
+  // nada a lê (20261015180000_perm_sem_role_legado). Em bancos onde o trigger de
+  // criação de perfil ainda existe a linha já está lá e o UPDATE resolve; onde ele
+  // foi removido (20260721130000) o UPDATE não acha nada e o INSERT abaixo cria.
   const profilePatch: Record<string, unknown> = {
     name,
     department,
     cpf: normalizedCpf,
-    role: 'requester',
     custom_role_id: customRoleId,
     updated_at: new Date().toISOString(),
   };
@@ -201,7 +200,6 @@ export async function createUserFlow(
       id: userId,
       email,
       name,
-      role: 'requester',
       custom_role_id: customRoleId,
       department,
       cpf: normalizedCpf,

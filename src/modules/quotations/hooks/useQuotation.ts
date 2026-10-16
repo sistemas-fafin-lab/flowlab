@@ -101,6 +101,13 @@ const getRequiredApprovalLevel = (amount: number): ApprovalLevel => {
   return 'level_4';
 };
 
+// Sem linha em user_approval_limits, não aprova (get_user_approval_limit, 20261015180000).
+const SEM_ALCADA = { approvalLevel: 'none', maxAmount: 0, canApprove: false };
+
+// Gravado em quotation_approvals.approver_role (VARCHAR(50)): o nome do cargo de quem decide.
+const cargoDoAprovador = (perfil: { roleName?: string } | null): string | null =>
+  perfil?.roleName ? perfil.roleName.slice(0, 50) : null;
+
 export const useQuotation = () => {
   const { user, userProfile } = useAuth();
   
@@ -389,25 +396,15 @@ export const useQuotation = () => {
           canApprove,
         });
       } else {
-        // No record found, use role-based defaults
-        const role = userProfile?.role || 'requester';
-        setUserApprovalConfig({
-          approvalLevel: role === 'admin' ? 'level_4' : role === 'operator' ? 'level_1' : 'none',
-          maxAmount: role === 'admin' ? Infinity : role === 'operator' ? 5000 : 0,
-          canApprove: role === 'admin' || role === 'operator',
-        });
+        // Sem linha em user_approval_limits, não aprova: é a regra de get_user_approval_limit
+        // desde 20261015180000 (o padrão por role legado saiu; quem aprovava por ele ganhou a linha).
+        setUserApprovalConfig(SEM_ALCADA);
       }
     } catch (err) {
       console.error('Error fetching approval limits:', err);
-      // Fallback to role-based defaults
-      const role = userProfile?.role || 'requester';
-      setUserApprovalConfig({
-        approvalLevel: role === 'admin' ? 'level_4' : role === 'operator' ? 'level_1' : 'none',
-        maxAmount: role === 'admin' ? Infinity : role === 'operator' ? 5000 : 0,
-        canApprove: role === 'admin' || role === 'operator',
-      });
+      setUserApprovalConfig(SEM_ALCADA);
     }
-  }, [user?.id, userProfile?.role]);
+  }, [user?.id]);
 
   // Map legacy status to new status
   const mapLegacyStatus = (status: string): QuotationStatus => {
@@ -544,13 +541,13 @@ export const useQuotation = () => {
   // ============================================
   
   const getPermissions = useCallback((quotation?: Quotation): QuotationPermissions => {
-    const role = userProfile?.role || 'requester';
-    const isAdmin = role === 'admin';
-    const isOperator = role === 'operator';
+    // Tudo vem do cargo (custom_roles); o role legado saiu (20261015180000). Quem administra
+    // cotações (canAdministerQuotations) tem tudo, inclusive decidir no lugar do gestor.
+    const isAdmin = (userProfile?.permissions ?? []).includes('canAdministerQuotations');
 
-    // Get user's max approval amount from database config or fallback to role-based defaults
-    const userApprovalLimit = userApprovalConfig?.maxAmount ?? (isAdmin ? Infinity : isOperator ? 5000 : 0);
-    const userCanApprove = userApprovalConfig?.canApprove ?? (isAdmin || isOperator);
+    // Alçada: a linha de user_approval_limits; sem ela, não aprova.
+    const userApprovalLimit = userApprovalConfig?.maxAmount ?? 0;
+    const userCanApprove = userApprovalConfig?.canApprove ?? false;
 
     // Helper: check fine-grained permission key, with fallback to canManageQuotations
     const hasPerm = (key: string): boolean => {
@@ -558,11 +555,10 @@ export const useQuotation = () => {
       return perms.includes(key) || perms.includes('canManageQuotations');
     };
 
-    // Base permissions — operators get access by role; requesters need explicit keys
-    const canView = isAdmin || isOperator || hasPerm('canViewQuotations');
-    const canCreate = isAdmin || isOperator || hasPerm('canCreateQuotations');
+    const canView = hasPerm('canViewQuotations');
+    const canCreate = hasPerm('canCreateQuotations');
     
-    // Admin has full permissions without restrictions
+    // Quem administra cotações tem todas as permissões, sem restrição
     if (isAdmin) {
       return {
         canView: true,
@@ -1829,7 +1825,7 @@ export const useQuotation = () => {
         p_level: getRequiredApprovalLevel(approvalAmount),
         p_approver_id: user.id,
         p_approver_name: userProfile.name,
-        p_approver_role: userProfile.role,
+        p_approver_role: cargoDoAprovador(userProfile),
         p_max_amount: approvalAmount,
         p_comment: comment ?? null,
         p_decided_at: now,
@@ -1851,7 +1847,7 @@ export const useQuotation = () => {
       status: decision,
       approverId: user.id,
       approverName: userProfile.name,
-      approverRole: userProfile.role,
+      approverRole: cargoDoAprovador(userProfile),
       amount: approvalAmount,
       comment,
       createdAt: result.approval_created_at,
@@ -1937,7 +1933,7 @@ export const useQuotation = () => {
         p_level: quotation.requiredApprovalLevel,
         p_approver_id: user.id,
         p_approver_name: userProfile.name,
-        p_approver_role: userProfile.role,
+        p_approver_role: cargoDoAprovador(userProfile),
         p_max_amount: approvalAmount,
         p_comment: comment ?? null,
         p_decided_at: now,
@@ -1961,7 +1957,7 @@ export const useQuotation = () => {
       status: decision,
       approverId: user.id,
       approverName: userProfile.name,
-      approverRole: userProfile.role,
+      approverRole: cargoDoAprovador(userProfile),
       amount: approvalAmount,
       comment,
       createdAt: insertedApproval.created_at,

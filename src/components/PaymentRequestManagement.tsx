@@ -185,7 +185,7 @@ const PaymentRequestManagement: React.FC = () => {
     setSuggestedDate(nextDate);
   }, []);
 
-  // Filter requests based on user role and filters
+  // Filter requests based on the cargo's permissions and filters
   const filteredRequests = paymentRequests.filter(request => {
     // Status filter: usa cards clicáveis OU dropdown
     const matchesStatus = selectedStatusFilters.size > 0 
@@ -198,9 +198,8 @@ const PaymentRequestManagement: React.FC = () => {
       request.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       request.documentoNumero.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Access control: requesters can only see their own department's requests
-    const matchesUserAccess = userProfile?.role === 'admin' || 
-                             userProfile?.role === 'operator' || 
+    // Quem não aprova pagamentos só vê os do próprio departamento.
+    const matchesUserAccess = (userProfile?.permissions ?? []).includes('canApprovePayments') ||
                              request.department === userProfile?.department;
     
     return matchesStatus && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
@@ -228,8 +227,8 @@ const PaymentRequestManagement: React.FC = () => {
     setSelectedStatusFilters(new Set());
   };
 
-  // Check if user can approve/reject requests
-  const canApprove = userProfile?.role === 'admin' || userProfile?.role === 'operator';
+  // Aprovar, rejeitar, marcar como pago, excluir e filtrar por departamento.
+  const canApprove = (userProfile?.permissions ?? []).includes('canApprovePayments');
 
   // Handle form input changes
   const handleInputChange = (
@@ -1149,8 +1148,8 @@ const PaymentRequestManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Cards - Apenas para admin e operator (informação de gestão) */}
-      {userProfile?.role !== 'requester' && (
+      {/* Stats Cards - Só para quem aprova pagamentos (informação de gestão) */}
+      {canApprove && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           {/* Pendentes */}
           <button
@@ -1275,7 +1274,7 @@ const PaymentRequestManagement: React.FC = () => {
       )}
 
       {/* Indicador de filtros ativos por cards */}
-      {selectedStatusFilters.size > 0 && userProfile?.role !== 'requester' && (
+      {selectedStatusFilters.size > 0 && canApprove && (
         <div className="flex items-center gap-2 animate-fade-in">
           <span className="text-sm text-gray-500 dark:text-gray-400">Filtros ativos:</span>
           {Array.from(selectedStatusFilters).map(status => (

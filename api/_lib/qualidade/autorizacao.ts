@@ -43,7 +43,7 @@ async function autorizarQualidadeComUsuario(
 
   const { data: callerProfile } = await supabase
     .from('user_profiles')
-    .select('role, custom_roles(permissions)')
+    .select('custom_roles(permissions)')
     .eq('id', caller.user.id)
     .single();
 
@@ -51,7 +51,7 @@ async function autorizarQualidadeComUsuario(
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
   const aceitas: string[] =
     permissao === 'canViewQualidade' ? ['canViewQualidade', 'canManageQualidade'] : ['canManageQualidade'];
-  const authorized = callerProfile?.role === 'admin' || aceitas.some((p) => callerPermissions.includes(p));
+  const authorized = aceitas.some((p) => callerPermissions.includes(p));
 
   if (!authorized) {
     return {

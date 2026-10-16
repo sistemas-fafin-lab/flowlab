@@ -22,8 +22,8 @@ export const resumoPapeis = (p: PapeisEva): string =>
   PAPEIS_EVA.filter((x) => p[x.chave]).map((x) => x.rotulo).join(', ') || 'nenhuma';
 
 /**
- * Quem a aba lista: quem tem alguma permissão, quem está definido aqui (mesmo sem nenhuma) e o
- * admin; antes de todos, quem acabou de ser escolhido em "Dar permissão a…", o mais recente primeiro.
+ * Quem a aba lista: quem tem alguma permissão e quem está definido aqui (mesmo sem nenhuma);
+ * antes de todos, quem acabou de ser escolhido em "Dar permissão a…", o mais recente primeiro.
  */
 export function quemAparece<T extends PessoaComPapeis>(pessoas: readonly T[], adicionados: readonly string[]): T[] {
   const porId = new Map(pessoas.map((p) => [p.id, p]));
@@ -35,7 +35,6 @@ export function quemAparece<T extends PessoaComPapeis>(pessoas: readonly T[], ad
 
 /** Se a chave pode ser alternada, e o porquê quando não. */
 export function travaDaChave(p: PessoaComPapeis, chave: keyof PapeisEva, euId: string | null | undefined): string | null {
-  if (p.origem === 'admin') return 'O administrador tem as três, sempre.';
   if (p.origem === 'inativo') return 'Usuário inativo no FlowLab.';
   if (chave === 'configura' && p.id === euId && p.papeis.configura) return 'Você não pode tirar a sua própria permissão de configurar.';
   return null;

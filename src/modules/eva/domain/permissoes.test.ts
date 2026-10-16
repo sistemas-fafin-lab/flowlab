@@ -8,22 +8,22 @@ const pessoa = (id: string, o: Partial<Parameters<typeof travaDaChave>[0]> = {})
 });
 
 describe('aba Permissões (D33)', () => {
-  it('lista quem tem permissão, quem está definido aqui e o admin; os recém-escolhidos primeiro', () => {
+  it('lista quem tem permissão e quem está definido aqui; os recém-escolhidos primeiro', () => {
     const pessoas = [
-      pessoa('admin', { origem: 'admin', papeis: TUDO }),
+      pessoa('cargo-admin', { papeis: TUDO, doCargo: TUDO }),
       pessoa('pelo-cargo', { papeis: { ...SEM_PAPEIS, aprova: true }, doCargo: { ...SEM_PAPEIS, aprova: true } }),
       pessoa('definida-sem-nada', { origem: 'definido' }),
       pessoa('ninguem'),
       pessoa('escolhida-1'),
       pessoa('escolhida-2'),
     ];
-    expect(quemAparece(pessoas, []).map((p) => p.id)).toEqual(['admin', 'pelo-cargo', 'definida-sem-nada']);
+    expect(quemAparece(pessoas, []).map((p) => p.id)).toEqual(['cargo-admin', 'pelo-cargo', 'definida-sem-nada']);
     expect(quemAparece(pessoas, ['escolhida-1', 'escolhida-2', 'some']).map((p) => p.id))
-      .toEqual(['escolhida-2', 'escolhida-1', 'admin', 'pelo-cargo', 'definida-sem-nada']);
+      .toEqual(['escolhida-2', 'escolhida-1', 'cargo-admin', 'pelo-cargo', 'definida-sem-nada']);
   });
 
-  it('admin não se mexe; ninguém tira a própria permissão de configurar', () => {
-    expect(travaDaChave(pessoa('a', { origem: 'admin', papeis: TUDO }), 'aprova', 'eu')).toMatch(/administrador/);
+  it('inativo não se mexe; ninguém tira a própria permissão de configurar', () => {
+    expect(travaDaChave(pessoa('a', { origem: 'inativo' }), 'aprova', 'eu')).toMatch(/inativo/);
     expect(travaDaChave(pessoa('eu', { origem: 'definido', papeis: TUDO }), 'configura', 'eu')).toMatch(/própria/);
     expect(travaDaChave(pessoa('eu', { origem: 'definido', papeis: TUDO }), 'gestor', 'eu')).toBeNull();
     expect(travaDaChave(pessoa('outra', { papeis: TUDO }), 'configura', 'eu')).toBeNull();

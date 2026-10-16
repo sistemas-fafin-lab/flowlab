@@ -133,7 +133,7 @@ const MembrosPage: React.FC = () => {
         </p>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Os papéis vêm do cargo de cada pessoa ou da aba{' '}
-          <Link to="/it/eva/permissoes" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">Permissões</Link>, e o administrador tem os três:{' '}
+          <Link to="/it/eva/permissoes" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">Permissões</Link> (o cargo Administrador tem os três):{' '}
           <strong className="font-semibold text-slate-600 dark:text-slate-300">Configura</strong> (abas Membros, Permissões e Configurações),{' '}
           <strong className="font-semibold text-slate-600 dark:text-slate-300">Gestor</strong> (cobrar a equipe, avisar o grupo e as pessoas, ver a fila do WhatsApp) e{' '}
           <strong className="font-semibold text-slate-600 dark:text-slate-300">Aprova</strong> (aprovar e rejeitar sugestões). Para usar o papel pelo

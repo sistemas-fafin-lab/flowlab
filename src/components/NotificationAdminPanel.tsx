@@ -144,7 +144,8 @@ const ToggleSwitch: React.FC<{
 export const NotificationAdminPanel: React.FC = () => {
   const { userProfile } = useAuth();
   const { sendNotification } = useNotificationCenter();
-  const isAdmin = userProfile?.role === 'admin';
+  // Templates de e-mail: a mesma chave das policies de notification_templates (20261015180000).
+  const isAdmin = (userProfile?.permissions ?? []).includes('canManageEmailTemplates');
   const [showTemplateManager, setShowTemplateManager] = useState(false);
 
   // ── Estado do formulário ─────────────────────────────────────────────────────
