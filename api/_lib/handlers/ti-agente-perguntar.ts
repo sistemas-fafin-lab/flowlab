@@ -124,7 +124,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(502).json({ success: false, error: 'Não consegui consultar o board agora. Tente novamente em alguns segundos.', erros: r.erros });
       return;
     }
-    const resposta = validarRespostaChat(r.dados, ctx);
+    const resposta = validarRespostaChat(r.dados, ctx, { hoje, temReuniao: !!reuniao });
     // D32: aviso pelo WhatsApp só para o gestor; a rota agente-avisar confere de novo no envio.
     res.status(200).json({ success: true, provedor: r.provedor, ...resposta, avisos: ehGestor ? resposta.avisos : [] });
   } catch (e) {

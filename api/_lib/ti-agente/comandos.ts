@@ -426,7 +426,7 @@ const nomesDasSugestoes = (db: SupabaseClient, itens: SugestaoLista[]) =>
 async function prepararPropostas(
   db: SupabaseClient, membro: Remetente, s: SaidaMensagem, ctx: ContextoExtracao, podeAprovar: boolean, mensagemId: string, agora: Date,
 ): Promise<string> {
-  const validas = validarRespostaChat({ resposta: '', cards_citados: [], propostas: s.propostas.slice(0, MAX_PROPOSTAS), avisos: [] }, ctx).propostas;
+  const validas = validarRespostaChat({ resposta: '', cards_citados: [], propostas: s.propostas.slice(0, MAX_PROPOSTAS), avisos: [], blocos: [], proximos_passos: [] }, ctx).propostas;
   if (validas.length === 0) {
     return 'Não consegui montar essa mudança 🤔 Me diz o card e o que mudar (ex.: "muda a prioridade do IT-045 para alta").';
   }

@@ -1,6 +1,7 @@
 // Módulo EVA — agente de IA do módulo de TI (homepage /it/inicio).
 // Tipos de interface do handoff (docs/flowlab_agent), ajustados aos dados reais:
 // os cards levam id e código, e o responsável pode faltar.
+import type { BlocoChat, PassoChat } from './domain/blocos';
 import type { ColunaKanban, Prioridade } from './domain/demandas';
 import type { SituacaoProjeto } from './domain/projetos';
 import type { CardResumo, PropostaCard, TipoSugestao } from './services/agenteAdmin';
@@ -178,6 +179,11 @@ export interface ChatMessage {
   cardsCitados?: string[];
   propostas?: PropostaEva[];
   avisos?: AvisoEva[];
+  /** Blocos visuais e próximos passos (D34): a IA escolheu, o Início monta com os dados do board. */
+  blocos?: BlocoChat[];
+  proximosPassos?: PassoChat[];
+  /** Resposta que acabou de chegar: aparece aos poucos, uma vez só. */
+  nova?: boolean;
   /** Resposta de erro (limite do dia, IA fora): mostrada sem cartões. */
   falhou?: boolean;
 }
