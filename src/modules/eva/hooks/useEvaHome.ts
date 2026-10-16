@@ -6,6 +6,7 @@ import type { ITRequest } from '../../../components/IT/ITKanbanBoard';
 import { evaService, type DadosInicio } from '../services/evaService';
 import { hojeSP, pluralDias } from '../domain/datas';
 import { estaConcluido, type CardTI, type ColunaKanban, type StatusChamado } from '../domain/demandas';
+import type { ProjetoTI, SprintTI } from '../domain/projetos';
 import { montarSnapshot } from '../domain/inicio';
 import { JANELA_COBRANCA_MS } from '../domain/cobranca';
 import { quandoSera, ultimoContato, type MensagemFila } from '../domain/whatsapp';
@@ -42,6 +43,8 @@ export interface AvisoEva {
 }
 
 const SEM_CARDS: CardTI[] = [];
+const SEM_PROJETOS: ProjetoTI[] = [];
+const SEM_SPRINTS: SprintTI[] = [];
 
 /** Janela para desfazer a conclusão de uma task do dia. */
 export const JANELA_DESFAZER_MS = 5000;
@@ -349,6 +352,8 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
     nomes, avisar,
     /** Os cards crus, para as regras dos comentários (domain/comentarios.ts). */
     cards: dados?.cards ?? SEM_CARDS, hoje: dados?.hoje ?? null, usuarioId,
+    /** Projetos e sprints crus, para os blocos do chat (D34). */
+    projetos: dados?.projetos ?? SEM_PROJETOS, sprints: dados?.sprints ?? SEM_SPRINTS,
     /** WhatsApp: fila só para gestores (null para os demais), cobrança e momento da última leitura. */
     fila, agora, cobrarCard, cobrar: (row: OverdueRow) => cobrarCard(row.id), recarregarWhatsapp: carregarWhatsapp,
   };

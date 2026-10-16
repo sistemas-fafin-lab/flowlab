@@ -15,6 +15,7 @@ import { formatTodayLabel, greetingFor } from '../domain/chatReplies';
 import { montarComentarios, type ComentariosInicio } from '../domain/comentarios';
 import { montarIntegracoes } from '../domain/integracoes';
 import { primeiroNome } from '../domain/pessoas';
+import { cardPorCodigo, type ContextoVisual } from '../domain/respostaVisual';
 import { EvaUIProvider } from './EvaUIContext';
 import { EvaHero } from './EvaHero';
 import { EvaControls } from './EvaControls';
@@ -72,6 +73,36 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
   const abrirCitado = (codigo: string) => {
     chat.close();
     home.abrirCardPorCodigo(codigo);
+  };
+
+  // D34: os cartões e blocos do chat usam o que o Início já leu (nada vem escrito pela IA).
+  const visual = useMemo<ContextoVisual | null>(
+    () => (s && home.hoje
+      ? {
+          hoje: home.hoje,
+          visao: home.view,
+          usuarioId: home.usuarioId,
+          cards: home.cards,
+          projetos: home.projetos,
+          sprints: home.sprints,
+          membros: s.members,
+          nomes: { ...home.nomes, ...chat.nomes },
+          stats: s.stats,
+          reuniao: eva.dados?.ultimaReuniao
+            ? { id: eva.dados.ultimaReuniao.id, titulo: eva.dados.ultimaReuniao.titulo, realizada_em: eva.dados.ultimaReuniao.realizada_em, observacoes: eva.dados.ultimaReuniao.observacoes }
+            : null,
+          pendentesDaReuniao: eva.dados?.pendentesDaReuniao ?? null,
+        }
+      : null),
+    [s, home.hoje, home.view, home.usuarioId, home.cards, home.projetos, home.sprints, home.nomes, chat.nomes, eva.dados],
+  );
+  const cobrarCitado = async (codigo: string) => {
+    const card = visual ? cardPorCodigo(visual, codigo) : undefined;
+    return card ? home.cobrarCard(card.id) : false;
+  };
+  const navegarDoChat = (para: string) => {
+    chat.close();
+    navigate(para);
   };
 
   // Comentários da EVA (issue 17): regras fixas sobre os dados que o Início já leu.
@@ -246,6 +277,10 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
           onEnviarAviso={(a, texto) => void chat.enviarAviso(a, texto)}
           onDescartarAviso={chat.descartarAviso}
           onOpenCard={abrirCitado}
+          visual={visual}
+          podeCobrar={ehGestor && whatsappAtivo}
+          onCobrar={cobrarCitado}
+          onNavegar={navegarDoChat}
         />
         <EvaToast aviso={home.aviso} onClose={home.fecharAviso} />
         <ConfirmarPropostaModal

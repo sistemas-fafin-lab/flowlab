@@ -60,8 +60,8 @@ describe('contexto e conteúdo do chat', () => {
 
 describe('validarRespostaChat', () => {
   it('descarta códigos citados que não estão no contexto', () => {
-    const r = validarRespostaChat({ resposta: ' ok ', cards_citados: ['it-010', 'IT-999', 'IT-010'], propostas: [], avisos: [] }, CTX);
-    expect(r).toEqual({ resposta: 'ok', cardsCitados: ['IT-010'], propostas: [], nomes: {}, avisos: [] });
+    const r = validarRespostaChat({ resposta: ' ok ', cards_citados: ['it-010', 'IT-999', 'IT-010'], propostas: [], avisos: [], blocos: [], proximos_passos: [] }, CTX);
+    expect(r).toEqual({ resposta: 'ok', cardsCitados: ['IT-010'], propostas: [], nomes: {}, avisos: [], blocos: [], proximosPassos: [] });
   });
 
   it('proposta passa pela mesma validação das reuniões e leva o card para exibição', () => {
@@ -100,7 +100,33 @@ describe('validarRespostaChat', () => {
   });
 
   it('o schema exige os campos', () => {
-    expect(SchemaChat.safeParse({ resposta: 'oi', cards_citados: [], propostas: [], avisos: [] }).success).toBe(true);
-    expect(SchemaChat.safeParse({ resposta: 'oi' }).success).toBe(false);
+    expect(SchemaChat.safeParse({ resposta: 'oi', cards_citados: [], propostas: [], avisos: [], blocos: [], proximos_passos: [] }).success).toBe(true);
+    expect(SchemaChat.safeParse({ resposta: 'oi', cards_citados: [], propostas: [], avisos: [] }).success).toBe(false);
+    expect(SchemaChat.safeParse({ resposta: 'oi', cards_citados: [], propostas: [], avisos: [], blocos: [{ tipo: 'grafico', referencia: '' }], proximos_passos: [] }).success).toBe(false);
+  });
+
+  it('blocos e próximos passos (D34): só o que dá para montar com o contexto', () => {
+    const ctx: ContextoExtracao = { ...CTX, projetos: [{ id: 'p1', name: 'Portal' }] };
+    const r = validarRespostaChat({
+      resposta: 'Duas coisas atrasadas.', cards_citados: ['IT-010'], propostas: [], avisos: [],
+      blocos: [{ tipo: 'projeto', referencia: 'p1' }, { tipo: 'projeto', referencia: 'p-inexistente' }, { tipo: 'reuniao', referencia: '' }],
+      proximos_passos: [
+        { tipo: 'cobrar_card', texto: 'IT-010' }, // prazo 20/10: atrasado em 21/10
+        { tipo: 'cobrar_card', texto: 'IT-011' }, // sem prazo: não se cobra
+        { tipo: 'abrir_card', texto: 'it-011' },
+        { tipo: 'perguntar', texto: 'E o que vence amanhã?' },
+      ],
+    }, ctx, { hoje: '2026-10-21', temReuniao: false });
+    expect(r.blocos).toEqual([{ tipo: 'projeto', projetoId: 'p1' }]);
+    expect(r.proximosPassos).toEqual([
+      { tipo: 'cobrar_card', codigo: 'IT-010' },
+      { tipo: 'abrir_card', codigo: 'IT-011' },
+      { tipo: 'perguntar', texto: 'E o que vence amanhã?' },
+    ]);
+    // Antes do prazo, não há o que cobrar.
+    const antes = validarRespostaChat({ resposta: 'x', cards_citados: [], propostas: [], avisos: [], blocos: [], proximos_passos: [{ tipo: 'cobrar_card', texto: 'IT-010' }] }, ctx, { hoje: '2026-10-13' });
+    expect(antes.proximosPassos).toEqual([]);
+    expect(INSTRUCOES_CHAT).toContain('"blocos"');
+    expect(INSTRUCOES_CHAT).toContain('"proximos_passos"');
   });
 });

@@ -58,7 +58,10 @@ export function useEvaChat({ primeiroNome, view, podeAprovar, ultimaReuniaoEm, o
       const propostas: PropostaEva[] = r.propostas.map((p) => ({ ...p, id: uid(), estado: 'aberta' }));
       const avisos: AvisoEva[] = (r.avisos ?? []).map((a) => ({ ...a, id: uid(), estado: 'aberto' }));
       setNomes((n) => ({ ...n, ...r.nomes }));
-      setConversa((m) => [...m, { id: uid(), from: 'eva', text: r.resposta, cardsCitados: r.cardsCitados, propostas, avisos }]);
+      setConversa((m) => [...m, {
+        id: uid(), from: 'eva', text: r.resposta, cardsCitados: r.cardsCitados, propostas, avisos,
+        blocos: r.blocos ?? [], proximosPassos: r.proximosPassos ?? [], nova: true,
+      }]);
     } catch (e) {
       if (!alive.current) return;
       setConversa((m) => [...m, { id: uid(), from: 'eva', text: textoDoErro(e), falhou: true }]);

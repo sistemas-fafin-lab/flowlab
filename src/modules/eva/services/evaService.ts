@@ -6,6 +6,7 @@ import { supabase } from '../../../lib/supabase';
 import type { ITRequest } from '../../../components/IT/ITKanbanBoard';
 import type { EvaView, PropostaEva } from '../types';
 import type { MensagemFila } from '../domain/whatsapp';
+import type { BlocoChat, PassoChat } from '../domain/blocos';
 import { chamarEva } from './agenteApi';
 import { somarDias, type Dia } from '../domain/datas';
 import type { CardTI, ColunaKanban, StatusChamado } from '../domain/demandas';
@@ -193,5 +194,8 @@ export interface RespostaEva {
   nomes: Record<string, string>;
   /** Avisos pelo WhatsApp para o gestor confirmar (D32); vazio para os demais. */
   avisos?: { pessoaId: string; nome: string; texto: string }[];
+  /** Blocos visuais e próximos passos, já validados pelo servidor (D34). */
+  blocos?: BlocoChat[];
+  proximosPassos?: PassoChat[];
   provedor: 'claude' | 'gemini';
 }
