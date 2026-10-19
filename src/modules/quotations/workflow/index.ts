@@ -4,7 +4,7 @@ export {
   canTransition,
   getValidNextStatuses,
   isTerminalStatus,
-  canEditQuotation,
+  canEditInfo,
   canModifyItems,
   canModifySuppliers,
   canSelectWinner,

@@ -14,7 +14,6 @@ import {
   QuotationFilters,
   QuotationSort,
   CreateQuotationInput,
-  UpdateQuotationInput,
   SubmitProposalInput,
   QuotationPermissions,
   ApprovalLevel,
@@ -39,7 +38,6 @@ import { proposalStatusFromRow } from '../utils/proposalStatusFromRow';
 import {
   canTransition,
   validateTransition,
-  canEditQuotation,
   canModifyItems,
   canModifySuppliers,
   canSelectWinner,
@@ -563,7 +561,6 @@ export const useQuotation = () => {
       return {
         canView: true,
         canCreate: true,
-        canEdit: true,
         canDelete: true,
         canSendToSuppliers: true,
         canSelectWinner: true,
@@ -582,7 +579,6 @@ export const useQuotation = () => {
       return {
         canView,
         canCreate,
-        canEdit: false,
         canDelete: false,
         canSendToSuppliers: false,
         canSelectWinner: false,
@@ -611,7 +607,6 @@ export const useQuotation = () => {
     return {
       canView,
       canCreate,
-      canEdit: canView && canEditQuotation(status),
       canDelete: false, // Only admin can delete
       canSendToSuppliers: canView && status === 'draft',
       canSelectWinner:
@@ -854,30 +849,6 @@ export const useQuotation = () => {
     console.log('createQuotation completed successfully, returning:', newQuotation);
     return newQuotation;
   }, [user, userProfile, suppliers, addAuditLog]);
-
-  const updateQuotation = useCallback(async (
-    id: string,
-    input: UpdateQuotationInput
-  ): Promise<Quotation> => {
-    const quotation = quotations.find(q => q.id === id);
-    if (!quotation) throw new Error('Cotação não encontrada');
-    
-    if (!canEditQuotation(quotation.status)) {
-      throw new Error('Cotação não pode ser editada neste status');
-    }
-
-    const updated: Quotation = {
-      ...quotation,
-      ...input,
-      updatedAt: new Date().toISOString(),
-    };
-
-    setQuotations(prev => prev.map(q => q.id === id ? updated : q));
-    
-    await addAuditLog(id, 'updated', input as unknown as Record<string, unknown>);
-    
-    return updated;
-  }, [quotations, addAuditLog]);
 
   const deleteQuotation = useCallback(async (id: string): Promise<void> => {
     const quotation = quotations.find(q => q.id === id);
@@ -2269,7 +2240,6 @@ export const useQuotation = () => {
     
     // CRUD
     createQuotation,
-    updateQuotation,
     deleteQuotation,
     
     // Items

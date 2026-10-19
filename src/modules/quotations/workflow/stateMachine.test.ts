@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   TRANSITION_ACTIONS,
   canApproveOrReject,
+  canEditInfo,
   canSelectWinner,
   canSubmitForApproval,
   canTransition,
@@ -171,6 +172,19 @@ describe('predicados de permissão por status', () => {
       'under_review',
       'awaiting_manager_approval',
       'awaiting_approval',
+    ]);
+  });
+
+  it('as informações da cotação são editáveis em todo status, exceto cancelada e rejeitada', () => {
+    expect(statusesWhere(canEditInfo)).toEqual([
+      'draft',
+      'sent_to_suppliers',
+      'waiting_responses',
+      'under_review',
+      'awaiting_manager_approval',
+      'awaiting_approval',
+      'approved',
+      'converted_to_purchase',
     ]);
   });
 

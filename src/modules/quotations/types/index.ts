@@ -497,7 +497,6 @@ export interface QuotationSort {
 export interface QuotationPermissions {
   canView: boolean;
   canCreate: boolean;
-  canEdit: boolean;
   canDelete: boolean;
   canSendToSuppliers: boolean;
   canSelectWinner: boolean;

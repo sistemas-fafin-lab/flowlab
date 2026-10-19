@@ -101,10 +101,11 @@ export function isTerminalStatus(status: QuotationStatus): boolean {
 }
 
 /**
- * Checks if the quotation can be edited in its current status
+ * Checks if the quotation info (title, description, justification, priority,
+ * cost center, deadlines) can be edited in its current status
  */
-export function canEditQuotation(status: QuotationStatus): boolean {
-  return ['draft'].includes(status);
+export function canEditInfo(status: QuotationStatus): boolean {
+  return !['cancelled', 'rejected'].includes(status);
 }
 
 /**
