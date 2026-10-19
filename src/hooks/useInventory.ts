@@ -12,10 +12,28 @@ const CACHE_KEYS = {
   changeLogs: 'inventory:changeLogs',
 } as const;
 
-// Fase 5 — locais rastreáveis; fora de CACHE_KEYS para não afetar o gate allFresh
+// Fase 5 — locais rastreáveis
 const LOCATIONS_CACHE_KEY = 'inventory:locations';
 
-export const useInventory = () => {
+export type InventoryDataset = keyof typeof CACHE_KEYS | 'locations';
+
+const ALL_DATASETS: InventoryDataset[] = [
+  'products', 'movements', 'requests', 'suppliers', 'quotations', 'changeLogs', 'locations',
+];
+
+const cacheKeyOf = (dataset: InventoryDataset) =>
+  dataset === 'locations' ? LOCATIONS_CACHE_KEY : CACHE_KEYS[dataset];
+
+interface UseInventoryOptions {
+  /**
+   * Conjuntos que a tela realmente usa. Só eles são buscados ao montar e
+   * recarregados após mutações; os demais têm o cache invalidado para que a
+   * próxima tela que os use busque dados novos. Padrão: todos.
+   */
+  include?: InventoryDataset[];
+}
+
+export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {}) => {
   const { getCache, setCache, invalidate } = useDataCache();
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
@@ -27,55 +45,68 @@ export const useInventory = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch all data on component mount (com cache)
+  const fetchers: Record<InventoryDataset, () => Promise<void>> = {
+    products: () => fetchProducts(),
+    movements: () => fetchMovements(),
+    requests: () => fetchRequests(),
+    suppliers: () => fetchSuppliers(),
+    quotations: () => fetchQuotations(),
+    changeLogs: () => fetchChangeLogs(),
+    locations: () => fetchLocations(),
+  };
+
+  // Após uma mutação: recarrega o conjunto se a tela o usa; senão só invalida o
+  // cache (evita baixar tabelas inteiras que a tela atual nem exibe).
+  const refreshOrInvalidate = async (dataset: InventoryDataset) => {
+    if (include.includes(dataset)) {
+      await fetchers[dataset]();
+    } else {
+      invalidate(cacheKeyOf(dataset));
+    }
+  };
+
+  // Carga inicial (stale-while-revalidate): mostra o que houver em cache e busca
+  // em segundo plano só os conjuntos vencidos. O loading só bloqueia a tela
+  // quando algum conjunto usado ainda não tem nada em cache.
   useEffect(() => {
-    const fillFromCache = <T,>(key: string, setter: (data: T[]) => void) => {
-      const entry = getCache<T[]>(key);
+    const stale: InventoryDataset[] = [];
+    let missing = false;
+    const fillFromCache = <T,>(dataset: InventoryDataset, setter: (data: T[]) => void) => {
+      if (!include.includes(dataset)) return;
+      const entry = getCache<T[]>(cacheKeyOf(dataset));
       if (entry) setter(entry.data);
+      else missing = true;
+      if (!entry || Date.now() - entry.timestamp >= DEFAULT_STALE_TIME) stale.push(dataset);
     };
 
-    fillFromCache<Product>(CACHE_KEYS.products, setProducts);
-    fillFromCache<StockMovement>(CACHE_KEYS.movements, setMovements);
-    fillFromCache<Request>(CACHE_KEYS.requests, setRequests);
-    fillFromCache<Supplier>(CACHE_KEYS.suppliers, setSuppliers);
-    fillFromCache<Quotation>(CACHE_KEYS.quotations, setQuotations);
-    fillFromCache<ProductChangeLog>(CACHE_KEYS.changeLogs, setChangeLogs);
-    fillFromCache<StockLocation>(LOCATIONS_CACHE_KEY, setLocations);
+    fillFromCache<Product>('products', setProducts);
+    fillFromCache<StockMovement>('movements', setMovements);
+    fillFromCache<Request>('requests', setRequests);
+    fillFromCache<Supplier>('suppliers', setSuppliers);
+    fillFromCache<Quotation>('quotations', setQuotations);
+    fillFromCache<ProductChangeLog>('changeLogs', setChangeLogs);
+    fillFromCache<StockLocation>('locations', setLocations);
 
-    const isFresh = (key: string) => {
-      const entry = getCache(key);
-      return entry && Date.now() - entry.timestamp < DEFAULT_STALE_TIME;
-    };
-
-    // LOCATIONS_CACHE_KEY não está em CACHE_KEYS; inclui-lo evita servir uma lista
-    // de locais defasada (ex.: posto novo) quando os demais caches estão frescos.
-    const allFresh = Object.values(CACHE_KEYS).every(isFresh) && isFresh(LOCATIONS_CACHE_KEY);
-    if (allFresh) {
+    if (stale.length === 0) {
       setLoading(false);
       return;
     }
 
-    fetchAllData();
+    fetchDatasets(stale, missing);
   }, []);
 
-  const fetchAllData = async () => {
+  const fetchDatasets = async (datasets: InventoryDataset[], blocking = true) => {
     try {
-      setLoading(true);
-      await Promise.all([
-        fetchProducts(),
-        fetchMovements(),
-        fetchRequests(),
-        fetchSuppliers(),
-        fetchQuotations(),
-        fetchChangeLogs(),
-        fetchLocations()
-      ]);
+      if (blocking) setLoading(true);
+      await Promise.all(datasets.map(dataset => fetchers[dataset]()));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
   };
+
+  const fetchAllData = () => fetchDatasets(include);
 
   const fetchProducts = async () => {
     const { data, error } = await supabase
@@ -151,7 +182,7 @@ export const useInventory = () => {
 
       if (error) throw error;
 
-      await fetchChangeLogs(); // Refresh logs
+      await refreshOrInvalidate('changeLogs'); // Refresh logs
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to add change log');
     }
@@ -201,13 +232,29 @@ export const useInventory = () => {
     setCache(CACHE_KEYS.movements, formattedMovements);
   };
 
+  // Colunas da lista de solicitações. `receiver_signature` (PNG em base64) fica de
+  // fora: é a coluna mais pesada e só é lida ao abrir "Ver assinatura".
+  const REQUEST_LIST_COLUMNS = `id, type, items, reason, requested_by, requested_by_user_id,
+    request_date, status, priority, approved_by, approval_date, notes, department, supplier_id,
+    supplier_name, received_by, attachment_url, attachment_name, attachments` as const;
+
   const fetchRequests = async () => {
-    const { data, error } = await supabase
-      .from('requests')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const [{ data, error }, { data: signed, error: signedError }] = await Promise.all([
+      supabase
+        .from('requests')
+        .select(REQUEST_LIST_COLUMNS)
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('requests')
+        .select('id')
+        .not('receiver_signature', 'is', null)
+        .order('created_at', { ascending: false }),
+    ]);
 
     if (error) throw error;
+    if (signedError) throw signedError;
+
+    const signedIds = new Set((signed ?? []).map(r => r.id));
 
     const formattedRequests: Request[] = data.map(request => ({
       id: request.id,
@@ -225,7 +272,7 @@ export const useInventory = () => {
       department: request.department,
       supplierId: request.supplier_id,
       supplierName: request.supplier_name,
-      receiver_signature: request.receiver_signature,
+      hasReceiverSignature: signedIds.has(request.id),
       received_by: request.received_by,
       attachmentUrl: request.attachment_url,
       attachmentName: request.attachment_name,
@@ -553,7 +600,7 @@ export const useInventory = () => {
       if (error) throw error;
 
       // Refresh data
-      await Promise.all([fetchMovements(), fetchProducts()]);
+      await Promise.all([refreshOrInvalidate('movements'), refreshOrInvalidate('products')]);
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to add movement');
     }
@@ -1033,7 +1080,7 @@ export const useInventory = () => {
 
       console.log(`Cotação ${quotation.id} criada com 1 item para produto: ${quotationData.productName}`);
 
-      await fetchQuotations();
+      await refreshOrInvalidate('quotations');
       return quotation;
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to create quotation');
@@ -1073,7 +1120,7 @@ export const useInventory = () => {
 
       if (error) throw error;
 
-      await fetchQuotations();
+      await refreshOrInvalidate('quotations');
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to update quotation item');
     }
@@ -1117,7 +1164,7 @@ export const useInventory = () => {
 
       if (selectedError) throw selectedError;
 
-      await fetchQuotations();
+      await refreshOrInvalidate('quotations');
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Failed to select quotation winner');
     }

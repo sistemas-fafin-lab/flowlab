@@ -84,7 +84,8 @@ export interface Request {
   department?: string;
   supplierId?: string | null;
   supplierName?: string;
-  receiver_signature?: string;
+  /** A assinatura em si não vem na lista; é buscada sob demanda pelo id. */
+  hasReceiverSignature?: boolean;
   received_by?: string;
   attachmentUrl?: string;
   attachmentName?: string;

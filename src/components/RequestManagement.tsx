@@ -75,7 +75,7 @@ const RequestManagement: React.FC = () => {
     locations,
     fetchProductStock,
     fetchStockByLocations,
-  } = useInventory();
+  } = useInventory({ include: ['requests', 'products', 'suppliers', 'locations'] });
 
   // Saldo agregado apenas dos locais do almoxarifado central (Estoque/Depósito),
   // por produto — usado para decidir disponibilidade em Solicitações.
@@ -206,6 +206,33 @@ const RequestManagement: React.FC = () => {
   const [displayCount, setDisplayCount] = useState(ITEMS_PER_PAGE);
 
   const [viewSignature, setViewSignature] = useState<{name: string; signature: string} | null>(null);
+  const [loadingSignatureRequestId, setLoadingSignatureRequestId] = useState<string | null>(null);
+
+  // A lista não traz a assinatura (base64 pesado); busca só a desta solicitação.
+  const openReceiverSignature = async (request: Request) => {
+    setLoadingSignatureRequestId(request.id);
+    try {
+      const { data, error } = await supabase
+        .from('requests')
+        .select('receiver_signature, received_by')
+        .eq('id', request.id)
+        .single();
+      if (error) throw error;
+      if (!data?.receiver_signature) {
+        showWarning('Assinatura não encontrada para esta solicitação.');
+        return;
+      }
+      setViewSignature({
+        name: data.received_by || 'Não informado',
+        signature: data.receiver_signature,
+      });
+    } catch (error) {
+      console.error('Erro ao carregar assinatura:', error);
+      showError('Erro ao carregar a assinatura. Tente novamente.');
+    } finally {
+      setLoadingSignatureRequestId(null);
+    }
+  };
 
   // Previsão de entrega (requestId → YYYY-MM-DD), calculada das cotações aprovadas
   const [deliveryForecast, setDeliveryForecast] = useState<Map<string, string>>(new Map());
@@ -2398,15 +2425,11 @@ const handleCompleteRequest = async (request: Request) => {
             )}
 
             {/* Botão de visualização de assinatura para solicitações finalizadas */}
-            {request.status === 'completed' && request.receiver_signature && (
+            {request.status === 'completed' && request.hasReceiverSignature && (
                 <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-700">
                   <button
-                    onClick={() =>
-                      setViewSignature({
-                        name: request.received_by || 'Não informado',
-                        signature: request.receiver_signature,
-                      })
-                    }
+                    onClick={() => openReceiverSignature(request)}
+                    disabled={loadingSignatureRequestId === request.id}
                     className="flex items-center justify-center w-full sm:w-auto px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 text-blue-700 dark:text-blue-300 hover:from-blue-100 hover:to-indigo-100 dark:hover:from-blue-900/50 dark:hover:to-indigo-900/50 rounded-xl transition-all duration-200 text-xs sm:text-sm font-medium border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600"
                   >
                     <PenTool className="w-4 h-4 mr-2" />
