@@ -25,6 +25,7 @@ interface CorpoResposta {
   error?: string;
   meta: { dadoAte: string | null };
   titulos: (Record<string, unknown> & { idNota: string; tipo: string })[];
+  refechamentos: { idNota: string; lotes: number[]; emissaoAtual: string; emissaoNova: string }[];
 }
 
 // Query builder mínimo do supabase-js: select/eq/neq/order/range encadeáveis,
@@ -107,6 +108,7 @@ function recebido(valor: number, overrides: Partial<RecebidoLoteAplis> = {}): Re
     recebido: valor,
     primeiroRecebimento: valor > 0 ? '2026-09-22' : null,
     ultimoRecebimento: valor > 0 ? '2026-09-22' : null,
+    fechamento: '2026-09-03',
     ...overrides,
   };
 }
@@ -301,5 +303,85 @@ describe('GET /api/faturamento/titulos-conferencia-aplis', () => {
     expect(res.statusCode).toBe(502);
     expect(res.body.success).toBe(false);
     expect(recebidosDosLotesMock).not.toHaveBeenCalled();
+  });
+
+  describe('refechamentos', () => {
+    it('título cujo lote foi refechado depois da emissão sai com emissão atual e nova', async () => {
+      const res = await executar(
+        { notas: [nota('refechado', ['6553'], { data_emissao: '2026-09-24' })] },
+        { 6553: recebido(0, { fechamento: '2026-10-14' }) },
+      );
+      expect(res.statusCode).toBe(200);
+      expect(res.body.refechamentos).toEqual([
+        { idNota: 'refechado', operadora: 'AMHP-DF', lotes: [6553], emissaoAtual: '2026-09-24', emissaoNova: '2026-10-14' },
+      ]);
+    });
+
+    it('fechamento no mesmo mês da emissão, ou anterior, não aparece', async () => {
+      const res = await executar(
+        {
+          notas: [
+            // 6111: emissão 08/07, fechamento 09/07 — só o dia difere, fica.
+            nota('mesmo-mes', ['6111'], { data_emissao: '2026-07-08' }),
+            nota('anterior', ['6200'], { data_emissao: '2026-08-10' }),
+          ],
+        },
+        { 6111: recebido(0, { fechamento: '2026-07-09' }), 6200: recebido(0, { fechamento: '2026-07-30' }) },
+      );
+      expect(res.body.refechamentos).toEqual([]);
+    });
+
+    it('título com vários lotes usa o fechamento mais recente entre eles', async () => {
+      const res = await executar(
+        { notas: [nota('dois-lotes', ['6283', '6243'], { data_emissao: '2026-08-05' })] },
+        {
+          6243: recebido(0, { fechamento: '2026-10-02' }),
+          6283: recebido(0, { fechamento: '2026-10-09' }),
+        },
+      );
+      expect(res.body.refechamentos).toEqual([
+        { idNota: 'dois-lotes', operadora: 'AMHP-DF', lotes: [6243, 6283], emissaoAtual: '2026-08-05', emissaoNova: '2026-10-09' },
+      ]);
+    });
+
+    it('título com algum lote sem fechamento ou ausente no apLIS não aparece', async () => {
+      const res = await executar(
+        {
+          notas: [
+            nota('um-aberto', ['6395', '7017'], { data_emissao: '2026-09-01' }),
+            nota('ausente', ['6774', '4905'], { data_emissao: '2026-09-01' }),
+          ],
+        },
+        {
+          6395: recebido(0, { fechamento: '2026-10-10' }),
+          7017: recebido(0, { fechamento: null }),
+          6774: recebido(0, { fechamento: '2026-10-10' }),
+        },
+      );
+      expect(res.body.refechamentos).toEqual([]);
+    });
+
+    it('título cancelado e título com lote sem aplis_id não aparecem', async () => {
+      const res = await executar(
+        {
+          notas: [
+            nota('cancelado', ['6553'], { status: 'cancelada', data_emissao: '2026-09-24' }),
+            nota('misto', ['6553', null], { data_emissao: '2026-09-24' }),
+          ],
+        },
+        { 6553: recebido(0, { fechamento: '2026-10-14' }) },
+      );
+      expect(res.body.refechamentos).toEqual([]);
+    });
+
+    it('refechamento sai separado das divergências de recebido', async () => {
+      const res = await executar(
+        { notas: [nota('ambos', ['6553'], { data_emissao: '2026-09-24' })] },
+        { 6553: recebido(500, { fechamento: '2026-10-14' }) },
+      );
+      expect(res.body.titulos.map((t) => t.idNota)).toEqual(['ambos']);
+      expect(res.body.refechamentos.map((r) => r.idNota)).toEqual(['ambos']);
+      expect(res.body.titulos[0]).not.toHaveProperty('emissaoNova');
+    });
   });
 });

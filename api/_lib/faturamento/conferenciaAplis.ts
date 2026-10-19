@@ -73,6 +73,11 @@ function maiorData(a: string | null, b: string | null): string | null {
   return a > b ? a : b;
 }
 
+/** YYYY-MM de um YYYY-MM-DD. */
+function mesDe(data: string): string {
+  return data.slice(0, 7);
+}
+
 /**
  * Confere um título contra o recebido dos seus lotes no apLIS. Devolve a
  * divergência, ou null quando os dois lados batem (ou o título não tem lote do
@@ -131,5 +136,47 @@ export function conferirTitulo(
     ultimoRecebimentoAplis: ultimo,
     lotes,
     tipo,
+  };
+}
+
+/** Título cujo lote foi refechado no apLIS depois da emissão
+ *  (.scratch/faturamento-pendencias-e-refechamento/spec.md). */
+export interface RefechamentoAplis {
+  idNota: string;
+  operadora: string;
+  lotes: number[];
+  emissaoAtual: string;
+  /** Fechamento mais recente entre os lotes no apLIS. */
+  emissaoNova: string;
+}
+
+/**
+ * Refechamento do título, ou null. A emissão do título é o fechamento do lote;
+ * quando o apLIS refecha o lote, `DtaFechamento` muda e o título fica no mês
+ * antigo. Só conta com todos os lotes fechados no apLIS e com o fechamento mais
+ * recente entre eles num MÊS posterior ao da emissão: diferença só de dia no
+ * mesmo mês não muda a meta e fica como está (auditoria de 06/10, ex.: lote
+ * 6111, emissão 08/07 e fechamento 09/07). Anterior nunca volta a data.
+ */
+export function refechamentoDoTitulo(
+  titulo: TituloConferencia,
+  recebidosPorLote: Record<number, RecebidoLoteAplis>,
+): RefechamentoAplis | null {
+  if (titulo.idsLote.length === 0 || !titulo.dataEmissao) return null;
+
+  const lotes = [...titulo.idsLote].sort((a, b) => a - b);
+  let maisRecente: string | null = null;
+  for (const id of lotes) {
+    const fechamento = recebidosPorLote[id]?.fechamento;
+    if (!fechamento) return null;
+    maisRecente = maiorData(maisRecente, fechamento);
+  }
+  if (!maisRecente || mesDe(maisRecente) <= mesDe(titulo.dataEmissao)) return null;
+  return {
+    idNota: titulo.idNota,
+    operadora: titulo.operadora,
+    lotes,
+    emissaoAtual: titulo.dataEmissao,
+    emissaoNova: maisRecente,
   };
 }

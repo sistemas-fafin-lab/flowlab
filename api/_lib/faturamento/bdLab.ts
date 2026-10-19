@@ -955,6 +955,9 @@ export interface RecebidoLoteAplis {
   /** YYYY-MM-DD do primeiro/último `DtaRecebido` com valor; null sem recebimento. */
   primeiroRecebimento: string | null;
   ultimoRecebimento: string | null;
+  /** YYYY-MM-DD de `fatlote.DtaFechamento` (o mais recente: o apLIS sobrescreve
+   *  ao refechar); null com o lote aberto. */
+  fechamento: string | null;
 }
 
 export type RecebidosDosLotesResultado =
@@ -984,6 +987,7 @@ export async function recebidosDosLotes(idsLote: number[]): Promise<RecebidosDos
       const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
       const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
         `SELECT l.IdLote, l.Status,
+                DATE_FORMAT(l.DtaFechamento, '%Y-%m-%d') AS Fechamento,
                 SUM(p.ValorRecebido) AS Recebido,
                 DATE_FORMAT(MIN(CASE WHEN p.ValorRecebido > 0 THEN p.DtaRecebido END), '%Y-%m-%d') AS Primeiro,
                 DATE_FORMAT(MAX(CASE WHEN p.ValorRecebido > 0 THEN p.DtaRecebido END), '%Y-%m-%d') AS Ultimo
@@ -991,7 +995,7 @@ export async function recebidosDosLotes(idsLote: number[]): Promise<RecebidosDos
            LEFT JOIN requisicao r ON r.Lote = l.IdLote
            LEFT JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
           WHERE l.IdLote IN (${bloco.map(() => '?').join(', ')})
-          GROUP BY l.IdLote, l.Status`,
+          GROUP BY l.IdLote, l.Status, l.DtaFechamento`,
         bloco,
       );
       for (const linha of linhas) {
@@ -1002,6 +1006,7 @@ export async function recebidosDosLotes(idsLote: number[]): Promise<RecebidosDos
           recebido: numero(linha.Recebido),
           primeiroRecebimento: dataIso(linha.Primeiro),
           ultimoRecebimento: dataIso(linha.Ultimo),
+          fechamento: dataIso(linha.Fechamento),
         };
       }
     }

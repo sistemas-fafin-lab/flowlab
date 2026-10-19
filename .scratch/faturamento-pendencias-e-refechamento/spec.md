@@ -161,8 +161,11 @@ acompanhar o mês, mas hoje as três telas atrapalham mais do que ajudam:
   Títulos e alimenta os selos "Divergente do apLIS") passa também a calcular,
   para cada título não cancelado cujos lotes têm todos `aplis_id`, o
   **fechamento mais recente** entre os lotes no apLIS (`fatlote.DtaFechamento`).
-  Quando esse fechamento é **posterior** à `data_emissao` do título, o título
-  sai na resposta como **refechado**, com emissão atual e emissão nova.
+  Quando esse fechamento cai num **mês posterior** ao da `data_emissao` do
+  título, o título sai na resposta como **refechado**, com emissão atual e
+  emissão nova. Diferença só de dia dentro do mesmo mês não conta (decidido em
+  19/10/2026, igual à auditoria de 06/10 "mesmo mês: só o dia muda → manter";
+  ex.: 6111, emissão 08/07 e fechamento 09/07).
 - Título com algum lote ainda sem fechamento no apLIS não é refechado: o
   fechamento mais recente só é calculado com todos fechados.
 - A conferência devolve `refechamentos: { idNota, lotes, emissaoAtual,
@@ -170,8 +173,8 @@ acompanhar o mês, mas hoje as três telas atrapalham mais do que ajudam:
 - No Atualizar, para quem tem permissão de edição, o front aplica os
   refechamentos por uma RPC nova que, numa transação só, atualiza
   `data_emissao` e (só quando a competência era o mês da emissão antiga)
-  `competencia`. A RPC confere de novo no servidor que a nova data é
-  posterior à atual, para ser idempotente e segura contra corrida. Exige
+  `competencia`. A RPC confere de novo no servidor que a nova data é de um
+  mês posterior ao da atual, para ser idempotente e segura contra corrida. Exige
   `canManageBilling`. Devolve quantos e quais títulos mudaram.
 - O aviso da página lista os títulos que mudaram (operadora, lote(s), emissão
   antiga → nova). Sem refechamentos, nenhum aviso.
@@ -193,9 +196,9 @@ internas.
 Seams, do mais alto para o mais baixo:
 
 1. **Handler da conferência com o apLIS** (já testado com `bdLab` e Supabase
-   mockados): casos de título refechado (fechamento posterior → aparece com
-   emissão nova), não refechado (fechamento igual ou anterior → não
-   aparece), vários lotes (usa o mais recente), lote sem fechamento (não
+   mockados): casos de título refechado (fechamento em mês posterior →
+   aparece com emissão nova), não refechado (fechamento no mesmo mês ou
+   anterior → não aparece), vários lotes (usa o mais recente), lote sem fechamento (não
    aparece), cancelado (não aparece). Prior art: os testes atuais desse
    handler e de `conferenciaAplis`.
 2. **Handlers de Particulares e Sem lote** com `bdLab` e Supabase mockados:

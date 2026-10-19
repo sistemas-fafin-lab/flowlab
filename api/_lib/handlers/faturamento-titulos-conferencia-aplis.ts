@@ -8,6 +8,10 @@
  * `sistema-maior`, `lote-ausente` — regra em faturamento/conferenciaAplis.ts).
  * Só aponta: a baixa continua sendo lançada pelo operador no "Editar título".
  *
+ * Na mesma leitura devolve `refechamentos`: títulos cujo lote foi refechado no
+ * apLIS depois da emissão (.scratch/faturamento-pendencias-e-refechamento/spec.md,
+ * regra em `refechamentoDoTitulo`). Também só aponta, não muda dado.
+ *
  * Título com algum lote sem `aplis_id` (criado fora do apLIS) fica de fora: o
  * recebido do apLIS seria só de parte dele.
  *
@@ -23,8 +27,13 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { recebidosDosLotes } from '../faturamento/bdLab.js';
-import { conferirTitulo } from '../faturamento/conferenciaAplis.js';
-import type { DivergenciaAplis, TipoDivergenciaAplis, TituloConferencia } from '../faturamento/conferenciaAplis.js';
+import { conferirTitulo, refechamentoDoTitulo } from '../faturamento/conferenciaAplis.js';
+import type {
+  DivergenciaAplis,
+  RefechamentoAplis,
+  TipoDivergenciaAplis,
+  TituloConferencia,
+} from '../faturamento/conferenciaAplis.js';
 import { ErroSupabase, titulosParaConferir } from '../faturamento/titulosConferencia.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
@@ -83,9 +92,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .filter((d): d is DivergenciaAplis => d !== null)
       .sort((a, b) => ORDEM_TIPO[a.tipo] - ORDEM_TIPO[b.tipo] || diferenca(b) - diferenca(a));
 
+    const refechamentos = titulos
+      .map((titulo) => refechamentoDoTitulo(titulo, recebidos.porLote))
+      .filter((r): r is RefechamentoAplis => r !== null)
+      .sort((a, b) => a.emissaoAtual.localeCompare(b.emissaoAtual) || a.lotes[0] - b.lotes[0]);
+
     // Dado financeiro: não deixa ficar em cache de navegador nem de proxy.
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json({ success: true, meta: { dadoAte: recebidos.dadoAte }, titulos: divergentes });
+    res.status(200).json({ success: true, meta: { dadoAte: recebidos.dadoAte }, titulos: divergentes, refechamentos });
   } catch (err) {
     console.error('[faturamento/titulos-conferencia-aplis] erro:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });

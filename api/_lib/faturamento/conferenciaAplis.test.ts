@@ -51,6 +51,7 @@ function recebido(overrides: Partial<RecebidoLoteAplis> = {}): RecebidoLoteAplis
     recebido: 2034.81,
     primeiroRecebimento: '2026-09-22',
     ultimoRecebimento: '2026-09-22',
+    fechamento: '2026-09-03',
     ...overrides,
   };
 }

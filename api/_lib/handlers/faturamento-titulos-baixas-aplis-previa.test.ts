@@ -128,6 +128,7 @@ function recebido(valor: number, overrides: Partial<RecebidoLoteAplis> = {}): Re
     recebido: valor,
     primeiroRecebimento: valor > 0 ? '2026-09-22' : null,
     ultimoRecebimento: valor > 0 ? '2026-09-22' : null,
+    fechamento: '2026-09-03',
     ...overrides,
   };
 }

@@ -18,6 +18,7 @@ import PendenciasSemLote from './PendenciasSemLote';
 import NovoTituloModal from './NovoTituloModal';
 import AtualizarAplisModal from './AtualizarAplisModal';
 import ConferenciaAplisModal from './ConferenciaAplisModal';
+import RefechamentosAplisAviso from './RefechamentosAplisAviso';
 import AplicarBaixasAplisModal from './AplicarBaixasAplisModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
@@ -392,6 +393,10 @@ const ContasReceberPage: React.FC = () => {
           onNavegarPendencias={navegarParaPendencias}
           onNavegarMeta={navegarParaTitulosMeta}
         />
+      )}
+
+      {aba === 'titulos' && conferencia.refechamentos && (
+        <RefechamentosAplisAviso refechamentos={conferencia.refechamentos} />
       )}
 
       {aba === 'titulos' && (

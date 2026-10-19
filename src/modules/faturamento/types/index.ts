@@ -245,10 +245,23 @@ export interface DivergenciaAplis {
   tipo: TipoDivergenciaAplis;
 }
 
+/** Título cujo lote foi refechado no apLIS depois da emissão
+ *  (.scratch/faturamento-pendencias-e-refechamento). Só aponta. */
+export interface RefechamentoAplis {
+  idNota: string;
+  operadora: string;
+  lotes: number[];
+  /** YYYY-MM-DD. */
+  emissaoAtual: string;
+  /** Fechamento mais recente entre os lotes no apLIS (YYYY-MM-DD). */
+  emissaoNova: string;
+}
+
 export interface ConferenciaAplis {
   /** Último dia que a réplica do apLIS tem (YYYY-MM-DD). */
   dadoAte: string | null;
   titulos: DivergenciaAplis[];
+  refechamentos: RefechamentoAplis[];
 }
 
 /** Baixa a lançar a partir do apLIS: uma por data de recebimento lá. */

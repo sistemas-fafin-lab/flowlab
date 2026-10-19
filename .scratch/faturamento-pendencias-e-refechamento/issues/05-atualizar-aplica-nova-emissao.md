@@ -2,7 +2,7 @@
 
 **What to build:** Quando quem tem `canManageBilling` clica em **Atualizar** na aba Títulos, os títulos refechados apontados pela conferência (ticket 04) recebem a nova emissão na hora. O aviso passa a dizer "N títulos mudaram de mês por refechamento no apLIS", com operadora, lote(s), emissão antiga → nova. Meta mensal, histórico de metas, Dashboard e "Ver títulos do mês" refletem a mudança juntos, porque todos usam a emissão. Quem só visualiza continua vendo só o aviso do ticket 04, sem erro de permissão.
 
-RPC nova que, numa transação só, atualiza `data_emissao` e, **só quando a competência era o mês da emissão antiga**, `competencia` (mesma regra da migration de 06/10). A RPC confere de novo no servidor que a nova data é posterior à atual, para ser idempotente e segura contra corrida. Exige `canManageBilling` e devolve quantos e quais títulos mudaram. Vencimento não muda. Não há correção de dados à parte: os 5 lotes de outubro entram no primeiro Atualizar depois do deploy.
+RPC nova que, numa transação só, atualiza `data_emissao` e, **só quando a competência era o mês da emissão antiga**, `competencia` (mesma regra da migration de 06/10). A RPC confere de novo no servidor que a nova data é de um **mês posterior** ao da atual (regra do ticket 04, decidida em 19/10/2026), para ser idempotente e segura contra corrida. Exige `canManageBilling` e devolve quantos e quais títulos mudaram. Vencimento não muda. Não há correção de dados à parte: os 5 lotes de outubro (mais o 5424, achado na conferência do ticket 04) entram no primeiro Atualizar depois do deploy. São 22 títulos no total, de vários meses: ver os Comments do ticket 04.
 
 Spec: `.scratch/faturamento-pendencias-e-refechamento/spec.md`.
 

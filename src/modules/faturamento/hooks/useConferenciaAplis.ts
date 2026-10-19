@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { chamarApi } from './useContasReceber';
-import type { ConferenciaAplis, DivergenciaAplis } from '../types';
+import type { ConferenciaAplis, DivergenciaAplis, RefechamentoAplis } from '../types';
 
 // Conferência das baixas com o apLIS (.scratch/faturamento-conferencia-baixas-aplis)
 // para a aba Títulos: selo na linha e filtro "Divergente do apLIS". A rota não
@@ -10,17 +10,24 @@ const MENSAGEM_PADRAO = 'Não foi possível conferir as baixas com o apLIS.';
 
 /** GET /api/faturamento/titulos-conferencia-aplis. Também usado pelo modal. */
 export async function buscarConferenciaAplis(): Promise<ConferenciaAplis> {
-  const body = await chamarApi<{ meta?: { dadoAte?: string | null }; titulos?: DivergenciaAplis[] }>(
-    '/api/faturamento/titulos-conferencia-aplis',
-    MENSAGEM_PADRAO,
-  );
-  return { dadoAte: body.meta?.dadoAte ?? null, titulos: body.titulos ?? [] };
+  const body = await chamarApi<{
+    meta?: { dadoAte?: string | null };
+    titulos?: DivergenciaAplis[];
+    refechamentos?: RefechamentoAplis[];
+  }>('/api/faturamento/titulos-conferencia-aplis', MENSAGEM_PADRAO);
+  return {
+    dadoAte: body.meta?.dadoAte ?? null,
+    titulos: body.titulos ?? [],
+    refechamentos: body.refechamentos ?? [],
+  };
 }
 
 interface UseConferenciaAplisResult {
   /** Divergentes por `idNota`; null enquanto não chegou ou se falhou. */
   porTitulo: Map<string, DivergenciaAplis> | null;
   titulos: DivergenciaAplis[] | null;
+  /** Títulos com lote refechado no apLIS depois da emissão; null como `titulos`. */
+  refechamentos: RefechamentoAplis[] | null;
   carregando: boolean;
   erro: string | null;
 }
@@ -32,6 +39,7 @@ interface UseConferenciaAplisResult {
  */
 export function useConferenciaAplis(ativo: boolean, versao: number): UseConferenciaAplisResult {
   const [titulos, setTitulos] = useState<DivergenciaAplis[] | null>(null);
+  const [refechamentos, setRefechamentos] = useState<RefechamentoAplis[] | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   // Descarta a resposta de uma leitura já substituída por outra.
@@ -45,12 +53,14 @@ export function useConferenciaAplis(ativo: boolean, versao: number): UseConferen
       const conferencia = await buscarConferenciaAplis();
       if (leitura !== leituraRef.current) return;
       setTitulos(conferencia.titulos);
+      setRefechamentos(conferencia.refechamentos);
     } catch (err) {
       if (leitura !== leituraRef.current) return;
       // Sem selos em vez dos da leitura anterior: o operador pode ter acabado
       // de acertar justamente aquele título. (Durante a releitura os anteriores
       // ficam, para a lista não piscar.)
       setTitulos(null);
+      setRefechamentos(null);
       setErro(err instanceof Error ? err.message : MENSAGEM_PADRAO);
     } finally {
       if (leitura === leituraRef.current) setCarregando(false);
@@ -73,5 +83,5 @@ export function useConferenciaAplis(ativo: boolean, versao: number): UseConferen
     [titulos],
   );
 
-  return { porTitulo, titulos, carregando, erro };
+  return { porTitulo, titulos, refechamentos, carregando, erro };
 }
