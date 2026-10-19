@@ -14,6 +14,9 @@
  *   ate           YYYY-MM-DD — nunca ultrapassa hoje
  *   pagina        default 1
  *   tamanho       1..200, default 50
+ *   incluirSemNf  1 — traz também as requisições de locais de origem marcados
+ *                 como "não emite NF" (tabela clinicas_sem_nf); sem ele, elas
+ *                 saem da lista e do valorTotal
  *
  * Variáveis de ambiente: DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME
  *   + SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY para validar a sessão.
@@ -23,6 +26,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { listarParticularesPendentes, MAX_TAMANHO, TAMANHO_PADRAO } from '../faturamento/bdLab.js';
+import { listarClinicasSemNf } from '../faturamento/clinicasSemNf.js';
+import { getSupabaseUserClient } from '../supabase.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -51,7 +56,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const token = tokenDoHeader(req.headers.authorization);
+    const erroAuth = await autorizarFaturamento(token);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;
@@ -77,12 +83,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    const ignorarCache = primeiro(q.semCache) === '1';
+
+    // Lida com o cliente do usuário: a RLS de clinicas_sem_nf é a mesma regra de
+    // leitura do faturamento. Falhar aqui não pode virar lista sem o filtro.
+    let idsClinicasSemNf: number[];
+    try {
+      idsClinicasSemNf = await listarClinicasSemNf(getSupabaseUserClient(token as string), { ignorarCache });
+    } catch (err) {
+      console.error('[faturamento/pendencias-particulares] erro ao ler clínicas sem NF:', describeError(err));
+      res.status(502).json({
+        success: false,
+        error: 'Não foi possível ler a lista de clínicas sem NF. Tente novamente.',
+      });
+      return;
+    }
+
     const resultado = await listarParticularesPendentes({
       desde,
       ate,
       pagina,
       tamanho: tamanho ?? TAMANHO_PADRAO,
-      ignorarCache: primeiro(q.semCache) === '1',
+      ignorarCache,
+      idsClinicasSemNf,
+      incluirSemNf: primeiro(q.incluirSemNf) === '1',
     });
 
     if ('erro' in resultado) {

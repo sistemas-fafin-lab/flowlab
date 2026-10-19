@@ -4,6 +4,7 @@ import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
 import { formatCurrency, formatData, hojeIso, inicioMesIso } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import DatePicker from '../../../components/DatePicker';
+import Switch from '../../../components/Switch';
 
 // Aba Contas a Receber → Pendências → Particulares: requisições da fonte
 // pagadora PARTICULAR (IdFontePagadora 1102) sem NF emitida, solicitadas até
@@ -13,6 +14,10 @@ import DatePicker from '../../../components/DatePicker';
 // Diferente de PendenciasNaoFaturadas (lote → requisições expansível), aqui a
 // requisição já é a unidade da lista: a maioria dos particulares nunca entra
 // num lote do apLIS (pagamento é direto no balcão), então não há o que expandir.
+//
+// As requisições de clínicas sem NF (locais de origem para os quais o laboratório
+// não emite nota, tabela clinicas_sem_nf) ficam fora da lista e do total. O
+// toggle "Mostrar clínicas sem NF" as traz de volta, marcadas, para conferência.
 
 const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 
@@ -25,12 +30,14 @@ const PendenciasParticulares: React.FC = () => {
   const [desde, setDesde] = useState(inicioMesIso);
   const [ate, setAte] = useState(hojeIso);
   const [pagina, setPagina] = useState(1);
+  const [incluirSemNf, setIncluirSemNf] = useState(false);
 
   const { requisicoes, meta, loading, error, refetch } = usePendenciasParticulares({
     desde: desde || undefined,
     ate: ate || undefined,
     pagina,
     tamanho: TAMANHO_PADRAO,
+    incluirSemNf,
   });
 
   const mudarFiltro = useCallback((aplicar: () => void) => {
@@ -68,6 +75,14 @@ const PendenciasParticulares: React.FC = () => {
         >
           <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /> Atualizar
         </button>
+        <label className="flex items-center gap-2 py-2 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+          <Switch
+            size="sm"
+            checked={incluirSemNf}
+            onChange={(v) => mudarFiltro(() => setIncluirSemNf(v))}
+          />
+          Mostrar clínicas sem NF
+        </label>
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -75,7 +90,10 @@ const PendenciasParticulares: React.FC = () => {
         {meta?.limite ? <>, solicitadas até {formatData(meta.limite)}</> : null} — dados até ontem
         (D-1), porque o apLIS chega com cerca de um dia de atraso. Inclui as que nunca chegaram a
         entrar num lote do apLIS e deixa de fora exame cancelado, amostra devolvida e material
-        descartado.
+        descartado.{' '}
+        {incluirSemNf
+          ? 'As requisições de clínicas sem NF estão incluídas na lista e no total.'
+          : 'As requisições de clínicas sem NF ficam de fora da lista e do total.'}
       </p>
 
       {error && (
@@ -100,6 +118,7 @@ const PendenciasParticulares: React.FC = () => {
                 <tr className="text-left text-xs text-gray-500 dark:text-gray-400">
                   <th className="px-3 py-2">Requisição</th>
                   <th className="px-3 py-2">Paciente</th>
+                  <th className="px-3 py-2">Clínica</th>
                   <th className="px-3 py-2">Solicitação</th>
                   <th className="px-3 py-2">Evento</th>
                   <th className="px-3 py-2">Lote</th>
@@ -108,12 +127,28 @@ const PendenciasParticulares: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {requisicoes.map((req) => (
-                  <tr key={req.idRequisicao} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
+                  <tr
+                    key={req.idRequisicao}
+                    className={`hover:bg-gray-50 dark:hover:bg-gray-700/30 ${req.clinicaSemNf ? 'opacity-60' : ''}`}
+                  >
                     <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap font-mono">
                       {req.codRequisicao ?? `#${req.idRequisicao}`}
                     </td>
                     <td className="px-3 py-2 text-gray-600 dark:text-gray-300 truncate max-w-[220px]">
                       {req.paciente ?? '—'}
+                    </td>
+                    <td className="px-3 py-2 text-gray-600 dark:text-gray-300 max-w-[220px]">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate">{req.localOrigem.nome ?? '—'}</span>
+                        {req.clinicaSemNf && (
+                          <span
+                            className="inline-flex px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300"
+                            title="Clínica para a qual o laboratório não emite NF: não conta como pendência."
+                          >
+                            Sem NF
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
                       {formatData(req.dtaSolicitacao)}

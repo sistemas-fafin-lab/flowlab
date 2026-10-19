@@ -12,10 +12,14 @@ Spec: `.scratch/faturamento-pendencias-e-refechamento/spec.md`.
 
 **Status:** ready-for-agent
 
-- [ ] A migration cria a tabela com RLS e insere os 4 locais de origem.
-- [ ] Particulares mostra a coluna Clínica.
-- [ ] Sem `incluirSemNf`, as requisições dos 4 locais não aparecem e não somam no total (nem no widget do Dashboard).
-- [ ] Com o toggle ligado, elas aparecem e ficam visualmente marcadas como clínica sem NF.
-- [ ] Uma falha ao ler a lista no Supabase devolve erro claro, nunca uma lista sem o filtro.
-- [ ] Testes do handler de Particulares (bdLab e Supabase mockados): repassa os ids da lista, liga e desliga `incluirSemNf`, trata erro do Supabase. Prior art: testes de `faturamento-titulos-aplis-previa`.
-- [ ] Conferido à mão: Particulares de out/2026 sem requisições de ABAC, Nexus, Mater Clínica e Ecomed.
+- [x] A migration cria a tabela com RLS e insere os 4 locais de origem. _`20261019170000_clinicas_sem_nf.sql`, ainda **não aplicada** no Supabase: até aplicar, Particulares devolve 502 ("Não foi possível ler a lista de clínicas sem NF")._
+- [x] Particulares mostra a coluna Clínica.
+- [x] Sem `incluirSemNf`, as requisições dos 4 locais não aparecem e não somam no total (nem no widget do Dashboard, que chama sem o parâmetro).
+- [x] Com o toggle ligado, elas aparecem e ficam visualmente marcadas como clínica sem NF (selo "Sem NF" e linha esmaecida).
+- [x] Uma falha ao ler a lista no Supabase devolve erro claro, nunca uma lista sem o filtro.
+- [x] Testes do handler de Particulares (bdLab e Supabase mockados): repassa os ids da lista, liga e desliga `incluirSemNf`, trata erro do Supabase. Prior art: testes de `faturamento-titulos-aplis-previa`.
+- [x] Conferido à mão: Particulares de out/2026 sem requisições de ABAC, Nexus, Mater Clínica e Ecomed.
+
+**Conferência no banco real (19/10/2026)**, chamando `listarParticularesPendentes` direto com os 4 ids (sem passar pelo handler, porque a tabela ainda não existe no Supabase): out/2026 com `incluirSemNf` dá 47 requisições, R$ 9.482,30, das quais 3 de clínica sem NF (1 Mater Clínica, 2 Ecomed); sem ele, 44 requisições, R$ 8.613,30, nenhuma dos 4 locais. Falta conferir o caminho completo (handler + RLS + tela) depois de aplicar a migration.
+
+**Risco conhecido:** se a RLS de `clinicas_sem_nf` negar a leitura, o Postgres devolve lista vazia, não erro, e as 4 clínicas voltariam a aparecer sem aviso. Hoje a RLS usa as mesmas permissões que `autorizarFaturamento` confere antes, então não acontece; uma lista vazia de propósito (ticket 03) é legítima e não dá para distinguir.

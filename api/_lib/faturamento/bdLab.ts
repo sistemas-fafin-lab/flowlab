@@ -2214,6 +2214,12 @@ export interface RequisicaoParticularPendencia {
   eventoLabel: string | null;
   /** Lote do apLIS, quando a requisição chegou a entrar num — a maioria não entra. */
   idLote: number | null;
+  /** "Clínica": Local de Origem da requisição (`requisicao.IdLocalOrigem` →
+   *  `fatinstituicao.NomFantasia`). Não é a fonte pagadora, que é sempre 1102. */
+  localOrigem: { id: number | null; nome: string | null };
+  /** Local de origem marcado como "não emite NF" (`idsClinicasSemNf`). Só vem
+   *  `true` com `incluirSemNf`; sem ele essas requisições nem aparecem. */
+  clinicaSemNf: boolean;
 }
 
 export interface ListarParticularesPendentesParams {
@@ -2225,6 +2231,11 @@ export interface ListarParticularesPendentesParams {
   pagina?: number;
   tamanho?: number;
   ignorarCache?: boolean;
+  /** `IdInstituicao` dos locais de origem que não emitem NF (tabela
+   *  `clinicas_sem_nf` no Supabase, ver clinicasSemNf.ts). */
+  idsClinicasSemNf?: number[];
+  /** Sem ele, as requisições de `idsClinicasSemNf` saem da lista e do total. */
+  incluirSemNf?: boolean;
 }
 
 export interface ParticularesPendentesMeta {
@@ -2247,7 +2258,7 @@ export type ListarParticularesPendentesResultado =
 const cacheParticularesPendentes = new Map<string, EntradaCache<ListarParticularesPendentesResultado>>();
 
 function chaveParticularesPendentes(params: ListarParticularesPendentesParams): string {
-  return `particularesPendentes|${params.desde ?? ''}|${params.ate ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}`;
+  return `particularesPendentes|${params.desde ?? ''}|${params.ate ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${(params.idsClinicasSemNf ?? []).join('.')}|${params.incluirSemNf ? 1 : 0}`;
 }
 
 // `r.Lote IS NULL OR (l.IdRPS IS NULL AND l.Status IN STATUS_PENDENCIA)` cobre os
@@ -2276,7 +2287,11 @@ const SQL_PARTICULARES_PENDENTES_WHERE = `
     WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL
   )`;
 
-function normalizarParticularPendencia(linha: mysql.RowDataPacket): RequisicaoParticularPendencia {
+function normalizarParticularPendencia(
+  linha: mysql.RowDataPacket,
+  idsClinicasSemNf: number[],
+): RequisicaoParticularPendencia {
+  const idLocalOrigem = inteiroOuNulo(linha.IdLocalOrigem);
   return {
     idRequisicao: numero(linha.IdRequisicao),
     codRequisicao: texto(linha.CodRequisicao),
@@ -2287,6 +2302,8 @@ function normalizarParticularPendencia(linha: mysql.RowDataPacket): RequisicaoPa
     codEvento: numero(linha.CodEvento),
     eventoLabel: texto(linha.DesEvento),
     idLote: inteiroOuNulo(linha.Lote),
+    localOrigem: { id: idLocalOrigem, nome: texto(linha.NomLocalOrigem) },
+    clinicaSemNf: idLocalOrigem !== null && idsClinicasSemNf.includes(idLocalOrigem),
   };
 }
 
@@ -2314,6 +2331,14 @@ export async function listarParticularesPendentes(
       condicoes.push('r.DtaSolicitacao >= ?');
       valores.push(`${params.desde} 00:00:00`);
     }
+    // Requisição sem local de origem não é de clínica sem NF: continua na lista.
+    const idsClinicasSemNf = params.idsClinicasSemNf ?? [];
+    if (!params.incluirSemNf && idsClinicasSemNf.length > 0) {
+      condicoes.push(
+        `(r.IdLocalOrigem IS NULL OR r.IdLocalOrigem NOT IN (${idsClinicasSemNf.map(() => '?').join(', ')}))`,
+      );
+      valores.push(...idsClinicasSemNf);
+    }
     const where = condicoes.join(' AND ');
 
     // Mesma troca de subconsulta correlacionada por LEFT JOIN + GROUP BY de
@@ -2340,12 +2365,14 @@ export async function listarParticularesPendentes(
               DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
               DATE_FORMAT(r.DtaFinalizacao, '%Y-%m-%d') AS DtaFinalizacao,
               p.NomPaciente, r.CodEvento, ev.DesEvento, r.Lote,
+              r.IdLocalOrigem, lo.NomFantasia AS NomLocalOrigem,
               COALESCE((SELECT SUM(frp.ValorLiquido) FROM fatrequisicaoprocedimento frp
                          WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor
          FROM requisicao r
          LEFT JOIN fatlote l ON l.IdLote = r.Lote
          LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
          LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
+         LEFT JOIN fatinstituicao lo ON lo.IdInstituicao = r.IdLocalOrigem
         WHERE ${where}
         ORDER BY r.DtaSolicitacao ASC, r.IdRequisicao ASC
         LIMIT ${limite} OFFSET ${deslocamento}`,
@@ -2353,7 +2380,7 @@ export async function listarParticularesPendentes(
     );
 
     return {
-      requisicoes: linhas.map(normalizarParticularPendencia),
+      requisicoes: linhas.map((linha) => normalizarParticularPendencia(linha, idsClinicasSemNf)),
       meta: {
         pagina,
         tamanho,

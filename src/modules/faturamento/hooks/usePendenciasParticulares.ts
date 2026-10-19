@@ -41,13 +41,14 @@ export function usePendenciasParticulares(
     filtros,
     rota: 'pendencias-particulares',
     cache: cacheSessao,
-    chaveCache: (f) => `${f.desde ?? ''}|${f.ate ?? ''}|${f.pagina ?? 1}|${f.tamanho ?? 50}`,
+    chaveCache: (f) => `${f.desde ?? ''}|${f.ate ?? ''}|${f.pagina ?? 1}|${f.tamanho ?? 50}|${f.incluirSemNf ? 1 : 0}`,
     montarParams: (f, force) => {
       const params = new URLSearchParams();
       if (f.desde) params.set('desde', f.desde);
       if (f.ate) params.set('ate', f.ate);
       if (f.pagina) params.set('pagina', String(f.pagina));
       if (f.tamanho) params.set('tamanho', String(f.tamanho));
+      if (f.incluirSemNf) params.set('incluirSemNf', '1');
       if (force) params.set('semCache', '1');
       return params;
     },

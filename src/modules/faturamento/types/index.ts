@@ -454,7 +454,7 @@ export interface PendenciasMeta {
 // PENDÊNCIAS — PARTICULARES (aba Contas a Receber → Pendências → Particulares)
 // ============================================================================
 // Contrato de GET /api/faturamento/pendencias-particulares — requisições da
-// fonte pagadora PARTICULAR (1102) sem NF, dentro da janela M-1, ao nível de
+// fonte pagadora PARTICULAR (1102) sem NF, solicitadas até hoje, ao nível de
 // requisição (não de lote — a maioria nunca entra num lote do apLIS). Regra
 // completa em api/_lib/faturamento/bdLab.ts (listarParticularesPendentes).
 
@@ -469,6 +469,11 @@ export interface RequisicaoParticularPendencia {
   eventoLabel: string | null;
   /** Lote do apLIS, quando a requisição chegou a entrar num — a maioria não entra. */
   idLote: number | null;
+  /** "Clínica": Local de Origem da requisição no apLIS (nome fantasia). */
+  localOrigem: { id: number | null; nome: string | null };
+  /** Local de origem marcado como "não emite NF". Só vem `true` com
+   *  `incluirSemNf`; sem ele essas requisições nem aparecem. */
+  clinicaSemNf: boolean;
 }
 
 export interface ParticularesPendentesFiltros {
@@ -477,6 +482,8 @@ export interface ParticularesPendentesFiltros {
   ate?: string;
   pagina?: number;
   tamanho?: number;
+  /** Traz de volta as requisições das clínicas sem NF (fora por padrão). */
+  incluirSemNf?: boolean;
 }
 
 export interface ParticularesPendentesMeta {
