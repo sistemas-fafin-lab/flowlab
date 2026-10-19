@@ -486,6 +486,22 @@ export interface ParticularesPendentesFiltros {
   incluirSemNf?: boolean;
 }
 
+/** Linha de `clinicas_sem_nf` (Supabase): local de origem do apLIS para o qual
+ *  o laboratório não emite NF. */
+export interface ClinicaSemNf {
+  aplisId: number;
+  nome: string;
+  marcadoEm: string;
+}
+
+/** Contrato de GET /api/faturamento/locais-origem (busca do modal "Clínicas sem NF"). */
+export interface LocalOrigemBusca {
+  id: number;
+  nome: string | null;
+  razaoSocial: string | null;
+  inativo: boolean;
+}
+
 export interface ParticularesPendentesMeta {
   pagina: number;
   tamanho: number;

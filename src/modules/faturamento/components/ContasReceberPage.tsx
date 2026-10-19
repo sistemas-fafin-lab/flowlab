@@ -454,7 +454,7 @@ const ContasReceberPage: React.FC = () => {
           </div>
 
           {subAbaPendencias === 'lotes' && <PendenciasNaoFaturadas operadoras={operadoras} />}
-          {subAbaPendencias === 'particulares' && <PendenciasParticulares />}
+          {subAbaPendencias === 'particulares' && <PendenciasParticulares podeEditar={podeEditar} />}
           {subAbaPendencias === 'semLote' && <PendenciasSemLote operadoras={operadoras} />}
         </div>
       )}

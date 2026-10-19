@@ -3,6 +3,7 @@ import type {
   ParticularesPendentesMeta,
   RequisicaoParticularPendencia,
 } from '../types';
+import { limparCachePersistente } from './legado/cachePersistente';
 import { useLegadoListagem } from './legado/useLegadoListagem';
 
 // Lista as requisições particulares pendentes (sem NF, solicitadas até hoje)
@@ -10,7 +11,17 @@ import { useLegadoListagem } from './legado/useLegadoListagem';
 // usePendenciasNaoFaturadas, mas sem o detalhe sob demanda: aqui a requisição já
 // É a unidade da lista, não há lote pra expandir.
 
+const ROTA = 'pendencias-particulares';
+
 const cacheSessao = new Map<string, { itens: RequisicaoParticularPendencia[]; meta: ParticularesPendentesMeta }>();
+
+/** Descarta todo resultado guardado (memória e localStorage), de todas as
+ *  combinações de filtro — inclusive a do widget do Dashboard. Usado quando a
+ *  lista de clínicas sem NF muda: a próxima leitura precisa ir ao servidor. */
+export function limparCachePendenciasParticulares(): void {
+  cacheSessao.clear();
+  limparCachePersistente(`${ROTA}|`);
+}
 
 interface RespostaParticularesPendentes {
   success?: boolean;
@@ -39,7 +50,7 @@ export function usePendenciasParticulares(
     RespostaParticularesPendentes
   >({
     filtros,
-    rota: 'pendencias-particulares',
+    rota: ROTA,
     cache: cacheSessao,
     chaveCache: (f) => `${f.desde ?? ''}|${f.ate ?? ''}|${f.pagina ?? 1}|${f.tamanho ?? 50}|${f.incluirSemNf ? 1 : 0}`,
     montarParams: (f, force) => {

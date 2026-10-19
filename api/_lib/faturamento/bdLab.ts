@@ -739,6 +739,53 @@ export async function listarFontesPagadoras(): Promise<FontesPagadorasResultado>
   });
 }
 
+/** Local de origem do apLIS (`fatinstituicao` com `Local = 1`), para o modal
+ *  "Clínicas sem NF" de Pendências → Particulares. */
+export interface LocalOrigemBusca {
+  id: number;
+  nome: string | null;
+  razaoSocial: string | null;
+  inativo: boolean;
+}
+
+export type BuscarLocaisOrigemResultado =
+  | { locais: LocalOrigemBusca[] }
+  | { erro: { status: number; mensagem: string } };
+
+/** Teto da busca de locais de origem: é um autocomplete, não uma listagem. */
+export const MAX_LOCAIS_ORIGEM = 20;
+
+/**
+ * Locais de origem cujo nome fantasia ou razão social contém `termo`, ignorando
+ * acento e caixa. `Local = 1` separa os locais de origem das fontes pagadoras
+ * puras na mesma `fatinstituicao` (conferido em 19/10/2026: todo
+ * `requisicao.IdLocalOrigem` de 2026 aponta para um `Local = 1`, salvo 1 caso).
+ * Os inativos vêm por último, marcados: ainda podem ter requisição antiga.
+ *
+ * Sem cache: é um autocomplete, cada termo é uma consulta diferente.
+ */
+export async function buscarLocaisOrigem(termo: string): Promise<BuscarLocaisOrigemResultado> {
+  const escapado = escaparLike(termo.trim().slice(0, MAX_BUSCA));
+  return comConexao('buscarLocaisOrigem', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT IdInstituicao, NomFantasia, RazaoSocial, COALESCE(Inativo, 0) AS Inativo
+         FROM fatinstituicao
+        WHERE Local = 1 AND (${like('NomFantasia')} OR ${like('RazaoSocial')})
+        ORDER BY COALESCE(Inativo, 0), NomFantasia
+        LIMIT ${MAX_LOCAIS_ORIGEM}`,
+      [escapado, escapado],
+    );
+    return {
+      locais: linhas.map((linha) => ({
+        id: numero(linha.IdInstituicao),
+        nome: texto(linha.NomFantasia),
+        razaoSocial: texto(linha.RazaoSocial),
+        inativo: numero(linha.Inativo) === 1,
+      })),
+    };
+  });
+}
+
 /** Lista os lotes de faturamento paginados, já normalizados. */
 export async function listarLotes(params: ListarLotesParams): Promise<ListarLotesResultado> {
   const pagina = params.pagina ?? 1;

@@ -15,7 +15,8 @@ const PREFIXO = 'flowlab:faturamento:legado:';
 //   2 — `statusFaturamento` em LoteFaturamento (aba Faturas).
 //   3 — `codigoDemonstrativo` em GlosaRequisicaoLegado (Histórico de Glosas).
 //   4 — `valorGlosado` em GlosaRequisicaoLegado.
-const VERSAO = 4;
+//   5 — `localOrigem`/`clinicaSemNf` em RequisicaoParticularPendencia.
+const VERSAO = 5;
 
 interface Envelope<T> { dia: string; versao?: number; valor: T; }
 
@@ -68,5 +69,21 @@ export function gravarCachePersistente<T>(chave: string, valor: T): void {
   } catch {
     // localStorage indisponível (modo privado, quota cheia) — o cache em
     // memória (Map do hook) ainda cobre a sessão atual, só não sobrevive a um F5.
+  }
+}
+
+/** Apaga as entradas cuja chave começa com `prefixo` (ex.: todas as combinações
+ *  de filtro de uma rota), para quando o dado mudou por uma ação do próprio
+ *  operador e não pode esperar a virada do dia. */
+export function limparCachePersistente(prefixo: string): void {
+  try {
+    const paraRemover: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const chave = localStorage.key(i);
+      if (chave?.startsWith(PREFIXO + prefixo)) paraRemover.push(chave);
+    }
+    for (const chave of paraRemover) localStorage.removeItem(chave);
+  } catch {
+    // localStorage indisponível: não há o que limpar.
   }
 }

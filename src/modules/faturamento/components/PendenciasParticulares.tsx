@@ -1,10 +1,11 @@
 import React, { useCallback, useState } from 'react';
-import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
+import { AlertTriangle, Building2, RefreshCw } from 'lucide-react';
+import { limparCachePendenciasParticulares, usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
 import { formatCurrency, formatData, hojeIso, inicioMesIso } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import DatePicker from '../../../components/DatePicker';
 import Switch from '../../../components/Switch';
+import ClinicasSemNfModal from './ClinicasSemNfModal';
 
 // Aba Contas a Receber → Pendências → Particulares: requisições da fonte
 // pagadora PARTICULAR (IdFontePagadora 1102) sem NF emitida, solicitadas até
@@ -18,6 +19,7 @@ import Switch from '../../../components/Switch';
 // As requisições de clínicas sem NF (locais de origem para os quais o laboratório
 // não emite nota, tabela clinicas_sem_nf) ficam fora da lista e do total. O
 // toggle "Mostrar clínicas sem NF" as traz de volta, marcadas, para conferência.
+// A lista é editada no modal "Clínicas sem NF" (ClinicasSemNfModal).
 
 const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 
@@ -26,11 +28,17 @@ const TAMANHO_PADRAO = 50;
 // O padrão do filtro é o mês corrente (dia 1 até hoje): é quando a NF do
 // particular precisa sair. Os campos continuam editáveis para caçar pendências
 // de períodos anteriores.
-const PendenciasParticulares: React.FC = () => {
+interface Props {
+  /** canManageBilling: edita a lista de clínicas sem NF; sem ele, o modal é só leitura. */
+  podeEditar: boolean;
+}
+
+const PendenciasParticulares: React.FC<Props> = ({ podeEditar }) => {
   const [desde, setDesde] = useState(inicioMesIso);
   const [ate, setAte] = useState(hojeIso);
   const [pagina, setPagina] = useState(1);
   const [incluirSemNf, setIncluirSemNf] = useState(false);
+  const [clinicasSemNfAberto, setClinicasSemNfAberto] = useState(false);
 
   const { requisicoes, meta, loading, error, refetch } = usePendenciasParticulares({
     desde: desde || undefined,
@@ -44,6 +52,16 @@ const PendenciasParticulares: React.FC = () => {
     aplicar();
     setPagina(1);
   }, []);
+
+  // A lista mudou: o resultado guardado de qualquer filtro (e o do widget do
+  // Dashboard) ficou velho. `refetch(true)` também fura o cache de 60s da lista
+  // no servidor (semCache=1).
+  const fecharClinicasSemNf = useCallback((alterou: boolean) => {
+    setClinicasSemNfAberto(false);
+    if (!alterou) return;
+    limparCachePendenciasParticulares();
+    void refetch(true);
+  }, [refetch]);
 
   const qtdPaginas = meta?.qtdPaginas ?? 1;
   const registros = meta?.registros ?? 0;
@@ -83,6 +101,13 @@ const PendenciasParticulares: React.FC = () => {
           />
           Mostrar clínicas sem NF
         </label>
+        <button
+          type="button"
+          onClick={() => setClinicasSemNfAberto(true)}
+          className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
+        >
+          <Building2 className="w-4 h-4" /> Clínicas sem NF
+        </button>
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -197,6 +222,12 @@ const PendenciasParticulares: React.FC = () => {
           </div>
         </div>
       )}
+
+      <ClinicasSemNfModal
+        aberto={clinicasSemNfAberto}
+        onFechar={fecharClinicasSemNf}
+        podeEditar={podeEditar}
+      />
     </div>
   );
 };
