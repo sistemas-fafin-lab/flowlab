@@ -24,6 +24,7 @@ import {
   Maximize2,
   Minimize2,
   RotateCcw,
+  PencilLine,
 } from 'lucide-react';
 import { Quotation, RequesterManager, QuotationStatusColors, QuotationStatusLabels, QuotationPermissions, QuotationStatus, SubmitProposalInput, QuotationItem, SupplierProposal } from '../types';
 import { Supplier } from '../../../types';
@@ -35,7 +36,9 @@ import { AddProposalModal } from './AddProposalModal';
 import { ProposalDetailModal } from './ProposalDetailModal';
 import { PurchaseOrderModal } from './PurchaseOrderModal';
 import { SubmitForApprovalModal } from './SubmitForApprovalModal';
+import { EditQuotationInfoModal } from './EditQuotationInfoModal';
 import { generateQuotationPDF } from '../utils/generateQuotationPDF';
+import type { QuotationInfo } from '../utils/quotationInfo';
 
 interface SupplierOption {
   id: string;
@@ -53,6 +56,7 @@ interface QuotationDrawerProps {
   onSelectWinner?: (proposalId: string) => void;
   onSubmitForApproval?: (requesterManager: RequesterManager) => Promise<void>;
   onChangeRequesterManager?: (requesterManager: RequesterManager) => Promise<void>;
+  onEditInfo?: (info: QuotationInfo) => Promise<unknown>;
   onApprove?: (comment?: string) => Promise<QuotationStatus | void>;
   onReject?: (comment: string) => void;
   onConvertToPurchase?: () => void;
@@ -107,6 +111,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onSelectWinner,
   onSubmitForApproval,
   onChangeRequesterManager,
+  onEditInfo,
   onApprove,
   onReject,
   onConvertToPurchase,
@@ -130,6 +135,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   const [showPurchaseOrderModal, setShowPurchaseOrderModal] = useState(false);
   const [showSubmitForApprovalModal, setShowSubmitForApprovalModal] = useState(false);
   const [showChangeManagerModal, setShowChangeManagerModal] = useState(false);
+  const [showEditInfoModal, setShowEditInfoModal] = useState(false);
   const [editingProposal, setEditingProposal] = useState<SupplierProposal | null>(null);
   const [viewingProposal, setViewingProposal] = useState<SupplierProposal | null>(null);
   const [showAddItemForm, setShowAddItemForm] = useState(false);
@@ -439,6 +445,18 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                     </div>
                   )}
                 </div>
+
+                {permissions.canEditInfo && onEditInfo && (
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => setShowEditInfoModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-blue-700 dark:text-blue-300 bg-blue-600/10 dark:bg-blue-500/15 hover:bg-blue-600/15 dark:hover:bg-blue-500/25 rounded-xl transition-colors"
+                    >
+                      <PencilLine className="w-4 h-4" />
+                      Editar informações
+                    </button>
+                  </div>
+                )}
 
                 {/* Details */}
                 <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl overflow-hidden shadow-sm">
@@ -929,6 +947,14 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
           quotation={quotation}
           onConfirm={onSubmitForApproval}
           onClose={() => setShowSubmitForApprovalModal(false)}
+        />
+      )}
+
+      {showEditInfoModal && onEditInfo && (
+        <EditQuotationInfoModal
+          quotation={quotation}
+          onConfirm={onEditInfo}
+          onClose={() => setShowEditInfoModal(false)}
         />
       )}
 

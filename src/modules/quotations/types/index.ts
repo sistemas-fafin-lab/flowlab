@@ -145,6 +145,7 @@ export const APPROVAL_THRESHOLDS: ApprovalThreshold[] = [
 export type QuotationActionType =
   | 'created'
   | 'updated'
+  | 'info_edited'
   | 'sent_to_suppliers'
   | 'supplier_response'
   | 'proposal_selected'
@@ -507,5 +508,7 @@ export interface QuotationPermissions {
   canRevert: boolean;
   /** Trocar o gestor do pedido de uma cotação parada na etapa do gestor. */
   canChangeRequesterManager: boolean;
+  /** Editar as informações da cotação (título, descrição, justificativa, prioridade, centro de custo, prazos). */
+  canEditInfo: boolean;
   maxApprovalAmount: number;
 }

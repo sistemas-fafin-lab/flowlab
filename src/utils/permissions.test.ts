@@ -7,6 +7,11 @@ import { ALL_PERMISSION_KEYS } from './permissions';
 // esse cargo precisa ter todas as chaves do catálogo: a migration grava a lista abaixo nele.
 const MIGRATION = new URL('../../supabase/migrations/20261015180000_perm_sem_role_legado.sql', import.meta.url);
 
+// Chaves criadas depois dela: cada uma é concedida ao cargo Administrador pela própria migration.
+const CHAVES_POSTERIORES: Record<string, string> = {
+  canEditQuotationInfo: '20261019120000_quotation_info_edit.sql',
+};
+
 /** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */
 function chavesDoAdministrador(): string[] {
   const sql = readFileSync(MIGRATION, 'utf8');
@@ -22,7 +27,15 @@ describe('catálogo de permissões', () => {
 
   it('o cargo Administrador da migration tem exatamente as chaves do catálogo', () => {
     const catalogo = ALL_PERMISSION_KEYS.map((p) => p.key).sort();
-    expect(chavesDoAdministrador().sort()).toEqual(catalogo);
+    expect([...chavesDoAdministrador(), ...Object.keys(CHAVES_POSTERIORES)].sort()).toEqual(catalogo);
+  });
+
+  it('cada chave posterior é concedida ao cargo Administrador na migration dela', () => {
+    for (const [chave, arquivo] of Object.entries(CHAVES_POSTERIORES)) {
+      const sql = readFileSync(new URL(`../../supabase/migrations/${arquivo}`, import.meta.url), 'utf8');
+      expect(sql).toContain(`'["${chave}"]'`);
+      expect(sql).toContain("cr.id = 'a0000000-0000-0000-0000-000000000001'");
+    }
   });
 
   it('as chaves que substituem o role legado estão no catálogo', () => {

@@ -33,6 +33,7 @@ export const VALID_TRANSITIONS: Record<QuotationStatus, QuotationStatus[]> = {
 export const TRANSITION_ACTIONS: Record<QuotationActionType, { from: QuotationStatus[]; to: QuotationStatus } | null> = {
   created: null, // Initial state is always draft
   updated: null, // No status change
+  info_edited: null, // No status change
   sent_to_suppliers: { from: ['draft'], to: 'sent_to_suppliers' },
   supplier_response: null, // May trigger waiting_responses → under_review
   proposal_selected: null, // No direct status change

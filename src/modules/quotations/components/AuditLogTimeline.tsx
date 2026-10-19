@@ -13,6 +13,7 @@ import {
   Building2,
   User,
   Clock,
+  PencilLine,
 } from 'lucide-react';
 import { QuotationAuditLog, QuotationActionType, QuotationStatusLabels } from '../types';
 
@@ -42,6 +43,7 @@ const getActionIcon = (action: QuotationActionType) => {
   const iconMap: Record<QuotationActionType, React.ReactNode> = {
     created: <FileText className="w-4 h-4" />,
     updated: <FileText className="w-4 h-4" />,
+    info_edited: <PencilLine className="w-4 h-4" />,
     sent_to_suppliers: <Send className="w-4 h-4" />,
     supplier_response: <MessageSquare className="w-4 h-4" />,
     proposal_selected: <Check className="w-4 h-4" />,
@@ -70,6 +72,7 @@ const getActionColor = (action: QuotationActionType) => {
   const colorMap: Record<QuotationActionType, string> = {
     created: 'bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-300',
     updated: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300',
+    info_edited: 'bg-sky-100 dark:bg-sky-900/50 text-sky-600 dark:text-sky-300',
     sent_to_suppliers: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-600 dark:text-indigo-300',
     supplier_response: 'bg-purple-100 dark:bg-purple-900/50 text-purple-600 dark:text-purple-300',
     proposal_selected: 'bg-green-100 dark:bg-green-900/50 text-green-600 dark:text-green-300',
@@ -98,6 +101,7 @@ const getActionLabel = (action: QuotationActionType): string => {
   const labelMap: Record<QuotationActionType, string> = {
     created: 'Cotação criada',
     updated: 'Cotação atualizada',
+    info_edited: 'Informações editadas',
     sent_to_suppliers: 'Enviada aos fornecedores',
     supplier_response: 'Proposta recebida',
     proposal_selected: 'Proposta selecionada',

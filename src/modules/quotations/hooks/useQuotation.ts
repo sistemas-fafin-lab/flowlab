@@ -35,6 +35,7 @@ import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { getQuotationAmountFromRow } from '../utils/getQuotationAmountFromRow';
 import { approvalsAfterRevert } from '../utils/approvalOutcome';
 import { proposalStatusFromRow } from '../utils/proposalStatusFromRow';
+import { diffQuotationInfo, quotationInfoInputFrom, type QuotationInfo } from '../utils/quotationInfo';
 import {
   canTransition,
   validateTransition,
@@ -45,6 +46,7 @@ import {
   canApproveOrReject,
   canConvertToPurchase,
   canCancel,
+  canEditInfo,
   getPreviousStatus,
   isManagerApprovalStage,
 } from '../workflow/stateMachine';
@@ -69,12 +71,14 @@ type QuotationManagerDecisionRow = {
   waived_approval_created_at: string | null;
 };
 
-// Generate unique quotation code
-// Recusa do trigger quotation_enforce_requester_manager (RAISE EXCEPTION, P0001):
-// a mensagem já é para o usuário (gestor travado pela origem / comprador como gestor).
-const requesterManagerRuleMessage = (error: { code?: string; message: string }): string | null =>
+// Recusa de um trigger de quotations (RAISE EXCEPTION, P0001): a mensagem já é
+// para o usuário — quotation_enforce_requester_manager (gestor travado pela
+// origem / comprador como gestor) e quotation_guard_info_edit (status,
+// permissão, validação das informações).
+const triggerRuleMessage = (error: { code?: string; message: string }): string | null =>
   error.code === 'P0001' ? error.message : null;
 
+// Generate unique quotation code
 const generateQuotationCode = (): string => {
   const date = new Date();
   const year = date.getFullYear();
@@ -289,7 +293,7 @@ export const useQuotation = () => {
         justification: q.justification,
         priority: q.priority || 'medium',
         responseDeadline: q.response_deadline,
-        deliveryDeadline: q.delivery_deadline,
+        deliveryDeadline: q.deadline,
         auditLog: (q.quotation_audit_logs || [])
           .sort((a: any, b: any) => new Date(a.performed_at).getTime() - new Date(b.performed_at).getTime())
           .map((log: any): QuotationAuditLog => ({
@@ -570,6 +574,7 @@ export const useQuotation = () => {
         canCancel: true,
         canRevert: true,
         canChangeRequesterManager: !!quotation && isManagerApprovalStage(quotation.status),
+        canEditInfo: !!quotation && canEditInfo(quotation.status),
         maxApprovalAmount: Infinity,
       };
     }
@@ -588,6 +593,7 @@ export const useQuotation = () => {
         canCancel: false,
         canRevert: false,
         canChangeRequesterManager: false,
+        canEditInfo: false,
         maxApprovalAmount: userApprovalLimit,
       };
     }
@@ -618,6 +624,10 @@ export const useQuotation = () => {
       canRevert: (canView || hasPerm('canRevertQuotation')) && getPreviousStatus(status) !== null,
       // Troca do gestor parado na etapa 1: quem tem acesso ao módulo de Cotações.
       canChangeRequesterManager: canView && isManagerStage,
+      // Só a chave própria, sem o fallback canManageQuotations de hasPerm: o
+      // trigger quotation_guard_info_edit aceita canEditQuotationInfo ou
+      // canAdministerQuotations (este já liberado no ramo isAdmin acima).
+      canEditInfo: (userProfile?.permissions ?? []).includes('canEditQuotationInfo') && canEditInfo(status),
       maxApprovalAmount: userApprovalLimit,
     };
   }, [user?.id, userProfile, userApprovalConfig]);
@@ -859,6 +869,48 @@ export const useQuotation = () => {
     }
 
     setQuotations(prev => prev.filter(q => q.id !== id));
+  }, [quotations]);
+
+  // Grava as informações da cotação numa única atualização, só com as colunas
+  // alteradas. O histórico (info_edited) e as regras de status, permissão e
+  // validação ficam com o trigger quotation_guard_info_edit — nada é gravado
+  // aqui no histórico. Devolve false quando nada mudou, sem chamar o banco.
+  const updateQuotationInfo = useCallback(async (quotationId: string, info: QuotationInfo): Promise<boolean> => {
+    const quotation = quotations.find(q => q.id === quotationId);
+    if (!quotation) throw new Error('Cotação não encontrada');
+
+    const diff = diffQuotationInfo(quotationInfoInputFrom(quotation), info);
+    if (Object.keys(diff).length === 0) return false;
+
+    const { data: row, error: dbError } = await supabase
+      .from('quotations')
+      .update(Object.fromEntries(Object.entries(diff).map(([column, change]) => [column, change.para])))
+      .eq('id', quotationId)
+      .select('title, description, justification, priority, cost_center, deadline, response_deadline, updated_at')
+      .single();
+
+    if (dbError) {
+      console.error('Error updating quotation info:', dbError);
+      throw new Error(triggerRuleMessage(dbError) ?? 'Erro ao salvar as informações da cotação');
+    }
+
+    setQuotations(prev => prev.map(q => (
+      q.id === quotationId
+        ? {
+            ...q,
+            title: row.title,
+            description: row.description ?? undefined,
+            justification: row.justification ?? undefined,
+            priority: row.priority,
+            costCenter: row.cost_center ?? undefined,
+            deliveryDeadline: row.deadline ?? undefined,
+            responseDeadline: row.response_deadline ?? undefined,
+            updatedAt: row.updated_at ?? new Date().toISOString(),
+          }
+        : q
+    )));
+
+    return true;
   }, [quotations]);
 
   // ============================================
@@ -1647,7 +1699,7 @@ export const useQuotation = () => {
 
     if (dbError) {
       console.error('Error submitting for approval:', dbError);
-      throw new Error(requesterManagerRuleMessage(dbError) ?? 'Erro ao enviar para aprovação');
+      throw new Error(triggerRuleMessage(dbError) ?? 'Erro ao enviar para aprovação');
     }
 
     const approval: QuotationApproval = {
@@ -1719,7 +1771,7 @@ export const useQuotation = () => {
 
     if (dbError) {
       console.error('Error changing requester manager:', dbError);
-      throw new Error(requesterManagerRuleMessage(dbError) ?? 'Erro ao trocar o gestor do pedido');
+      throw new Error(triggerRuleMessage(dbError) ?? 'Erro ao trocar o gestor do pedido');
     }
 
     if (!updated || updated.length === 0) {
@@ -2241,6 +2293,7 @@ export const useQuotation = () => {
     // CRUD
     createQuotation,
     deleteQuotation,
+    updateQuotationInfo,
     
     // Items
     addItem,

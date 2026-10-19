@@ -112,6 +112,7 @@ export const QuotationManagementPage: React.FC = () => {
     selectWinner,
     submitForApproval,
     changeRequesterManager,
+    updateQuotationInfo,
     approveQuotation,
     rejectQuotation,
     cancelQuotation,
@@ -857,6 +858,10 @@ export const QuotationManagementPage: React.FC = () => {
           onChangeRequesterManager={async (requesterManager) => {
             await changeRequesterManager(selectedQuotation.id, requesterManager);
             await handleRefreshAfterAction();
+          }}
+          onEditInfo={async (info) => {
+            // Refaz a leitura para trazer a entrada info_edited gravada pelo trigger.
+            if (await updateQuotationInfo(selectedQuotation.id, info)) await handleRefreshAfterAction();
           }}
           onApprove={async (comment) => {
             const newStatus = await approveQuotation(selectedQuotation.id, comment);

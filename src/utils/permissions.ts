@@ -68,6 +68,10 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canSubmitForApproval',   label: 'Submeter Cotação para Aprovação',  group: 'Cotações' },
   { key: 'canConvertQuotation',    label: 'Converter Cotação em Pedido',      group: 'Cotações' },
   { key: 'canCancelQuotation',     label: 'Cancelar Cotação',                 group: 'Cotações' },
+  // Título, descrição, justificativa, prioridade, centro de custo e prazos, em qualquer status
+  // fora cancelada/rejeitada. Separada de canCreateQuotations para decidir por cargo quem corrige
+  // cotação já aprovada; o trigger quotation_guard_info_edit confere a mesma chave.
+  { key: 'canEditQuotationInfo',   label: 'Editar informações da cotação',    group: 'Cotações' },
   // Excluir, decidir no lugar do gestor do pedido e aprovar sem limite de alçada.
   { key: 'canAdministerQuotations', label: 'Administrar Cotações',            group: 'Cotações' },
   // ── Sistemas Externos (não é um módulo do FlowLab — apenas usa este
