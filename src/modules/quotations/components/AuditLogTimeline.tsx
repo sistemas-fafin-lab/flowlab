@@ -16,6 +16,7 @@ import {
   PencilLine,
 } from 'lucide-react';
 import { QuotationAuditLog, QuotationActionType, QuotationStatusLabels } from '../types';
+import { formatQuotationInfoDetails, type QuotationInfoChangeValue } from '../utils/quotationInfo';
 
 interface AuditLogTimelineProps {
   logs: QuotationAuditLog[];
@@ -126,6 +127,41 @@ const getActionLabel = (action: QuotationActionType): string => {
   return labelMap[action] || action;
 };
 
+const InfoChangeValue: React.FC<{ value: QuotationInfoChangeValue }> = ({ value }) => {
+  const [expanded, setExpanded] = React.useState(false);
+
+  if (!value.full) return <span className="whitespace-pre-line">{value.text}</span>;
+
+  return (
+    <span>
+      <span className="whitespace-pre-line">{expanded ? value.full : value.text}</span>{' '}
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+      >
+        {expanded ? 'ver menos' : 'ver mais'}
+      </button>
+    </span>
+  );
+};
+
+const InfoEditedDetails: React.FC<{ details: Record<string, unknown> }> = ({ details }) => {
+  const lines = formatQuotationInfoDetails(details);
+  if (lines.length === 0) return null;
+
+  return (
+    <div className="mt-2 space-y-1">
+      {lines.map((line) => (
+        <div key={line.label} className="text-xs text-gray-600 dark:text-gray-400 break-words">
+          <span className="font-medium text-gray-700 dark:text-gray-300">{line.label}:</span>{' '}
+          <InfoChangeValue value={line.de} /> → <InfoChangeValue value={line.para} />
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export const AuditLogTimeline: React.FC<AuditLogTimelineProps> = ({
   logs,
   maxItems = 10,
@@ -179,6 +215,8 @@ export const AuditLogTimeline: React.FC<AuditLogTimelineProps> = ({
                   <User className="w-3 h-3" />
                   <span>{log.performedByName}</span>
                 </div>
+
+                {log.action === 'info_edited' && <InfoEditedDetails details={log.details} />}
 
                 {/* Metadata */}
                 {log.metadata && (

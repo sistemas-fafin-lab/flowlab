@@ -51,6 +51,13 @@ export const QuotationTypeLabels: Record<QuotationType, string> = {
   contratacao: 'Contratação',
 };
 
+export const QuotationPriorityLabels: Record<Quotation['priority'], string> = {
+  low: 'Baixa',
+  medium: 'Média',
+  high: 'Alta',
+  urgent: 'Urgente',
+};
+
 // ============================================
 // PAYMENT METHOD
 // ============================================

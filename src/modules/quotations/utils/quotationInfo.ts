@@ -1,4 +1,5 @@
-import type { Quotation } from '../types';
+import { QuotationPriorityLabels, type Quotation } from '../types';
+import { formatDate } from './formatDate';
 
 /** Valores do formulário "Editar informações", como o usuário digitou. */
 export interface QuotationInfoInput {
@@ -112,4 +113,60 @@ export function quotationInfoInputFrom(quotation: QuotationInfoSource): Quotatio
     deliveryDeadline: dateOnly(quotation.deliveryDeadline),
     responseDeadline: dateOnly(quotation.responseDeadline),
   };
+}
+
+const COLUMN_LABELS: Record<QuotationInfoColumn, string> = {
+  title: 'Título',
+  description: 'Descrição',
+  justification: 'Justificativa',
+  priority: 'Prioridade',
+  cost_center: 'Centro de custo',
+  deadline: 'Prazo de entrega',
+  response_deadline: 'Prazo de resposta',
+};
+
+/** Valor exibido na linha do tempo; `full` só existe quando `text` foi cortado. */
+export interface QuotationInfoChangeValue {
+  text: string;
+  full: string | null;
+}
+
+/** Uma linha "Campo: antes → depois" da entrada `info_edited`. */
+export interface QuotationInfoChangeLine {
+  label: string;
+  de: QuotationInfoChangeValue;
+  para: QuotationInfoChangeValue;
+}
+
+const EMPTY_VALUE = '—';
+const MAX_CHANGE_TEXT = 120;
+
+const displayText = (column: string, value: string): string => {
+  if (column === 'priority') return QuotationPriorityLabels[value as QuotationPriority] ?? value;
+  // Prazo gravado a partir de "aaaa-mm-dd": vale o dia, não o instante.
+  if (column === 'deadline' || column === 'response_deadline') return formatDate(dateOnly(value));
+  return value;
+};
+
+const formatChangeValue = (column: string, value: unknown): QuotationInfoChangeValue => {
+  const raw = value == null ? '' : String(value).trim();
+  if (!raw) return { text: EMPTY_VALUE, full: null };
+  const text = displayText(column, raw);
+  if (text.length <= MAX_CHANGE_TEXT) return { text, full: null };
+  return { text: `${text.slice(0, MAX_CHANGE_TEXT)}…`, full: text };
+};
+
+/** Formata o `details` de uma entrada `info_edited` (`{ coluna: { de, para } }`) para a linha do tempo. */
+export function formatQuotationInfoDetails(details: Record<string, unknown>): QuotationInfoChangeLine[] {
+  return Object.entries(details).flatMap(([column, change]) => {
+    if (typeof change !== 'object' || change === null) return [];
+    const { de, para } = change as { de?: unknown; para?: unknown };
+    return [
+      {
+        label: COLUMN_LABELS[column as QuotationInfoColumn] ?? column,
+        de: formatChangeValue(column, de),
+        para: formatChangeValue(column, para),
+      },
+    ];
+  });
 }

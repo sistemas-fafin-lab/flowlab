@@ -11,10 +11,10 @@ Decisions — módulo puro, linha do tempo; Testing Decisions — seam 2).
 
 **Blocked by:** 02 — Editar informações da cotação, de ponta a ponta.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human (falta a validação manual da exibição na linha do tempo)
 
-- [ ] Módulo puro de edição de informações ganha a formatação do detalhe: rótulo do campo em português, "—" para valor vazio, prioridade e datas no formato de exibição, corte em ~120 caracteres só em textos longos — com testes vitest.
-- [ ] Entradas `info_edited` na linha do tempo listam todos os campos do `details`, um por linha, com o texto formatado.
-- [ ] Textos cortados têm "ver mais" que expande o valor completo.
-- [ ] Entradas registradas como "Sistema (SQL)" aparecem com esse nome.
-- [ ] Entradas de outras ações na linha do tempo continuam iguais.
+- [x] Módulo puro de edição de informações ganha a formatação do detalhe: rótulo do campo em português, "—" para valor vazio, prioridade e datas no formato de exibição, corte em ~120 caracteres só em textos longos — com testes vitest.
+- [x] Entradas `info_edited` na linha do tempo listam todos os campos do `details`, um por linha, com o texto formatado.
+- [x] Textos cortados têm "ver mais" que expande o valor completo.
+- [x] Entradas registradas como "Sistema (SQL)" aparecem com esse nome.
+- [x] Entradas de outras ações na linha do tempo continuam iguais.

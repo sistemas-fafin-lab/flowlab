@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { diffQuotationInfo, quotationInfoInputFrom, validateQuotationInfo, type QuotationInfo, type QuotationInfoInput } from './quotationInfo';
+import { diffQuotationInfo, formatQuotationInfoDetails, quotationInfoInputFrom, validateQuotationInfo, type QuotationInfo, type QuotationInfoInput } from './quotationInfo';
 
 const input = (overrides: Partial<QuotationInfoInput> = {}): QuotationInfoInput => ({
   title: 'Compra de reagentes',
@@ -120,5 +120,71 @@ describe('quotationInfoInputFrom', () => {
       deliveryDeadline: '2026-11-10',
       responseDeadline: '',
     });
+  });
+});
+
+describe('formatQuotationInfoDetails', () => {
+  it('lista cada campo alterado com o rótulo em português, antes e depois', () => {
+    expect(formatQuotationInfoDetails({ title: { de: 'Reagentes', para: 'Compra de reagentes' } })).toEqual([
+      {
+        label: 'Título',
+        de: { text: 'Reagentes', full: null },
+        para: { text: 'Compra de reagentes', full: null },
+      },
+    ]);
+  });
+
+  it('mostra "—" para valor vazio, de um lado ou do outro', () => {
+    expect(
+      formatQuotationInfoDetails({
+        justification: { de: null, para: 'Requisição: REQ-866' },
+        cost_center: { de: 'CC-12', para: '' },
+      }),
+    ).toEqual([
+      { label: 'Justificativa', de: { text: '—', full: null }, para: { text: 'Requisição: REQ-866', full: null } },
+      { label: 'Centro de custo', de: { text: 'CC-12', full: null }, para: { text: '—', full: null } },
+    ]);
+  });
+
+  it('mostra a prioridade pelo rótulo', () => {
+    expect(formatQuotationInfoDetails({ priority: { de: 'medium', para: 'urgent' } })).toEqual([
+      { label: 'Prioridade', de: { text: 'Média', full: null }, para: { text: 'Urgente', full: null } },
+    ]);
+  });
+
+  it('mostra os prazos como dd/mm/aaaa, no dia gravado', () => {
+    expect(
+      formatQuotationInfoDetails({
+        deadline: { de: '2026-10-20T00:00:00+00:00', para: '2026-11-03T00:00:00+00:00' },
+        response_deadline: { de: null, para: '2026-09-30T00:00:00+00:00' },
+      }),
+    ).toEqual([
+      { label: 'Prazo de entrega', de: { text: '20/10/2026', full: null }, para: { text: '03/11/2026', full: null } },
+      { label: 'Prazo de resposta', de: { text: '—', full: null }, para: { text: '30/09/2026', full: null } },
+    ]);
+  });
+
+  it('corta textos longos em 120 caracteres e guarda o valor completo', () => {
+    const longo = 'a'.repeat(150);
+    const exato = 'b'.repeat(120);
+    expect(formatQuotationInfoDetails({ justification: { de: exato, para: longo } })).toEqual([
+      {
+        label: 'Justificativa',
+        de: { text: exato, full: null },
+        para: { text: `${'a'.repeat(120)}…`, full: longo },
+      },
+    ]);
+  });
+
+  it('mantém uma coluna desconhecida, com o nome da coluna como rótulo', () => {
+    expect(formatQuotationInfoDetails({ notes: { de: 'x', para: 'y' } })).toEqual([
+      { label: 'notes', de: { text: 'x', full: null }, para: { text: 'y', full: null } },
+    ]);
+  });
+
+  it('ignora entradas do details que não têm o formato { de, para }', () => {
+    expect(formatQuotationInfoDetails({ title: null, priority: 'high', description: { de: 'a', para: 'b' } })).toEqual([
+      { label: 'Descrição', de: { text: 'a', full: null }, para: { text: 'b', full: null } },
+    ]);
   });
 });
