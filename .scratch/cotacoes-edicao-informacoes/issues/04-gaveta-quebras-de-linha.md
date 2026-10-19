@@ -12,6 +12,11 @@ Decisions — gaveta da cotação).
 
 **Status:** ready-for-agent
 
-- [ ] Justificativa e descrição na gaveta preservam quebras de linha.
-- [ ] Textos sem quebra de linha continuam com a mesma aparência.
+- [x] Justificativa e descrição na gaveta preservam quebras de linha.
+- [x] Textos sem quebra de linha continuam com a mesma aparência.
 - [ ] Verificação manual com uma cotação cuja justificativa tem parágrafos.
+
+## Comments
+
+- Implementado em e5e4146 (`whitespace-pre-line break-words` na gaveta).
+  Falta a verificação manual com a COT-202610-5XKW.
