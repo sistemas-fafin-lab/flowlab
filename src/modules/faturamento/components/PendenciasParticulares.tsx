@@ -1,13 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
-import { formatCurrency, formatData } from '../utils/formato';
+import { formatCurrency, formatData, hojeIso, inicioMesIso } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import DatePicker from '../../../components/DatePicker';
 
 // Aba Contas a Receber → Pendências → Particulares: requisições da fonte
-// pagadora PARTICULAR (IdFontePagadora 1102) sem NF emitida, dentro da janela
-// M-1 (mesmo corte de PendenciasNaoFaturadas). Regra completa em
+// pagadora PARTICULAR (IdFontePagadora 1102) sem NF emitida, solicitadas até
+// hoje (dados até D-1, pelo atraso da réplica do apLIS). Regra completa em
 // api/_lib/faturamento/bdLab.ts (listarParticularesPendentes).
 //
 // Diferente de PendenciasNaoFaturadas (lote → requisições expansível), aqui a
@@ -18,15 +18,12 @@ const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray
 
 const TAMANHO_PADRAO = 50;
 
-// Piso padrão do filtro "Solicitação de" (issue 28): o setor não emite mais NF
-// de particular para exames anteriores a 2026, então pendências mais antigas
-// nunca vão sair dessa lista — o padrão evita esse ruído sem tirar a opção de
-// olhar anos anteriores (o campo continua editável).
-const DESDE_PADRAO = '2026-01-01';
-
+// O padrão do filtro é o mês corrente (dia 1 até hoje): é quando a NF do
+// particular precisa sair. Os campos continuam editáveis para caçar pendências
+// de períodos anteriores.
 const PendenciasParticulares: React.FC = () => {
-  const [desde, setDesde] = useState(DESDE_PADRAO);
-  const [ate, setAte] = useState('');
+  const [desde, setDesde] = useState(inicioMesIso);
+  const [ate, setAte] = useState(hojeIso);
   const [pagina, setPagina] = useState(1);
 
   const { requisicoes, meta, loading, error, refetch } = usePendenciasParticulares({
@@ -75,8 +72,10 @@ const PendenciasParticulares: React.FC = () => {
 
       <p className="text-xs text-gray-500 dark:text-gray-400">
         Requisições particulares sem nota fiscal/RPS emitida
-        {meta?.cutoff ? <> desde a solicitação até {formatData(meta.cutoff)}</> : null} — inclui as
-        que nunca chegaram a entrar num lote do apLIS.
+        {meta?.limite ? <>, solicitadas até {formatData(meta.limite)}</> : null} — dados até ontem
+        (D-1), porque o apLIS chega com cerca de um dia de atraso. Inclui as que nunca chegaram a
+        entrar num lote do apLIS e deixa de fora exame cancelado, amostra devolvida e material
+        descartado.
       </p>
 
       {error && (

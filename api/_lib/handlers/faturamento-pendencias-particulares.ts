@@ -3,7 +3,7 @@
  *
  * Devolve à aba Faturamento → Contas a Receber → Pendências → Particulares as
  * requisições da fonte pagadora PARTICULAR (IdFontePagadora 1102) sem NF
- * emitida, dentro da janela M-1. Regra completa em
+ * emitida, solicitadas até hoje. Regra completa em
  * api/_lib/faturamento/bdLab.ts (listarParticularesPendentes).
  *
  * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do operador
@@ -11,7 +11,7 @@
  *
  * Query params (todos opcionais):
  *   desde         YYYY-MM-DD — sobre a data de solicitação
- *   ate           YYYY-MM-DD
+ *   ate           YYYY-MM-DD — nunca ultrapassa hoje
  *   pagina        default 1
  *   tamanho       1..200, default 50
  *

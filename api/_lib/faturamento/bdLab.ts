@@ -1830,9 +1830,9 @@ export type ListarLotesPendentesResultado =
 export const STATUS_PENDENCIA = [1, 2, 3, 6, 7];
 
 /** Fim de M-1, calculado no MySQL a partir de CURDATE(), e o `ate` efetivo pra
- *  janela de pendências: o `ate` do cliente só pode ENCURTAR a janela, nunca
- *  estendê-la além do cutoff. Compartilhado por `listarLotesPendentes` e
- *  `listarParticularesPendentes` (issue 19) — a mesma regra de janela nas duas. */
+ *  janela de lotes pendentes: o `ate` do cliente só pode ENCURTAR a janela, nunca
+ *  estendê-la além do cutoff. Só `listarLotesPendentes` usa — Particulares e Sem
+ *  lote vão até hoje (`limiteEAteEfetivoHoje`). */
 async function cutoffEAteEfetivoM1(
   conn: mysql.Connection,
   ate: string | undefined,
@@ -1845,6 +1845,38 @@ async function cutoffEAteEfetivoM1(
   const ateEfetivo = ate && ate < cutoff ? ate : cutoff;
   return { cutoff, ateEfetivo };
 }
+
+/** Hoje, calculado no MySQL a partir de CURDATE() (mesmo motivo do cutoff de M-1
+ *  acima: não depender do fuso do processo Node), e o `ate` efetivo pras
+ *  pendências por requisição (Particulares e Sem lote): o operador acompanha o
+ *  mês corrente, e o `ate` do cliente continua só podendo ENCURTAR a janela. */
+async function limiteEAteEfetivoHoje(
+  conn: mysql.Connection,
+  ate: string | undefined,
+): Promise<{ limite: string; ateEfetivo: string }> {
+  const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+    `SELECT DATE_FORMAT(CURDATE(), '%Y-%m-%d') AS limite`,
+    [],
+  );
+  const limite = String(linhas[0]?.limite);
+  const ateEfetivo = ate && ate < limite ? ate : limite;
+  return { limite, ateEfetivo };
+}
+
+// `requisicao.CodEvento` em estado final não cobrável — a requisição nunca vai
+// gerar NF nem entrar em lote, então sai de Particulares e de Sem lote (lista e
+// total). Códigos conferidos em `evento` no banco real (19/10/2026):
+//   8    Exame Cancelado
+//   64   Amostra DEVOLVIDA
+//   1023 Material Encaminhado p/ Descarte Definitivo
+//   1037 Amostra Encaminhada p/ Descarte/Sem Contato com Paciente
+// 1020 (Aguardando devolução/retirada) e 1034 (Aguardando descarte) ficam FORA de
+// propósito: são estados de espera que ainda podem ser revertidos. Comparado só
+// com `CodEvento` (não `StatusExame`, que é uma faixa larga e também cobre
+// eventos faturáveis como "Exame adicional"/"FAT. EXTERNO").
+const EVENTOS_NAO_COBRAVEIS = [8, 64, 1023, 1037];
+
+const SQL_EVENTO_COBRAVEL = `(r.CodEvento IS NULL OR r.CodEvento NOT IN (${EVENTOS_NAO_COBRAVEIS.join(', ')}))`;
 
 const cachePendencias = new Map<string, EntradaCache<ListarLotesPendentesResultado>>();
 
@@ -2162,10 +2194,9 @@ export async function detalharLotePendencia(
 //
 // Sem exigência de laudo liberado (issue 19): a NF do particular precisa ser
 // emitida no momento do PAGAMENTO, que acontece antes do laudo — exigir laudo
-// liberado escondia particulares que já deveriam ter NF emitida. Sem esse corte
-// por evento, a lista passa a contar da data de registro da requisição
-// (`DtaSolicitacao`), por isso ganha a mesma janela M-1 de `listarLotesPendentes`
-// (senão junta particulares antigos demais e vira ruído).
+// liberado escondia particulares que já deveriam ter NF emitida. A lista conta
+// da data de registro da requisição (`DtaSolicitacao`) até hoje — o operador
+// acompanha o mês corrente, que é quando a NF do particular precisa sair.
 //
 // Fonte pagadora: só 1102 (PARTICULAR, ativa). A 101 é a mesma razão social mas
 // está INATIVA no apLIS (fatinstituicao.Inativo = 1) — confirmado no banco real,
@@ -2188,8 +2219,8 @@ export interface RequisicaoParticularPendencia {
 export interface ListarParticularesPendentesParams {
   /** YYYY-MM-DD — sobre DtaSolicitacao. */
   desde?: string;
-  /** YYYY-MM-DD — limite superior opcional; nunca ESTENDE o cutoff de M-1, só pode
-   *  encurtar a janela (ver `ateEfetivo` em `listarParticularesPendentes`). */
+  /** YYYY-MM-DD — limite superior opcional; nunca passa de hoje, só pode
+   *  encurtar a janela (ver `limiteEAteEfetivoHoje`). */
   ate?: string;
   pagina?: number;
   tamanho?: number;
@@ -2204,9 +2235,9 @@ export interface ParticularesPendentesMeta {
   /** Soma do valor de TODAS as requisições que casam o filtro, não só a página
    *  atual — é o número que o widget-resumo do Dashboard mostra. */
   valorTotal: number;
-  /** Fim de M-1 — data de corte da regra (issue 19), calculada no MySQL a partir
-   *  de CURDATE(). */
-  cutoff: string;
+  /** Hoje — limite superior da janela, calculado no MySQL a partir de CURDATE().
+   *  A réplica do apLIS atrasa ~1 dia, então os dados vão de fato até D-1. */
+  limite: string;
 }
 
 export type ListarParticularesPendentesResultado =
@@ -2233,11 +2264,11 @@ function chaveParticularesPendentes(params: ListarParticularesPendentesParams): 
 // a requisição já ter um RPS/NFe individual lançado fora do fluxo de lote —
 // `rps.DataCancelamento IS NULL` porque um RPS cancelado não é "já cobrado".
 //
-// Sem corte por `CodEvento` (issue 19): a janela M-1 sobre `DtaSolicitacao`, mais
-// abaixo em `listarParticularesPendentes`, é quem evita ruído de particulares
-// antigos — não há mais exigência de laudo liberado aqui.
+// Não há exigência de laudo liberado (issue 19), só o corte dos estados finais
+// não cobráveis (`EVENTOS_NAO_COBRAVEIS`).
 const SQL_PARTICULARES_PENDENTES_WHERE = `
   r.IdFontePagadora = ${ID_FONTE_PAGADORA_PARTICULAR}
+  AND ${SQL_EVENTO_COBRAVEL}
   AND (r.Lote IS NULL OR (l.IdRPS IS NULL AND l.Status IN (${STATUS_PENDENCIA.join(', ')})))
   AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
   AND NOT EXISTS (
@@ -2259,7 +2290,7 @@ function normalizarParticularPendencia(linha: mysql.RowDataPacket): RequisicaoPa
   };
 }
 
-/** Requisições particulares sem NF, dentro da janela M-1, paginadas. Mais antiga
+/** Requisições particulares sem NF, solicitadas até hoje, paginadas. Mais antiga
  *  primeiro — é a que está esperando cobrança há mais tempo. */
 export async function listarParticularesPendentes(
   params: ListarParticularesPendentesParams,
@@ -2272,7 +2303,7 @@ export async function listarParticularesPendentes(
   if (cacheHit) return cacheHit;
 
   return comConexao('listarParticularesPendentes', async (conn) => {
-    const { cutoff, ateEfetivo } = await cutoffEAteEfetivoM1(conn, params.ate);
+    const { limite: limiteJanela, ateEfetivo } = await limiteEAteEfetivoHoje(conn, params.ate);
 
     const condicoes = [
       SQL_PARTICULARES_PENDENTES_WHERE,
@@ -2329,7 +2360,7 @@ export async function listarParticularesPendentes(
         qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
         registros,
         valorTotal,
-        cutoff,
+        limite: limiteJanela,
       },
     };
   }).then((resultado) => {
@@ -2352,8 +2383,8 @@ export async function listarParticularesPendentes(
 //
 // Exclui as duas fontes pagadoras que já têm tratamento próprio: 1102 PARTICULAR
 // (lista própria, `listarParticularesPendentes`) e 100 Cortesia (não cobrável).
-// Mesma janela M-1 sobre `DtaSolicitacao` de `listarParticularesPendentes`, pelo
-// mesmo motivo: sem esse corte, requisições sem lote muito antigas virariam ruído.
+// Mesma janela de `listarParticularesPendentes` sobre `DtaSolicitacao` (até hoje)
+// e mesmo corte de estados finais não cobráveis (`EVENTOS_NAO_COBRAVEIS`).
 //
 // Não se sobrepõe a `listarLotesPendentes`: aquela exige `requisicao.Lote` ligado
 // a um `fatlote` sem NF; esta exige `requisicao.Lote IS NULL` — uma requisição
@@ -2362,10 +2393,6 @@ export async function listarParticularesPendentes(
 // `100` veio da mesma investigação direta no MySQL da issue 21 (27/08) que
 // levantou o volume de requisições sem lote — não é um palpite.
 export const ID_FONTE_PAGADORA_CORTESIA = 100;
-
-// `evento.CodEvento` para "Exame Cancelado" (`StatusExame = 2`, `Excecao = 1`)
-// — verificado direto no apLIS na investigação da issue 26 (2026-08-27).
-const ID_EVENTO_EXAME_CANCELADO = 8;
 
 export interface RequisicaoSemLotePendencia {
   idRequisicao: number;
@@ -2380,8 +2407,8 @@ export interface RequisicaoSemLotePendencia {
 export interface ListarRequisicoesSemLoteParams {
   /** YYYY-MM-DD — sobre DtaSolicitacao. */
   desde?: string;
-  /** YYYY-MM-DD — limite superior opcional; nunca ESTENDE o cutoff de M-1, só pode
-   *  encurtar a janela (mesma regra de `cutoffEAteEfetivoM1`). */
+  /** YYYY-MM-DD — limite superior opcional; nunca passa de hoje, só pode
+   *  encurtar a janela (mesma regra de `limiteEAteEfetivoHoje`). */
   ate?: string;
   operadoraId?: number;
   pagina?: number;
@@ -2401,8 +2428,9 @@ export interface RequisicoesSemLoteMeta {
   /** Soma do valor de TODAS as requisições que casam o filtro, não só a página
    *  atual — é o número que o widget-resumo do Dashboard mostra. */
   valorTotal: number;
-  /** Fim de M-1 — data de corte da regra, calculada no MySQL a partir de CURDATE(). */
-  cutoff: string;
+  /** Hoje — limite superior da janela, calculado no MySQL a partir de CURDATE().
+   *  A réplica do apLIS atrasa ~1 dia, então os dados vão de fato até D-1. */
+  limite: string;
 }
 
 export type ListarRequisicoesSemLoteResultado =
@@ -2419,15 +2447,13 @@ function chaveRequisicoesSemLote(params: ListarRequisicoesSemLoteParams): string
 // SQL_PARTICULARES_PENDENTES_WHERE acima — uma requisição sem lote pode já ter
 // sido cobrada fora do fluxo de lote (RPS/NFe lançado direto na requisição).
 // `rps.DataCancelamento IS NULL` porque um RPS cancelado não é "já cobrado".
-// `r.CodEvento <> 8` (Exame Cancelado, issue 26): exame cancelado nunca vai
-// gerar lote/cobrança — sem esse corte a lista mistura pendência real com
-// requisição cancelada que nunca vai sair do estado "sem lote". Comparado só
-// com `CodEvento = 8` (não `StatusExame`, que é uma faixa larga e também cobre
-// eventos faturáveis como "Exame adicional"/"FAT. EXTERNO").
+// `SQL_EVENTO_COBRAVEL` (issue 26, ampliado depois): requisição em estado final
+// não cobrável nunca vai gerar lote — sem esse corte a lista mistura pendência
+// real com requisição que nunca vai sair do estado "sem lote".
 const SQL_SEM_LOTE_WHERE = `
   r.Lote IS NULL
   AND r.IdFontePagadora NOT IN (${ID_FONTE_PAGADORA_PARTICULAR}, ${ID_FONTE_PAGADORA_CORTESIA})
-  AND (r.CodEvento IS NULL OR r.CodEvento <> ${ID_EVENTO_EXAME_CANCELADO})
+  AND ${SQL_EVENTO_COBRAVEL}
   AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
   AND NOT EXISTS (
     SELECT 1 FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps
@@ -2450,7 +2476,7 @@ function normalizarRequisicaoSemLote(linha: mysql.RowDataPacket): RequisicaoSemL
   };
 }
 
-/** Requisições de convênio sem nenhum lote vinculado, dentro da janela M-1,
+/** Requisições de convênio sem nenhum lote vinculado, solicitadas até hoje,
  *  paginadas. Mais antiga primeiro — é a que está esperando cobrança há mais
  *  tempo. */
 export async function listarRequisicoesSemLote(
@@ -2464,7 +2490,7 @@ export async function listarRequisicoesSemLote(
   if (cacheHit) return cacheHit;
 
   return comConexao('listarRequisicoesSemLote', async (conn) => {
-    const { cutoff, ateEfetivo } = await cutoffEAteEfetivoM1(conn, params.ate);
+    const { limite: limiteJanela, ateEfetivo } = await limiteEAteEfetivoHoje(conn, params.ate);
 
     const condicoes = [
       SQL_SEM_LOTE_WHERE,
@@ -2531,7 +2557,7 @@ export async function listarRequisicoesSemLote(
         qtdPaginas: tamanho > 0 ? Math.ceil(registros / tamanho) : 0,
         registros,
         valorTotal,
-        cutoff,
+        limite: limiteJanela,
       },
     };
   }).then((resultado) => {

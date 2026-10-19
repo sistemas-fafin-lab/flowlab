@@ -5,7 +5,7 @@ import type {
 } from '../types';
 import { useLegadoListagem } from './legado/useLegadoListagem';
 
-// Lista as requisições particulares pendentes (sem NF, dentro da janela M-1)
+// Lista as requisições particulares pendentes (sem NF, solicitadas até hoje)
 // pela rota /api/faturamento/pendencias-particulares. Mesmo esqueleto de
 // usePendenciasNaoFaturadas, mas sem o detalhe sob demanda: aqui a requisição já
 // É a unidade da lista, não há lote pra expandir.

@@ -486,16 +486,17 @@ export interface ParticularesPendentesMeta {
   registros: number;
   /** Soma do valor de todas as requisições pendentes, não só a página atual. */
   valorTotal: number;
-  /** Fim de M-1 — data de corte da regra, calculada no servidor a partir de "hoje". */
-  cutoff: string;
+  /** Hoje — limite superior da janela, calculado no servidor. Os dados vão de
+   *  fato até D-1, porque a réplica do apLIS atrasa ~1 dia. */
+  limite: string;
 }
 
 // ============================================================================
 // PENDÊNCIAS — SEM LOTE (aba Contas a Receber → Pendências → Sem lote)
 // ============================================================================
 // Contrato de GET /api/faturamento/pendencias-sem-lote — requisições de convênio
-// (excluindo Particular/Cortesia) com `requisicao.Lote IS NULL`, dentro da
-// janela M-1, ao nível de requisição. Regra completa em
+// (excluindo Particular/Cortesia) com `requisicao.Lote IS NULL`, solicitadas
+// até hoje, ao nível de requisição. Regra completa em
 // api/_lib/faturamento/bdLab.ts (listarRequisicoesSemLote) — issue 21 do feedback.
 
 export interface RequisicaoSemLotePendencia {
@@ -524,8 +525,9 @@ export interface RequisicoesSemLoteMeta {
   registros: number;
   /** Soma do valor de todas as requisições pendentes, não só a página atual. */
   valorTotal: number;
-  /** Fim de M-1 — data de corte da regra, calculada no servidor a partir de "hoje". */
-  cutoff: string;
+  /** Hoje — limite superior da janela, calculado no servidor. Os dados vão de
+   *  fato até D-1, porque a réplica do apLIS atrasa ~1 dia. */
+  limite: string;
 }
 
 /** Sub-aba da aba "Pendências", compartilhada entre ContasReceberPage (dono do

@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import type { OperadoraResumo } from '../types';
 import { useRequisicoesSemLote } from '../hooks/useRequisicoesSemLote';
-import { formatCurrency, formatData } from '../utils/formato';
+import { formatCurrency, formatData, hojeIso, inicioMesIso } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
@@ -32,8 +32,9 @@ interface Props {
 }
 
 const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
-  const [desde, setDesde] = useState('');
-  const [ate, setAte] = useState('');
+  // Mesmo padrão de PendenciasParticulares: mês corrente, dia 1 até hoje.
+  const [desde, setDesde] = useState(inicioMesIso);
+  const [ate, setAte] = useState(hojeIso);
   const [operadoraId, setOperadoraId] = useState('');
   const [pagina, setPagina] = useState(1);
 
@@ -101,8 +102,10 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
 
       <p className="text-xs text-gray-500 dark:text-gray-400">
         Requisições de convênio que nunca entraram em nenhum lote do apLIS
-        {meta?.cutoff ? <> desde a solicitação até {formatData(meta.cutoff)}</> : null} — não
-        aparecem em "Sem NF (lotes)", que só olha requisições já ligadas a um lote.
+        {meta?.limite ? <>, solicitadas até {formatData(meta.limite)}</> : null} — dados até ontem
+        (D-1), porque o apLIS chega com cerca de um dia de atraso. Não aparecem em "Sem NF
+        (lotes)", que só olha requisições já ligadas a um lote; exame cancelado, amostra
+        devolvida e material descartado ficam de fora.
       </p>
 
       {error && (

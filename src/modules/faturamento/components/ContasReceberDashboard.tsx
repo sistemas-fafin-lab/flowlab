@@ -664,7 +664,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
               />
               <Kpi
                 icon={<UserCircle className="w-4 h-4 sm:w-5 sm:h-5" />}
-                label="Particulares sem NF (até M-1)"
+                label="Particulares sem NF (até D-1)"
                 sub={
                   loadingPendenciasParticulares
                     ? 'carregando…'

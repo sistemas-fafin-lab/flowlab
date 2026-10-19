@@ -3,7 +3,7 @@
  *
  * Devolve à aba Faturamento → Contas a Receber → Pendências → Sem lote as
  * requisições de convênio (excluindo Particular e Cortesia) sem NENHUM lote
- * vinculado (`requisicao.Lote IS NULL`), dentro da janela M-1. Regra completa
+ * vinculado (`requisicao.Lote IS NULL`), solicitadas até hoje. Regra completa
  * em api/_lib/faturamento/bdLab.ts (listarRequisicoesSemLote) — issue 21 do
  * feedback do setor.
  *
@@ -12,7 +12,7 @@
  *
  * Query params (todos opcionais):
  *   desde         YYYY-MM-DD — sobre a data de solicitação
- *   ate           YYYY-MM-DD — nunca ultrapassa o cutoff de M-1
+ *   ate           YYYY-MM-DD — nunca ultrapassa hoje
  *   operadoraId   fatinstituicao.IdInstituicao
  *   pagina        default 1
  *   tamanho       1..200, default 50

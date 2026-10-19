@@ -50,6 +50,9 @@ export const paraIso = (data: Date): string =>
 /** Data de hoje em ISO local (e não UTC, como faria toISOString). */
 export const hojeIso = (): string => paraIso(new Date());
 
+/** Dia 1 do mês corrente em ISO local. */
+export const inicioMesIso = (): string => `${hojeIso().slice(0, 8)}01`;
+
 export interface PeriodoRange {
   desde: string;
   ate: string;
