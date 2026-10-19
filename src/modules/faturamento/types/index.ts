@@ -246,7 +246,7 @@ export interface DivergenciaAplis {
 }
 
 /** Título cujo lote foi refechado no apLIS depois da emissão
- *  (.scratch/faturamento-pendencias-e-refechamento). Só aponta. */
+ *  (.scratch/faturamento-pendencias-e-refechamento). Quem edita aplica no "Atualizar". */
 export interface RefechamentoAplis {
   idNota: string;
   operadora: string;
@@ -254,6 +254,17 @@ export interface RefechamentoAplis {
   /** YYYY-MM-DD. */
   emissaoAtual: string;
   /** Fechamento mais recente entre os lotes no apLIS (YYYY-MM-DD). */
+  emissaoNova: string;
+}
+
+/** Refechamento aplicado pelo "Atualizar" (RPC fat_aplicar_refechamentos). */
+export interface RefechamentoAplicado {
+  idNota: string;
+  operadora: string;
+  lotes: number[];
+  /** YYYY-MM-DD. */
+  emissaoAntiga: string;
+  /** YYYY-MM-DD. */
   emissaoNova: string;
 }
 

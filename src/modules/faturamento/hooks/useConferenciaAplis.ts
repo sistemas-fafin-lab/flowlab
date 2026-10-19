@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '../../../lib/supabase';
 import { chamarApi } from './useContasReceber';
-import type { ConferenciaAplis, DivergenciaAplis, RefechamentoAplis } from '../types';
+import type { ConferenciaAplis, DivergenciaAplis, RefechamentoAplicado, RefechamentoAplis } from '../types';
 
 // Conferência das baixas com o apLIS (.scratch/faturamento-conferencia-baixas-aplis)
 // para a aba Títulos: selo na linha e filtro "Divergente do apLIS". A rota não
@@ -22,6 +23,30 @@ export async function buscarConferenciaAplis(): Promise<ConferenciaAplis> {
   };
 }
 
+/**
+ * Aplica a emissão nova dos refechamentos apontados (RPC
+ * fat_aplicar_refechamentos, que exige canManageBilling e reconfere no
+ * servidor que a data é de um mês posterior). Devolve só os que mudaram.
+ */
+export async function rpcAplicarRefechamentos(refechamentos: RefechamentoAplis[]): Promise<RefechamentoAplicado[]> {
+  if (refechamentos.length === 0) return [];
+  const { data, error } = await supabase.rpc('fat_aplicar_refechamentos', {
+    p: refechamentos.map((r) => ({ idNota: r.idNota, emissaoNova: r.emissaoNova })),
+  });
+  if (error) throw new Error(error.message);
+  const apontados = new Map(refechamentos.map((r) => [r.idNota, r]));
+  return ((data ?? []) as { idNota: string; emissaoAntiga: string; emissaoNova: string }[]).map((linha) => {
+    const apontado = apontados.get(linha.idNota);
+    return {
+      idNota: linha.idNota,
+      operadora: apontado?.operadora ?? '',
+      lotes: apontado?.lotes ?? [],
+      emissaoAntiga: linha.emissaoAntiga,
+      emissaoNova: linha.emissaoNova,
+    };
+  });
+}
+
 interface UseConferenciaAplisResult {
   /** Divergentes por `idNota`; null enquanto não chegou ou se falhou. */
   porTitulo: Map<string, DivergenciaAplis> | null;
@@ -30,6 +55,13 @@ interface UseConferenciaAplisResult {
   refechamentos: RefechamentoAplis[] | null;
   carregando: boolean;
   erro: string | null;
+  /**
+   * Relê a conferência ("Atualizar" da aba Títulos) e, com `aplicar`, aplica os
+   * refechamentos apontados. Devolve os títulos que mudaram de mês. Falha ao ler
+   * fica em `erro`, como numa leitura normal; falha ao aplicar vira exceção, e
+   * a conferência lida continua valendo.
+   */
+  atualizar: (aplicar: boolean) => Promise<RefechamentoAplicado[]>;
 }
 
 /**
@@ -45,23 +77,26 @@ export function useConferenciaAplis(ativo: boolean, versao: number): UseConferen
   // Descarta a resposta de uma leitura já substituída por outra.
   const leituraRef = useRef(0);
 
-  const carregar = useCallback(async () => {
+  /** A conferência lida, ou null se falhou ou foi substituída por outra leitura. */
+  const carregar = useCallback(async (): Promise<ConferenciaAplis | null> => {
     const leitura = ++leituraRef.current;
     setCarregando(true);
     setErro(null);
     try {
       const conferencia = await buscarConferenciaAplis();
-      if (leitura !== leituraRef.current) return;
+      if (leitura !== leituraRef.current) return null;
       setTitulos(conferencia.titulos);
       setRefechamentos(conferencia.refechamentos);
+      return conferencia;
     } catch (err) {
-      if (leitura !== leituraRef.current) return;
+      if (leitura !== leituraRef.current) return null;
       // Sem selos em vez dos da leitura anterior: o operador pode ter acabado
       // de acertar justamente aquele título. (Durante a releitura os anteriores
       // ficam, para a lista não piscar.)
       setTitulos(null);
       setRefechamentos(null);
       setErro(err instanceof Error ? err.message : MENSAGEM_PADRAO);
+      return null;
     } finally {
       if (leitura === leituraRef.current) setCarregando(false);
     }
@@ -78,10 +113,20 @@ export function useConferenciaAplis(ativo: boolean, versao: number): UseConferen
     setCarregando(false);
   }, [ativo]);
 
+  const atualizar = useCallback(async (aplicar: boolean): Promise<RefechamentoAplicado[]> => {
+    const conferencia = await carregar();
+    if (!aplicar || !conferencia) return [];
+    const aplicados = await rpcAplicarRefechamentos(conferencia.refechamentos);
+    // Os aplicados saem do aviso de apontados sem reler a conferência.
+    const ids = new Set(aplicados.map((a) => a.idNota));
+    setRefechamentos((atual) => atual?.filter((r) => !ids.has(r.idNota)) ?? atual);
+    return aplicados;
+  }, [carregar]);
+
   const porTitulo = useMemo(
     () => (titulos ? new Map(titulos.map((t) => [t.idNota, t])) : null),
     [titulos],
   );
 
-  return { porTitulo, titulos, refechamentos, carregando, erro };
+  return { porTitulo, titulos, refechamentos, carregando, erro, atualizar };
 }

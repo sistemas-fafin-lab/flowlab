@@ -4,14 +4,17 @@ import type { RefechamentoAplis } from '../types';
 import { formatData } from '../utils/formato';
 
 // Aviso da aba Títulos: títulos cujo lote foi refechado no apLIS depois da
-// emissão (.scratch/faturamento-pendencias-e-refechamento). Só aponta — a
-// emissão continua a mesma até a aplicação automática.
+// emissão (.scratch/faturamento-pendencias-e-refechamento). Só aponta — quem
+// tem canManageBilling aplica a emissão nova no "Atualizar"
+// (RefechamentosAplicadosAviso); quem só visualiza fica com este aviso.
 
 interface Props {
   refechamentos: RefechamentoAplis[];
+  /** Quem pode editar ganha a dica de que o "Atualizar" aplica. */
+  podeAplicar: boolean;
 }
 
-const RefechamentosAplisAviso: React.FC<Props> = ({ refechamentos }) => {
+const RefechamentosAplisAviso: React.FC<Props> = ({ refechamentos, podeAplicar }) => {
   const quantidade = refechamentos.length;
   if (quantidade === 0) return null;
 
@@ -34,6 +37,9 @@ const RefechamentosAplisAviso: React.FC<Props> = ({ refechamentos }) => {
           </li>
         ))}
       </ul>
+      {podeAplicar && (
+        <p className="mt-2 text-xs">Clique em Atualizar para levar esses títulos ao mês do fechamento.</p>
+      )}
     </div>
   );
 };

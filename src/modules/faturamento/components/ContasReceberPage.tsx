@@ -8,7 +8,9 @@ import { useConferenciaAplis } from '../hooks/useConferenciaAplis';
 import { periodoEsteMes } from '../utils/formato';
 import { idsDivergentesNoPeriodo } from '../utils/conferenciaAplis';
 import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
-import type { DashboardReceberFiltros, FiltroGlosaTitulo, SubAbaPendencias, TituloReceber, TituloStatus } from '../types';
+import type {
+  DashboardReceberFiltros, FiltroGlosaTitulo, RefechamentoAplicado, SubAbaPendencias, TituloReceber, TituloStatus,
+} from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
 import TitulosList from './TitulosList';
 import EnviosPorConvenio from './EnviosPorConvenio';
@@ -19,6 +21,7 @@ import NovoTituloModal from './NovoTituloModal';
 import AtualizarAplisModal from './AtualizarAplisModal';
 import ConferenciaAplisModal from './ConferenciaAplisModal';
 import RefechamentosAplisAviso from './RefechamentosAplisAviso';
+import RefechamentosAplicadosAviso from './RefechamentosAplicadosAviso';
 import AplicarBaixasAplisModal from './AplicarBaixasAplisModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
@@ -118,6 +121,9 @@ const ContasReceberPage: React.FC = () => {
   // Selos e filtro "Divergente do apLIS" da aba Títulos: lida a cada entrada na
   // aba, sem segurar a lista (que carrega por conta própria).
   const conferencia = useConferenciaAplis(aba === 'titulos', versaoConferencia);
+  const { atualizar: atualizarConferencia } = conferencia;
+  // Títulos que o último "Atualizar" levou ao mês do refechamento no apLIS.
+  const [refechamentosAplicados, setRefechamentosAplicados] = useState<RefechamentoAplicado[]>([]);
 
   // undefined = filtro desligado; null = ligado, mas a conferência ainda não
   // chegou ou falhou (a lista fica vazia, ver useContasReceber).
@@ -188,6 +194,26 @@ const ContasReceberPage: React.FC = () => {
       pagina: 1,
     }));
   }, []);
+
+  // "Atualizar" da aba Títulos: relê a lista e a conferência e, para quem
+  // edita, aplica a emissão nova dos títulos com lote refechado no apLIS. Uma
+  // falha ao ler o apLIS ou ao aplicar não mexe na lista: só avisa.
+  const atualizarTitulos = useCallback(async () => {
+    void refetch();
+    setRefechamentosAplicados([]);
+    try {
+      const aplicados = await atualizarConferencia(podeEditar);
+      if (aplicados.length === 0) return;
+      setRefechamentosAplicados(aplicados);
+      // A lista relida acima ainda tinha a emissão antiga.
+      void refetch();
+    } catch (err) {
+      setAviso({
+        tipo: 'erro',
+        texto: err instanceof Error ? err.message : 'Não foi possível aplicar os refechamentos do apLIS.',
+      });
+    }
+  }, [atualizarConferencia, podeEditar, refetch]);
 
   // Recalculado só na montagem: as datas do padrão dependem de "hoje", e um
   // literal novo a cada render invalidaria o memo do painel a cada digitação.
@@ -396,7 +422,14 @@ const ContasReceberPage: React.FC = () => {
       )}
 
       {aba === 'titulos' && conferencia.refechamentos && (
-        <RefechamentosAplisAviso refechamentos={conferencia.refechamentos} />
+        <RefechamentosAplisAviso refechamentos={conferencia.refechamentos} podeAplicar={podeEditar} />
+      )}
+
+      {aba === 'titulos' && (
+        <RefechamentosAplicadosAviso
+          aplicados={refechamentosAplicados}
+          onFechar={() => setRefechamentosAplicados([])}
+        />
       )}
 
       {aba === 'titulos' && (
@@ -413,10 +446,7 @@ const ContasReceberPage: React.FC = () => {
           podeEditar={podeEditar}
           filtros={filtros}
           onFiltrar={aplicarFiltro}
-          onAtualizar={() => {
-            void refetch();
-            setVersaoConferencia((v) => v + 1);
-          }}
+          onAtualizar={() => void atualizarTitulos()}
           onNovoTitulo={() => setNovoAberto(true)}
           onGerenciarParceiras={() => setParceirasAberto(true)}
           onGerenciarRegraNf={() => setRegraNfAberto(true)}

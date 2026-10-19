@@ -8,12 +8,20 @@ Spec: `.scratch/faturamento-pendencias-e-refechamento/spec.md`.
 
 **Blocked by:** 04 (Conferência detecta título com lote refechado)
 
-**Status:** ready-for-agent
+**Status:** ready-for-human — código pronto; falta aplicar a migration, rodar o primeiro Atualizar em produção e conferir a meta.
 
-- [ ] O Atualizar com `canManageBilling` aplica os refechamentos e mostra quais títulos mudaram de mês.
-- [ ] A competência acompanha só quando era o mês da emissão antiga. Uma competência diferente é preservada.
-- [ ] A RPC recusa sem `canManageBilling` e ignora título cuja nova data não é posterior à atual (rodar duas vezes não muda nada).
-- [ ] Título cancelado nunca é alterado.
-- [ ] Uma falha ao ler o apLIS ou ao aplicar não apaga a lista: ela continua com os dados anteriores e mostra o erro.
-- [ ] Teste da regra pura de competência. Prior art: `atualizarAplis.test.ts` e `emissaoTitulo.test.ts`.
+- [x] O Atualizar com `canManageBilling` aplica os refechamentos e mostra quais títulos mudaram de mês.
+- [x] A competência acompanha só quando era o mês da emissão antiga. Uma competência diferente é preservada.
+- [x] A RPC recusa sem `canManageBilling` e ignora título cuja nova data não é posterior à atual (rodar duas vezes não muda nada).
+- [x] Título cancelado nunca é alterado.
+- [x] Uma falha ao ler o apLIS ou ao aplicar não apaga a lista: ela continua com os dados anteriores e mostra o erro.
+- [x] Teste da regra pura de competência. Prior art: `atualizarAplis.test.ts` e `emissaoTitulo.test.ts`.
 - [ ] Conferido à mão: depois do primeiro Atualizar, a meta de out/2026 sobe cerca de R$ 51,7 mil, e o card bate com "Ver títulos do mês".
+
+## Comments
+
+**19/10/2026 — implementação.** Migration `20261019180000_fat_aplicar_refechamentos.sql` cria `fat_aplicar_refechamentos(p)`, com `p = [{ idNota, emissaoNova }]`. Exige `canManageBilling` e trava as linhas com `FOR UPDATE`. Só mexe em título não cancelado cuja nova data cai num mês posterior ao da emissão atual. Também recusa data futura (guarda a mais, já que a data vem do cliente). A competência só acompanha quando era o mês da emissão antiga. A RPC devolve só os títulos que mudaram. No front, `useConferenciaAplis.atualizar(aplicar)` lê a conferência uma vez e, para quem edita, aplica (`rpcAplicarRefechamentos`). A página mostra `RefechamentosAplicadosAviso` e relê a lista. Quem só visualiza não chama a RPC. Falha ao aplicar vira aviso de erro e não mexe na lista.
+
+A regra pura de competência (`utils/refechamento.ts`, com teste) espelha o `CASE` da RPC. Quem aplica é o SQL.
+
+A RPC não foi rodada contra um Postgres local. A validação fica no Supabase, junto com a conferência da meta de out/2026.
