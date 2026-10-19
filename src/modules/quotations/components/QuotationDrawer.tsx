@@ -517,7 +517,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                 {quotation.description && (
                   <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
                     <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Descrição</p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{quotation.description}</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line break-words">{quotation.description}</p>
                   </div>
                 )}
 
@@ -525,7 +525,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                 {quotation.justification && (
                   <div className="bg-white/60 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/50 rounded-2xl p-4 shadow-sm">
                     <p className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2">Justificativa</p>
-                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{quotation.justification}</p>
+                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line break-words">{quotation.justification}</p>
                   </div>
                 )}
 
