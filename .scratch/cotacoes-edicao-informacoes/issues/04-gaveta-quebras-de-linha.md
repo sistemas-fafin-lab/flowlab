@@ -10,7 +10,7 @@ Decisions — gaveta da cotação).
 
 **Blocked by:** None — can start immediately.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human (falta a verificação manual na gaveta)
 
 - [x] Justificativa e descrição na gaveta preservam quebras de linha.
 - [x] Textos sem quebra de linha continuam com a mesma aparência.
