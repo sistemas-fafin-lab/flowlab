@@ -100,11 +100,14 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // holerite, mas não envia nem remove. Quem tem canManageHolerites já enxerga
   // tudo isso (é um superset), então essa chave só importa pra quem NÃO gerencia.
   { key: 'canViewAllHolerites', label: 'Visualizar Todos os Holerites', group: 'RH' },
-  // canViewHoleritesEquipe é escopada: só vê/baixa holerites de colaboradores cujo
-  // gestor_id aponta pro colaborador vinculado ao usuário logado (RLS por
-  // hierarquia, não por texto livre de departamento). Não é superset nem
-  // subconjunto de canViewAllHolerites — são dois escopos independentes.
-  { key: 'canViewHoleritesEquipe', label: 'Visualizar Holerites da Equipe (Gestor)', group: 'RH' },
+  // canViewHoleritesEquipe é escopada: só vê/baixa holerites de colaboradores dos
+  // departamentos pelos quais o usuário é responsável (departamento_responsaveis).
+  // Ser responsável sem a chave não basta. Não é superset nem subconjunto de
+  // canViewAllHolerites — são dois escopos independentes.
+  { key: 'canViewHoleritesEquipe', label: 'Visualizar Holerites da Equipe (Responsável)', group: 'RH' },
+  // Aba Departamentos: criar/renomear/desativar, aprovador de SC, responsáveis e o
+  // departamento de cada colaborador. Leitura dos departamentos é aberta a todos.
+  { key: 'canManageDepartamentos', label: 'Gerenciar Departamentos', group: 'RH' },
   // ── Atendimento ─────────────────────────────────────────────────────────────
   // Gerador de Orçamento (.scratch/gerador-orcamento/spec.md): tela, busca, carrinho e
   // Orçamento do cliente. Custo e margem ficam numa chave à parte.

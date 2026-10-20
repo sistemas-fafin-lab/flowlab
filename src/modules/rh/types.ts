@@ -6,7 +6,9 @@ export interface Colaborador {
   nome: string;
   email: string | null;
   cpf: string;
-  departamento: string | null;
+  departamentoId: string | null;
+  /** Nome do departamento (departamentos.nome), ou null sem departamento. */
+  departamentoNome: string | null;
   cargo: string | null;
   dataAdmissao: string | null;
   dataDesligamento: string | null;
@@ -19,12 +21,27 @@ export interface Colaborador {
   gestor: { id: string; nome: string } | null;
 }
 
-/** Campos editáveis pela issue 02 — cadastro (cargo/admissão/matrícula/departamento). */
+/**
+ * Campos editáveis da ficha. `departamentoId` só vai para o banco quando
+ * definido (undefined = não mexe): trocar o departamento pede canManageDepartamentos.
+ */
 export interface AtualizarCadastroInput {
   cargo?: string | null;
   dataAdmissao?: string | null;
   matricula?: string | null;
-  departamento?: string | null;
+  departamentoId?: string | null;
+}
+
+// ─── Departamentos ─────────────────────────────────────────────────────────────
+
+export interface Departamento {
+  id: string;
+  nome: string;
+  ativo: boolean;
+  /** Colaborador que aprova as SCs de quem está no departamento. */
+  aprovadorScId: string | null;
+  /** Colaboradores responsáveis pelo departamento (independe de onde estão). */
+  responsavelIds: string[];
 }
 
 // ─── Holerites (issue 05) ──────────────────────────────────────────────────────

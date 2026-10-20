@@ -53,7 +53,7 @@ flowlab/
 │   │   ├── faturamento/        # Faturamento a operadoras + contas a receber
 │   │   ├── analises-clinicas/  # Agendamento, coletas, culturas, laudos, integração LabHub/Alvaro
 │   │   ├── qualidade/          # Ocorrências, cortesias, IHQ, registro de câncer (portado de outro projeto)
-│   │   ├── rh/                  # Colaboradores (cadastro, gestor, vínculo com usuário) + holerites
+│   │   ├── rh/                  # Colaboradores, departamentos (aprovador de SC, responsáveis) + holerites
 │   │   └── board/               # Kanban multi-departamento (acesso via custom_roles.board_id)
 │   ├── hooks/                   # Hooks compartilhados (useAuth, useInventory, useDataCache, ...)
 │   ├── contexts/                # AuthContext
@@ -199,7 +199,7 @@ Fluxo assíncrono via webhook: o LIS externo (LabHub) envia agendamentos/cancela
 | **Faturamento** | `src/modules/faturamento/` + `api/faturamento/` + `workers/billing-sync/` | Emissão de títulos/notas para operadoras de saúde, contas a receber, glosas/recursos, sincronização com APLIS | Não faz agendamento nem coleta (consome dados de Análises Clínicas) |
 | **Análises Clínicas** | `src/modules/analises-clinicas/` | Agendamento, postos, coletas, culturas, temperatura, laudos, integração LabHub/Alvaro | Não decide faturamento — só gera os eventos que o faturamento consome |
 | **Qualidade** | `src/modules/qualidade/` | Ocorrências, cortesias, IHQ, registro de câncer — portado de um projeto irmão (`flowlab-qualidade`) | Depende de heurísticas best-effort para identificar dados no LIS legado (ver `bdLabQualidade.ts`) |
-| **RH** | `src/modules/rh/` + `api/rh/` | Cadastro de colaboradores (dados, gestor, vínculo com `user_profiles`), upload consolidado de holerites (auto-split por CPF via `api/_lib/rh/`) e autoatendimento ("meus holerites") | Listagem/leitura é supabase-js direto sob RLS; só o parsing/confirmação do PDF consolidado passa pela API (`rhApi.ts`) |
+| **RH** | `src/modules/rh/` + `api/rh/` | Cadastro de colaboradores (dados, departamento, vínculo com `user_profiles`), departamentos (aprovador de SC e responsáveis; holerites da equipe seguem `departamento_responsaveis`), upload consolidado de holerites (auto-split por CPF via `api/_lib/rh/`) e autoatendimento ("meus holerites") | Listagem/leitura é supabase-js direto sob RLS; só o parsing/confirmação do PDF consolidado passa pela API (`rhApi.ts`) |
 | **Atendimento** (Gerador de Orçamento) | `src/modules/gerador-orcamento/` + `api/atendimento/` | Busca de exames da lista de preços Particular, carrinho, PDF do Orçamento do cliente e PDF interno (custo × venda × margem, com `canViewGeradorOrcamentoCustos`); preços por `GET /api/atendimento/gerador-orcamento-precos` com a sessão do usuário | Não devolve custo sem permissão de custos — o servidor nem consulta as colunas de custo |
 | **Board** | `src/modules/board/` | Kanban multi-departamento; acesso via `custom_roles.board_id`, não via permission string | Não usa `<ProtectedRoute>` — o gate é interno ao componente |
 | **Minhas aprovações de cotação** | `src/modules/quotations/components/ManagerApprovalsPage.tsx` | Rota `/quotations/aprovacoes`, aberta a qualquer usuário logado: o gestor do pedido pode não ter `canManageQuotations` | Não usa `<ProtectedRoute>` — a tela só lista as cotações em que o usuário é o gestor do pedido, e a RPC `quotation_record_manager_decision` autoriza a decisão |

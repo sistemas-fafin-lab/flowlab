@@ -50,7 +50,7 @@ import {
   CorrelacaoRiscosOcorrenciasPage,
 } from './modules/qualidade';
 import { BoardPage } from './modules/board';
-import { ColaboradoresPage, HoleritesPage } from './modules/rh';
+import { ColaboradoresPage, DepartamentosPage, HoleritesPage } from './modules/rh';
 import { FinopsDashboardPage, DespesasPage, MesAMesPage, OrcamentoPage } from './modules/gastos-ti';
 import { GeradorOrcamentoPage, GERADOR_ORCAMENTO_PATH } from './modules/gerador-orcamento';
 import { EvaHomePage, EvaSugestoesPage, EvaReunioesPage, EvaMembrosPage, EvaPermissoesPage, EvaConfiguracoesPage } from './modules/eva';
@@ -484,6 +484,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canViewColaboradores" permissions={userPermissions}>
               <ColaboradoresPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/rh/departamentos"
+          element={
+            <ProtectedRoute permission="canManageDepartamentos" permissions={userPermissions}>
+              <DepartamentosPage />
             </ProtectedRoute>
           }
         />

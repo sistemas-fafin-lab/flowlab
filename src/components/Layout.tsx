@@ -485,7 +485,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/it/inicio', '/it/eva', '/it/eva/reunioes', '/it/eva/membros', '/it/eva/configuracoes', '/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/', '/it/gastos', '/it/gastos/despesas', '/it/gastos/mes-a-mes', '/it/gastos/orcamento'].includes(path)) return ['Tecnologia'];
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
     if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias', '/qualidade/indicadores'].includes(path)) return ['Qualidade'];
-    if (['/rh/colaboradores', '/rh/holerites'].includes(path)) return ['RH'];
+    if (['/rh/colaboradores', '/rh/departamentos', '/rh/holerites'].includes(path)) return ['RH'];
     if ([GERADOR_ORCAMENTO_PATH].includes(path)) return ['Atendimento'];
     return [];
   });
@@ -716,6 +716,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         category: 'ADMINISTRAÇÃO',
         subItems: [
           { name: 'Colaboradores', href: '/rh/colaboradores', icon: UserCog, permission: 'canViewColaboradores' },
+          { name: 'Departamentos', href: '/rh/departamentos', icon: Building2, permission: 'canManageDepartamentos' },
           // Sem gate de permissão de propósito (issue 05): visível a todo usuário
           // autenticado — o conteúdo da página muda conforme canManageHolerites
           // (gestão vs. autoatendimento), não o acesso à aba.

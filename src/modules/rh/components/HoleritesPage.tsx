@@ -9,7 +9,7 @@ const HoleritesPage: React.FC = () => {
   const { userProfile } = useAuth();
   const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageHolerites');
   // canViewAllHolerites (todos, sem escopo) e canViewHoleritesEquipe (só quem o
-  // usuário gerencia, via gestor_id) são somente-leitura; canManageHolerites já
+  // usuário é responsável, via departamento_responsaveis) são somente-leitura; canManageHolerites já
   // é um superset de ambas. O RLS de colaborador_holerites decide o recorte —
   // aqui só decidimos se a lista aparece e se vem com botão de remover/enviar.
   const temPermissaoVerTodos = hasPermission(userProfile?.permissions || [], 'canViewAllHolerites');

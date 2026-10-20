@@ -8,7 +8,7 @@ interface ColaboradorRow {
   nome: string;
   email: string | null;
   cpf: string;
-  departamento: string | null;
+  departamento_id: string | null;
   cargo: string | null;
   data_admissao: string | null;
   data_desligamento: string | null;
@@ -19,6 +19,7 @@ interface ColaboradorRow {
   updated_at: string;
   user_profiles: { name: string; email: string } | null;
   gestor: { id: string; nome: string } | null;
+  departamento_ref: { nome: string } | null;
 }
 
 const mapColaborador = (row: ColaboradorRow): Colaborador => ({
@@ -27,7 +28,8 @@ const mapColaborador = (row: ColaboradorRow): Colaborador => ({
   nome: row.nome,
   email: row.email,
   cpf: row.cpf,
-  departamento: row.departamento,
+  departamentoId: row.departamento_id,
+  departamentoNome: row.departamento_ref?.nome ?? null,
   cargo: row.cargo,
   dataAdmissao: row.data_admissao,
   dataDesligamento: row.data_desligamento,
@@ -45,12 +47,14 @@ interface UseColaboradoresResult {
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
-  /** Issue 02 — edita cargo/data_admissao/matricula/departamento. Retorna mensagem de erro, ou null se ok. */
+  /** Issue 02 — edita cargo/data_admissao/matricula (e departamento_id, se vier). Retorna mensagem de erro, ou null se ok. */
   atualizarCadastro: (id: string, dados: AtualizarCadastroInput) => Promise<string | null>;
   /** Issue 03 — vincula um user_profile ainda não vinculado. Bloqueia (mensagem clara) se o user_profile já está vinculado a outro colaborador. */
   vincularUsuario: (colaboradorId: string, userProfileId: string) => Promise<string | null>;
   /** Issue 03 — remove o vínculo sem apagar colaborador nem usuário. */
   desvincularUsuario: (colaboradorId: string) => Promise<string | null>;
+  /** Coloca o colaborador num departamento (ou tira, com null). Pede canManageDepartamentos (trigger do banco). */
+  definirDepartamento: (colaboradorId: string, departamentoId: string | null) => Promise<string | null>;
   /** Issue 04 — define (ou remove, com null) o gestor. Auto-referência e ciclos são bloqueados pelo trigger do banco. */
   definirGestor: (colaboradorId: string, gestorId: string | null) => Promise<string | null>;
 }
@@ -70,7 +74,7 @@ export function useColaboradores(): UseColaboradoresResult {
         .from('colaboradores')
         // PostgREST não resolve auto-referência (colaboradores -> colaboradores) pelo
         // nome da constraint — só pelo nome da coluna da FK (gestor_id) como hint.
-        .select('*, user_profiles(name, email), gestor:colaboradores!gestor_id(id, nome)')
+        .select('*, user_profiles(name, email), gestor:colaboradores!gestor_id(id, nome), departamento_ref:departamentos!departamento_id(nome)')
         .order('nome', { ascending: true });
 
       if (fetchError) throw fetchError;
@@ -108,7 +112,7 @@ export function useColaboradores(): UseColaboradoresResult {
           cargo: dados.cargo ?? null,
           data_admissao: dados.dataAdmissao ?? null,
           matricula: dados.matricula ?? null,
-          departamento: dados.departamento ?? null,
+          ...(dados.departamentoId !== undefined ? { departamento_id: dados.departamentoId } : {}),
         })
         .eq('id', id);
       if (erro) throw new Error(erro.message);
@@ -152,6 +156,24 @@ export function useColaboradores(): UseColaboradoresResult {
     }
   }, [fetchColaboradores]);
 
+  const definirDepartamento = useCallback(async (colaboradorId: string, departamentoId: string | null): Promise<string | null> => {
+    try {
+      const { data, error: erro } = await supabase
+        .from('colaboradores')
+        .update({ departamento_id: departamentoId })
+        .eq('id', colaboradorId)
+        .select('id');
+      // Mensagens do trigger colaboradores_validar_departamento já vêm em português.
+      if (erro) throw new Error(erro.message);
+      // O RLS de colaboradores (canViewColaboradores) filtra o UPDATE sem erro: 0 linhas.
+      if (!data?.length) throw new Error('Sem permissão para editar este colaborador (Visualizar Colaboradores).');
+      await fetchColaboradores();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Não foi possível mudar o departamento.';
+    }
+  }, [fetchColaboradores]);
+
   const definirGestor = useCallback(async (colaboradorId: string, gestorId: string | null): Promise<string | null> => {
     try {
       const { error: erro } = await supabase
@@ -176,6 +198,7 @@ export function useColaboradores(): UseColaboradoresResult {
     atualizarCadastro,
     vincularUsuario,
     desvincularUsuario,
+    definirDepartamento,
     definirGestor,
   };
 }

@@ -1,6 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Users, UserCheck, Search } from 'lucide-react';
 import { useColaboradores } from '../hooks/useColaboradores';
+import { useDepartamentos } from '../hooks/useDepartamentos';
+import { useAuth } from '../../../hooks/useAuth';
+import { hasPermission } from '../../../utils/permissions';
 import { formatCPF, normalizeCPF } from '../../../utils/cpf';
 import { SkeletonFilters, SkeletonTableRow } from '../../../components/PageLoadingSkeleton';
 import ColaboradorDetalheModal from './ColaboradorDetalheModal';
@@ -22,6 +25,9 @@ const ColaboradoresPage: React.FC = () => {
     desvincularUsuario,
     definirGestor,
   } = useColaboradores();
+  const { departamentos } = useDepartamentos();
+  const { userProfile } = useAuth();
+  const podeMudarDepartamento = hasPermission(userProfile?.permissions || [], 'canManageDepartamentos');
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<'todos' | ColaboradorStatus>('todos');
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
@@ -36,7 +42,7 @@ const ColaboradoresPage: React.FC = () => {
       return (
         c.nome.toLowerCase().includes(termo) ||
         (termoDigitos !== '' && c.cpf.includes(termoDigitos)) ||
-        (c.departamento ?? '').toLowerCase().includes(termo)
+        (c.departamentoNome ?? '').toLowerCase().includes(termo)
       );
     });
   }, [colaboradores, busca, filtroStatus]);
@@ -124,7 +130,7 @@ const ColaboradoresPage: React.FC = () => {
                   >
                     <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{colaborador.nome}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{formatCPF(colaborador.cpf)}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{colaborador.departamento || '—'}</td>
+                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{colaborador.departamentoNome || '—'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${STATUS_CONFIG[colaborador.status].badge}`}>
                         {STATUS_CONFIG[colaborador.status].label}
@@ -154,6 +160,8 @@ const ColaboradoresPage: React.FC = () => {
         <ColaboradorDetalheModal
           colaborador={colaboradorSelecionado}
           colaboradores={colaboradores}
+          departamentos={departamentos}
+          podeMudarDepartamento={podeMudarDepartamento}
           onClose={() => setSelecionadoId(null)}
           atualizarCadastro={atualizarCadastro}
           vincularUsuario={vincularUsuario}

@@ -1,16 +1,23 @@
 import React, { useEffect, useState } from 'react';
-import type { AtualizarCadastroInput, Colaborador } from '../../types';
+import Select, { type SelectOption } from '../../../../components/Select';
+import type { AtualizarCadastroInput, Colaborador, Departamento } from '../../types';
 
 interface EditarCadastroSectionProps {
   colaborador: Colaborador;
+  departamentos: Departamento[];
+  /** canManageDepartamentos: sem ela o departamento aparece, mas não muda. */
+  podeMudarDepartamento: boolean;
   onSalvar: (id: string, dados: AtualizarCadastroInput) => Promise<string | null>;
 }
+
+// Sentinela para "sem departamento" — nunca colide com um uuid real.
+const SEM_DEPARTAMENTO = '';
 
 interface FormState {
   cargo: string;
   dataAdmissao: string;
   matricula: string;
-  departamento: string;
+  departamentoId: string;
 }
 
 const DATA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -19,7 +26,7 @@ const criarFormState = (colaborador: Colaborador): FormState => ({
   cargo: colaborador.cargo ?? '',
   dataAdmissao: colaborador.dataAdmissao ?? '',
   matricula: colaborador.matricula ?? '',
-  departamento: colaborador.departamento ?? '',
+  departamentoId: colaborador.departamentoId ?? SEM_DEPARTAMENTO,
 });
 
 const dataDeHoje = (): string => {
@@ -47,7 +54,12 @@ const inputClassName =
 
 const labelClassName = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1';
 
-const EditarCadastroSection: React.FC<EditarCadastroSectionProps> = ({ colaborador, onSalvar }) => {
+const EditarCadastroSection: React.FC<EditarCadastroSectionProps> = ({
+  colaborador,
+  departamentos,
+  podeMudarDepartamento,
+  onSalvar,
+}) => {
   const [form, setForm] = useState<FormState>(() => criarFormState(colaborador));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -70,6 +82,14 @@ const EditarCadastroSection: React.FC<EditarCadastroSectionProps> = ({ colaborad
       setSucesso(false);
     };
 
+  // Inativos ficam fora da escolha, mas o atual continua aparecendo.
+  const opcoesDepartamento: SelectOption[] = [
+    { value: SEM_DEPARTAMENTO, label: 'Sem departamento' },
+    ...departamentos
+      .filter((d) => d.ativo || d.id === colaborador.departamentoId)
+      .map((d, index) => ({ value: d.id, label: d.ativo ? d.nome : `${d.nome} (inativo)`, separatorBefore: index === 0 })),
+  ];
+
   const handleSalvar = async (): Promise<void> => {
     const erroValidacao = validarDataAdmissao(form.dataAdmissao);
     if (erroValidacao) {
@@ -86,8 +106,11 @@ const EditarCadastroSection: React.FC<EditarCadastroSectionProps> = ({ colaborad
       cargo: form.cargo.trim() || null,
       dataAdmissao: form.dataAdmissao || null,
       matricula: form.matricula.trim() || null,
-      departamento: form.departamento.trim() || null,
     };
+    const departamentoId = form.departamentoId || null;
+    if (podeMudarDepartamento && departamentoId !== colaborador.departamentoId) {
+      dados.departamentoId = departamentoId;
+    }
 
     const resultado = await onSalvar(colaborador.id, dados);
 
@@ -152,13 +175,16 @@ const EditarCadastroSection: React.FC<EditarCadastroSectionProps> = ({ colaborad
           <label className={labelClassName} htmlFor="editar-cadastro-departamento">
             Departamento
           </label>
-          <input
+          <Select
             id="editar-cadastro-departamento"
-            type="text"
-            value={form.departamento}
-            onChange={atualizarCampo('departamento')}
-            placeholder="Ex.: Faturamento"
-            className={inputClassName}
+            value={form.departamentoId}
+            onChange={(valor) => {
+              setForm((atual) => ({ ...atual, departamentoId: valor }));
+              setSucesso(false);
+            }}
+            options={opcoesDepartamento}
+            controlClass={inputClassName}
+            disabled={!podeMudarDepartamento}
           />
         </div>
       </div>
