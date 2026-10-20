@@ -171,8 +171,8 @@ const GeradorOrcamentoPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto pt-4 sm:pt-6 pb-10">
-      <div className="flex items-center gap-3 mb-6">
+    <div className="max-w-7xl mx-auto pt-4 sm:pt-6 pb-10 lg:pb-0 lg:h-[calc(100vh-1.5rem)] lg:flex lg:flex-col">
+      <div className="flex items-center gap-3 mb-6 shrink-0">
         <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
           <Calculator className="w-6 h-6 text-white" />
         </div>
@@ -203,9 +203,10 @@ const GeradorOrcamentoPage: React.FC = () => {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 animate-fade-in">
+        // lg: os dois cards ocupam o resto da altura da janela; só as listas rolam.
+        <div className="grid grid-cols-1 lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] lg:flex-1 lg:min-h-0 gap-6 animate-fade-in">
           {/* ── Busca ───────────────────────────────────────────────────────── */}
-          <section className="lg:col-span-7 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col min-h-0">
+          <section className="lg:col-span-7 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col min-h-0 lg:h-full">
             <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
@@ -240,7 +241,7 @@ const GeradorOrcamentoPage: React.FC = () => {
               </p>
             ) : (
               <>
-                <ul className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto max-h-[65vh]">
+                <ul className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto max-h-[65vh] lg:max-h-none lg:flex-1 lg:min-h-0">
                   {resultados.slice(0, MAX_RESULTADOS).map((exame) => {
                     const chave = chaveExame(exame);
                     return (
@@ -258,8 +259,8 @@ const GeradorOrcamentoPage: React.FC = () => {
           </section>
 
           {/* ── Carrinho ────────────────────────────────────────────────────── */}
-          {/* Fixo na tela (lg): totais e botões logo abaixo do cabeçalho, sempre visíveis; só a lista rola. */}
-          <section className="lg:col-span-5 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 sm:p-6 self-start flex flex-col lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
+          {/* Totais e botões logo abaixo do cabeçalho, sempre visíveis; só a lista rola. */}
+          <section className="lg:col-span-5 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 sm:p-6 flex flex-col min-h-0 lg:h-full">
             <div className="flex items-center justify-between mb-2 shrink-0">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-blue-500" /> Carrinho
