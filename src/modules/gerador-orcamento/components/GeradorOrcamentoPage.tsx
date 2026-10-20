@@ -258,7 +258,7 @@ const GeradorOrcamentoPage: React.FC = () => {
           </section>
 
           {/* ── Carrinho ────────────────────────────────────────────────────── */}
-          {/* Fixo na tela (lg): só a lista rola; cabeçalho, totais e botões ficam sempre visíveis. */}
+          {/* Fixo na tela (lg): totais e botões logo abaixo do cabeçalho, sempre visíveis; só a lista rola. */}
           <section className="lg:col-span-5 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 sm:p-6 self-start flex flex-col lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
             <div className="flex items-center justify-between mb-2 shrink-0">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
@@ -278,26 +278,10 @@ const GeradorOrcamentoPage: React.FC = () => {
                 <Trash2 className="w-3.5 h-3.5" /> Limpar tudo
               </button>
             </div>
-            {carrinho.length === 0 ? (
-              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                Nenhum exame no carrinho. Busque e clique em “Adicionar”.
-              </p>
-            ) : (
-              <ul className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto min-h-0 flex-1 max-h-[50vh] lg:max-h-none -mx-1 px-1">
-                {carrinho.map((linha) => (
-                  <LinhaCarrinho
-                    key={chaveExame(linha.item)}
-                    linha={linha}
-                    onQuantidade={mudarQuantidade}
-                    onRemover={remover}
-                  />
-                ))}
-              </ul>
-            )}
-            <div className="shrink-0">
+            <div className="shrink-0 pb-4 mb-2 border-b border-gray-200 dark:border-gray-700">
               {carrinho.length > 0 && (
                 // Sempre os dois valores, iguais quando não há desconto; sem percentual nem selo.
-                <dl className="mt-2 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                <dl className="mt-2 space-y-2">
                   <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
                     <dt>Valor Total</dt>
                     <dd className="font-semibold tabular-nums">{brl(orcamento.valorTotal)}</dd>
@@ -330,6 +314,22 @@ const GeradorOrcamentoPage: React.FC = () => {
               )}
               {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
             </div>
+            {carrinho.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                Nenhum exame no carrinho. Busque e clique em “Adicionar”.
+              </p>
+            ) : (
+              <ul className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto min-h-0 flex-1 max-h-[50vh] lg:max-h-none -mx-1 px-1">
+                {carrinho.map((linha) => (
+                  <LinhaCarrinho
+                    key={chaveExame(linha.item)}
+                    linha={linha}
+                    onQuantidade={mudarQuantidade}
+                    onRemover={remover}
+                  />
+                ))}
+              </ul>
+            )}
           </section>
         </div>
       )}
