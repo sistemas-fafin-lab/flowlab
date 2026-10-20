@@ -1,16 +1,25 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { AlertTriangle, Calculator, Check, FileDown, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Calculator, Check, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Trash2, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
 import { filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
 import { orcamentoDoCarrinho } from '../domain/orcamento';
 import { montarPdfOrcamentoCliente } from '../domain/pdfCliente';
+import { montarPdfOrcamentoInterno } from '../domain/pdfInterno';
+import type { DadosPdfOrcamento } from '../domain/pdfComum';
 import { carregarLogoPdf } from '../logoPdf';
 import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
 
 // Renderizar milhares de linhas a cada tecla trava a busca; acima disso, a tela pede
 // para refinar o termo.
 const MAX_RESULTADOS = 200;
+
+// O PDF interno só aparece para quem pode ver custos (a lista de preços traz o custo).
+const PDFS = {
+  cliente: { montar: montarPdfOrcamentoCliente, arquivo: 'Orcamento' },
+  interno: { montar: montarPdfOrcamentoInterno, arquivo: 'Orcamento_Interno' },
+} satisfies Record<string, { montar: (dados: DadosPdfOrcamento, logo: string | null) => unknown; arquivo: string }>;
+type TipoPdf = keyof typeof PDFS;
 
 const brl = (valor: number) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -122,7 +131,7 @@ const LinhaCarrinho: React.FC<{
 };
 
 const GeradorOrcamentoPage: React.FC = () => {
-  const { exames, loading, error, recarregar } = useListaPrecos();
+  const { exames, podeVerCustos, loading, error, recarregar } = useListaPrecos();
   const [busca, setBusca] = useState('');
   const [carrinho, setCarrinho] = useState<ItemCarrinho[]>([]);
   const buscaAdiada = useDeferredValue(busca);
@@ -138,20 +147,21 @@ const GeradorOrcamentoPage: React.FC = () => {
     setCarrinho((atual) => alterarQuantidade(atual, chave, quantidade));
   const remover = (chave: string) => setCarrinho((atual) => removerDoCarrinho(atual, chave));
 
-  const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [gerandoPdf, setGerandoPdf] = useState<TipoPdf | null>(null);
   const [erroPdf, setErroPdf] = useState<string | null>(null);
-  const gerarPdf = async () => {
-    setGerandoPdf(true);
+  const gerarPdf = async (tipo: TipoPdf) => {
+    setGerandoPdf(tipo);
     setErroPdf(null);
     try {
       const emitidoEm = new Date();
-      const doc = montarPdfOrcamentoCliente({ carrinho, orcamento, emitidoEm }, await carregarLogoPdf());
-      doc.save(`Orcamento_${emitidoEm.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
+      const { montar, arquivo } = PDFS[tipo];
+      const doc = montar({ carrinho, orcamento, emitidoEm }, await carregarLogoPdf());
+      doc.save(`${arquivo}_${emitidoEm.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
     } catch (error) {
       console.error('Falha ao gerar o PDF do Orçamento:', error);
       setErroPdf('Não foi possível gerar o PDF. Tente de novo.');
     } finally {
-      setGerandoPdf(false);
+      setGerandoPdf(null);
     }
   };
 
@@ -286,12 +296,22 @@ const GeradorOrcamentoPage: React.FC = () => {
             )}
             <button
               type="button"
-              onClick={gerarPdf}
-              disabled={carrinho.length === 0 || gerandoPdf}
+              onClick={() => gerarPdf('cliente')}
+              disabled={carrinho.length === 0 || gerandoPdf !== null}
               className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
             >
-              {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
+              {gerandoPdf === 'cliente' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
             </button>
+            {podeVerCustos && (
+              <button
+                type="button"
+                onClick={() => gerarPdf('interno')}
+                disabled={carrinho.length === 0 || gerandoPdf !== null}
+                className="mt-2 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {gerandoPdf === 'interno' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileLock2 className="w-4 h-4" />} Gerar PDF Interno
+              </button>
+            )}
             {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
           </section>
         </div>

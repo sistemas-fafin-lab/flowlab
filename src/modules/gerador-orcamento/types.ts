@@ -9,6 +9,8 @@ export interface ItemGeradorOrcamento {
   tuss: string;
   nome: string;
   preco: number;
+  /** Só vem para quem tem canViewGeradorOrcamentoCustos; sem a permissão, a chave nem existe. */
+  custo?: number | null;
   elegivelDescontoParticular: boolean;
   /** Convênios que atendem o exame (só nomes, sem valor negociado). */
   conveniosAceitos: string[];

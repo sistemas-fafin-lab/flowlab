@@ -109,6 +109,9 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // Gerador de Orçamento (.scratch/gerador-orcamento/spec.md): tela, busca, carrinho e
   // Orçamento do cliente. Custo e margem ficam numa chave à parte.
   { key: 'canUseGeradorOrcamento', label: 'Usar Gerador de Orçamento', group: 'Atendimento' },
+  // Custo na resposta da lista de preços e PDF interno (custo × venda × margem). Sem ela, o
+  // servidor nem consulta o custo. Só o Administrador recebe por padrão (não o "atendente").
+  { key: 'canViewGeradorOrcamentoCustos', label: 'Ver custos e margem no Gerador de Orçamento', group: 'Atendimento' },
 ];
 
 // ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────

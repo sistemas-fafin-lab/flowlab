@@ -13,6 +13,7 @@ const CHAVES_POSTERIORES: Record<string, string> = {
   canViewAllPayments: '20261020120000_pagamentos_ver_todos_e_autorizador.sql',
   canAuthorizePayments: '20261020120000_pagamentos_ver_todos_e_autorizador.sql',
   canUseGeradorOrcamento: '20261020180000_gerador_orcamento_atendente.sql',
+  canViewGeradorOrcamentoCustos: '20261020190000_gerador_orcamento_custos.sql',
 };
 
 /** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */

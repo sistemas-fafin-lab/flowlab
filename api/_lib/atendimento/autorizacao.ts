@@ -13,17 +13,27 @@ export interface FalhaAutorizacao {
   payload: Record<string, unknown>;
 }
 
-/** Devolve `null` quando o usuário pode usar o Gerador de Orçamento; a falha a devolver, senão. */
-export async function autorizarGeradorOrcamento(token: string | null): Promise<FalhaAutorizacao | null> {
-  if (!token) {
-    return { status: 401, payload: { success: false, error: 'Token de autenticação ausente.' } };
-  }
+/** Quem passou na autorização: o que o usuário pode além de usar o Gerador. */
+export interface AcessoGeradorOrcamento {
+  /** canViewGeradorOrcamentoCustos: só com ela o custo é consultado e devolvido. */
+  podeVerCustos: boolean;
+}
+
+// Distinguido por `'falha' in resultado`: o tsconfig da api não é strict, e sem
+// strictNullChecks o TS não estreita a união por um discriminante booleano.
+export type ResultadoAutorizacao = { acesso: AcessoGeradorOrcamento } | { falha: FalhaAutorizacao };
+
+const negar = (status: number, error: string): ResultadoAutorizacao => ({
+  falha: { status, payload: { success: false, error } },
+});
+
+/** Exige canUseGeradorOrcamento; devolve o acesso do usuário ou a falha a responder. */
+export async function autorizarGeradorOrcamento(token: string | null): Promise<ResultadoAutorizacao> {
+  if (!token) return negar(401, 'Token de autenticação ausente.');
   const supabase = getSupabaseAdminClient();
 
   const { data: caller, error: callerErr } = await supabase.auth.getUser(token);
-  if (callerErr || !caller?.user) {
-    return { status: 401, payload: { success: false, error: 'Sessão inválida ou expirada.' } };
-  }
+  if (callerErr || !caller?.user) return negar(401, 'Sessão inválida ou expirada.');
 
   const { data: callerProfile } = await supabase
     .from('user_profiles')
@@ -34,9 +44,9 @@ export async function autorizarGeradorOrcamento(token: string | null): Promise<F
   const callerPermissions: string[] =
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
   if (!callerPermissions.includes('canUseGeradorOrcamento')) {
-    return { status: 403, payload: { success: false, error: 'Sem permissão para usar o Gerador de Orçamento.' } };
+    return negar(403, 'Sem permissão para usar o Gerador de Orçamento.');
   }
-  return null;
+  return { acesso: { podeVerCustos: callerPermissions.includes('canViewGeradorOrcamentoCustos') } };
 }
 
 /** Extrai o access_token do header `Authorization: Bearer <jwt>`. */

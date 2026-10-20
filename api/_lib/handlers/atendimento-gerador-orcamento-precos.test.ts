@@ -19,6 +19,7 @@ interface CorpoResposta {
   success: boolean;
   error?: string;
   itens?: Record<string, unknown>[];
+  podeVerCustos?: boolean;
 }
 
 // Query builder mínimo do supabase-js para o user_profiles da autorização.
@@ -112,7 +113,7 @@ describe('GET /api/atendimento/gerador-orcamento-precos', () => {
     expect(buildOrcamentoParticularMock).not.toHaveBeenCalled();
   });
 
-  it('com canUseGeradorOrcamento devolve 200 com a lista montada sem custo', async () => {
+  it('com uso e sem custos devolve 200 sem custo em nenhum item e avisa que não pode ver custos', async () => {
     const itens = [
       { tuss: '40304361', nome: 'Hemograma', preco: 25, elegivelDescontoParticular: true, conveniosAceitos: ['Unimed'] },
       { tuss: '40304361', nome: 'Hemograma com plaquetas', preco: 30, elegivelDescontoParticular: true, conveniosAceitos: [] },
@@ -122,9 +123,30 @@ describe('GET /api/atendimento/gerador-orcamento-precos', () => {
     const res = await executar();
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual({ success: true, itens });
+    expect(res.body).toEqual({ success: true, itens, podeVerCustos: false });
     expect(buildOrcamentoParticularMock).toHaveBeenCalledWith(expect.anything(), { incluirCusto: false });
     expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+
+  it('com uso e custos devolve 200 com o custo de cada item e avisa que pode ver custos', async () => {
+    const itens = [
+      { tuss: '40304361', nome: 'Hemograma', preco: 25, custo: 8.5, elegivelDescontoParticular: true, conveniosAceitos: ['Unimed'] },
+    ];
+    buildOrcamentoParticularMock.mockResolvedValue(itens);
+
+    const res = await executar({ permissoes: ['canUseGeradorOrcamento', 'canViewGeradorOrcamentoCustos'] });
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toEqual({ success: true, itens, podeVerCustos: true });
+    expect(buildOrcamentoParticularMock).toHaveBeenCalledWith(expect.anything(), { incluirCusto: true });
+    expect(res.headers['Cache-Control']).toBe('no-store');
+  });
+
+  it('só a permissão de custos, sem a de uso, devolve 403 sem montar a lista', async () => {
+    const res = await executar({ permissoes: ['canViewGeradorOrcamentoCustos'] });
+
+    expect(res.statusCode).toBe(403);
+    expect(buildOrcamentoParticularMock).not.toHaveBeenCalled();
   });
 
   it('método diferente de GET devolve 405 sem montar a lista', async () => {

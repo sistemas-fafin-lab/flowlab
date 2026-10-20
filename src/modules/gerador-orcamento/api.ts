@@ -1,6 +1,6 @@
 // Adapter da lista de preços do Gerador de Orçamento: GET /api/atendimento/gerador-orcamento-precos
-// com o token da sessão (a rota valida o JWT + canUseGeradorOrcamento). O custo não vem
-// nesta resposta: o servidor nem o consulta.
+// com o token da sessão (a rota valida o JWT + canUseGeradorOrcamento). O custo só vem
+// para quem tem canViewGeradorOrcamentoCustos; sem ela, o servidor nem o consulta.
 
 import { supabase } from '../../lib/supabase';
 import type { ItemGeradorOrcamento } from './types';
@@ -12,12 +12,19 @@ interface RespostaPrecos {
   success?: boolean;
   error?: string;
   itens?: ItemResposta[];
+  podeVerCustos?: boolean;
+}
+
+export interface ListaPrecos {
+  exames: ItemGeradorOrcamento[];
+  /** Se o usuário tem canViewGeradorOrcamentoCustos (os itens trazem `custo` e o PDF interno vale). */
+  podeVerCustos: boolean;
 }
 
 const FALHA_PADRAO = 'Não foi possível carregar a lista de exames.';
 
 /** Busca a lista de preços. Lança com uma mensagem pronta para a tela. */
-export async function buscarListaPrecos(): Promise<ItemGeradorOrcamento[]> {
+export async function buscarListaPrecos(): Promise<ListaPrecos> {
   const { data: { session } } = await supabase.auth.getSession();
   const token = session?.access_token;
   if (!token) throw new Error('Sessão expirada. Faça login novamente.');
@@ -37,5 +44,8 @@ export async function buscarListaPrecos(): Promise<ItemGeradorOrcamento[]> {
 
   // Item sem nome (TUSS com preço Particular mas sem exame em custo_exames) não é
   // orçável: a Tabela-Particular já o descartava, e o Gerador faz o mesmo.
-  return body.itens.filter((i): i is ItemGeradorOrcamento => !!i.nome);
+  return {
+    exames: body.itens.filter((i): i is ItemGeradorOrcamento => !!i.nome),
+    podeVerCustos: body.podeVerCustos === true,
+  };
 }

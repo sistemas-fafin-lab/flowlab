@@ -3,20 +3,9 @@ import type jsPDF from 'jspdf';
 import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
 import { orcamentoDoCarrinho } from './orcamento';
 import { montarPdfOrcamentoCliente } from './pdfCliente';
+import { pdfBruto, textoDoPdf } from './textoDoPdf.testHelper';
 
 // Portado de Tabela-Particular/lib/alvaro-orcamento/pdf.test.ts (buildClientPdf).
-
-/**
- * Texto desenhado no PDF: o jsPDF não comprime o content stream, então as strings
- * literais (`(...) Tj`) aparecem como estão. Junta todas com espaço porque o autoTable
- * quebra o texto de coluna estreita em mais de um Tj.
- */
-function textoDoPdf(doc: jsPDF): string {
-  const bruto = Buffer.from(doc.output('arraybuffer')).toString('latin1');
-  const strings: string[] = [];
-  for (const m of bruto.matchAll(/\(((?:[^()\\]|\\.)*)\)/g)) strings.push(m[1].replace(/\\([()\\])/g, '$1'));
-  return strings.join(' ').replace(/\s+/g, ' ');
-}
 
 const exame = (nome: string, preco: number, elegivelDescontoParticular: boolean): ItemGeradorOrcamento => ({
   tuss: '40301630',
@@ -44,7 +33,7 @@ const pdf = (linhas: ItemCarrinho[] = carrinho, logo: string | null = null) =>
 
 const montar = (linhas: ItemCarrinho[] = carrinho) => textoDoPdf(pdf(linhas));
 
-const temImagem = (doc: jsPDF) => Buffer.from(doc.output('arraybuffer')).toString('latin1').includes('/Subtype /Image');
+const temImagem = (doc: jsPDF) => pdfBruto(doc).includes('/Subtype /Image');
 
 describe('montarPdfOrcamentoCliente', () => {
   it('lista cada exame com quantidade, preço unitário e total da linha', () => {
