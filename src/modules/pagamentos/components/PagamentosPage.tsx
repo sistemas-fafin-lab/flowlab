@@ -1,42 +1,9 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { 
-  FileText, 
-  Plus, 
-  Check, 
-  X, 
-  User, 
-  Building2, 
-  Calendar, 
-  DollarSign,
-  CreditCard,
-  AlertCircle,
-  Trash2,
-  Printer,
-  Sparkles,
-  Paperclip,
-  FileUp,
-  Eye
-} from 'lucide-react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { Plus } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
-import { usePaymentRequest } from '../hooks/usePaymentRequest';
-import { usePaymentAuthorizers } from '../hooks/usePaymentAuthorizers';
 import { useNotification } from '../../../hooks/useNotification';
 import { useDialog } from '../../../hooks/useDialog';
-import { 
-  PaymentRequest, 
-  PaymentRequestFormValues
-} from '../../../types';
-import {
-  formatCurrency,
-  formatCpfCnpj,
-  validateCpfCnpj,
-  formatDateDisplay,
-  getDayOfWeekName,
-  PAYMENT_TYPE_LABELS,
-  PAYMENT_METHOD_LABELS,
-  PAYMENT_STATUS_LABELS,
-  PAYMENT_STATUS_COLORS
-} from '../../../utils/paymentUtils';
+import type { PaymentRequest } from '../../../types';
 import Notification from '../../../components/Notification';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { PaymentRequestSkeleton } from '../../../components/PageLoadingSkeleton';
@@ -44,7 +11,6 @@ import {
   contarPorAba,
   estaNaAba,
   filtrarSemAba,
-  formatarDataISO,
   opcoesDosRecortes,
   ordenarPedidos,
   paraISO,
@@ -52,128 +18,31 @@ import {
   temFiltroAtivo,
   type Acesso,
 } from '../domain/filtrosPagamentos';
+import { usePaymentRequest } from '../hooks/usePaymentRequest';
 import { useFiltrosPagamentos } from '../hooks/useFiltrosPagamentos';
+import { gerarPdfPedido } from '../pdfPedido';
 import BarraFiltrosPagamentos from './BarraFiltrosPagamentos';
 import EstadoVazioPedidos from './EstadoVazioPedidos';
-import { gerarPdfPedido } from '../pdfPedido';
+import ListaPedidos from './ListaPedidos';
+import NovoPedidoModal from './NovoPedidoModal';
 import VisualizadorImagem, { type ImagemAberta } from './VisualizadorImagem';
+
+// Solicitações de pagamento: orquestra os dados, os filtros (no endereço da página) e as
+// ações. A barra, a lista, o card e o formulário são componentes próprios.
 
 const PagamentosPage: React.FC = () => {
   const { user, userProfile } = useAuth();
-  const { 
-    paymentRequests, 
-    loading, 
-    createPedido, 
-    updatePaymentRequestStatus,
-    deletePaymentRequest,
-    getNextPaymentDate
-  } = usePaymentRequest();
-  const { authorizers, loading: loadingAuthorizers, error: authorizersError } = usePaymentAuthorizers();
+  const { paymentRequests, loading, createPedido, updatePaymentRequestStatus, deletePaymentRequest, getNextPaymentDate } =
+    usePaymentRequest();
   const { notification, showSuccess, showError, showWarning, showInfo, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
-
-  // Form state
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Suggested date for payment
-  const [suggestedDate, setSuggestedDate] = useState<Date | null>(null);
-
-  // Form data
-  const [formData, setFormData] = useState<PaymentRequestFormValues>({
-    tipoSolicitacao: 'PAGAMENTO',
-    documentoNumero: '',
-    fornecedor: '',
-    cpfCnpj: '',
-    valorTotal: 0,
-    formaPagamento: 'PIX',
-    dadosPagamento: '',
-    descricaoDetalhada: '',
-    solicitadoPor: userProfile?.name || '',
-    autorizadoPor: '',
-    autorizadoPorId: '',
-    dataPagamento: '',
-    emailUsuario: user?.email || '',
-    attachments: []
-  });
-
-  // Attachment state
-  const [attachmentPreviews, setAttachmentPreviews] = useState<(string | null)[]>([]);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  
-  // Image viewer state
+  const [novoAberto, setNovoAberto] = useState(false);
   const [imagemAberta, setImagemAberta] = useState<ImagemAberta | null>(null);
-
-  // Update form when user profile loads
-  useEffect(() => {
-    if (userProfile?.name) {
-      setFormData(prev => ({
-        ...prev,
-        solicitadoPor: userProfile.name,
-        emailUsuario: user?.email || ''
-      }));
-    }
-  }, [userProfile, user]);
-
-  // Handle file attachments (multiple)
-  const handleFilesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (!files.length) return;
-
-    const allowedTypes = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'];
-    const maxSize = 10 * 1024 * 1024;
-    const validFiles: File[] = [];
-
-    for (const file of files) {
-      if (!allowedTypes.includes(file.type)) {
-        showError('Tipo de arquivo inválido', `"${file.name}": apenas PDF, PNG e JPEG são permitidos.`);
-        continue;
-      }
-      if (file.size > maxSize) {
-        showError('Arquivo muito grande', `"${file.name}" excede 10MB.`);
-        continue;
-      }
-      validFiles.push(file);
-    }
-
-    if (!validFiles.length) return;
-
-    setFormData(prev => ({ ...prev, attachments: [...(prev.attachments || []), ...validFiles] }));
-
-    // Criar previews
-    validFiles.forEach(file => {
-      if (file.type.startsWith('image/')) {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setAttachmentPreviews(prev => [...prev, reader.result as string]);
-        };
-        reader.readAsDataURL(file);
-      } else {
-        setAttachmentPreviews(prev => [...prev, null]);
-      }
-    });
-
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // Remove individual attachment
-  const removeAttachment = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      attachments: (prev.attachments || []).filter((_, i) => i !== index)
-    }));
-    setAttachmentPreviews(prev => prev.filter((_, i) => i !== index));
-  };
-
-  // Anexo de imagem em tela cheia
-  const openImageViewer = (url: string, nome: string) => setImagemAberta({ url, nome });
   const fecharImagem = useCallback(() => setImagemAberta(null), []);
-
-  // Set suggested date on mount
-  useEffect(() => {
-    const nextDate = getNextPaymentDate();
-    setSuggestedDate(nextDate);
-  }, []);
+  const avisos = useMemo(
+    () => ({ showSuccess, showError, showWarning, showInfo }),
+    [showSuccess, showError, showWarning, showInfo],
+  );
 
   // Aprovar, rejeitar, marcar como pago e excluir.
   const permissoes = userProfile?.permissions ?? [];
@@ -194,203 +63,64 @@ const PagamentosPage: React.FC = () => {
   // As abas contam sobre o recorte sem a aba: o número de cada uma bate com o que ela mostra.
   const semAba = useMemo(() => filtrarSemAba(visiveis, filtros, acesso, hoje), [visiveis, filtros, acesso, hoje]);
   const contagem = useMemo(() => contarPorAba(semAba), [semAba]);
-  const filteredRequests = useMemo(
+  const pedidos = useMemo(
     () => ordenarPedidos(semAba.filter((p) => estaNaAba(p, filtros.aba)), filtros.ordem),
     [semAba, filtros.aba, filtros.ordem],
   );
 
-  // Handle form input changes
-  const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
-  ) => {
-    const { name, value } = e.target;
-    
-    if (name === 'valorTotal') {
-      setFormData(prev => ({ ...prev, [name]: parseFloat(value) || 0 }));
-    } else if (name === 'cpfCnpj') {
-      // Auto-format CPF/CNPJ
-      const formatted = formatCpfCnpj(value);
-      setFormData(prev => ({ ...prev, [name]: formatted }));
-    } else {
-      setFormData(prev => ({ ...prev, [name]: value }));
-    }
-  };
-
-  // Autorizado por: só quem está na lista (cargo com canAuthorizePayments).
-  const handleAuthorizerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const autorizador = authorizers.find(a => a.id === e.target.value);
-    setFormData(prev => ({
-      ...prev,
-      autorizadoPorId: autorizador?.id ?? '',
-      autorizadoPor: autorizador?.name ?? ''
-    }));
-  };
-
-  // Handle date change with validation feedback
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const dateValue = e.target.value;
-    setFormData(prev => ({ ...prev, dataPagamento: dateValue }));
-    
-    if (dateValue) {
-      const selectedDate = new Date(dateValue + 'T00:00:00');
-      const dayOfWeek = selectedDate.getDay();
-      
-      if (dayOfWeek !== 2 && dayOfWeek !== 4) {
-        showWarning(
-          'Data inválida', 
-          `A data selecionada (${getDayOfWeekName(selectedDate)}) não é válida. Pagamentos são realizados apenas às terças e quintas-feiras.`
-        );
+  const aprovar = (p: PaymentRequest) =>
+    showConfirmDialog('Aprovar solicitação', `Deseja aprovar o pedido "${p.codigo}"?`, async () => {
+      try {
+        await updatePaymentRequestStatus(p.id, 'approved', userProfile?.name);
+        showSuccess('Pedido aprovado com sucesso!');
+      } catch {
+        showError('Erro ao aprovar pedido');
       }
-    }
-  };
-
-  // Use suggested date
-  const useSuggestedDate = () => {
-    if (suggestedDate) {
-      const dateStr = suggestedDate.toISOString().split('T')[0];
-      setFormData(prev => ({ ...prev, dataPagamento: dateStr }));
-      showInfo('Data sugerida aplicada', `Data definida para ${formatDateDisplay(suggestedDate)} (${getDayOfWeekName(suggestedDate)})`);
-    }
-  };
-
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    // Validate required fields
-    if (!formData.fornecedor || !formData.valorTotal || !formData.dataPagamento || !formData.autorizadoPorId) {
-      showError('Campos obrigatórios', 'Preencha todos os campos obrigatórios.');
-      return;
-    }
-
-    // Validate CPF/CNPJ if provided
-    if (formData.cpfCnpj && !validateCpfCnpj(formData.cpfCnpj)) {
-      showError('CPF/CNPJ inválido', 'Digite um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.');
-      return;
-    }
-
-    setIsSubmitting(true);
-
-    try {
-      const result = await createPedido(formData, userProfile?.department || '');
-
-      if (result.success) {
-        showSuccess('Pedido criado!', result.message);
-        resetForm();
-        setShowAddForm(false);
-      } else {
-        if (result.suggestedDate) {
-          setSuggestedDate(result.suggestedDate);
-          showWarning(
-            'Data de pagamento inválida',
-            `${result.message} Sugestão: ${formatDateDisplay(result.suggestedDate)} (${getDayOfWeekName(result.suggestedDate)})`
-          );
-        } else {
-          showError('Erro ao criar pedido', result.error || result.message);
-        }
-      }
-    } catch (error) {
-      console.error('Erro ao criar pedido:', error);
-      showError('Erro', 'Ocorreu um erro ao criar o pedido. Tente novamente.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  // Reset form
-  const resetForm = () => {
-    setFormData({
-      tipoSolicitacao: 'PAGAMENTO',
-      documentoNumero: '',
-      fornecedor: '',
-      cpfCnpj: '',
-      valorTotal: 0,
-      formaPagamento: 'PIX',
-      dadosPagamento: '',
-      descricaoDetalhada: '',
-      solicitadoPor: userProfile?.name || '',
-      autorizadoPor: '',
-      autorizadoPorId: '',
-      dataPagamento: '',
-      emailUsuario: user?.email || '',
-      attachments: []
     });
-    setAttachmentPreviews([]);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-  };
 
-  // Handle approve request
-  const handleApprove = async (request: PaymentRequest) => {
+  const rejeitar = (p: PaymentRequest) =>
     showConfirmDialog(
-      'Aprovar Solicitação',
-      `Deseja aprovar o pedido "${request.codigo}"?`,
+      'Rejeitar solicitação',
+      `Deseja rejeitar o pedido "${p.codigo}"? Esta ação não pode ser desfeita.`,
       async () => {
         try {
-          await updatePaymentRequestStatus(request.id, 'approved', userProfile?.name);
-          showSuccess('Pedido aprovado com sucesso!');
-        } catch (error) {
-          showError('Erro ao aprovar pedido');
-        }
-      }
-    );
-  };
-
-  // Handle reject request
-  const handleReject = async (request: PaymentRequest) => {
-    showConfirmDialog(
-      'Rejeitar Solicitação',
-      `Deseja rejeitar o pedido "${request.codigo}"? Esta ação não pode ser desfeita.`,
-      async () => {
-        try {
-          await updatePaymentRequestStatus(request.id, 'rejected', undefined, 'Rejeitado pelo operador');
+          await updatePaymentRequestStatus(p.id, 'rejected', undefined, 'Rejeitado pelo operador');
           showSuccess('Pedido rejeitado.');
-        } catch (error) {
+        } catch {
           showError('Erro ao rejeitar pedido');
         }
       },
-      { type: 'danger', confirmText: 'Rejeitar' }
+      { type: 'danger', confirmText: 'Rejeitar' },
     );
-  };
 
-  // Handle mark as paid
-  const handleMarkAsPaid = async (request: PaymentRequest) => {
-    showConfirmDialog(
-      'Marcar como Pago',
-      `Confirma que o pedido "${request.codigo}" foi pago?`,
-      async () => {
-        try {
-          await updatePaymentRequestStatus(request.id, 'paid', userProfile?.name);
-          showSuccess('Pedido marcado como pago!');
-        } catch (error) {
-          showError('Erro ao atualizar pedido');
-        }
+  const pagar = (p: PaymentRequest) =>
+    showConfirmDialog('Marcar como pago', `Confirma que o pedido "${p.codigo}" foi pago?`, async () => {
+      try {
+        await updatePaymentRequestStatus(p.id, 'paid', userProfile?.name);
+        showSuccess('Pedido marcado como pago!');
+      } catch {
+        showError('Erro ao atualizar pedido');
       }
-    );
-  };
+    });
 
-  // Handle delete request
-  const handleDelete = async (request: PaymentRequest) => {
+  const excluir = (p: PaymentRequest) =>
     showConfirmDialog(
-      'Excluir Solicitação',
-      `Deseja excluir o pedido "${request.codigo}"? Esta ação não pode ser desfeita.`,
+      'Excluir solicitação',
+      `Deseja excluir o pedido "${p.codigo}"? Esta ação não pode ser desfeita.`,
       async () => {
         try {
-          await deletePaymentRequest(request.id);
+          await deletePaymentRequest(p.id);
           showSuccess('Pedido excluído com sucesso!');
-        } catch (error) {
+        } catch {
           showError('Erro ao excluir pedido');
         }
       },
-      { type: 'danger', confirmText: 'Excluir' }
+      { type: 'danger', confirmText: 'Excluir' },
     );
-  };
 
-  // Comprovante em PDF (pdfPedido.ts)
-  const generatePDF = (request: PaymentRequest) => {
-    const fileName = gerarPdfPedido(request);
-    showSuccess('PDF gerado!', `Comprovante "${fileName}" foi baixado com sucesso.`);
+  const imprimir = (p: PaymentRequest) => {
+    const arquivo = gerarPdfPedido(p);
+    showSuccess('PDF gerado!', `Comprovante "${arquivo}" foi baixado com sucesso.`);
   };
 
   if (loading) {
@@ -406,7 +136,6 @@ const PagamentosPage: React.FC = () => {
         isVisible={notification.isVisible}
         onClose={hideNotification}
       />
-
       <ConfirmDialog
         isOpen={confirmDialog.isOpen}
         title={confirmDialog.title}
@@ -417,376 +146,32 @@ const PagamentosPage: React.FC = () => {
         onCancel={hideConfirmDialog}
         type={confirmDialog.type}
       />
-
       <VisualizadorImagem imagem={imagemAberta} onFechar={fecharImagem} />
 
-      {/* Header */}
-      <div className="flex justify-between items-center animate-fade-in-up">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in-up">
         <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">Solicitações de Pagamento</h2>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Gerencie pedidos de pagamento a fornecedores</p>
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+            Solicitações de Pagamento
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400 mt-1">Pedidos de pagamento, reembolso e adiantamento</p>
         </div>
         <button
-          onClick={() => setShowAddForm(true)}
-          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 font-semibold text-base"
+          type="button"
+          onClick={() => setNovoAberto(true)}
+          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 font-semibold"
         >
           <Plus className="w-5 h-5 mr-2" />
-          Nova Solicitação
+          Nova solicitação
         </button>
       </div>
 
-      {/* Info Banner - Payment Days */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-200 dark:border-blue-800 rounded-2xl p-5 flex items-start animate-fade-in-up shadow-sm" style={{ animationDelay: '0.1s' }}>
-        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25 flex-shrink-0">
-          <AlertCircle className="w-5 h-5 text-white" />
-        </div>
-        <div className="ml-4">
-          <h4 className="font-semibold text-blue-800 dark:text-blue-200">Dias de Pagamento</h4>
-          <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
-            Os pagamentos são realizados apenas às <strong>terças</strong> e <strong>quintas-feiras</strong>, 
-            com pelo menos <strong>48 horas</strong> de antecedência.
-          </p>
-          {suggestedDate && (
-            <p className="text-sm text-blue-700 dark:text-blue-300 mt-2 bg-white/60 dark:bg-blue-900/50 px-3 py-1.5 rounded-lg inline-block">
-              Próxima data disponível: <strong>{formatDateDisplay(suggestedDate)}</strong> ({getDayOfWeekName(suggestedDate)})
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Add Form */}
-      {showAddForm && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 animate-scale-in">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25 mr-3">
-                <FileText className="w-5 h-5 text-white" />
-              </div>
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Nova Solicitação de Pagamento</h3>
-            </div>
-            <button
-              onClick={() => {
-                setShowAddForm(false);
-                resetForm();
-              }}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Row 1: Tipo e Documento */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Tipo de Solicitação *
-                </label>
-                <select
-                  name="tipoSolicitacao"
-                  value={formData.tipoSolicitacao}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
-                >
-                  {Object.entries(PAYMENT_TYPE_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Número do Documento
-                </label>
-                <input
-                  type="text"
-                  name="documentoNumero"
-                  value={formData.documentoNumero}
-                  onChange={handleInputChange}
-                  placeholder="NF, Boleto, etc."
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
-                />
-              </div>
-            </div>
-
-            {/* Row 2: Fornecedor e CPF/CNPJ */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Fornecedor/Beneficiário *
-                </label>
-                <input
-                  type="text"
-                  name="fornecedor"
-                  value={formData.fornecedor}
-                  onChange={handleInputChange}
-                  required
-                  placeholder="Nome do fornecedor ou beneficiário"
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  CPF/CNPJ
-                </label>
-                <input
-                  type="text"
-                  name="cpfCnpj"
-                  value={formData.cpfCnpj}
-                  onChange={handleInputChange}
-                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
-                />
-              </div>
-            </div>
-
-            {/* Row 3: Valor e Forma de Pagamento */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Valor Total *
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-2.5 text-gray-500 dark:text-gray-400 font-medium">R$</span>
-                  <input
-                    type="number"
-                    name="valorTotal"
-                    value={formData.valorTotal || ''}
-                    onChange={handleInputChange}
-                    required
-                    min="0.01"
-                    step="0.01"
-                    placeholder="0,00"
-                    className="w-full pl-12 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Forma de Pagamento *
-                </label>
-                <select
-                  name="formaPagamento"
-                  value={formData.formaPagamento}
-                  onChange={handleInputChange}
-                  required
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
-                >
-                  {Object.entries(PAYMENT_METHOD_LABELS).map(([key, label]) => (
-                    <option key={key} value={key}>{label}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* Row 4: Dados de Pagamento */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Dados para Pagamento *
-              </label>
-              <textarea
-                name="dadosPagamento"
-                value={formData.dadosPagamento}
-                onChange={handleInputChange}
-                required
-                rows={3}
-                placeholder="Chave PIX, dados bancários, código de barras do boleto, etc."
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 resize-none dark:text-gray-100 dark:placeholder-gray-400"
-              />
-            </div>
-
-            {/* Row 5: Descrição */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Descrição Detalhada *
-              </label>
-              <textarea
-                name="descricaoDetalhada"
-                value={formData.descricaoDetalhada}
-                onChange={handleInputChange}
-                required
-                rows={3}
-                placeholder="Descreva o motivo do pagamento, serviços prestados, materiais adquiridos, etc."
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 resize-none dark:text-gray-100 dark:placeholder-gray-400"
-              />
-            </div>
-
-            {/* Row 6: Data de Pagamento */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Data de Pagamento Desejada *
-              </label>
-              <div className="flex gap-2">
-                <input
-                  type="date"
-                  name="dataPagamento"
-                  value={typeof formData.dataPagamento === 'string' ? formData.dataPagamento : formData.dataPagamento instanceof Date ? formData.dataPagamento.toISOString().split('T')[0] : ''}
-                  onChange={handleDateChange}
-                  required
-                  className="flex-1 px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100"
-                />
-                <button
-                  type="button"
-                  onClick={useSuggestedDate}
-                  className="px-4 py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 text-amber-900 rounded-xl hover:from-amber-500 hover:via-yellow-500 hover:to-amber-500 transition-all duration-200 text-sm font-semibold flex items-center shadow-md shadow-amber-400/30 hover:shadow-lg hover:shadow-amber-400/40 animate-pulse hover:animate-none border border-amber-300"
-                >
-                  <Sparkles className="w-4 h-4 mr-2" />
-                  Usar Data Sugerida
-                </button>
-              </div>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                Lembre-se: apenas terças e quintas-feiras, com 48h de antecedência.
-              </p>
-            </div>
-
-            {/* Row 7: Solicitante e Autorizador */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Solicitado por
-                </label>
-                <input
-                  type="text"
-                  name="solicitadoPor"
-                  value={formData.solicitadoPor}
-                  readOnly
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl bg-gray-100 dark:bg-gray-600 text-gray-600 dark:text-gray-300"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  Autorizado por *
-                </label>
-                {/* Só aparece quem tem a permissão Ser Autorizador de Pagamentos; o trigger
-                    payment_request_guard recusa qualquer outra pessoa. */}
-                <select
-                  name="autorizadoPorId"
-                  value={formData.autorizadoPorId}
-                  onChange={handleAuthorizerChange}
-                  required
-                  disabled={loadingAuthorizers || authorizers.length === 0}
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  <option value="">
-                    {loadingAuthorizers ? 'Carregando...' : 'Selecione quem autorizou'}
-                  </option>
-                  {authorizers.map(autorizador => (
-                    <option key={autorizador.id} value={autorizador.id}>
-                      {autorizador.department ? `${autorizador.name} (${autorizador.department})` : autorizador.name}
-                    </option>
-                  ))}
-                </select>
-                {authorizersError ? (
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">{authorizersError}</p>
-                ) : !loadingAuthorizers && authorizers.length === 0 ? (
-                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
-                    Ninguém pode autorizar pagamentos ainda. Peça a quem gerencia cargos para marcar
-                    "Ser Autorizador de Pagamentos" no cargo de quem autoriza.
-                  </p>
-                ) : null}
-              </div>
-            </div>
-
-            {/* Row 8: Anexos (múltiplos) */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                Anexos (Contrato, Boleto, Documentos)
-              </label>
-              <div className="space-y-3">
-                {/* Input oculto - múltiplos arquivos */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf,.png,.jpg,.jpeg"
-                  onChange={handleFilesChange}
-                  multiple
-                  className="hidden"
-                />
-
-                {/* Lista de arquivos já selecionados */}
-                {(formData.attachments || []).map((file, idx) => (
-                  <div key={idx} className="flex items-center gap-3 px-4 py-3 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-700 rounded-xl">
-                    {attachmentPreviews[idx] ? (
-                      <img
-                        src={attachmentPreviews[idx]!}
-                        alt="Preview"
-                        className="w-12 h-12 object-cover rounded-lg border border-green-300 dark:border-green-600 flex-shrink-0"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-green-100 dark:bg-green-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-6 h-6 text-green-600 dark:text-green-400" />
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-green-800 dark:text-green-200 truncate">{file.name}</p>
-                      <p className="text-xs text-green-600 dark:text-green-400">{(file.size / 1024).toFixed(1)} KB</p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => removeAttachment(idx)}
-                      className="p-2 text-red-500 hover:text-red-700 hover:bg-red-100 dark:hover:bg-red-900/30 rounded-lg transition-all flex-shrink-0"
-                      title="Remover anexo"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                ))}
-
-                {/* Botão de adicionar mais arquivos */}
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full flex items-center justify-center gap-3 px-4 py-4 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl hover:border-blue-400 dark:hover:border-blue-500 hover:bg-blue-50/50 dark:hover:bg-blue-900/20 transition-all duration-200 group"
-                >
-                  <div className="w-10 h-10 bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/50 rounded-lg flex items-center justify-center transition-colors">
-                    <FileUp className="w-5 h-5 text-gray-400 group-hover:text-blue-500 dark:group-hover:text-blue-400" />
-                  </div>
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 group-hover:text-blue-700 dark:group-hover:text-blue-400">
-                      {(formData.attachments || []).length === 0 ? 'Clique para anexar arquivo(s)' : 'Adicionar mais arquivos'}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">PDF, PNG ou JPEG (máx. 10MB cada)</p>
-                  </div>
-                </button>
-              </div>
-            </div>
-
-            {/* Submit Buttons */}
-            <div className="flex justify-end space-x-3 pt-6 border-t border-gray-100 dark:border-gray-700">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAddForm(false);
-                  resetForm();
-                }}
-                className="px-5 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
-                    Criando...
-                  </>
-                ) : (
-                  <>
-                    <Plus className="w-4 h-4 mr-2" />
-                    Criar Solicitação
-                  </>
-                )}
-              </button>
-            </div>
-          </form>
-        </div>
+      {novoAberto && (
+        <NovoPedidoModal
+          onFechar={() => setNovoAberto(false)}
+          createPedido={createPedido}
+          getNextPaymentDate={getNextPaymentDate}
+          avisos={avisos}
+        />
       )}
 
       <BarraFiltrosPagamentos
@@ -794,312 +179,36 @@ const PagamentosPage: React.FC = () => {
         alterar={alterar}
         limpar={limpar}
         contagem={contagem}
-        quantidade={filteredRequests.length}
+        quantidade={pedidos.length}
         total={contagem[filtros.aba].valor}
         hoje={hoje}
         opcoes={opcoes}
         mostrarSetor={vePagamentosDeTodos}
       />
 
-      {/* Requests List */}
-      <div className="space-y-4">
-        {filteredRequests.length === 0 ? (
-          <EstadoVazioPedidos
-            aba={filtros.aba}
-            filtrando={temFiltroAtivo(filtros)}
-            semPedidos={visiveis.length === 0}
-            onLimpar={limpar}
-            onNovo={() => setShowAddForm(true)}
-            onVerTodos={() => alterar({ aba: 'todos' })}
-          />
-        ) : (
-          filteredRequests.map((request, index) => (
-            <div 
-              key={request.id} 
-              className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 sm:p-6 hover:shadow-xl hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
-              style={{ animationDelay: `${Math.min(index * 0.05, 0.25)}s` }}
-            >
-              {/* Header */}
-              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 mb-4">
-                {/* Lado esquerdo - Código e Data */}
-                <div className="flex items-center">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-green-500 to-emerald-500 shadow-green-500/25 rounded-xl flex items-center justify-center mr-3 shadow-md group-hover:scale-105 transition-transform duration-300 flex-shrink-0">
-                    <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors truncate">{request.codigo}</h3>
-                    <div className="flex items-center text-xs sm:text-sm text-gray-500 dark:text-gray-400">
-                      <Calendar className="w-3 h-3 sm:w-3.5 sm:h-3.5 mr-1 flex-shrink-0" />
-                      <span className="truncate">{formatDateDisplay(request.createdAt)}</span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Lado direito - Tags com títulos */}
-                <div className="flex flex-wrap sm:flex-nowrap items-start gap-2 sm:gap-3 sm:ml-4">
-                  {/* Tipo */}
-                  <div className="flex flex-col items-center">
-                    <span className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-1">Tipo</span>
-                    <span className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 border border-purple-200 dark:border-purple-700">
-                      {PAYMENT_TYPE_LABELS[request.tipoSolicitacao]}
-                    </span>
-                  </div>
-                  {/* Forma Pagamento */}
-                  <div className="flex flex-col items-center">
-                    <span className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-1">Pagamento</span>
-                    <span className="px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-700">
-                      {PAYMENT_METHOD_LABELS[request.formaPagamento]}
-                    </span>
-                  </div>
-                  {/* Status */}
-                  <div className="flex flex-col items-center">
-                    <span className="text-[9px] sm:text-[10px] text-gray-400 dark:text-gray-500 font-medium uppercase tracking-wider mb-1">Status</span>
-                    <span className={`px-2 sm:px-3 py-1 sm:py-1.5 text-[10px] sm:text-xs font-semibold rounded-full whitespace-nowrap ${PAYMENT_STATUS_COLORS[request.status]}`}>
-                      {PAYMENT_STATUS_LABELS[request.status]}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Valor em destaque */}
-              <div className="mb-4">
-                <div className="flex items-center p-3 sm:p-4 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-xl border border-green-100 dark:border-green-800">
-                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center mr-3 sm:mr-4 shadow-md shadow-green-500/25 flex-shrink-0">
-                    <CreditCard className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium uppercase tracking-wider">Valor Total</p>
-                    <p className="text-lg sm:text-2xl font-bold text-green-600 dark:text-green-400">{formatCurrency(request.valorTotal)}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Info Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3 mb-4">
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-blue-500/25 flex-shrink-0">
-                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Fornecedor</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.fornecedor}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-orange-500 to-amber-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-orange-500/25 flex-shrink-0">
-                    <Calendar className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Data Pagamento</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{formatarDataISO(request.dataPagamento)}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-violet-500/25 flex-shrink-0">
-                    <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Solicitante</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.solicitadoPor}</p>
-                  </div>
-                </div>
-
-                <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
-                  <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-teal-500 to-cyan-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-teal-500/25 flex-shrink-0">
-                    <Building2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Departamento</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.department || 'N/A'}</p>
-                  </div>
-                </div>
-
-                {request.cpfCnpj && (
-                  <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 rounded-xl border border-gray-100 dark:border-gray-600">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-gray-500 to-slate-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-gray-500/25 flex-shrink-0">
-                      <FileText className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">CPF/CNPJ</p>
-                      <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.cpfCnpj}</p>
-                    </div>
-                  </div>
-                )}
-
-                {request.autorizadoPor && (
-                  <div className="flex items-center p-2.5 sm:p-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/30 dark:to-emerald-900/30 rounded-xl border border-green-100 dark:border-green-800">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center mr-2 sm:mr-3 shadow-sm shadow-green-500/25 flex-shrink-0">
-                      <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Autorizado por</p>
-                      <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{request.autorizadoPor}</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Description */}
-              {request.descricaoDetalhada && (
-                <div className="mb-4 space-y-2">
-                  <div className="flex items-center">
-                    <div className="w-6 h-6 bg-gradient-to-br from-violet-500 to-purple-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-violet-500/25 flex-shrink-0">
-                      <FileText className="w-3 h-3 text-white" />
-                    </div>
-                    <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Descrição</p>
-                  </div>
-                  <div className="text-gray-700 dark:text-gray-300 bg-gradient-to-br from-gray-50 to-slate-50 dark:from-gray-700/50 dark:to-slate-700/50 p-3 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-600 text-xs sm:text-sm leading-relaxed break-words">
-                    {request.descricaoDetalhada}
-                  </div>
-                </div>
-              )}
-
-              {/* Payment Data */}
-              {request.dadosPagamento && (
-                <div className="mb-4 space-y-2">
-                  <div className="flex items-center">
-                    <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-blue-500/25 flex-shrink-0">
-                      <CreditCard className="w-3 h-3 text-white" />
-                    </div>
-                    <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Dados para Pagamento</p>
-                  </div>
-                  <div className="text-gray-800 dark:text-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 p-3 sm:p-4 rounded-xl border border-blue-100 dark:border-blue-800 text-xs sm:text-sm font-mono break-words">
-                    {request.dadosPagamento}
-                  </div>
-                </div>
-              )}
-
-              {/* Attachments (múltiplos) */}
-              {(request.attachments && request.attachments.length > 0) && (
-                <div className="mb-4 space-y-2">
-                  <div className="flex items-center">
-                    <div className="w-6 h-6 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center mr-2 shadow-sm shadow-purple-500/25 flex-shrink-0">
-                      <Paperclip className="w-3 h-3 text-white" />
-                    </div>
-                    <p className="text-xs sm:text-sm font-medium text-gray-700 dark:text-gray-300">Anexos ({request.attachments.length})</p>
-                  </div>
-                  <div className="space-y-2">
-                    {request.attachments.map((att, idx) => (
-                      <div key={idx} className="flex items-center gap-3 bg-gradient-to-r from-purple-50 to-indigo-50 dark:from-purple-900/30 dark:to-indigo-900/30 p-3 rounded-xl border border-purple-100 dark:border-purple-800">
-                        {att.name.match(/\.(png|jpg|jpeg)$/i) ? (
-                          <>
-                            <div
-                              className="relative group/preview cursor-pointer flex-shrink-0"
-                              onClick={() => openImageViewer(att.url, att.name)}
-                            >
-                              <img
-                                src={att.url}
-                                alt={att.name}
-                                className="w-14 h-14 sm:w-16 sm:h-16 object-cover rounded-lg border border-purple-200 dark:border-purple-700 hover:opacity-90 transition-opacity"
-                              />
-                              <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/preview:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                                <Eye className="w-5 h-5 text-white" />
-                              </div>
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs sm:text-sm font-medium text-purple-800 dark:text-purple-200 truncate">{att.name}</p>
-                              <button
-                                onClick={() => openImageViewer(att.url, att.name)}
-                                className="text-[10px] sm:text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:underline inline-flex items-center gap-1"
-                              >
-                                <Eye className="w-3 h-3" />
-                                Clique para visualizar
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-100 dark:bg-purple-900/50 rounded-lg flex items-center justify-center flex-shrink-0">
-                              <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 dark:text-purple-400" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-xs sm:text-sm font-medium text-purple-800 dark:text-purple-200 truncate">{att.name}</p>
-                              <a
-                                href={att.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-[10px] sm:text-xs text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 hover:underline inline-flex items-center gap-1"
-                              >
-                                <Paperclip className="w-3 h-3" />
-                                Abrir documento
-                              </a>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons */}
-              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
-                {canApprove && request.status === 'pending' && (
-                  <>
-                    <button
-                      onClick={() => handleApprove(request)}
-                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 text-xs sm:text-sm"
-                    >
-                      <Check className="w-4 h-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Aprovar</span>
-                    </button>
-                    <button
-                      onClick={() => handleReject(request)}
-                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30 text-xs sm:text-sm"
-                    >
-                      <X className="w-4 h-4 sm:mr-2" />
-                      <span className="hidden sm:inline">Rejeitar</span>
-                    </button>
-                  </>
-                )}
-                
-                {canApprove && request.status === 'approved' && (
-                  <button
-                    onClick={() => handleMarkAsPaid(request)}
-                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-xs sm:text-sm"
-                  >
-                    <DollarSign className="w-4 h-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Marcar como Pago</span>
-                  </button>
-                )}
-
-                {canApprove && (request.status === 'pending' || request.status === 'rejected') && (
-                  <button
-                    onClick={() => handleDelete(request)}
-                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 dark:bg-gray-700 text-red-600 dark:text-red-400 rounded-xl hover:bg-red-50 dark:hover:bg-red-900/30 transition-all duration-200 flex items-center justify-center font-medium text-xs sm:text-sm"
-                  >
-                    <Trash2 className="w-4 h-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Excluir</span>
-                  </button>
-                )}
-
-                {request.pdfUrl && (
-                  <a
-                    href={request.pdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 flex items-center justify-center font-medium text-xs sm:text-sm"
-                  >
-                    <FileText className="w-4 h-4 sm:mr-2" />
-                    <span className="hidden sm:inline">Ver PDF</span>
-                  </a>
-                )}
-
-                {/* Print PDF Button */}
-                <button
-                  onClick={() => generatePDF(request)}
-                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-900 to-indigo-800 text-white rounded-xl hover:from-blue-800 hover:to-indigo-700 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-900/25 hover:shadow-lg text-xs sm:text-sm sm:ml-auto"
-                >
-                  <Printer className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Imprimir</span>
-                </button>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      {pedidos.length === 0 ? (
+        <EstadoVazioPedidos
+          aba={filtros.aba}
+          filtrando={temFiltroAtivo(filtros)}
+          semPedidos={visiveis.length === 0}
+          onLimpar={limpar}
+          onNovo={() => setNovoAberto(true)}
+          onVerTodos={() => alterar({ aba: 'todos' })}
+        />
+      ) : (
+        <ListaPedidos
+          pedidos={pedidos}
+          agrupar={filtros.ordem === 'pagamento'}
+          hoje={hoje}
+          podeAgir={canApprove}
+          onAprovar={aprovar}
+          onRejeitar={rejeitar}
+          onPagar={pagar}
+          onExcluir={excluir}
+          onImprimir={imprimir}
+          onAbrirImagem={(url, nome) => setImagemAberta({ url, nome })}
+        />
+      )}
     </div>
   );
 };

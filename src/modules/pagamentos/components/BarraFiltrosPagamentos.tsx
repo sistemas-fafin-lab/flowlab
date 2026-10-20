@@ -37,9 +37,9 @@ interface Props {
 }
 
 const ORDENS: { value: OrdemPedidos; label: string }[] = [
-  { value: 'pagamento', label: 'Ordenar por data de pagamento' },
-  { value: 'recentes', label: 'Ordenar por mais recentes' },
-  { value: 'valor', label: 'Ordenar por maior valor' },
+  { value: 'pagamento', label: 'Por data de pagamento' },
+  { value: 'recentes', label: 'Por mais recentes' },
+  { value: 'valor', label: 'Por maior valor' },
 ];
 
 const Pilula: React.FC<{ texto: string; onRemover: () => void }> = ({ texto, onRemover }) => (
@@ -179,7 +179,7 @@ const BarraFiltrosPagamentos: React.FC<Props> = ({
                 limparBusca();
               }
             }}
-            placeholder="Buscar fornecedor, código, NF, CPF/CNPJ, pessoa…"
+            placeholder="Fornecedor, código, NF, CPF/CNPJ, pessoa…"
             aria-label="Buscar pedidos"
             title="Tecle / para buscar"
             className={`${CAMPO} pl-10 pr-10 [&::-webkit-search-cancel-button]:hidden`}
@@ -196,13 +196,13 @@ const BarraFiltrosPagamentos: React.FC<Props> = ({
           )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:flex gap-3">
+        <div className="grid grid-cols-[auto_minmax(0,1fr)] sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] xl:flex gap-3">
           <Select
             value={filtros.periodo}
             onChange={(v) => alterar(v === 'periodo' ? { periodo: 'periodo' } : { periodo: v as PeriodoPagamento, de: '', ate: '' })}
             options={periodos}
-            controlClass={CAMPO}
-            wrapperClass="xl:w-72"
+            controlClass={`${CAMPO} text-sm sm:text-base`}
+            wrapperClass="col-span-2 sm:col-span-1 xl:w-72"
             ariaLabel="Data de pagamento"
           />
           <button
@@ -222,8 +222,8 @@ const BarraFiltrosPagamentos: React.FC<Props> = ({
             value={filtros.ordem}
             onChange={(v) => alterar({ ordem: v as OrdemPedidos })}
             options={ORDENS}
-            controlClass={CAMPO}
-            wrapperClass="xl:w-64"
+            controlClass={`${CAMPO} text-sm sm:text-base`}
+            wrapperClass="xl:w-72"
             ariaLabel="Ordem da lista"
           />
         </div>
