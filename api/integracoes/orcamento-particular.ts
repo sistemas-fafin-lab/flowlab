@@ -48,7 +48,7 @@ export default async function handler(
 
   try {
     const supabase = getSupabaseAdminClient();
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json(itens);
   } catch (err) {

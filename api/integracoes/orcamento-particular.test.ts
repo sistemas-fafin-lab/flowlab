@@ -96,6 +96,7 @@ describe('GET /api/integracoes/orcamento-particular', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual(itens);
+    expect(buildOrcamentoParticularMock).toHaveBeenCalledWith(expect.anything(), { incluirCusto: true });
   });
 
   it('erro ao montar a resposta devolve 500', async () => {

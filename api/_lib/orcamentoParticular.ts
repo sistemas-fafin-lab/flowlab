@@ -36,6 +36,18 @@ export interface OrcamentoParticularItem {
   conveniosAceitos: string[];
 }
 
+/** Item com custo opcional: com `incluirCusto: false` a chave `custo` não existe. */
+export type OrcamentoParticularItemCustoOpcional = Omit<OrcamentoParticularItem, 'custo'> &
+  Partial<Pick<OrcamentoParticularItem, 'custo'>>;
+
+export interface OpcoesOrcamentoParticular {
+  /**
+   * false = custo_exames é lido sem as colunas de custo e os itens saem sem a
+   * chave `custo` (quem não pode ver custo nem chega a buscá-lo).
+   */
+  incluirCusto: boolean;
+}
+
 interface FonteRow {
   id: string;
   fonte_pagadora: string;
@@ -52,8 +64,9 @@ interface ExameRow {
   id: string;
   tuss: string;
   nome: string;
-  custo_direto: number;
-  custo_indireto: number;
+  /** Ausentes quando a montagem é sem custo (não entram no select). */
+  custo_direto?: number;
+  custo_indireto?: number;
 }
 
 interface ExclusaoRow {
@@ -109,14 +122,27 @@ async function buscarTodasPaginado<T>(
  */
 export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
-): Promise<OrcamentoParticularItem[]> {
+  opcoes: { incluirCusto: true },
+): Promise<OrcamentoParticularItem[]>;
+export async function buildOrcamentoParticular(
+  supabase: SupabaseClient,
+  opcoes: OpcoesOrcamentoParticular,
+): Promise<OrcamentoParticularItemCustoOpcional[]>;
+export async function buildOrcamentoParticular(
+  supabase: SupabaseClient,
+  { incluirCusto }: OpcoesOrcamentoParticular,
+): Promise<OrcamentoParticularItemCustoOpcional[]> {
   const [fontes, exames, exclusoes, valoresPersonalizados] = await Promise.all([
     buscarTodasPaginado<FonteRow>(
       supabase,
       'custo_fontes_pagadoras',
       'id, fonte_pagadora, tabela_associada, tuss, exame_id, valor, atendido, elegivel_desconto_particular',
     ),
-    buscarTodasPaginado<ExameRow>(supabase, 'custo_exames', 'id, tuss, nome, custo_direto, custo_indireto'),
+    buscarTodasPaginado<ExameRow>(
+      supabase,
+      'custo_exames',
+      incluirCusto ? 'id, tuss, nome, custo_direto, custo_indireto' : 'id, tuss, nome',
+    ),
     buscarTodasPaginado<ExclusaoRow>(supabase, 'custo_fontes_pagadoras_exclusoes', 'payor_id, exame_id'),
     buscarTodasPaginado<ValorPersonalizadoRow>(
       supabase,
@@ -206,7 +232,10 @@ export async function buildOrcamentoParticular(
     ),
   );
 
-  const itemDoExame = (fonte: FonteRow, exame: ExameRow): OrcamentoParticularItem => {
+  // Sem custo, a chave nem existe no item (não é `undefined` nem `null`).
+  const comCusto = (custo: () => number | null) => (incluirCusto ? { custo: custo() } : {});
+
+  const itemDoExame = (fonte: FonteRow, exame: ExameRow): OrcamentoParticularItemCustoOpcional => {
     const tuss = exame.tuss || fonte.tuss;
     return {
       tuss,
@@ -214,7 +243,7 @@ export async function buildOrcamentoParticular(
       // Exame pode ter um valor próprio, diferente do preço padrão da linha
       // (ver custo_fontes_pagadoras_valores_exame).
       preco: valoresPersonalizadosPorChave.get(`${fonte.id}:${exame.id}`) ?? Number(fonte.valor),
-      custo: Number(exame.custo_direto) + Number(exame.custo_indireto),
+      ...comCusto(() => Number(exame.custo_direto) + Number(exame.custo_indireto)),
       elegivelDescontoParticular: fonte.elegivel_desconto_particular,
       conveniosAceitos: conveniosAceitos(tuss, exame.id),
     };
@@ -224,7 +253,7 @@ export async function buildOrcamentoParticular(
   // primeira encontrada vence, sem duplicar item.
   const tussJaVistos = new Set<string>();
   const examesJaVistos = new Set<string>();
-  const itens: OrcamentoParticularItem[] = [];
+  const itens: OrcamentoParticularItemCustoOpcional[] = [];
   for (const fonte of particulares) {
     if (fonte.exame_id) {
       const exame = examesPorId.get(fonte.exame_id);
@@ -245,7 +274,7 @@ export async function buildOrcamentoParticular(
         tuss: fonte.tuss,
         nome: null,
         preco: Number(fonte.valor),
-        custo: null,
+        ...comCusto(() => null), // sem exame correspondente
         elegivelDescontoParticular: fonte.elegivel_desconto_particular,
         conveniosAceitos: conveniosAceitos(fonte.tuss, null),
       });

@@ -89,18 +89,30 @@ function criarSupabaseMock(dados: {
       tabela_associada: f.tabela_associada ?? (f.fonte_pagadora === 'Particular' ? 'Particular' : ''),
     })),
   };
-  return {
+  // Como o PostgREST: só as colunas pedidas no select voltam em cada linha.
+  const colunasPedidas: Record<string, string[]> = {};
+  const supabase = {
     from: (tabela: string) => ({
-      select: () => ({
-        range: (from: number) => ({
-          returns: async () => ({
-            data: from === 0 ? (dados as Record<string, unknown[]>)[tabela] ?? [] : [],
-            error: null,
+      select: (colunas: string) => {
+        const lista = colunas.split(',').map(c => c.trim());
+        colunasPedidas[tabela] = lista;
+        return {
+          range: (from: number) => ({
+            returns: async () => ({
+              data:
+                from === 0
+                  ? ((dados as unknown as Record<string, Record<string, unknown>[]>)[tabela] ?? []).map(linha =>
+                      Object.fromEntries(lista.filter(c => c in linha).map(c => [c, linha[c]])),
+                    )
+                  : [],
+              error: null,
+            }),
           }),
-        }),
-      }),
+        };
+      },
     }),
   } as unknown as SupabaseClient;
+  return Object.assign(supabase, { colunasPedidas });
 }
 
 describe('buildOrcamentoParticular', () => {
@@ -118,7 +130,7 @@ describe('buildOrcamentoParticular', () => {
       custo_exames: [{ tuss: '40301060', nome: 'Hemograma', custo_direto: 10, custo_indireto: 5 }],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toEqual([
       {
@@ -146,7 +158,7 @@ describe('buildOrcamentoParticular', () => {
       custo_exames: [],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toEqual([
       {
@@ -188,7 +200,7 @@ describe('buildOrcamentoParticular', () => {
       custo_exames: [],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toHaveLength(1);
     expect(itens[0].conveniosAceitos).toEqual(['Convênio A']);
@@ -208,7 +220,7 @@ describe('buildOrcamentoParticular', () => {
       custo_exames: [],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toEqual([]);
   });
@@ -227,7 +239,7 @@ describe('buildOrcamentoParticular', () => {
       custo_exames: [{ tuss: '40301060', nome: 'Hemograma', custo_direto: '10.00', custo_indireto: '5.00' }],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toEqual([
       expect.objectContaining({ preco: 100, custo: 15 }),
@@ -251,7 +263,7 @@ describe('buildOrcamentoParticular', () => {
       ],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toHaveLength(2);
     expect(itens.map(i => i.nome).sort()).toEqual(['FÓSFORO - S', 'FÓSFORO - U']);
@@ -280,7 +292,7 @@ describe('buildOrcamentoParticular', () => {
       custo_fontes_pagadoras_exclusoes: [{ payor_id: 'payor-1', exame_id: 'exame-insulina' }],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toHaveLength(1);
     expect(itens[0].nome).toBe('INSULINA BASAL');
@@ -305,7 +317,7 @@ describe('buildOrcamentoParticular', () => {
       custo_fontes_pagadoras_valores_exame: [{ payor_id: 'payor-1', exame_id: 'exame-insulina', valor: 45 }],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
     const porNome = new Map(itens.map(i => [i.nome, i]));
 
     expect(porNome.get('INSULINA')?.preco).toBe(45);
@@ -328,7 +340,7 @@ describe('buildOrcamentoParticular', () => {
       custo_fontes_pagadoras_exclusoes: [{ payor_id: 'payor-1', exame_id: 'exame-insulina' }],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toEqual([]);
   });
@@ -350,7 +362,7 @@ describe('buildOrcamentoParticular', () => {
       ],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toHaveLength(1);
     expect(itens[0].nome).toBe('Hemograma');
@@ -378,7 +390,7 @@ describe('buildOrcamentoParticular', () => {
       custo_exames: [],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens).toHaveLength(1);
     expect(itens[0].preco).toBe(100);
@@ -407,7 +419,7 @@ describe('buildOrcamentoParticular — linha de exame (exame_id) vs. linha geral
       custo_exames: exames,
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens.map(i => [i.nome, i.preco])).toEqual([['BIOPSIA SEXTANTE', 450]]);
   });
@@ -418,7 +430,7 @@ describe('buildOrcamentoParticular — linha de exame (exame_id) vs. linha geral
       custo_exames: exames,
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens.map(i => [i.nome, i.preco])).toEqual([
       ['BIOPSIA SIMPLES', 250],
@@ -435,7 +447,7 @@ describe('buildOrcamentoParticular — linha de exame (exame_id) vs. linha geral
       ],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens.map(i => [i.nome, i.preco])).toEqual([['SEM TUSS A', 80]]);
   });
@@ -450,7 +462,7 @@ describe('buildOrcamentoParticular — linha de exame (exame_id) vs. linha geral
       custo_exames: exames,
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens.map(i => [i.nome, i.conveniosAceitos])).toEqual([
       ['BIOPSIA SEXTANTE', []],
@@ -482,7 +494,7 @@ describe('buildOrcamentoParticular — só a tabela associada "Particular"', () 
       custo_exames: exames,
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens.map(i => [i.nome, i.preco])).toEqual([
       ['BIOPSIA SEXTANTE', 250],
@@ -496,7 +508,7 @@ describe('buildOrcamentoParticular — só a tabela associada "Particular"', () 
       custo_exames: exames,
     });
 
-    expect(await buildOrcamentoParticular(supabase)).toHaveLength(2);
+    expect(await buildOrcamentoParticular(supabase, { incluirCusto: true })).toHaveLength(2);
   });
 
   it('linha de exame que exclui o próprio exame não bloqueia outra linha dele nem a linha geral', async () => {
@@ -507,7 +519,7 @@ describe('buildOrcamentoParticular — só a tabela associada "Particular"', () 
       custo_fontes_pagadoras_exclusoes: [{ payor_id: 'p2', exame_id: 'e1' }],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens.map(i => [i.nome, i.preco])).toEqual([
       ['BIOPSIA SEXTANTE', 1000],
@@ -522,11 +534,63 @@ describe('buildOrcamentoParticular — só a tabela associada "Particular"', () 
       custo_fontes_pagadoras_exclusoes: [{ payor_id: 'p2', exame_id: 'e1' }],
     });
 
-    const itens = await buildOrcamentoParticular(supabase);
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
 
     expect(itens.map(i => [i.nome, i.preco])).toEqual([
       ['BIOPSIA SEXTANTE', 250],
       ['BIOPSIA SIMPLES', 250],
     ]);
+  });
+});
+
+describe('buildOrcamentoParticular — sem custo', () => {
+  const dados = {
+    custo_fontes_pagadoras: [
+      { fonte_pagadora: 'Particular', tuss: '40301060', valor: 100, atendido: true, elegivel_desconto_particular: true },
+      { fonte_pagadora: 'Particular', tuss: '99999999', valor: 50, atendido: true, elegivel_desconto_particular: false },
+      { fonte_pagadora: 'Convênio A', tuss: '40301060', valor: 80, atendido: true, elegivel_desconto_particular: false },
+    ],
+    custo_exames: [{ tuss: '40301060', nome: 'Hemograma', custo_direto: 10, custo_indireto: 5 }],
+  };
+
+  it('itens saem sem a chave custo — inclusive o tuss sem correspondência em custo_exames', async () => {
+    const itens = await buildOrcamentoParticular(criarSupabaseMock(dados), { incluirCusto: false });
+
+    expect(itens).toEqual([
+      {
+        tuss: '40301060',
+        nome: 'Hemograma',
+        preco: 100,
+        elegivelDescontoParticular: true,
+        conveniosAceitos: ['Convênio A'],
+      },
+      {
+        tuss: '99999999',
+        nome: null,
+        preco: 50,
+        elegivelDescontoParticular: false,
+        conveniosAceitos: [],
+      },
+    ]);
+    for (const item of itens) expect(item).not.toHaveProperty('custo');
+  });
+
+  it('a consulta aos exames não pede as colunas de custo', async () => {
+    const supabase = criarSupabaseMock(dados);
+
+    await buildOrcamentoParticular(supabase, { incluirCusto: false });
+
+    expect(supabase.colunasPedidas.custo_exames).not.toContain('custo_direto');
+    expect(supabase.colunasPedidas.custo_exames).not.toContain('custo_indireto');
+  });
+
+  it('com custo, a consulta aos exames pede custo_direto e custo_indireto', async () => {
+    const supabase = criarSupabaseMock(dados);
+
+    await buildOrcamentoParticular(supabase, { incluirCusto: true });
+
+    expect(supabase.colunasPedidas.custo_exames).toEqual(
+      expect.arrayContaining(['custo_direto', 'custo_indireto']),
+    );
   });
 });
