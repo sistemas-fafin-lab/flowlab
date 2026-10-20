@@ -258,8 +258,9 @@ const GeradorOrcamentoPage: React.FC = () => {
           </section>
 
           {/* ── Carrinho ────────────────────────────────────────────────────── */}
-          <section className="lg:col-span-5 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 sm:p-6 self-start">
-            <div className="flex items-center justify-between mb-2">
+          {/* Fixo na tela (lg): só a lista rola; cabeçalho, totais e botões ficam sempre visíveis. */}
+          <section className="lg:col-span-5 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm p-4 sm:p-6 self-start flex flex-col lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)]">
+            <div className="flex items-center justify-between mb-2 shrink-0">
               <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                 <ShoppingCart className="w-5 h-5 text-blue-500" /> Carrinho
                 {carrinho.length > 0 && (
@@ -282,7 +283,7 @@ const GeradorOrcamentoPage: React.FC = () => {
                 Nenhum exame no carrinho. Busque e clique em “Adicionar”.
               </p>
             ) : (
-              <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+              <ul className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto min-h-0 flex-1 max-h-[50vh] lg:max-h-none -mx-1 px-1">
                 {carrinho.map((linha) => (
                   <LinhaCarrinho
                     key={chaveExame(linha.item)}
@@ -293,40 +294,42 @@ const GeradorOrcamentoPage: React.FC = () => {
                 ))}
               </ul>
             )}
-            {carrinho.length > 0 && (
-              // Sempre os dois valores, iguais quando não há desconto; sem percentual nem selo.
-              <dl className="mt-2 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
-                  <dt>Valor Total</dt>
-                  <dd className="font-semibold tabular-nums">{brl(orcamento.valorTotal)}</dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="text-base font-semibold text-gray-900 dark:text-gray-100">Valor com Desconto</dt>
-                  <dd className="text-lg font-bold text-blue-600 dark:text-blue-400 tabular-nums">
-                    {brl(orcamento.valorComDesconto)}
-                  </dd>
-                </div>
-              </dl>
-            )}
-            <button
-              type="button"
-              onClick={() => gerarPdf('cliente')}
-              disabled={carrinho.length === 0 || gerandoPdf !== null}
-              className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-            >
-              {gerandoPdf === 'cliente' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
-            </button>
-            {podeVerCustos && (
+            <div className="shrink-0">
+              {carrinho.length > 0 && (
+                // Sempre os dois valores, iguais quando não há desconto; sem percentual nem selo.
+                <dl className="mt-2 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                  <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                    <dt>Valor Total</dt>
+                    <dd className="font-semibold tabular-nums">{brl(orcamento.valorTotal)}</dd>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <dt className="text-base font-semibold text-gray-900 dark:text-gray-100">Valor com Desconto</dt>
+                    <dd className="text-lg font-bold text-blue-600 dark:text-blue-400 tabular-nums">
+                      {brl(orcamento.valorComDesconto)}
+                    </dd>
+                  </div>
+                </dl>
+              )}
               <button
                 type="button"
-                onClick={() => gerarPdf('interno')}
+                onClick={() => gerarPdf('cliente')}
                 disabled={carrinho.length === 0 || gerandoPdf !== null}
-                className="mt-2 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
               >
-                {gerandoPdf === 'interno' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileLock2 className="w-4 h-4" />} Gerar PDF Interno
+                {gerandoPdf === 'cliente' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
               </button>
-            )}
-            {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
+              {podeVerCustos && (
+                <button
+                  type="button"
+                  onClick={() => gerarPdf('interno')}
+                  disabled={carrinho.length === 0 || gerandoPdf !== null}
+                  className="mt-2 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {gerandoPdf === 'interno' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileLock2 className="w-4 h-4" />} Gerar PDF Interno
+                </button>
+              )}
+              {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
+            </div>
           </section>
         </div>
       )}
