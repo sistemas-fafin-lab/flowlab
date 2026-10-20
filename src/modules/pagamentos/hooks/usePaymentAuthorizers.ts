@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabase';
-import { PaymentAuthorizer } from '../types';
+import { supabase } from '../../../lib/supabase';
+import { PaymentAuthorizer } from '../../../types';
 
 /**
  * Opções de "Autorizado por" no pedido de pagamento: pessoas ativas cujo cargo tem

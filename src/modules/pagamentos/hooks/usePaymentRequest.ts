@@ -1,19 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 import { 
   PaymentRequest, 
   PaymentRequestFormValues, 
-  PaymentRequestPayload,
   PaymentRequestStatus 
-} from '../types';
+} from '../../../types';
 import {
   normalizeDate,
   generatePedidoCode,
   validatePaymentDate,
   preparePayload,
   getNextValidDate
-} from '../utils/paymentUtils';
-import { useDataCache, DEFAULT_STALE_TIME } from './useDataCache';
+} from '../../../utils/paymentUtils';
+import { useDataCache, DEFAULT_STALE_TIME } from '../../../hooks/useDataCache';
 
 const CACHE_KEY = 'payment:requests';
 
@@ -27,7 +26,7 @@ interface CreatePedidoResult {
 }
 
 export const usePaymentRequest = () => {
-  const { getCache, setCache, invalidate } = useDataCache();
+  const { getCache, setCache } = useDataCache();
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -241,7 +240,7 @@ export const usePaymentRequest = () => {
     rejectionReason?: string
   ) => {
     try {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         status,
         updated_at: new Date().toISOString()
       };

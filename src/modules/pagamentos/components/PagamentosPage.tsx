@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import { 
   FileText, 
   Plus, 
@@ -16,43 +16,41 @@ import {
   Printer,
   Sparkles,
   Paperclip,
-  Image,
   FileUp,
   Eye,
   CheckCircle2,
   XCircle,
   Banknote
 } from 'lucide-react';
-import jsPDF from 'jspdf';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../../../hooks/useAuth';
 import { usePaymentRequest } from '../hooks/usePaymentRequest';
 import { usePaymentAuthorizers } from '../hooks/usePaymentAuthorizers';
-import { useNotification } from '../hooks/useNotification';
-import { useDialog } from '../hooks/useDialog';
-import { DEPARTMENTS } from '../utils/permissions';
+import { useNotification } from '../../../hooks/useNotification';
+import { useDialog } from '../../../hooks/useDialog';
+import { DEPARTMENTS } from '../../../utils/permissions';
 import { 
   PaymentRequest, 
-  PaymentRequestFormValues, 
-  PaymentRequestType, 
-  PaymentMethod 
-} from '../types';
+  PaymentRequestFormValues
+} from '../../../types';
 import {
   formatCurrency,
   formatCpfCnpj,
   validateCpfCnpj,
   formatDateDisplay,
   getDayOfWeekName,
-  getNextValidDate,
   PAYMENT_TYPE_LABELS,
   PAYMENT_METHOD_LABELS,
   PAYMENT_STATUS_LABELS,
   PAYMENT_STATUS_COLORS
-} from '../utils/paymentUtils';
-import Notification from './Notification';
-import ConfirmDialog from './ConfirmDialog';
-import { PaymentRequestSkeleton } from './PageLoadingSkeleton';
+} from '../../../utils/paymentUtils';
+import Notification from '../../../components/Notification';
+import ConfirmDialog from '../../../components/ConfirmDialog';
+import { PaymentRequestSkeleton } from '../../../components/PageLoadingSkeleton';
+import { casaBusca, formatarDataISO, podeVer } from '../domain/filtrosPagamentos';
+import { gerarPdfPedido } from '../pdfPedido';
+import VisualizadorImagem, { type ImagemAberta } from './VisualizadorImagem';
 
-const PaymentRequestManagement: React.FC = () => {
+const PagamentosPage: React.FC = () => {
   const { user, userProfile } = useAuth();
   const { 
     paymentRequests, 
@@ -103,9 +101,7 @@ const PaymentRequestManagement: React.FC = () => {
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   
   // Image viewer state
-  const [imageViewerOpen, setImageViewerOpen] = useState(false);
-  const [currentImageUrl, setCurrentImageUrl] = useState<string | null>(null);
-  const [currentImageName, setCurrentImageName] = useState<string>('');
+  const [imagemAberta, setImagemAberta] = useState<ImagemAberta | null>(null);
 
   // Update form when user profile loads
   useEffect(() => {
@@ -168,19 +164,9 @@ const PaymentRequestManagement: React.FC = () => {
     setAttachmentPreviews(prev => prev.filter((_, i) => i !== index));
   };
 
-  // Open image viewer
-  const openImageViewer = (imageUrl: string, imageName: string) => {
-    setCurrentImageUrl(imageUrl);
-    setCurrentImageName(imageName);
-    setImageViewerOpen(true);
-  };
-
-  // Close image viewer
-  const closeImageViewer = () => {
-    setImageViewerOpen(false);
-    setCurrentImageUrl(null);
-    setCurrentImageName('');
-  };
+  // Anexo de imagem em tela cheia
+  const openImageViewer = (url: string, nome: string) => setImagemAberta({ url, nome });
+  const fecharImagem = useCallback(() => setImagemAberta(null), []);
 
   // Set suggested date on mount
   useEffect(() => {
@@ -203,16 +189,14 @@ const PaymentRequestManagement: React.FC = () => {
       : (statusFilter === 'all' || request.status === statusFilter);
     const matchesDepartment = departmentFilter === 'all' || request.department === departmentFilter;
     const matchesDate = !dateFilter || request.dataPagamento === dateFilter;
-    const matchesSearch = !searchTerm || 
-      request.fornecedor.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      request.documentoNumero.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    // Sem ver todos os setores, só os do próprio departamento e os próprios pedidos
-    // (mesma regra da policy de leitura de payment_requests).
-    const matchesUserAccess = vePagamentosDeTodos ||
-                             request.department === userProfile?.department ||
-                             (!!user?.id && request.solicitanteId === user.id);
+    // Sem acento, várias palavras e campos nulos de pedidos antigos (domain/filtrosPagamentos).
+    const matchesSearch = casaBusca(request, searchTerm);
+    // Mesma regra da policy de leitura de payment_requests.
+    const matchesUserAccess = podeVer(request, {
+      veTodos: vePagamentosDeTodos,
+      departamento: userProfile?.department,
+      userId: user?.id,
+    });
 
     return matchesStatus && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
   });
@@ -427,234 +411,9 @@ const PaymentRequestManagement: React.FC = () => {
     );
   };
 
-  // Generate PDF receipt for a payment request
+  // Comprovante em PDF (pdfPedido.ts)
   const generatePDF = (request: PaymentRequest) => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 15;
-    const contentWidth = pageWidth - (margin * 2);
-    const footerHeight = 25;
-    const maxContentY = pageHeight - footerHeight - 10;
-    
-    // Colors - Navy Blue theme
-    const primaryColor: [number, number, number] = [30, 58, 138]; // blue-900
-    const secondaryColor: [number, number, number] = [59, 130, 246]; // blue-500
-    const lightBg: [number, number, number] = [241, 245, 249]; // slate-100
-    const textDark: [number, number, number] = [30, 41, 59]; // slate-800
-    const textLight: [number, number, number] = [100, 116, 139]; // slate-500
-
-    // Helper function to check if we need a new page
-    const checkNewPage = (neededHeight: number, currentY: number): number => {
-      if (currentY + neededHeight > maxContentY) {
-        doc.addPage();
-        return 20; // Reset Y position for new page
-      }
-      return currentY;
-    };
-
-    // Helper function to add section header
-    const addSectionHeader = (title: string, y: number): number => {
-      const newY = checkNewPage(15, y);
-      doc.setFillColor(...lightBg);
-      doc.roundedRect(margin, newY, contentWidth, 8, 2, 2, 'F');
-      doc.setTextColor(...primaryColor);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text(title, margin + 5, newY + 5.5);
-      return newY + 12;
-    };
-
-    // Helper function to add field with dynamic height
-    const addField = (label: string, value: string, x: number, y: number, maxWidth: number = 75): number => {
-      doc.setTextColor(...textLight);
-      doc.setFontSize(8);
-      doc.setFont('helvetica', 'normal');
-      doc.text(label, x, y);
-      
-      doc.setTextColor(...textDark);
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'bold');
-      const lines = doc.splitTextToSize(value || '-', maxWidth);
-      doc.text(lines, x, y + 4);
-      return lines.length * 4 + 6;
-    };
-
-    // ========== HEADER ==========
-    doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, pageWidth, 40, 'F');
-    
-    doc.setFillColor(...secondaryColor);
-    doc.rect(0, 40, pageWidth, 2, 'F');
-
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(20);
-    doc.setFont('helvetica', 'bold');
-    doc.text('FLOW LAB', margin + 5, 18);
-    
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Sistema de Gestão de Pagamentos', margin + 5, 28);
-    
-    doc.setFontSize(11);
-    doc.setFont('helvetica', 'bold');
-    doc.text(request.codigo, pageWidth - margin - 5, 18, { align: 'right' });
-    
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Emitido: ${formatDateDisplay(new Date())}`, pageWidth - margin - 5, 28, { align: 'right' });
-
-    // ========== TITLE ==========
-    let yPos = 52;
-    doc.setTextColor(...primaryColor);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text('COMPROVANTE DE SOLICITAÇÃO DE PAGAMENTO', pageWidth / 2, yPos, { align: 'center' });
-    
-    // Status badge
-    yPos += 10;
-    const statusText = PAYMENT_STATUS_LABELS[request.status];
-    doc.setFontSize(8);
-    const statusWidth = doc.getTextWidth(statusText.toUpperCase()) + 12;
-    const statusX = (pageWidth - statusWidth) / 2;
-    
-    let statusBgColor: [number, number, number];
-    let statusTextColor: [number, number, number] = [255, 255, 255];
-    switch (request.status) {
-      case 'approved': statusBgColor = [34, 197, 94]; break;
-      case 'paid': statusBgColor = [59, 130, 246]; break;
-      case 'rejected': statusBgColor = [239, 68, 68]; break;
-      case 'cancelled': statusBgColor = [107, 114, 128]; break;
-      default: statusBgColor = [251, 191, 36]; statusTextColor = [30, 41, 59];
-    }
-    
-    doc.setFillColor(...statusBgColor);
-    doc.roundedRect(statusX, yPos - 5, statusWidth, 8, 2, 2, 'F');
-    doc.setTextColor(...statusTextColor);
-    doc.setFont('helvetica', 'bold');
-    doc.text(statusText.toUpperCase(), pageWidth / 2, yPos, { align: 'center' });
-
-    // ========== DADOS DO PAGAMENTO ==========
-    yPos += 12;
-    yPos = addSectionHeader('DADOS DO PAGAMENTO', yPos);
-    
-    // Row 1
-    const col1X = margin + 5;
-    const col2X = pageWidth / 2 + 5;
-    const colWidth = (contentWidth / 2) - 10;
-    
-    addField('Tipo de Solicitação', PAYMENT_TYPE_LABELS[request.tipoSolicitacao] || request.tipoSolicitacao, col1X, yPos, colWidth);
-    addField('Nº Documento', request.documentoNumero || 'Não informado', col2X, yPos, colWidth);
-    yPos += 14;
-    
-    // Row 2
-    yPos = checkNewPage(20, yPos);
-    addField('Fornecedor/Beneficiário', request.fornecedor, col1X, yPos, colWidth);
-    addField('CPF/CNPJ', request.cpfCnpj || 'Não informado', col2X, yPos, colWidth);
-    yPos += 14;
-    
-    // Row 3 - Valor destacado
-    yPos = checkNewPage(25, yPos);
-    doc.setFillColor(236, 253, 245);
-    doc.roundedRect(margin, yPos - 3, colWidth + 10, 16, 2, 2, 'F');
-    doc.setTextColor(...textLight);
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Valor Total', col1X, yPos);
-    doc.setTextColor(22, 163, 74);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text(formatCurrency(request.valorTotal), col1X, yPos + 8);
-    
-    addField('Forma de Pagamento', PAYMENT_METHOD_LABELS[request.formaPagamento] || request.formaPagamento, col2X, yPos, colWidth);
-    yPos += 18;
-    
-    // Row 4
-    yPos = checkNewPage(20, yPos);
-    addField('Data de Pagamento', formatDateDisplay(request.dataPagamento), col1X, yPos, colWidth);
-    addField('Departamento', request.department || 'Não informado', col2X, yPos, colWidth);
-    yPos += 16;
-
-    // ========== DADOS PARA PAGAMENTO ==========
-    yPos = addSectionHeader('DADOS PARA PAGAMENTO', yPos);
-    
-    const paymentDataLines = doc.splitTextToSize(request.dadosPagamento || 'Não informado', contentWidth - 10);
-    const paymentBoxHeight = Math.max(paymentDataLines.length * 4 + 8, 16);
-    
-    yPos = checkNewPage(paymentBoxHeight + 5, yPos);
-    doc.setFillColor(239, 246, 255);
-    doc.setDrawColor(...secondaryColor);
-    doc.roundedRect(margin, yPos - 2, contentWidth, paymentBoxHeight, 2, 2, 'FD');
-    doc.setTextColor(...textDark);
-    doc.setFontSize(9);
-    doc.setFont('courier', 'normal');
-    doc.text(paymentDataLines, margin + 5, yPos + 4);
-    yPos += paymentBoxHeight + 8;
-
-    // ========== DESCRIÇÃO DETALHADA ==========
-    yPos = addSectionHeader('DESCRIÇÃO DETALHADA', yPos);
-    
-    const descLines = doc.splitTextToSize(request.descricaoDetalhada || 'Não informado', contentWidth - 10);
-    const descHeight = descLines.length * 4 + 4;
-    
-    yPos = checkNewPage(descHeight + 5, yPos);
-    doc.setTextColor(...textDark);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(descLines, margin + 5, yPos);
-    yPos += descHeight + 10;
-
-    // ========== RESPONSÁVEIS ==========
-    yPos = addSectionHeader('RESPONSÁVEIS', yPos);
-    yPos = checkNewPage(30, yPos);
-    
-    const sigWidth = (contentWidth - 20) / 2;
-    
-    // Solicitante
-    doc.setTextColor(...textDark);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text(request.solicitadoPor || '-', margin + 5 + sigWidth / 2, yPos + 5, { align: 'center' });
-    doc.setDrawColor(180, 180, 180);
-    doc.line(margin + 5, yPos + 12, margin + 5 + sigWidth, yPos + 12);
-    doc.setTextColor(...textLight);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Solicitado por', margin + 5 + sigWidth / 2, yPos + 17, { align: 'center' });
-    
-    // Autorizador
-    const sig2X = margin + 15 + sigWidth;
-    doc.setTextColor(...textDark);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'bold');
-    doc.text(request.autorizadoPor || '-', sig2X + sigWidth / 2, yPos + 5, { align: 'center' });
-    doc.setDrawColor(180, 180, 180);
-    doc.line(sig2X, yPos + 12, sig2X + sigWidth, yPos + 12);
-    doc.setTextColor(...textLight);
-    doc.setFontSize(7);
-    doc.setFont('helvetica', 'normal');
-    doc.text('Autorizado por', sig2X + sigWidth / 2, yPos + 17, { align: 'center' });
-
-    // ========== FOOTER (em todas as páginas) ==========
-    const totalPages = doc.getNumberOfPages();
-    for (let i = 1; i <= totalPages; i++) {
-      doc.setPage(i);
-      const footerY = pageHeight - footerHeight;
-      
-      doc.setFillColor(...primaryColor);
-      doc.rect(0, footerY, pageWidth, footerHeight, 'F');
-      
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(7);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Este documento é um comprovante oficial de solicitação de pagamento.', pageWidth / 2, footerY + 8, { align: 'center' });
-      doc.text(`Criado em: ${formatDateDisplay(request.createdAt)} | Sistema Flow LAB | Página ${i} de ${totalPages}`, pageWidth / 2, footerY + 14, { align: 'center' });
-    }
-    
-    // Save PDF
-    const fileName = `comprovante-${request.codigo.replace(/[/\s]/g, '-')}.pdf`;
-    doc.save(fileName);
-    
+    const fileName = gerarPdfPedido(request);
     showSuccess('PDF gerado!', `Comprovante "${fileName}" foi baixado com sucesso.`);
   };
 
@@ -683,72 +442,7 @@ const PaymentRequestManagement: React.FC = () => {
         type={confirmDialog.type}
       />
 
-      {/* Image Viewer Modal */}
-      {imageViewerOpen && currentImageUrl && (
-        <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in p-2 sm:p-4"
-          onClick={closeImageViewer}
-        >
-          <div className="relative w-full h-full max-w-7xl flex flex-col">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-2 sm:mb-4 px-2">
-              <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-white/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <Image className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-white font-semibold text-sm sm:text-lg truncate">{currentImageName}</h3>
-                  <p className="text-white/60 text-xs sm:text-sm hidden sm:block">Clique fora da imagem para fechar</p>
-                </div>
-              </div>
-              <button
-                onClick={closeImageViewer}
-                className="w-8 h-8 sm:w-10 sm:h-10 bg-white/10 hover:bg-white/20 rounded-lg flex items-center justify-center transition-all group flex-shrink-0 ml-2"
-              >
-                <X className="w-5 h-5 sm:w-6 sm:h-6 text-white group-hover:scale-110 transition-transform" />
-              </button>
-            </div>
-
-            {/* Image Container */}
-            <div 
-              className="flex-1 flex items-center justify-center overflow-hidden min-h-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <img
-                src={currentImageUrl}
-                alt={currentImageName}
-                className="max-w-full max-h-full w-auto h-auto object-contain rounded-lg shadow-2xl"
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-
-            {/* Footer Actions */}
-            <div className="flex items-center justify-center gap-2 sm:gap-3 mt-2 sm:mt-4 flex-shrink-0">
-              <a
-                href={currentImageUrl}
-                download={currentImageName}
-                className="px-3 py-2 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center gap-2 transition-all text-xs sm:text-sm"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <FileText className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Download</span>
-                <span className="sm:hidden">Baixar</span>
-              </a>
-              <a
-                href={currentImageUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-3 py-2 sm:px-4 sm:py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg flex items-center gap-2 transition-all text-xs sm:text-sm"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <Eye className="w-3 h-3 sm:w-4 sm:h-4" />
-                <span className="hidden sm:inline">Abrir em nova aba</span>
-                <span className="sm:hidden">Nova aba</span>
-              </a>
-            </div>
-          </div>
-        </div>
-      )}
+      <VisualizadorImagem imagem={imagemAberta} onFechar={fecharImagem} />
 
       {/* Header */}
       <div className="flex justify-between items-center animate-fade-in-up">
@@ -1422,7 +1116,7 @@ const PaymentRequestManagement: React.FC = () => {
                   </div>
                   <div className="min-w-0">
                     <p className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 font-medium">Data Pagamento</p>
-                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{formatDateDisplay(request.dataPagamento)}</p>
+                    <p className="text-xs sm:text-sm font-semibold text-gray-800 dark:text-gray-100 truncate">{formatarDataISO(request.dataPagamento)}</p>
                   </div>
                 </div>
 
@@ -1634,4 +1328,4 @@ const PaymentRequestManagement: React.FC = () => {
   );
 };
 
-export default PaymentRequestManagement;
+export default PagamentosPage;
