@@ -1,7 +1,7 @@
 # 04 — E-mails e card na Home
 
 **What to build:** e-mail "SC aguardando sua aprovação" ao aprovador quando
-a SC recebe `approver_id` (criação, backfill não dispara, recálculo do RH
+a SC recebe `approver_id` (criação, backfill não dispara, recálculo da issue 03
 dispara), com link para a lista filtrada; e-mail de rejeição para quem
 pediu, com o comentário; card "SCs aguardando sua aprovação" na Home, só
 quando houver alguma. O e-mail para `REQUESTS_STOCK_ALERT_TO` continua.

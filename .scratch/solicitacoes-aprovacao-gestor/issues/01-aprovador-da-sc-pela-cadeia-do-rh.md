@@ -1,38 +1,43 @@
-# 01 — Aprovador da SC pela cadeia do RH
+# 01 — Aprovador da SC pelo departamento de quem pediu
 
-**What to build:** marca "Aprova solicitações de compra" no colaborador e
-`requests.approver_id` gravado na criação da SC, subindo `gestor_id` até o
-primeiro aprovador utilizável (ativo, com login, usuário ativo). Inclui o
-cálculo único no deploy para as SCs `pending` e a marcação inicial de
-Paulo Vítor, Louise Fontel e Suane Batista De Oliveira. Só SC; SM fica
-sem aprovador. Ver spec, "Resolução do aprovador" e "Dados iniciais".
+**What to build:** `requests.approver_id` gravado na criação da SC com o
+`aprovador_sc_id` do departamento de quem pediu, se utilizável (ativo, com
+login, usuário ativo, e não o próprio solicitante); senão nulo, sem
+procurar outro. Inclui o cálculo único no deploy para as SCs `pending` sem
+aprovador e a proteção contra o client alterar aprovador/quem aprovou. Só
+SC; SM fica sem aprovador. Ver spec, "Resolução do aprovador" e "Schema
+das SCs".
 
-**Blocked by:** —
+**Blocked by:** 06
 
 **Status:** ready-for-agent
 
-- [x] Migration: `colaboradores.aprova_solicitacao_compra`, `requests.approver_id`, `requests.approved_by_user_id`.
-- [x] Função no banco de resolução + trigger na criação de SC.
-- [x] Função pura espelho com testes (cadeia simples, pula não aprovador Marina → Eduarda → Paulo, pula desligado/sem login/desativado, topo sem gestor, solicitante sem colaborador).
-- [x] Backfill das SCs `pending` no deploy; marcação inicial dos três aprovadores.
+- [x] Migration: `requests.approver_id`, `requests.approved_by_user_id`.
+- [x] Trigger na criação de SC (ignora o valor do client) e trigger que barra UPDATE de aprovador/quem aprovou vindo de `authenticated`/`anon`.
+- [ ] **Retrabalho:** editar `20261020170000_sc_aprovador_pela_cadeia_do_rh.sql` no lugar (nunca aplicada): tirar `aprova_solicitacao_compra`, a marcação inicial por nome e a cadeia por `gestor_id`; `requests_resolver_aprovador` passa a ler `departamentos.aprovador_sc_id`. Pode renomear o arquivo (não foi aplicado em lugar nenhum).
+- [ ] Função pura espelho reescrita com testes (departamento com/sem aprovador, aprovador desligado/sem login/desativado → nulo, aprovador = solicitante, sem colaborador, sem departamento, aprovador de outro departamento).
+- [ ] Backfill das SCs `pending` sem aprovador no deploy.
 - [ ] Validado no projeto de teste.
 
 ## Comments
 
-**20/10/2026 — implementado, falta validar no projeto de teste.**
+**20/10/2026 — primeira versão (cadeia por `gestor_id`), commit `a997a85`.**
+Nunca aplicada em nenhum projeto.
 
 - Migration `supabase/migrations/20261020170000_sc_aprovador_pela_cadeia_do_rh.sql`:
   colunas, `requests_resolver_aprovador(uuid)`, trigger de criação
   (`requests_definir_aprovador`, ignora o `approver_id` do client), marcação
-  dos três aprovadores pelo nome (nome ausente só dá WARNING — conferir no
-  deploy) e backfill das SCs `pending` sem aprovador.
+  dos três aprovadores pelo nome e backfill das SCs `pending` sem aprovador.
 - Achado de review: a policy de UPDATE de `requests` é aberta, então o client
   poderia se fazer `approver_id`. `requests_proteger_aprovador` barra mudança
   de `approver_id`/`approved_by_user_id` vinda de `authenticated`/`anon`;
   funções SECURITY DEFINER, service_role e migrations passam. **A RPC da
   issue 02 e o recálculo da issue 03 precisam ser SECURITY DEFINER.**
 - Espelho puro `src/utils/requestApprover.ts` + testes.
-- Validado num Postgres local descartável com esquema mínimo: cadeia, pulos
-  (desligado, desativado, não aprovador), SM, topo, client forjando
-  aprovador no INSERT e no UPDATE, DEFINER passando, reaplicação sem
-  reatribuir.
+- Validado num Postgres local descartável com esquema mínimo.
+
+**20/10/2026 — revisão do desenho (grilling).** A cadeia de `gestor_id` com
+a marca na ficha foi trocada por departamentos (issue 06). Ficam como estão:
+`approver_id`, `approved_by_user_id`, trigger de criação e proteção contra o
+client. Muda a resolução e sai a marcação inicial (os aprovadores agora são
+carregados na issue 06).
