@@ -13,6 +13,7 @@ import {
   formatarDataISO,
   limparFiltros,
   nomesDistintos,
+  opcoesDosRecortes,
   ordenarPedidos,
   podeVer,
   proximoDiaDePagamento,
@@ -206,6 +207,21 @@ describe('ordenar e agrupar', () => {
 
   it('nomes distintos ignoram acento e maiúsculas e mantêm a primeira grafia', () => {
     expect(nomesDistintos(['José', 'jose ', 'Ana', null, ''])).toEqual(['Ana', 'José']);
+  });
+
+  it('opções dos recortes: setores com contagem, sem vazios, e nomes distintos', () => {
+    const opcoes = opcoesDosRecortes([
+      pedido({ department: 'RH', solicitadoPor: 'Ana', autorizadoPor: 'Gestora' }),
+      pedido({ department: 'Estoque', solicitadoPor: 'ana', autorizadoPor: undefined }),
+      pedido({ department: 'RH', solicitadoPor: 'Bruno' }),
+      pedido({ department: '' }),
+    ]);
+    expect(opcoes.setores).toEqual([
+      { setor: 'Estoque', quantidade: 1 },
+      { setor: 'RH', quantidade: 2 },
+    ]);
+    expect(opcoes.solicitantes).toEqual(['Ana', 'Bruno', 'Sol Estoque']);
+    expect(opcoes.autorizadores).toEqual(['Gestora']);
   });
 });
 

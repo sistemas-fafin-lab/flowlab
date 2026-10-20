@@ -1,4 +1,4 @@
-import React, { useCallback, useState, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { 
   FileText, 
   Plus, 
@@ -9,25 +9,19 @@ import {
   Calendar, 
   DollarSign,
   CreditCard,
-  Search,
   AlertCircle,
-  Clock,
   Trash2,
   Printer,
   Sparkles,
   Paperclip,
   FileUp,
-  Eye,
-  CheckCircle2,
-  XCircle,
-  Banknote
+  Eye
 } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { usePaymentRequest } from '../hooks/usePaymentRequest';
 import { usePaymentAuthorizers } from '../hooks/usePaymentAuthorizers';
 import { useNotification } from '../../../hooks/useNotification';
 import { useDialog } from '../../../hooks/useDialog';
-import { DEPARTMENTS } from '../../../utils/permissions';
 import { 
   PaymentRequest, 
   PaymentRequestFormValues
@@ -46,7 +40,21 @@ import {
 import Notification from '../../../components/Notification';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { PaymentRequestSkeleton } from '../../../components/PageLoadingSkeleton';
-import { casaBusca, formatarDataISO, podeVer } from '../domain/filtrosPagamentos';
+import {
+  contarPorAba,
+  estaNaAba,
+  filtrarSemAba,
+  formatarDataISO,
+  opcoesDosRecortes,
+  ordenarPedidos,
+  paraISO,
+  podeVer,
+  temFiltroAtivo,
+  type Acesso,
+} from '../domain/filtrosPagamentos';
+import { useFiltrosPagamentos } from '../hooks/useFiltrosPagamentos';
+import BarraFiltrosPagamentos from './BarraFiltrosPagamentos';
+import EstadoVazioPedidos from './EstadoVazioPedidos';
 import { gerarPdfPedido } from '../pdfPedido';
 import VisualizadorImagem, { type ImagemAberta } from './VisualizadorImagem';
 
@@ -68,13 +76,6 @@ const PagamentosPage: React.FC = () => {
   const [showAddForm, setShowAddForm] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Filters
-  const [statusFilter, setStatusFilter] = useState<string>('all');
-  const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<string>>(new Set());
-  const [departmentFilter, setDepartmentFilter] = useState<string>('all');
-  const [dateFilter, setDateFilter] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-
   // Suggested date for payment
   const [suggestedDate, setSuggestedDate] = useState<Date | null>(null);
 
@@ -177,51 +178,26 @@ const PagamentosPage: React.FC = () => {
   // Aprovar, rejeitar, marcar como pago e excluir.
   const permissoes = userProfile?.permissions ?? [];
   const canApprove = permissoes.includes('canApprovePayments');
-  // Ver os pedidos de todos os setores (filtro de departamento e cards de status). Quem aprova
-  // já vê todos; canViewAllPayments é só a leitura, sem as ações.
+  // Ver os pedidos de todos os setores (e escolher setor nos filtros). Quem aprova já vê
+  // todos; canViewAllPayments é só a leitura, sem as ações.
   const vePagamentosDeTodos = canApprove || permissoes.includes('canViewAllPayments');
 
-  // Filter requests based on the cargo's permissions and filters
-  const filteredRequests = paymentRequests.filter(request => {
-    // Status filter: usa cards clicáveis OU dropdown
-    const matchesStatus = selectedStatusFilters.size > 0 
-      ? selectedStatusFilters.has(request.status)
-      : (statusFilter === 'all' || request.status === statusFilter);
-    const matchesDepartment = departmentFilter === 'all' || request.department === departmentFilter;
-    const matchesDate = !dateFilter || request.dataPagamento === dateFilter;
-    // Sem acento, várias palavras e campos nulos de pedidos antigos (domain/filtrosPagamentos).
-    const matchesSearch = casaBusca(request, searchTerm);
-    // Mesma regra da policy de leitura de payment_requests.
-    const matchesUserAccess = podeVer(request, {
-      veTodos: vePagamentosDeTodos,
-      departamento: userProfile?.department,
-      userId: user?.id,
-    });
-
-    return matchesStatus && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
-  });
-
-  // Toggle status filter via cards (multi-select)
-  const toggleStatusCardFilter = (status: string) => {
-    setSelectedStatusFilters(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(status)) {
-        newSet.delete(status);
-      } else {
-        newSet.add(status);
-      }
-      // Limpa o filtro dropdown quando usar cards
-      if (newSet.size > 0) {
-        setStatusFilter('all');
-      }
-      return newSet;
-    });
-  };
-
-  // Limpar filtros de cards
-  const clearStatusCardFilters = () => {
-    setSelectedStatusFilters(new Set());
-  };
+  // Filtros no endereço da página; a lista sai do domínio (domain/filtrosPagamentos).
+  const { filtros, alterar, limpar } = useFiltrosPagamentos(canApprove);
+  const hoje = paraISO(new Date());
+  const acesso = useMemo<Acesso>(
+    () => ({ veTodos: vePagamentosDeTodos, departamento: userProfile?.department, userId: user?.id, email: user?.email }),
+    [vePagamentosDeTodos, userProfile?.department, user?.id, user?.email],
+  );
+  const visiveis = useMemo(() => paymentRequests.filter((p) => podeVer(p, acesso)), [paymentRequests, acesso]);
+  const opcoes = useMemo(() => opcoesDosRecortes(visiveis), [visiveis]);
+  // As abas contam sobre o recorte sem a aba: o número de cada uma bate com o que ela mostra.
+  const semAba = useMemo(() => filtrarSemAba(visiveis, filtros, acesso, hoje), [visiveis, filtros, acesso, hoje]);
+  const contagem = useMemo(() => contarPorAba(semAba), [semAba]);
+  const filteredRequests = useMemo(
+    () => ordenarPedidos(semAba.filter((p) => estaNaAba(p, filtros.aba)), filtros.ordem),
+    [semAba, filtros.aba, filtros.ordem],
+  );
 
   // Handle form input changes
   const handleInputChange = (
@@ -813,229 +789,29 @@ const PagamentosPage: React.FC = () => {
         </div>
       )}
 
-      {/* Filters */}
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-6 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Buscar</label>
-            <div className="relative">
-              <Search className="absolute left-4 top-3 h-4 w-4 text-gray-400" />
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Fornecedor, código..."
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Status</label>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
-            >
-              <option value="all">Todos</option>
-              <option value="pending">Pendente</option>
-              <option value="approved">Aprovado</option>
-              <option value="rejected">Rejeitado</option>
-              <option value="paid">Pago</option>
-              <option value="cancelled">Cancelado</option>
-            </select>
-          </div>
-
-          {vePagamentosDeTodos && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Departamento</label>
-              <select
-                value={departmentFilter}
-                onChange={(e) => setDepartmentFilter(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
-              >
-                <option value="all">Todos</option>
-                {DEPARTMENTS.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Data Pagamento</label>
-            <input
-              type="date"
-              value={dateFilter}
-              onChange={(e) => setDateFilter(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 cursor-pointer"
-            />
-          </div>
-
-          <div className="flex items-end">
-            <span className="text-sm text-gray-600 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-2 rounded-lg">
-              {filteredRequests.length} solicitação(ões)
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Cards - Só para quem vê todos os setores (informação de gestão) */}
-      {vePagamentosDeTodos && (
-        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-          {/* Pendentes */}
-          <button
-            onClick={() => toggleStatusCardFilter('pending')}
-            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
-              selectedStatusFilters.has('pending') 
-                ? 'border-yellow-400 ring-2 ring-yellow-400/30 bg-yellow-50 dark:bg-yellow-900/20' 
-                : 'border-gray-100 dark:border-gray-700 hover:border-yellow-200 dark:hover:border-yellow-700'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('pending') ? 'bg-yellow-500' : 'bg-yellow-100 dark:bg-yellow-900/50'
-              }`}>
-                <Clock className={`w-5 h-5 ${selectedStatusFilters.has('pending') ? 'text-white' : 'text-yellow-600 dark:text-yellow-400'}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                  {paymentRequests.filter(r => r.status === 'pending').length}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Pendentes</p>
-              </div>
-            </div>
-          </button>
-
-          {/* Aprovados */}
-          <button
-            onClick={() => toggleStatusCardFilter('approved')}
-            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
-              selectedStatusFilters.has('approved') 
-                ? 'border-green-400 ring-2 ring-green-400/30 bg-green-50 dark:bg-green-900/20' 
-                : 'border-gray-100 dark:border-gray-700 hover:border-green-200 dark:hover:border-green-700'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('approved') ? 'bg-green-500' : 'bg-green-100 dark:bg-green-900/50'
-              }`}>
-                <CheckCircle2 className={`w-5 h-5 ${selectedStatusFilters.has('approved') ? 'text-white' : 'text-green-600 dark:text-green-400'}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                  {paymentRequests.filter(r => r.status === 'approved').length}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Aprovados</p>
-              </div>
-            </div>
-          </button>
-
-          {/* Pagos */}
-          <button
-            onClick={() => toggleStatusCardFilter('paid')}
-            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
-              selectedStatusFilters.has('paid') 
-                ? 'border-blue-400 ring-2 ring-blue-400/30 bg-blue-50 dark:bg-blue-900/20' 
-                : 'border-gray-100 dark:border-gray-700 hover:border-blue-200 dark:hover:border-blue-700'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('paid') ? 'bg-blue-500' : 'bg-blue-100 dark:bg-blue-900/50'
-              }`}>
-                <Banknote className={`w-5 h-5 ${selectedStatusFilters.has('paid') ? 'text-white' : 'text-blue-600 dark:text-blue-400'}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                  {paymentRequests.filter(r => r.status === 'paid').length}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Pagos</p>
-              </div>
-            </div>
-          </button>
-
-          {/* Rejeitados */}
-          <button
-            onClick={() => toggleStatusCardFilter('rejected')}
-            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
-              selectedStatusFilters.has('rejected') 
-                ? 'border-red-400 ring-2 ring-red-400/30 bg-red-50 dark:bg-red-900/20' 
-                : 'border-gray-100 dark:border-gray-700 hover:border-red-200 dark:hover:border-red-700'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('rejected') ? 'bg-red-500' : 'bg-red-100 dark:bg-red-900/50'
-              }`}>
-                <XCircle className={`w-5 h-5 ${selectedStatusFilters.has('rejected') ? 'text-white' : 'text-red-600 dark:text-red-400'}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                  {paymentRequests.filter(r => r.status === 'rejected').length}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Rejeitados</p>
-              </div>
-            </div>
-          </button>
-
-          {/* Cancelados */}
-          <button
-            onClick={() => toggleStatusCardFilter('cancelled')}
-            className={`bg-white dark:bg-gray-800 rounded-xl p-4 border shadow-sm hover:shadow-md transition-all duration-200 text-left ${
-              selectedStatusFilters.has('cancelled') 
-                ? 'border-gray-400 ring-2 ring-gray-400/30 bg-gray-100 dark:bg-gray-700' 
-                : 'border-gray-100 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                selectedStatusFilters.has('cancelled') ? 'bg-gray-500' : 'bg-gray-200 dark:bg-gray-600'
-              }`}>
-                <X className={`w-5 h-5 ${selectedStatusFilters.has('cancelled') ? 'text-white' : 'text-gray-600 dark:text-gray-300'}`} />
-              </div>
-              <div>
-                <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">
-                  {paymentRequests.filter(r => r.status === 'cancelled').length}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">Cancelados</p>
-              </div>
-            </div>
-          </button>
-        </div>
-      )}
-
-      {/* Indicador de filtros ativos por cards */}
-      {selectedStatusFilters.size > 0 && vePagamentosDeTodos && (
-        <div className="flex items-center gap-2 animate-fade-in">
-          <span className="text-sm text-gray-500 dark:text-gray-400">Filtros ativos:</span>
-          {Array.from(selectedStatusFilters).map(status => (
-            <span 
-              key={status}
-              className={`px-2.5 py-1 text-xs font-medium rounded-full ${PAYMENT_STATUS_COLORS[status]}`}
-            >
-              {PAYMENT_STATUS_LABELS[status]}
-            </span>
-          ))}
-          <button
-            onClick={clearStatusCardFilters}
-            className="ml-2 text-xs text-blue-600 hover:text-blue-800 underline"
-          >
-            Limpar filtros
-          </button>
-        </div>
-      )}
+      <BarraFiltrosPagamentos
+        filtros={filtros}
+        alterar={alterar}
+        limpar={limpar}
+        contagem={contagem}
+        quantidade={filteredRequests.length}
+        total={contagem[filtros.aba].valor}
+        hoje={hoje}
+        opcoes={opcoes}
+        mostrarSetor={vePagamentosDeTodos}
+      />
 
       {/* Requests List */}
       <div className="space-y-4">
         {filteredRequests.length === 0 ? (
-          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-12 text-center animate-fade-in-up">
-            <div className="w-16 h-16 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
-              <FileText className="w-8 h-8 text-blue-500" />
-            </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">Nenhuma solicitação encontrada</h3>
-            <p className="text-gray-500 dark:text-gray-400">Crie uma nova solicitação de pagamento para começar.</p>
-          </div>
+          <EstadoVazioPedidos
+            aba={filtros.aba}
+            filtrando={temFiltroAtivo(filtros)}
+            semPedidos={visiveis.length === 0}
+            onLimpar={limpar}
+            onNovo={() => setShowAddForm(true)}
+            onVerTodos={() => alterar({ aba: 'todos' })}
+          />
         ) : (
           filteredRequests.map((request, index) => (
             <div 

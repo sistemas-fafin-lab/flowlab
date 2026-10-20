@@ -317,6 +317,27 @@ export function nomesDistintos(nomes: readonly (string | null | undefined)[]): s
   return [...vistos.values()].sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
 }
 
+export interface OpcoesRecortes {
+  setores: { setor: string; quantidade: number }[];
+  solicitantes: string[];
+  autorizadores: string[];
+}
+
+/** As opções do painel "Filtros", tiradas dos pedidos que a pessoa vê. */
+export function opcoesDosRecortes(pedidos: readonly PaymentRequest[]): OpcoesRecortes {
+  const porSetor = new Map<string, number>();
+  for (const p of pedidos) {
+    if (p.department) porSetor.set(p.department, (porSetor.get(p.department) ?? 0) + 1);
+  }
+  return {
+    setores: [...porSetor.entries()]
+      .map(([setor, quantidade]) => ({ setor, quantidade }))
+      .sort((a, b) => a.setor.localeCompare(b.setor, 'pt-BR')),
+    solicitantes: nomesDistintos(pedidos.map((p) => p.solicitadoPor)),
+    autorizadores: nomesDistintos(pedidos.map((p) => p.autorizadoPor)),
+  };
+}
+
 // ─── Filtros no endereço da página ────────────────────────────────────────────
 // Só o que difere do padrão vai para a URL: a tela recém-aberta fica com o endereço limpo,
 // e um link como ?aba=pago&setor=RH abre direto no recorte.
