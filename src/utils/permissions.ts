@@ -22,6 +22,11 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canApproveRequests', label: 'Aprovar Solicitações', group: 'Solicitações' },
   // Aprovar, marcar como pago, excluir e ver todos os setores em Pagamentos.
   { key: 'canApprovePayments', label: 'Aprovar Pagamentos', group: 'Solicitações' },
+  // Só leitura: ver os pagamentos de todos os setores, sem aprovar, pagar nem excluir.
+  { key: 'canViewAllPayments', label: 'Ver Pagamentos de Todos os Setores', group: 'Solicitações' },
+  // Aparecer em "Autorizado por" no pedido de pagamento; sem ela, ninguém é o autorizador,
+  // nem o próprio solicitante (trigger payment_request_guard).
+  { key: 'canAuthorizePayments', label: 'Ser Autorizador de Pagamentos', group: 'Solicitações' },
   // Iniciar, concluir, excluir e ver todos os setores em Manutenção (e os itens de estoque dela).
   { key: 'canManageMaintenance', label: 'Gerenciar Manutenção', group: 'Solicitações' },
   { key: 'canViewExpiration', label: 'Monitorar Vencimentos', group: 'Monitoramento' },

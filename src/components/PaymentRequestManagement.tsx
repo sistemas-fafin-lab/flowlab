@@ -26,6 +26,7 @@ import {
 import jsPDF from 'jspdf';
 import { useAuth } from '../hooks/useAuth';
 import { usePaymentRequest } from '../hooks/usePaymentRequest';
+import { usePaymentAuthorizers } from '../hooks/usePaymentAuthorizers';
 import { useNotification } from '../hooks/useNotification';
 import { useDialog } from '../hooks/useDialog';
 import { DEPARTMENTS } from '../utils/permissions';
@@ -59,8 +60,9 @@ const PaymentRequestManagement: React.FC = () => {
     createPedido, 
     updatePaymentRequestStatus,
     deletePaymentRequest,
-    getNextPaymentDate 
+    getNextPaymentDate
   } = usePaymentRequest();
+  const { authorizers, loading: loadingAuthorizers, error: authorizersError } = usePaymentAuthorizers();
   const { notification, showSuccess, showError, showWarning, showInfo, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
 
@@ -90,6 +92,7 @@ const PaymentRequestManagement: React.FC = () => {
     descricaoDetalhada: '',
     solicitadoPor: userProfile?.name || '',
     autorizadoPor: '',
+    autorizadoPorId: '',
     dataPagamento: '',
     emailUsuario: user?.email || '',
     attachments: []
@@ -185,6 +188,13 @@ const PaymentRequestManagement: React.FC = () => {
     setSuggestedDate(nextDate);
   }, []);
 
+  // Aprovar, rejeitar, marcar como pago e excluir.
+  const permissoes = userProfile?.permissions ?? [];
+  const canApprove = permissoes.includes('canApprovePayments');
+  // Ver os pedidos de todos os setores (filtro de departamento e cards de status). Quem aprova
+  // já vê todos; canViewAllPayments é só a leitura, sem as ações.
+  const vePagamentosDeTodos = canApprove || permissoes.includes('canViewAllPayments');
+
   // Filter requests based on the cargo's permissions and filters
   const filteredRequests = paymentRequests.filter(request => {
     // Status filter: usa cards clicáveis OU dropdown
@@ -198,10 +208,12 @@ const PaymentRequestManagement: React.FC = () => {
       request.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
       request.documentoNumero.toLowerCase().includes(searchTerm.toLowerCase());
     
-    // Quem não aprova pagamentos só vê os do próprio departamento.
-    const matchesUserAccess = (userProfile?.permissions ?? []).includes('canApprovePayments') ||
-                             request.department === userProfile?.department;
-    
+    // Sem ver todos os setores, só os do próprio departamento e os próprios pedidos
+    // (mesma regra da policy de leitura de payment_requests).
+    const matchesUserAccess = vePagamentosDeTodos ||
+                             request.department === userProfile?.department ||
+                             (!!user?.id && request.solicitanteId === user.id);
+
     return matchesStatus && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
   });
 
@@ -227,9 +239,6 @@ const PaymentRequestManagement: React.FC = () => {
     setSelectedStatusFilters(new Set());
   };
 
-  // Aprovar, rejeitar, marcar como pago, excluir e filtrar por departamento.
-  const canApprove = (userProfile?.permissions ?? []).includes('canApprovePayments');
-
   // Handle form input changes
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
@@ -245,6 +254,16 @@ const PaymentRequestManagement: React.FC = () => {
     } else {
       setFormData(prev => ({ ...prev, [name]: value }));
     }
+  };
+
+  // Autorizado por: só quem está na lista (cargo com canAuthorizePayments).
+  const handleAuthorizerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const autorizador = authorizers.find(a => a.id === e.target.value);
+    setFormData(prev => ({
+      ...prev,
+      autorizadoPorId: autorizador?.id ?? '',
+      autorizadoPor: autorizador?.name ?? ''
+    }));
   };
 
   // Handle date change with validation feedback
@@ -279,7 +298,7 @@ const PaymentRequestManagement: React.FC = () => {
     e.preventDefault();
     
     // Validate required fields
-    if (!formData.fornecedor || !formData.valorTotal || !formData.dataPagamento || !formData.autorizadoPor) {
+    if (!formData.fornecedor || !formData.valorTotal || !formData.dataPagamento || !formData.autorizadoPorId) {
       showError('Campos obrigatórios', 'Preencha todos os campos obrigatórios.');
       return;
     }
@@ -331,6 +350,7 @@ const PaymentRequestManagement: React.FC = () => {
       descricaoDetalhada: '',
       solicitadoPor: userProfile?.name || '',
       autorizadoPor: '',
+      autorizadoPorId: '',
       dataPagamento: '',
       emailUsuario: user?.email || '',
       attachments: []
@@ -971,15 +991,33 @@ const PaymentRequestManagement: React.FC = () => {
                 <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Autorizado por *
                 </label>
-                <input
-                  type="text"
-                  name="autorizadoPor"
-                  value={formData.autorizadoPor}
-                  onChange={handleInputChange}
+                {/* Só aparece quem tem a permissão Ser Autorizador de Pagamentos; o trigger
+                    payment_request_guard recusa qualquer outra pessoa. */}
+                <select
+                  name="autorizadoPorId"
+                  value={formData.autorizadoPorId}
+                  onChange={handleAuthorizerChange}
                   required
-                  placeholder="Nome de quem autorizou"
-                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 dark:text-gray-100 dark:placeholder-gray-400"
-                />
+                  disabled={loadingAuthorizers || authorizers.length === 0}
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700 cursor-pointer dark:text-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  <option value="">
+                    {loadingAuthorizers ? 'Carregando...' : 'Selecione quem autorizou'}
+                  </option>
+                  {authorizers.map(autorizador => (
+                    <option key={autorizador.id} value={autorizador.id}>
+                      {autorizador.department ? `${autorizador.name} (${autorizador.department})` : autorizador.name}
+                    </option>
+                  ))}
+                </select>
+                {authorizersError ? (
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">{authorizersError}</p>
+                ) : !loadingAuthorizers && authorizers.length === 0 ? (
+                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
+                    Ninguém pode autorizar pagamentos ainda. Peça a quem gerencia cargos para marcar
+                    "Ser Autorizador de Pagamentos" no cargo de quem autoriza.
+                  </p>
+                ) : null}
               </div>
             </div>
 
@@ -1114,7 +1152,7 @@ const PaymentRequestManagement: React.FC = () => {
             </select>
           </div>
 
-          {canApprove && (
+          {vePagamentosDeTodos && (
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Departamento</label>
               <select
@@ -1148,8 +1186,8 @@ const PaymentRequestManagement: React.FC = () => {
         </div>
       </div>
 
-      {/* Stats Cards - Só para quem aprova pagamentos (informação de gestão) */}
-      {canApprove && (
+      {/* Stats Cards - Só para quem vê todos os setores (informação de gestão) */}
+      {vePagamentosDeTodos && (
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
           {/* Pendentes */}
           <button
@@ -1274,7 +1312,7 @@ const PaymentRequestManagement: React.FC = () => {
       )}
 
       {/* Indicador de filtros ativos por cards */}
-      {selectedStatusFilters.size > 0 && canApprove && (
+      {selectedStatusFilters.size > 0 && vePagamentosDeTodos && (
         <div className="flex items-center gap-2 animate-fade-in">
           <span className="text-sm text-gray-500 dark:text-gray-400">Filtros ativos:</span>
           {Array.from(selectedStatusFilters).map(status => (

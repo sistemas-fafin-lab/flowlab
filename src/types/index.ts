@@ -359,7 +359,11 @@ export interface PaymentRequest {
   dadosPagamento: string;
   descricaoDetalhada: string;
   solicitadoPor: string;
+  /** Quem fez o pedido. Ausente em pedidos anteriores a 2026-10-20. */
+  solicitanteId?: string;
   autorizadoPor?: string;
+  /** Quem autorizou (cargo com canAuthorizePayments). Ausente em pedidos anteriores a 2026-10-20. */
+  autorizadoPorId?: string;
   dataPagamento: string;
   emailUsuario: string;
   department?: string;
@@ -386,9 +390,17 @@ export interface PaymentRequestFormValues {
   descricaoDetalhada: string;
   solicitadoPor: string;
   autorizadoPor: string;
+  autorizadoPorId: string;
   dataPagamento: Date | string;
   emailUsuario: string;
   attachments?: File[];
+}
+
+/** Uma opção de "Autorizado por": pessoa ativa cujo cargo tem canAuthorizePayments. */
+export interface PaymentAuthorizer {
+  id: string;
+  name: string;
+  department: string | null;
 }
 
 export interface PaymentDateValidation {
@@ -411,6 +423,7 @@ export interface PaymentRequestPayload {
   descricaoDetalhada: string;
   solicitadoPor: string;
   autorizadoPor: string;
+  autorizadoPorId: string;
   dataPagamento: string;
   emailUsuario: string;
   department: string;
