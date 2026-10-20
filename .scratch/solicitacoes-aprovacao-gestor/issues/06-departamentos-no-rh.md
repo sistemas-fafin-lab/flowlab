@@ -13,10 +13,10 @@ spec, "Departamentos (schema)", "Holerites da equipe" e "Dados iniciais".
 
 **Status:** ready-for-agent
 
-- [ ] Levantamento (somente leitura) dos valores distintos de `colaboradores.departamento` em produção e mapeamento texto → departamento **aprovado pelo usuário**, com os aprovadores/responsáveis a confirmar.
+- [x] Levantamento (somente leitura) dos valores distintos de `colaboradores.departamento` em produção e mapeamento texto → departamento **aprovado pelo usuário**, com os aprovadores/responsáveis a confirmar.
 - [x] Migration: `departamentos`, `colaboradores.departamento_id`, `departamento_responsaveis`, RLS (leitura aberta a autenticado; escrita com `canManageDepartamentos`), bloqueio de desativar com colaborador ativo.
 - [x] Permissão `canManageDepartamentos` (grupo RH) em `src/utils/permissions.ts` e no banco; concedida ao cargo RH e admin.
-- [ ] Carga: departamentos do mapeamento, `departamento_id` de cada colaborador, Área técnica → aprovador Paulo Vítor, Louise responsável pelo dela e pelo da Raquel, demais conforme confirmado.
+- [x] Carga: departamentos do mapeamento, `departamento_id` de cada colaborador, Área técnica → aprovador Paulo Vítor, Louise responsável pelo dela e pelo da Raquel, demais conforme confirmado.
 - [x] Aba "Departamentos" (criar, renomear, desativar, responsáveis, aprovador de SC, membros, pendência "sem departamento"); departamento como select na ficha.
 - [x] Holerites da equipe: `colaborador_e_subordinado_do_usuario_atual` passa a usar `departamento_responsaveis` (policies inalteradas).
 - [ ] Validado no projeto de teste (holerites: Louise vê a equipe da Raquel; responsável sem `canViewHoleritesEquipe` não vê).
@@ -64,3 +64,14 @@ spec, "Departamentos (schema)", "Holerites da equipe" e "Dados iniciais".
   UPDATE filtrado pelo RLS (0 linhas) como erro. Responsável pelo próprio
   departamento passa a ver os holerites dos colegas dele (consequência literal
   da spec: Louise é responsável pelo dela).
+- Carga (`20261020215100_rh_departamentos_carga.sql`): levantamento feito pelo
+  usuário em produção (55 ativos, 14 textos) e mapeamento aprovado em
+  20/10/2026 — um departamento por texto, mesmo nome; "testando" (Transporte)
+  fica sem departamento. Biologia Molecular (só o Paulo) fica separado. Só o
+  decidido: Área técnica e Qualidade → aprovador Paulo; Financeiro → aprovador
+  e responsável Louise Fontel; Faturamento → responsável Louise Fontel; RH e
+  Copa/Limpeza → aprovador e responsável Suane. A lista de gestores do RH
+  cobria só parte de Atendimento, TI, Transporte e Faturamento: o usuário
+  preferiu deixar esses (e Biologia Molecular, Comercial, Diretoria, Equipe
+  Médica, Estoque) vazios para o RH preencher na aba. Pessoas casadas pelo nome
+  (falha se não houver exatamente um). Não testada localmente.
