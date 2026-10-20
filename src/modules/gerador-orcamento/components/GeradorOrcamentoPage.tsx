@@ -141,6 +141,14 @@ const GeradorOrcamentoPage: React.FC = () => {
   const chavesNoCarrinho = useMemo(() => new Set(carrinho.map((c) => chaveExame(c.item))), [carrinho]);
   const orcamento = useMemo(() => orcamentoDoCarrinho(carrinho), [carrinho]);
 
+  // Busca dentro do carrinho: só filtra as linhas mostradas; os totais e os PDFs
+  // continuam valendo para o carrinho inteiro.
+  const [buscaCarrinho, setBuscaCarrinho] = useState('');
+  const linhasVisiveis = useMemo(() => {
+    const chaves = new Set(filtrarExames(carrinho.map((c) => c.item), buscaCarrinho).map(chaveExame));
+    return carrinho.filter((linha) => chaves.has(chaveExame(linha.item)));
+  }, [carrinho, buscaCarrinho]);
+
   const adicionar = React.useCallback((exame: ItemGeradorOrcamento) => {
     setCarrinho((atual) => adicionarAoCarrinho(atual, exame));
   }, []);
@@ -272,7 +280,7 @@ const GeradorOrcamentoPage: React.FC = () => {
               </h2>
               <button
                 type="button"
-                onClick={() => setCarrinho([])}
+                onClick={() => { setCarrinho([]); setBuscaCarrinho(''); }}
                 disabled={carrinho.length === 0}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl text-gray-600 bg-white border border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-red-900/20"
               >
@@ -295,33 +303,52 @@ const GeradorOrcamentoPage: React.FC = () => {
                   </div>
                 </dl>
               )}
-              <button
-                type="button"
-                onClick={() => gerarPdf('cliente')}
-                disabled={carrinho.length === 0 || gerandoPdf !== null}
-                className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
-              >
-                {gerandoPdf === 'cliente' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
-              </button>
-              {podeVerCustos && (
+              <div className="mt-4 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => gerarPdf('interno')}
+                  onClick={() => gerarPdf('cliente')}
                   disabled={carrinho.length === 0 || gerandoPdf !== null}
-                  className="mt-2 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium rounded-xl text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 min-w-0 inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
                 >
-                  {gerandoPdf === 'interno' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileLock2 className="w-4 h-4" />} Gerar PDF Interno
+                  {gerandoPdf === 'cliente' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
                 </button>
-              )}
+                {podeVerCustos && (
+                  <button
+                    type="button"
+                    onClick={() => gerarPdf('interno')}
+                    disabled={carrinho.length === 0 || gerandoPdf !== null}
+                    className="flex-1 min-w-0 inline-flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 hover:border-gray-300 dark:bg-gray-800 dark:text-gray-200 dark:border-gray-700 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {gerandoPdf === 'interno' ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileLock2 className="w-4 h-4" />} Gerar PDF Interno
+                  </button>
+                )}
+              </div>
               {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
+              {carrinho.length > 0 && (
+                <div className="relative mt-4">
+                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="search"
+                    value={buscaCarrinho}
+                    onChange={(e) => setBuscaCarrinho(e.target.value)}
+                    placeholder="Buscar nos exames selecionados…"
+                    aria-label="Buscar nos exames selecionados"
+                    className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 text-slate-800 placeholder:text-slate-400 dark:bg-gray-800/80 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+                  />
+                </div>
+              )}
             </div>
             {carrinho.length === 0 ? (
               <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
                 Nenhum exame no carrinho. Busque e clique em “Adicionar”.
               </p>
+            ) : linhasVisiveis.length === 0 ? (
+              <p className="py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                Nenhum exame do carrinho encontrado para “{buscaCarrinho.trim()}”.
+              </p>
             ) : (
               <ul className="divide-y divide-gray-100 dark:divide-gray-700 overflow-y-auto min-h-0 flex-1 max-h-[50vh] lg:max-h-none -mx-1 px-1">
-                {carrinho.map((linha) => (
+                {linhasVisiveis.map((linha) => (
                   <LinhaCarrinho
                     key={chaveExame(linha.item)}
                     linha={linha}
