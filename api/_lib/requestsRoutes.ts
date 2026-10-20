@@ -19,3 +19,12 @@ export const buildRequestsUrl = (baseUrl: string, status?: RequestStatus): strin
 /** Valor de `?status=` → status conhecido, ou `null` (ausente ou inválido). */
 export const parseRequestStatusParam = (value: string | null): RequestStatus | null =>
   (REQUEST_STATUSES as readonly string[]).includes(value ?? '') ? (value as RequestStatus) : null;
+
+/** `?aprovacao=minha`: lista filtrada em "Aguardando minha aprovação" (link do e-mail ao aprovador). */
+export const REQUESTS_APPROVAL_QUERY_PARAM = 'aprovacao';
+const AWAITING_MY_APPROVAL = 'minha';
+
+export const buildRequestsAwaitingMyApprovalUrl = (baseUrl: string): string =>
+  `${baseUrl}${REQUESTS_PURCHASES_PATH}?${REQUESTS_APPROVAL_QUERY_PARAM}=${AWAITING_MY_APPROVAL}`;
+
+export const isAwaitingMyApprovalParam = (value: string | null): boolean => value === AWAITING_MY_APPROVAL;

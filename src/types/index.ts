@@ -80,6 +80,14 @@ export interface Request {
   priority: 'standard' | 'priority' | 'urgent';
   approvedBy?: string;
   approvalDate?: string;
+  /** Aprovador da SC (requests.approver_id, gravado pelo banco). NULL = sem aprovador no RH; SM sempre NULL. */
+  approverId?: string | null;
+  /** Nome do aprovador, para exibir na SC pendente. */
+  approverName?: string | null;
+  /** A decisão foi de quem tem canApproveRequests, no lugar de um aprovador que não havia. */
+  decidedWithoutApprover?: boolean;
+  /** Motivo da rejeição da SC (obrigatório na decisão). */
+  rejectionComment?: string | null;
   notes?: string;
   department?: string;
   supplierId?: string | null;

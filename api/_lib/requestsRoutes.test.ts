@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildRequestsUrl, parseRequestStatusParam } from './requestsRoutes.js';
+import {
+  buildRequestsAwaitingMyApprovalUrl,
+  buildRequestsUrl,
+  isAwaitingMyApprovalParam,
+  parseRequestStatusParam,
+} from './requestsRoutes.js';
 
 describe('buildRequestsUrl', () => {
   it('sem status aponta para a lista sem filtro', () => {
@@ -30,4 +35,21 @@ describe('parseRequestStatusParam', () => {
       expect(parseRequestStatusParam(value)).toBeNull();
     },
   );
+});
+
+describe('filtro "Aguardando minha aprovação"', () => {
+  it('a URL do filtro é a lista com ?aprovacao=minha', () => {
+    expect(buildRequestsAwaitingMyApprovalUrl('https://flow-lab.vercel.app')).toBe(
+      'https://flow-lab.vercel.app/requests/purchases?aprovacao=minha',
+    );
+  });
+
+  it.each([
+    ['minha', true],
+    [null, false],
+    ['', false],
+    ['todas', false],
+  ])('?aprovacao=%s → %s', (value, expected) => {
+    expect(isAwaitingMyApprovalParam(value)).toBe(expected);
+  });
 });

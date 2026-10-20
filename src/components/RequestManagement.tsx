@@ -24,7 +24,13 @@ import {
   DELIVERY_FORECAST_QUOTATION_STATUSES,
   DeliveryForecastQuotationRow,
 } from '../modules/quotations/utils/requestDeliveryForecast';
-import { REQUESTS_STATUS_QUERY_PARAM, parseRequestStatusParam } from '../../api/_lib/requestsRoutes.js';
+import {
+  REQUESTS_APPROVAL_QUERY_PARAM,
+  REQUESTS_STATUS_QUERY_PARAM,
+  isAwaitingMyApprovalParam,
+  parseRequestStatusParam,
+} from '../../api/_lib/requestsRoutes.js';
+import { canSeeRequest, isApproverOf, requestActions, type RequestViewer } from '../utils/requestActions';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -57,10 +63,16 @@ async function notifyStockOfNewRequest(requestId: string | undefined): Promise<v
 
 const RequestManagement: React.FC = () => {
   const { user, userProfile } = useAuth();
-  // Aprovar, iniciar cotação, finalizar e ver todos os setores vêm do cargo (canApproveRequests);
-  // quem não aprova segue o período de solicitações e vê só o próprio departamento.
+  // Iniciar cotação, finalizar, ver todos os setores, aprovar SM e SC sem aprovador vêm do cargo
+  // (canApproveRequests); quem não tem segue o período de solicitações e vê o próprio departamento
+  // mais as SCs em que é o aprovador. A SC com aprovador é decidida só por ele (requestActions).
   const aprovaSolicitacoes = (userProfile?.permissions ?? []).includes('canApproveRequests');
   const criaSolicitacoes = (userProfile?.permissions ?? []).includes('canAddRequests');
+  const viewer: RequestViewer = {
+    userId: user?.id ?? null,
+    department: userProfile?.department,
+    canApproveRequests: aprovaSolicitacoes,
+  };
   const {
     requests,
     products,
@@ -70,6 +82,7 @@ const RequestManagement: React.FC = () => {
     addAttachmentToRequest,
     removeAttachmentFromRequest,
     updateRequestStatus,
+    decideRequest,
     addMovement,
     createQuotation,
     locations,
@@ -160,6 +173,11 @@ const RequestManagement: React.FC = () => {
     () => parseRequestStatusParam(searchParams.get(REQUESTS_STATUS_QUERY_PARAM)) ?? 'all'
   );
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Set<string>>(new Set());
+  // "Aguardando minha aprovação": as solicitações que o usuário pode decidir agora.
+  // Vem ligado pelo link do e-mail ao aprovador (?aprovacao=minha).
+  const [awaitingMyApproval, setAwaitingMyApproval] = useState(
+    () => isAwaitingMyApprovalParam(searchParams.get(REQUESTS_APPROVAL_QUERY_PARAM))
+  );
   const [typeFilter, setTypeFilter] = useState<string>('all');
   const [departmentFilter, setDepartmentFilter] = useState<string>('all');
   const [dateFromFilter, setDateFromFilter] = useState('');
@@ -420,12 +438,18 @@ useEffect(() => {
       )
     );
     
-    // Quem aprova vê todas as solicitações; os demais, só as do próprio departamento.
-    const matchesUserAccess = aprovaSolicitacoes ||
-                             request.department === userProfile?.department;
-    
-    return matchesType && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess;
+    const matchesUserAccess = canSeeRequest(request, viewer);
+    const matchesAwaiting = !awaitingMyApproval || requestActions(request, viewer).canDecide;
+
+    return matchesType && matchesDepartment && matchesDate && matchesSearch && matchesUserAccess && matchesAwaiting;
   });
+
+  const awaitingMyApprovalCount = requests.filter(
+    request => canSeeRequest(request, viewer) && requestActions(request, viewer).canDecide
+  ).length;
+  // O filtro aparece para quem decide alguma coisa: Compras, ou aprovador de alguma SC.
+  const showAwaitingMyApprovalFilter = aprovaSolicitacoes || awaitingMyApproval ||
+    requests.some(request => isApproverOf(request, viewer.userId));
 
   // Status filter: usa cards clicáveis OU dropdown
   const filteredRequests = requestsMatchingNonStatusFilters.filter(request =>
@@ -450,7 +474,7 @@ useEffect(() => {
   // Reinicia a paginação sempre que os filtros ou a busca mudarem
   useEffect(() => {
     setDisplayCount(ITEMS_PER_PAGE);
-  }, [searchQuery, statusFilter, selectedStatusFilters, typeFilter, departmentFilter, dateFromFilter, dateToFilter]);
+  }, [searchQuery, statusFilter, selectedStatusFilters, typeFilter, departmentFilter, dateFromFilter, dateToFilter, awaitingMyApproval]);
 
   // Toggle status filter via cards (multi-select)
   const toggleStatusCardFilter = (status: string) => {
@@ -740,29 +764,47 @@ useEffect(() => {
     }
   };
 
-  const handleApproveRequest = async (requestId: string) => {
+  // A SC é decidida pela RPC (requests_decidir_sc), que autoriza; a SM segue por UPDATE direto.
+  const handleApproveRequest = async (request: Request) => {
+    const withoutApprover = requestActions(request, viewer).decidesWithoutApprover;
     showConfirmDialog(
       'Aprovar Solicitação',
-      'Tem certeza que deseja aprovar esta solicitação?',
+      withoutApprover
+        ? 'Esta SC está sem aprovador no RH. Você vai aprovar no lugar do aprovador, e isso fica registrado. Confirmar?'
+        : 'Tem certeza que deseja aprovar esta solicitação?',
       async () => {
         try {
-          await updateRequestStatus(requestId, 'approved', userProfile?.name);
+          if (request.type === 'SC') {
+            await decideRequest(request.id, 'approved');
+          } else {
+            await updateRequestStatus(request.id, 'approved', userProfile?.name);
+          }
           showSuccess('Solicitação aprovada com sucesso!');
         } catch (error) {
           console.error('Erro ao aprovar solicitação:', error);
-          showError('Erro ao aprovar solicitação. Tente novamente.');
+          showError(error instanceof Error ? error.message : 'Erro ao aprovar solicitação. Tente novamente.');
         }
       }
     );
   };
 
-  const handleRejectRequest = async (requestId: string) => {
+  // Rejeitar SC pede o motivo (obrigatório) num modal próprio; a SM confirma como antes.
+  const [rejectingRequest, setRejectingRequest] = useState<Request | null>(null);
+  const [rejectionComment, setRejectionComment] = useState('');
+  const [isRejecting, setIsRejecting] = useState(false);
+
+  const handleRejectRequest = async (request: Request) => {
+    if (request.type === 'SC') {
+      setRejectionComment('');
+      setRejectingRequest(request);
+      return;
+    }
     showConfirmDialog(
       'Rejeitar Solicitação',
       'Tem certeza que deseja rejeitar esta solicitação?',
       async () => {
         try {
-          await updateRequestStatus(requestId, 'rejected');
+          await updateRequestStatus(request.id, 'rejected');
           showSuccess('Solicitação rejeitada.');
         } catch (error) {
           console.error('Erro ao rejeitar solicitação:', error);
@@ -771,6 +813,21 @@ useEffect(() => {
       },
       { type: 'danger', confirmText: 'Rejeitar' }
     );
+  };
+
+  const confirmRejectRequest = async () => {
+    if (!rejectingRequest || !rejectionComment.trim()) return;
+    setIsRejecting(true);
+    try {
+      await decideRequest(rejectingRequest.id, 'rejected', rejectionComment.trim());
+      showSuccess('Solicitação rejeitada.');
+      setRejectingRequest(null);
+    } catch (error) {
+      console.error('Erro ao rejeitar solicitação:', error);
+      showError(error instanceof Error ? error.message : 'Erro ao rejeitar solicitação. Tente novamente.');
+    } finally {
+      setIsRejecting(false);
+    }
   };
 
 const handleCompleteRequest = async (request: Request) => {
@@ -943,8 +1000,6 @@ const handleCompleteRequest = async (request: Request) => {
     }
   };
 
-  const canApprove = aprovaSolicitacoes;
-  
       const matchedProduct = products.find(
         (p) => p.name.toLowerCase().trim() === productSearch.toLowerCase().trim()
       );
@@ -1034,6 +1089,61 @@ const handleCompleteRequest = async (request: Request) => {
         onCancel={hideConfirmDialog}
         type={confirmDialog.type}
       />
+
+      {/* Rejeição da SC: motivo obrigatório */}
+      {rejectingRequest && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full animate-scale-in">
+            <div className="px-6 py-5 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Rejeitar {rejectingRequest.id}</h2>
+              <button
+                onClick={() => setRejectingRequest(null)}
+                disabled={isRejecting}
+                className="text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:hover:text-gray-200 p-1.5 rounded-full transition-all duration-200 hover:rotate-90"
+                aria-label="Fechar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-6 space-y-3">
+              {requestActions(rejectingRequest, viewer).decidesWithoutApprover && (
+                <p className="text-xs text-orange-600 dark:text-orange-400">
+                  Esta SC está sem aprovador no RH. Você vai rejeitar no lugar do aprovador, e isso fica registrado.
+                </p>
+              )}
+              <label htmlFor="rejection-comment" className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+                Motivo da rejeição <span className="text-red-500">*</span>
+              </label>
+              <textarea
+                id="rejection-comment"
+                value={rejectionComment}
+                onChange={(e) => setRejectionComment(e.target.value)}
+                rows={4}
+                autoFocus
+                placeholder="Explique a quem pediu por que a SC foi rejeitada"
+                className="w-full px-3 py-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-red-500/40 focus:border-red-500 text-sm text-gray-700 dark:text-gray-200"
+              />
+            </div>
+            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/40 rounded-b-2xl flex justify-end space-x-3">
+              <button
+                onClick={() => setRejectingRequest(null)}
+                disabled={isRejecting}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmRejectRequest}
+                disabled={isRejecting || !rejectionComment.trim()}
+                className="px-4 py-2 text-sm font-medium text-white bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 rounded-xl shadow-lg shadow-red-500/25 transition-all disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-2"
+              >
+                {isRejecting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Rejeitar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Image Viewer Modal */}
       {imageViewerOpen && currentImageUrl && (
@@ -2009,6 +2119,29 @@ const handleCompleteRequest = async (request: Request) => {
         </div>
       </div>
 
+      {showAwaitingMyApprovalFilter && (
+        <div className="flex flex-wrap items-center gap-2 animate-fade-in">
+          <button
+            type="button"
+            onClick={() => setAwaitingMyApproval(v => !v)}
+            aria-pressed={awaitingMyApproval}
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium border transition-all ${
+              awaitingMyApproval
+                ? 'bg-amber-500 text-white border-amber-500 shadow-md shadow-amber-500/25'
+                : 'bg-white/60 dark:bg-slate-800/50 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-white dark:hover:bg-slate-800'
+            }`}
+          >
+            <Clock className="w-4 h-4" />
+            Aguardando minha aprovação
+            <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+              awaitingMyApproval ? 'bg-white/25' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300'
+            }`}>
+              {awaitingMyApprovalCount}
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Stats Cards - Só para quem aprova (informação de gestão) */}
       {aprovaSolicitacoes && (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
@@ -2133,7 +2266,9 @@ const handleCompleteRequest = async (request: Request) => {
 
       {/* Requests List */}
       <div className="space-y-4">
-        {displayedRequests.map((request, index) => (
+        {displayedRequests.map((request, index) => {
+          const actions = requestActions(request, viewer);
+          return (
           <div 
             key={request.id} 
             className="bg-white/70 dark:bg-slate-900/40 backdrop-blur-xl rounded-2xl shadow-lg border border-slate-200/50 dark:border-slate-700/50 p-5 sm:p-6 hover:border-blue-300/50 dark:hover:border-blue-600/50 hover:shadow-xl transition-all duration-300 animate-fade-in-up group hover:-translate-y-0.5 overflow-hidden"
@@ -2242,6 +2377,30 @@ const handleCompleteRequest = async (request: Request) => {
                 </div>
               )}
 
+              {request.type === 'SC' && request.status === 'pending' && (
+                request.approverId ? (
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 bg-gradient-to-br from-amber-500 to-yellow-500 rounded-lg flex items-center justify-center shadow-sm shadow-amber-500/20 flex-shrink-0">
+                      <Clock className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Aprovador</p>
+                      <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{request.approverName ?? '—'}</p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2 min-w-0" title="O departamento de quem pediu não tem aprovador de SC utilizável no RH. Quem aprova solicitações decide no lugar.">
+                    <div className="w-7 h-7 bg-gradient-to-br from-orange-500 to-red-500 rounded-lg flex items-center justify-center shadow-sm shadow-orange-500/20 flex-shrink-0">
+                      <AlertTriangle className="w-3.5 h-3.5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Aprovador</p>
+                      <p className="text-xs font-semibold text-orange-600 dark:text-orange-400 truncate">Sem aprovador no RH</p>
+                    </div>
+                  </div>
+                )
+              )}
+
               {request.approvedBy && (
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-7 h-7 bg-gradient-to-br from-emerald-500 to-green-500 rounded-lg flex items-center justify-center shadow-sm shadow-emerald-500/20 flex-shrink-0">
@@ -2250,6 +2409,9 @@ const handleCompleteRequest = async (request: Request) => {
                   <div className="min-w-0">
                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-medium uppercase tracking-wide">Aprovado por</p>
                     <p className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">{request.approvedBy}</p>
+                    {request.decidedWithoutApprover && (
+                      <p className="text-[10px] text-orange-600 dark:text-orange-400 truncate">no lugar do aprovador (sem aprovador no RH)</p>
+                    )}
                   </div>
                 </div>
               )}
@@ -2266,6 +2428,13 @@ const handleCompleteRequest = async (request: Request) => {
                 </div>
               )}
             </div>
+
+            {request.status === 'rejected' && request.rejectionComment && (
+              <div className="mb-4 p-3 sm:p-4 rounded-xl border border-red-200 dark:border-red-800 bg-red-50/60 dark:bg-red-900/20">
+                <p className="text-[10px] text-red-500 dark:text-red-400 font-medium uppercase tracking-wide mb-1">Motivo da rejeição</p>
+                <p className="text-xs text-red-800 dark:text-red-200 break-words whitespace-pre-wrap">{request.rejectionComment}</p>
+              </div>
+            )}
 
             <div className="mb-4 space-y-3">
               <div className="flex items-center">
@@ -2374,24 +2543,38 @@ const handleCompleteRequest = async (request: Request) => {
             </div>
 
             {/* Action Buttons */}
-            {canApprove && request.status === 'pending' && (
+            {(actions.canDecide || actions.canStartQuotation || actions.canFinalize) && (
               <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
-                <button
-                  onClick={() => handleApproveRequest(request.id)}
-                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 text-xs sm:text-sm"
-                >
-                  <Check className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Aprovar</span>
-                </button>
-                <button
-                  onClick={() => handleRejectRequest(request.id)}
-                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30 text-xs sm:text-sm"
-                >
-                  <X className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Rejeitar</span>
-                </button>
-                
-                {aprovaSolicitacoes && (
+                {actions.canDecide && (
+                  <>
+                    <button
+                      onClick={() => handleApproveRequest(request)}
+                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl hover:from-green-600 hover:to-emerald-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-green-500/25 hover:shadow-lg hover:shadow-green-500/30 text-xs sm:text-sm"
+                    >
+                      <Check className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Aprovar</span>
+                    </button>
+                    <button
+                      onClick={() => handleRejectRequest(request)}
+                      className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-red-500 to-rose-500 text-white rounded-xl hover:from-red-600 hover:to-rose-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-red-500/25 hover:shadow-lg hover:shadow-red-500/30 text-xs sm:text-sm"
+                    >
+                      <X className="w-4 h-4 sm:mr-2" />
+                      <span className="hidden sm:inline">Rejeitar</span>
+                    </button>
+                  </>
+                )}
+
+                {actions.canStartQuotation && (
+                  <button
+                    onClick={() => handleStartQuotation(request)}
+                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30 text-xs sm:text-sm"
+                  >
+                    <FileText className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Iniciar Cotação</span>
+                  </button>
+                )}
+
+                {actions.canFinalize && (
                   <button
                     onClick={() => handleCompleteRequest(request)}
                     className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-xs sm:text-sm"
@@ -2399,27 +2582,6 @@ const handleCompleteRequest = async (request: Request) => {
                     <Check className="w-4 h-4 sm:mr-2" />
                     <span className="hidden sm:inline">Finalizar</span>
                   </button>
-                )}
-              </div>
-            )}
-            {canApprove && request.status === 'approved' && (
-              <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100 dark:border-gray-700">
-                <button
-                  onClick={() => handleStartQuotation(request)}
-                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30 text-xs sm:text-sm"
-                >
-                  <FileText className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Iniciar Cotação</span>
-                </button>
-            
-              {(aprovaSolicitacoes || userProfile?.name === request.requestedBy) && (
-                <button
-                  onClick={() => handleCompleteRequest(request)}
-                  className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-blue-500/25 hover:shadow-lg hover:shadow-blue-500/30 text-xs sm:text-sm"
-                >
-                  <Check className="w-4 h-4 sm:mr-2" />
-                  <span className="hidden sm:inline">Finalizar</span>
-                </button>
                 )}
               </div>
             )}
@@ -2439,7 +2601,8 @@ const handleCompleteRequest = async (request: Request) => {
                 </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Botão "Exibir mais" e rodapé */}

@@ -236,7 +236,9 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
   // fora: é a coluna mais pesada e só é lida ao abrir "Ver assinatura".
   const REQUEST_LIST_COLUMNS = `id, type, items, reason, requested_by, requested_by_user_id,
     request_date, status, priority, approved_by, approval_date, notes, department, supplier_id,
-    supplier_name, received_by, attachment_url, attachment_name, attachments` as const;
+    supplier_name, received_by, attachment_url, attachment_name, attachments,
+    approver_id, decided_without_approver, rejection_comment,
+    approver:user_profiles!requests_approver_id_fkey (name)` as const;
 
   const fetchRequests = async () => {
     const [{ data, error }, { data: signed, error: signedError }] = await Promise.all([
@@ -268,6 +270,11 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
       priority: request.priority || 'standard',
       approvedBy: request.approved_by,
       approvalDate: request.approval_date,
+      approverId: request.approver_id ?? null,
+      // FK para uma linha: vem objeto, não lista (database.types não tem as Relationships).
+      approverName: (request.approver as unknown as { name: string } | null)?.name ?? null,
+      decidedWithoutApprover: request.decided_without_approver ?? false,
+      rejectionComment: request.rejection_comment ?? null,
       notes: request.notes,
       department: request.department,
       supplierId: request.supplier_id,
@@ -940,6 +947,19 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
     }
   };
 
+  // Decisão da SC pelo aprovador (ou por quem tem canApproveRequests, se ela não
+  // tem aprovador). A RPC autoriza e grava; devolve se foi no lugar do aprovador.
+  const decideRequest = async (id: string, decision: 'approved' | 'rejected', comment?: string): Promise<boolean> => {
+    const { data, error } = await supabase.rpc('requests_decidir_sc', {
+      p_request_id: id,
+      p_decisao: decision,
+      p_comentario: comment ?? null,
+    });
+    if (error) throw new Error(error.message);
+    await fetchRequests();
+    return data === true;
+  };
+
   // Supplier functions
   const addSupplier = async (supplier: Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>): Promise<Supplier> => {
     try {
@@ -1277,6 +1297,7 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
     addAttachmentToRequest,
     removeAttachmentFromRequest,
     updateRequestStatus,
+    decideRequest,
     addSupplier,
     updateSupplier,
     createQuotation,

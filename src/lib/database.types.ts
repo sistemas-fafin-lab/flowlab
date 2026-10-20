@@ -199,6 +199,9 @@ export interface Database {
           approved_by: string | null
           approver_id: string | null
           approved_by_user_id: string | null
+          decided_without_approver: boolean
+          rejected_by_user_id: string | null
+          rejection_comment: string | null
           approval_date: string | null
           notes: string | null
           department: string | null
@@ -220,6 +223,9 @@ export interface Database {
           approved_by?: string | null
           approver_id?: string | null
           approved_by_user_id?: string | null
+          decided_without_approver?: boolean
+          rejected_by_user_id?: string | null
+          rejection_comment?: string | null
           approval_date?: string | null
           notes?: string | null
           department?: string | null
@@ -241,6 +247,9 @@ export interface Database {
           approved_by?: string | null
           approver_id?: string | null
           approved_by_user_id?: string | null
+          decided_without_approver?: boolean
+          rejected_by_user_id?: string | null
+          rejection_comment?: string | null
           approval_date?: string | null
           notes?: string | null
           department?: string | null
