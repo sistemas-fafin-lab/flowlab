@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { AlertTriangle, Calculator, Check, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Calculator, Check, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Trash2, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
 import { filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
@@ -8,6 +8,7 @@ import { montarPdfOrcamentoCliente } from '../domain/pdfCliente';
 import { montarPdfOrcamentoInterno } from '../domain/pdfInterno';
 import type { DadosPdfOrcamento } from '../domain/pdfComum';
 import { carregarLogoPdf } from '../logoPdf';
+import LeituraPedidoMedicoModal from './LeituraPedidoMedicoModal';
 import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
 
 // Renderizar milhares de linhas a cada tecla trava a busca; acima disso, a tela pede
@@ -147,6 +148,10 @@ const GeradorOrcamentoPage: React.FC = () => {
     setCarrinho((atual) => alterarQuantidade(atual, chave, quantidade));
   const remover = (chave: string) => setCarrinho((atual) => removerDoCarrinho(atual, chave));
 
+  const [lendoPedido, setLendoPedido] = useState(false);
+  const adicionarDoPedido = (doPedido: ItemGeradorOrcamento[]) =>
+    setCarrinho((atual) => doPedido.reduce<ItemCarrinho[]>(adicionarAoCarrinho, atual));
+
   const [gerandoPdf, setGerandoPdf] = useState<TipoPdf | null>(null);
   const [erroPdf, setErroPdf] = useState<string | null>(null);
   const gerarPdf = async (tipo: TipoPdf) => {
@@ -203,10 +208,19 @@ const GeradorOrcamentoPage: React.FC = () => {
           <section className="lg:col-span-7 bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 shadow-sm flex flex-col min-h-0">
             <div className="p-4 sm:p-6 border-b border-gray-100 dark:border-gray-700">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Buscar exames</h2>
-                <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                  {exames.length} exames
-                </span>
+                <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                  Buscar exames
+                  <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                    {exames.length} exames
+                  </span>
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => setLendoPedido(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl text-blue-700 bg-blue-50 border border-blue-100 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800/60 dark:hover:bg-blue-900/50"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Ler pedido médico
+                </button>
               </div>
               <div className="relative">
                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
@@ -315,6 +329,10 @@ const GeradorOrcamentoPage: React.FC = () => {
             {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
           </section>
         </div>
+      )}
+
+      {lendoPedido && (
+        <LeituraPedidoMedicoModal exames={exames} onFechar={() => setLendoPedido(false)} onAdicionar={adicionarDoPedido} />
       )}
     </div>
   );

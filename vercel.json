@@ -3,7 +3,8 @@
     { "source": "/((?!api/).*)", "destination": "/" }
   ],
   "functions": {
-    "api/ti/*.ts": { "maxDuration": 300 }
+    "api/ti/*.ts": { "maxDuration": 300 },
+    "api/atendimento/*.ts": { "maxDuration": 60 }
   },
   "crons": [
     { "path": "/api/umami/inatividade-cron", "schedule": "0 11 * * 1" },

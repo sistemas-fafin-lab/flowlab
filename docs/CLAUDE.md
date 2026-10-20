@@ -60,7 +60,7 @@ The application uses a **bounded context** approach with isolated modules:
 - `analises-clinicas/` - Clinical analysis scheduling, collections, cultures, reports
 - `qualidade/` - Quality module (Ocorrências, Cortesias, IHQ, Registro de Câncer) — ported from a separate project (flowlab-qualidade); `/api/qualidade/*` dispatcher/handlers and `cancerRegras.ts` are implemented (`api/qualidade/[action].ts`, `api/_lib/qualidade/`), but the LIS-side identification of Cortesias authorizations and IHQ requests relies on documented best-effort heuristics — see the caveats in `api/_lib/qualidade/bdLabQualidade.ts` and `.scratch/qualidade/issues/`
 - `gastos-ti/` - IT spend control (Gastos de TI): expenses with recurrence, month-by-month actuals and a FinOps dashboard under `/it/gastos`, gated by its own keys `canViewGastosTI`/`canManageGastosTI` (not `canManageIT`). Plan and decisions in `docs/plans/gastos-ti/PLANO_GASTOS_TI.md`; issues in `.scratch/gastos-ti/issues/`
-- `gerador-orcamento/` - Gerador de Orçamento (área Atendimento, `/atendimento/gerador-orcamento`): busca de exames da lista de preços Particular, carrinho e PDF do Orçamento do cliente, gated by `canUseGeradorOrcamento`. Prices come from `GET /api/atendimento/gerador-orcamento-precos` (session JWT); cost is queried and returned only with `canViewGeradorOrcamentoCustos`, which also unlocks the internal PDF (cost × price × margin). Spec and issues in `.scratch/gerador-orcamento/`
+- `gerador-orcamento/` - Gerador de Orçamento (área Atendimento, `/atendimento/gerador-orcamento`): busca de exames da lista de preços Particular, carrinho e PDF do Orçamento do cliente, gated by `canUseGeradorOrcamento`. Prices come from `GET /api/atendimento/gerador-orcamento-precos` (session JWT); cost is queried and returned only with `canViewGeradorOrcamentoCustos`, which also unlocks the internal PDF (cost × price × margin). "Ler pedido médico": the browser uploads photos/PDFs (≤5, ≤10MB) to the private bucket `atendimento-pedidos-medicos` under `<user id>/`, and `POST /api/atendimento/gerador-orcamento-pedido-medico` reads them with Gemini (prompt versioned in `api/_lib/atendimento/promptPedidoMedico.ts`), matches the exams to the price list and deletes the files, on success or failure. Spec and issues in `.scratch/gerador-orcamento/`
 - `eva/` - EVA, the IT agent: the IT home `/it/inicio` (UI from the Claude Design handoff in `docs/flowlab_agent/`, data from `it_requests`/`it_projects`/`it_sprints` through pure rules in `eva/domain/`) and its admin area `/it/eva`. Approving what EVA proposes needs `canApproveAgenteTI`; the home itself uses `canManageIT`. Plan in `docs/plans/agente-ti/PLANO_AGENTE_TI.md`; issues in `.scratch/agente-ti/issues/`
 - Each module exports types, hooks, components, and services via `index.ts`
 
@@ -149,6 +149,7 @@ The system handles multiple request types with distinct workflows:
 
 **Supabase Storage**:
 - Bucket `request-attachments` for request file uploads
+- Bucket `atendimento-pedidos-medicos` (private, temporary) for the Gerador de Orçamento's medical-order reading; files are deleted by the API after each analysis
 - Public bucket with RLS policies for authenticated uploads and public reads
 - Supports PDF, PNG, JPEG (max 10MB)
 - Files referenced via URL in database records

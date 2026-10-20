@@ -15,6 +15,8 @@ export interface FalhaAutorizacao {
 
 /** Quem passou na autorização: o que o usuário pode além de usar o Gerador. */
 export interface AcessoGeradorOrcamento {
+  /** auth.users.id de quem chamou (a leitura do pedido médico só aceita arquivos da pasta dele). */
+  userId: string;
   /** canViewGeradorOrcamentoCustos: só com ela o custo é consultado e devolvido. */
   podeVerCustos: boolean;
 }
@@ -46,7 +48,12 @@ export async function autorizarGeradorOrcamento(token: string | null): Promise<R
   if (!callerPermissions.includes('canUseGeradorOrcamento')) {
     return negar(403, 'Sem permissão para usar o Gerador de Orçamento.');
   }
-  return { acesso: { podeVerCustos: callerPermissions.includes('canViewGeradorOrcamentoCustos') } };
+  return {
+    acesso: {
+      userId: caller.user.id,
+      podeVerCustos: callerPermissions.includes('canViewGeradorOrcamentoCustos'),
+    },
+  };
 }
 
 /** Extrai o access_token do header `Authorization: Bearer <jwt>`. */
