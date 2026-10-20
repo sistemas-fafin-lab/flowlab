@@ -3,6 +3,7 @@ import { AlertTriangle, Calculator, Check, Loader2, Minus, Plus, RotateCcw, Sear
 import { useListaPrecos } from '../hooks/useListaPrecos';
 import { filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
+import { orcamentoDoCarrinho } from '../domain/orcamento';
 import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
 
 // Renderizar milhares de linhas a cada tecla trava a busca; acima disso, a tela pede
@@ -126,6 +127,7 @@ const GeradorOrcamentoPage: React.FC = () => {
 
   const resultados = useMemo(() => filtrarExames(exames, buscaAdiada), [exames, buscaAdiada]);
   const chavesNoCarrinho = useMemo(() => new Set(carrinho.map((c) => chaveExame(c.item))), [carrinho]);
+  const orcamento = useMemo(() => orcamentoDoCarrinho(carrinho), [carrinho]);
 
   const adicionar = React.useCallback((exame: ItemGeradorOrcamento) => {
     setCarrinho((atual) => adicionarAoCarrinho(atual, exame));
@@ -247,6 +249,21 @@ const GeradorOrcamentoPage: React.FC = () => {
                   />
                 ))}
               </ul>
+            )}
+            {carrinho.length > 0 && (
+              // Sempre os dois valores, iguais quando não há desconto; sem percentual nem selo.
+              <dl className="mt-2 pt-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+                <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
+                  <dt>Valor Total</dt>
+                  <dd className="font-semibold tabular-nums">{brl(orcamento.valorTotal)}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-base font-semibold text-gray-900 dark:text-gray-100">Valor com Desconto</dt>
+                  <dd className="text-lg font-bold text-blue-600 dark:text-blue-400 tabular-nums">
+                    {brl(orcamento.valorComDesconto)}
+                  </dd>
+                </div>
+              </dl>
             )}
           </section>
         </div>
