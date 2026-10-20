@@ -195,6 +195,10 @@ cotação, com a vencedora destacada.
     `quotation_enforce_requester_manager`) e na tela
     (`resolveRequesterManagerChoice`). Substitui o "pode trocar para
     qualquer usuário ativo" da história 16.
+  - **Revisado em 20/10:** em Compras, a origem travada passa a ser
+    **quem aprovou a SC** (`requests.approved_by_user_id`), não quem a
+    abriu. SC aprovada por admin no lugar (sem gestor aprovador no RH) não
+    trava. Ver `.scratch/solicitacoes-aprovacao-gestor/` (issue 05).
 - **RPC nova de decisão da etapa 1** (no padrão da decisão por alçada
   existente: `SECURITY DEFINER`, atômica, com `FOR UPDATE` na cotação):
   - autoriza antes de ler a cotação: o usuário autenticado tem de ser o
