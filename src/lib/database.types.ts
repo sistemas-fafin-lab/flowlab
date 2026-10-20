@@ -197,6 +197,8 @@ export interface Database {
           status: 'pending' | 'approved' | 'rejected' | 'completed'
           priority: 'low' | 'standard' | 'priority' | 'urgent'
           approved_by: string | null
+          approver_id: string | null
+          approved_by_user_id: string | null
           approval_date: string | null
           notes: string | null
           department: string | null
@@ -216,6 +218,8 @@ export interface Database {
           status?: 'pending' | 'approved' | 'rejected' | 'completed'
           priority?: 'low' | 'standard' | 'priority' | 'urgent'
           approved_by?: string | null
+          approver_id?: string | null
+          approved_by_user_id?: string | null
           approval_date?: string | null
           notes?: string | null
           department?: string | null
@@ -235,6 +239,8 @@ export interface Database {
           status?: 'pending' | 'approved' | 'rejected' | 'completed'
           priority?: 'low' | 'standard' | 'priority' | 'urgent'
           approved_by?: string | null
+          approver_id?: string | null
+          approved_by_user_id?: string | null
           approval_date?: string | null
           notes?: string | null
           department?: string | null
