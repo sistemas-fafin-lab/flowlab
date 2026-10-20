@@ -6,7 +6,7 @@ Ver `.scratch/gerador-orcamento/spec.md` → histórias 1–19 e "Módulo e nave
 
 **Blocked by:** 01 — Montagem da lista de preços com custo opcional
 
-**Status:** done no código (20/Out/2026); falta aplicar a migration `20261020180000_gerador_orcamento_atendente.sql`, publicar e conferir no navegador
+**Status:** done no código (20/Out/2026); migration `20261020180000_gerador_orcamento_atendente.sql` aplicada no teste em 20/Out; falta aplicar em produção, publicar e conferir no navegador
 
 - [x] Chave `canUseGeradorOrcamento` ("Usar Gerador de Orçamento") registrada no grupo novo "Atendimento" da lista de permissões do app
 - [x] Migration idempotente: cargo de sistema "atendente" (`is_system = true`) com `canUseGeradorOrcamento`, e merge com dedup da chave no cargo "Administrador"

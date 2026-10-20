@@ -6,7 +6,7 @@ Ver `.scratch/gerador-orcamento/spec.md` → histórias 32–36 e "Permissões e
 
 **Blocked by:** 04 — Orçamento em PDF do cliente
 
-**Status:** done no código (20/Out/2026); falta aplicar a migration `20261020190000_gerador_orcamento_custos.sql`, publicar e conferir no navegador
+**Status:** done no código (20/Out/2026); migration `20261020190000_gerador_orcamento_custos.sql` aplicada no teste em 20/Out; falta aplicar em produção, publicar e conferir no navegador
 
 - [x] Chave `canViewGeradorOrcamentoCustos` ("Ver custos e margem no Gerador de Orçamento") no grupo "Atendimento"
 - [x] Migration idempotente adicionando a chave ao cargo "Administrador" (o cargo "atendente" não recebe)
