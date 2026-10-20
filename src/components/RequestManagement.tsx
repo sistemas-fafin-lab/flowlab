@@ -45,19 +45,29 @@ const CENTRAL_STOCK_DEPARTMENT = 'Estoque';
 // envio não pode afetar a criação.
 async function notifyStockOfNewRequest(requestId: string | undefined): Promise<void> {
   if (!requestId) return;
+  await postRequestNotification('request-created', requestId, 'avisar o estoque');
+}
+
+// Avisa quem pediu de que a SC foi rejeitada, com o motivo (ver
+// api/_lib/handlers/notifications-sc-rejected.ts). Mesmo melhor esforço.
+async function notifyRequesterOfRejection(requestId: string): Promise<void> {
+  await postRequestNotification('sc-rejected', requestId, 'avisar quem pediu da rejeição');
+}
+
+async function postRequestNotification(route: string, requestId: string, what: string): Promise<void> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token;
     if (!token) return;
 
-    const res = await fetch('/api/notifications/request-created', {
+    const res = await fetch(`/api/notifications/${route}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ id: requestId }),
     });
-    if (!res.ok) console.warn('[notifyStockOfNewRequest] falha ao avisar o estoque:', res.status);
+    if (!res.ok) console.warn(`[notifications/${route}] falha ao ${what}:`, res.status);
   } catch (err) {
-    console.warn('[notifyStockOfNewRequest] falha ao avisar o estoque:', err);
+    console.warn(`[notifications/${route}] falha ao ${what}:`, err);
   }
 }
 
@@ -820,6 +830,7 @@ useEffect(() => {
     setIsRejecting(true);
     try {
       await decideRequest(rejectingRequest.id, 'rejected', rejectionComment.trim());
+      void notifyRequesterOfRejection(rejectingRequest.id);
       showSuccess('Solicitação rejeitada.');
       setRejectingRequest(null);
     } catch (error) {

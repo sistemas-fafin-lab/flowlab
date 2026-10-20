@@ -202,6 +202,7 @@ export interface Database {
           decided_without_approver: boolean
           rejected_by_user_id: string | null
           rejection_comment: string | null
+          approver_notified_at: string | null
           approval_date: string | null
           notes: string | null
           department: string | null
@@ -226,6 +227,7 @@ export interface Database {
           decided_without_approver?: boolean
           rejected_by_user_id?: string | null
           rejection_comment?: string | null
+          approver_notified_at?: string | null
           approval_date?: string | null
           notes?: string | null
           department?: string | null
@@ -250,6 +252,7 @@ export interface Database {
           decided_without_approver?: boolean
           rejected_by_user_id?: string | null
           rejection_comment?: string | null
+          approver_notified_at?: string | null
           approval_date?: string | null
           notes?: string | null
           department?: string | null

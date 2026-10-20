@@ -10,7 +10,9 @@
  * contá-los como functions. Autorização, parsing e validação seguem dentro de
  * cada handler: `email` é público (contrato histórico, usado por scripts
  * externos), `request-created` e `payment-request` exigem a sessão do usuário e
- * `requests-digest-cron` (Vercel Cron) exige o CRON_SECRET.
+ * `requests-digest-cron` (Vercel Cron) exige o CRON_SECRET. `sc-rejected` exige
+ * a sessão de quem rejeitou; `sc-awaiting-approval` é chamada pelo banco
+ * (pg_net) com o CRON_SECRET.
  *
  * Espelha api/umami/[action].ts.
  */
@@ -20,6 +22,8 @@ import notificationsEmail from '../_lib/handlers/notifications-email.js';
 import notificationsRequestCreated from '../_lib/handlers/notifications-request-created.js';
 import notificationsPaymentRequest from '../_lib/handlers/notifications-payment-request.js';
 import notificationsRequestsDigestCron from '../_lib/handlers/notifications-requests-digest-cron.js';
+import notificationsScAwaitingApproval from '../_lib/handlers/notifications-sc-awaiting-approval.js';
+import notificationsScRejected from '../_lib/handlers/notifications-sc-rejected.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
@@ -29,6 +33,8 @@ const ROTAS: Record<string, Handler> = {
   'request-created': notificationsRequestCreated,
   'payment-request': notificationsPaymentRequest,
   'requests-digest-cron': notificationsRequestsDigestCron,
+  'sc-awaiting-approval': notificationsScAwaitingApproval,
+  'sc-rejected': notificationsScRejected,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

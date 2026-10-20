@@ -44,7 +44,7 @@ const TYPE_LABELS: Record<RequestCreatedRow['type'], string> = {
 };
 
 // Mesmos rótulos de RequestManagement.tsx.
-const PRIORITY_LABELS: Record<RequestCreatedRow['priority'], string> = {
+export const PRIORITY_LABELS: Record<RequestCreatedRow['priority'], string> = {
   standard: 'Padrão',
   priority: 'Prioritário',
   urgent: 'Urgente',
@@ -77,7 +77,7 @@ const OUT_OF_STOCK_BADGE =
 const isOutOfStock = (item: RequestCreatedItem, stockByProductId: Record<string, number>): boolean =>
   item.productId === null || (stockByProductId[item.productId] ?? 0) <= 0;
 
-const formatDateBR = (isoDate: string | null): string => {
+export const formatDateBR = (isoDate: string | null): string => {
   const match = isoDate?.match(/^(\d{4})-(\d{2})-(\d{2})/);
   return match ? `${match[3]}/${match[2]}/${match[1]}` : '';
 };

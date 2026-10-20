@@ -8,6 +8,8 @@ import { supabase } from '../lib/supabase';
 import { useQuotationsAwaitingApprovalCount } from '../modules/quotations/hooks/useQuotationsAwaitingApprovalCount';
 import { useQuotationsAwaitingManagerApprovalCount } from '../modules/quotations/hooks/useQuotationsAwaitingManagerApprovalCount';
 import { buildQuotationManagerApprovalsUrl, buildQuotationsUrl } from '../modules/quotations/routes';
+import { useScsAwaitingMyApprovalCount } from '../hooks/useScsAwaitingMyApprovalCount';
+import { buildRequestsAwaitingMyApprovalUrl } from '../../api/_lib/requestsRoutes.js';
 import {
   LayoutDashboard,
   Package,
@@ -64,6 +66,7 @@ interface QuickStats {
   myPendingRequests: number;
   quotationsAwaitingApprovalCount: number;
   quotationsAwaitingManagerApprovalCount: number;
+  scsAwaitingMyApprovalCount: number;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -147,6 +150,15 @@ const WIDGETS_CONFIG: WidgetConfig[] = [
     icon: ClipboardCheck,
     size: 'medium',
     requiredPermission: null, // o gestor pode não ter acesso ao módulo de Cotações
+    category: 'action',
+  },
+  {
+    id: 'sc-approvals',
+    title: 'SCs aguardando sua aprovação',
+    description: 'Solicitações de Compra em que você é o aprovador',
+    icon: ClipboardCheck,
+    size: 'medium',
+    requiredPermission: null, // ser aprovador não depende de permissão de cargo
     category: 'action',
   },
   {
@@ -492,6 +504,39 @@ const QuotationManagerApprovalsWidget: React.FC<WidgetProps> = ({ stats }) => (
   </Link>
 );
 
+// Medium: SCs em que o usuário é o aprovador (departamento de quem pediu)
+const ScApprovalsWidget: React.FC<WidgetProps> = ({ stats }) => (
+  <Link
+    to={buildRequestsAwaitingMyApprovalUrl('')}
+    className="group relative w-full h-full rounded-3xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm p-6 border border-gray-100 dark:border-gray-700 shadow-xl min-h-[160px] flex flex-col transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:border-orange-300 dark:hover:border-orange-600"
+  >
+    <div className="h-full flex flex-col gap-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-orange-500 to-amber-500 flex items-center justify-center shadow-lg shadow-orange-500/25">
+          <ClipboardCheck className="w-6 h-6 text-white" />
+        </div>
+        <span className="px-2.5 py-1 text-xs font-bold bg-orange-500 text-white rounded-full">
+          {stats.scsAwaitingMyApprovalCount}
+        </span>
+      </div>
+
+      {/* Content */}
+      <div className="mt-auto flex flex-col gap-1">
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+          SCs aguardando sua aprovação
+        </h3>
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {`${stats.scsAwaitingMyApprovalCount} pendente${stats.scsAwaitingMyApprovalCount > 1 ? 's' : ''}`}
+        </p>
+      </div>
+    </div>
+
+    {/* Arrow indicator */}
+    <ChevronRight className="absolute bottom-6 right-6 w-5 h-5 text-gray-300 dark:text-gray-600 group-hover:text-orange-500 group-hover:translate-x-1 transition-all" />
+  </Link>
+);
+
 // Medium: Minhas Solicitações
 const MyRequestsWidget: React.FC<WidgetProps> = ({ stats, loading }) => (
   <Link
@@ -701,6 +746,8 @@ const renderWidget = (config: WidgetConfig, stats: QuickStats, loading: boolean)
       return <QuotationApprovalsWidget {...props} />;
     case 'quotation-manager-approvals':
       return <QuotationManagerApprovalsWidget {...props} />;
+    case 'sc-approvals':
+      return <ScApprovalsWidget {...props} />;
     case 'my-requests':
       return <MyRequestsWidget {...props} />;
     case 'stats-pending':
@@ -891,7 +938,7 @@ const Home: React.FC = () => {
   // Stats state (as contagens de cotações vêm dos hooks do módulo de cotações,
   // mescladas só na hora de renderizar os widgets — ver `statsForWidgets` abaixo)
   const [stats, setStats] = useState<
-    Omit<QuickStats, 'quotationsAwaitingApprovalCount' | 'quotationsAwaitingManagerApprovalCount'>
+    Omit<QuickStats, 'quotationsAwaitingApprovalCount' | 'quotationsAwaitingManagerApprovalCount' | 'scsAwaitingMyApprovalCount'>
   >({
     pendingRequests: 0,
     approvedRequests: 0,
@@ -912,6 +959,9 @@ const Home: React.FC = () => {
   // Etapa do gestor do pedido: para qualquer usuário logado, independente do
   // acesso ao módulo — o card só aparece com pendência.
   const quotationsAwaitingManagerApprovalCount = useQuotationsAwaitingManagerApprovalCount();
+
+  // SCs em que o usuário é o aprovador: idem, card só com pendência.
+  const scsAwaitingMyApprovalCount = useScsAwaitingMyApprovalCount();
 
   // Customization state
   const [hiddenWidgets, setHiddenWidgets] = useState<string[]>([]);
@@ -961,10 +1011,11 @@ const Home: React.FC = () => {
     return WIDGETS_CONFIG.filter((widget) => {
       if (widget.id === 'quotation-approvals' && !hasQuotationApprovalAuthority) return false;
       if (widget.id === 'quotation-manager-approvals' && quotationsAwaitingManagerApprovalCount === 0) return false;
+      if (widget.id === 'sc-approvals' && scsAwaitingMyApprovalCount === 0) return false;
       if (widget.requiredPermission === null) return true;
       return hasPermission(userPermissions, widget.requiredPermission);
     });
-  }, [userPermissions, hasQuotationApprovalAuthority, quotationsAwaitingManagerApprovalCount]);
+  }, [userPermissions, hasQuotationApprovalAuthority, quotationsAwaitingManagerApprovalCount, scsAwaitingMyApprovalCount]);
 
   // Final visible widgets (permission + not hidden)
   const visibleWidgets = useMemo(() => {
@@ -972,8 +1023,8 @@ const Home: React.FC = () => {
   }, [availableWidgets, hiddenWidgets]);
 
   const statsForWidgets = useMemo<QuickStats>(
-    () => ({ ...stats, quotationsAwaitingApprovalCount, quotationsAwaitingManagerApprovalCount }),
-    [stats, quotationsAwaitingApprovalCount, quotationsAwaitingManagerApprovalCount],
+    () => ({ ...stats, quotationsAwaitingApprovalCount, quotationsAwaitingManagerApprovalCount, scsAwaitingMyApprovalCount }),
+    [stats, quotationsAwaitingApprovalCount, quotationsAwaitingManagerApprovalCount, scsAwaitingMyApprovalCount],
   );
 
   // Fetch stats
