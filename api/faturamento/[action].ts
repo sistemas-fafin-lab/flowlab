@@ -36,6 +36,7 @@ import faturamentoImagensLegado from '../_lib/handlers/faturamento-imagens-legad
 import faturamentoImagemLegadoArquivo from '../_lib/handlers/faturamento-imagem-legado-arquivo.js';
 import faturamentoStatusFaturamento from '../_lib/handlers/faturamento-status-faturamento.js';
 import faturamentoRecebidosMes from '../_lib/handlers/faturamento-recebidos-mes.js';
+import faturamentoAplisCobrancasTestes from '../_lib/handlers/faturamento-aplis-cobrancas-testes.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
@@ -63,6 +64,7 @@ const ROTAS: Record<string, Handler> = {
   'imagem-legado-arquivo': faturamentoImagemLegadoArquivo,
   'status-faturamento': faturamentoStatusFaturamento,
   'recebidos-mes': faturamentoRecebidosMes,
+  'aplis-cobrancas-testes': faturamentoAplisCobrancasTestes,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

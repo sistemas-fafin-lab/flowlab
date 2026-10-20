@@ -1,6 +1,8 @@
 import React from 'react';
-import { Pencil, Trash2, SearchX } from 'lucide-react';
+import { Pencil, Trash2, SearchX, Link2 } from 'lucide-react';
 import { Exam, formatBRL } from '../../hooks/useCostControl';
+import type { CobrancaAplis } from '../../hooks/useCobrancasTestesAplis';
+import { descricaoVinculoAplis } from './domain/vinculoAplis';
 import { CabecalhoOrdenavel } from './domain/CabecalhoOrdenavel';
 import type { EstadoOrdenacao } from './domain/ordenacao';
 
@@ -15,6 +17,8 @@ interface ExamTableProps {
   onDelete: (exam: Exam) => void;
   ordenacao: EstadoOrdenacao;
   onSort: (coluna: ColunaExame) => void;
+  // Só para o nome no tooltip do indicador "Ligado ao apLIS"; vazia mostra os ids.
+  cobrancasAplis: CobrancaAplis[];
 }
 
 const ExamTable: React.FC<ExamTableProps> = ({
@@ -26,6 +30,7 @@ const ExamTable: React.FC<ExamTableProps> = ({
   onDelete,
   ordenacao,
   onSort,
+  cobrancasAplis,
 }) => {
   if (exams.length === 0) {
     return (
@@ -60,6 +65,7 @@ const ExamTable: React.FC<ExamTableProps> = ({
               <CabecalhoOrdenavel coluna="tuss" titulo="TUSS" ordenacao={ordenacao} onClick={onSort} />
               <CabecalhoOrdenavel coluna="name" titulo="Nome do Exame" ordenacao={ordenacao} onClick={onSort} />
               <CabecalhoOrdenavel coluna="location" titulo="Local" ordenacao={ordenacao} onClick={onSort} />
+              <th className="px-5 py-3 text-left font-bold">apLIS</th>
               <CabecalhoOrdenavel coluna="direct" titulo="Custo Direto" ordenacao={ordenacao} onClick={onSort} align="right" />
               <CabecalhoOrdenavel coluna="indirect" titulo="Custo Indireto" ordenacao={ordenacao} onClick={onSort} align="right" />
               <CabecalhoOrdenavel coluna="total" titulo="Custo Total" ordenacao={ordenacao} onClick={onSort} align="right" />
@@ -99,6 +105,19 @@ const ExamTable: React.FC<ExamTableProps> = ({
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold rounded-full border bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20">
                       <span className="w-1.5 h-1.5 rounded-full bg-current" />
                       {exam.location}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-gray-400 dark:text-gray-500">—</span>
+                  )}
+                </td>
+                <td className="px-5 py-3.5">
+                  {exam.aplisIdExameTipo !== null ? (
+                    <span
+                      title={descricaoVinculoAplis(cobrancasAplis, exam)}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full border bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 whitespace-nowrap"
+                    >
+                      <Link2 className="w-3 h-3" />
+                      Ligado
                     </span>
                   ) : (
                     <span className="text-xs text-gray-400 dark:text-gray-500">—</span>

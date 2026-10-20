@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Pencil, Plus, X, Save } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { Pencil, Plus, X, Save, Link2 } from 'lucide-react';
 import { Exam, IndirectCostItem, formatBRL } from '../../hooks/useCostControl';
+import { useCobrancasTestesAplis, type CobrancaAplis, type TesteAplis } from '../../hooks/useCobrancasTestesAplis';
+import AutocompleteInput from './AutocompleteInput';
+import { casaTermo } from './domain/busca';
+import { nomesVinculoAplis } from './domain/vinculoAplis';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -14,6 +18,8 @@ interface FormState {
   direct: number;
   indirect: number;
   indirectItems: IndirectCostItem[];
+  aplisIdExameTipo: number | null;
+  aplisIdTeste: number | null;
 }
 
 interface ExamFormModalProps {
@@ -29,10 +35,49 @@ interface ExamFormModalProps {
 
 const EMPTY_FORM: FormState = {
   code: '', tuss: '', name: '', location: '', direct: 0, indirect: 0, indirectItems: [],
+  aplisIdExameTipo: null, aplisIdTeste: null,
 };
+
+const BotaoLimpar: React.FC<{ onClick: () => void; title: string }> = ({ onClick, title }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    title={title}
+    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+  >
+    <X className="w-4 h-4" />
+  </button>
+);
+
+// Texto vazio mostra a lista toda (são poucas cobranças/testes); com texto, filtra por nome.
+const filtrarPorNome = <T extends { nome: string }>(itens: T[], texto: string): T[] =>
+  texto.trim() ? itens.filter(i => casaTermo(i.nome, texto)) : itens;
 
 const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSave }) => {
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
+  // Texto digitado nos autocompletes do apLIS. O vínculo é o id em `form`: texto
+  // que não veio de uma sugestão não liga nada (ver handleSubmit).
+  const [cobrancaTexto, setCobrancaTexto] = useState('');
+  const [testeTexto, setTesteTexto] = useState('');
+  const [erroVinculo, setErroVinculo] = useState<string | null>(null);
+  // Depois que a usuária mexe no vínculo, a lista do apLIS chegando não pode
+  // trocar o texto dela pelos nomes salvos.
+  const mexeuNoVinculoRef = useRef(false);
+  const { cobrancas, loading: carregandoAplis, error: erroAplis } = useCobrancasTestesAplis(open);
+
+  const cobrancaEscolhida = useMemo(
+    () => cobrancas.find(c => c.id === form.aplisIdExameTipo) ?? null,
+    [cobrancas, form.aplisIdExameTipo]
+  );
+  // Inativas não são oferecidas, mas um vínculo antigo com uma delas continua aparecendo pelo nome.
+  const sugestoesCobranca = useMemo(
+    () => filtrarPorNome(cobrancas.filter(c => !c.inativa), cobrancaTexto),
+    [cobrancas, cobrancaTexto]
+  );
+  const sugestoesTeste = useMemo(
+    () => filtrarPorNome(cobrancaEscolhida?.testes ?? [], testeTexto),
+    [cobrancaEscolhida, testeTexto]
+  );
 
   useEffect(() => {
     if (open) {
@@ -46,11 +91,23 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
               direct: exam.direct,
               indirect: exam.indirect,
               indirectItems: exam.indirectItems ?? [],
+              aplisIdExameTipo: exam.aplisIdExameTipo,
+              aplisIdTeste: exam.aplisIdTeste,
             }
           : EMPTY_FORM
       );
+      setErroVinculo(null);
+      mexeuNoVinculoRef.current = false;
     }
   }, [open, exam]);
+
+  // Preenche os textos com os nomes do apLIS ao abrir e quando a lista chega.
+  useEffect(() => {
+    if (!open || mexeuNoVinculoRef.current) return;
+    const nomes = nomesVinculoAplis(cobrancas, exam?.aplisIdExameTipo ?? null, exam?.aplisIdTeste ?? null);
+    setCobrancaTexto(nomes.cobranca);
+    setTesteTexto(nomes.teste);
+  }, [open, exam, cobrancas]);
 
   if (!open) return null;
 
@@ -58,7 +115,44 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (cobrancaTexto.trim() && form.aplisIdExameTipo === null) {
+      setErroVinculo('Escolha a cobrança na lista, ou apague o texto para deixar o exame sem vínculo.');
+      return;
+    }
+    if (testeTexto.trim() && form.aplisIdTeste === null) {
+      setErroVinculo('Escolha o teste na lista, ou apague o texto para ligar à cobrança sem teste.');
+      return;
+    }
+    setErroVinculo(null);
     onSave(form);
+  };
+
+  const mudarTextoCobranca = (texto: string) => {
+    mexeuNoVinculoRef.current = true;
+    setCobrancaTexto(texto);
+    setTesteTexto('');
+    setForm(f => ({ ...f, aplisIdExameTipo: null, aplisIdTeste: null }));
+  };
+
+  const escolherCobranca = (cobranca: CobrancaAplis) => {
+    mexeuNoVinculoRef.current = true;
+    setCobrancaTexto(cobranca.nome);
+    setTesteTexto('');
+    setForm(f => ({ ...f, aplisIdExameTipo: cobranca.id, aplisIdTeste: null }));
+    setErroVinculo(null);
+  };
+
+  const mudarTextoTeste = (texto: string) => {
+    mexeuNoVinculoRef.current = true;
+    setTesteTexto(texto);
+    setForm(f => ({ ...f, aplisIdTeste: null }));
+  };
+
+  const escolherTeste = (teste: TesteAplis) => {
+    mexeuNoVinculoRef.current = true;
+    setTesteTexto(teste.nome);
+    setForm(f => ({ ...f, aplisIdTeste: teste.id }));
+    setErroVinculo(null);
   };
 
   const inputCls =
@@ -203,6 +297,80 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
                     />
                   </div>
                 </div>
+              </div>
+            </div>
+
+            {/* Vínculo com o apLIS */}
+            <div>
+              <h3 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">
+                <Link2 className="w-3.5 h-3.5" /> Vínculo com o apLIS
+              </h3>
+              <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-900/30 p-4 space-y-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Diz a outros sistemas qual TUSS usar para esta cobrança/teste do apLIS. Sem vínculo, nenhum TUSS é
+                  enviado por este exame.
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
+                      Cobrança no apLIS
+                    </label>
+                    <div className="relative">
+                      <AutocompleteInput
+                        value={cobrancaTexto}
+                        onValueChange={mudarTextoCobranca}
+                        onSelect={escolherCobranca}
+                        suggestions={sugestoesCobranca}
+                        renderSuggestion={c => <span className="text-gray-800 dark:text-gray-100">{c.nome}</span>}
+                        keyOf={c => String(c.id)}
+                        emptyLabel={carregandoAplis ? 'Carregando cobranças…' : 'Nenhuma cobrança encontrada'}
+                        placeholder="Sem vínculo"
+                        showAllWhenEmpty
+                        className={`${inputCls} pr-9`}
+                      />
+                      {cobrancaTexto && <BotaoLimpar onClick={() => mudarTextoCobranca('')} title="Remover vínculo" />}
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
+                      Teste no apLIS
+                    </label>
+                    {cobrancaEscolhida && cobrancaEscolhida.testes.length > 0 ? (
+                      <div className="relative">
+                        <AutocompleteInput
+                          value={testeTexto}
+                          onValueChange={mudarTextoTeste}
+                          onSelect={escolherTeste}
+                          suggestions={sugestoesTeste}
+                          renderSuggestion={t => <span className="text-gray-800 dark:text-gray-100">{t.nome}</span>}
+                          keyOf={t => String(t.id)}
+                          emptyLabel="Nenhum teste encontrado"
+                          placeholder="Sem teste (vale para a cobrança)"
+                          showAllWhenEmpty
+                          className={`${inputCls} pr-9`}
+                        />
+                        {testeTexto && <BotaoLimpar onClick={() => mudarTextoTeste('')} title="Remover teste" />}
+                      </div>
+                    ) : form.aplisIdTeste !== null ? (
+                      // Teste salvo que a lista não oferece (inativo, ou a lista não
+                      // carregou): mostra e deixa remover.
+                      <div className="relative px-3 py-2.5 pr-9 text-sm rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200">
+                        {testeTexto}
+                        <BotaoLimpar onClick={() => mudarTextoTeste('')} title="Remover teste" />
+                      </div>
+                    ) : (
+                      <p className="px-3 py-2.5 text-sm rounded-xl border border-dashed border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500">
+                        {form.aplisIdExameTipo === null ? 'Escolha a cobrança primeiro' : 'Esta cobrança não tem testes'}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                {erroAplis && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">{erroAplis}</p>
+                )}
+                {erroVinculo && (
+                  <p className="text-xs text-red-600 dark:text-red-400">{erroVinculo}</p>
+                )}
               </div>
             </div>
 

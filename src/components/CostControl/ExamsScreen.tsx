@@ -10,8 +10,10 @@ import {
   FlaskConical,
   DollarSign,
   BarChart3,
+  Link2,
 } from 'lucide-react';
 import { Exam, formatBRL } from '../../hooks/useCostControl';
+import { useCobrancasTestesAplis } from '../../hooks/useCobrancasTestesAplis';
 import { useNotification } from '../../hooks/useNotification';
 import { useDialog } from '../../hooks/useDialog';
 import Notification from '../Notification';
@@ -39,6 +41,8 @@ interface ExamsScreenProps {
 // uma vez, deixando a página com ~35 mil px de altura (a barra de rolagem
 // virava um fio, "voando" a qualquer toque na roda do mouse).
 const ITEMS_PER_PAGE = 25;
+
+type FiltroVinculoAplis = 'todos' | 'ligados' | 'sem-vinculo';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // STAT CARD
@@ -88,6 +92,8 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
 
   const [search, setSearch] = useState('');
   const [location, setLocation] = useState('all');
+  const [vinculoAplis, setVinculoAplis] = useState<FiltroVinculoAplis>('todos');
+  const { cobrancas: cobrancasAplis } = useCobrancasTestesAplis();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Exam | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -112,16 +118,19 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
           casaTermo(e.code, search) ||
           casaTermo(e.tuss, search);
         const matchesLoc = location === 'all' || e.location === location;
-        return matchesSearch && matchesLoc;
+        const ligado = e.aplisIdExameTipo !== null;
+        const matchesVinculo =
+          vinculoAplis === 'todos' || (vinculoAplis === 'ligados' ? ligado : !ligado);
+        return matchesSearch && matchesLoc && matchesVinculo;
       }),
-    [exams, search, location]
+    [exams, search, location, vinculoAplis]
   );
 
   // Reseta a paginação sempre que o recorte (busca/local) muda — senão o
   // usuário pode ficar "preso" numa página 5 que não existe mais no recorte novo.
   useEffect(() => {
     setDisplayCount(ITEMS_PER_PAGE);
-  }, [search, location, ordenacao]);
+  }, [search, location, vinculoAplis, ordenacao]);
 
   const sorted = useMemo(
     () =>
@@ -313,6 +322,21 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
             <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
           </div>
 
+          {/* apLIS link filter */}
+          <div className="relative">
+            <Link2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+            <select
+              value={vinculoAplis}
+              onChange={e => setVinculoAplis(e.target.value as FiltroVinculoAplis)}
+              className="pl-9 pr-9 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 appearance-none"
+            >
+              <option value="todos">Ligados ou não ao apLIS</option>
+              <option value="ligados">Ligados ao apLIS</option>
+              <option value="sem-vinculo">Sem vínculo com o apLIS</option>
+            </select>
+            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+          </div>
+
           {/* Action buttons */}
           <div className="flex flex-wrap items-center gap-2">
             <div className="relative" ref={exportMenuRef}>
@@ -363,6 +387,7 @@ const ExamsScreen: React.FC<ExamsScreenProps> = ({ exams, addExam, updateExam, d
         onDelete={handleDelete}
         ordenacao={ordenacao}
         onSort={alternar}
+        cobrancasAplis={cobrancasAplis}
       />
 
       {/* Show more */}

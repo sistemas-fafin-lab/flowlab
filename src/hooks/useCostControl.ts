@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
   separarUpsertFontePagadora,
   type LinhaImportacaoFontePagadora,
 } from '../components/CostControl/domain/importacaoFontesPagadoras';
 import { chaveExclusaoExame } from '../components/CostControl/domain/busca';
+import { exameComMesmoVinculoAplis } from '../components/CostControl/domain/vinculoAplis';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -25,6 +26,11 @@ export interface Exam {
   direct: number;
   indirect: number;
   indirectItems: IndirectCostItem[];
+  // Vínculo com o apLIS (migration 20261020210000): ids de lá, não do flowlab.
+  // Cobrança null = exame sem vínculo (a Admissão não manda TUSS por ele);
+  // teste só existe com cobrança.
+  aplisIdExameTipo: number | null;
+  aplisIdTeste: number | null;
 }
 
 export interface Payor {
@@ -104,6 +110,8 @@ const mapExamRow = (row: any): Exam => ({
   direct: Number(row.custo_direto) || 0,
   indirect: Number(row.custo_indireto) || 0,
   indirectItems: row.custo_indireto_itens ?? [],
+  aplisIdExameTipo: row.aplis_id_exame_tipo ?? null,
+  aplisIdTeste: row.aplis_id_teste ?? null,
 });
 
 const toExamPayload = (data: Partial<Omit<Exam, 'id'>>) => {
@@ -115,7 +123,30 @@ const toExamPayload = (data: Partial<Omit<Exam, 'id'>>) => {
   if (data.direct !== undefined) payload.custo_direto = data.direct;
   if (data.indirect !== undefined) payload.custo_indireto = data.indirect;
   if (data.indirectItems !== undefined) payload.custo_indireto_itens = data.indirectItems;
+  if (data.aplisIdExameTipo !== undefined) payload.aplis_id_exame_tipo = data.aplisIdExameTipo;
+  if (data.aplisIdTeste !== undefined) payload.aplis_id_teste = data.aplisIdTeste;
   return payload;
+};
+
+// Violação do índice uq_custo_exames_vinculo_aplis (mesmo par cobrança/teste
+// do apLIS em dois exames) vira mensagem que diz QUAL exame já tem o par, em
+// vez do "duplicate key value violates unique constraint" do Postgres.
+// Qualquer outro erro sai como veio do Supabase.
+const erroAoSalvarExame = (
+  error: { code?: string; message?: string },
+  exams: Exam[],
+  idProprio: string | null,
+  data: Partial<Omit<Exam, 'id'>>
+): unknown => {
+  if (error.code === '23505' && error.message?.includes('uq_custo_exames_vinculo_aplis') && data.aplisIdExameTipo != null) {
+    const outro = exameComMesmoVinculoAplis(exams, idProprio, data.aplisIdExameTipo, data.aplisIdTeste ?? null);
+    return new Error(
+      outro
+        ? `Esta cobrança/teste já está ligada ao exame "${outro.name}".`
+        : 'Esta cobrança/teste já está ligada a outro exame.'
+    );
+  }
+  return error;
 };
 
 // custo_fontes_pagadoras guarda snake_case (schema Postgres); a tela usa o
@@ -177,6 +208,11 @@ export const useCostControl = (): UseCostControlReturn => {
   const [exameExclusions, setExameExclusions] = useState<Set<string>>(new Set());
   const [exameValoresPersonalizados, setExameValoresPersonalizados] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
+  // Lido por erroAoSalvarExame sem recriar addExam/updateExam a cada mudança.
+  const examsRef = useRef<Exam[]>([]);
+  useEffect(() => {
+    examsRef.current = exams;
+  }, [exams]);
 
   const fetchExams = useCallback(async () => {
     const { data, error } = await supabase
@@ -226,7 +262,7 @@ export const useCostControl = (): UseCostControlReturn => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw erroAoSalvarExame(error, examsRef.current, null, data);
     setExams(prev => [mapExamRow(inserted), ...prev]);
   }, []);
 
@@ -238,7 +274,7 @@ export const useCostControl = (): UseCostControlReturn => {
       .select()
       .single();
 
-    if (error) throw error;
+    if (error) throw erroAoSalvarExame(error, examsRef.current, id, data);
     setExams(prev => prev.map(e => (e.id === id ? mapExamRow(updated) : e)));
   }, []);
 

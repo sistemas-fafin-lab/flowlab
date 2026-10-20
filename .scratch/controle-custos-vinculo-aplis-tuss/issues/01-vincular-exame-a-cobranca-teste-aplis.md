@@ -4,12 +4,12 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** ready-for-agent
+**Status:** done no código (20/Out/2026); falta aplicar a migration 20261020210000_custo_exames_vinculo_aplis em produção
 
-- [ ] `custo_exames` tem `aplis_id_exame_tipo` e `aplis_id_teste` (nulos), com CHECK "teste só com cobrança" e unicidade do par (sem teste conta como valor)
-- [ ] Comentários nas colunas dizem que são ids do apLIS e que vínculo vazio = não mandar TUSS
-- [ ] Formulário do exame tem "Cobrança no apLIS" e "Teste no apLIS" com autocomplete por nome; testes filtrados pela cobrança escolhida (`fatexameexametipo` → `patteste`, ativos, com a exceção 19 → 22)
-- [ ] Cobranças e testes vêm do MySQL do lab pelo acesso já existente (`bdLab`)
-- [ ] Tabela de exames mostra indicador "Ligado ao apLIS" e tem filtro "sem vínculo"
-- [ ] Ligar um par já usado mostra "Esta cobrança/teste já está ligada ao exame X" em vez de erro genérico
-- [ ] Remover o vínculo (limpar os campos) funciona
+- [x] `custo_exames` tem `aplis_id_exame_tipo` e `aplis_id_teste` (nulos), com CHECK "teste só com cobrança" e unicidade do par (sem teste conta como valor)
+- [x] Comentários nas colunas dizem que são ids do apLIS e que vínculo vazio = não mandar TUSS
+- [x] Formulário do exame tem "Cobrança no apLIS" e "Teste no apLIS" com autocomplete por nome; testes filtrados pela cobrança escolhida (`fatexameexametipo` → `patteste`, ativos, com a exceção 19 → 22)
+- [x] Cobranças e testes vêm do MySQL do lab pelo acesso já existente (`bdLab`)
+- [x] Tabela de exames mostra indicador "Ligado ao apLIS" e tem filtro "sem vínculo"
+- [x] Ligar um par já usado mostra "Esta cobrança/teste já está ligada ao exame X" em vez de erro genérico
+- [x] Remover o vínculo (limpar os campos) funciona

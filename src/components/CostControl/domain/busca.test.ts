@@ -20,6 +20,8 @@ const exame = (over: Partial<Exam>): Exam => ({
   direct: 10,
   indirect: 2,
   indirectItems: [],
+  aplisIdExameTipo: null,
+  aplisIdTeste: null,
   ...over,
 });
 

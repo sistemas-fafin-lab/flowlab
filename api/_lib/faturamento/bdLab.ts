@@ -31,6 +31,13 @@
 
 import mysql from 'mysql2/promise';
 import type { DiferencaAplis } from './glosasAplis.js';
+import { cobrancasComTestes } from './cobrancasTestesAplis.js';
+import type {
+  CobrancaAplis,
+  LinhaCobranca,
+  LinhaTesteExame,
+  VinculoCobrancaExame,
+} from './cobrancasTestesAplis.js';
 
 /** Timeout de conexão. O túnel pode estar fora do ar; falha rápido. */
 const CONNECT_TIMEOUT_MS = 8_000;
@@ -708,6 +715,58 @@ function normalizarLote(
     },
     statusFaturamento: statusFaturamentoResumo(linha.StatusFaturamentoResumoBruto, rotulosEventoFatur),
   };
+}
+
+export type CobrancasTestesAplisResultado =
+  | { cobrancas: CobrancaAplis[] }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Todas as cobranças do apLIS com os testes de cada uma, para o vínculo do catálogo
+ * de exames do Controle de Custos (regra em cobrancasTestesAplis.ts). As três
+ * tabelas têm poucas dezenas de linhas: lê tudo e a tela filtra o autocomplete.
+ *
+ * Sem cache aqui: a tela (useCobrancasTestesAplis) lê uma vez por carregamento da
+ * aba Exames, para o formulário e os nomes do indicador "Ligado".
+ */
+export async function listarCobrancasTestesAplis(): Promise<CobrancasTestesAplisResultado> {
+  return comConexao('listarCobrancasTestesAplis', async (conn) => {
+    const [cobrancas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT IdExameTipo, NomExameTipo, COALESCE(Inativo, 0) AS Inativo
+         FROM fatexametipo
+        ORDER BY NomExameTipo`,
+      [],
+    );
+    const [vinculos] = await conn.execute<mysql.RowDataPacket[]>(
+      'SELECT IdExameTipo, CodExame FROM fatexameexametipo',
+      [],
+    );
+    const [testes] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT pe.IdExame, pt.IdTeste, pt.NomTeste, COALESCE(pt.Inativo, 0) AS Inativo
+         FROM pattesteexame AS pe
+         INNER JOIN patteste AS pt ON pt.IdTeste = pe.IdTeste`,
+      [],
+    );
+    return {
+      cobrancas: cobrancasComTestes(
+        cobrancas.map((linha): LinhaCobranca => ({
+          IdExameTipo: numero(linha.IdExameTipo),
+          NomExameTipo: texto(linha.NomExameTipo) ?? '',
+          Inativo: numero(linha.Inativo),
+        })),
+        vinculos.map((linha): VinculoCobrancaExame => ({
+          IdExameTipo: numero(linha.IdExameTipo),
+          CodExame: numero(linha.CodExame),
+        })),
+        testes.map((linha): LinhaTesteExame => ({
+          IdExame: numero(linha.IdExame),
+          IdTeste: numero(linha.IdTeste),
+          NomTeste: texto(linha.NomTeste) ?? '',
+          Inativo: numero(linha.Inativo),
+        })),
+      ),
+    };
+  });
 }
 
 /**

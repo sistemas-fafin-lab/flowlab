@@ -119,6 +119,8 @@ const ExamImportModal: React.FC<ExamImportModalProps> = ({ open, onClose, onImpo
               direct: parseNumber(get('CUSTO DIRETO')),
               indirect: parseNumber(get('CUSTO INDIRETO')),
               indirectItems: [],
+              aplisIdExameTipo: null,
+              aplisIdTeste: null,
             },
           };
         });
