@@ -238,7 +238,7 @@ const GeradorOrcamentoPage: React.FC = () => {
                   autoFocus
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Nome do exame ou código TUSS…"
+                  placeholder="Nome do exame, código TUSS ou preço…"
                   className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 backdrop-blur-sm text-slate-800 placeholder:text-slate-400 dark:bg-gray-800/80 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
                 />
               </div>
@@ -331,7 +331,7 @@ const GeradorOrcamentoPage: React.FC = () => {
                     type="search"
                     value={buscaCarrinho}
                     onChange={(e) => setBuscaCarrinho(e.target.value)}
-                    placeholder="Buscar nos exames selecionados…"
+                    placeholder="Buscar no carrinho por nome, TUSS ou preço…"
                     aria-label="Buscar nos exames selecionados"
                     className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 text-slate-800 placeholder:text-slate-400 dark:bg-gray-800/80 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
                   />

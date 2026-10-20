@@ -2,8 +2,8 @@ import { describe, expect, it } from 'vitest';
 import type { ItemGeradorOrcamento } from '../types';
 import { filtrarExames } from './busca';
 
-function exame(nome: string, tuss: string): ItemGeradorOrcamento {
-  return { tuss, nome, preco: 10, elegivelDescontoParticular: false, conveniosAceitos: [] };
+function exame(nome: string, tuss: string, preco = 10): ItemGeradorOrcamento {
+  return { tuss, nome, preco, elegivelDescontoParticular: false, conveniosAceitos: [] };
 }
 
 const HEMOGRAMA = exame('Hemograma Completo', '40304361');
@@ -27,6 +27,26 @@ describe('filtrarExames', () => {
     expect(filtrarExames(LISTA, 'completo hemo')).toEqual([HEMOGRAMA]);
     expect(filtrarExames(LISTA, 'tsh 40316521')).toEqual([TSH]);
     expect(filtrarExames(LISTA, 'hemograma glicose')).toEqual([]);
+  });
+
+  it('acha pelo preço, escrito com vírgula, com ponto, com R$ ou só a parte inteira', () => {
+    const vitaminaD = exame('Vitamina D', '40302830', 141);
+    const ferritina = exame('Ferritina', '40316270', 82.5);
+    const lista = [vitaminaD, ferritina, exame('Glicose', '40302040', 24)];
+    expect(filtrarExames(lista, '141,00')).toEqual([vitaminaD]);
+    expect(filtrarExames(lista, '141.00')).toEqual([vitaminaD]);
+    expect(filtrarExames(lista, 'R$ 141')).toEqual([vitaminaD]);
+    expect(filtrarExames(lista, 'R$141,00')).toEqual([vitaminaD]);
+    expect(filtrarExames(lista, '82,5')).toEqual([ferritina]);
+    expect(filtrarExames(lista, 'vitamina 141')).toEqual([vitaminaD]);
+  });
+
+  it('acha preço acima de mil com ou sem o ponto do milhar', () => {
+    const painel = exame('Painel Genético', '40503046', 1467);
+    const lista = [painel, GLICOSE];
+    expect(filtrarExames(lista, '1.467,00')).toEqual([painel]);
+    expect(filtrarExames(lista, '1467,00')).toEqual([painel]);
+    expect(filtrarExames(lista, 'R$ 1.467')).toEqual([painel]);
   });
 
   it('busca vazia ou só com espaços devolve a lista inteira', () => {
