@@ -32,6 +32,7 @@ trava: vale a escolha manual da issue 09. Contratação (manutenção) não muda
 - Efeito: SC aprovada antes da 02 (sem `approved_by_user_id`) não trava
   mais. Cotações já com gestor gravado não mudam (o trigger só age quando
   `requester_manager_id` muda); no reenvio/troca, o comprador escolhe.
+  Confirmado com o usuário: SCs antigas ficam sem trava, sem backfill.
 - Validado num Postgres 18 local descartável com esquema mínimo: SC
   aprovada pelo aprovador trava nele (barra quem pediu e outro); admin no
   lugar e SC legada não travam; Contratação trava em quem abriu; comprador
