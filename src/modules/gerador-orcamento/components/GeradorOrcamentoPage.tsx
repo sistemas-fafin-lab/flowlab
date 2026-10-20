@@ -1,9 +1,11 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { AlertTriangle, Calculator, Check, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Calculator, Check, FileDown, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Trash2, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
 import { filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
 import { orcamentoDoCarrinho } from '../domain/orcamento';
+import { montarPdfOrcamentoCliente } from '../domain/pdfCliente';
+import { carregarLogoPdf } from '../logoPdf';
 import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
 
 // Renderizar milhares de linhas a cada tecla trava a busca; acima disso, a tela pede
@@ -136,6 +138,23 @@ const GeradorOrcamentoPage: React.FC = () => {
     setCarrinho((atual) => alterarQuantidade(atual, chave, quantidade));
   const remover = (chave: string) => setCarrinho((atual) => removerDoCarrinho(atual, chave));
 
+  const [gerandoPdf, setGerandoPdf] = useState(false);
+  const [erroPdf, setErroPdf] = useState<string | null>(null);
+  const gerarPdf = async () => {
+    setGerandoPdf(true);
+    setErroPdf(null);
+    try {
+      const emitidoEm = new Date();
+      const doc = montarPdfOrcamentoCliente({ carrinho, orcamento, emitidoEm }, await carregarLogoPdf());
+      doc.save(`Orcamento_${emitidoEm.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`);
+    } catch (error) {
+      console.error('Falha ao gerar o PDF do Orçamento:', error);
+      setErroPdf('Não foi possível gerar o PDF. Tente de novo.');
+    } finally {
+      setGerandoPdf(false);
+    }
+  };
+
   return (
     <div className="max-w-7xl mx-auto pt-4 sm:pt-6 pb-10">
       <div className="flex items-center gap-3 mb-6">
@@ -265,6 +284,15 @@ const GeradorOrcamentoPage: React.FC = () => {
                 </div>
               </dl>
             )}
+            <button
+              type="button"
+              onClick={gerarPdf}
+              disabled={carrinho.length === 0 || gerandoPdf}
+              className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+            >
+              {gerandoPdf ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />} Gerar PDF
+            </button>
+            {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
           </section>
         </div>
       )}
