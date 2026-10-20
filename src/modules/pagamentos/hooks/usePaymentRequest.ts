@@ -267,6 +267,31 @@ export const usePaymentRequest = () => {
     }
   };
 
+  // Vários pedidos de uma vez (ações em lote). Só muda os que ainda estão em `de`: se outra
+  // pessoa decidiu no meio-tempo, a decisão dela fica. Devolve quantos mudaram.
+  const updatePaymentRequestsStatus = async (
+    ids: string[],
+    de: PaymentRequestStatus,
+    para: PaymentRequestStatus,
+    approvedBy?: string
+  ): Promise<number> => {
+    const agora = new Date().toISOString();
+    const { data, error: updateError } = await supabase
+      .from('payment_requests')
+      .update({
+        status: para,
+        updated_at: agora,
+        ...(approvedBy ? { approved_by: approvedBy, approval_date: agora } : {})
+      })
+      .in('id', ids)
+      .eq('status', de)
+      .select('id');
+
+    if (updateError) throw new Error(updateError.message);
+    await fetchPaymentRequests();
+    return data?.length ?? 0;
+  };
+
   // Delete payment request
   const deletePaymentRequest = async (id: string) => {
     try {
@@ -295,6 +320,7 @@ export const usePaymentRequest = () => {
     fetchPaymentRequests,
     createPedido,
     updatePaymentRequestStatus,
+    updatePaymentRequestsStatus,
     deletePaymentRequest,
     getNextPaymentDate,
     getPedidosCountToday

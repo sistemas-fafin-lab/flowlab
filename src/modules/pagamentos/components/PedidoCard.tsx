@@ -25,6 +25,7 @@ import {
   PAYMENT_TYPE_LABELS,
 } from '../../../utils/paymentUtils';
 import { estaAtrasado, formatarDataISO, rotuloDiaCurto } from '../domain/filtrosPagamentos';
+import CaixaSelecao from './CaixaSelecao';
 import { CARTAO } from './estilos';
 
 // Um pedido numa linha: o que se precisa para decidir (código, status, fornecedor, data,
@@ -47,6 +48,10 @@ interface Props extends AcoesPedido {
   podeAgir: boolean;
   expandido: boolean;
   onAlternar: () => void;
+  /** Ações em lote: só para quem aprova e só onde cabe uma ação (pendente ou aprovado). */
+  selecionavel?: boolean;
+  selecionado?: boolean;
+  onSelecionar?: () => void;
 }
 
 const BotaoCopiar: React.FC<{ texto: string }> = ({ texto }) => {
@@ -90,6 +95,9 @@ const PedidoCard: React.FC<Props> = ({
   podeAgir,
   expandido,
   onAlternar,
+  selecionavel = false,
+  selecionado = false,
+  onSelecionar,
   onAprovar,
   onRejeitar,
   onPagar,
@@ -105,59 +113,66 @@ const PedidoCard: React.FC<Props> = ({
     <article
       className={`${CARTAO} overflow-hidden transition-shadow duration-200 hover:shadow-md ${
         atrasado ? 'border-l-4 border-l-red-400 dark:border-l-red-500' : ''
-      }`}
+      } ${selecionado ? 'ring-2 ring-blue-400 dark:ring-blue-500' : ''}`}
     >
       <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 sm:px-5">
-        <button
-          type="button"
-          onClick={onAlternar}
-          aria-expanded={expandido}
-          aria-controls={idDetalhes}
-          className="flex-1 min-w-0 flex items-start gap-3 text-left group"
-        >
-          <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-md shadow-green-500/25 flex-shrink-0">
-            <DollarSign className="w-5 h-5 text-white" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-              <h3 className="font-semibold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" title={p.codigo}>
-                {p.codigoCompacto ? `Pedido ${p.codigoCompacto}` : p.codigo}
-              </h3>
-              <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${PAYMENT_STATUS_COLORS[p.status]}`}>
-                {PAYMENT_STATUS_LABELS[p.status]}
-              </span>
-              {atrasado && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
-                  <AlertTriangle className="w-3 h-3" /> Atrasado
-                </span>
-              )}
-              <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
-                {PAYMENT_TYPE_LABELS[p.tipoSolicitacao]} · {PAYMENT_METHOD_LABELS[p.formaPagamento]}
-              </span>
+        <div className="flex-1 min-w-0 flex items-start gap-3">
+          {selecionavel && onSelecionar && (
+            <div className="pt-2.5">
+              <CaixaSelecao marcado={selecionado} onAlternar={onSelecionar} rotulo={`Selecionar o pedido ${p.codigoCompacto || p.codigo}`} />
             </div>
-            <p className="mt-0.5 text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{p.fornecedor}</p>
-            <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
-              <span className={`inline-flex items-center gap-1 ${atrasado ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>
-                <Calendar className="w-3.5 h-3.5" />
-                Pagamento {p.dataPagamento ? rotuloDiaCurto(p.dataPagamento) : '—'}
-              </span>
-              <span className="inline-flex items-center gap-1">
-                <Building2 className="w-3.5 h-3.5" />
-                {p.department || 'Sem setor'}
-              </span>
-              <span className="inline-flex items-center gap-1 min-w-0">
-                <User className="w-3.5 h-3.5 flex-shrink-0" />
-                <span className="truncate">{p.solicitadoPor}</span>
-              </span>
-              {anexos.length > 0 && (
-                <span className="inline-flex items-center gap-1">
-                  <Paperclip className="w-3.5 h-3.5" />
-                  {anexos.length}
+          )}
+          <button
+            type="button"
+            onClick={onAlternar}
+            aria-expanded={expandido}
+            aria-controls={idDetalhes}
+            className="flex-1 min-w-0 flex items-start gap-3 text-left group"
+          >
+            <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-xl flex items-center justify-center shadow-md shadow-green-500/25 flex-shrink-0">
+              <DollarSign className="w-5 h-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <h3 className="font-semibold text-gray-800 dark:text-gray-100 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors" title={p.codigo}>
+                  {p.codigoCompacto ? `Pedido ${p.codigoCompacto}` : p.codigo}
+                </h3>
+                <span className={`px-2 py-0.5 text-[11px] font-semibold rounded-full ${PAYMENT_STATUS_COLORS[p.status]}`}>
+                  {PAYMENT_STATUS_LABELS[p.status]}
                 </span>
-              )}
-            </p>
-          </div>
-        </button>
+                {atrasado && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold rounded-full bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800">
+                    <AlertTriangle className="w-3 h-3" /> Atrasado
+                  </span>
+                )}
+                <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300">
+                  {PAYMENT_TYPE_LABELS[p.tipoSolicitacao]} · {PAYMENT_METHOD_LABELS[p.formaPagamento]}
+                </span>
+              </div>
+              <p className="mt-0.5 text-sm font-medium text-gray-700 dark:text-gray-200 truncate">{p.fornecedor}</p>
+              <p className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                <span className={`inline-flex items-center gap-1 ${atrasado ? 'text-red-600 dark:text-red-400 font-medium' : ''}`}>
+                  <Calendar className="w-3.5 h-3.5" />
+                  Pagamento {p.dataPagamento ? rotuloDiaCurto(p.dataPagamento) : '—'}
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <Building2 className="w-3.5 h-3.5" />
+                  {p.department || 'Sem setor'}
+                </span>
+                <span className="inline-flex items-center gap-1 min-w-0">
+                  <User className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span className="truncate">{p.solicitadoPor}</span>
+                </span>
+                {anexos.length > 0 && (
+                  <span className="inline-flex items-center gap-1">
+                    <Paperclip className="w-3.5 h-3.5" />
+                    {anexos.length}
+                  </span>
+                )}
+              </p>
+            </div>
+          </button>
+        </div>
 
         <div className="flex items-center justify-between lg:justify-end gap-3 pl-[52px] lg:pl-0">
           <p className="text-lg font-bold text-green-600 dark:text-green-400 tabular-nums whitespace-nowrap">

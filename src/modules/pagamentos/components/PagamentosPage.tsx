@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNotification } from '../../../hooks/useNotification';
@@ -6,7 +6,9 @@ import { useDialog } from '../../../hooks/useDialog';
 import type { PaymentRequest } from '../../../types';
 import Notification from '../../../components/Notification';
 import ConfirmDialog from '../../../components/ConfirmDialog';
+import InputDialog from '../../../components/InputDialog';
 import { PaymentRequestSkeleton } from '../../../components/PageLoadingSkeleton';
+import { formatCurrency } from '../../../utils/paymentUtils';
 import {
   contarPorAba,
   estaNaAba,
@@ -16,11 +18,13 @@ import {
   paraISO,
   podeVer,
   temFiltroAtivo,
+  totalDe,
   type Acesso,
 } from '../domain/filtrosPagamentos';
 import { usePaymentRequest } from '../hooks/usePaymentRequest';
 import { useFiltrosPagamentos } from '../hooks/useFiltrosPagamentos';
 import { gerarPdfPedido } from '../pdfPedido';
+import BarraAcoesEmLote from './BarraAcoesEmLote';
 import BarraFiltrosPagamentos from './BarraFiltrosPagamentos';
 import EstadoVazioPedidos from './EstadoVazioPedidos';
 import ListaPedidos from './ListaPedidos';
@@ -32,10 +36,26 @@ import VisualizadorImagem, { type ImagemAberta } from './VisualizadorImagem';
 
 const PagamentosPage: React.FC = () => {
   const { user, userProfile } = useAuth();
-  const { paymentRequests, loading, createPedido, updatePaymentRequestStatus, deletePaymentRequest, getNextPaymentDate } =
-    usePaymentRequest();
+  const {
+    paymentRequests,
+    loading,
+    createPedido,
+    updatePaymentRequestStatus,
+    updatePaymentRequestsStatus,
+    deletePaymentRequest,
+    getNextPaymentDate,
+  } = usePaymentRequest();
   const { notification, showSuccess, showError, showWarning, showInfo, hideNotification } = useNotification();
-  const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
+  const {
+    confirmDialog,
+    showConfirmDialog,
+    hideConfirmDialog,
+    handleConfirmDialogConfirm,
+    inputDialog,
+    showInputDialog,
+    hideInputDialog,
+    handleInputDialogConfirm,
+  } = useDialog();
   const [novoAberto, setNovoAberto] = useState(false);
   const [imagemAberta, setImagemAberta] = useState<ImagemAberta | null>(null);
   const fecharImagem = useCallback(() => setImagemAberta(null), []);
@@ -68,6 +88,28 @@ const PagamentosPage: React.FC = () => {
     [semAba, filtros.aba, filtros.ordem],
   );
 
+  // Ações em lote (quem aprova): só pedidos em que cabe uma ação. Mudar um filtro limpa a
+  // seleção, para nunca agir num pedido que saiu da tela.
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
+  useEffect(() => setSelecionados(new Set()), [filtros]);
+  const podeSelecionar = useCallback(
+    (p: PaymentRequest) => canApprove && (p.status === 'pending' || p.status === 'approved'),
+    [canApprove],
+  );
+  const marcar = useCallback(
+    (ids: string[], marcado: boolean) =>
+      setSelecionados((atuais) => {
+        const novos = new Set(atuais);
+        ids.forEach((id) => (marcado ? novos.add(id) : novos.delete(id)));
+        return novos;
+      }),
+    [],
+  );
+  const pedidosSelecionados = useMemo(
+    () => pedidos.filter((p) => selecionados.has(p.id) && podeSelecionar(p)),
+    [pedidos, selecionados, podeSelecionar],
+  );
+
   const aprovar = (p: PaymentRequest) =>
     showConfirmDialog('Aprovar solicitação', `Deseja aprovar o pedido "${p.codigo}"?`, async () => {
       try {
@@ -78,20 +120,22 @@ const PagamentosPage: React.FC = () => {
       }
     });
 
-  const rejeitar = (p: PaymentRequest) =>
-    showConfirmDialog(
+  // O motivo é obrigatório e aparece no pedido para quem pediu (antes era sempre o texto
+  // fixo "Rejeitado pelo operador").
+  const rejeitar = async (p: PaymentRequest) => {
+    const motivo = await showInputDialog(
       'Rejeitar solicitação',
-      `Deseja rejeitar o pedido "${p.codigo}"? Esta ação não pode ser desfeita.`,
-      async () => {
-        try {
-          await updatePaymentRequestStatus(p.id, 'rejected', undefined, 'Rejeitado pelo operador');
-          showSuccess('Pedido rejeitado.');
-        } catch {
-          showError('Erro ao rejeitar pedido');
-        }
-      },
-      { type: 'danger', confirmText: 'Rejeitar' },
+      `Por que o pedido "${p.codigo}" está sendo rejeitado? O motivo aparece para quem pediu.`,
+      { placeholder: 'Ex.: falta a nota fiscal', confirmText: 'Rejeitar', required: true },
     );
+    if (!motivo) return;
+    try {
+      await updatePaymentRequestStatus(p.id, 'rejected', undefined, motivo);
+      showSuccess('Pedido rejeitado.');
+    } catch {
+      showError('Erro ao rejeitar pedido');
+    }
+  };
 
   const pagar = (p: PaymentRequest) =>
     showConfirmDialog('Marcar como pago', `Confirma que o pedido "${p.codigo}" foi pago?`, async () => {
@@ -118,6 +162,28 @@ const PagamentosPage: React.FC = () => {
       { type: 'danger', confirmText: 'Excluir' },
     );
 
+  const emLote = (lista: PaymentRequest[], de: PaymentRequest['status'], para: PaymentRequest['status'], verbo: string, feito: [string, string]) =>
+    showConfirmDialog(
+      `${verbo} ${lista.length} ${lista.length === 1 ? 'pedido' : 'pedidos'}`,
+      `${verbo} ${lista.length === 1 ? 'o pedido selecionado' : `os ${lista.length} pedidos selecionados`}, somando ${formatCurrency(totalDe(lista))}?`,
+      async () => {
+        try {
+          const n = await updatePaymentRequestsStatus(lista.map((p) => p.id), de, para, userProfile?.name);
+          setSelecionados(new Set());
+          showSuccess(
+            `${n} ${n === 1 ? feito[0] : feito[1]}`,
+            n < lista.length ? `${lista.length - n} já tinham mudado de status e ficaram como estavam.` : undefined,
+          );
+        } catch {
+          showError('Erro ao atualizar os pedidos');
+        }
+      },
+    );
+  const aprovarEmLote = (lista: PaymentRequest[]) =>
+    emLote(lista, 'pending', 'approved', 'Aprovar', ['pedido aprovado.', 'pedidos aprovados.']);
+  const pagarEmLote = (lista: PaymentRequest[]) =>
+    emLote(lista, 'approved', 'paid', 'Marcar como pago', ['pedido marcado como pago.', 'pedidos marcados como pagos.']);
+
   const imprimir = (p: PaymentRequest) => {
     const arquivo = gerarPdfPedido(p);
     showSuccess('PDF gerado!', `Comprovante "${arquivo}" foi baixado com sucesso.`);
@@ -128,7 +194,8 @@ const PagamentosPage: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    // Com seleção, a barra de lote flutua no rodapé: o respiro evita que ela cubra o último card.
+    <div className={`space-y-6 ${pedidosSelecionados.length > 0 ? 'pb-24' : ''}`}>
       <Notification
         type={notification.type}
         title={notification.title}
@@ -146,7 +213,27 @@ const PagamentosPage: React.FC = () => {
         onCancel={hideConfirmDialog}
         type={confirmDialog.type}
       />
+      <InputDialog
+        isOpen={inputDialog.isOpen}
+        title={inputDialog.title}
+        message={inputDialog.message}
+        placeholder={inputDialog.placeholder}
+        confirmText={inputDialog.confirmText}
+        cancelText={inputDialog.cancelText}
+        required={inputDialog.required}
+        onConfirm={handleInputDialogConfirm}
+        onCancel={() => {
+          inputDialog.onCancel?.();
+          hideInputDialog();
+        }}
+      />
       <VisualizadorImagem imagem={imagemAberta} onFechar={fecharImagem} />
+      <BarraAcoesEmLote
+        selecionados={pedidosSelecionados}
+        onAprovar={aprovarEmLote}
+        onPagar={pagarEmLote}
+        onLimpar={() => setSelecionados(new Set())}
+      />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in-up">
         <div>
@@ -201,6 +288,9 @@ const PagamentosPage: React.FC = () => {
           agrupar={filtros.ordem === 'pagamento'}
           hoje={hoje}
           podeAgir={canApprove}
+          selecionados={canApprove ? selecionados : undefined}
+          podeSelecionar={podeSelecionar}
+          onMarcar={canApprove ? marcar : undefined}
           onAprovar={aprovar}
           onRejeitar={rejeitar}
           onPagar={pagar}
