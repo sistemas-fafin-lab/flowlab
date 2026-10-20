@@ -11,6 +11,7 @@ import {
   corPrimaria,
   desenharCabecalho,
   desenharRodapes,
+  desenharValidade,
   fundoClaro,
   numBR,
   textoEscuro,
@@ -56,6 +57,7 @@ export function montarPdfOrcamentoCliente(
     },
   });
 
+  desenharValidade(doc, emitidoEm);
   desenharRodapes(doc, 'Orçamento');
   return doc;
 }

@@ -78,6 +78,32 @@ describe('montarPdfOrcamentoCliente', () => {
     expect(texto).toContain('Emitido: 20/10/2026');
   });
 
+  it('avisa a validade de 10 dias com a data final, abaixo dos totais', () => {
+    const texto = montar();
+
+    expect(texto).toContain('Orçamento válido por 10 dias, até 30/10/2026');
+    expect(texto.indexOf('Orçamento válido')).toBeGreaterThan(texto.indexOf('Valor com Desconto 950,00'));
+  });
+
+  it('a data final da validade vira o mês e o ano', () => {
+    const linhas = carrinho;
+    const doc = montarPdfOrcamentoCliente(
+      { carrinho: linhas, orcamento: orcamentoDoCarrinho(linhas), emitidoEm: new Date(2026, 11, 25) },
+      null,
+    );
+
+    expect(textoDoPdf(doc)).toContain('Orçamento válido por 10 dias, até 04/01/2027');
+  });
+
+  it('com a tabela em várias páginas, o aviso de validade sai uma vez, na última', () => {
+    const muitos = Array.from({ length: 60 }, (_, i) => ({ item: exame(`Exame ${i + 1}`, 50, false), quantidade: 1 }));
+    const doc = pdf(muitos);
+    const ocorrencias = textoDoPdf(doc).match(/Orçamento válido por 10 dias/g) ?? [];
+
+    expect(doc.getNumberOfPages()).toBeGreaterThan(1);
+    expect(ocorrencias).toHaveLength(1);
+  });
+
   it('desenha o logo quando ele carregou e segue sem ele quando falhou', () => {
     expect(temImagem(pdf(carrinho, LOGO))).toBe(true);
     expect(temImagem(pdf(carrinho, null))).toBe(false);

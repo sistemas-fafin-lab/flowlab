@@ -13,6 +13,7 @@ import {
   corPrimaria,
   desenharCabecalho,
   desenharRodapes,
+  desenharValidade,
   fundoClaro,
   numBR,
   textoEscuro,
@@ -118,6 +119,7 @@ export function montarPdfOrcamentoInterno(
     },
   });
 
+  desenharValidade(doc, emitidoEm);
   desenharRodapes(doc, 'Orçamento interno');
   desenharMarcaDagua(doc);
   return doc;

@@ -63,6 +63,38 @@ export function desenharCabecalho(doc: jsPDF, logo: string | null, emitidoEm: Da
   doc.text(titulo, largura / 2, 54, { align: 'center' });
 }
 
+export const DIAS_VALIDADE = 10;
+
+/** Último dia de validade do Orçamento: a emissão mais DIAS_VALIDADE dias corridos. */
+export function validoAte(emitidoEm: Date): Date {
+  const data = new Date(emitidoEm);
+  data.setDate(data.getDate() + DIAS_VALIDADE);
+  return data;
+}
+
+/**
+ * Aviso de validade logo abaixo da tabela, na última página. Se não couber antes do
+ * rodapé, vai para uma página nova. Chamar antes de desenharRodapes.
+ */
+export function desenharValidade(doc: jsPDF, emitidoEm: Date) {
+  const altura = doc.internal.pageSize.getHeight();
+  const fimDaTabela = (doc as jsPDF & { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? 62;
+  let y = fimDaTabela + 10;
+  if (y > altura - ALTURA_RODAPE - 5) {
+    doc.addPage();
+    y = MARGEM + 10;
+  }
+  doc.setTextColor(...corPrimaria);
+  doc.setFontSize(10);
+  doc.setFont('helvetica', 'bold');
+  doc.text(
+    `Orçamento válido por ${DIAS_VALIDADE} dias, até ${dataBR(validoAte(emitidoEm))}`,
+    doc.internal.pageSize.getWidth() / 2,
+    y,
+    { align: 'center' },
+  );
+}
+
 /** Rodapé de todas as páginas, desenhado depois da tabela (que pode quebrar página). */
 export function desenharRodapes(doc: jsPDF, documento: string) {
   const largura = doc.internal.pageSize.getWidth();

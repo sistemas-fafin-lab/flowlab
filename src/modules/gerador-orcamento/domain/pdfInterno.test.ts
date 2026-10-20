@@ -36,6 +36,10 @@ const pdf = (linhas: ItemCarrinho[] = carrinho) =>
 const montar = (linhas: ItemCarrinho[] = carrinho) => textoDoPdf(pdf(linhas));
 
 describe('montarPdfOrcamentoInterno', () => {
+  it('avisa a validade de 10 dias com a data final', () => {
+    expect(montar()).toContain('Orçamento válido por 10 dias, até 30/10/2026');
+  });
+
   it('mostra custo, venda e margem de cada exame', () => {
     const texto = montar();
 
