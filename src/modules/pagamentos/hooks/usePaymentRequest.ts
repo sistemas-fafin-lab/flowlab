@@ -1,21 +1,41 @@
 import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../../lib/supabase';
 import { 
   PaymentRequest, 
   PaymentRequestFormValues, 
-  PaymentRequestPayload,
   PaymentRequestStatus 
-} from '../types';
+} from '../../../types';
 import {
   normalizeDate,
   generatePedidoCode,
   validatePaymentDate,
   preparePayload,
   getNextValidDate
-} from '../utils/paymentUtils';
-import { useDataCache, DEFAULT_STALE_TIME } from './useDataCache';
+} from '../../../utils/paymentUtils';
+import { useDataCache, DEFAULT_STALE_TIME } from '../../../hooks/useDataCache';
 
 const CACHE_KEY = 'payment:requests';
+
+// Avisa por e-mail (e no sininho) quem precisa agir: o autorizador quando o pedido é
+// criado; o solicitante e o Financeiro quando o autorizador decide. O servidor lê o pedido
+// pelo id e escolhe os destinatários (api/_lib/handlers/notifications-payment-request.ts).
+// Nunca lança: falha no aviso não pode desfazer a ação.
+async function notificarPagamento(id: string | undefined, evento: 'criado' | 'decidido'): Promise<void> {
+  if (!id) return;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return;
+    const res = await fetch('/api/notifications/payment-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ id, evento }),
+    });
+    if (!res.ok) console.warn('[notificarPagamento] falha ao avisar:', evento, res.status);
+  } catch (err) {
+    console.warn('[notificarPagamento] falha ao avisar:', evento, err);
+  }
+}
 
 interface CreatePedidoResult {
   success: boolean;
@@ -27,7 +47,7 @@ interface CreatePedidoResult {
 }
 
 export const usePaymentRequest = () => {
-  const { getCache, setCache, invalidate } = useDataCache();
+  const { getCache, setCache } = useDataCache();
   const [paymentRequests, setPaymentRequests] = useState<PaymentRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +79,8 @@ export const usePaymentRequest = () => {
         solicitanteId: request.solicitante_id ?? undefined,
         autorizadoPor: request.autorizado_por,
         autorizadoPorId: request.autorizado_por_id ?? undefined,
+        autorizadoEm: request.autorizado_em ?? undefined,
+        rejeitadoPor: request.rejeitado_por ?? undefined,
         dataPagamento: request.data_pagamento,
         emailUsuario: request.email_usuario,
         department: request.department,
@@ -215,12 +237,17 @@ export const usePaymentRequest = () => {
 
       if (insertError) throw insertError;
 
-      // 7. Atualizar lista local
+      // 7. Avisar o autorizador (ou, se quem pede é o autorizador, o Financeiro)
+      void notificarPagamento(data?.id, 'criado');
+
+      // 8. Atualizar lista local
       await fetchPaymentRequests();
 
       return {
         success: true,
-        message: 'Pedido de pagamento criado com sucesso!',
+        message: data?.status === 'awaiting_authorization'
+          ? `Pedido criado. ${data?.autorizado_por ?? 'O autorizador'} foi avisado por e-mail para autorizar.`
+          : 'Pedido criado e já autorizado: ele segue para a aprovação do Financeiro.',
         codigo: codigoCompleto,
         pdfUrl: data?.pdf_url
       };
@@ -238,10 +265,11 @@ export const usePaymentRequest = () => {
     id: string,
     status: PaymentRequestStatus,
     approvedBy?: string,
-    rejectionReason?: string
+    rejectionReason?: string,
+    rejeitadoPor?: string
   ) => {
     try {
-      const updateData: any = {
+      const updateData: Record<string, unknown> = {
         status,
         updated_at: new Date().toISOString()
       };
@@ -255,6 +283,10 @@ export const usePaymentRequest = () => {
         updateData.rejection_reason = rejectionReason;
       }
 
+      if (rejeitadoPor) {
+        updateData.rejeitado_por = rejeitadoPor;
+      }
+
       const { error: updateError } = await supabase
         .from('payment_requests')
         .update(updateData)
@@ -266,6 +298,44 @@ export const usePaymentRequest = () => {
     } catch (err) {
       throw new Error(err instanceof Error ? err.message : 'Erro ao atualizar status');
     }
+  };
+
+  // Decisão do autorizador escolhido no pedido: autoriza (vai para o Financeiro) ou rejeita
+  // com motivo. Pela função do banco, que confere quem decide (20261020150000).
+  const decidirAutorizacao = async (id: string, autorizar: boolean, motivo?: string) => {
+    const { error: rpcError } = await supabase.rpc('payment_request_decidir_autorizacao', {
+      p_id: id,
+      p_autorizar: autorizar,
+      p_motivo: motivo ?? null
+    });
+    if (rpcError) throw new Error(rpcError.message);
+    void notificarPagamento(id, 'decidido');
+    await fetchPaymentRequests();
+  };
+
+  // Vários pedidos de uma vez (ações em lote). Só muda os que ainda estão em `de`: se outra
+  // pessoa decidiu no meio-tempo, a decisão dela fica. Devolve quantos mudaram.
+  const updatePaymentRequestsStatus = async (
+    ids: string[],
+    de: PaymentRequestStatus,
+    para: PaymentRequestStatus,
+    approvedBy?: string
+  ): Promise<number> => {
+    const agora = new Date().toISOString();
+    const { data, error: updateError } = await supabase
+      .from('payment_requests')
+      .update({
+        status: para,
+        updated_at: agora,
+        ...(approvedBy ? { approved_by: approvedBy, approval_date: agora } : {})
+      })
+      .in('id', ids)
+      .eq('status', de)
+      .select('id');
+
+    if (updateError) throw new Error(updateError.message);
+    await fetchPaymentRequests();
+    return data?.length ?? 0;
   };
 
   // Delete payment request
@@ -296,6 +366,8 @@ export const usePaymentRequest = () => {
     fetchPaymentRequests,
     createPedido,
     updatePaymentRequestStatus,
+    updatePaymentRequestsStatus,
+    decidirAutorizacao,
     deletePaymentRequest,
     getNextPaymentDate,
     getPedidosCountToday

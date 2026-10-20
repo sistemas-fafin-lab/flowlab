@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import { useInventory } from '../hooks/useInventory';
 import { useMaintenanceRequest } from '../hooks/useMaintenanceRequest';
-import { usePaymentRequest } from '../hooks/usePaymentRequest';
+import { usePaymentRequest } from '../modules/pagamentos';
 import { useTheme } from '../hooks/useTheme';
 import DetailModal from './DetailModal';
 import {

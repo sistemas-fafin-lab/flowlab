@@ -21,7 +21,7 @@ import RequestPeriodConfig from './components/RequestPeriodConfig';
 import ResetPassword from './components/ResetPassword';
 import Home from './components/Home';
 import { MessagingProviderSettings } from './modules/messaging';
-import PaymentRequestManagement from './components/PaymentRequestManagement';
+import { PagamentosPage } from './modules/pagamentos';
 import RequestHub from './components/RequestHub';
 import { MaintenanceRequestManagement } from './components/MaintenanceRequest';
 import { FaturasDashboard, ContasReceberPage, GlosasRecursos } from './modules/faturamento';
@@ -167,7 +167,7 @@ const AuthenticatedApp: React.FC = () => {
           path="/requests/payments"
           element={
             <ProtectedRoute permission="canViewRequests" permissions={userPermissions}>
-              <PaymentRequestManagement />
+              <PagamentosPage />
             </ProtectedRoute>
           }
         />
@@ -629,7 +629,7 @@ const AuthenticatedApp: React.FC = () => {
           path="/payment-requests"
           element={
             <ProtectedRoute permission="canViewRequests" permissions={userPermissions}>
-              <PaymentRequestManagement />
+              <PagamentosPage />
             </ProtectedRoute>
           }
         />

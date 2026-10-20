@@ -25,6 +25,7 @@ import {
   Info,
   AlertCircle,
   Headphones,
+  DollarSign,
 } from 'lucide-react';
 import { useNotificationCenter, UserNotification, NotificationModule } from '../hooks/useNotificationCenter';
 import { useAuth } from '../hooks/useAuth';
@@ -57,6 +58,7 @@ function getModuleIcon(module: NotificationModule): React.ReactElement {
     case 'SYSTEM':      return <Server className={cls} />;
     case 'MAINTENANCE': return <Wrench className={cls} />;
     case 'DEV':         return <Code className={cls} />;
+    case 'PAYMENTS':    return <DollarSign className={cls} />;
     default:            return <Bell className={cls} />;
   }
 }
@@ -67,6 +69,7 @@ const MODULE_COLORS: Record<string, string> = {
   SYSTEM:      'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400',
   MAINTENANCE: 'bg-amber-100 text-amber-600 dark:bg-amber-900/40 dark:text-amber-400',
   DEV:         'bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400',
+  PAYMENTS:    'bg-green-100 text-green-600 dark:bg-green-900/40 dark:text-green-400',
 };
 
 const TYPE_ICON: Record<string, React.ReactElement> = {
