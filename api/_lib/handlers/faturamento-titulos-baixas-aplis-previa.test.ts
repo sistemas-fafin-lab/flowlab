@@ -169,7 +169,10 @@ async function executar(
 ) {
   mockarSupabase(cenario);
   recebidosDosLotesMock.mockResolvedValue({ porLote, dadoAte: '2026-10-13' });
-  recebidosPorDataDosLotesMock.mockResolvedValue({ porLote: porData });
+  // Como a réplica: só devolve as datas dos lotes pedidos.
+  recebidosPorDataDosLotesMock.mockImplementation(async (ids: number[]) => ({
+    porLote: Object.fromEntries(Object.entries(porData).filter(([id]) => ids.includes(Number(id)))),
+  }));
   diferencasDosLotesMock.mockResolvedValue({ porLote: diferencas });
   const res = criarRes();
   await handler(criarReq(), res);

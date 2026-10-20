@@ -196,8 +196,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const conferidos = titulos.map((titulo) => ({ titulo, divergencia: conferirTitulo(titulo, recebidos.porLote) }));
     const comBaixa = conferidos
       .map((c) => c.divergencia)
-      .filter(temBaixaSugerida)
-      .filter((d) => d.numeroNota);
+      .filter(temBaixaSugerida);
     const idsLotePorNota = new Map(titulos.map((t) => [t.idNota, t.idsLote]));
 
     const porData = await recebidosPorDataDosLotes(comBaixa.flatMap((d) => idsLotePorNota.get(d.idNota) ?? []));
