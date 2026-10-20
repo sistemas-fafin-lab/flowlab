@@ -52,6 +52,7 @@ import {
 import { BoardPage } from './modules/board';
 import { ColaboradoresPage, HoleritesPage } from './modules/rh';
 import { FinopsDashboardPage, DespesasPage, MesAMesPage, OrcamentoPage } from './modules/gastos-ti';
+import { GeradorOrcamentoPage, GERADOR_ORCAMENTO_PATH } from './modules/gerador-orcamento';
 import { EvaHomePage, EvaSugestoesPage, EvaReunioesPage, EvaMembrosPage, EvaPermissoesPage, EvaConfiguracoesPage } from './modules/eva';
 
 // Protected Route Component
@@ -490,6 +491,15 @@ const AuthenticatedApp: React.FC = () => {
             autenticado — o conteúdo (gestão vs. autoatendimento) é decidido
             dentro do próprio componente, conforme canManageHolerites. */}
         <Route path="/rh/holerites" element={<HoleritesPage />} />
+        {/* Atendimento */}
+        <Route
+          path={GERADOR_ORCAMENTO_PATH}
+          element={
+            <ProtectedRoute permission="canUseGeradorOrcamento" permissions={userPermissions}>
+              <GeradorOrcamentoPage />
+            </ProtectedRoute>
+          }
+        />
         {/* IT Module Routes */}
         {/* EVA, o agente de TI (docs/plans/agente-ti). O Início é da equipe de TI.
             Sugestões e Reuniões abrem para a equipe, quem aprova e quem configura; Membros,

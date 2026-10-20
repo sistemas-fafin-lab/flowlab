@@ -105,6 +105,10 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // hierarquia, não por texto livre de departamento). Não é superset nem
   // subconjunto de canViewAllHolerites — são dois escopos independentes.
   { key: 'canViewHoleritesEquipe', label: 'Visualizar Holerites da Equipe (Gestor)', group: 'RH' },
+  // ── Atendimento ─────────────────────────────────────────────────────────────
+  // Gerador de Orçamento (.scratch/gerador-orcamento/spec.md): tela, busca, carrinho e
+  // Orçamento do cliente. Custo e margem ficam numa chave à parte.
+  { key: 'canUseGeradorOrcamento', label: 'Usar Gerador de Orçamento', group: 'Atendimento' },
 ];
 
 // ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────

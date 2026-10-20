@@ -12,6 +12,7 @@ const CHAVES_POSTERIORES: Record<string, string> = {
   canEditQuotationInfo: '20261019120000_quotation_info_edit.sql',
   canViewAllPayments: '20261020120000_pagamentos_ver_todos_e_autorizador.sql',
   canAuthorizePayments: '20261020120000_pagamentos_ver_todos_e_autorizador.sql',
+  canUseGeradorOrcamento: '20261020180000_gerador_orcamento_atendente.sql',
 };
 
 /** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */

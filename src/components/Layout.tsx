@@ -56,6 +56,7 @@ import {
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission } from '../utils/permissions';
+import { GERADOR_ORCAMENTO_PATH } from '../modules/gerador-orcamento/constants';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { useTheme } from '../hooks/useTheme';
@@ -112,7 +113,7 @@ const DEFAULT_CATEGORIES: CategoryConfig[] = [
     id: 'operacoes',
     name: 'OPERAÇÕES',
     sort_order: 1,
-    items: ['Produtos', 'Movimentações', 'Estoque Departamental', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas', 'Qualidade', 'Board Setorial'],
+    items: ['Produtos', 'Movimentações', 'Estoque Departamental', 'Solicitações', 'Fornecedores', 'Cotações', 'Faturamento', 'Controle de Custos', 'Análises Clínicas', 'Atendimento', 'Qualidade', 'Board Setorial'],
   },
   {
     id: 'administracao',
@@ -485,6 +486,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
     if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias', '/qualidade/indicadores'].includes(path)) return ['Qualidade'];
     if (['/rh/colaboradores', '/rh/holerites'].includes(path)) return ['RH'];
+    if ([GERADOR_ORCAMENTO_PATH].includes(path)) return ['Atendimento'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -658,6 +660,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Indicadores', href: '/analises-clinicas/indicadores', icon: BarChart3, permission: 'canViewAnalisesClinicas' },
           { name: 'Postos de Coleta', href: '/analises-clinicas/postos', icon: MapPin, permission: 'canManageAnalisesClinicas' },
           { name: 'Correção de Identidade', href: '/analises-clinicas/correcao-identidade', icon: ShieldAlert, permission: 'canCorrigirIdentidade' },
+        ],
+      },
+      {
+        name: 'Atendimento',
+        href: GERADOR_ORCAMENTO_PATH,
+        icon: Headphones,
+        permission: 'canUseGeradorOrcamento',
+        category: 'OPERAÇÕES',
+        subItems: [
+          { name: 'Gerador de Orçamento', href: GERADOR_ORCAMENTO_PATH, icon: Calculator, permission: 'canUseGeradorOrcamento' },
         ],
       },
       {
