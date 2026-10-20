@@ -159,6 +159,7 @@ export function preparePayload(
     descricaoDetalhada: formValues.descricaoDetalhada,
     solicitadoPor: formValues.solicitadoPor,
     autorizadoPor: formValues.autorizadoPor,
+    autorizadoPorId: formValues.autorizadoPorId,
     dataPagamento,
     emailUsuario: formValues.emailUsuario,
     department,

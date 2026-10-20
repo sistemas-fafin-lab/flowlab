@@ -10,6 +10,8 @@ const MIGRATION = new URL('../../supabase/migrations/20261015180000_perm_sem_rol
 // Chaves criadas depois dela: cada uma é concedida ao cargo Administrador pela própria migration.
 const CHAVES_POSTERIORES: Record<string, string> = {
   canEditQuotationInfo: '20261019120000_quotation_info_edit.sql',
+  canViewAllPayments: '20261020120000_pagamentos_ver_todos_e_autorizador.sql',
+  canAuthorizePayments: '20261020120000_pagamentos_ver_todos_e_autorizador.sql',
 };
 
 /** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */

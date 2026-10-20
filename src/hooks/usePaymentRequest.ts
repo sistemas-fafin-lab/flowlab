@@ -56,7 +56,9 @@ export const usePaymentRequest = () => {
         dadosPagamento: request.dados_pagamento,
         descricaoDetalhada: request.descricao_detalhada,
         solicitadoPor: request.solicitado_por,
+        solicitanteId: request.solicitante_id ?? undefined,
         autorizadoPor: request.autorizado_por,
+        autorizadoPorId: request.autorizado_por_id ?? undefined,
         dataPagamento: request.data_pagamento,
         emailUsuario: request.email_usuario,
         department: request.department,
@@ -98,23 +100,24 @@ export const usePaymentRequest = () => {
   }, [fetchPaymentRequests, getCache]);
 
   // Get count of pedidos for today
+  // Pela função do banco: a leitura de payment_requests é recortada por setor, e o código do
+  // pedido numera os pedidos do dia de todos os setores.
   const getPedidosCountToday = async (): Promise<number> => {
     const today = normalizeDate(new Date());
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const { count, error } = await supabase
-      .from('payment_requests')
-      .select('*', { count: 'exact', head: true })
-      .gte('created_at', today.toISOString())
-      .lt('created_at', tomorrow.toISOString());
+    const { data, error } = await supabase.rpc('payment_requests_criados_entre', {
+      p_inicio: today.toISOString(),
+      p_fim: tomorrow.toISOString()
+    });
 
     if (error) {
       console.error('Erro ao contar pedidos:', error);
       return 0;
     }
 
-    return count || 0;
+    return data || 0;
   };
 
   // Upload múltiplos anexos para o Supabase Storage
@@ -198,7 +201,9 @@ export const usePaymentRequest = () => {
           dados_pagamento: payload.dadosPagamento,
           descricao_detalhada: payload.descricaoDetalhada,
           solicitado_por: payload.solicitadoPor,
+          // O trigger payment_request_guard confere a permissão e grava o nome do perfil.
           autorizado_por: payload.autorizadoPor,
+          autorizado_por_id: payload.autorizadoPorId,
           data_pagamento: payload.dataPagamento,
           email_usuario: payload.emailUsuario,
           department: payload.department,
