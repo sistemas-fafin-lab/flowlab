@@ -75,3 +75,12 @@ spec, "Departamentos (schema)", "Holerites da equipe" e "Dados iniciais".
   preferiu deixar esses (e Biologia Molecular, Comercial, Diretoria, Equipe
   Médica, Estoque) vazios para o RH preencher na aba. Pessoas casadas pelo nome
   (falha se não houver exatamente um). Não testada localmente.
+- Produção (jqx), 20/10/2026: 29 migrations de 20261009120000 a 20261020233000
+  já estavam aplicadas pelo painel e só faltavam no histórico — conferidas
+  pelo schema/dados e marcadas com `migration repair` (sem rodar SQL). As 9
+  restantes (20261020150000 e 20261020215000…20261020235200) aplicadas com
+  `db push --include-all`. Conferido: departamentos e aprovadores como acima;
+  só "testando" sem departamento; SC da Ana Claudia (REQ868) → Paulo. A SC
+  "Paulo Vitor" foi criada pelo usuário ligado à Cristina (Área técnica) —
+  conferir se o vínculo usuário → colaborador está certo. Faltam os segredos
+  do Vault e os aprovadores dos departamentos vazios (RH, pela aba).
