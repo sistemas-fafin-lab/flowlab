@@ -29,9 +29,9 @@ const LinhaExame: React.FC<{
   noCarrinho: boolean;
   onAdicionar: (exame: ItemGeradorOrcamento) => void;
 }> = React.memo(({ exame, noCarrinho, onAdicionar }) => (
-  <li className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+  <li className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
     <div className="min-w-0 flex-1">
-      <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{exame.nome}</p>
+      <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{exame.nome}</p>
       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">TUSS {exame.tuss || '—'}</p>
       {exame.conveniosAceitos.length > 0 && (
         <div className="flex flex-wrap gap-1 mt-1.5">
@@ -47,18 +47,18 @@ const LinhaExame: React.FC<{
       )}
     </div>
     <div className="flex items-center gap-3 shrink-0">
-      <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 tabular-nums">{brl(exame.preco)}</span>
+      <span className="text-base font-bold text-gray-800 dark:text-gray-100 tabular-nums">{brl(exame.preco)}</span>
       {noCarrinho ? (
-        <span className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-xl bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-          <Check className="w-3.5 h-3.5" /> No carrinho
+        <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+          <Check className="w-4 h-4" /> No carrinho
         </span>
       ) : (
         <button
           type="button"
           onClick={() => onAdicionar(exame)}
-          className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-xl text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700"
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700"
         >
-          <Plus className="w-3.5 h-3.5" /> Adicionar
+          <Plus className="w-4 h-4" /> Adicionar
         </button>
       )}
     </div>
