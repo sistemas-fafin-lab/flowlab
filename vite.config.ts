@@ -535,6 +535,86 @@ function apoioApiPlugin(env: Record<string, string>): Plugin {
   };
 }
 
+// Espelho de dev das rotas de /api/atendimento/* (Gerador de Orçamento), como no
+// apoioApiPlugin: sem ele, `npm run dev` devolve o index.html do SPA e a tela mostra
+// só "Não foi possível carregar a lista de exames". A lista de preços é GET (sem
+// corpo); a leitura do pedido médico é POST com JSON (os paths no bucket).
+function atendimentoApiPlugin(env: Record<string, string>): Plugin {
+  const ATENDIMENTO_ROUTES: Record<string, string> = {
+    'gerador-orcamento-precos': 'GET',
+    'gerador-orcamento-pedido-medico': 'POST',
+  };
+  const SERVER_ENV_KEYS = [
+    'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
+    'GEMINI_API_KEY', 'GEMINI_MODEL',
+  ];
+
+  const ensureProcessEnv = () => {
+    for (const k of SERVER_ENV_KEYS) {
+      if (env[k] && !process.env[k]) process.env[k] = env[k];
+    }
+    // getSupabaseAdminClient lê SUPABASE_URL; no dev temos VITE_SUPABASE_URL
+    if (!process.env.SUPABASE_URL && env.VITE_SUPABASE_URL) {
+      process.env.SUPABASE_URL = env.VITE_SUPABASE_URL;
+    }
+  };
+
+  return {
+    name: 'atendimento-dev-api',
+    configureServer(server) {
+      server.middlewares.use(async (req: IncomingMessage, res: ServerResponse, next) => {
+        const url = new URL(req.url ?? '/', 'http://localhost');
+        const match = url.pathname.match(/^\/api\/atendimento\/([^/]+)$/);
+        const action = match?.[1];
+        if (!action || ATENDIMENTO_ROUTES[action] !== req.method) return next();
+
+        let body: Record<string, unknown> = {};
+        if (req.method === 'POST') {
+          try {
+            await new Promise<void>((resolve, reject) => {
+              let raw = '';
+              req.on('data', (chunk) => { raw += chunk; });
+              req.on('end', () => {
+                try { body = raw ? JSON.parse(raw) : {}; resolve(); }
+                catch { reject(new Error('JSON inválido')); }
+              });
+              req.on('error', reject);
+            });
+          } catch {
+            res.statusCode = 400;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: 'Body inválido' }));
+            return;
+          }
+        }
+
+        const vReq = Object.assign(req, { body, query: { action } });
+        const vRes = Object.assign(res, {
+          status(code: number) { res.statusCode = code; return vRes; },
+          json(payload: unknown) {
+            if (!res.headersSent) res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify(payload));
+            return vRes;
+          },
+        });
+
+        try {
+          ensureProcessEnv();
+          const mod = await server.ssrLoadModule(`/api/_lib/handlers/atendimento-${action}.ts`);
+          await mod.default(vReq, vRes);
+        } catch (err) {
+          console.error(`[dev/atendimento/${action}]`, err);
+          if (!res.headersSent) {
+            res.statusCode = 500;
+            res.setHeader('Content-Type', 'application/json');
+            res.end(JSON.stringify({ success: false, error: err instanceof Error ? err.message : 'Erro interno' }));
+          }
+        }
+      });
+    },
+  };
+}
+
 // Espelho de dev das rotas de /api/faturamento/*. As de leitura recebem a entrada pela
 // query string; as de escrita (titulo-criar, operadoras-sync) recebem JSON no corpo,
 // como no apoioApiPlugin. O handler só precisa das credenciais do apLIS + Supabase.
@@ -892,7 +972,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
 
   return {
-    plugins: [react(), notificationsApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env), qualidadeApiPlugin(env), rhApiPlugin(env), tiApiPlugin(env)],
+    plugins: [react(), notificationsApiPlugin(env), umamiApiPlugin(env), createUserApiPlugin(env), documentosApiPlugin(env), recepcaoAgendamentoApiPlugin(env), uploadDocumentoApiPlugin(env), apoioApiPlugin(env), faturamentoApiPlugin(env), qualidadeApiPlugin(env), rhApiPlugin(env), tiApiPlugin(env), atendimentoApiPlugin(env)],
     optimizeDeps: {
       exclude: ['lucide-react'],
     },
