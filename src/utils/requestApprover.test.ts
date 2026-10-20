@@ -1,87 +1,81 @@
 import { describe, expect, it } from 'vitest';
-import { resolveRequestApprover, type ColaboradorNaCadeia } from './requestApprover';
+import { resolveRequestApprover, type ColaboradorNaResolucao, type DepartamentoDoAprovador } from './requestApprover';
 
-const colab = (c: Partial<ColaboradorNaCadeia> & Pick<ColaboradorNaCadeia, 'id'>): ColaboradorNaCadeia => ({
-  gestorId: null,
+const colab = (c: Partial<ColaboradorNaResolucao> & Pick<ColaboradorNaResolucao, 'id'>): ColaboradorNaResolucao => ({
   userProfileId: `user-${c.id}`,
+  departamentoId: null,
   status: 'ativo',
-  aprovaSolicitacaoCompra: false,
   usuarioAtivo: true,
   ...c,
 });
 
+const tecnica: DepartamentoDoAprovador = { id: 'tecnica', aprovadorScId: 'paulo' };
+
 describe('resolveRequestApprover', () => {
-  it('cadeia simples: o gestor direto aprovador é o aprovador', () => {
+  it('departamento com aprovador: o aprovador do departamento de quem pediu', () => {
     const colaboradores = [
-      colab({ id: 'ana', gestorId: 'louise' }),
-      colab({ id: 'louise', aprovaSolicitacaoCompra: true }),
+      colab({ id: 'marina', departamentoId: 'tecnica' }),
+      colab({ id: 'paulo', departamentoId: 'tecnica' }),
     ];
 
-    expect(resolveRequestApprover('user-ana', colaboradores)).toBe('user-louise');
-  });
-
-  it('pula gestor não aprovador: Marina → Eduarda → Paulo', () => {
-    const colaboradores = [
-      colab({ id: 'marina', gestorId: 'eduarda' }),
-      colab({ id: 'eduarda', gestorId: 'paulo' }),
-      colab({ id: 'paulo', aprovaSolicitacaoCompra: true }),
-    ];
-
-    expect(resolveRequestApprover('user-marina', colaboradores)).toBe('user-paulo');
+    expect(resolveRequestApprover('user-marina', colaboradores, [tecnica])).toBe('user-paulo');
   });
 
   it.each([
     ['desligado', { status: 'desligado' as const }],
     ['sem login', { userProfileId: null }],
     ['com usuário removido ou desativado', { usuarioAtivo: false }],
-  ])('pula aprovador %s e continua subindo', (_caso, indisponivel) => {
+  ])('aprovador %s: null, sem procurar outro', (_caso, indisponivel) => {
     const colaboradores = [
-      colab({ id: 'marina', gestorId: 'eduarda' }),
-      colab({ id: 'eduarda', gestorId: 'paulo', aprovaSolicitacaoCompra: true, ...indisponivel }),
-      colab({ id: 'paulo', aprovaSolicitacaoCompra: true }),
+      colab({ id: 'marina', departamentoId: 'tecnica' }),
+      colab({ id: 'paulo', departamentoId: 'tecnica', ...indisponivel }),
+      colab({ id: 'louise', departamentoId: 'adm' }),
     ];
+    const departamentos = [tecnica, { id: 'adm', aprovadorScId: 'louise' }];
 
-    expect(resolveRequestApprover('user-marina', colaboradores)).toBe('user-paulo');
+    expect(resolveRequestApprover('user-marina', colaboradores, departamentos)).toBeNull();
   });
 
-  it('cadeia sem aprovador: null', () => {
-    const colaboradores = [
-      colab({ id: 'marina', gestorId: 'eduarda' }),
-      colab({ id: 'eduarda' }),
-    ];
+  it('aprovador do departamento abrindo a própria SC: null', () => {
+    const colaboradores = [colab({ id: 'paulo', departamentoId: 'tecnica' })];
 
-    expect(resolveRequestApprover('user-marina', colaboradores)).toBeNull();
-  });
-
-  it('topo sem gestor abrindo a própria SC: null, mesmo sendo aprovador (nunca começa no solicitante)', () => {
-    const colaboradores = [colab({ id: 'paulo', aprovaSolicitacaoCompra: true })];
-
-    expect(resolveRequestApprover('user-paulo', colaboradores)).toBeNull();
+    expect(resolveRequestApprover('user-paulo', colaboradores, [tecnica])).toBeNull();
   });
 
   it('solicitante sem colaborador no RH: null', () => {
-    const colaboradores = [colab({ id: 'paulo', aprovaSolicitacaoCompra: true })];
+    const colaboradores = [colab({ id: 'paulo', departamentoId: 'tecnica' })];
 
-    expect(resolveRequestApprover('user-sem-ficha', colaboradores)).toBeNull();
-    expect(resolveRequestApprover(null, colaboradores)).toBeNull();
+    expect(resolveRequestApprover('user-sem-ficha', colaboradores, [tecnica])).toBeNull();
   });
 
   it('SC sem quem pediu não casa com colaborador sem login', () => {
     const colaboradores = [
-      colab({ id: 'sem-login', userProfileId: null, gestorId: 'paulo' }),
-      colab({ id: 'paulo', aprovaSolicitacaoCompra: true }),
+      colab({ id: 'sem-login', userProfileId: null, departamentoId: 'tecnica' }),
+      colab({ id: 'paulo', departamentoId: 'tecnica' }),
     ];
 
-    expect(resolveRequestApprover(null, colaboradores)).toBeNull();
+    expect(resolveRequestApprover(null, colaboradores, [tecnica])).toBeNull();
   });
 
-  it('ciclo na cadeia (barrado no banco) não trava: null', () => {
-    const colaboradores = [
-      colab({ id: 'marina', gestorId: 'eduarda' }),
-      colab({ id: 'eduarda', gestorId: 'luanna' }),
-      colab({ id: 'luanna', gestorId: 'eduarda' }),
-    ];
+  it('solicitante sem departamento: null', () => {
+    const colaboradores = [colab({ id: 'marina' }), colab({ id: 'paulo', departamentoId: 'tecnica' })];
 
-    expect(resolveRequestApprover('user-marina', colaboradores)).toBeNull();
+    expect(resolveRequestApprover('user-marina', colaboradores, [tecnica])).toBeNull();
+  });
+
+  it('departamento sem aprovador: null', () => {
+    const colaboradores = [colab({ id: 'raquel', departamentoId: 'recepcao' })];
+
+    expect(resolveRequestApprover('user-raquel', colaboradores, [{ id: 'recepcao', aprovadorScId: null }])).toBeNull();
+  });
+
+  it('aprovador lotado em outro departamento: vale (Paulo aprova o departamento da Eduarda)', () => {
+    const colaboradores = [
+      colab({ id: 'eduarda', departamentoId: 'bioquimica' }),
+      colab({ id: 'paulo', departamentoId: 'tecnica' }),
+    ];
+    const departamentos = [tecnica, { id: 'bioquimica', aprovadorScId: 'paulo' }];
+
+    expect(resolveRequestApprover('user-eduarda', colaboradores, departamentos)).toBe('user-paulo');
   });
 });

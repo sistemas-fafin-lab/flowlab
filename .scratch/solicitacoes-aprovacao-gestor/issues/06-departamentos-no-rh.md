@@ -21,3 +21,10 @@ spec, "Departamentos (schema)", "Holerites da equipe" e "Dados iniciais".
 - [ ] Holerites da equipe: `colaborador_e_subordinado_do_usuario_atual` passa a usar `departamento_responsaveis` (policies inalteradas).
 - [ ] Validado no projeto de teste (holerites: Louise vê a equipe da Raquel; responsável sem `canViewHoleritesEquipe` não vê).
 - [ ] Depois de conferido: remover `colaboradores.gestor_id` (trigger de ciclo, uso na tela) e `colaboradores.departamento` (texto), e `rh_sync_colaborador` para de gravar o texto.
+
+## Comments
+
+**20/10/2026 — ordem das migrations.** A migration da issue 01
+(`20261020220000_sc_aprovador_pelo_departamento.sql`) lê `departamentos` e
+`colaboradores.departamento_id`. A desta issue precisa de timestamp menor que
+`20261020220000` (ex.: `20261020215000_...`), senão a 01 aborta.

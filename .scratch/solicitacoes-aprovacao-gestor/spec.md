@@ -198,6 +198,7 @@ A Solicitação de Material (SM) não muda.
      confirmação o RH preenche na aba.
   4. `gestor_id` e o texto do departamento só saem depois de conferido.
 - **Migration já commitada** `20261020170000_sc_aprovador_pela_cadeia_do_rh.sql`
+  (hoje `20261020220000_sc_aprovador_pelo_departamento.sql`, que tem de rodar depois da 06)
   (nunca aplicada em nenhum projeto): editada no lugar — sai
   `aprova_solicitacao_compra` e a cadeia por `gestor_id`; ficam
   `approver_id`, `approved_by_user_id`, o trigger de criação e a proteção
