@@ -89,6 +89,10 @@ describe('blocos do Início (fumaça)', () => {
     expect(semZap).toContain('disabled=""');
     expect(semZap).toContain('title="Você não tem WhatsApp');
     expect(html({ ...r, chargeable: true, charged: true, statusText: 'Cobrança enviada agora via WhatsApp' })).toContain('>Cobrada<');
+    // D35: vai para o grupo — o botão fica habilitado, e a nota explica.
+    const noGrupo = html({ ...r, chargeable: true, chargeNote: 'Bruno não recebe cobrança pelo WhatsApp: a EVA cobra no grupo da equipe, citando o nome.' });
+    expect(noGrupo).not.toContain('disabled=""');
+    expect(noGrupo).toContain('title="Bruno não recebe cobrança pelo WhatsApp');
   });
 
   it('fila do WhatsApp com mensagens reais', () => {
@@ -133,5 +137,18 @@ describe('aviso pelo WhatsApp no chat (D32)', () => {
     expect(render(h(AvisoChatCard, { a: { ...aviso, estado: 'enviado', agendadaPara: null }, onEnviar: () => undefined, onDescartar: () => undefined }))).toContain('Na fila do WhatsApp: sai em instantes.');
     expect(render(h(AvisoChatCard, { a: { ...aviso, estado: 'enviado', agendadaPara: '2026-10-19T10:00:00.000Z' }, onEnviar: () => undefined, onDescartar: () => undefined }))).toContain('Fora do horário da EVA: sai');
     expect(render(h(AvisoChatCard, { a: { ...aviso, estado: 'descartado' }, onEnviar: () => undefined, onDescartar: () => undefined }))).toContain('Nada foi enviado.');
+  });
+
+  it('sem WhatsApp (D35): avisa que vai para o grupo, citando o nome; depois, vale o que o servidor fez', () => {
+    const aberto = render(h(AvisoChatCard, { a: aviso, grupo: { nome: 'TI FAFIN' }, onEnviar: () => undefined, onDescartar: () => undefined }));
+    expect(aberto).toContain('Aviso no grupo');
+    expect(aberto).toContain('o aviso vai para o grupo &quot;TI FAFIN&quot;, citando o nome.');
+    expect(aberto).toContain('Enviar no grupo');
+    const enviado = render(h(AvisoChatCard, { a: { ...aviso, estado: 'enviado', agendadaPara: null, noGrupo: true, grupoNome: 'TI FAFIN' }, onEnviar: () => undefined, onDescartar: () => undefined }));
+    expect(enviado).toContain('sai em instantes');
+    expect(enviado).toContain('no grupo &quot;TI FAFIN&quot;');
+    // Previsto no grupo, mas o servidor mandou no privado (a pessoa ganhou WhatsApp): vale o servidor.
+    const privado = render(h(AvisoChatCard, { a: { ...aviso, estado: 'enviado', agendadaPara: null, noGrupo: false }, grupo: { nome: 'TI FAFIN' }, onEnviar: () => undefined, onDescartar: () => undefined }));
+    expect(privado).not.toContain('grupo');
   });
 });

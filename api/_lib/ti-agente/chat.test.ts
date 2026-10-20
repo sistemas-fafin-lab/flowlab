@@ -69,6 +69,7 @@ describe('validarRespostaChat', () => {
       resposta: 'Preparei a proposta.',
       cards_citados: ['IT-011'],
       propostas: [proposta({ card_codigo: 'IT-011', kanban_status: 'in_progress' }), proposta({ card_codigo: 'IT-010', kanban_status: 'in_progress' })], avisos: [],
+      blocos: [], proximos_passos: [],
     }, CTX);
     // A segunda não muda nada (o card já está em andamento): fica de fora.
     expect(r.propostas).toHaveLength(1);
@@ -77,7 +78,9 @@ describe('validarRespostaChat', () => {
   });
 
   it('pedido sobre card fora do contexto não vira card novo, como na reunião', () => {
-    const r = validarRespostaChat({ resposta: 'x', cards_citados: [], propostas: [proposta({ card_codigo: 'IT-999', titulo: 'Algo', kanban_status: 'done' })], avisos: [] }, CTX);
+    const r = validarRespostaChat({
+      resposta: 'x', cards_citados: [], propostas: [proposta({ card_codigo: 'IT-999', titulo: 'Algo', kanban_status: 'done' })], avisos: [], blocos: [], proximos_passos: [],
+    }, CTX);
     expect(r.propostas).toEqual([]);
   });
 
@@ -89,6 +92,7 @@ describe('validarRespostaChat', () => {
         { pessoa_id: 'u-desconhecido', texto: 'oi' },
         { pessoa_id: 'u-bruno', texto: '   ' },
       ],
+      blocos: [], proximos_passos: [],
     }, CTX);
     expect(r.avisos).toEqual([{ pessoaId: 'u-bruno', nome: 'Bruno Mendes', texto: 'A reunião mudou para as 10h.' }]);
     expect(INSTRUCOES_CHAT).toContain('"avisos"');

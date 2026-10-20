@@ -29,7 +29,7 @@ interface CorpoResposta {
 
 interface Cenario {
   usuario?: { id: string } | null;
-  perfil?: { role: string; custom_roles: { permissions: string[] } | null } | null;
+  perfil?: { custom_roles: { permissions: string[] } | null } | null;
   tabelas?: Record<string, Linha[]>;
   erros?: Record<string, string>;
   /** NF-e por lote no apLIS (mock de nfesDosLotes). */

@@ -2,6 +2,7 @@
 // Body: { card_id }. Lembrar = o próprio card, com canManageIT; Cobrar = card de outra
 // pessoa, só o gestor da EVA (canManageAgenteTI, D31). 403 sem permissão, 409 dentro da janela de 4 h, 422 sem
 // WhatsApp (ou WhatsApp desligado, ou card em dia). A mensagem vai para a fila (D9).
+// Quem não recebe cobrança pelo WhatsApp é citado no grupo da equipe (D35): `citadosNoGrupo`.
 // Fora do horário de cobrança (dia útil, 7h às 20h), ela vai agendada: `agendadaPara`.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../supabase.js';
@@ -30,7 +31,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(r.status).json({ success: false, error: r.erro });
       return;
     }
-    res.status(200).json({ success: true, modo: r.modo, destinatarios: r.destinatarios, agendadaPara: r.agendadaPara });
+    res.status(200).json({
+      success: true, modo: r.modo, destinatarios: r.destinatarios, citadosNoGrupo: r.citadosNoGrupo, grupoNome: r.grupoNome, agendadaPara: r.agendadaPara,
+    });
   } catch (e) {
     console.error('[ti/agente-cobrar]', e);
     res.status(500).json({ success: false, error: 'Não consegui pôr a cobrança na fila. Tente de novo.' });

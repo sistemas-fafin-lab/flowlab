@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { casarMembro, formatarWhatsapp, gradientePara, iniciais, normalizarNome } from './pessoas';
+import { casarMembro, formatarWhatsapp, gradientePara, iniciais, juntarNomes, nomeParaCitar, normalizarNome } from './pessoas';
 
 describe('iniciais e cor do avatar', () => {
   it('primeira e última inicial; nome único usa as duas primeiras letras', () => {
@@ -32,6 +32,24 @@ describe('casarMembro (RN08)', () => {
   it('"Equipe" e nomes desconhecidos ficam sem responsável', () => {
     expect(casarMembro('Equipe', membros)).toBeNull();
     expect(casarMembro('@Erika', membros)).toBeNull();
+  });
+});
+
+describe('nomes no grupo da equipe (D35)', () => {
+  it('juntarNomes: "Ana", "Ana e Bruno", "Ana, Bruno e Carla"', () => {
+    expect(juntarNomes([])).toBe('');
+    expect(juntarNomes(['Ana'])).toBe('Ana');
+    expect(juntarNomes(['Ana', 'Bruno'])).toBe('Ana e Bruno');
+    expect(juntarNomes(['Ana', 'Bruno', 'Carla'])).toBe('Ana, Bruno e Carla');
+  });
+
+  it('cita pelo primeiro nome; com xará na equipe (sem olhar acento), pelo nome inteiro', () => {
+    const equipe = ['Gabriel Carneiro', 'Ana Souza', 'Vinícius Lima'];
+    expect(nomeParaCitar('Gabriel Carneiro', equipe)).toBe('Gabriel');
+    expect(nomeParaCitar('Gabriel  Carneiro', [...equipe, 'Gabriel Rocha'])).toBe('Gabriel Carneiro');
+    expect(nomeParaCitar('Vinícius Lima', [...equipe, 'Vinicius Prado'])).toBe('Vinícius Lima');
+    // A própria pessoa na lista não conta como xará.
+    expect(nomeParaCitar('Ana Souza', ['Ana Souza', 'ana souza'])).toBe('Ana');
   });
 });
 

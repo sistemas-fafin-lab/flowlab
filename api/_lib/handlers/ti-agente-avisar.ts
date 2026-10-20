@@ -1,13 +1,13 @@
 // API Route: POST /api/ti/agente-avisar — aviso de gestor para uma pessoa pelo WhatsApp (issue 21, D32).
 // Body: { user_id, texto }. O cartão "Enviar pelo WhatsApp" do chat do Início chama esta rota,
 // depois que o gestor confere o texto. Só gestor da EVA (canManageAgenteTI). A mensagem vai para
-// a fila (D9); fora do horário da EVA, agendada (`agendadaPara`).
+// a fila (D9); fora do horário da EVA, agendada (`agendadaPara`). Para quem não tem WhatsApp, vai
+// para o grupo da equipe, citando a pessoa (D35): `noGrupo`.
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { autorizar, ehFalha, tokenDoHeader } from '../ti-agente/autorizacao.js';
 import { MAX_AVISO_PESSOAL, enviarAvisoPessoal } from '../ti-agente/aviso.js';
 import { lerNomes } from '../ti-agente/dados.js';
-import { montarAviso } from '../ti-agente/grupo.js';
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
   res.setHeader('Cache-Control', 'no-store');
@@ -34,12 +34,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     const db = getSupabaseAdminClient();
     const nomes = await lerNomes(db, [auth.userId]);
-    const r = await enviarAvisoPessoal(db, auth, destino, montarAviso(nomes[auth.userId] ?? '', texto));
+    const r = await enviarAvisoPessoal(db, auth, destino, { de: nomes[auth.userId] ?? '', aviso: texto });
     if ('erro' in r) {
       res.status(r.status).json({ success: false, error: r.erro });
       return;
     }
-    res.status(200).json({ success: true, mensagemId: r.id, para: r.para, agendadaPara: r.agendadaPara });
+    res.status(200).json({ success: true, mensagemId: r.id, para: r.para, noGrupo: r.noGrupo, grupoNome: r.grupoNome, agendadaPara: r.agendadaPara });
   } catch (e) {
     console.error('[ti/agente-avisar]', e);
     res.status(500).json({ success: false, error: 'Não consegui pôr o aviso na fila. Tente de novo.' });

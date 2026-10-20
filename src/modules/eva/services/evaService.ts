@@ -149,11 +149,15 @@ export const evaService = {
    * Fora do horário de cobrança (dia útil, 7h às 20h), ela vai agendada (`agendadaPara`).
    */
   /** Aviso do gestor para uma pessoa pelo WhatsApp (D32): vai para a fila, no horário da EVA. */
+  /** Sem WhatsApp cadastrado, o aviso vai para o grupo da equipe, citando a pessoa (D35): `noGrupo`. */
   sendAviso: (userId: string, texto: string) =>
-    chamarEva<{ mensagemId: string; para: string; agendadaPara: string | null }>('agente-avisar', { user_id: userId, texto }),
+    chamarEva<{ mensagemId: string; para: string; noGrupo?: boolean; grupoNome?: string | null; agendadaPara: string | null }>('agente-avisar', { user_id: userId, texto }),
 
+  /** Quem não recebe cobrança pelo WhatsApp é citado no grupo da equipe (D35): `citadosNoGrupo`. */
   sendCharge: (cardId: string) =>
-    chamarEva<{ modo: 'cobrar' | 'lembrar'; destinatarios: string[]; agendadaPara: string | null }>('agente-cobrar', { card_id: cardId }),
+    chamarEva<{
+      modo: 'cobrar' | 'lembrar'; destinatarios: string[]; citadosNoGrupo?: string[]; grupoNome?: string | null; agendadaPara: string | null;
+    }>('agente-cobrar', { card_id: cardId }),
 
   /** Cobranças enviadas hoje. Só a contagem (D24): qualquer um com canManageIT vê o número. */
   async cobrancasHoje(): Promise<number> {
@@ -178,11 +182,14 @@ export const evaService = {
     });
   },
 
-  /** Quem tem WhatsApp com adesão (só gestores leem ti_agente_membros): habilita o botão Cobrar. */
-  async membrosComWhatsapp(): Promise<string[]> {
-    const { data, error } = await supabase.from('ti_agente_membros').select('user_id').eq('ativo', true).eq('recebe_cobranca', true).not('whatsapp', 'is', null);
+  /**
+   * Os ativos da aba Membros, com WhatsApp e adesão (só gestores leem ti_agente_membros): o botão
+   * Cobrar e o cartão de aviso sabem quem recebe no privado e quem vai pelo grupo (D35).
+   */
+  async membrosNoWhatsapp(): Promise<{ user_id: string; whatsapp: boolean; recebe: boolean }[]> {
+    const { data, error } = await supabase.from('ti_agente_membros').select('user_id, whatsapp, recebe_cobranca').eq('ativo', true);
     if (error) throw new Error(error.message);
-    return (data ?? []).map((m) => m.user_id as string);
+    return (data ?? []).map((m) => ({ user_id: m.user_id as string, whatsapp: !!m.whatsapp, recebe: m.recebe_cobranca === true && !!m.whatsapp }));
   },
 };
 

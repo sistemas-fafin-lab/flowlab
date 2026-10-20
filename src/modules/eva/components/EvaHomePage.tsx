@@ -16,6 +16,7 @@ import { montarComentarios, type ComentariosInicio } from '../domain/comentarios
 import { montarIntegracoes } from '../domain/integracoes';
 import { primeiroNome } from '../domain/pessoas';
 import { cardPorCodigo, type ContextoVisual } from '../domain/respostaVisual';
+import { ehChatDeGrupo } from '../domain/whatsapp';
 import { EvaUIProvider } from './EvaUIContext';
 import { EvaHero } from './EvaHero';
 import { EvaControls } from './EvaControls';
@@ -51,7 +52,10 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
 
   const eva = useEvaNoInicio(podeAprovar);
   const whatsappAtivo = eva.dados?.config?.whatsapp_ativo === true;
-  const home = useEvaHome(defaultView, { ehGestor, whatsappAtivo });
+  // D35: quem não recebe pelo WhatsApp é cobrado (ou avisado) no grupo da equipe, se houver um.
+  const temGrupo = ehChatDeGrupo(eva.dados?.config?.whatsapp_grupo_id);
+  const grupoNome = eva.dados?.config?.whatsapp_grupo_nome ?? null;
+  const home = useEvaHome(defaultView, { ehGestor, whatsappAtivo, temGrupo, grupoNome });
   const chat = useEvaChat({
     primeiroNome: nome,
     view: home.view,
@@ -103,6 +107,11 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
   const navegarDoChat = (para: string) => {
     chat.close();
     navigate(para);
+  };
+  // Aviso para quem está na aba Membros sem WhatsApp: vai para o grupo (D35). O servidor confere de novo.
+  const grupoDoAviso = (pessoaId: string) => {
+    const m = home.membrosNoWhatsapp?.get(pessoaId);
+    return m && !m.whatsapp && temGrupo ? { nome: grupoNome } : null;
   };
 
   // Comentários da EVA (issue 17): regras fixas sobre os dados que o Início já leu.
@@ -276,6 +285,7 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
           onDescartar={chat.descartar}
           onEnviarAviso={(a, texto) => void chat.enviarAviso(a, texto)}
           onDescartarAviso={chat.descartarAviso}
+          grupoDoAviso={grupoDoAviso}
           onOpenCard={abrirCitado}
           visual={visual}
           podeCobrar={ehGestor && whatsappAtivo}
