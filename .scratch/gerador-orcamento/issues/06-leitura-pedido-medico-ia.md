@@ -6,7 +6,7 @@ Ver `.scratch/gerador-orcamento/spec.md` → histórias 37–42 e "Leitura do pe
 
 **Blocked by:** 02 — Gerador de Orçamento: busca e carrinho
 
-**Status:** ready-for-human — código pronto (20/Out/2026); falta o responsável confirmar o prompt contra o `prompt.txt` do Drive, aplicar em produção a migration `20261020200000_gerador_orcamento_pedidos_medicos_bucket.sql` (já aplicada no teste em 20/Out), configurar `GEMINI_API_KEY` na Vercel e conferir um pedido real
+**Status:** ready-for-human — código pronto (20/Out/2026); falta o responsável confirmar o prompt contra o `prompt.txt` do Drive, conferir a `GEMINI_API_KEY` na Vercel (migration `20261020200000_gerador_orcamento_pedidos_medicos_bucket.sql` aplicada no teste e em produção em 20/Out) e conferir um pedido real
 
 - [x] Migration do bucket privado temporário, com policy de upload para autenticados com `canUseGeradorOrcamento`
 - [ ] Prompt da IA trazido da Tabela-Particular para o repositório (o conteúdo atual está no `prompt.txt` do Drive; a cópia local `lib/prompt.txt` da Tabela-Particular serve de ponto de partida — confirmar com o responsável se está em dia)

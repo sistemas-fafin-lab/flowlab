@@ -6,7 +6,7 @@ Ver `.scratch/gerador-orcamento/spec.md` → histórias 28–31 e "Regras puras 
 
 **Blocked by:** 03 — Desconto automático por volume e resumo
 
-**Status:** done no código (20/Out/2026; sem migration nova); falta publicar e conferir no navegador
+**Status:** done no código (20/Out/2026; sem migration nova); falta conferir no navegador depois do deploy
 
 - [x] Botão "Gerar PDF" habilitado quando o carrinho tem itens
 - [x] PDF com cabeçalho e logo no padrão dos PDFs do flowlab

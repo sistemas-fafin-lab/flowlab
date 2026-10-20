@@ -6,7 +6,7 @@ Ver `.scratch/gerador-orcamento/spec.md` → histórias 20–27 e "Regras puras 
 
 **Blocked by:** 02 — Gerador de Orçamento: busca e carrinho
 
-**Status:** done no código (20/Out/2026; sem migration nova); falta publicar e conferir no navegador
+**Status:** done no código (20/Out/2026; sem migration nova); falta conferir no navegador depois do deploy
 
 - [x] Função pura de cálculo do Orçamento portada da Tabela-Particular (`calcularOrcamento`), sem dependência de React, rede ou PDF, devolvendo valor total, valor com desconto, percentual aplicado e quantidade de elegíveis
 - [x] Contagem de elegíveis ignora a quantidade; valor dos elegíveis usa preço × quantidade

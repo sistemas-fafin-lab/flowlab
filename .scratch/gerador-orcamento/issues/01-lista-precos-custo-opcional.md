@@ -6,7 +6,7 @@ Ver `.scratch/gerador-orcamento/spec.md` → "Endpoint interno de preços".
 
 **Blocked by:** None (can start immediately)
 
-**Status:** done no código (20/Out/2026; sem migration nova); falta publicar
+**Status:** done no código (20/Out/2026; sem migration nova); publicado com o push de 20/Out
 
 - [x] A montagem da lista de preços recebe uma opção que diz se o custo entra
 - [x] Sem custo: a consulta aos exames não seleciona as colunas de custo e nenhum item da resposta tem a chave `custo`
