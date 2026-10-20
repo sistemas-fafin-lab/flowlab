@@ -6,8 +6,8 @@
 import type { VercelRequest } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { isBearerApiKeyValid } from './bearerAuth.js';
+import { buscarTodasPaginado } from './supabasePaginado.js';
 
-const PAGE_SIZE = 1000; // espelha max_rows do PostgREST (supabase/config.toml)
 const FONTE_PARTICULAR = 'Particular';
 // Só a tabela associada "Particular" vai pra Tabela Particular — linhas da
 // fonte Particular em outras tabelas (ex.: "PART") são de outro uso e não
@@ -87,25 +87,6 @@ interface ValorPersonalizadoRow {
  */
 export function isTabelaParticularApiKeyValid(req: VercelRequest): boolean {
   return isBearerApiKeyValid(req, 'TABELA_PARTICULAR_API_KEY');
-}
-
-async function buscarTodasPaginado<T>(
-  supabase: SupabaseClient,
-  tabela: string,
-  colunas: string,
-): Promise<T[]> {
-  const linhas: T[] = [];
-  for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from(tabela)
-      .select(colunas)
-      .range(from, from + PAGE_SIZE - 1)
-      .returns<T[]>();
-    if (error) throw new Error(`Falha ao ler ${tabela}: ${error.message}`);
-    linhas.push(...(data ?? []));
-    if (!data || data.length < PAGE_SIZE) break;
-  }
-  return linhas;
 }
 
 /**
