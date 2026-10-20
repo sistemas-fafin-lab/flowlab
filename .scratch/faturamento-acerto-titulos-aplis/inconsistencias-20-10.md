@@ -1,0 +1,436 @@
+# Inconsistências sistema × apLIS — levantamento de 20/10/2026 (depois do acerto)
+
+Gerado lendo o Supabase de produção e o backup MySQL do apLIS (dados até 19/10).
+
+## Número da nota do título diferente da NF do apLIS (NF reemitida) (10)
+
+- 5225: título 8035, 8034 × apLIS 8035
+- 5429: título 9222 × apLIS 9209
+- 5597: título 8306 × apLIS 9523
+- 5776: título 8473 × apLIS 9523
+- 6436: título 9230 × apLIS 9468
+- 6501: título 9262 × apLIS 9550
+- 6577: título 9169, 9170 × apLIS 9165
+- 6656: título 9520 × apLIS 9537
+- 6710: título 9446 × apLIS 9504
+- 6721: título 9446 × apLIS 9504
+
+## Recebido diferente do apLIS (14)
+
+- 6479: 0,00 × 62,28
+- 6730: 0,00 × 1.386,33
+- 6563: 0,00 × 73,67
+- 6328: 32.863,78 × 32.181,35 [planilha]
+- 6388: 11.198,70 × 1.293,42 [planilha]
+- 6540: 7.195,01 × 5.803,40 [planilha]
+- 6503: 14.899,77 × 13.859,52 [planilha]
+- 6500: 31.355,06 × 29.990,20 [planilha]
+- 6517: 14.909,44 × 14.149,50 [planilha]
+- 6524: 17.315,02 × 17.248,20 [planilha]
+- 5224: 5.490,34 × 5.459,99 [planilha]
+- 6804: 0,00 × 10.645,70
+- 5325: 1.219,72 × 1.194,05 [planilha]
+- 7014: 0,00 × 150,00
+
+## Valor do título diferente do apLIS (2)
+
+- 5155: 517,90 × 490,84 [planilha]
+- 6877: 7.531,43 × 7.542,44
+
+## Lote fechado no apLIS em 2026 sem título no sistema (79)
+
+- 851 — Medigest Centro de Medicina Digestiva — fechado 2026-04-29 — Recebido — R$ 5340,66
+- 3917 — AMHP-DF — fechado 2026-05-18 — Recebido — R$ 1356,90 — NF 8030
+- 3918 — AMHP-DF — fechado 2026-06-03 — Recebido — R$ 343,67
+- 3934 — AMHP-DF — fechado 2026-06-05 — Recebido — R$ 717,44
+- 3935 — AMHP-DF — fechado 2026-06-05 — Recebido — R$ 781,26
+- 4022 — AMHP-DF — fechado 2026-06-20 — Faturado — R$ 1953,92
+- 4389 — SAUDE CAIXA — fechado 2026-04-07 — Recebido — R$ 1884,12
+- 4405 — FUSEX — fechado 2026-02-06 — Recebido — R$ 514,06
+- 4706 — TRT — fechado 2026-02-10 — Recebido — R$ 9367,63
+- 4715 — AMIL — fechado 2026-01-07 — Recebido — R$ 15445,61
+- 4886 — Medigest Centro de Medicina Digestiva — fechado 2026-01-23 — Recebido — R$ 42699,00
+- 4887 — Medigest Centro de Medicina Digestiva — fechado 2026-01-23 — Recebido — R$ 41733,00
+- 4888 — Medigest Centro de Medicina Digestiva — fechado 2026-01-23 — Faturado — R$ 1800,00
+- 4889 — Medigest Centro de Medicina Digestiva — fechado 2026-01-23 — Recebido — R$ 64932,07
+- 4890 — Medigest Centro de Medicina Digestiva — fechado 2026-01-23 — Faturado — R$ 3578,91
+- 4891 — Medigest Centro de Medicina Digestiva — fechado 2026-01-23 — Recebido — R$ 20056,25
+- 4892 — Medigest Centro de Medicina Digestiva — fechado 2026-01-23 — Recebido — R$ 588,74
+- 4893 — Medigest Centro de Medicina Digestiva — fechado 2026-01-23 — Faturado — R$ 330,18
+- 4918 — SUL AMERICA COMPANHIA DE SEGURO SAÚDE — fechado 2026-01-30 — Recebido parcial — R$ 17065,93 — NF 8956
+- 4981 — Medigest Centro de Medicina Digestiva — fechado 2026-02-05 — Faturado — R$ 1800,00
+- 5019 — Medigest Centro de Medicina Digestiva — fechado 2026-02-13 — Faturado — R$ 1170,07
+- 5020 — Medigest Centro de Medicina Digestiva — fechado 2026-02-13 — Faturado — R$ 1200,00
+- 5021 — Medigest Centro de Medicina Digestiva — fechado 2026-02-13 — Faturado — R$ 2412,60
+- 5046 — Medigest Centro de Medicina Digestiva — fechado 2026-02-20 — Faturado — R$ 750,00
+- 5047 — Medigest Centro de Medicina Digestiva — fechado 2026-02-20 — Faturado — R$ 1091,91
+- 5048 — Medigest Centro de Medicina Digestiva — fechado 2026-02-20 — Faturado — R$ 386,57
+- 5071 — MATER CLINICA — fechado 2026-02-25 — Faturado — R$ 2003,00
+- 5073 — BRADESCO SAUDE  - 005711 — fechado 2026-02-25 — Recebido — R$ 178,05
+- 5361 — BRADESCO SAUDE  - 005711 — fechado 2026-04-01 — Faturado — R$ 2452,42
+- 5437 — AMHP-DF — fechado 2026-04-10 — Recebido — R$ 48,64
+- 5556 — BRADESCO SAUDE  - 005711 — fechado 2026-04-23 — Prejuízo — R$ 123,68
+- 5650 — Medigest Centro de Medicina Digestiva — fechado 2026-05-05 — Faturado — R$ 2617,95
+- 5651 — Medigest Centro de Medicina Digestiva — fechado 2026-05-05 — Faturado — R$ 213,03
+- 5652 — Medigest Centro de Medicina Digestiva — fechado 2026-05-05 — Faturado — R$ 300,00
+- 5691 — ABAC — fechado 2026-05-11 — Faturado — R$ 898,00
+- 5770 — TJDFT — fechado 2026-05-18 — Recebido — R$ 73,67 — NF 8564
+- 5781 — PMDF — fechado 2026-05-18 — Recebido — R$ 8416,60
+- 5851 — Medigest Centro de Medicina Digestiva — fechado 2026-05-22 — Faturado — R$ 8136,88
+- 5852 — Medigest Centro de Medicina Digestiva — fechado 2026-05-22 — Faturado — R$ 2978,43
+- 5853 — Medigest Centro de Medicina Digestiva — fechado 2026-05-22 — Faturado — R$ 2505,00
+- 5920 — Medigest Centro de Medicina Digestiva — fechado 2026-05-29 — Faturado — R$ 2400,00
+- 5921 — Medigest Centro de Medicina Digestiva — fechado 2026-05-29 — Faturado — R$ 2007,48
+- 5922 — Medigest Centro de Medicina Digestiva — fechado 2026-05-29 — Faturado — R$ 1722,16
+- 5945 — ASSEFAZ — fechado 2026-06-02 — Faturado — R$ 2858,13 — NF 8690
+- 5948 — ASSEFAZ — fechado 2026-06-02 — Recebido — R$ 1217,17 — NF 8690
+- 5967 — E-VIDA — fechado 2026-07-01 — Recebido parcial — R$ 3081,62 — NF 9132
+- 6022 — AMHP-DF — fechado 2026-06-10 — Faturado — R$ 56,36
+- 6042 — Medigest Centro de Medicina Digestiva — fechado 2026-06-12 — Faturado — R$ 4805,89
+- 6043 — Medigest Centro de Medicina Digestiva — fechado 2026-06-12 — Faturado — R$ 2146,89
+- 6044 — Medigest Centro de Medicina Digestiva — fechado 2026-06-12 — Faturado — R$ 900,00
+- 6085 — AMHP-DF — fechado 2026-06-18 — Faturado — R$ 329,19
+- 6167 — Medigest Centro de Medicina Digestiva — fechado 2026-06-26 — Faturado — R$ 2474,74
+- 6168 — Medigest Centro de Medicina Digestiva — fechado 2026-06-26 — Faturado — R$ 1350,00
+- 6169 — Medigest Centro de Medicina Digestiva — fechado 2026-06-26 — Faturado — R$ 7759,04
+- 6191 — SUL AMERICA COMPANHIA DE SEGURO SAÚDE — fechado 2026-06-30 — Recebido — R$ 796,43
+- 6226 — AMIL — fechado 2026-07-06 — Faturado — R$ 2384,22
+- 6265 — TJDFT — fechado 2026-07-14 — Faturado — R$ 76,61 — NF 9154
+- 6268 — Medigest Centro de Medicina Digestiva — fechado 2026-07-13 — Faturado — R$ 1293,42
+- 6269 — Medigest Centro de Medicina Digestiva — fechado 2026-07-13 — Faturado — R$ 6415,91
+- 6270 — Medigest Centro de Medicina Digestiva — fechado 2026-07-13 — Faturado — R$ 2121,00
+- 6273 — BRADESCO SAUDE  - 005711 — fechado 2026-07-14 — Faturado — R$ 682,43
+- 6275 — AMHP-DF — fechado 2026-07-14 — Recebido — R$ 83,40
+- 6290 — SIS SENADO — fechado 2026-07-15 — Faturado — R$ 923,62 — NF 8693
+- 6340 — Medigest Centro de Medicina Digestiva — fechado 2026-08-03 — Faturado — R$ 3597,96
+- 6396 — Medigest Centro de Medicina Digestiva — fechado 2026-08-03 — Faturado — R$ 4821,00
+- 6408 — AMHP-DF — fechado 2026-07-29 — Faturado — R$ 59,89
+- 6438 — PARTICULAR — fechado 2026-07-31 — Recebido — R$ 63147,04
+- 6439 — Medigest Centro de Medicina Digestiva — fechado 2026-08-03 — Faturado — R$ 8346,29
+- 6473 — AMHP-DF — fechado 2026-08-06 — Faturado — R$ 614,91
+- 6550 — Medigest Centro de Medicina Digestiva — fechado 2026-08-17 — Faturado — R$ 4034,72
+- 6551 — Medigest Centro de Medicina Digestiva — fechado 2026-08-17 — Faturado — R$ 1050,00
+- 6552 — Medigest Centro de Medicina Digestiva — fechado 2026-08-17 — Faturado — R$ 872,38
+- 6613 — Medigest Centro de Medicina Digestiva — fechado 2026-08-21 — Faturado — R$ 3361,32
+- 6614 — Medigest Centro de Medicina Digestiva — fechado 2026-08-21 — Faturado — R$ 2055,00
+- 6615 — Medigest Centro de Medicina Digestiva — fechado 2026-08-21 — Faturado — R$ 3375,24
+- 6679 — Medigest Centro de Medicina Digestiva — fechado 2026-08-31 — Faturado — R$ 4819,51
+- 6680 — Medigest Centro de Medicina Digestiva — fechado 2026-08-31 — Faturado — R$ 2008,82
+- 6951 — PARTICULAR — fechado 2026-08-31 — Recebido — R$ 67336,31
+- 7011 — INAS GDF — fechado 2026-10-13 — Prejuízo — R$ 973,09
+
+## Status do lote desatualizado (211)
+
+- 6384: sistema Faturado → apLIS Recebido
+- 6302: sistema Faturado → apLIS Recebido
+- 4729: sistema Faturado → apLIS Recebido
+- 5030: sistema Recebido parcial → apLIS Recebido
+- 5039: sistema Faturado → apLIS Recebido
+- 5239: sistema Faturado → apLIS Recebido
+- 5205: sistema Faturado → apLIS Recebido
+- 5233: sistema Faturado → apLIS Recebido
+- 5209: sistema Faturado → apLIS Recebido
+- 5231: sistema Faturado → apLIS Recebido
+- 5211: sistema Faturado → apLIS Recebido
+- 5240: sistema Faturado → apLIS Recebido
+- 6768: sistema Faturado → apLIS Recebido
+- 5237: sistema Recebido parcial → apLIS Recebido
+- 5528: sistema Recebido parcial → apLIS Recebido
+- 6802: sistema Faturado → apLIS Recebido
+- 6804: sistema Faturado → apLIS Recebido
+- 5616: sistema Faturado → apLIS Recebido
+- 5475: sistema Faturado → apLIS Recebido
+- 5436: sistema Faturado → apLIS Recebido
+- 5438: sistema Faturado → apLIS Recebido
+- 6769: sistema Faturado → apLIS Recebido
+- 5620: sistema Faturado → apLIS Recebido
+- 5606: sistema Faturado → apLIS Recebido
+- 5613: sistema Faturado → apLIS Recebido
+- 4954: sistema Faturado → apLIS Recebido parcial
+- 5890: sistema Faturado → apLIS Recebido
+- 6013: sistema Faturado → apLIS Recebido
+- 6175: sistema Faturado → apLIS Recebido
+- 6025: sistema Faturado → apLIS Recebido
+- 6137: sistema Faturado → apLIS Recebido
+- 6177: sistema Faturado → apLIS Recebido
+- 6039: sistema Faturado → apLIS Recebido
+- 6076: sistema Faturado → apLIS Recebido
+- 6144: sistema Faturado → apLIS Recebido
+- 6930: sistema Faturado → apLIS Conciliação
+- 6981: sistema Em Processamento → apLIS Faturado
+- 5667: sistema Faturado → apLIS Recebido
+- 4460: sistema Recebido → apLIS Recebido parcial
+- 4736: sistema Faturado → apLIS Recebido
+- 4802: sistema Faturado → apLIS Recebido
+- 4803: sistema Faturado → apLIS Recebido
+- 4919: sistema Recebido → apLIS Recebido parcial
+- 4925: sistema Faturado → apLIS Recebido
+- 4926: sistema Recebido parcial → apLIS Recebido
+- 4947: sistema Faturado → apLIS Recebido parcial
+- 5095: sistema Faturado → apLIS Recebido
+- 5098: sistema Faturado → apLIS Recebido
+- 5099: sistema Faturado → apLIS Recebido
+- 5155: sistema Faturado → apLIS Recebido
+- 5208: sistema Faturado → apLIS Recebido
+- 5214: sistema Faturado → apLIS Recebido
+- 5215: sistema Faturado → apLIS Recebido
+- 5216: sistema Faturado → apLIS Recebido
+- 5217: sistema Faturado → apLIS Recebido
+- 5224: sistema Faturado → apLIS Recebido
+- 5225: sistema Faturado → apLIS Recebido
+- 5226: sistema Faturado → apLIS Recebido
+- 5321: sistema Faturado → apLIS Recebido
+- 5322: sistema Faturado → apLIS Recebido
+- 5324: sistema Faturado → apLIS Recebido
+- 5325: sistema Faturado → apLIS Recebido
+- 5375: sistema Recebido parcial → apLIS Recebido
+- 5399: sistema Em Processamento → apLIS Recebido
+- 5429: sistema Faturado → apLIS Recebido
+- 5441: sistema Faturado → apLIS Recebido
+- 5442: sistema Faturado → apLIS Recebido
+- 5444: sistema Faturado → apLIS Recebido
+- 5445: sistema Faturado → apLIS Recebido
+- 5494: sistema Faturado → apLIS Recebido
+- 5495: sistema Faturado → apLIS Recebido
+- 5496: sistema Faturado → apLIS Recebido
+- 5515: sistema Faturado → apLIS Recebido
+- 5539: sistema Faturado → apLIS Recebido
+- 5568: sistema Faturado → apLIS Recebido
+- 5573: sistema Faturado → apLIS Recebido
+- 5576: sistema Faturado → apLIS Recebido
+- 5591: sistema Faturado → apLIS Recebido
+- 5623: sistema Faturado → apLIS Recebido
+- 5665: sistema Faturado → apLIS Recebido
+- 5672: sistema Faturado → apLIS Recebido
+- 5699: sistema Faturado → apLIS Recebido
+- 5704: sistema Faturado → apLIS Recebido
+- 5712: sistema Faturado → apLIS Recebido
+- 5732: sistema Faturado → apLIS Recebido
+- 5736: sistema Faturado → apLIS Recebido
+- 5768: sistema Faturado → apLIS Recebido
+- 5769: sistema Faturado → apLIS Recebido
+- 5771: sistema Faturado → apLIS Recebido
+- 5772: sistema Faturado → apLIS Recebido
+- 5842: sistema Faturado → apLIS Recebido
+- 5846: sistema Faturado → apLIS Recebido
+- 5847: sistema Faturado → apLIS Recebido
+- 5856: sistema Faturado → apLIS Recebido
+- 5863: sistema Faturado → apLIS Recebido
+- 5955: sistema Faturado → apLIS Recebido parcial
+- 5962: sistema Faturado → apLIS Recebido
+- 5998: sistema Faturado → apLIS Recebido
+- 6001: sistema Faturado → apLIS Recebido
+- 6002: sistema Faturado → apLIS Recebido
+- 6066: sistema Faturado → apLIS Recebido
+- 6106: sistema Faturado → apLIS Recebido
+- 6112: sistema Faturado → apLIS Recebido
+- 6127: sistema Faturado → apLIS Recebido
+- 6147: sistema Faturado → apLIS Recebido
+- 6148: sistema Faturado → apLIS Recebido
+- 6163: sistema Faturado → apLIS Recebido
+- 6171: sistema Faturado → apLIS Recebido
+- 6182: sistema Recebido → apLIS Conciliação
+- 6183: sistema Faturado → apLIS Recebido parcial
+- 6196: sistema Faturado → apLIS Recebido parcial
+- 6263: sistema Faturado → apLIS Recebido
+- 6274: sistema Faturado → apLIS Recebido
+- 6276: sistema Faturado → apLIS Recebido
+- 6280: sistema Faturado → apLIS Recebido
+- 6281: sistema Faturado → apLIS Recebido
+- 6285: sistema Faturado → apLIS Recebido
+- 6286: sistema Faturado → apLIS Recebido
+- 6288: sistema Faturado → apLIS Recebido
+- 6291: sistema Faturado → apLIS Recebido
+- 6292: sistema Faturado → apLIS Recebido
+- 6303: sistema Faturado → apLIS Recebido
+- 6304: sistema Faturado → apLIS Recebido
+- 6306: sistema Faturado → apLIS Recebido
+- 6307: sistema Faturado → apLIS Recebido
+- 6308: sistema Faturado → apLIS Recebido
+- 6310: sistema Faturado → apLIS Recebido
+- 6312: sistema Faturado → apLIS Recebido
+- 6313: sistema Faturado → apLIS Recebido
+- 6327: sistema Faturado → apLIS Recebido parcial
+- 6329: sistema Faturado → apLIS Recebido
+- 6335: sistema Faturado → apLIS Recebido
+- 6343: sistema Faturado → apLIS Recebido
+- 6353: sistema Faturado → apLIS Recebido
+- 6356: sistema Faturado → apLIS Recebido
+- 6363: sistema Faturado → apLIS Recebido
+- 6364: sistema Faturado → apLIS Recebido
+- 6365: sistema Faturado → apLIS Recebido
+- 6369: sistema Faturado → apLIS Recebido
+- 6378: sistema Faturado → apLIS Recebido
+- 6380: sistema Faturado → apLIS Recebido
+- 6381: sistema Faturado → apLIS Recebido
+- 6382: sistema Faturado → apLIS Recebido
+- 6387: sistema Faturado → apLIS Recebido
+- 6388: sistema Faturado → apLIS Recebido parcial
+- 6389: sistema Faturado → apLIS Recebido
+- 6390: sistema Faturado → apLIS Recebido
+- 6398: sistema Faturado → apLIS Recebido
+- 6404: sistema Faturado → apLIS Recebido
+- 6405: sistema Faturado → apLIS Recebido
+- 6410: sistema Faturado → apLIS Recebido
+- 6417: sistema Faturado → apLIS Recebido
+- 6418: sistema Faturado → apLIS Recebido
+- 6422: sistema Faturado → apLIS Recebido
+- 6430: sistema Faturado → apLIS Recebido
+- 6436: sistema Faturado → apLIS Recebido
+- 6443: sistema Faturado → apLIS Recebido
+- 6444: sistema Faturado → apLIS Recebido
+- 6445: sistema Faturado → apLIS Recebido
+- 6447: sistema Faturado → apLIS Recebido
+- 6450: sistema Faturado → apLIS Recebido
+- 6454: sistema Faturado → apLIS Recebido parcial
+- 6463: sistema Faturado → apLIS Recebido
+- 6464: sistema Faturado → apLIS Recebido
+- 6465: sistema Faturado → apLIS Recebido
+- 6466: sistema Faturado → apLIS Recebido
+- 6475: sistema Faturado → apLIS Recebido
+- 6497: sistema Faturado → apLIS Recebido
+- 6501: sistema Recebido parcial → apLIS Recebido
+- 6507: sistema Faturado → apLIS Recebido parcial
+- 6513: sistema Faturado → apLIS Recebido
+- 6524: sistema Faturado → apLIS Recebido parcial
+- 6539: sistema Faturado → apLIS Recebido
+- 6540: sistema Faturado → apLIS Recebido parcial
+- 6562: sistema Faturado → apLIS Recebido
+- 6570: sistema Faturado → apLIS Recebido parcial
+- 6571: sistema Faturado → apLIS Recebido parcial
+- 6572: sistema Faturado → apLIS Recebido
+- 6574: sistema Faturado → apLIS Recebido parcial
+- 6580: sistema Faturado → apLIS Recebido
+- 6582: sistema Faturado → apLIS Recebido
+- 6592: sistema Faturado → apLIS Recebido parcial
+- 6597: sistema Faturado → apLIS Recebido
+- 6601: sistema Faturado → apLIS Recebido
+- 6605: sistema Faturado → apLIS Recebido
+- 6609: sistema Faturado → apLIS Recebido
+- 6612: sistema Faturado → apLIS Recebido
+- 6617: sistema Faturado → apLIS Recebido
+- 6624: sistema Faturado → apLIS Recebido
+- 6626: sistema Faturado → apLIS Recebido
+- 6628: sistema Faturado → apLIS Recebido
+- 6638: sistema Faturado → apLIS Recebido parcial
+- 6639: sistema Faturado → apLIS Recebido parcial
+- 6640: sistema Conciliação → apLIS Recebido parcial
+- 6641: sistema Faturado → apLIS Recebido parcial
+- 6662: sistema Faturado → apLIS Recebido
+- 6663: sistema Faturado → apLIS Recebido
+- 6669: sistema Faturado → apLIS Recebido
+- 6671: sistema Faturado → apLIS Recebido parcial
+- 6674: sistema Faturado → apLIS Recebido
+- 6687: sistema Faturado → apLIS Recebido
+- 6693: sistema Faturado → apLIS Recebido
+- 6697: sistema Faturado → apLIS Recebido
+- 6724: sistema Faturado → apLIS Recebido parcial
+- 6725: sistema Faturado → apLIS Recebido parcial
+- 6726: sistema Faturado → apLIS Recebido parcial
+- 6727: sistema Faturado → apLIS Recebido parcial
+- 6728: sistema Faturado → apLIS Recebido parcial
+- 6729: sistema Faturado → apLIS Recebido
+- 6736: sistema Faturado → apLIS Recebido
+- 6737: sistema Faturado → apLIS Recebido
+
+## NF do lote vazia ou diferente (66)
+
+- 6788: sistema — × apLIS 9510
+- 6768: sistema — × apLIS 9432
+- 6769: sistema — × apLIS 9432
+- 3992: sistema — × apLIS 9340
+- 5370: sistema — × apLIS 9468
+- 5371: sistema — × apLIS 9468
+- 5597: sistema 8306 × apLIS 9523
+- 5776: sistema 8473 × apLIS 9523
+- 6436: sistema 9230 × apLIS 9468
+- 6501: sistema 9262 × apLIS 9550
+- 6506: sistema — × apLIS 9501
+- 6545: sistema — × apLIS 9501
+- 6566: sistema — × apLIS 9340
+- 6567: sistema — × apLIS 9340
+- 6568: sistema — × apLIS 9340
+- 6573: sistema — × apLIS 9340
+- 6581: sistema — × apLIS 9501
+- 6597: sistema — × apLIS 9443
+- 6607: sistema — × apLIS 9269
+- 6608: sistema — × apLIS 9269
+- 6609: sistema — × apLIS 9550
+- 6612: sistema — × apLIS 9550
+- 6618: sistema — × apLIS 9550
+- 6625: sistema — × apLIS 9340
+- 6626: sistema — × apLIS 9432
+- 6628: sistema — × apLIS 9432
+- 6644: sistema — × apLIS 9501
+- 6656: sistema — × apLIS 9537
+- 6658: sistema — × apLIS 9537
+- 6659: sistema — × apLIS 9537
+- 6660: sistema — × apLIS 9526
+- 6661: sistema — × apLIS 9550
+- 6662: sistema — × apLIS 9432
+- 6663: sistema — × apLIS 9432
+- 6664: sistema — × apLIS 9340
+- 6665: sistema — × apLIS 9340
+- 6668: sistema — × apLIS 9537
+- 6669: sistema — × apLIS 9550
+- 6673: sistema — × apLIS 9289
+- 6682: sistema — × apLIS 9436
+- 6683: sistema — × apLIS 9468
+- 6684: sistema — × apLIS 9468
+- 6687: sistema — × apLIS 9341
+- 6692: sistema — × apLIS 9537
+- 6693: sistema — × apLIS 9291
+- 6696: sistema — × apLIS 9468
+- 6697: sistema — × apLIS 9341
+- 6700: sistema — × apLIS 9537
+- 6701: sistema — × apLIS 9509
+- 6702: sistema — × apLIS 9537
+- 6704: sistema — × apLIS 9537
+- 6710: sistema — × apLIS 9504
+- 6711: sistema — × apLIS 9537
+- 6716: sistema — × apLIS 9437
+- 6719: sistema — × apLIS 9509
+- 6721: sistema — × apLIS 9504
+- 6723: sistema — × apLIS 9537
+- 6724: sistema — × apLIS 9442
+- 6725: sistema — × apLIS 9442
+- 6726: sistema — × apLIS 9442
+- 6727: sistema — × apLIS 9442
+- 6728: sistema — × apLIS 9442
+- 6729: sistema — × apLIS 9442
+- 6732: sistema — × apLIS 9510
+- 6736: sistema — × apLIS 9442
+- 6737: sistema — × apLIS 9442
+
+## Protocolo diferente (9)
+
+- 6243: 489453 × 494338
+- 6774: 502883 × 508233
+- 6981: 495002 × 495363
+- 4951: 341230101504_0 × 25092026
+- 5424: 230398 × 233663
+- 6283: 224441 × 233739
+- 6395: 225710 × 233939
+- 6553: 505206 × 508235
+- 6717: 146590 × 108403
+
+## Quantidade de requisições diferente (5)
+
+- 6534: 33 × 32
+- 5030: 64 × 53
+- 5237: 37 × 25
+- 5528: 7 × 3
+- 6877: 36 × 37
+
+## Lote vinculado que não existe no apLIS (3)
+
+- 4905
+- 6596
+- 6652
+
+## Lotes sem aplis_id e sem título (4)
+
+- LOT-2026-001
+- LOT-2026-002
+- LOT-2026-003
+- LOT-2026-004
