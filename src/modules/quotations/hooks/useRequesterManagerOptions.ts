@@ -6,7 +6,7 @@ import type { Quotation } from '../types';
 
 type QuotationOrigin = Pick<Quotation, 'quotationType' | 'requestId' | 'maintenanceRequestId' | 'requesterManagerId' | 'createdBy'>;
 
-/** Quem abriu a origem da cotação: a SC (Compras) ou a solicitação de manutenção (Contratação). */
+/** Origem da cotação: quem aprovou a SC (Compras) ou quem abriu a solicitação de manutenção (Contratação). */
 async function fetchRequesterManagerSource(origin: QuotationOrigin): Promise<RequesterManagerSource> {
   if (origin.quotationType === 'contratacao') {
     if (!origin.maintenanceRequestId) return {};
@@ -20,10 +20,13 @@ async function fetchRequesterManagerSource(origin: QuotationOrigin): Promise<Req
   if (!origin.requestId) return {};
   const { data } = await supabase
     .from('requests')
-    .select('requested_by_user_id')
+    .select('approved_by_user_id, decided_without_approver')
     .eq('id', origin.requestId)
     .maybeSingle();
-  return { requestRequestedByUserId: data?.requested_by_user_id ?? null };
+  return {
+    requestApprovedByUserId: data?.approved_by_user_id ?? null,
+    requestDecidedWithoutApprover: data?.decided_without_approver ?? false,
+  };
 }
 
 const EMPTY_CHOICE: RequesterManagerChoice = { lockedManagerId: null, suggestedId: null, eligibleUsers: [] };

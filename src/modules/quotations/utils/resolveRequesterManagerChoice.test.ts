@@ -2,25 +2,45 @@ import { describe, expect, it } from 'vitest';
 import { resolveRequesterManagerChoice } from './resolveRequesterManagerChoice';
 
 const comprador = { id: 'comprador', name: 'Comprador' };
-const quemAbriuSc = { id: 'user-sc', name: 'Quem abriu a SC' };
+const quemAprovouSc = { id: 'user-sc', name: 'Quem aprovou a SC' };
 const quemAbriuManutencao = { id: 'user-manut', name: 'Quem abriu a manutenção' };
 const outro = { id: 'outro', name: 'Outro' };
 const enviando = { id: 'enviando', name: 'Outro comprador enviando' };
-const ativos = [comprador, quemAbriuSc, quemAbriuManutencao, outro, enviando];
+const ativos = [comprador, quemAprovouSc, quemAbriuManutencao, outro, enviando];
 
 const compras = { quotationType: 'compras' as const, createdBy: 'comprador' };
 const contratacao = { quotationType: 'contratacao' as const, createdBy: 'comprador' };
-const origem = { requestRequestedByUserId: 'user-sc', maintenanceRequesterId: 'user-manut' };
+const origem = { requestApprovedByUserId: 'user-sc', maintenanceRequesterId: 'user-manut' };
 
 const ids = (users: { id: string }[]) => users.map((u) => u.id);
 
 describe('resolveRequesterManagerChoice', () => {
-  it('Compras com SC conhecida: gestor travado em quem abriu a SC', () => {
+  it('Compras com SC aprovada pelo aprovador: gestor travado em quem aprovou a SC', () => {
     const choice = resolveRequesterManagerChoice({ quotation: compras, source: origem, activeUsers: ativos, currentUserId: 'comprador' });
 
     expect(choice.lockedManagerId).toBe('user-sc');
     expect(choice.suggestedId).toBe('user-sc');
     expect(ids(choice.eligibleUsers)).toEqual(['user-sc']);
+  });
+
+  it('SC aprovada por admin no lugar (sem aprovador): não trava, comprador escolhe', () => {
+    const choice = resolveRequesterManagerChoice({
+      quotation: compras,
+      source: { requestApprovedByUserId: 'user-sc', requestDecidedWithoutApprover: true },
+      activeUsers: ativos,
+      currentUserId: 'comprador',
+    });
+
+    expect(choice.lockedManagerId).toBeNull();
+    expect(ids(choice.eligibleUsers)).toEqual(['user-sc', 'user-manut', 'outro', 'enviando']);
+  });
+
+  it('SC aprovada antes da decisão pelo aprovador (sem approved_by_user_id): não trava', () => {
+    const choice = resolveRequesterManagerChoice({
+      quotation: compras, source: { maintenanceRequesterId: 'user-manut' }, activeUsers: ativos, currentUserId: 'comprador',
+    });
+
+    expect(choice.lockedManagerId).toBeNull();
   });
 
   it('Contratação: gestor travado em quem abriu a solicitação de manutenção', () => {
@@ -47,7 +67,7 @@ describe('resolveRequesterManagerChoice', () => {
     expect(ids(choice.eligibleUsers)).toEqual(['user-sc', 'user-manut', 'outro']);
   });
 
-  it('criador da origem inativo: não trava, comprador escolhe', () => {
+  it('origem inativa: não trava, comprador escolhe', () => {
     const choice = resolveRequesterManagerChoice({
       quotation: compras, source: origem, activeUsers: [comprador, outro], currentUserId: 'comprador',
     });
@@ -56,18 +76,18 @@ describe('resolveRequesterManagerChoice', () => {
     expect(ids(choice.eligibleUsers)).toEqual(['outro']);
   });
 
-  it('SC aberta pelo próprio comprador: não trava (seria autoaprovação) e ele não é elegível', () => {
+  it('SC aprovada pelo próprio comprador: não trava (seria autoaprovação) e ele não é elegível', () => {
     const choice = resolveRequesterManagerChoice({
-      quotation: compras, source: { requestRequestedByUserId: 'comprador' }, activeUsers: ativos, currentUserId: 'comprador',
+      quotation: compras, source: { requestApprovedByUserId: 'comprador' }, activeUsers: ativos, currentUserId: 'comprador',
     });
 
     expect(choice.lockedManagerId).toBeNull();
     expect(ids(choice.eligibleUsers)).not.toContain('comprador');
   });
 
-  it('SC aberta por quem está enviando: também não trava', () => {
+  it('SC aprovada por quem está enviando: também não trava', () => {
     const choice = resolveRequesterManagerChoice({
-      quotation: compras, source: { requestRequestedByUserId: 'enviando' }, activeUsers: ativos, currentUserId: 'enviando',
+      quotation: compras, source: { requestApprovedByUserId: 'enviando' }, activeUsers: ativos, currentUserId: 'enviando',
     });
 
     expect(choice.lockedManagerId).toBeNull();

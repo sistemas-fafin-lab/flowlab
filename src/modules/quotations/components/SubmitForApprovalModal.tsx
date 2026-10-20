@@ -35,7 +35,7 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
   const lockedManager = lockedManagerId ? eligibleUsers.find(u => u.id === lockedManagerId) : undefined;
   const users = isChange ? eligibleUsers.filter(u => u.id !== quotation.requesterManagerId) : eligibleUsers;
   const cannotChange = isChange && Boolean(lockedManager);
-  const originLabel = quotation.quotationType === 'contratacao' ? 'solicitação de manutenção' : 'Solicitação de Compras';
+  const originManagerLabel = quotation.quotationType === 'contratacao' ? 'quem abriu a solicitação de manutenção' : 'quem aprovou a Solicitação de Compras';
   const text = MODE_TEXT[mode];
   const [managerId, setManagerId] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -122,13 +122,13 @@ export const SubmitForApprovalModal: React.FC<SubmitForApprovalModalProps> = ({
             )}
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1.5">
               {cannotChange ? (
-                <>O gestor é quem abriu a {originLabel} e não pode ser trocado. Se ele não puder aprovar, um administrador pode decidir no lugar dele.</>
+                <>O gestor é {originManagerLabel} e não pode ser trocado. Se ele não puder aprovar, um administrador pode decidir no lugar dele.</>
               ) : lockedManager ? (
-                <>Definido por quem abriu a {originLabel}; não pode ser trocado.</>
+                <>Definido por {originManagerLabel}; não pode ser trocado.</>
               ) : (
                 <>
                   {isChange && quotation.requesterManagerName && <>Gestor atual: <strong>{quotation.requesterManagerName}</strong>. O novo gestor recebe o e-mail de aprovação. </>}
-                  Quem abriu a {originLabel} e confirma que a cotação atende ao pedido. O gestor não pode ser quem criou a cotação nem você.
+                  Normalmente {originManagerLabel}, que confirma que a cotação atende ao pedido. O gestor não pode ser quem criou a cotação nem você.
                 </>
               )}
             </p>

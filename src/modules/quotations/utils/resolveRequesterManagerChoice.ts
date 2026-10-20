@@ -1,8 +1,10 @@
 import type { Quotation, RequesterManager } from '../types';
 
 export interface RequesterManagerSource {
-  /** `requests.requested_by_user_id` da SC vinculada (Compras). */
-  requestRequestedByUserId?: string | null;
+  /** `requests.approved_by_user_id` da SC vinculada (Compras): quem aprovou a SC. */
+  requestApprovedByUserId?: string | null;
+  /** `requests.decided_without_approver`: a SC foi aprovada por admin no lugar, sem aprovador. */
+  requestDecidedWithoutApprover?: boolean;
   /** `maintenance_requests.requester_id` da solicitação vinculada (Contratação). */
   maintenanceRequesterId?: string | null;
 }
@@ -18,11 +20,12 @@ export interface RequesterManagerChoice {
 
 /**
  * Regra do "Gestor do pedido" (espelhada no trigger
- * quotation_enforce_requester_manager): quem abriu a origem — a SC em Compras,
- * a solicitação de manutenção em Contratação — é o gestor, sem troca, desde
- * que esteja ativo e não seja o comprador nem quem está enviando (seria
- * autoaprovação). Fora isso o comprador escolhe entre os ativos, nunca a si
- * mesmo nem quem criou a cotação.
+ * quotation_enforce_requester_manager): a origem é o gestor, sem troca — em
+ * Compras quem aprovou a SC (exceto admin aprovando no lugar, sem aprovador),
+ * em Contratação quem abriu a solicitação de manutenção —, desde que esteja
+ * ativa e não seja o comprador nem quem está enviando (seria autoaprovação).
+ * Fora isso o comprador escolhe entre os ativos, nunca a si mesmo nem quem
+ * criou a cotação.
  */
 export function resolveRequesterManagerChoice({
   quotation,
@@ -40,7 +43,7 @@ export function resolveRequesterManagerChoice({
 
   const originId = quotation.quotationType === 'contratacao'
     ? source.maintenanceRequesterId
-    : source.requestRequestedByUserId;
+    : source.requestDecidedWithoutApprover ? null : source.requestApprovedByUserId;
   const locked = originId ? eligible.find((u) => u.id === originId) : undefined;
 
   if (locked) {
