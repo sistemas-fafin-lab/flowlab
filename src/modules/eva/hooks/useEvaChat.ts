@@ -108,7 +108,7 @@ export function useEvaChat({ primeiroNome, view, podeAprovar, ultimaReuniaoEm, o
     mudarAviso(a.id, { estado: 'enviando', texto, erro: undefined });
     try {
       const r = await evaService.sendAviso(a.pessoaId, texto.trim());
-      if (alive.current) mudarAviso(a.id, { estado: 'enviado', agendadaPara: r.agendadaPara });
+      if (alive.current) mudarAviso(a.id, { estado: 'enviado', agendadaPara: r.agendadaPara, noGrupo: !!r.noGrupo, grupoNome: r.grupoNome ?? null });
     } catch (e) {
       if (alive.current) mudarAviso(a.id, { estado: 'aberto', erro: e instanceof Error ? e.message : 'Não consegui enviar o aviso.' });
     }

@@ -218,8 +218,9 @@ export async function enviarResumoDaReuniao(db: SupabaseClient, r: ReuniaoParaGr
 
 // ── Aviso de gestor e teste ──────────────────────────────────────────────────
 
-export const montarAviso = (nomeGestor: string, aviso: string) =>
-  `📢 Aviso de ${primeiroNome(nomeGestor) || 'um gestor'}:\n${aviso.trim().slice(0, MAX_AVISO)}`;
+/** "📢 Aviso de Ana: …"; no grupo, para quem não tem WhatsApp (D35), "📢 Aviso de Ana para Bruno: …". */
+export const montarAviso = (nomeGestor: string, aviso: string, citado: string | null = null) =>
+  `📢 Aviso de ${primeiroNome(nomeGestor) || 'um gestor'}${citado ? ` para ${citado}` : ''}:\n${aviso.trim().slice(0, MAX_AVISO)}`;
 
 export const TEXTO_TESTE_GRUPO =
   'Teste da EVA, a agente de TI do FlowLab: este grupo vai receber o fechamento do dia, os resumos de reunião e os avisos da gestão. Não precisa responder.';

@@ -28,6 +28,8 @@ interface Props {
   /** Avisos pelo WhatsApp (D32): o gestor confere o texto e envia. */
   onEnviarAviso?: (a: AvisoEva, texto: string) => void;
   onDescartarAviso?: (a: AvisoEva) => void;
+  /** Quem não tem WhatsApp recebe o aviso no grupo da equipe (D35): o grupo, ou null (no privado). */
+  grupoDoAviso?: (pessoaId: string) => { nome: string | null } | null;
   /** Abre o card citado pelo código. */
   onOpenCard?: (codigo: string) => void;
   /** Respostas visuais (D34): os dados do Início que os cartões e blocos usam. */
@@ -44,7 +46,7 @@ const semNome = () => 'alguém';
 /** Drawer de conversa (portal no body, mesmo padrão do CategoryEditorModal do Layout). */
 export const EvaChatDrawer: React.FC<Props> = ({
   open, thinking, messages, onClose, onSend, listening, transcript, voiceNotice, onMic,
-  podeAprovar = false, nome = semNome, onConfirmar, onDescartar, onEnviarAviso, onDescartarAviso, onOpenCard,
+  podeAprovar = false, nome = semNome, onConfirmar, onDescartar, onEnviarAviso, onDescartarAviso, grupoDoAviso, onOpenCard,
   visual, podeCobrar, onCobrar, onNavegar,
 }) => {
   const [draft, setDraft] = useState('');
@@ -114,6 +116,7 @@ export const EvaChatDrawer: React.FC<Props> = ({
                     onDescartar={onDescartar}
                     onEnviarAviso={onEnviarAviso}
                     onDescartarAviso={onDescartarAviso}
+                    grupoDoAviso={grupoDoAviso}
                     onOpenCard={onOpenCard}
                     onSend={onSend}
                     podeCobrar={podeCobrar}

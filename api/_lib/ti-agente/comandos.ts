@@ -17,9 +17,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { diaDaSemana, formatarDiaMes, hojeSP, type Dia } from '../../../src/modules/eva/domain/datas.js';
 import { ehDoUsuario, ordenarAtrasados, type CardTI } from '../../../src/modules/eva/domain/demandas.js';
-import { proximaJanelaDeCobranca } from '../../../src/modules/eva/domain/cobranca.js';
+import { destinoDaCobranca, proximaJanelaDeCobranca } from '../../../src/modules/eva/domain/cobranca.js';
 import { primeiroNome } from '../../../src/modules/eva/domain/pessoas.js';
-import { quandoSera } from '../../../src/modules/eva/domain/whatsapp.js';
+import { quandoSera, rotuloDoGrupo } from '../../../src/modules/eva/domain/whatsapp.js';
 import { tem, usuarioPorId, type Usuario } from './autorizacao.js';
 import { blocoReuniao, recortarParaVisao, validarRespostaChat, type UltimaReuniao } from './chat.js';
 import { checarCobranca, cobrarCard, lerCardsAbertos, lerMembrosCobranca } from './cobranca.js';
@@ -486,7 +486,11 @@ async function prepararCobranca(
   for (const c of cards.slice(0, MAX_COBRAR)) {
     const ch = await checarCobranca(db, usuario, c.id, agora, membros);
     if ('erro' in ch) recusas.push(`• ${c.codigo}: ${ch.erro}`);
-    else prontos.push({ id: c.id, codigo: c.codigo, titulo: c.title, para: ch.modo === 'lembrar' ? 'você (lembrete)' : juntar(ch.alvos.map((a) => primeiroNome(a.nome))) });
+    else {
+      const para = ch.modo === 'lembrar' ? 'você (lembrete)'
+        : destinoDaCobranca(ch.alvos.map((a) => primeiroNome(a.nome)), ch.grupo?.citados ?? [], ch.grupo?.nome ?? null);
+      prontos.push({ id: c.id, codigo: c.codigo, titulo: c.title, para });
+    }
   }
   const extras = [
     ...(naoAchei.length ? [`Não achei ${juntar(naoAchei)}.`] : []),
@@ -581,10 +585,15 @@ async function prepararAvisoPessoa(
   if (!corpo) return 'O que eu aviso? Ex.: "avisa o Gabriel que a reunião mudou para as 10h".';
   const d = await checarAvisoPessoal(db, usuario, destinoId);
   if ('erro' in d) return `Não consigo mandar: ${d.erro}`;
-  const texto = montarAviso(membro.nome, corpo.slice(0, MAX_AVISO_PESSOAL));
-  await criarComando(db, { membro, tipo: 'avisar_pessoa', dados: { destino: destinoId, nome: d.nome, texto }, mensagemId, agora });
+  const aviso = corpo.slice(0, MAX_AVISO_PESSOAL);
+  // O SIM monta o texto de novo (enviarAvisoPessoal): se a pessoa ganhar WhatsApp nesse meio-tempo, vai no privado.
+  await criarComando(db, { membro, tipo: 'avisar_pessoa', dados: { destino: destinoId, nome: d.nome, de: membro.nome, aviso }, mensagemId, agora });
+  const n = primeiroNome(d.nome) || d.nome;
+  const cabeca = d.grupo
+    ? `${n} não tem WhatsApp na aba Membros. Vou mandar no ${rotuloDoGrupo(d.grupo.nome)}, citando o nome:`
+    : `Vou mandar para ${n} pelo WhatsApp:`;
   const horario = notaHorario(agora);
-  return [`Vou mandar para ${primeiroNome(d.nome) || d.nome} pelo WhatsApp:`, '', texto, '', ...(horario ? [horario] : []), PEDIR_SIM].join('\n');
+  return [cabeca, '', montarAviso(membro.nome, aviso, d.grupo?.citado ?? null), '', ...(horario ? [horario] : []), PEDIR_SIM].join('\n');
 }
 
 // ── Executar (depois do SIM) ─────────────────────────────────────────────────
@@ -599,7 +608,7 @@ async function executarCobrar(db: SupabaseClient, cmd: Comando, usuario: Usuario
     if ('erro' in r) { linhas.push(`• ${c.codigo}: ${r.erro}`); continue; }
     feitas += 1;
     agendada = agendada ?? r.agendadaPara;
-    linhas.push(`• ${c.codigo} → ${r.modo === 'lembrar' ? 'você' : juntar(r.destinatarios.map(primeiroNome))}`);
+    linhas.push(`• ${c.codigo} → ${r.modo === 'lembrar' ? 'você' : destinoDaCobranca(r.destinatarios.map(primeiroNome), r.citadosNoGrupo, r.grupoNome)}`);
   }
   const cabeca = feitas === 0 ? 'Não consegui cobrar:'
     : agendada ? `Pronto: cobrança agendada para ${quandoSera(agendada, hojeSP(agora))}.`
@@ -642,9 +651,10 @@ async function executarAviso(db: SupabaseClient, cmd: Comando, usuario: Usuario,
 }
 
 async function executarAvisoPessoa(db: SupabaseClient, cmd: Comando, usuario: Usuario, agora: Date): Promise<string> {
-  const r = await enviarAvisoPessoal(db, usuario, String(cmd.dados.destino ?? ''), String(cmd.dados.texto ?? ''), agora);
+  const pedido = { de: String(cmd.dados.de ?? ''), aviso: String(cmd.dados.aviso ?? '') };
+  const r = await enviarAvisoPessoal(db, usuario, String(cmd.dados.destino ?? ''), pedido, agora);
   if ('erro' in r) return `Não mandei: ${r.erro}`;
-  const n = primeiroNome(r.para) || r.para;
+  const n = `${primeiroNome(r.para) || r.para}${r.noGrupo ? ` (no ${rotuloDoGrupo(r.grupoNome)})` : ''}`;
   return r.agendadaPara
     ? `Pronto: o aviso para ${n} fica agendado para ${quandoSera(r.agendadaPara, hojeSP(agora))}.`
     : `Pronto: o aviso para ${n} sai em instantes.`;

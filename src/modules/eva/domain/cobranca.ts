@@ -6,7 +6,8 @@ import {
   compararDestaque, diaVencimento, diasDeAtraso, ehDoUsuario, estaAberto, estaAtrasado, estaParado, ordenarAtrasados,
   type CardTI,
 } from './demandas.js';
-import { primeiroNome } from './pessoas.js';
+import { juntarNomes, primeiroNome } from './pessoas.js';
+import { rotuloDoGrupo } from './whatsapp.js';
 
 /** RN12: itens por mensagem; o resto vira "e outras N no Início". */
 export const MAX_ITENS_MENSAGEM = 8;
@@ -189,6 +190,61 @@ export const podeReceber = (m: MembroCobranca) => m.ativo && m.recebe_cobranca &
 export function destinatarios(card: CardTI, modo: ModoCobranca, usuarioId: string, membros: MembroCobranca[]): MembroCobranca[] {
   const alvos = modo === 'lembrar' ? [usuarioId] : card.assigned_to;
   return membros.filter((m) => alvos.includes(m.user_id) && podeReceber(m));
+}
+
+// ── No grupo da equipe (D35) ─────────────────────────────────────────────────
+// Acordo do usuário com a equipe (16/Out): na cobrança pedida pelo gestor, quem não recebe pelo
+// WhatsApp (sem adesão ou sem número) é cobrado no grupo, com o nome citado. A da manhã não muda.
+
+/** No Cobrar, os responsáveis ativos na aba Membros que não recebem pelo WhatsApp. No Lembrar, ninguém. */
+export function citadosNoGrupo(card: CardTI, modo: ModoCobranca, membros: MembroCobranca[]): MembroCobranca[] {
+  if (modo === 'lembrar') return [];
+  return membros.filter((m) => card.assigned_to.includes(m.user_id) && m.ativo && !podeReceber(m));
+}
+
+/** Sem "responda aqui", como na cobrança pessoal: a EVA não lê o grupo. */
+export function montarCobrancaNoGrupo(e: { nomes: string[]; card: CardTI; hoje: Dia }): string {
+  const atraso = pluralDias(Math.max(1, diasDeAtraso(e.card, e.hoje)));
+  const consegue = e.nomes.length > 1 ? 'Conseguem' : 'Consegue';
+  return `⏰ ${juntarNomes(e.nomes)}, a task "${titulo(e.card)}" (${e.card.codigo}) está atrasada há ${atraso}. ${consegue} atualizar o status no Kanban?`;
+}
+
+/** 'Ana', 'o grupo "TI FAFIN", citando Bruno', 'Ana e o grupo "TI FAFIN", citando Bruno'. */
+export function destinoDaCobranca(pessoas: string[], citados: string[], grupoNome: string | null): string {
+  const grupo = citados.length ? `o ${rotuloDoGrupo(grupoNome)}, citando ${juntarNomes(citados)}` : '';
+  return [juntarNomes(pessoas), grupo].filter(Boolean).join(' e ');
+}
+
+/** Quem é da aba Membros (ativo), para o botão Cobrar do Início. */
+export interface MembroNoWhatsapp { whatsapp: boolean; recebe: boolean }
+
+/**
+ * O botão Cobrar/Lembrar do bloco de atrasadas (as regras de checarCobranca, com o que o Início
+ * lê): `motivo` desabilita o botão; `nota` explica que parte da cobrança vai para o grupo.
+ */
+export function situacaoDoCobrar(e: {
+  doUsuario: boolean;
+  donos: string[];
+  usuarioId: string;
+  membros: ReadonlyMap<string, MembroNoWhatsapp>;
+  grupo: { nome: string | null } | null;
+  nome: (userId: string) => string;
+}): { motivo?: string; nota?: string } {
+  if (e.doUsuario) return e.membros.get(e.usuarioId)?.recebe ? {} : { motivo: 'Você não tem WhatsApp com adesão à cobrança (EVA → Membros).' };
+  const recebem = e.donos.some((u) => e.membros.get(u)?.recebe);
+  const citaveis = e.donos.filter((u) => e.membros.has(u) && !e.membros.get(u)!.recebe);
+  if (citaveis.length && e.grupo) {
+    const varios = citaveis.length > 1;
+    return {
+      nota: `${juntarNomes(citaveis.map((u) => primeiroNome(e.nome(u)) || 'Alguém'))} não ${varios ? 'recebem' : 'recebe'} cobrança pelo WhatsApp: a EVA cobra no ${rotuloDoGrupo(e.grupo.nome)}, citando ${varios ? 'os nomes' : 'o nome'}.`,
+    };
+  }
+  if (recebem) return {};
+  return {
+    motivo: citaveis.length
+      ? 'Nenhum responsável recebe cobrança pelo WhatsApp, e não há grupo da equipe escolhido (EVA → Configurações).'
+      : 'Nenhum responsável tem WhatsApp com adesão à cobrança (EVA → Membros).',
+  };
 }
 
 export type ResultadoPodeCobrar =

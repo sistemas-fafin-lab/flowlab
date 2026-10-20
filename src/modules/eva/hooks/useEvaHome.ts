@@ -8,7 +8,7 @@ import { hojeSP, pluralDias } from '../domain/datas';
 import { estaConcluido, type CardTI, type ColunaKanban, type StatusChamado } from '../domain/demandas';
 import type { ProjetoTI, SprintTI } from '../domain/projetos';
 import { montarSnapshot } from '../domain/inicio';
-import { JANELA_COBRANCA_MS } from '../domain/cobranca';
+import { JANELA_COBRANCA_MS, destinoDaCobranca, situacaoDoCobrar, type MembroNoWhatsapp } from '../domain/cobranca';
 import { quandoSera, ultimoContato, type MensagemFila } from '../domain/whatsapp';
 import type { EvaView, OverdueFilter, OverdueTask } from '../types';
 
@@ -21,6 +21,8 @@ export interface OverdueRow extends OverdueTask {
   chargeable: boolean;
   /** Botão desabilitado, com o motivo (ex.: ninguém com WhatsApp). */
   chargeHint?: string;
+  /** Botão habilitado, com uma observação (ex.: parte da cobrança vai para o grupo, D35). */
+  chargeNote?: string;
 }
 
 /** A fila do Início olha os últimos dias (último contato e comentários da EVA). */
@@ -33,6 +35,9 @@ interface OpcoesInicio {
   ehGestor: boolean;
   /** ti_agente_config.whatsapp_ativo: sem ele, o botão Cobrar/Lembrar não aparece. */
   whatsappAtivo: boolean;
+  /** Há grupo da equipe escolhido em Configurações: quem não recebe pelo WhatsApp é cobrado lá (D35). */
+  temGrupo?: boolean;
+  grupoNome?: string | null;
 }
 
 export interface AvisoEva {
@@ -61,7 +66,8 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
   const { userProfile } = useAuth();
   const usuarioId = userProfile?.id ?? '';
   const { sendNotification } = useNotificationCenter();
-  const { ehGestor, whatsappAtivo } = opcoes;
+  const { ehGestor, whatsappAtivo, temGrupo = false, grupoNome = null } = opcoes;
+  const grupo = useMemo(() => (temGrupo ? { nome: grupoNome } : null), [temGrupo, grupoNome]);
 
   const [view, setView] = useState<EvaView>(defaultView);
   const [dados, setDados] = useState<DadosInicio | null>(null);
@@ -73,7 +79,7 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
   // WhatsApp (Fase 3): contagem para todos; fila e quem tem WhatsApp só para gestores (D24).
   const [cobrancasHoje, setCobrancasHoje] = useState<number | null>(null);
   const [fila, setFila] = useState<MensagemFila[] | null>(null);
-  const [comWhatsapp, setComWhatsapp] = useState<Set<string> | null>(null);
+  const [membrosZap, setMembrosZap] = useState<Map<string, MembroNoWhatsapp> | null>(null);
   /** Cobranças feitas nesta tela, até a fila confirmar (resposta otimista do handoff). */
   const [cobradasAgora, setCobradasAgora] = useState<Record<string, { em: string; texto: string }>>({});
   const [agora, setAgora] = useState(() => Date.now());
@@ -115,11 +121,11 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
     const [n, f, w] = await Promise.all([
       evaService.cobrancasHoje().catch(() => null),
       ehGestor ? evaService.lerFila(desde).catch(() => null) : Promise.resolve(null),
-      ehGestor ? evaService.membrosComWhatsapp().catch(() => null) : Promise.resolve(null),
+      ehGestor ? evaService.membrosNoWhatsapp().catch(() => null) : Promise.resolve(null),
     ]);
     setCobrancasHoje(n);
     setFila(f);
-    setComWhatsapp(w ? new Set(w) : null);
+    setMembrosZap(w ? new Map(w.map((m) => [m.user_id, { whatsapp: m.whatsapp, recebe: m.recebe }])) : null);
     setAgora(Date.now());
   }, [usuarioId, ehGestor]);
 
@@ -158,6 +164,11 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
     [dados, view, usuarioId, cobrancasHoje, cobrancasLocais],
   );
 
+  const nomes = useMemo(
+    () => Object.fromEntries((dados?.pessoas ?? []).map((p) => [p.id, p.name])),
+    [dados],
+  );
+
   const overdue: OverdueRow[] = useMemo(() => {
     if (!snapshot || !dados) return [];
     const porId = new Map(dados.cards.map((c) => [c.id, c]));
@@ -170,11 +181,9 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
       const contato = fila ? ultimoContato(t.id, donos, fila, agora, dados.hoje, JANELA_COBRANCA_MS) : null;
       const local = cobradasAgora[t.id];
       const charged = !!local || !!contato?.cobradaNaJanela;
-      let chargeHint: string | undefined;
-      if (comWhatsapp) {
-        if (t.isMine && !comWhatsapp.has(usuarioId)) chargeHint = 'Você não tem WhatsApp com adesão à cobrança (EVA → Membros).';
-        else if (!t.isMine && !donos.some((u) => comWhatsapp.has(u))) chargeHint = 'Nenhum responsável tem WhatsApp com adesão à cobrança (EVA → Membros).';
-      }
+      const situacao = membrosZap
+        ? situacaoDoCobrar({ doUsuario: t.isMine, donos, usuarioId, membros: membrosZap, grupo, nome: (id) => nomes[id] ?? '' })
+        : {};
       return {
         ...t,
         charged,
@@ -182,15 +191,11 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
         lateLabel: pluralDias(t.daysLate),
         statusText: local ? local.texto : contato?.texto ?? '',
         chargeable: whatsappAtivo && donos.length > 0 && (t.isMine || ehGestor),
-        chargeHint,
+        chargeHint: situacao.motivo,
+        chargeNote: situacao.nota,
       };
     });
-  }, [snapshot, dados, filter, fila, agora, cobradasAgora, comWhatsapp, usuarioId, whatsappAtivo, ehGestor]);
-
-  const nomes = useMemo(
-    () => Object.fromEntries((dados?.pessoas ?? []).map((p) => [p.id, p.name])),
-    [dados],
-  );
+  }, [snapshot, dados, filter, fila, agora, cobradasAgora, membrosZap, grupo, nomes, usuarioId, whatsappAtivo, ehGestor]);
 
   const mudarCardLocal = useCallback((id: string, mudanca: Partial<CardTI>) => {
     setDados((d) => (d ? { ...d, cards: d.cards.map((c) => (c.id === id ? { ...c, ...mudanca } : c)) } : d));
@@ -305,7 +310,10 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
         // Fora do horário de cobrança (dia útil, 7h às 20h), ela foi agendada para a próxima janela.
         const quando = r.agendadaPara ? quandoSera(r.agendadaPara, hojeSP()) : null;
         if (quando) setCobradasAgora((c) => ({ ...c, [cardId]: { em, texto: `Cobrança agendada para ${quando}` } }));
-        const oQue = r.modo === 'lembrar' ? `Lembrete do ${codigo}` : `Cobrança do ${codigo} para ${r.destinatarios.join(', ')}`;
+        // D35: quem não recebe pelo WhatsApp foi citado no grupo da equipe.
+        const citados = r.citadosNoGrupo ?? [];
+        const oQue = r.modo === 'lembrar' ? `Lembrete do ${codigo}`
+          : `Cobrança do ${codigo} para ${destinoDaCobranca(r.destinatarios, citados, r.grupoNome ?? null)}${citados.length ? ',' : ''}`;
         const agendado = r.modo === 'lembrar' ? 'agendado' : 'agendada';
         avisar(quando ? `${oQue} ${agendado} para ${quando} (fora do horário de cobrança).` : `${oQue} na fila do WhatsApp.`, 'sucesso');
         void carregarWhatsapp();
@@ -356,6 +364,8 @@ export function useEvaHome(defaultView: EvaView = 'team', opcoes: OpcoesInicio =
     projetos: dados?.projetos ?? SEM_PROJETOS, sprints: dados?.sprints ?? SEM_SPRINTS,
     /** WhatsApp: fila só para gestores (null para os demais), cobrança e momento da última leitura. */
     fila, agora, cobrarCard, cobrar: (row: OverdueRow) => cobrarCard(row.id), recarregarWhatsapp: carregarWhatsapp,
+    /** Os ativos da aba Membros com WhatsApp e adesão (só gestores; null para os demais), D35. */
+    membrosNoWhatsapp: membrosZap,
   };
 }
 
