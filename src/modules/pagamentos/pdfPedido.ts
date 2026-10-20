@@ -109,6 +109,7 @@ export function gerarPdfPedido(request: PaymentRequest): string {
     case 'paid': statusBgColor = [59, 130, 246]; break;
     case 'rejected': statusBgColor = [239, 68, 68]; break;
     case 'cancelled': statusBgColor = [107, 114, 128]; break;
+    case 'awaiting_authorization': statusBgColor = [124, 58, 237]; break;
     default: statusBgColor = [251, 191, 36]; statusTextColor = [30, 41, 59];
   }
 

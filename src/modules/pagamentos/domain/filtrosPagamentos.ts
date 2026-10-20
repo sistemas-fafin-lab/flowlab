@@ -7,11 +7,15 @@ import type { PaymentMethod, PaymentRequest, PaymentRequestStatus, PaymentReques
 
 // ─── Abas de status ───────────────────────────────────────────────────────────
 
-export type AbaStatus = 'aberto' | 'pendente' | 'aprovado' | 'pago' | 'rejeitado' | 'todos';
+export type AbaStatus = 'aberto' | 'autorizacao' | 'pendente' | 'aprovado' | 'pago' | 'rejeitado' | 'todos';
 
-/** "Em aberto" é a fila de trabalho: o que ainda espera aprovação ou pagamento. */
+/**
+ * "Em aberto" é a fila de trabalho: o que ainda espera o autorizador, o Financeiro ou o
+ * pagamento. "Pendentes" é a fila do Financeiro (já autorizados).
+ */
 export const ABAS: readonly { aba: AbaStatus; rotulo: string; status: readonly PaymentRequestStatus[] | null }[] = [
-  { aba: 'aberto', rotulo: 'Em aberto', status: ['pending', 'approved'] },
+  { aba: 'aberto', rotulo: 'Em aberto', status: ['awaiting_authorization', 'pending', 'approved'] },
+  { aba: 'autorizacao', rotulo: 'A autorizar', status: ['awaiting_authorization'] },
   { aba: 'pendente', rotulo: 'Pendentes', status: ['pending'] },
   { aba: 'aprovado', rotulo: 'A pagar', status: ['approved'] },
   { aba: 'pago', rotulo: 'Pagos', status: ['paid'] },
@@ -99,13 +103,13 @@ export interface Acesso {
 
 /**
  * A mesma regra da policy de leitura de payment_requests
- * (20261020120000_pagamentos_ver_todos_e_autorizador): todos os setores, o próprio setor
- * ou o próprio pedido.
+ * (20261020150000_pagamentos_autorizacao): todos os setores, o próprio setor, o próprio
+ * pedido ou um pedido em que a pessoa foi escolhida como autorizadora.
  */
 export function podeVer(p: PaymentRequest, acesso: Acesso): boolean {
   if (acesso.veTodos) return true;
   if (acesso.departamento && p.department === acesso.departamento) return true;
-  return !!acesso.userId && p.solicitanteId === acesso.userId;
+  return !!acesso.userId && (p.solicitanteId === acesso.userId || p.autorizadoPorId === acesso.userId);
 }
 
 /**
@@ -184,7 +188,11 @@ export function semanaDe(hoje: string): { de: string; ate: string } {
 
 /** Ainda não pago e a data de pagamento já passou. */
 export function estaAtrasado(p: PaymentRequest, hoje: string): boolean {
-  return (p.status === 'pending' || p.status === 'approved') && !!p.dataPagamento && p.dataPagamento.slice(0, 10) < hoje;
+  return (
+    (p.status === 'awaiting_authorization' || p.status === 'pending' || p.status === 'approved') &&
+    !!p.dataPagamento &&
+    p.dataPagamento.slice(0, 10) < hoje
+  );
 }
 
 const DIAS_CURTOS = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'];

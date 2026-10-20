@@ -65,6 +65,11 @@ describe('quem vê o quê', () => {
     expect(podeVer(pedido({ department: 'RH' }), TODOS)).toBe(true);
   });
 
+  it('o autorizador vê os pedidos em que foi escolhido, de qualquer setor', () => {
+    expect(podeVer(pedido({ department: 'RH', autorizadoPorId: 'u-sol' }), ESTOQUE)).toBe(true);
+    expect(podeVer(pedido({ department: 'RH', autorizadoPorId: 'outro' }), ESTOQUE)).toBe(false);
+  });
+
   it('sem setor no perfil, não vê pedidos sem setor de outras pessoas', () => {
     expect(podeVer(pedido({ department: '' }), { ...ESTOQUE, departamento: null })).toBe(false);
   });
@@ -119,6 +124,7 @@ describe('datas de pagamento', () => {
   it('atrasado é o que ainda não foi pago e já passou da data', () => {
     expect(estaAtrasado(pedido({ status: 'approved', dataPagamento: '2026-10-15' }), HOJE)).toBe(true);
     expect(estaAtrasado(pedido({ status: 'pending', dataPagamento: '2026-10-15' }), HOJE)).toBe(true);
+    expect(estaAtrasado(pedido({ status: 'awaiting_authorization', dataPagamento: '2026-10-15' }), HOJE)).toBe(true);
     expect(estaAtrasado(pedido({ status: 'paid', dataPagamento: '2026-10-15' }), HOJE)).toBe(false);
     expect(estaAtrasado(pedido({ status: 'approved', dataPagamento: HOJE }), HOJE)).toBe(false);
   });
@@ -137,30 +143,32 @@ describe('filtrar e contar', () => {
     pedido({ id: 'c', status: 'paid', department: 'RH', valorTotal: 30, tipoSolicitacao: 'REEMBOLSO' }),
     pedido({ id: 'd', status: 'rejected', department: 'RH', valorTotal: 10, formaPagamento: 'BOLETO' }),
     pedido({ id: 'e', status: 'cancelled', department: 'TI', valorTotal: 5, solicitadoPor: 'José', autorizadoPor: 'Gestora' }),
+    pedido({ id: 'f', status: 'awaiting_authorization', department: 'TI', valorTotal: 1000, dataPagamento: '2026-10-27' }),
   ];
   const ids = (f: FiltrosPagamentos, acesso: Acesso = TODOS) => filtrarSemAba(pedidos, f, acesso, HOJE).map((p) => p.id);
 
   it('as abas contam quantidade e valor do recorte', () => {
     const c = contarPorAba(pedidos);
-    expect(c.aberto).toEqual({ quantidade: 2, valor: 150 });
+    expect(c.aberto).toEqual({ quantidade: 3, valor: 1150 });
+    expect(c.autorizacao).toEqual({ quantidade: 1, valor: 1000 });
     expect(c.pendente.quantidade).toBe(1);
     expect(c.aprovado.quantidade).toBe(1);
     expect(c.pago.quantidade).toBe(1);
     expect(c.rejeitado).toEqual({ quantidade: 2, valor: 15 });
-    expect(c.todos.quantidade).toBe(5);
-    expect(totalDe(pedidos)).toBe(195);
+    expect(c.todos.quantidade).toBe(6);
+    expect(totalDe(pedidos)).toBe(1195);
   });
 
   it('aplica acesso, setor, tipo, forma, nomes e período', () => {
     expect(ids(PADRAO, ESTOQUE)).toEqual(['a', 'b']);
-    expect(ids(com({ setores: ['RH', 'TI'] }))).toEqual(['c', 'd', 'e']);
+    expect(ids(com({ setores: ['RH', 'TI'] }))).toEqual(['c', 'd', 'e', 'f']);
     expect(ids(com({ tipos: ['REEMBOLSO'] }))).toEqual(['c']);
     expect(ids(com({ formas: ['BOLETO'] }))).toEqual(['d']);
     expect(ids(com({ solicitantes: ['jose'] }))).toEqual(['e']);
     expect(ids(com({ autorizadores: ['GESTORA'] }))).toEqual(['e']);
     expect(ids(com({ periodo: 'atrasados' }))).toEqual(['b']);
     expect(ids(com({ periodo: 'proximo' }))).toEqual(['a']);
-    expect(ids(com({ periodo: 'periodo', de: '2026-10-16', ate: '' }))).toEqual(['a', 'c', 'd', 'e']);
+    expect(ids(com({ periodo: 'periodo', de: '2026-10-16', ate: '' }))).toEqual(['a', 'c', 'd', 'e', 'f']);
   });
 
   it('"só os meus" e a contagem de recortes', () => {

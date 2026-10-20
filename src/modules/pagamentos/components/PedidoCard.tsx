@@ -11,6 +11,7 @@ import {
   FileText,
   Paperclip,
   Printer,
+  ShieldCheck,
   Trash2,
   User,
   X,
@@ -33,6 +34,8 @@ import { CARTAO } from './estilos';
 // abrem ao clicar.
 
 export interface AcoesPedido {
+  /** O autorizador escolhido autoriza (o pedido segue para o Financeiro). */
+  onAutorizar: (p: PaymentRequest) => void;
   onAprovar: (p: PaymentRequest) => void;
   onRejeitar: (p: PaymentRequest) => void;
   onPagar: (p: PaymentRequest) => void;
@@ -46,6 +49,10 @@ interface Props extends AcoesPedido {
   hoje: string;
   /** canApprovePayments: aprovar, rejeitar, pagar e excluir. */
   podeAgir: boolean;
+  /** Quem está logado: o autorizador escolhido decide os pedidos que esperam por ele. */
+  userId?: string;
+  /** Aberto por um link (e-mail ou sininho): ganha destaque. */
+  destacado?: boolean;
   expandido: boolean;
   onAlternar: () => void;
   /** Ações em lote: só para quem aprova e só onde cabe uma ação (pendente ou aprovado). */
@@ -93,11 +100,14 @@ const PedidoCard: React.FC<Props> = ({
   pedido: p,
   hoje,
   podeAgir,
+  userId,
+  destacado = false,
   expandido,
   onAlternar,
   selecionavel = false,
   selecionado = false,
   onSelecionar,
+  onAutorizar,
   onAprovar,
   onRejeitar,
   onPagar,
@@ -106,14 +116,17 @@ const PedidoCard: React.FC<Props> = ({
   onAbrirImagem,
 }) => {
   const atrasado = estaAtrasado(p, hoje);
+  const aguardaAutorizacao = p.status === 'awaiting_authorization';
+  const souAutorizador = aguardaAutorizacao && !!userId && p.autorizadoPorId === userId;
   const anexos = p.attachments ?? [];
   const idDetalhes = `pedido-${p.id}-detalhes`;
 
   return (
     <article
+      id={`pedido-${p.id}`}
       className={`${CARTAO} overflow-hidden transition-shadow duration-200 hover:shadow-md ${
         atrasado ? 'border-l-4 border-l-red-400 dark:border-l-red-500' : ''
-      } ${selecionado ? 'ring-2 ring-blue-400 dark:ring-blue-500' : ''}`}
+      } ${selecionado ? 'ring-2 ring-blue-400 dark:ring-blue-500' : destacado ? 'ring-2 ring-violet-400 dark:ring-violet-500' : ''}`}
     >
       <div className="flex flex-col lg:flex-row lg:items-center gap-3 p-4 sm:px-5">
         <div className="flex-1 min-w-0 flex items-start gap-3">
@@ -163,6 +176,12 @@ const PedidoCard: React.FC<Props> = ({
                   <User className="w-3.5 h-3.5 flex-shrink-0" />
                   <span className="truncate">{p.solicitadoPor}</span>
                 </span>
+                {aguardaAutorizacao && (
+                  <span className="inline-flex items-center gap-1 text-violet-700 dark:text-violet-300 font-medium">
+                    <ShieldCheck className="w-3.5 h-3.5" />
+                    {souAutorizador ? 'Espera a sua autorização' : `Autorização: ${p.autorizadoPor ?? '—'}`}
+                  </span>
+                )}
                 {anexos.length > 0 && (
                   <span className="inline-flex items-center gap-1">
                     <Paperclip className="w-3.5 h-3.5" />
@@ -179,6 +198,27 @@ const PedidoCard: React.FC<Props> = ({
             {formatCurrency(p.valorTotal)}
           </p>
           <div className="flex items-center gap-2">
+            {souAutorizador && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => onAutorizar(p)}
+                  className={`${BOTAO} bg-gradient-to-r from-violet-500 to-purple-500 text-white hover:from-violet-600 hover:to-purple-600 shadow-md shadow-violet-500/25`}
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                  <span className="hidden sm:inline">Autorizar</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onRejeitar(p)}
+                  aria-label="Rejeitar"
+                  title="Rejeitar"
+                  className={`${BOTAO} bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/50`}
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </>
+            )}
             {podeAgir && p.status === 'pending' && (
               <>
                 <button
@@ -231,7 +271,10 @@ const PedidoCard: React.FC<Props> = ({
             <Detalhe rotulo="Código">{p.codigo}</Detalhe>
             <Detalhe rotulo="Criado em">{formatDateDisplay(p.createdAt)}</Detalhe>
             <Detalhe rotulo="Data de pagamento">{formatarDataISO(p.dataPagamento)}</Detalhe>
-            <Detalhe rotulo="Autorizado por">{p.autorizadoPor || '—'}</Detalhe>
+            <Detalhe rotulo={aguardaAutorizacao ? 'Autorização' : 'Autorizado por'}>
+              {p.autorizadoPor || '—'}
+              {aguardaAutorizacao ? ' (aguardando)' : p.autorizadoEm ? ` em ${formatDateDisplay(p.autorizadoEm)}` : ''}
+            </Detalhe>
             <Detalhe rotulo="Nº do documento">{p.documentoNumero || '—'}</Detalhe>
             <Detalhe rotulo="CPF/CNPJ">{p.cpfCnpj || '—'}</Detalhe>
             {p.approvedBy && (
@@ -244,7 +287,9 @@ const PedidoCard: React.FC<Props> = ({
 
           {p.rejectionReason && (p.status === 'rejected' || p.status === 'cancelled') && (
             <div className="p-3 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/50">
-              <p className="text-[11px] font-medium uppercase tracking-wider text-red-500 dark:text-red-400">Motivo da rejeição</p>
+              <p className="text-[11px] font-medium uppercase tracking-wider text-red-500 dark:text-red-400">
+                Motivo da rejeição{p.rejeitadoPor ? ` · ${p.rejeitadoPor}` : ''}
+              </p>
               <p className="text-sm text-red-800 dark:text-red-200 whitespace-pre-line">{p.rejectionReason}</p>
             </div>
           )}
@@ -300,7 +345,7 @@ const PedidoCard: React.FC<Props> = ({
           )}
 
           <div className="flex flex-wrap items-center gap-2 pt-1">
-            {podeAgir && (p.status === 'pending' || p.status === 'rejected') && (
+            {podeAgir && (aguardaAutorizacao || p.status === 'pending' || p.status === 'rejected') && (
               <button
                 type="button"
                 onClick={() => onExcluir(p)}

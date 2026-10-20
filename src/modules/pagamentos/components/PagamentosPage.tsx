@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
 import { useNotification } from '../../../hooks/useNotification';
 import { useDialog } from '../../../hooks/useDialog';
@@ -42,9 +43,13 @@ const PagamentosPage: React.FC = () => {
     createPedido,
     updatePaymentRequestStatus,
     updatePaymentRequestsStatus,
+    decidirAutorizacao,
     deletePaymentRequest,
     getNextPaymentDate,
   } = usePaymentRequest();
+  // ?pedido=id: link dos e-mails e do sininho, que abre o pedido na lista.
+  const [params] = useSearchParams();
+  const destaque = params.get('pedido');
   const { notification, showSuccess, showError, showWarning, showInfo, hideNotification } = useNotification();
   const {
     confirmDialog,
@@ -118,24 +123,46 @@ const PagamentosPage: React.FC = () => {
       } catch {
         showError('Erro ao aprovar pedido');
       }
-    });
+    }, { type: 'info', confirmText: 'Aprovar' });
 
-  // O motivo é obrigatório e aparece no pedido para quem pediu (antes era sempre o texto
-  // fixo "Rejeitado pelo operador").
+  // Quem rejeita é o autorizador (pedido que espera por ele, pela função do banco; quem pediu
+  // recebe e-mail) ou o Financeiro. O motivo é obrigatório e aparece no pedido para quem
+  // pediu (antes era sempre o texto fixo "Rejeitado pelo operador").
   const rejeitar = async (p: PaymentRequest) => {
+    const comoAutorizador = p.status === 'awaiting_authorization' && p.autorizadoPorId === user?.id;
     const motivo = await showInputDialog(
       'Rejeitar solicitação',
-      `Por que o pedido "${p.codigo}" está sendo rejeitado? O motivo aparece para quem pediu.`,
+      `Por que o pedido "${p.codigo}" está sendo rejeitado? O motivo aparece para quem pediu${comoAutorizador ? ' e vai no e-mail para ele' : ''}.`,
       { placeholder: 'Ex.: falta a nota fiscal', confirmText: 'Rejeitar', required: true },
     );
     if (!motivo) return;
     try {
-      await updatePaymentRequestStatus(p.id, 'rejected', undefined, motivo);
-      showSuccess('Pedido rejeitado.');
-    } catch {
-      showError('Erro ao rejeitar pedido');
+      if (comoAutorizador) {
+        await decidirAutorizacao(p.id, false, motivo);
+        showSuccess('Pedido rejeitado', 'Quem pediu recebe um e-mail com o motivo.');
+      } else {
+        await updatePaymentRequestStatus(p.id, 'rejected', undefined, motivo, userProfile?.name);
+        showSuccess('Pedido rejeitado.');
+      }
+    } catch (erro) {
+      showError('Erro ao rejeitar pedido', erro instanceof Error ? erro.message : undefined);
     }
   };
+
+  const autorizar = (p: PaymentRequest) =>
+    showConfirmDialog(
+      'Autorizar pagamento',
+      `Autorizar o pedido "${p.codigo}" (${formatCurrency(p.valorTotal)} para ${p.fornecedor})? Ele segue para a aprovação do Financeiro.`,
+      async () => {
+        try {
+          await decidirAutorizacao(p.id, true);
+          showSuccess('Pedido autorizado', 'Quem pediu e o Financeiro foram avisados por e-mail.');
+        } catch (erro) {
+          showError('Não foi possível autorizar', erro instanceof Error ? erro.message : undefined);
+        }
+      },
+      { type: 'info', confirmText: 'Autorizar' },
+    );
 
   const pagar = (p: PaymentRequest) =>
     showConfirmDialog('Marcar como pago', `Confirma que o pedido "${p.codigo}" foi pago?`, async () => {
@@ -145,7 +172,7 @@ const PagamentosPage: React.FC = () => {
       } catch {
         showError('Erro ao atualizar pedido');
       }
-    });
+    }, { type: 'info', confirmText: 'Marcar como pago' });
 
   const excluir = (p: PaymentRequest) =>
     showConfirmDialog(
@@ -178,6 +205,7 @@ const PagamentosPage: React.FC = () => {
           showError('Erro ao atualizar os pedidos');
         }
       },
+      { type: 'info', confirmText: verbo },
     );
   const aprovarEmLote = (lista: PaymentRequest[]) =>
     emLote(lista, 'pending', 'approved', 'Aprovar', ['pedido aprovado.', 'pedidos aprovados.']);
@@ -288,9 +316,12 @@ const PagamentosPage: React.FC = () => {
           agrupar={filtros.ordem === 'pagamento'}
           hoje={hoje}
           podeAgir={canApprove}
+          userId={user?.id}
+          destaque={destaque}
           selecionados={canApprove ? selecionados : undefined}
           podeSelecionar={podeSelecionar}
           onMarcar={canApprove ? marcar : undefined}
+          onAutorizar={autorizar}
           onAprovar={aprovar}
           onRejeitar={rejeitar}
           onPagar={pagar}

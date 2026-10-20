@@ -332,6 +332,14 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
                     Ninguém pode autorizar pagamentos ainda. Peça a quem gerencia cargos para marcar "Ser Autorizador de
                     Pagamentos" no cargo de quem autoriza.
                   </p>
+                ) : form.autorizadoPorId && form.autorizadoPorId === user?.id ? (
+                  <p className="text-xs text-violet-700 dark:text-violet-300 mt-2">
+                    Você é o autorizador: o pedido já nasce autorizado e vai direto para a aprovação do Financeiro.
+                  </p>
+                ) : form.autorizadoPorId ? (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                    {form.autorizadoPor} recebe um e-mail para autorizar no Flow LAB; só depois o pedido vai para o Financeiro.
+                  </p>
                 ) : (
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Solicitado por {form.solicitadoPor || 'você'}.</p>
                 )}

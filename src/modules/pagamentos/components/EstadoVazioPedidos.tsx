@@ -7,8 +7,9 @@ import { CARTAO } from './estilos';
 // tudo (limpar), a pessoa ainda não tem pedidos (criar) ou a aba está vazia (ver todos).
 
 const ABA_VAZIA: Record<Exclude<AbaStatus, 'todos'>, { titulo: string; texto: string }> = {
-  aberto: { titulo: 'Nada em aberto', texto: 'Nenhum pedido esperando aprovação ou pagamento.' },
-  pendente: { titulo: 'Nenhum pedido pendente', texto: 'Tudo o que chegou já foi aprovado ou rejeitado.' },
+  aberto: { titulo: 'Nada em aberto', texto: 'Nenhum pedido esperando autorização, aprovação ou pagamento.' },
+  autorizacao: { titulo: 'Nada a autorizar', texto: 'Nenhum pedido esperando a decisão de um autorizador.' },
+  pendente: { titulo: 'Nenhum pedido pendente', texto: 'Nada autorizado esperando a aprovação do Financeiro.' },
   aprovado: { titulo: 'Nada a pagar', texto: 'Nenhum pedido aprovado esperando pagamento.' },
   pago: { titulo: 'Nenhum pedido pago', texto: 'Os pedidos pagos aparecem aqui.' },
   rejeitado: { titulo: 'Nenhum pedido rejeitado', texto: 'Nem rejeitado, nem cancelado.' },

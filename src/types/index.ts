@@ -340,6 +340,7 @@ export type PaymentMethod =
   | 'SOLIDES';
 
 export type PaymentRequestStatus = 
+  | 'awaiting_authorization'
   | 'pending'
   | 'approved'
   | 'rejected'
@@ -364,6 +365,10 @@ export interface PaymentRequest {
   autorizadoPor?: string;
   /** Quem autorizou (cargo com canAuthorizePayments). Ausente em pedidos anteriores a 2026-10-20. */
   autorizadoPorId?: string;
+  /** Quando o autorizador autorizou; ausente enquanto espera e em pedidos antigos. */
+  autorizadoEm?: string;
+  /** Quem rejeitou (o autorizador ou alguém do Financeiro). */
+  rejeitadoPor?: string;
   dataPagamento: string;
   emailUsuario: string;
   department?: string;

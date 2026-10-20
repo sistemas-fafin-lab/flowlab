@@ -245,6 +245,7 @@ export const PAYMENT_METHOD_LABELS: Record<string, string> = {
  * Labels para status
  */
 export const PAYMENT_STATUS_LABELS: Record<string, string> = {
+  'awaiting_authorization': 'Aguardando autorização',
   'pending': 'Pendente',
   'approved': 'Aprovado',
   'rejected': 'Rejeitado',
@@ -256,6 +257,7 @@ export const PAYMENT_STATUS_LABELS: Record<string, string> = {
  * Cores para status
  */
 export const PAYMENT_STATUS_COLORS: Record<string, string> = {
+  'awaiting_authorization': 'bg-violet-100 dark:bg-violet-900/50 text-violet-800 dark:text-violet-200 border border-violet-200 dark:border-violet-700',
   'pending': 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-700',
   'approved': 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700',
   'rejected': 'bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-700',

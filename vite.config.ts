@@ -2,10 +2,10 @@ import { defineConfig, loadEnv, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 // ── Dev-only middleware para POST /api/notifications/{action} ────────────────
-// Espelha api/notifications/[action].ts (email + request-created) via
+// Espelha api/notifications/[action].ts (email, request-created, payment-request) via
 // ssrLoadModule, como o rhApiPlugin — sem reimplementar os handlers aqui.
 function notificationsApiPlugin(env: Record<string, string>): Plugin {
-  const NOTIFICATIONS_ACTIONS = new Set(['email', 'request-created']);
+  const NOTIFICATIONS_ACTIONS = new Set(['email', 'request-created', 'payment-request']);
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
     'SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM',

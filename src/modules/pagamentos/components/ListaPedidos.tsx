@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { PaymentRequest } from '../../../types';
 import { formatCurrency } from '../../../utils/paymentUtils';
 import { agruparPorDataPagamento, rotuloDiaLongo } from '../domain/filtrosPagamentos';
@@ -15,6 +15,9 @@ interface Props extends AcoesPedido {
   agrupar: boolean;
   hoje: string;
   podeAgir: boolean;
+  userId?: string;
+  /** Pedido aberto por um link (?pedido=id, dos e-mails e do sininho): abre e rola até ele. */
+  destaque?: string | null;
   /** Ações em lote; sem `onMarcar`, a lista não mostra caixas de seleção. */
   selecionados?: Set<string>;
   podeSelecionar?: (p: PaymentRequest) => boolean;
@@ -45,12 +48,19 @@ const ListaPedidos: React.FC<Props> = ({
   agrupar,
   hoje,
   podeAgir,
+  userId,
+  destaque,
   selecionados,
   podeSelecionar,
   onMarcar,
   ...acoes
 }) => {
-  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const [expandidos, setExpandidos] = useState<Set<string>>(() => new Set(destaque ? [destaque] : []));
+  useEffect(() => {
+    if (!destaque) return;
+    setExpandidos((atuais) => new Set(atuais).add(destaque));
+    document.getElementById(`pedido-${destaque}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [destaque]);
   const alternar = (id: string) =>
     setExpandidos((atuais) => {
       const novos = new Set(atuais);
@@ -70,6 +80,8 @@ const ListaPedidos: React.FC<Props> = ({
         pedido={p}
         hoje={hoje}
         podeAgir={podeAgir}
+        userId={userId}
+        destacado={p.id === destaque}
         expandido={expandidos.has(p.id)}
         onAlternar={() => alternar(p.id)}
         selecionavel={selecionavel}
