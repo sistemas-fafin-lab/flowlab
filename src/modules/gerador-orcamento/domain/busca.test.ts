@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemGeradorOrcamento } from '../types';
-import { filtrarExames } from './busca';
+import { buscaCasaConvenio, filtrarExames } from './busca';
 
 function exame(nome: string, tuss: string, preco = 10): ItemGeradorOrcamento {
   return { tuss, nome, preco, elegivelDescontoParticular: false, conveniosAceitos: [] };
@@ -49,6 +49,16 @@ describe('filtrarExames', () => {
     expect(filtrarExames(lista, 'R$ 1.467')).toEqual([painel]);
   });
 
+  it('acha pelo convênio aceito, sozinho ou junto com o nome', () => {
+    const glicoseUnimed = { ...GLICOSE, conveniosAceitos: ['Unimed', 'Bradesco Saúde'] };
+    const tshAmil = { ...TSH, conveniosAceitos: ['Amil'] };
+    const lista = [HEMOGRAMA, glicoseUnimed, tshAmil];
+    expect(filtrarExames(lista, 'unimed')).toEqual([glicoseUnimed]);
+    expect(filtrarExames(lista, 'bradesco saude')).toEqual([glicoseUnimed]);
+    expect(filtrarExames(lista, 'glicose unimed')).toEqual([glicoseUnimed]);
+    expect(filtrarExames(lista, 'tsh unimed')).toEqual([]);
+  });
+
   it('busca vazia ou só com espaços devolve a lista inteira', () => {
     expect(filtrarExames(LISTA, '')).toEqual(LISTA);
     expect(filtrarExames(LISTA, '   ')).toEqual(LISTA);
@@ -57,5 +67,22 @@ describe('filtrarExames', () => {
   it('exames com o mesmo TUSS e nomes diferentes aparecem separados', () => {
     const plaquetas = exame('Hemograma com Plaquetas', '40304361');
     expect(filtrarExames([HEMOGRAMA, plaquetas, GLICOSE], '40304361')).toEqual([HEMOGRAMA, plaquetas]);
+  });
+});
+
+describe('buscaCasaConvenio', () => {
+  const glicoseUnimed = { ...GLICOSE, conveniosAceitos: ['Unimed', 'Bradesco Saúde'] };
+
+  it('é verdade quando alguma palavra da busca aparece num convênio do exame', () => {
+    expect(buscaCasaConvenio(glicoseUnimed, 'unimed')).toBe(true);
+    expect(buscaCasaConvenio(glicoseUnimed, 'glicose SAUDE')).toBe(true);
+    expect(buscaCasaConvenio(glicoseUnimed, 'brad')).toBe(true);
+  });
+
+  it('é falso quando a busca só casa com nome, TUSS ou preço, ou está vazia', () => {
+    expect(buscaCasaConvenio(glicoseUnimed, 'glicose')).toBe(false);
+    expect(buscaCasaConvenio(glicoseUnimed, '40302040')).toBe(false);
+    expect(buscaCasaConvenio(glicoseUnimed, '  ')).toBe(false);
+    expect(buscaCasaConvenio(GLICOSE, 'unimed')).toBe(false);
   });
 });

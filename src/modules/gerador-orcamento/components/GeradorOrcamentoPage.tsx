@@ -1,7 +1,7 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { AlertTriangle, Calculator, Check, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Trash2, X } from 'lucide-react';
+import { AlertTriangle, Calculator, Check, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Trash2, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
-import { filtrarExames } from '../domain/busca';
+import { buscaCasaConvenio, filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
 import { orcamentoDoCarrinho } from '../domain/orcamento';
 import { montarPdfOrcamentoCliente } from '../domain/pdfCliente';
@@ -27,43 +27,66 @@ const brl = (valor: number) => valor.toLocaleString('pt-BR', { style: 'currency'
 const LinhaExame: React.FC<{
   exame: ItemGeradorOrcamento;
   noCarrinho: boolean;
+  /** a busca casou com um convênio deste exame: os convênios abrem sozinhos */
+  convenioBuscado: boolean;
   onAdicionar: (exame: ItemGeradorOrcamento) => void;
-}> = React.memo(({ exame, noCarrinho, onAdicionar }) => (
-  <li className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
-    <div className="min-w-0 flex-1">
-      <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{exame.nome}</p>
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">TUSS {exame.tuss || '—'}</p>
-      {exame.conveniosAceitos.length > 0 && (
-        <div className="flex flex-wrap gap-1 mt-1.5">
-          {exame.conveniosAceitos.map((convenio) => (
-            <span
-              key={convenio}
-              className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
-            >
-              {convenio}
-            </span>
-          ))}
-        </div>
-      )}
-    </div>
-    <div className="flex items-center gap-3 shrink-0">
-      <span className="text-base font-bold text-gray-800 dark:text-gray-100 tabular-nums">{brl(exame.preco)}</span>
-      {noCarrinho ? (
-        <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
-          <Check className="w-4 h-4" /> No carrinho
-        </span>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onAdicionar(exame)}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700"
-        >
-          <Plus className="w-4 h-4" /> Adicionar
-        </button>
-      )}
-    </div>
-  </li>
-));
+}> = React.memo(({ exame, noCarrinho, convenioBuscado, onAdicionar }) => {
+  // Os convênios ocupam muito espaço na lista; ficam recolhidos até o atendente pedir ou
+  // buscar por um deles. Quando a busca muda, volta a valer o que ela pede.
+  const [mostrarConvenios, setMostrarConvenios] = useState(convenioBuscado);
+  const [convenioBuscadoAntes, setConvenioBuscadoAntes] = useState(convenioBuscado);
+  if (convenioBuscado !== convenioBuscadoAntes) {
+    setConvenioBuscadoAntes(convenioBuscado);
+    setMostrarConvenios(convenioBuscado);
+  }
+  return (
+    <li className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
+      <div className="min-w-0 flex-1">
+        <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{exame.nome}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">TUSS {exame.tuss || '—'}</p>
+        {exame.conveniosAceitos.length > 0 && (
+          <button
+            type="button"
+            aria-expanded={mostrarConvenios}
+            onClick={() => setMostrarConvenios((atual) => !atual)}
+            className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            Convênios ({exame.conveniosAceitos.length})
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform ${mostrarConvenios ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+        {mostrarConvenios && exame.conveniosAceitos.length > 0 && (
+          <div className="flex flex-wrap gap-1 mt-1.5">
+            {exame.conveniosAceitos.map((convenio) => (
+              <span
+                key={convenio}
+                className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+              >
+                {convenio}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-3 shrink-0">
+        <span className="text-base font-bold text-gray-800 dark:text-gray-100 tabular-nums">{brl(exame.preco)}</span>
+        {noCarrinho ? (
+          <span className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300">
+            <Check className="w-4 h-4" /> No carrinho
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onAdicionar(exame)}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700"
+          >
+            <Plus className="w-4 h-4" /> Adicionar
+          </button>
+        )}
+      </div>
+    </li>
+  );
+});
 LinhaExame.displayName = 'LinhaExame';
 
 const LinhaCarrinho: React.FC<{
@@ -238,7 +261,7 @@ const GeradorOrcamentoPage: React.FC = () => {
                   autoFocus
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Nome do exame, código TUSS ou preço…"
+                  placeholder="Nome do exame, código TUSS, preço ou convênio…"
                   className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 backdrop-blur-sm text-slate-800 placeholder:text-slate-400 dark:bg-gray-800/80 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
                 />
               </div>
@@ -253,7 +276,13 @@ const GeradorOrcamentoPage: React.FC = () => {
                   {resultados.slice(0, MAX_RESULTADOS).map((exame) => {
                     const chave = chaveExame(exame);
                     return (
-                      <LinhaExame key={chave} exame={exame} noCarrinho={chavesNoCarrinho.has(chave)} onAdicionar={adicionar} />
+                      <LinhaExame
+                        key={chave}
+                        exame={exame}
+                        noCarrinho={chavesNoCarrinho.has(chave)}
+                        convenioBuscado={buscaCasaConvenio(exame, buscaAdiada)}
+                        onAdicionar={adicionar}
+                      />
                     );
                   })}
                 </ul>
@@ -278,14 +307,6 @@ const GeradorOrcamentoPage: React.FC = () => {
                   </span>
                 )}
               </h2>
-              <button
-                type="button"
-                onClick={() => { setCarrinho([]); setBuscaCarrinho(''); }}
-                disabled={carrinho.length === 0}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-xl text-gray-600 bg-white border border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-red-900/20"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Limpar tudo
-              </button>
             </div>
             <div className="shrink-0 pb-4 mb-2 border-b border-gray-200 dark:border-gray-700">
               {carrinho.length > 0 && (
@@ -325,16 +346,25 @@ const GeradorOrcamentoPage: React.FC = () => {
               </div>
               {erroPdf && <p className="mt-2 text-xs text-center text-red-600 dark:text-red-400">{erroPdf}</p>}
               {carrinho.length > 0 && (
-                <div className="relative mt-4">
-                  <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="search"
-                    value={buscaCarrinho}
-                    onChange={(e) => setBuscaCarrinho(e.target.value)}
-                    placeholder="Buscar no carrinho por nome, TUSS ou preço…"
-                    aria-label="Buscar nos exames selecionados"
-                    className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 text-slate-800 placeholder:text-slate-400 dark:bg-gray-800/80 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
-                  />
+                <div className="mt-4 flex items-center gap-2">
+                  <div className="relative flex-1 min-w-0">
+                    <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    <input
+                      type="search"
+                      value={buscaCarrinho}
+                      onChange={(e) => setBuscaCarrinho(e.target.value)}
+                      placeholder="Buscar no carrinho por nome, TUSS, preço ou convênio…"
+                      aria-label="Buscar nos exames selecionados"
+                      className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500 transition-all duration-200 hover:border-slate-300 bg-white/70 text-slate-800 placeholder:text-slate-400 dark:bg-gray-800/80 dark:border-gray-700 dark:text-gray-100 dark:placeholder:text-gray-500"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setCarrinho([]); setBuscaCarrinho(''); }}
+                    className="shrink-0 inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl text-gray-600 bg-white border border-gray-200 hover:bg-red-50 hover:text-red-700 hover:border-red-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-red-900/20"
+                  >
+                    <Trash2 className="w-4 h-4" /> Limpar tudo
+                  </button>
                 </div>
               )}
             </div>
