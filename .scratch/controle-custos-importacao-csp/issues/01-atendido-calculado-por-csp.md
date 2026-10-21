@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately)
 
-**Status:** done no código (21/Out/2026; sem migration nova); falta conferir no navegador
+**Status:** done (21/Out/2026; conferido no navegador — prévia, limite e avisos; gravação não testada)
 
 - [x] Modelo baixável com as colunas TUSS, Nome do Exame e Valor; colunas obrigatórias passam a ser essas três.
 - [x] Planilha antiga com a coluna Atendido é aceita, e a coluna é ignorada.

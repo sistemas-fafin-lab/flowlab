@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Atendido calculado por % máx CSP na importação
 
-**Status:** done
+**Status:** done (conferido no navegador em 21/Out/2026)
 
 - [x] A função de cálculo devolve também o exame que definiu o CSP e os avisos (custo não cadastrado; nomes dos exames com linha própria não alterados).
 - [x] Prévia mostra o exame que definiu o CSP quando o TUSS tem mais de um exame coberto.
