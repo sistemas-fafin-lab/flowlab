@@ -15,7 +15,15 @@ import {
   Upload,
   X,
 } from 'lucide-react';
-import { Exam, Payor, PayorEditData, buscarTodasFontesPagadoras, formatBRL, formatPct } from '../../hooks/useCostControl';
+import {
+  Exam,
+  Payor,
+  PayorEditData,
+  TabelaAssociada,
+  buscarTodasFontesPagadoras,
+  formatBRL,
+  formatPct,
+} from '../../hooks/useCostControl';
 import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
 import { useDialog } from '../../hooks/useDialog';
@@ -27,6 +35,7 @@ import PayorFormModal from './PayorFormModal';
 import AutocompleteInput from './AutocompleteInput';
 import PayorImportModal from './PayorImportModal';
 import ValorExameFormModal from './ValorExameFormModal';
+import TabelasDaFonte from './TabelasDaFonte';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
@@ -35,6 +44,7 @@ import {
   examesPorFontePagadora,
   fontesPagadorasDoExame,
   irmaosNaLinha,
+  normalizar,
   type ExameDaFontePagadora,
 } from './domain/busca';
 import {
@@ -58,6 +68,7 @@ const FONTE_PARTICULAR = 'Particular';
 
 interface PayorsScreenProps {
   payors: Payor[];
+  tabelasAssociadas: TabelaAssociada[];
   exams: Exam[];
   exameExclusions: Set<string>;
   exameValoresPersonalizados: Map<string, number>;
@@ -75,6 +86,7 @@ interface PayorsScreenProps {
     tabelaAssociada: string,
     rows: LinhaImportacaoFontePagadora[]
   ) => Promise<number>;
+  updateVencimentoTabelaAssociada: (id: string, vencimento: string | null) => Promise<void>;
 }
 
 // Dados de uma linha em edição no PayorFormModal — comum às duas tabelas de
@@ -654,6 +666,7 @@ function TabelaExamesDaFonte({
 
 const PayorsScreen: React.FC<PayorsScreenProps> = ({
   payors,
+  tabelasAssociadas,
   exams,
   exameExclusions,
   exameValoresPersonalizados,
@@ -666,6 +679,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   setValorExameDaFontePagadora,
   restaurarValorPadraoExameDaFontePagadora,
   importPayors,
+  updateVencimentoTabelaAssociada,
   updateExam,
 }) => {
   const { userProfile } = useAuth();
@@ -838,6 +852,26 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       price: item.valorCobrado,
       exameId: fonte?.exameId ?? null,
     });
+  };
+
+  const tabelasDaFonte = useMemo(
+    // Mesma noção de "a fonte" de examesPorFontePagadora (normalizada).
+    () =>
+      fontePagadoraSelecionada
+        ? tabelasAssociadas.filter(t => normalizar(t.fontePagadora) === normalizar(fontePagadoraSelecionada))
+        : [],
+    [tabelasAssociadas, fontePagadoraSelecionada]
+  );
+
+  const handleSalvarVencimento = async (tabela: TabelaAssociada, vencimento: string | null): Promise<boolean> => {
+    try {
+      await updateVencimentoTabelaAssociada(tabela.id, vencimento);
+      showSuccess('Vencimento atualizado com sucesso!');
+      return true;
+    } catch (err) {
+      showError('Erro ao atualizar vencimento', err instanceof Error ? err.message : undefined);
+      return false;
+    }
   };
 
   const handleSaveValorExame = async (valor: number) => {
@@ -1152,6 +1186,15 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 p-10 text-center text-sm text-gray-500 dark:text-gray-400">
           Preencha ao menos um dos campos — fonte pagadora, exame, ou os dois — pra ver os dados.
         </div>
+      )}
+
+      {fontePagadoraSelecionada && (
+        <TabelasDaFonte
+          key={`tabelas-${fontePagadoraSelecionada}`}
+          tabelas={tabelasDaFonte}
+          podeGerenciar={podeGerenciar}
+          onSalvarVencimento={handleSalvarVencimento}
+        />
       )}
 
       {fontePagadoraSelecionada && (

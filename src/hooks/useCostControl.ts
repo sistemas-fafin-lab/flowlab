@@ -54,6 +54,19 @@ export interface Payor {
   exameId: string | null;
 }
 
+// Cadastro da tabela associada (contrato de preço) de uma fonte pagadora —
+// public.custo_tabelas_associadas (migration 20261021170000). Cada linha de
+// custo_fontes_pagadoras aponta pra uma; nesta etapa o banco cria o cadastro
+// a partir do texto `table` da linha, então a tela só lê e edita o vencimento.
+export interface TabelaAssociada {
+  id: string;
+  fontePagadora: string;
+  nome: string;
+  // ISO (YYYY-MM-DD) ou null quando o contrato não tem prazo.
+  vencimento: string | null;
+  ativa: boolean;
+}
+
 // Campos editáveis de uma linha de fonte pagadora via PayorFormModal — não
 // inclui `atendido` nem `elegivelDescontoParticular` (editados via toggle
 // inline, updatePayorAtendido / updatePayorElegivelDescontoParticular).
@@ -62,6 +75,7 @@ export type PayorEditData = Pick<Payor, 'payor' | 'table' | 'tus' | 'price' | 'e
 export interface UseCostControlReturn {
   exams: Exam[];
   payors: Payor[];
+  tabelasAssociadas: TabelaAssociada[];
   // Chaves chaveExclusaoExame(payorId, exameId) — exames excluídos de uma
   // linha de fonte pagadora com TUSS compartilhado (ver
   // custo_fontes_pagadoras_exclusoes / examesPorFontePagadora em domain/busca.ts).
@@ -89,6 +103,7 @@ export interface UseCostControlReturn {
     tabelaAssociada: string,
     rows: LinhaImportacaoFontePagadora[]
   ) => Promise<number>;
+  updateVencimentoTabelaAssociada: (id: string, vencimento: string | null) => Promise<void>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -163,6 +178,24 @@ const mapPayorRow = (row: any): Payor => ({
   exameId: row.exame_id ?? null,
 });
 
+interface TabelaAssociadaRow {
+  id: string;
+  fonte_pagadora: string;
+  nome: string;
+  vencimento: string | null;
+  ativa: boolean;
+}
+
+const TABELA_ASSOCIADA_COLUNAS = 'id, fonte_pagadora, nome, vencimento, ativa';
+
+const mapTabelaAssociadaRow = (row: TabelaAssociadaRow): TabelaAssociada => ({
+  id: row.id,
+  fontePagadora: row.fonte_pagadora,
+  nome: row.nome,
+  vencimento: row.vencimento,
+  ativa: row.ativa,
+});
+
 const toPayorRow = (data: PayorEditData) => ({
   fonte_pagadora: data.payor,
   tabela_associada: data.table,
@@ -206,6 +239,7 @@ export const buscarTodasFontesPagadoras = async (): Promise<Payor[]> => {
 export const useCostControl = (): UseCostControlReturn => {
   const [exams, setExams] = useState<Exam[]>([]);
   const [payors, setPayors] = useState<Payor[]>([]);
+  const [tabelasAssociadas, setTabelasAssociadas] = useState<TabelaAssociada[]>([]);
   const [exameExclusions, setExameExclusions] = useState<Set<string>>(new Set());
   const [exameValoresPersonalizados, setExameValoresPersonalizados] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
@@ -229,6 +263,30 @@ export const useCostControl = (): UseCostControlReturn => {
     setPayors(await buscarTodasFontesPagadoras());
   }, []);
 
+  // Recarregada também depois de gravar linhas: o trigger
+  // custo_fontes_pagadoras_sincroniza_tabela_associada cria o cadastro quando
+  // a linha traz uma tabela nova.
+  const fetchTabelasAssociadas = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('custo_tabelas_associadas')
+      .select(TABELA_ASSOCIADA_COLUNAS)
+      .order('fonte_pagadora', { ascending: true })
+      .order('nome', { ascending: true });
+    if (error) throw error;
+    setTabelasAssociadas((data || []).map(mapTabelaAssociadaRow));
+  }, []);
+
+  // Na carga e depois de gravar linha. Falha aqui só deixa o bloco "Tabelas
+  // desta fonte" vazio/desatualizado — não derruba a tela de linhas nem
+  // transforma uma gravação que deu certo em erro.
+  const recarregarTabelasAssociadas = useCallback(async () => {
+    try {
+      await fetchTabelasAssociadas();
+    } catch (err) {
+      console.error('Falha ao recarregar tabelas associadas', err);
+    }
+  }, [fetchTabelasAssociadas]);
+
   const fetchExameExclusions = useCallback(async () => {
     const { data, error } = await supabase.from('custo_fontes_pagadoras_exclusoes').select('payor_id, exame_id');
     if (error) throw error;
@@ -249,12 +307,18 @@ export const useCostControl = (): UseCostControlReturn => {
     (async () => {
       try {
         setLoading(true);
-        await Promise.all([fetchExams(), fetchPayors(), fetchExameExclusions(), fetchExameValoresPersonalizados()]);
+        await Promise.all([
+          fetchExams(),
+          fetchPayors(),
+          recarregarTabelasAssociadas(),
+          fetchExameExclusions(),
+          fetchExameValoresPersonalizados(),
+        ]);
       } finally {
         setLoading(false);
       }
     })();
-  }, [fetchExams, fetchPayors, fetchExameExclusions, fetchExameValoresPersonalizados]);
+  }, [fetchExams, fetchPayors, recarregarTabelasAssociadas, fetchExameExclusions, fetchExameValoresPersonalizados]);
 
   const addExam = useCallback(async (data: Omit<Exam, 'id'>) => {
     const { data: inserted, error } = await supabase
@@ -329,7 +393,8 @@ export const useCostControl = (): UseCostControlReturn => {
     if (error) throw error;
     const mapped = mapPayorRow(updated);
     setPayors(prev => prev.map(p => (p.id === id ? mapped : p)));
-  }, []);
+    await recarregarTabelasAssociadas();
+  }, [recarregarTabelasAssociadas]);
 
   const createPayor = useCallback(async (data: PayorEditData) => {
     const { data: inserted, error } = await supabase
@@ -340,7 +405,8 @@ export const useCostControl = (): UseCostControlReturn => {
 
     if (error) throw error;
     setPayors(prev => [mapPayorRow(inserted), ...prev]);
-  }, []);
+    await recarregarTabelasAssociadas();
+  }, [recarregarTabelasAssociadas]);
 
   const deletePayor = useCallback(async (id: string) => {
     const { error } = await supabase.from('custo_fontes_pagadoras').delete().eq('id', id);
@@ -465,14 +531,28 @@ export const useCostControl = (): UseCostControlReturn => {
         setPayors(prev => prev.map(p => (p.id === atualizado.id ? atualizado : p)));
       }
 
+      await recarregarTabelasAssociadas();
       return toInsert.length + toUpdate.length;
     },
-    [payors]
+    [payors, recarregarTabelasAssociadas]
   );
+
+  const updateVencimentoTabelaAssociada = useCallback(async (id: string, vencimento: string | null) => {
+    const { data, error } = await supabase
+      .from('custo_tabelas_associadas')
+      .update({ vencimento })
+      .eq('id', id)
+      .select(TABELA_ASSOCIADA_COLUNAS)
+      .single();
+    if (error) throw error;
+    const atualizada = mapTabelaAssociadaRow(data);
+    setTabelasAssociadas(prev => prev.map(t => (t.id === id ? atualizada : t)));
+  }, []);
 
   return {
     exams,
     payors,
+    tabelasAssociadas,
     exameExclusions,
     exameValoresPersonalizados,
     loading,
@@ -489,5 +569,6 @@ export const useCostControl = (): UseCostControlReturn => {
     setValorExameDaFontePagadora,
     restaurarValorPadraoExameDaFontePagadora,
     importPayors,
+    updateVencimentoTabelaAssociada,
   };
 };
