@@ -58,3 +58,10 @@ não recalcula).
   sem chamar; sem segredos → WARNING e fica na fila; com segredos, uma chamada
   por statement com o Bearer; INSERT do client zera a coluna; client não
   marca; fila vazia não chama.
+
+**21/10/2026 — Vault de produção (jqx).** `flowlab_sc_aviso_aprovador_url` =
+`https://flow-lab.vercel.app/api/notifications/sc-awaiting-approval` e
+`flowlab_cron_secret` = `CRON_SECRET` de produção da Vercel (conferido por
+hash; o `.env` local tinha um valor antigo, diferente). Fila vazia na hora, sem
+envio real ainda. Falta: o Vault do projeto de teste e ver o primeiro aviso
+sair em produção (criação de SC, recálculo, rejeição).

@@ -81,6 +81,6 @@ spec, "Departamentos (schema)", "Holerites da equipe" e "Dados iniciais".
   restantes (20261020150000 e 20261020215000…20261020235200) aplicadas com
   `db push --include-all`. Conferido: departamentos e aprovadores como acima;
   só "testando" sem departamento; SC da Ana Claudia (REQ868) → Paulo. A SC
-  "Paulo Vitor" foi criada pelo usuário ligado à Cristina (Área técnica) —
-  conferir se o vínculo usuário → colaborador está certo. Faltam os segredos
-  do Vault e os aprovadores dos departamentos vazios (RH, pela aba).
+  "Paulo Vitor" foi criada pela Cristina (Área técnica; o nome é só o texto
+  do pedido) e fica com o Paulo — confirmado pelo usuário em 21/10. Falta o
+  RH definir os aprovadores dos departamentos vazios, pela aba.
