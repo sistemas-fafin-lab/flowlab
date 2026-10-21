@@ -30,12 +30,17 @@ export function filtrarExames(exames: readonly ItemGeradorOrcamento[], busca: st
   return filtrarOpcoes(opcoes, busca).map((o) => o.exame);
 }
 
+/** Se alguma palavra da busca aparece no nome do convênio — a tela destaca esse convênio. */
+export function convenioCasaBusca(convenio: string, busca: string): boolean {
+  const termos = normalizarBusca(busca).split(/\s+/).filter(Boolean);
+  const nome = normalizarBusca(convenio);
+  return termos.some((t) => nome.includes(t));
+}
+
 /**
- * Se alguma palavra da busca aparece num convênio aceito pelo exame — aí a tela abre os
- * convênios dele sozinha, para o atendente ver o convênio que procurou.
+ * Se a busca casa com algum convênio aceito pelo exame — aí a tela abre os convênios
+ * dele sozinha, para o atendente ver o convênio que procurou.
  */
 export function buscaCasaConvenio(exame: ItemGeradorOrcamento, busca: string): boolean {
-  const termos = normalizarBusca(busca).split(/\s+/).filter(Boolean);
-  const convenios = exame.conveniosAceitos.map(normalizarBusca);
-  return termos.some((t) => convenios.some((c) => c.includes(t)));
+  return exame.conveniosAceitos.some((convenio) => convenioCasaBusca(convenio, busca));
 }

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemGeradorOrcamento } from '../types';
-import { buscaCasaConvenio, filtrarExames } from './busca';
+import { buscaCasaConvenio, convenioCasaBusca, filtrarExames } from './busca';
 
 function exame(nome: string, tuss: string, preco = 10): ItemGeradorOrcamento {
   return { tuss, nome, preco, elegivelDescontoParticular: false, conveniosAceitos: [] };
@@ -84,5 +84,17 @@ describe('buscaCasaConvenio', () => {
     expect(buscaCasaConvenio(glicoseUnimed, '40302040')).toBe(false);
     expect(buscaCasaConvenio(glicoseUnimed, '  ')).toBe(false);
     expect(buscaCasaConvenio(GLICOSE, 'unimed')).toBe(false);
+  });
+});
+
+describe('convenioCasaBusca', () => {
+  it('casa quando alguma palavra da busca aparece no nome do convênio, sem acento nem maiúsculas', () => {
+    expect(convenioCasaBusca('Bradesco Saúde', 'glicose SAUDE')).toBe(true);
+    expect(convenioCasaBusca('Unimed', 'uni')).toBe(true);
+  });
+
+  it('não casa com outro convênio nem com busca vazia', () => {
+    expect(convenioCasaBusca('Bradesco Saúde', 'unimed')).toBe(false);
+    expect(convenioCasaBusca('Unimed', '  ')).toBe(false);
   });
 });

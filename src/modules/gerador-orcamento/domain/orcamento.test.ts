@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ItemGeradorOrcamento } from '../types';
-import { calcularOrcamento, orcamentoDoCarrinho, type ItemOrcamento } from './orcamento';
+import { calcularOrcamento, orcamentoDoCarrinho, proximaFaixa, type ItemOrcamento } from './orcamento';
 
 // Portado de Tabela-Particular/lib/alvaro-orcamento/pricing.test.ts, com os limites
 // logo abaixo de cada faixa.
@@ -130,5 +130,38 @@ describe('orcamentoDoCarrinho', () => {
     ]);
 
     expect(resultado).toEqual({ valorTotal: 1100, valorComDesconto: 1070, percentualAplicado: 10, qtdElegiveis: 1 });
+  });
+});
+
+describe('proximaFaixa', () => {
+  it('carrinho vazio: falta tudo para os 10%', () => {
+    expect(proximaFaixa([])).toEqual({ percentual: 10, faltamElegiveis: 5, faltaValor: 300, progresso: 0 });
+  });
+
+  it('abaixo dos 10%: o que falta em exames e em valor, e o progresso pelo limite mais perto', () => {
+    const faixa = proximaFaixa([item(100, 1, true), item(50, 2, true)]);
+
+    expect(faixa).toEqual({ percentual: 10, faltamElegiveis: 3, faltaValor: 100, progresso: 200 / 300 });
+  });
+
+  it('não elegíveis não contam para chegar à faixa', () => {
+    expect(proximaFaixa([item(500, 1, false), ...elegiveis(1, 10)])).toMatchObject({
+      percentual: 10,
+      faltamElegiveis: 4,
+      faltaValor: 290,
+    });
+  });
+
+  it('nos 10%: aponta para os 15%', () => {
+    expect(proximaFaixa(elegiveis(5, 20))).toEqual({ percentual: 15, faltamElegiveis: 5, faltaValor: 900, progresso: 0.5 });
+  });
+
+  it('nos 15%, por quantidade ou por valor: não há próxima faixa', () => {
+    expect(proximaFaixa(elegiveis(10))).toBeNull();
+    expect(proximaFaixa([item(1000, 1, true)])).toBeNull();
+  });
+
+  it('arredonda o valor que falta em centavos', () => {
+    expect(proximaFaixa([item(0.1, 1, true), item(0.2, 1, true)])?.faltaValor).toBe(299.7);
   });
 });

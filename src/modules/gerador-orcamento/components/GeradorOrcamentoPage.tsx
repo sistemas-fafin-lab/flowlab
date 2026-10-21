@@ -1,9 +1,9 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { AlertTriangle, Calculator, Check, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Trash2, X } from 'lucide-react';
+import { AlertTriangle, BadgePercent, Calculator, Check, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Trash2, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
-import { buscaCasaConvenio, filtrarExames } from '../domain/busca';
+import { buscaCasaConvenio, convenioCasaBusca, filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
-import { orcamentoDoCarrinho } from '../domain/orcamento';
+import { orcamentoDoCarrinho, proximaFaixaDoCarrinho, type ProximaFaixa } from '../domain/orcamento';
 import { montarPdfOrcamentoCliente } from '../domain/pdfCliente';
 import { montarPdfOrcamentoInterno } from '../domain/pdfInterno';
 import type { DadosPdfOrcamento } from '../domain/pdfComum';
@@ -24,13 +24,24 @@ type TipoPdf = keyof typeof PDFS;
 
 const brl = (valor: number) => valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+/** Marca o Exame elegível a desconto: só ele conta para as faixas do desconto. */
+const SeloElegivel: React.FC = () => (
+  <span
+    title="Conta para o desconto automático por volume"
+    className="inline-flex items-center gap-0.5 px-1.5 py-px text-[10px] font-semibold rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
+  >
+    <BadgePercent className="w-3 h-3" /> Elegível a desconto
+  </span>
+);
+
 const LinhaExame: React.FC<{
   exame: ItemGeradorOrcamento;
   noCarrinho: boolean;
-  /** a busca casou com um convênio deste exame: os convênios abrem sozinhos */
-  convenioBuscado: boolean;
+  /** a busca da lista: se casar com convênios deste exame, eles abrem sozinhos e destacados */
+  busca: string;
   onAdicionar: (exame: ItemGeradorOrcamento) => void;
-}> = React.memo(({ exame, noCarrinho, convenioBuscado, onAdicionar }) => {
+}> = React.memo(({ exame, noCarrinho, busca, onAdicionar }) => {
+  const convenioBuscado = buscaCasaConvenio(exame, busca);
   // Os convênios ocupam muito espaço na lista; ficam recolhidos até o atendente pedir ou
   // buscar por um deles. Quando a busca muda, volta a valer o que ela pede.
   const [mostrarConvenios, setMostrarConvenios] = useState(convenioBuscado);
@@ -43,7 +54,10 @@ const LinhaExame: React.FC<{
     <li className="flex items-center gap-4 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors">
       <div className="min-w-0 flex-1">
         <p className="text-base font-semibold text-gray-900 dark:text-gray-100">{exame.nome}</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">TUSS {exame.tuss || '—'}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1">
+          TUSS {exame.tuss || '—'}
+          {exame.elegivelDescontoParticular && <SeloElegivel />}
+        </p>
         {exame.conveniosAceitos.length > 0 && (
           <button
             type="button"
@@ -60,7 +74,11 @@ const LinhaExame: React.FC<{
             {exame.conveniosAceitos.map((convenio) => (
               <span
                 key={convenio}
-                className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+                className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${
+                  convenioCasaBusca(convenio, busca)
+                    ? 'bg-blue-600 text-white ring-2 ring-blue-300 dark:bg-blue-500 dark:ring-blue-400/50'
+                    : 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                }`}
               >
                 {convenio}
               </span>
@@ -104,8 +122,9 @@ const LinhaCarrinho: React.FC<{
         <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate" title={linha.item.nome}>
           {linha.item.nome}
         </p>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1">
           {brl(linha.item.preco)} · TUSS {linha.item.tuss || '—'}
+          {linha.item.elegivelDescontoParticular && <SeloElegivel />}
         </p>
       </div>
       <div className="flex items-center rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -154,6 +173,47 @@ const LinhaCarrinho: React.FC<{
   );
 };
 
+/**
+ * Quanto falta para a próxima faixa do desconto, para o atendente oferecer mais exames.
+ * Fica fora do resumo de valores, que mostra só Valor Total e Valor com Desconto.
+ */
+const ProgressoDesconto: React.FC<{ faixa: ProximaFaixa | null }> = ({ faixa }) => {
+  if (!faixa) {
+    return (
+      <p className="mt-3 flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+        <BadgePercent className="w-4 h-4" /> Desconto máximo de 15% aplicado.
+      </p>
+    );
+  }
+  const umSo = faixa.faltamElegiveis === 1;
+  return (
+    <div className="mt-3">
+      <p className="text-xs text-gray-600 dark:text-gray-300">
+        {umSo ? 'Falta' : 'Faltam'}{' '}
+        <strong className="font-semibold">
+          {faixa.faltamElegiveis} {umSo ? 'exame elegível' : 'exames elegíveis'}
+        </strong>{' '}
+        ou{' '}
+        <strong className="font-semibold">{brl(faixa.faltaValor)}</strong> em elegíveis para{' '}
+        <strong className="font-semibold">{faixa.percentual}% de desconto</strong>.
+      </p>
+      <div
+        role="progressbar"
+        aria-label={`Progresso até ${faixa.percentual}% de desconto`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(faixa.progresso * 100)}
+        className="mt-1.5 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden"
+      >
+        <div
+          className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-emerald-500 transition-all duration-300"
+          style={{ width: `${Math.round(faixa.progresso * 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+};
+
 const GeradorOrcamentoPage: React.FC = () => {
   const { exames, podeVerCustos, loading, error, recarregar } = useListaPrecos();
   const [busca, setBusca] = useState('');
@@ -163,6 +223,7 @@ const GeradorOrcamentoPage: React.FC = () => {
   const resultados = useMemo(() => filtrarExames(exames, buscaAdiada), [exames, buscaAdiada]);
   const chavesNoCarrinho = useMemo(() => new Set(carrinho.map((c) => chaveExame(c.item))), [carrinho]);
   const orcamento = useMemo(() => orcamentoDoCarrinho(carrinho), [carrinho]);
+  const faixa = useMemo(() => proximaFaixaDoCarrinho(carrinho), [carrinho]);
 
   // Busca dentro do carrinho: só filtra as linhas mostradas; os totais e os PDFs
   // continuam valendo para o carrinho inteiro.
@@ -280,7 +341,7 @@ const GeradorOrcamentoPage: React.FC = () => {
                         key={chave}
                         exame={exame}
                         noCarrinho={chavesNoCarrinho.has(chave)}
-                        convenioBuscado={buscaCasaConvenio(exame, buscaAdiada)}
+                        busca={buscaAdiada}
                         onAdicionar={adicionar}
                       />
                     );
@@ -324,6 +385,7 @@ const GeradorOrcamentoPage: React.FC = () => {
                   </div>
                 </dl>
               )}
+              {carrinho.length > 0 && <ProgressoDesconto faixa={faixa} />}
               <div className="mt-4 flex gap-2">
                 <button
                   type="button"
