@@ -86,6 +86,8 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
     [validRows, exams, payors, fontePagadora, tabelaAssociada, exameExclusions, limiteCsp],
   );
 
+  const totalSim = calculadas?.filter(l => l.atendido).length ?? 0;
+
   if (!open) return null;
 
   const podeEscolherArquivo = fontePagadora.trim().length > 0;
@@ -354,36 +356,62 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
                     )
                   ) : (
                     calculadas.length > 0 && (
-                      <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700">
-                        <table className="w-full text-xs">
-                          <thead className="sticky top-0 bg-slate-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
-                            <tr>
-                              <th className="px-3 py-2 text-left font-semibold">TUSS</th>
-                              <th className="px-3 py-2 text-right font-semibold">Valor</th>
-                              <th className="px-3 py-2 text-right font-semibold">Custo</th>
-                              <th className="px-3 py-2 text-right font-semibold">CSP %</th>
-                              <th className="px-3 py-2 text-center font-semibold">Atendido</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-200">
-                            {calculadas.map((linha, i) => (
-                              <tr key={validRows[i].row}>
-                                <td className="px-3 py-1.5 font-mono">{linha.tuss}</td>
-                                <td className="px-3 py-1.5 text-right">{formatBRL(linha.valor)}</td>
-                                <td className="px-3 py-1.5 text-right">{formatBRL(linha.custoUsado)}</td>
-                                <td className="px-3 py-1.5 text-right">{linha.csp === null ? '—' : formatPct(linha.csp)}</td>
-                                <td
-                                  className={`px-3 py-1.5 text-center font-semibold ${
-                                    linha.atendido ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                                  }`}
-                                >
-                                  {linha.atendido ? 'Sim' : 'Não'}
-                                </td>
+                      <>
+                        <p className="text-xs text-gray-600 dark:text-gray-300">
+                          Com limite de {limiteCspTexto.trim()}%:{' '}
+                          <strong className="text-emerald-600 dark:text-emerald-400">{totalSim} Sim</strong>
+                          {' · '}
+                          <strong className="text-red-600 dark:text-red-400">{calculadas.length - totalSim} Não</strong>
+                        </p>
+                        <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                          <table className="w-full text-xs">
+                            <thead className="sticky top-0 bg-slate-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
+                              <tr>
+                                <th className="px-3 py-2 text-left font-semibold">TUSS</th>
+                                <th className="px-3 py-2 text-right font-semibold">Valor</th>
+                                <th className="px-3 py-2 text-right font-semibold">Custo</th>
+                                <th className="px-3 py-2 text-right font-semibold">CSP %</th>
+                                <th className="px-3 py-2 text-center font-semibold">Atendido</th>
                               </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-200">
+                              {calculadas.map((linha, i) => (
+                                <tr key={validRows[i].row}>
+                                  <td className="px-3 py-1.5">
+                                    <span className="font-mono">{linha.tuss}</span>
+                                    {linha.examesCobertos > 1 && linha.exameDefinidor && (
+                                      <div className="text-[11px] text-gray-500 dark:text-gray-400">
+                                        CSP definido por {linha.exameDefinidor}
+                                      </div>
+                                    )}
+                                    {linha.examesComLinhaPropria.length > 0 && (
+                                      <div className="text-[11px] text-amber-600 dark:text-amber-400">
+                                        Linha própria, não alterada: {linha.examesComLinhaPropria.join(', ')}
+                                      </div>
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-1.5 text-right">{formatBRL(linha.valor)}</td>
+                                  <td className="px-3 py-1.5 text-right">
+                                    {linha.custoNaoCadastrado ? (
+                                      <span className="text-amber-600 dark:text-amber-400">Custo não cadastrado</span>
+                                    ) : (
+                                      formatBRL(linha.custoUsado)
+                                    )}
+                                  </td>
+                                  <td className="px-3 py-1.5 text-right">{linha.csp === null ? '—' : formatPct(linha.csp)}</td>
+                                  <td
+                                    className={`px-3 py-1.5 text-center font-semibold ${
+                                      linha.atendido ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                                    }`}
+                                  >
+                                    {linha.atendido ? 'Sim' : 'Não'}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </>
                     )
                   )}
                 </div>

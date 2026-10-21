@@ -4,11 +4,11 @@
 
 **Blocked by:** 01 — Atendido calculado por % máx CSP na importação
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] A função de cálculo devolve também o exame que definiu o CSP e os avisos (custo não cadastrado; nomes dos exames com linha própria não alterados).
-- [ ] Prévia mostra o exame que definiu o CSP quando o TUSS tem mais de um exame coberto.
-- [ ] Prévia mostra o aviso "custo não cadastrado" nas linhas com custo usado 0.
-- [ ] Prévia avisa, por TUSS, os exames com linha própria que não serão alterados.
-- [ ] Prévia mostra a contagem de Sim e Não, atualizada quando o limite muda.
-- [ ] Testes da função cobrindo exame definidor e os dois avisos.
+- [x] A função de cálculo devolve também o exame que definiu o CSP e os avisos (custo não cadastrado; nomes dos exames com linha própria não alterados).
+- [x] Prévia mostra o exame que definiu o CSP quando o TUSS tem mais de um exame coberto.
+- [x] Prévia mostra o aviso "custo não cadastrado" nas linhas com custo usado 0.
+- [x] Prévia avisa, por TUSS, os exames com linha própria que não serão alterados.
+- [x] Prévia mostra a contagem de Sim e Não, atualizada quando o limite muda.
+- [x] Testes da função cobrindo exame definidor e os dois avisos.

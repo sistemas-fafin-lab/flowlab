@@ -184,7 +184,17 @@ describe('calcularAtendidoImportacao', () => {
 
   it('TUSS com um exame: custo dele / valor da planilha, abaixo do limite é Sim', () => {
     const [resultado] = calcular({ exams: [exame({ direct: 20, indirect: 10 })] });
-    expect(resultado).toEqual({ tuss: '40304361', valor: 100, custoUsado: 30, csp: 30, atendido: true });
+    expect(resultado).toEqual({
+      tuss: '40304361',
+      valor: 100,
+      custoUsado: 30,
+      csp: 30,
+      atendido: true,
+      exameDefinidor: 'Hemograma Completo',
+      examesCobertos: 1,
+      custoNaoCadastrado: false,
+      examesComLinhaPropria: [],
+    });
   });
 
   it('limite é inclusivo: CSP exatamente igual ao limite é Sim, acima é Não', () => {
@@ -201,6 +211,20 @@ describe('calcularAtendidoImportacao', () => {
     expect(calcular({ exams })[0]).toMatchObject({ custoUsado: 50, csp: 50, atendido: false });
   });
 
+  it('TUSS compartilhado: aponta o exame que definiu o CSP (o de maior custo entre os cobertos)', () => {
+    const exams = [
+      exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
+      exame({ id: 'e2', name: 'Biópsia B', direct: 30, indirect: 20 }),
+      exame({ id: 'e3', name: 'Biópsia C', direct: 10 }),
+    ];
+    expect(calcular({ exams })[0]).toMatchObject({ exameDefinidor: 'Biópsia B', examesCobertos: 3 });
+  });
+
+  it('TUSS com um exame: ele mesmo define o CSP', () => {
+    const [resultado] = calcular({ exams: [exame({ direct: 20 })] });
+    expect(resultado).toMatchObject({ exameDefinidor: 'Hemograma Completo', examesCobertos: 1 });
+  });
+
   it('exame excluído da linha geral do TUSS nessa fonte + tabela não entra no maior custo', () => {
     const exams = [
       exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
@@ -211,7 +235,7 @@ describe('calcularAtendidoImportacao', () => {
       payors: [linhaDePreco({ id: 'p1' })],
       excluidos: new Set([chaveExclusaoExame('p1', 'e2')]),
     });
-    expect(resultado).toMatchObject({ custoUsado: 20, atendido: true });
+    expect(resultado).toMatchObject({ custoUsado: 20, atendido: true, exameDefinidor: 'Biópsia A', examesCobertos: 1 });
   });
 
   it('exame com linha própria na mesma fonte + tabela não entra no maior custo', () => {
@@ -224,6 +248,33 @@ describe('calcularAtendidoImportacao', () => {
       payors: [linhaDePreco({ id: 'p1' }), linhaDePreco({ id: 'p2', exameId: 'e2', price: 450 })],
     });
     expect(resultado).toMatchObject({ custoUsado: 20, atendido: true });
+  });
+
+  it('avisa os exames do TUSS com linha própria na mesma fonte + tabela (a importação não os altera)', () => {
+    const exams = [
+      exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
+      exame({ id: 'e2', name: 'Biópsia Sextante', direct: 90 }),
+      exame({ id: 'e3', name: 'Biópsia C', direct: 30 }),
+      exame({ id: 'e4', tuss: '40302040', name: 'Outro TUSS', direct: 5 }),
+    ];
+    const resultado = calcular({
+      exams,
+      linhas: [
+        { tuss: '40304361', valor: 100 },
+        { tuss: '40302040', valor: 100 },
+      ],
+      payors: [
+        linhaDePreco({ id: 'p1' }),
+        linhaDePreco({ id: 'p2', exameId: 'e2', price: 450 }),
+        // Outra tabela: não é linha própria nesta importação.
+        linhaDePreco({ id: 'p3', table: 'CBHPM', exameId: 'e3', price: 450 }),
+        // Outro TUSS: não aparece no aviso do primeiro.
+        linhaDePreco({ id: 'p4', tus: '40302040', exameId: 'e4', price: 10 }),
+      ],
+    });
+    expect(resultado[0].examesComLinhaPropria).toEqual(['Biópsia Sextante']);
+    expect(resultado[1].examesComLinhaPropria).toEqual(['Outro TUSS']);
+    expect(calcular({ exams: [exame({ direct: 20 })] })[0].examesComLinhaPropria).toEqual([]);
   });
 
   it('linha própria conta pela mesma fonte + tabela da tela: ignora caixa e acento, mas não outra tabela', () => {
@@ -267,6 +318,19 @@ describe('calcularAtendidoImportacao', () => {
   it('custo usado 0 (custo não cadastrado) é Não — não vira CSP 0% e Sim', () => {
     const [resultado] = calcular({ exams: [exame({ direct: 0, indirect: 0 })] });
     expect(resultado).toMatchObject({ custoUsado: 0, atendido: false });
+  });
+
+  it('custo usado 0 avisa "custo não cadastrado" — também sem nenhum exame coberto; com custo não avisa', () => {
+    expect(calcular({ exams: [exame({ direct: 0, indirect: 0 })] })[0]).toMatchObject({
+      custoNaoCadastrado: true,
+      exameDefinidor: null,
+    });
+    const soLinhaPropria = calcular({
+      exams: [exame({ id: 'e1', direct: 20 })],
+      payors: [linhaDePreco({ id: 'p2', exameId: 'e1' })],
+    })[0];
+    expect(soLinhaPropria).toMatchObject({ custoUsado: 0, custoNaoCadastrado: true, examesCobertos: 0 });
+    expect(calcular({ exams: [exame({ direct: 20 })] })[0].custoNaoCadastrado).toBe(false);
   });
 });
 

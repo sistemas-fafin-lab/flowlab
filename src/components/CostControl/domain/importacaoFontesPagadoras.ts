@@ -146,6 +146,17 @@ export interface LinhaComAtendidoCalculado extends LinhaImportacaoFontePagadora 
   custoUsado: number;
   // custoUsado / valor * 100, sem arredondar; null quando valor ≤ 0.
   csp: number | null;
+  // Nome do exame de maior custo entre os cobertos — o que definiu o CSP.
+  // null quando nenhum exame coberto tem custo.
+  exameDefinidor: string | null;
+  // Quantos exames a linha geral cobre: a prévia só aponta o exame definidor
+  // quando o TUSS é compartilhado (mais de um).
+  examesCobertos: number;
+  // Aviso: custo usado 0 — nenhum exame coberto com custo na aba Exames.
+  custoNaoCadastrado: boolean;
+  // Aviso: exames do TUSS com linha própria na mesma fonte + tabela — ficam
+  // fora da conta e a importação não altera o preço deles.
+  examesComLinhaPropria: string[];
 }
 
 /** Atendido de cada linha da planilha pelo % máx CSP — ver
@@ -181,15 +192,30 @@ export function calcularAtendidoImportacao({
 
   return linhas.map(linha => {
     const linhaGeral = linhaGeralPorTuss.get(linha.tuss);
-    const cobertos = examesDoTuss(exams, linha.tuss).filter(
+    const doTuss = examesDoTuss(exams, linha.tuss);
+    const cobertos = doTuss.filter(
       e => !comLinhaPropria.has(e.id) && !(linhaGeral && excluidos.has(chaveExclusaoExame(linhaGeral.id, e.id))),
     );
-    const custoUsado = Math.max(0, ...cobertos.map(e => e.direct + e.indirect));
+    // Empate fica com o primeiro: reduce só troca quando o custo é maior.
+    const definidor = cobertos.reduce<Exam | null>(
+      (maior, e) => (e.direct + e.indirect > (maior ? maior.direct + maior.indirect : 0) ? e : maior),
+      null,
+    );
+    const custoUsado = definidor ? definidor.direct + definidor.indirect : 0;
     // custo * 100 / valor (e não custo / valor * 100): 7 / 100 * 100 dá
     // 7.000000000000001 e derrubaria um CSP exatamente no limite.
     const csp = linha.valor > 0 ? (custoUsado * 100) / linha.valor : null;
     // Preço ausente ou custo não cadastrado nunca viram convênio aceito.
     const atendido = csp !== null && custoUsado > 0 && csp <= limiteCsp;
-    return { ...linha, custoUsado, csp, atendido };
+    return {
+      ...linha,
+      custoUsado,
+      csp,
+      atendido,
+      exameDefinidor: definidor?.name ?? null,
+      examesCobertos: cobertos.length,
+      custoNaoCadastrado: custoUsado === 0,
+      examesComLinhaPropria: doTuss.filter(e => comLinhaPropria.has(e.id)).map(e => e.name),
+    };
   });
 }
