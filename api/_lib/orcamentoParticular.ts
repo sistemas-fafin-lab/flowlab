@@ -1,7 +1,7 @@
 // api/_lib/orcamentoParticular.ts
 // Suporte ao endpoint GET /api/integracoes/orcamento-particular — leitura
 // server-to-server pra Tabela Particular (app externo). Ver o handler em
-// api/integracoes/orcamento-particular.ts.
+// api/_lib/handlers/integracoes-orcamento-particular.ts.
 
 import type { VercelRequest } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';

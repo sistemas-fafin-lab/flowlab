@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-vi.mock('../_lib/supabase.js', () => ({
+vi.mock('../supabase.js', () => ({
   getSupabaseAdminClient: vi.fn(() => ({})),
 }));
-vi.mock('../_lib/orcamentoParticular.js', () => ({
+vi.mock('../orcamentoParticular.js', () => ({
   isTabelaParticularApiKeyValid: vi.fn(),
   buildOrcamentoParticular: vi.fn(),
 }));
 
-import { isTabelaParticularApiKeyValid, buildOrcamentoParticular } from '../_lib/orcamentoParticular.js';
-import handler from './orcamento-particular.js';
+import { isTabelaParticularApiKeyValid, buildOrcamentoParticular } from '../orcamentoParticular.js';
+import handler from './integracoes-orcamento-particular.js';
 
 const isTabelaParticularApiKeyValidMock = isTabelaParticularApiKeyValid as ReturnType<typeof vi.fn>;
 const buildOrcamentoParticularMock = buildOrcamentoParticular as ReturnType<typeof vi.fn>;

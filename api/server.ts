@@ -132,6 +132,8 @@ HANDLERS.set('POST /api/faturamento/operadoras-sync',          () => import('./_
 HANDLERS.set('GET /api/faturamento/aplis-cobrancas-testes',   () => import('./_lib/handlers/faturamento-aplis-cobrancas-testes.js'));
 HANDLERS.set('GET /api/atendimento/gerador-orcamento-precos',  () => import('./_lib/handlers/atendimento-gerador-orcamento-precos.js'));
 HANDLERS.set('POST /api/atendimento/gerador-orcamento-pedido-medico', () => import('./_lib/handlers/atendimento-gerador-orcamento-pedido-medico.js'));
+HANDLERS.set('GET /api/integracoes/orcamento-particular', () => import('./_lib/handlers/integracoes-orcamento-particular.js'));
+HANDLERS.set('GET /api/integracoes/tuss-exames',          () => import('./_lib/handlers/integracoes-tuss-exames.js'));
 
 async function parseBody(req: http.IncomingMessage): Promise<unknown> {
   if (!req.headers['content-type']?.includes('application/json')) return undefined;

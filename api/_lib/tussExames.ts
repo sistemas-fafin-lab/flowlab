@@ -1,7 +1,7 @@
 // api/_lib/tussExames.ts
 // Suporte ao endpoint GET /api/integracoes/tuss-exames — leitura
 // server-to-server pro Sistema de Admissão resolver o TUSS de cada
-// procedimento enviado ao AEL. Ver o handler em api/integracoes/tuss-exames.ts.
+// procedimento enviado ao AEL. Ver o handler em api/_lib/handlers/integracoes-tuss-exames.ts.
 
 import type { VercelRequest } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';

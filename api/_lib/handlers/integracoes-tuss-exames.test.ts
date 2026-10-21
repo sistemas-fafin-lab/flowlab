@@ -1,16 +1,16 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
-vi.mock('../_lib/supabase.js', () => ({
+vi.mock('../supabase.js', () => ({
   getSupabaseAdminClient: vi.fn(() => ({})),
 }));
-vi.mock('../_lib/tussExames.js', () => ({
+vi.mock('../tussExames.js', () => ({
   isAdmissaoApiKeyValid: vi.fn(),
   buildTussExames: vi.fn(),
 }));
 
-import { isAdmissaoApiKeyValid, buildTussExames } from '../_lib/tussExames.js';
-import handler from './tuss-exames.js';
+import { isAdmissaoApiKeyValid, buildTussExames } from '../tussExames.js';
+import handler from './integracoes-tuss-exames.js';
 
 const isAdmissaoApiKeyValidMock = isAdmissaoApiKeyValid as ReturnType<typeof vi.fn>;
 const buildTussExamesMock = buildTussExames as ReturnType<typeof vi.fn>;

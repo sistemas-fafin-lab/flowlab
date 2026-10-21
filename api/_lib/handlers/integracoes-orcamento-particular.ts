@@ -1,7 +1,7 @@
 /**
  * API Route: GET /api/integracoes/orcamento-particular
  *
- * Vercel Serverless Function — leitura só-leitura, server-to-server, pra
+ * Handler despachado por api/integracoes/[action].ts — leitura só-leitura, server-to-server, pra
  * Tabela Particular (app externo) ler preço/custo/elegibilidade de desconto
  * automático por TUSS do orçamento Particular, mais os convênios que atendem
  * cada exame (só nomes, sem valor negociado). Mesmo padrão de "app externo
@@ -19,9 +19,9 @@
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import { getSupabaseAdminClient } from '../_lib/supabase.js';
-import { describeError } from '../_lib/errors.js';
-import { buildOrcamentoParticular, isTabelaParticularApiKeyValid } from '../_lib/orcamentoParticular.js';
+import { getSupabaseAdminClient } from '../supabase.js';
+import { describeError } from '../errors.js';
+import { buildOrcamentoParticular, isTabelaParticularApiKeyValid } from '../orcamentoParticular.js';
 
 export default async function handler(
   req: VercelRequest,
