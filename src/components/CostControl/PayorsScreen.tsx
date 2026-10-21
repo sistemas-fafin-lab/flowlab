@@ -31,6 +31,7 @@ import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
   casaTermo,
+  edicaoSeparaDaLinhaGeral,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
   type ExameDaFontePagadora,
@@ -888,7 +889,10 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     if (savingPayor) return;
     setSavingPayor(true);
     try {
-      if (editingLinha) {
+      // Escolher um exame só numa linha geral de TUSS compartilhado grava
+      // uma linha de exame nova — a geral segue valendo pros irmãos.
+      const separaDaGeral = !!editingLinha && edicaoSeparaDaLinhaGeral(editingLinha, data, exams);
+      if (editingLinha && !separaDaGeral) {
         await updatePayor(editingLinha.payorId, data);
       } else {
         await createPayor(data);

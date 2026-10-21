@@ -9,6 +9,7 @@ import {
   fontesPagadorasPorTuss,
   analisarLinhaFontePagadora,
   examesDoTuss,
+  edicaoSeparaDaLinhaGeral,
 } from './busca';
 
 const exame = (over: Partial<Exam>): Exam => ({
@@ -477,5 +478,23 @@ describe('analisarLinhaFontePagadora', () => {
     expect(
       analisarLinhaFontePagadora([geral], { payor: 'Particular', table: 'Particular', tus: '40601200', exameId: null }, 'p1'),
     ).toEqual({ duplicada: null, linhaGeralSubstituida: null });
+  });
+});
+
+describe('edicaoSeparaDaLinhaGeral', () => {
+  const exames = [
+    exame({ id: 'e1', tuss: '40503801', name: 'Exame antigo' }),
+    exame({ id: 'e2', tuss: '40503801', name: 'Exame novo' }),
+    exame({ id: 'e3', tuss: '40304361', name: 'Hemograma completo' }),
+  ];
+
+  it('linha geral de TUSS compartilhado + um exame escolhido: separa (não atualiza a geral)', () => {
+    expect(edicaoSeparaDaLinhaGeral({ tus: '40503801', exameId: null }, { exameId: 'e2' }, exames)).toBe(true);
+  });
+
+  it('continua atualizando quando segue geral, já era linha de exame ou o TUSS tem um exame só', () => {
+    expect(edicaoSeparaDaLinhaGeral({ tus: '40503801', exameId: null }, { exameId: null }, exames)).toBe(false);
+    expect(edicaoSeparaDaLinhaGeral({ tus: '40503801', exameId: 'e1' }, { exameId: 'e2' }, exames)).toBe(false);
+    expect(edicaoSeparaDaLinhaGeral({ tus: '40304361', exameId: null }, { exameId: 'e3' }, exames)).toBe(false);
   });
 });

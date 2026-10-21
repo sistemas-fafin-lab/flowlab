@@ -4,6 +4,7 @@ import { formatBRL, type Exam, type Payor, type PayorEditData } from '../../hook
 import AutocompleteInput from './AutocompleteInput';
 import {
   analisarLinhaFontePagadora,
+  edicaoSeparaDaLinhaGeral,
   examesDoTuss,
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
@@ -70,6 +71,12 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({
   const dadosParaSalvar: PayorEditData = useMemo(
     () => (aplicarATodos && form.tus.trim() ? { ...form, exameId: null } : form),
     [aplicarATodos, form]
+  );
+  // Editando a linha geral do TUSS e escolhendo um exame só: o salvar cria
+  // uma linha de exame e mantém a geral (ver PayorsScreen).
+  const separaDaLinhaGeral = useMemo(
+    () => mode === 'edit' && !!payor && edicaoSeparaDaLinhaGeral(payor, dadosParaSalvar, exams),
+    [mode, payor, dadosParaSalvar, exams]
   );
   const analise = useMemo(
     () => analisarLinhaFontePagadora(payors, dadosParaSalvar, editingPayorId),
@@ -223,6 +230,11 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({
                 {analise.linhaGeralSubstituida && (
                   <>
                     {' '}— substitui, só para ele, a linha geral do TUSS ({formatBRL(analise.linhaGeralSubstituida.price)})
+                  </>
+                )}
+                {separaDaLinhaGeral && payor && (
+                  <>
+                    {' '}— a linha geral do TUSS ({formatBRL(payor.price)}) continua valendo para os demais exames
                   </>
                 )}
                 .

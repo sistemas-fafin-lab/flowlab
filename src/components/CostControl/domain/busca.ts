@@ -296,3 +296,19 @@ export function analisarLinhaFontePagadora(
   }
   return { duplicada: linhaGeral, linhaGeralSubstituida: null };
 }
+
+/** Na edição de uma linha geral do TUSS compartilhado por mais de um exame,
+ *  escolher um exame só NÃO pode virar um update da linha geral: ela passaria
+ *  a valer só pra esse exame e os irmãos perderiam o preço (bug real: TUSS
+ *  40503801 com um exame novo, "escolhi só ele e mesmo assim alterou os
+ *  dois"). Nesse caso a edição grava uma linha de exame nova e a linha geral
+ *  continua valendo pros demais. Com um exame só no TUSS não há irmão a
+ *  proteger — atualiza a linha normalmente. */
+export function edicaoSeparaDaLinhaGeral(
+  original: Pick<Payor, 'tus' | 'exameId'>,
+  data: Pick<Payor, 'exameId'>,
+  exams: Exam[],
+): boolean {
+  if (original.exameId || !data.exameId) return false;
+  return examesDoTuss(exams, original.tus).length > 1;
+}
