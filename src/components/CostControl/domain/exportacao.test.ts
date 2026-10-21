@@ -1,7 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import type { Payor } from '../../../hooks/useCostControl';
+import type { Payor, TabelaAssociada } from '../../../hooks/useCostControl';
 import type { ExameDaFontePagadora } from './busca';
-import { linhasExportacaoExamesDaFonte, linhasExportacaoFontesPagadoras } from './exportacao';
+import {
+  linhasExportacaoExamesDaFonte,
+  linhasExportacaoFontesDoExame,
+  linhasExportacaoFontesPagadoras,
+} from './exportacao';
+
+const tabelas: TabelaAssociada[] = [
+  { id: 't1', fontePagadora: 'Unimed', nome: 'Unimed Coop.', vencimento: '2027-03-31', ativa: true },
+  { id: 't2', fontePagadora: 'Bradesco Saúde', nome: 'Bradesco Top', vencimento: null, ativa: true },
+];
 
 const exameDaFonte = (over: Partial<ExameDaFontePagadora>): ExameDaFontePagadora => ({
   payorId: 'p1',
@@ -9,6 +18,7 @@ const exameDaFonte = (over: Partial<ExameDaFontePagadora>): ExameDaFontePagadora
   exameId: 'e1',
   exame: 'Hemograma completo',
   tuss: '40304361',
+  tabelaId: 't1',
   tabelaAssociada: 'Unimed Coop.',
   valorCobrado: 12.5,
   valorPadraoTuss: 12.5,
@@ -36,7 +46,7 @@ const fonte = (over: Partial<Payor>): Payor => ({
 
 describe('linhasExportacaoExamesDaFonte', () => {
   it('lista vazia devolve lista vazia', () => {
-    expect(linhasExportacaoExamesDaFonte([])).toEqual([]);
+    expect(linhasExportacaoExamesDaFonte([], tabelas)).toEqual([]);
   });
 
   it('mapeia cada exame pras colunas exibidas em TabelaExamesDaFonte', () => {
@@ -52,12 +62,13 @@ describe('linhasExportacaoExamesDaFonte', () => {
           percentualCsp: 96,
           atendido: true,
         }),
-      ]),
+      ], tabelas),
     ).toEqual([
       {
         Exame: 'Hemograma completo',
         TUSS: '40304361',
         'Tabela Associada': 'Unimed Coop.',
+        Vencimento: '31/03/2027',
         'Valor Cobrado': 12.5,
         Custo: 12,
         Dif: 0.5,
@@ -68,30 +79,75 @@ describe('linhasExportacaoExamesDaFonte', () => {
   });
 
   it('atendido false vira "Não"', () => {
-    expect(linhasExportacaoExamesDaFonte([exameDaFonte({ atendido: false })])[0].Atendido).toBe('Não');
+    expect(linhasExportacaoExamesDaFonte([exameDaFonte({ atendido: false })], tabelas)[0].Atendido).toBe('Não');
   });
 
   it('arredonda %CSP em duas casas', () => {
-    expect(linhasExportacaoExamesDaFonte([exameDaFonte({ percentualCsp: 33.33333 })])[0]['%CSP']).toBe(33.33);
+    expect(linhasExportacaoExamesDaFonte([exameDaFonte({ percentualCsp: 33.33333 })], tabelas)[0]['%CSP']).toBe(33.33);
   });
 });
 
 describe('linhasExportacaoFontesPagadoras', () => {
   it('lista vazia devolve lista vazia', () => {
-    expect(linhasExportacaoFontesPagadoras([])).toEqual([]);
+    expect(linhasExportacaoFontesPagadoras([], tabelas)).toEqual([]);
   });
 
   it('mapeia cada fonte pagadora incluindo TUSS (útil quando não há um exame fixo de contexto)', () => {
     expect(
       linhasExportacaoFontesPagadoras([
-        fonte({ payor: 'Bradesco Saúde', table: 'Bradesco Top', tus: '40304312', price: 20, atendido: false }),
-      ]),
+        fonte({ payor: 'Bradesco Saúde', table: 'Bradesco Top', tabelaId: 't2', tus: '40304312', price: 20, atendido: false }),
+        fonte({}),
+      ], tabelas),
     ).toEqual([
       {
         'Fonte Pagadora': 'Bradesco Saúde',
         'Tabela Associada': 'Bradesco Top',
+        Vencimento: '',
         TUSS: '40304312',
         'Valor Cobrado': 20,
+        Atendido: 'Não',
+      },
+      {
+        'Fonte Pagadora': 'Unimed',
+        'Tabela Associada': 'Unimed Coop.',
+        Vencimento: '31/03/2027',
+        TUSS: '40304361',
+        'Valor Cobrado': 12.5,
+        Atendido: 'Sim',
+      },
+    ]);
+  });
+
+  it('linha cuja tabela não está no cadastro carregado sai com Vencimento vazio', () => {
+    expect(linhasExportacaoFontesPagadoras([fonte({ tabelaId: 'inexistente' })], tabelas)[0].Vencimento).toBe('');
+  });
+});
+
+describe('linhasExportacaoFontesDoExame', () => {
+  it('traz o vencimento da tabela de cada fonte, pelo id', () => {
+    expect(
+      linhasExportacaoFontesDoExame(
+        [
+          exameDaFonte({ fontePagadora: 'Unimed', tabelaId: 't1', tabelaAssociada: 'Unimed Coop.' }),
+          exameDaFonte({ fontePagadora: 'Bradesco Saúde', tabelaId: 't2', tabelaAssociada: 'Bradesco Top', atendido: false }),
+        ],
+        tabelas,
+      ),
+    ).toEqual([
+      {
+        'Fonte Pagadora': 'Unimed',
+        'Tabela Associada': 'Unimed Coop.',
+        Vencimento: '31/03/2027',
+        TUSS: '40304361',
+        'Valor Cobrado': 12.5,
+        Atendido: 'Sim',
+      },
+      {
+        'Fonte Pagadora': 'Bradesco Saúde',
+        'Tabela Associada': 'Bradesco Top',
+        Vencimento: '',
+        TUSS: '40304361',
+        'Valor Cobrado': 12.5,
         Atendido: 'Não',
       },
     ]);

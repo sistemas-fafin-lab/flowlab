@@ -9,9 +9,14 @@ import { isBearerApiKeyValid } from './bearerAuth.js';
 import { buscarTodasPaginado } from './supabasePaginado.js';
 
 const FONTE_PARTICULAR = 'Particular';
-// Só a tabela associada "Particular" vai pra Tabela Particular — linhas da
-// fonte Particular em outras tabelas (ex.: "PART") são de outro uso e não
-// entram. Comparação sem diferenciar maiúsculas ("PARTICULAR" entra).
+// Só a tabela associada cadastrada como "Particular" da fonte Particular
+// (custo_tabelas_associadas) vai pra Tabela Particular — linhas da fonte
+// Particular em outras tabelas (ex.: "PART") são de outro uso e não entram.
+// Nome sem diferenciar maiúsculas ("PARTICULAR" entra), o mesmo critério da
+// proteção da tabela no banco (migration 20261021190000). Enquanto
+// "Particular" e "PARTICULAR" forem dois cadastros (até a unificação, ticket
+// 06), as duas entram juntas aqui, como antes do cadastro — na tela elas são
+// tabelas diferentes.
 const TABELA_PARTICULAR = 'particular';
 
 /**
@@ -51,7 +56,7 @@ export interface OpcoesOrcamentoParticular {
 interface FonteRow {
   id: string;
   fonte_pagadora: string;
-  tabela_associada: string;
+  tabela_associada_id: string;
   tuss: string;
   /** Preenchido = linha só deste exame; null = linha geral do TUSS. */
   exame_id: string | null;
@@ -80,6 +85,12 @@ interface ValorPersonalizadoRow {
   valor: number;
 }
 
+interface TabelaAssociadaRow {
+  id: string;
+  fonte_pagadora: string;
+  nome: string;
+}
+
 /**
  * Valida o header `Authorization: Bearer <token>` contra TABELA_PARTICULAR_API_KEY.
  * Chave dedicada — deliberadamente não reaproveita FLOWLAB_API_KEY, pra manter o
@@ -98,8 +109,8 @@ export function isTabelaParticularApiKeyValid(req: VercelRequest): boolean {
  * Mesma regra de src/components/CostControl/domain/busca.ts
  * (examesPorFontePagadora): linha com `exame_id` vale só pra aquele exame e
  * tem precedência sobre a linha geral do TUSS (`exame_id` null), que vale
- * pros demais exames do TUSS. Só entram linhas da fonte "Particular" na
- * tabela associada "Particular" (ver TABELA_PARTICULAR).
+ * pros demais exames do TUSS. Só entram linhas da tabela associada
+ * "Particular" da fonte "Particular", pelo cadastro (ver TABELA_PARTICULAR).
  */
 export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
@@ -113,11 +124,11 @@ export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
   { incluirCusto }: OpcoesOrcamentoParticular,
 ): Promise<OrcamentoParticularItemCustoOpcional[]> {
-  const [fontes, exames, exclusoes, valoresPersonalizados] = await Promise.all([
+  const [fontes, exames, exclusoes, valoresPersonalizados, tabelas] = await Promise.all([
     buscarTodasPaginado<FonteRow>(
       supabase,
       'custo_fontes_pagadoras',
-      'id, fonte_pagadora, tabela_associada, tuss, exame_id, valor, atendido, elegivel_desconto_particular',
+      'id, fonte_pagadora, tabela_associada_id, tuss, exame_id, valor, atendido, elegivel_desconto_particular',
     ),
     buscarTodasPaginado<ExameRow>(
       supabase,
@@ -130,6 +141,7 @@ export async function buildOrcamentoParticular(
       'custo_fontes_pagadoras_valores_exame',
       'payor_id, exame_id, valor',
     ),
+    buscarTodasPaginado<TabelaAssociadaRow>(supabase, 'custo_tabelas_associadas', 'id, fonte_pagadora, nome'),
   ]);
 
   // Exame explicitamente excluído desta linha de preço (ver PayorsScreen —
@@ -199,11 +211,12 @@ export async function buildOrcamentoParticular(
     return Array.from(aceitos);
   };
 
-  const particulares = fontes.filter(
-    fonte =>
-      fonte.fonte_pagadora === FONTE_PARTICULAR &&
-      (fonte.tabela_associada ?? '').trim().toLowerCase() === TABELA_PARTICULAR,
+  const tabelasParticular = new Set(
+    tabelas
+      .filter(t => t.fonte_pagadora === FONTE_PARTICULAR && t.nome.trim().toLowerCase() === TABELA_PARTICULAR)
+      .map(t => t.id),
   );
+  const particulares = fontes.filter(fonte => tabelasParticular.has(fonte.tabela_associada_id));
   // Exames com linha Particular própria saem da linha geral do TUSS — só
   // quando a linha própria de fato os mostra: uma linha de exame que exclui
   // o próprio exame não conta (senão o exame sumiria das duas).

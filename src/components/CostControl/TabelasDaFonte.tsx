@@ -4,6 +4,7 @@ import type { TabelaAssociada } from '../../hooks/useCostControl';
 import { erroNomeTabela, tabelaProtegida } from './domain/tabelasAssociadas';
 import {
   DIAS_AVISO_VENCIMENTO,
+  formatarVencimento,
   hojeISO,
   pedeAtencao,
   situacaoVencimento,
@@ -40,11 +41,6 @@ const MOTIVO_PROTEGIDA =
 
 const botaoAcao =
   'p-2 rounded-lg text-gray-400 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-gray-400';
-
-const formatarData = (iso: string): string => {
-  const [ano, mes, dia] = iso.split('-');
-  return `${dia}/${mes}/${ano}`;
-};
 
 function CampoVencimento({
   tabela,
@@ -302,7 +298,7 @@ export default function TabelasDaFonte({
                         <CampoVencimento tabela={tabela} onSalvar={onSalvarVencimento} />
                       ) : (
                         <span className="text-gray-700 dark:text-gray-200">
-                          {tabela.vencimento ? formatarData(tabela.vencimento) : '—'}
+                          {formatarVencimento(tabela.vencimento) || '—'}
                         </span>
                       )}
                     </td>

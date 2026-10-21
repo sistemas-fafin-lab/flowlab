@@ -82,6 +82,9 @@ export interface ExameDaFontePagadora {
   exameId: string;
   exame: string;
   tuss: string;
+  // Cadastro da tabela associada da linha (Payor.tabelaId) — é por ele que
+  // "mesma tabela" é decidido; tabelaAssociada é só o nome exibido.
+  tabelaId: string;
   tabelaAssociada: string;
   // Valor efetivo desta linha: valor personalizado do exame (ver
   // valoresPersonalizados) quando existir, senão o valor padrão do TUSS
@@ -217,11 +220,11 @@ function linhasDeExame(
   // "Particular" sem TUSS estava exibindo os 20 exames sem código, todos
   // pelo mesmo preço). Ver migration 20260916100000_custo_fontes_pagadoras_exame_id.
 
-  // Exames com linha própria, por fonte + tabela associada — saem da linha
-  // geral do TUSS da mesma fonte + tabela (ver precedência no JSDoc de
-  // examesPorFontePagadora).
-  const chaveLinhaPropria = (fonte: Payor, exameId: string) =>
-    `${normalizar(fonte.payor)}|${normalizar(fonte.table)}|${exameId}`;
+  // Exames com linha própria, por tabela associada (o id do cadastro já é de
+  // uma fonte só) — saem da linha geral do TUSS da mesma tabela (ver
+  // precedência no JSDoc de examesPorFontePagadora). Por id, não por nome:
+  // "Particular" e "PARTICULAR" cadastradas à parte são tabelas diferentes.
+  const chaveLinhaPropria = (fonte: Payor, exameId: string) => `${fonte.tabelaId}|${exameId}`;
   const examesComLinhaPropria = new Set(
     fontes.filter((fonte) => fonte.exameId).map((fonte) => chaveLinhaPropria(fonte, fonte.exameId!)),
   );
@@ -271,6 +274,7 @@ function linhasDeExame(
           exameId: exame.id,
           exame: exame.name,
           tuss: exame.tuss,
+          tabelaId: fonte.tabelaId,
           tabelaAssociada: fonte.table,
           valorCobrado,
           valorPadraoTuss: fonte.price,
@@ -301,14 +305,14 @@ export function examesDoTuss(exams: Exam[], tuss: string): Exam[] {
 
 /** Checagens do PayorFormModal antes de gravar `data` em
  *  custo_fontes_pagadoras (`ignorarPayorId` = a própria linha, em edição).
- *  Fonte e tabela são comparadas ignorando acentos/maiúsculas — "Particular"
- *  e "PARTICULAR" contam como a mesma (foi assim que o TUSS 40601200 acabou
- *  com 3 linhas Particular).
+ *  "Mesma fonte + tabela" é o mesmo cadastro de tabela associada (tabelaId) —
+ *  o id já é de uma fonte só. Nomes não contam: "Particular" e "PARTICULAR"
+ *  cadastradas à parte são tabelas diferentes.
  *
- *  - `duplicada`: já existe linha da mesma fonte + tabela com o mesmo
- *    alcance — mesmo exame (linha de exame) ou mesmo TUSS (linha geral).
+ *  - `duplicada`: já existe linha da mesma tabela com o mesmo alcance —
+ *    mesmo exame (linha de exame) ou mesmo TUSS (linha geral).
  *  - `linhaGeralSubstituida`: em linha de exame, a linha geral do TUSS da
- *    mesma fonte + tabela que deixa de valer pra esse exame. */
+ *    mesma tabela que deixa de valer pra esse exame. */
 export interface AnaliseLinhaFontePagadora {
   duplicada: Payor | null;
   linhaGeralSubstituida: Payor | null;
@@ -316,22 +320,17 @@ export interface AnaliseLinhaFontePagadora {
 
 export function analisarLinhaFontePagadora(
   payors: Payor[],
-  data: Pick<Payor, 'payor' | 'table' | 'tus' | 'exameId'>,
+  // tabelaId null = tabela ainda não escolhida: nada duplica.
+  data: Pick<Payor, 'tus' | 'exameId'> & { tabelaId: string | null },
   ignorarPayorId?: string,
 ): AnaliseLinhaFontePagadora {
-  const fonte = normalizar(data.payor);
-  const tabela = normalizar(data.table);
   const tuss = normalizar(data.tus);
-  const mesmaFonteETabela = payors.filter(
-    (p) => p.id !== ignorarPayorId && normalizar(p.payor) === fonte && normalizar(p.table) === tabela,
-  );
-  const linhaGeral = tuss
-    ? mesmaFonteETabela.find((p) => !p.exameId && normalizar(p.tus) === tuss) ?? null
-    : null;
+  const mesmaTabela = payors.filter((p) => p.id !== ignorarPayorId && p.tabelaId === data.tabelaId);
+  const linhaGeral = tuss ? mesmaTabela.find((p) => !p.exameId && normalizar(p.tus) === tuss) ?? null : null;
 
   if (data.exameId) {
     return {
-      duplicada: mesmaFonteETabela.find((p) => p.exameId === data.exameId) ?? null,
+      duplicada: mesmaTabela.find((p) => p.exameId === data.exameId) ?? null,
       linhaGeralSubstituida: linhaGeral,
     };
   }

@@ -31,3 +31,10 @@ export const hojeISO = (agora: Date = new Date()): string => {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${agora.getFullYear()}-${pad(agora.getMonth() + 1)}-${pad(agora.getDate())}`;
 };
+
+/** ISO (YYYY-MM-DD) → dd/mm/aaaa; sem vencimento vira ''. */
+export const formatarVencimento = (vencimento: string | null): string => {
+  if (!vencimento) return '';
+  const [ano, mes, dia] = vencimento.split('-');
+  return `${dia}/${mes}/${ano}`;
+};

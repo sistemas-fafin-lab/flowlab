@@ -1079,7 +1079,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           showError('Nada para exportar', 'Nenhum exame no recorte atual desta fonte pagadora.');
           return;
         }
-        gerarArquivoExportacao(linhasExportacaoExamesDaFonte(examesDaFonteFiltrados), 'Exames', formato);
+        gerarArquivoExportacao(linhasExportacaoExamesDaFonte(examesDaFonteFiltrados, tabelasAssociadas), 'Exames', formato);
         return;
       }
 
@@ -1088,7 +1088,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           showError('Nada para exportar', 'Nenhuma fonte pagadora cadastrada para este exame.');
           return;
         }
-        gerarArquivoExportacao(linhasExportacaoFontesDoExame(fontesDoExame), 'Fontes Pagadoras', formato);
+        gerarArquivoExportacao(linhasExportacaoFontesDoExame(fontesDoExame, tabelasAssociadas), 'Fontes Pagadoras', formato);
         return;
       }
 
@@ -1098,7 +1098,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         showError('Nada para exportar', 'Nenhuma fonte pagadora cadastrada.');
         return;
       }
-      gerarArquivoExportacao(linhasExportacaoFontesPagadoras(todas), 'Fontes Pagadoras', formato);
+      gerarArquivoExportacao(linhasExportacaoFontesPagadoras(todas, tabelasAssociadas), 'Fontes Pagadoras', formato);
     } catch (err) {
       showError('Erro ao exportar', err instanceof Error ? err.message : undefined);
     } finally {

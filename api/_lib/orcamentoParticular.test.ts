@@ -45,8 +45,9 @@ describe('isTabelaParticularApiKeyValid', () => {
 interface FonteRow {
   id?: string;
   fonte_pagadora: string;
-  // Omitida nos testes = 'Particular' pra fonte Particular (ver criarSupabaseMock).
-  tabela_associada?: string;
+  // Omitida nos testes = a tabela "Particular" cadastrada pra fonte
+  // Particular (ver criarSupabaseMock).
+  tabela_associada_id?: string;
   tuss: string;
   exame_id?: string | null;
   // number | string: PostgREST pode devolver NUMERIC como string.
@@ -74,19 +75,31 @@ interface ValorPersonalizadoRow {
   valor: number | string;
 }
 
+interface TabelaAssociadaRow {
+  id: string;
+  fonte_pagadora: string;
+  nome: string;
+}
+
+const TABELA_PARTICULAR: TabelaAssociadaRow = { id: 'tab-particular', fonte_pagadora: 'Particular', nome: 'Particular' };
+
 function criarSupabaseMock(dados: {
   custo_fontes_pagadoras: FonteRow[];
   custo_exames: ExameRow[];
   custo_fontes_pagadoras_exclusoes?: ExclusaoRow[];
   custo_fontes_pagadoras_valores_exame?: ValorPersonalizadoRow[];
+  custo_tabelas_associadas?: TabelaAssociadaRow[];
 }) {
   // A maioria dos testes não liga pra tabela associada — linha Particular
-  // sem tabela_associada explícita vira a tabela "Particular" (a que entra).
+  // sem tabela_associada_id explícita aponta pro cadastro "Particular" (o que
+  // entra).
   dados = {
     ...dados,
+    custo_tabelas_associadas: dados.custo_tabelas_associadas ?? [TABELA_PARTICULAR],
     custo_fontes_pagadoras: dados.custo_fontes_pagadoras.map(f => ({
       ...f,
-      tabela_associada: f.tabela_associada ?? (f.fonte_pagadora === 'Particular' ? 'Particular' : ''),
+      tabela_associada_id:
+        f.tabela_associada_id ?? (f.fonte_pagadora === 'Particular' ? TABELA_PARTICULAR.id : 'tab-convenio'),
     })),
   };
   // Como o PostgREST: só as colunas pedidas no select voltam em cada linha.
@@ -471,15 +484,16 @@ describe('buildOrcamentoParticular — linha de exame (exame_id) vs. linha geral
   });
 });
 
-describe('buildOrcamentoParticular — só a tabela associada "Particular"', () => {
+describe('buildOrcamentoParticular — só a tabela associada "Particular" do cadastro', () => {
   const exames = [
     { id: 'e1', tuss: '40601200', nome: 'BIOPSIA SEXTANTE', custo_direto: 10, custo_indireto: 0 },
     { id: 'e2', tuss: '40601200', nome: 'BIOPSIA SIMPLES', custo_direto: 10, custo_indireto: 0 },
   ];
+  const tabelaPart: TabelaAssociadaRow = { id: 'tab-part', fonte_pagadora: 'Particular', nome: 'PART' };
   const linha = (over: Partial<FonteRow>): FonteRow => ({
     id: 'p1',
     fonte_pagadora: 'Particular',
-    tabela_associada: 'Particular',
+    tabela_associada_id: TABELA_PARTICULAR.id,
     tuss: '40601200',
     exame_id: null,
     valor: 250,
@@ -488,10 +502,11 @@ describe('buildOrcamentoParticular — só a tabela associada "Particular"', () 
     ...over,
   });
 
-  it('linha da fonte Particular em outra tabela (ex.: PART) não entra', async () => {
+  it('linha da fonte Particular em outra tabela do cadastro (ex.: PART) não entra', async () => {
     const supabase = criarSupabaseMock({
-      custo_fontes_pagadoras: [linha({ id: 'p9', tabela_associada: 'PART', valor: 1000 }), linha({})],
+      custo_fontes_pagadoras: [linha({ id: 'p9', tabela_associada_id: tabelaPart.id, valor: 1000 }), linha({})],
       custo_exames: exames,
+      custo_tabelas_associadas: [TABELA_PARTICULAR, tabelaPart],
     });
 
     const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
@@ -502,13 +517,34 @@ describe('buildOrcamentoParticular — só a tabela associada "Particular"', () 
     ]);
   });
 
-  it('tabela "PARTICULAR" em maiúsculas entra', async () => {
+  it('tabela cadastrada como "PARTICULAR" em maiúsculas entra', async () => {
     const supabase = criarSupabaseMock({
-      custo_fontes_pagadoras: [linha({ tabela_associada: ' PARTICULAR ' })],
+      custo_fontes_pagadoras: [linha({ tabela_associada_id: 'tab-maiusculas' })],
       custo_exames: exames,
+      custo_tabelas_associadas: [{ id: 'tab-maiusculas', fonte_pagadora: 'Particular', nome: ' PARTICULAR ' }],
     });
 
     expect(await buildOrcamentoParticular(supabase, { incluirCusto: true })).toHaveLength(2);
+  });
+
+  it('tabela "Particular" de outra fonte pagadora não entra', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [linha({ fonte_pagadora: 'Particular', tabela_associada_id: 'tab-outra-fonte' })],
+      custo_exames: exames,
+      custo_tabelas_associadas: [{ id: 'tab-outra-fonte', fonte_pagadora: 'Campanha', nome: 'Particular' }],
+    });
+
+    expect(await buildOrcamentoParticular(supabase, { incluirCusto: true })).toEqual([]);
+  });
+
+  it('lê a tabela pelo cadastro: só pede tabela_associada_id das linhas, não o texto', async () => {
+    const supabase = criarSupabaseMock({ custo_fontes_pagadoras: [linha({})], custo_exames: exames });
+
+    await buildOrcamentoParticular(supabase, { incluirCusto: true });
+
+    expect(supabase.colunasPedidas.custo_fontes_pagadoras).toContain('tabela_associada_id');
+    expect(supabase.colunasPedidas.custo_fontes_pagadoras).not.toContain('tabela_associada');
+    expect(supabase.colunasPedidas.custo_tabelas_associadas).toEqual(['id', 'fonte_pagadora', 'nome']);
   });
 
   it('linha de exame que exclui o próprio exame não bloqueia outra linha dele nem a linha geral', async () => {

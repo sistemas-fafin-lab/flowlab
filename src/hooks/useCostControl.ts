@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import {
-  linhasDaFonteETabela,
+  linhasDaTabela,
   separarUpsertFontePagadora,
   type LinhaImportacaoFontePagadora,
 } from '../components/CostControl/domain/importacaoFontesPagadoras';
@@ -479,9 +479,8 @@ export const useCostControl = (): UseCostControlReturn => {
       const existentesPorTuss = new Map<string, string>();
       // Só linhas gerais do TUSS: a planilha é por TUSS, então não pode
       // sobrescrever o preço de uma linha que vale só pra um exame.
-      // Casa pelo nome exato do cadastro, como a prévia
-      // (calcularAtendidoImportacao) — nome exato ↔ id é 1:1 até o ticket 04.
-      linhasDaFonteETabela(payors, tabela.fontePagadora, tabela.nome).forEach(p => {
+      // Casa pelo id do cadastro, como a prévia (calcularAtendidoImportacao).
+      linhasDaTabela(payors, tabela.id).forEach(p => {
         if (!p.exameId) existentesPorTuss.set(p.tus, p.id);
       });
       const linhaDaTabela = { fonte_pagadora: tabela.fontePagadora, tabela_associada_id: tabela.id };

@@ -176,8 +176,7 @@ describe('calcularAtendidoImportacao', () => {
       linhas: [{ tuss: '40304361', valor: 100 }],
       exams: [],
       payors: [],
-      fontePagadora: 'Unimed',
-      tabelaAssociada: 'AMB',
+      tabelaId: 't1',
       excluidos: new Set(),
       limiteCsp: 40,
       ...over,
@@ -226,7 +225,7 @@ describe('calcularAtendidoImportacao', () => {
     expect(resultado).toMatchObject({ exameDefinidor: 'Hemograma Completo', examesCobertos: 1 });
   });
 
-  it('exame excluído da linha geral do TUSS nessa fonte + tabela não entra no maior custo', () => {
+  it('exame excluído da linha geral do TUSS nessa tabela não entra no maior custo', () => {
     const exams = [
       exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
       exame({ id: 'e2', name: 'Biópsia B', direct: 90 }),
@@ -239,7 +238,7 @@ describe('calcularAtendidoImportacao', () => {
     expect(resultado).toMatchObject({ custoUsado: 20, atendido: true, exameDefinidor: 'Biópsia A', examesCobertos: 1 });
   });
 
-  it('exame com linha própria na mesma fonte + tabela não entra no maior custo', () => {
+  it('exame com linha própria na mesma tabela não entra no maior custo', () => {
     const exams = [
       exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
       exame({ id: 'e2', name: 'Biópsia Sextante', direct: 90 }),
@@ -251,7 +250,7 @@ describe('calcularAtendidoImportacao', () => {
     expect(resultado).toMatchObject({ custoUsado: 20, atendido: true });
   });
 
-  it('avisa os exames do TUSS com linha própria na mesma fonte + tabela (a importação não os altera)', () => {
+  it('avisa os exames do TUSS com linha própria na mesma tabela (a importação não os altera)', () => {
     const exams = [
       exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
       exame({ id: 'e2', name: 'Biópsia Sextante', direct: 90 }),
@@ -268,7 +267,7 @@ describe('calcularAtendidoImportacao', () => {
         linhaDePreco({ id: 'p1' }),
         linhaDePreco({ id: 'p2', exameId: 'e2', price: 450 }),
         // Outra tabela: não é linha própria nesta importação.
-        linhaDePreco({ id: 'p3', table: 'CBHPM', exameId: 'e3', price: 450 }),
+        linhaDePreco({ id: 'p3', table: 'CBHPM', tabelaId: 't2', exameId: 'e3', price: 450 }),
         // Outro TUSS: não aparece no aviso do primeiro.
         linhaDePreco({ id: 'p4', tus: '40302040', exameId: 'e4', price: 10 }),
       ],
@@ -278,7 +277,7 @@ describe('calcularAtendidoImportacao', () => {
     expect(calcular({ exams: [exame({ direct: 20 })] })[0].examesComLinhaPropria).toEqual([]);
   });
 
-  it('linha própria conta pela mesma fonte + tabela da tela: ignora caixa e acento, mas não outra tabela', () => {
+  it('linha própria conta pelo cadastro da tabela (id), não pelo nome: "amb" cadastrada à parte é outra tabela', () => {
     const exams = [
       exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
       exame({ id: 'e2', name: 'Biópsia Sextante', direct: 90 }),
@@ -288,11 +287,11 @@ describe('calcularAtendidoImportacao', () => {
       exams,
       payors: [
         linhaDePreco({ id: 'p1' }),
-        linhaDePreco({ id: 'p2', payor: 'UNIMED', table: 'amb', exameId: 'e2', price: 450 }),
-        linhaDePreco({ id: 'p3', table: 'CBHPM', exameId: 'e3', price: 450 }),
+        linhaDePreco({ id: 'p2', table: 'amb', tabelaId: 't2', exameId: 'e2', price: 450 }),
+        linhaDePreco({ id: 'p3', exameId: 'e3', price: 450 }),
       ],
     });
-    expect(resultado).toMatchObject({ custoUsado: 30, atendido: true });
+    expect(resultado).toMatchObject({ custoUsado: 90, atendido: false, examesComLinhaPropria: ['Biópsia C'] });
   });
 
   it('TUSS novo para a fonte (sem linha geral): só os exames com linha própria ficam fora', () => {

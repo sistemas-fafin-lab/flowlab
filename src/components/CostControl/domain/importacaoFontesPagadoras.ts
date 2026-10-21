@@ -4,7 +4,7 @@
 // (mesmo padrão de busca.ts/exportacao.ts).
 
 import type { Exam, Payor } from '../../../hooks/useCostControl';
-import { chaveExclusaoExame, examesDoTuss, normalizar } from './busca';
+import { chaveExclusaoExame, examesDoTuss } from './busca';
 
 /** Linha válida da planilha: só TUSS e valor — o Atendido não vem mais da
  *  planilha, é calculado pelo % máx CSP (ver calcularAtendidoImportacao). */
@@ -123,19 +123,18 @@ export function separarUpsertFontePagadora(
   return { toInsert, toUpdate };
 }
 
-/** Linhas de custo_fontes_pagadoras da fonte + tabela associada escolhidas no
- *  modal — comparação exata, a mesma do upsert de importPayors. */
-export function linhasDaFonteETabela(payors: Payor[], fontePagadora: string, tabelaAssociada: string): Payor[] {
-  return payors.filter(p => p.payor === fontePagadora && p.table === tabelaAssociada);
+/** Linhas de custo_fontes_pagadoras da tabela associada escolhida no modal
+ *  (pelo id do cadastro) — as mesmas que o upsert de importPayors casa. */
+export function linhasDaTabela(payors: Payor[], tabelaId: string): Payor[] {
+  return payors.filter(p => p.tabelaId === tabelaId);
 }
 
 export interface EntradaCalculoAtendido {
   linhas: LinhaPlanilhaFontePagadora[];
   exams: Exam[];
   payors: Payor[];
-  // Fonte pagadora + tabela associada escolhidas no modal.
-  fontePagadora: string;
-  tabelaAssociada: string;
+  // Id do cadastro da tabela associada escolhida no modal.
+  tabelaId: string;
   // Chaves chaveExclusaoExame(payorId, exameId) — ver custo_fontes_pagadoras_exclusoes.
   excluidos: Set<string>;
   // % máx CSP informado no modal, em porcentagem (30 = 30%).
@@ -154,7 +153,7 @@ export interface LinhaComAtendidoCalculado extends LinhaImportacaoFontePagadora 
   examesCobertos: number;
   // Aviso: custo usado 0 — nenhum exame coberto com custo na aba Exames.
   custoNaoCadastrado: boolean;
-  // Aviso: exames do TUSS com linha própria na mesma fonte + tabela — ficam
+  // Aviso: exames do TUSS com linha própria na mesma tabela — ficam
   // fora da conta e a importação não altera o preço deles.
   examesComLinhaPropria: string[];
 }
@@ -165,30 +164,23 @@ export function calcularAtendidoImportacao({
   linhas,
   exams,
   payors,
-  fontePagadora,
-  tabelaAssociada,
+  tabelaId,
   excluidos,
   limiteCsp,
 }: EntradaCalculoAtendido): LinhaComAtendidoCalculado[] {
   // Linha geral já cadastrada por TUSS — a que a importação vai atualizar
-  // (comparação exata e "último vence", como o existentesPorTuss de
-  // importPayors). TUSS novo pra fonte não tem linha geral, logo não tem
-  // exclusões.
+  // ("último vence", como o existentesPorTuss de importPayors). TUSS novo pra
+  // fonte não tem linha geral, logo não tem exclusões.
+  const daTabela = linhasDaTabela(payors, tabelaId);
   const linhaGeralPorTuss = new Map<string, Payor>();
-  linhasDaFonteETabela(payors, fontePagadora, tabelaAssociada).forEach(p => {
+  daTabela.forEach(p => {
     if (!p.exameId) linhaGeralPorTuss.set(p.tus, p);
   });
 
-  // Exames com linha própria: a linha geral não vale pra eles, então o preço
-  // importado também não. Fonte + tabela comparadas normalizadas, como a
-  // precedência de examesPorFontePagadora na tela ("PARTICULAR" = "Particular").
-  const fonte = normalizar(fontePagadora);
-  const tabela = normalizar(tabelaAssociada);
-  const comLinhaPropria = new Set(
-    payors
-      .filter(p => p.exameId && normalizar(p.payor) === fonte && normalizar(p.table) === tabela)
-      .map(p => p.exameId!),
-  );
+  // Exames com linha própria na mesma tabela: a linha geral não vale pra
+  // eles, então o preço importado também não — mesma precedência de
+  // examesPorFontePagadora na tela.
+  const comLinhaPropria = new Set(daTabela.filter(p => p.exameId).map(p => p.exameId!));
 
   return linhas.map(linha => {
     const linhaGeral = linhaGeralPorTuss.get(linha.tuss);

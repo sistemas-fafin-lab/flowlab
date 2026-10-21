@@ -27,18 +27,21 @@ const exame = (over: Partial<Exam>): Exam => ({
   ...over,
 });
 
-const fonte = (over: Partial<Payor>): Payor => ({
-  id: 'p1',
-  payor: 'Unimed',
-  table: 'Unimed Coop.',
-  tabelaId: 't1',
-  tus: '40304361',
-  price: 9.2,
-  atendido: true,
-  elegivelDescontoParticular: false,
-  exameId: null,
-  ...over,
-});
+// Sem tabelaId explícito, cada fonte + tabela (grafia exata) é um cadastro.
+const fonte = (over: Partial<Payor>): Payor => {
+  const linha = {
+    id: 'p1',
+    payor: 'Unimed',
+    table: 'Unimed Coop.',
+    tus: '40304361',
+    price: 9.2,
+    atendido: true,
+    elegivelDescontoParticular: false,
+    exameId: null,
+    ...over,
+  };
+  return { ...linha, tabelaId: over.tabelaId ?? `${linha.payor}/${linha.table}` };
+};
 
 describe('buscarExamesPorTermo', () => {
   const exames = [
@@ -169,6 +172,7 @@ describe('examesPorFontePagadora', () => {
         exameId: 'e2',
         exame: 'Glicemia de jejum',
         tuss: '40302040',
+        tabelaId: 'Unimed/Unimed Nacional',
         tabelaAssociada: 'Unimed Nacional',
         valorCobrado: 4.8,
         valorPadraoTuss: 4.8,
@@ -185,6 +189,7 @@ describe('examesPorFontePagadora', () => {
         exameId: 'e1',
         exame: 'Hemograma completo',
         tuss: '40304361',
+        tabelaId: 'Unimed/Unimed Coop.',
         tabelaAssociada: 'Unimed Coop.',
         valorCobrado: 12.5,
         valorPadraoTuss: 12.5,
@@ -209,6 +214,7 @@ describe('examesPorFontePagadora', () => {
         exameId: 'e1',
         exame: 'Hemograma completo',
         tuss: '40304361',
+        tabelaId: 'Amil/Amil 400',
         tabelaAssociada: 'Amil 400',
         valorCobrado: 15,
         valorPadraoTuss: 15,
@@ -240,6 +246,7 @@ describe('examesPorFontePagadora', () => {
         exameId: 'e1',
         exame: 'Hemograma completo',
         tuss: '40304361',
+        tabelaId: 'Particular/Tabela Particular',
         tabelaAssociada: 'Tabela Particular',
         valorCobrado: 24,
         valorPadraoTuss: 24,
@@ -401,12 +408,22 @@ describe('examesPorFontePagadora — linha de exame vs. linha geral do TUSS', ()
   });
 
   it('linha de exame de OUTRA tabela não tira o exame da linha geral', () => {
-    const outraTabela = { ...soSextante, table: 'Outra' };
+    const outraTabela = { ...soSextante, table: 'Outra', tabelaId: 't2' };
     const r = examesPorFontePagadora(exames, [geral, outraTabela], 'Particular');
     expect(r.map((e) => [e.exame, e.tabelaAssociada])).toEqual([
       ['BIOPSIA SEXTANTE', 'Particular'],
       ['BIOPSIA SIMPLES', 'Particular'],
       ['BIOPSIA SEXTANTE', 'Outra'],
+    ]);
+  });
+
+  it('"Particular" e "PARTICULAR" cadastradas como tabelas diferentes não se misturam', () => {
+    const maiusculas = { ...soSextante, table: 'PARTICULAR', tabelaId: 't2' };
+    const r = examesPorFontePagadora(exames, [geral, maiusculas], 'Particular');
+    expect(r.map((e) => [e.exame, e.tabelaAssociada, e.valorCobrado])).toEqual([
+      ['BIOPSIA SEXTANTE', 'Particular', 250],
+      ['BIOPSIA SIMPLES', 'Particular', 250],
+      ['BIOPSIA SEXTANTE', 'PARTICULAR', 450],
     ]);
   });
 });
@@ -425,36 +442,43 @@ describe('examesDoTuss', () => {
 });
 
 describe('analisarLinhaFontePagadora', () => {
-  const geral = fonte({ id: 'p1', payor: 'Particular', table: 'Particular', tus: '40601200', price: 250 });
-  const soSextante = fonte({ id: 'p2', payor: 'Particular', table: 'Particular', tus: '40601200', exameId: 'e1' });
+  const geral = fonte({ id: 'p1', payor: 'Particular', table: 'Particular', tabelaId: 't1', tus: '40601200', price: 250 });
+  const soSextante = fonte({ id: 'p2', payor: 'Particular', table: 'Particular', tabelaId: 't1', tus: '40601200', exameId: 'e1' });
 
   it('linha de exame: aponta a linha geral que deixa de valer pra ele, sem duplicata', () => {
-    expect(
-      analisarLinhaFontePagadora([geral], { payor: 'particular', table: 'PARTICULAR', tus: '40601200', exameId: 'e1' }),
-    ).toEqual({ duplicada: null, linhaGeralSubstituida: geral });
+    expect(analisarLinhaFontePagadora([geral], { tabelaId: 't1', tus: '40601200', exameId: 'e1' })).toEqual({
+      duplicada: null,
+      linhaGeralSubstituida: geral,
+    });
   });
 
-  it('linha de exame duplicada: mesmo exame, mesma fonte + tabela', () => {
-    expect(
-      analisarLinhaFontePagadora([geral, soSextante], { payor: 'Particular', table: 'Particular', tus: '40601200', exameId: 'e1' })
-        .duplicada,
-    ).toBe(soSextante);
+  it('linha de exame duplicada: mesmo exame, mesma tabela', () => {
+    expect(analisarLinhaFontePagadora([geral, soSextante], { tabelaId: 't1', tus: '40601200', exameId: 'e1' }).duplicada).toBe(
+      soSextante,
+    );
   });
 
   it('linha geral duplicada: mesmo TUSS sem exame, ignorando a linha de exame', () => {
-    expect(
-      analisarLinhaFontePagadora([soSextante], { payor: 'Particular', table: 'Particular', tus: '40601200', exameId: null }),
-    ).toEqual({ duplicada: null, linhaGeralSubstituida: null });
-    expect(
-      analisarLinhaFontePagadora([geral], { payor: 'Particular', table: 'Particular', tus: '40601200', exameId: null })
-        .duplicada,
-    ).toBe(geral);
+    expect(analisarLinhaFontePagadora([soSextante], { tabelaId: 't1', tus: '40601200', exameId: null })).toEqual({
+      duplicada: null,
+      linhaGeralSubstituida: null,
+    });
+    expect(analisarLinhaFontePagadora([geral], { tabelaId: 't1', tus: '40601200', exameId: null }).duplicada).toBe(geral);
   });
 
   it('em edição, ignora a própria linha', () => {
-    expect(
-      analisarLinhaFontePagadora([geral], { payor: 'Particular', table: 'Particular', tus: '40601200', exameId: null }, 'p1'),
-    ).toEqual({ duplicada: null, linhaGeralSubstituida: null });
+    expect(analisarLinhaFontePagadora([geral], { tabelaId: 't1', tus: '40601200', exameId: null }, 'p1')).toEqual({
+      duplicada: null,
+      linhaGeralSubstituida: null,
+    });
+  });
+
+  it('tabela de nome que colide por normalização ("PARTICULAR" × "Particular") é outra tabela: nem duplica nem substitui', () => {
+    expect(analisarLinhaFontePagadora([geral, soSextante], { tabelaId: 't2', tus: '40601200', exameId: 'e1' })).toEqual({
+      duplicada: null,
+      linhaGeralSubstituida: null,
+    });
+    expect(analisarLinhaFontePagadora([geral], { tabelaId: 't2', tus: '40601200', exameId: null }).duplicada).toBeNull();
   });
 });
 
