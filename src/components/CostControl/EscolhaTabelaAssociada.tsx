@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { Plus } from 'lucide-react';
 import type { CriarTabelaAssociada, TabelaAssociada } from '../../hooks/useCostControl';
 import {
-  erroNomeNovaTabela,
+  erroNomeTabela,
   opcoesDeTabela,
   tabelaEscolhidaDaFonte,
   tabelasDaFonte,
@@ -66,7 +66,7 @@ const EscolhaTabelaAssociada: React.FC<EscolhaTabelaAssociadaProps> = ({
 
   const criar = async () => {
     if (salvando) return;
-    const problema = erroNomeNovaTabela(nome, daFonte);
+    const problema = erroNomeTabela(nome, daFonte);
     if (problema) {
       setErro(problema);
       return;

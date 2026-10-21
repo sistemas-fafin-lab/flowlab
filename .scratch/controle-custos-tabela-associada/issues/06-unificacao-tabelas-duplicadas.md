@@ -10,3 +10,7 @@
 - [ ] Testes: sem conflitos → operações; conflito sem escolha → bloqueio; escolha aplicada → linha perdedora removida e ajustes remapeados; nome fora do mapa intocado.
 - [ ] Migração gerada a partir de um plano sem conflitos, aplicando o mapa e as escolhas registrados no ticket 05.
 - [ ] Conferência pós-migração: nenhum par (tabela, TUSS) ou (tabela, exame) duplicado; Tabela Particular do orçamento com os preços escolhidos.
+
+## Comments
+
+- Do ticket 03: a migração `20261021190000` protege toda tabela da fonte "Particular" cujo nome, sem diferenciar maiúsculas, é "particular" (mesmo critério do backend do orçamento), então hoje "Particular" **e** "PARTICULAR". Para juntar as duas, a migração da unificação precisa desligar `trigger_custo_tabelas_associadas_regras` durante a junção (`ALTER TABLE … DISABLE TRIGGER …` / `ENABLE` no fim). Também precisa desligar a regra "inativa não recebe linhas novas" se for apontar linhas para uma tabela inativa.

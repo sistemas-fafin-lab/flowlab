@@ -118,6 +118,16 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({
       setFormError('Escolha a tabela associada, ou crie uma em "+ Nova tabela".');
       return;
     }
+    // Inativa não recebe linhas novas (o banco também recusa): criar,
+    // separar da linha geral ou mover a linha pra ela. Editar a linha que
+    // já está nela continua valendo.
+    const criaLinhaNaTabela = mode === 'create' || separaDaLinhaGeral || tabelaEscolhida.id !== payor?.tabelaId;
+    if (!tabelaEscolhida.ativa && criaLinhaNaTabela) {
+      setFormError(
+        `A tabela "${tabelaEscolhida.nome || '(sem nome)'}" está inativa e não recebe linhas novas. Reative-a em "Tabelas desta fonte".`
+      );
+      return;
+    }
     if (!form.tus.trim() && !form.exameId) {
       setFormError('Selecione um exame da lista para vincular esta linha, ou informe um código TUSS.');
       return;

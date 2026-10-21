@@ -117,6 +117,9 @@ export interface UseCostControlReturn {
   importPayors: (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
   createTabelaAssociada: CriarTabelaAssociada;
   updateVencimentoTabelaAssociada: (id: string, vencimento: string | null) => Promise<void>;
+  renameTabelaAssociada: (id: string, nome: string) => Promise<void>;
+  setAtivaTabelaAssociada: (id: string, ativa: boolean) => Promise<void>;
+  deleteTabelaAssociada: (id: string) => Promise<void>;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -548,7 +551,7 @@ export const useCostControl = (): UseCostControlReturn => {
     [payors]
   );
 
-  // Nome repetido na fonte já é barrado na tela (erroNomeNovaTabela, sem
+  // Nome repetido na fonte já é barrado na tela (erroNomeTabela, sem
   // diferenciar maiúsculas); aqui sobra a corrida com outra sessão, pela
   // unicidade exata custo_tabelas_associadas_fonte_nome_key.
   const createTabelaAssociada: CriarTabelaAssociada = useCallback(
@@ -582,6 +585,60 @@ export const useCostControl = (): UseCostControlReturn => {
     setTabelasAssociadas(prev => prev.map(t => (t.id === id ? atualizada : t)));
   }, []);
 
+  // Ticket 03. As regras ficam no banco (20261021190000): nome repetido na
+  // fonte, Tabela Particular protegida e inativa sem linhas novas são
+  // recusados lá com mensagem pronta (23505/23514) — repassada como veio.
+  const updateTabelaAssociada = useCallback(
+    async (id: string, campos: { nome?: string; ativa?: boolean }) => {
+      const { data, error } = await supabase
+        .from('custo_tabelas_associadas')
+        .update(campos)
+        .eq('id', id)
+        .select(TABELA_ASSOCIADA_COLUNAS)
+        .single();
+      if (error) {
+        if (error.code === '23505' || error.code === '23514') throw new Error(error.message);
+        throw error;
+      }
+      const atualizada = mapTabelaAssociadaRow(data);
+      setTabelasAssociadas(prev => prev.map(t => (t.id === id ? atualizada : t)));
+      return atualizada;
+    },
+    []
+  );
+
+  // O banco propaga o nome novo pro texto de todas as linhas da tabela
+  // (trigger custo_tabelas_associadas_propaga_nome); aqui só espelha no state.
+  const renameTabelaAssociada = useCallback(
+    async (id: string, nome: string) => {
+      const atualizada = await updateTabelaAssociada(id, { nome: nome.trim() });
+      setPayors(prev => prev.map(p => (p.tabelaId === id ? { ...p, table: atualizada.nome } : p)));
+    },
+    [updateTabelaAssociada]
+  );
+
+  const setAtivaTabelaAssociada = useCallback(
+    async (id: string, ativa: boolean) => {
+      await updateTabelaAssociada(id, { ativa });
+    },
+    [updateTabelaAssociada]
+  );
+
+  // Só sem linhas: a FK custo_fontes_pagadoras.tabela_associada_id é
+  // ON DELETE RESTRICT (23503) — a tela já avisa antes pela contagem, mas
+  // outra sessão pode ter gravado uma linha nesse meio-tempo.
+  const deleteTabelaAssociada = useCallback(async (id: string) => {
+    const { error } = await supabase.from('custo_tabelas_associadas').delete().eq('id', id);
+    if (error) {
+      if (error.code === '23503') {
+        throw new Error('A tabela ainda tem linhas de preço. Exclua ou mova as linhas antes, ou desative a tabela.');
+      }
+      if (error.code === '23514') throw new Error(error.message);
+      throw error;
+    }
+    setTabelasAssociadas(prev => prev.filter(t => t.id !== id));
+  }, []);
+
   return {
     exams,
     payors,
@@ -604,5 +661,8 @@ export const useCostControl = (): UseCostControlReturn => {
     importPayors,
     createTabelaAssociada,
     updateVencimentoTabelaAssociada,
+    renameTabelaAssociada,
+    setAtivaTabelaAssociada,
+    deleteTabelaAssociada,
   };
 };

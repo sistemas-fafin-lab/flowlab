@@ -37,7 +37,7 @@ import AutocompleteInput from './AutocompleteInput';
 import PayorImportModal from './PayorImportModal';
 import ValorExameFormModal from './ValorExameFormModal';
 import TabelasDaFonte from './TabelasDaFonte';
-import { tabelasDaFonte } from './domain/tabelasAssociadas';
+import { contarLinhasPorTabela, tabelasDaFonte } from './domain/tabelasAssociadas';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
@@ -85,6 +85,9 @@ interface PayorsScreenProps {
   importPayors: (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
   createTabelaAssociada: CriarTabelaAssociada;
   updateVencimentoTabelaAssociada: (id: string, vencimento: string | null) => Promise<void>;
+  renameTabelaAssociada: (id: string, nome: string) => Promise<void>;
+  setAtivaTabelaAssociada: (id: string, ativa: boolean) => Promise<void>;
+  deleteTabelaAssociada: (id: string) => Promise<void>;
 }
 
 // Dados de uma linha em edição no PayorFormModal — comum às duas tabelas de
@@ -679,6 +682,9 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   importPayors,
   createTabelaAssociada,
   updateVencimentoTabelaAssociada,
+  renameTabelaAssociada,
+  setAtivaTabelaAssociada,
+  deleteTabelaAssociada,
   updateExam,
 }) => {
   const { userProfile } = useAuth();
@@ -868,6 +874,44 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       showError('Erro ao atualizar vencimento', err instanceof Error ? err.message : undefined);
       return false;
     }
+  };
+
+  const linhasPorTabela = useMemo(() => contarLinhasPorTabela(payors), [payors]);
+
+  const handleRenomearTabela = async (tabela: TabelaAssociada, nome: string): Promise<boolean> => {
+    try {
+      await renameTabelaAssociada(tabela.id, nome);
+      showSuccess('Tabela renomeada com sucesso!');
+      return true;
+    } catch (err) {
+      showError('Erro ao renomear tabela', err instanceof Error ? err.message : undefined);
+      return false;
+    }
+  };
+
+  const handleAlternarAtivaTabela = async (tabela: TabelaAssociada) => {
+    try {
+      await setAtivaTabelaAssociada(tabela.id, !tabela.ativa);
+      showSuccess(tabela.ativa ? 'Tabela desativada.' : 'Tabela reativada.');
+    } catch (err) {
+      showError(tabela.ativa ? 'Erro ao desativar tabela' : 'Erro ao reativar tabela', err instanceof Error ? err.message : undefined);
+    }
+  };
+
+  const handleExcluirTabela = (tabela: TabelaAssociada) => {
+    showConfirmDialog(
+      'Excluir tabela',
+      `Tem certeza que deseja excluir a tabela "${tabela.nome || '(sem nome)'}" da fonte ${tabela.fontePagadora}? Esta ação não pode ser desfeita.`,
+      async () => {
+        try {
+          await deleteTabelaAssociada(tabela.id);
+          showSuccess('Tabela excluída com sucesso!');
+        } catch (err) {
+          showError('Erro ao excluir tabela', err instanceof Error ? err.message : undefined);
+        }
+      },
+      { type: 'danger', confirmText: 'Excluir' }
+    );
   };
 
   const handleSaveValorExame = async (valor: number) => {
@@ -1188,8 +1232,12 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
         <TabelasDaFonte
           key={`tabelas-${fontePagadoraSelecionada}`}
           tabelas={tabelasDaFonteSelecionada}
+          linhasPorTabela={linhasPorTabela}
           podeGerenciar={podeGerenciar}
           onSalvarVencimento={handleSalvarVencimento}
+          onRenomear={handleRenomearTabela}
+          onAlternarAtiva={handleAlternarAtivaTabela}
+          onExcluir={handleExcluirTabela}
         />
       )}
 

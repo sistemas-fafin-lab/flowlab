@@ -54,6 +54,9 @@ const CostControlDashboard: React.FC = () => {
     importPayors,
     createTabelaAssociada,
     updateVencimentoTabelaAssociada,
+    renameTabelaAssociada,
+    setAtivaTabelaAssociada,
+    deleteTabelaAssociada,
   } = useCostControl();
 
   return (
@@ -135,6 +138,9 @@ const CostControlDashboard: React.FC = () => {
             importPayors={importPayors}
             createTabelaAssociada={createTabelaAssociada}
             updateVencimentoTabelaAssociada={updateVencimentoTabelaAssociada}
+            renameTabelaAssociada={renameTabelaAssociada}
+            setAtivaTabelaAssociada={setAtivaTabelaAssociada}
+            deleteTabelaAssociada={deleteTabelaAssociada}
             updateExam={updateExam}
           />
         )}

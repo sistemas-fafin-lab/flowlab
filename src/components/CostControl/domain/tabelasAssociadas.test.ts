@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import type { TabelaAssociada } from '../../../hooks/useCostControl';
-import { erroNomeNovaTabela, opcoesDeTabela, tabelaEscolhidaDaFonte, tabelasDaFonte } from './tabelasAssociadas';
+import type { Payor, TabelaAssociada } from '../../../hooks/useCostControl';
+import {
+  contarLinhasPorTabela,
+  erroNomeTabela,
+  opcoesDeTabela,
+  tabelaEscolhidaDaFonte,
+  tabelaProtegida,
+  tabelasDaFonte,
+} from './tabelasAssociadas';
 
 const tabela = (id: string, fontePagadora: string, nome: string, ativa = true): TabelaAssociada => ({
   id,
@@ -41,25 +48,33 @@ describe('opcoesDeTabela', () => {
   });
 });
 
-describe('erroNomeNovaTabela', () => {
+describe('erroNomeTabela', () => {
   const daFonte = [tabela('1', 'Particular', 'Part'), tabela('2', 'Particular', 'Campanha 2025', false)];
 
   it('aceita um nome que a fonte ainda não tem', () => {
-    expect(erroNomeNovaTabela('PROASA', daFonte)).toBeNull();
+    expect(erroNomeTabela('PROASA', daFonte)).toBeNull();
   });
 
   it('recusa nome em branco', () => {
-    expect(erroNomeNovaTabela('   ', daFonte)).toBe('Informe o nome da tabela.');
+    expect(erroNomeTabela('   ', daFonte)).toBe('Informe o nome da tabela.');
   });
 
   it('recusa nome que a fonte já tem, mesmo com outras maiúsculas e espaços nas pontas', () => {
-    expect(erroNomeNovaTabela('  PART ', daFonte)).toBe('Já existe a tabela "Part" nesta fonte pagadora.');
+    expect(erroNomeTabela('  PART ', daFonte)).toBe('Já existe a tabela "Part" nesta fonte pagadora.');
   });
 
   it('recusa também o nome de uma tabela inativa, avisando que ela está inativa', () => {
-    expect(erroNomeNovaTabela('campanha 2025', daFonte)).toBe(
+    expect(erroNomeTabela('campanha 2025', daFonte)).toBe(
       'Já existe a tabela "Campanha 2025" nesta fonte pagadora (inativa).'
     );
+  });
+
+  it('ao renomear, não conta a própria tabela — dá para só trocar maiúsculas', () => {
+    expect(erroNomeTabela('PART', daFonte, '1')).toBeNull();
+  });
+
+  it('ao renomear, recusa o nome de outra tabela da fonte', () => {
+    expect(erroNomeTabela('Part', daFonte, '2')).toBe('Já existe a tabela "Part" nesta fonte pagadora.');
   });
 });
 
@@ -72,5 +87,38 @@ describe('tabelaEscolhidaDaFonte', () => {
 
   it('trocar a fonte depois de escolher deixa sem tabela', () => {
     expect(tabelaEscolhidaDaFonte(tabelas, 'Unimed', '1')).toBeNull();
+  });
+});
+
+describe('tabelaProtegida', () => {
+  it('protege a tabela Particular da fonte Particular, sem diferenciar maiúsculas', () => {
+    expect(tabelaProtegida(tabela('1', 'Particular', 'Particular'))).toBe(true);
+    expect(tabelaProtegida(tabela('2', 'Particular', 'PARTICULAR'))).toBe(true);
+  });
+
+  it('não protege as outras tabelas da fonte Particular nem a "Particular" de outra fonte', () => {
+    expect(tabelaProtegida(tabela('1', 'Particular', 'PART'))).toBe(false);
+    expect(tabelaProtegida(tabela('2', 'AMHP', 'Particular'))).toBe(false);
+  });
+});
+
+describe('contarLinhasPorTabela', () => {
+  const linha = (id: string, tabelaId: string): Payor => ({
+    id,
+    payor: 'AMHP',
+    table: '',
+    tabelaId,
+    tus: '40304361',
+    price: 10,
+    atendido: true,
+    elegivelDescontoParticular: false,
+    exameId: null,
+  });
+
+  it('conta as linhas de cada tabela pelo id; tabela sem linhas fica com zero', () => {
+    const contagem = contarLinhasPorTabela([linha('a', 't1'), linha('b', 't1'), linha('c', 't2')]);
+    expect(contagem.get('t1')).toBe(2);
+    expect(contagem.get('t2')).toBe(1);
+    expect(contagem.get('t3') ?? 0).toBe(0);
   });
 });
