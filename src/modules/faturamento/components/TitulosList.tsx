@@ -100,6 +100,8 @@ interface Props {
   titulos: TituloReceber[];
   operadoras: OperadoraResumo[];
   total: number;
+  /** Soma do recebido de todos os títulos do recorte, não só da página. */
+  totalRecebido: number;
   loading: boolean;
   error: string | null;
   /** Conferência com o apLIS por `idNota` (só os divergentes); null enquanto
@@ -191,6 +193,7 @@ const TitulosList: React.FC<Props> = ({
   titulos,
   operadoras,
   total,
+  totalRecebido,
   loading,
   error,
   divergencias,
@@ -636,6 +639,22 @@ const TitulosList: React.FC<Props> = ({
           </span>
         </div>
       )}
+
+      {/* Total recebido do recorte: acompanha todos os filtros acima, somando
+          todas as páginas (a soma vem do hook, não de `titulos`). */}
+      <div className="inline-flex items-center gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/40 px-4 py-2.5">
+        <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+          <DollarSign className="w-4 h-4" />
+        </div>
+        <div>
+          <p className="text-[11px] text-gray-500 dark:text-gray-400">
+            Total recebido · {total} título{total === 1 ? '' : 's'} no filtro
+          </p>
+          <p className="text-base font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+            {loading ? '—' : formatCurrency(totalRecebido)}
+          </p>
+        </div>
+      </div>
 
       {/* ── Tabela ───────────────────────────────────────────────────────── */}
       {loading ? (

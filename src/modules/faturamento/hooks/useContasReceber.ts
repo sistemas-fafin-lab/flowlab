@@ -32,6 +32,8 @@ import { STATUS_GLOSA_EM_DISPUTA, STATUS_TITULOS_PENDENTES } from '../types';
 // título fica mentindo entre um statement e outro.
 
 const TAMANHO_PADRAO = 25;
+/** Linhas por ida ao banco na soma do recebido — o teto padrão do PostgREST. */
+const FATIA_SOMA = 1000;
 
 /** Nome (`user_profiles.name`) por id. `registrado_por_id` referencia
  *  auth.users, não user_profiles — sem FK direta o PostgREST não embeda o nome
@@ -232,6 +234,8 @@ interface UseContasReceberResult {
   titulos: TituloReceber[];
   operadoras: OperadoraResumo[];
   total: number;
+  /** Soma do `valor_recebido` de todos os títulos do recorte (todas as páginas). */
+  totalRecebido: number;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -292,6 +296,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const [titulos, setTitulos] = useState<TituloReceber[]>([]);
   const [operadoras, setOperadoras] = useState<OperadoraResumo[]>([]);
   const [total, setTotal] = useState(0);
+  const [totalRecebido, setTotalRecebido] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -320,45 +325,15 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     if (divergenteAplis && (!idsDivergentesAplis || idsDivergentesAplis.length === 0)) {
       setTitulos([]);
       setTotal(0);
+      setTotalRecebido(0);
       setLoading(false);
       return;
     }
 
     try {
-      let query = supabase
-        .from('notas')
-        .select(`${SELECT_TITULO}${glosa ? ', glosas(id_glosa)' : ''}`, { count: 'exact' })
-        // Referência do período é a EMISSÃO (revisão de 2026-09-24 sobre a
-        // issue 40, que tinha escolhido vencimento): filtrar por vencimento
-        // fazia um título emitido em agosto sumir do período de agosto. A
-        // emissão nunca é nula, então nenhum título fica fora de todo range.
-        .gte('data_emissao', desde)
-        .lte('data_emissao', ate)
-        .order('data_vencimento', { ascending: true, nullsFirst: false })
-        .order('data_emissao', { ascending: false })
-        .range(inicio, inicio + porPagina - 1);
-
-      if (status) {
-        query = query.eq('status', status);
-      } else if (somentePendentes) {
-        // Issue 38: atalho "Somente pendentes" — preset em cima do filtro de Status,
-        // só entra quando não há status manual selecionado (ver conflito em TitulosList).
-        query = query.in('status', STATUS_TITULOS_PENDENTES);
-      }
-      if (operadoraId) query = query.eq('operadora_id', operadoraId);
-      // Os ids vêm da conferência (rota própria, MySQL do apLIS) — recorte no
-      // servidor para contagem e paginação continuarem certas.
-      if (divergenteAplis && idsDivergentesAplis) query = query.in('id_nota', idsDivergentesAplis);
-      // Filtro "Glosa": o embed `glosas(id_glosa)` só entra no select quando o
-      // filtro está ativo, e o recorte é feito no servidor (is null / not is null
-      // sobre o embed), então contagem e paginação continuam certas.
-      if (glosa === 'com') {
-        query = query.not('glosas', 'is', null);
-      } else if (glosa === 'aberta') {
-        query = query.in('glosas.status', STATUS_GLOSA_EM_DISPUTA).not('glosas', 'is', null);
-      } else if (glosa === 'sem') {
-        query = query.is('glosas', null);
-      }
+      // Resolvidos antes de montar as consultas: a busca por código de lote
+      // precisa de uma ida ao banco, e as duas consultas abaixo usam o mesmo recorte.
+      let condicoesBusca: string | null = null;
       if (busca?.trim()) {
         const termo = busca.trim();
         // `%` e `_` digitados são literais, não curinga — ver utils/buscaLike.ts
@@ -391,36 +366,99 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         if (idsPorLote.length > 0) {
           condicoes.push(`id_nota.in.(${idsPorLote.join(',')})`);
         }
-        query = query.or(condicoes.join(','));
+        condicoesBusca = condicoes.join(',');
       }
-      if (ocultarParceiras) {
-        // Issue 16: a marcação mora em `operadoras`, não em `notas` — resolve pelos
-        // ids já carregados (mesma origem do <select> de Operadora) e exclui, em vez
-        // de embutir `operadoras(is_clinica_parceira)` no select e filtrar em memória,
-        // o que quebraria a contagem/paginação server-side.
-        const idsParceiras = operadoras.filter((o) => o.isClinicaParceira).map((o) => o.id);
+      if (reqId !== buscaAtual.current) return;
+
+      // Issue 16: a marcação mora em `operadoras`, não em `notas` — resolve pelos
+      // ids já carregados (mesma origem do <select> de Operadora) e exclui, em vez
+      // de embutir `operadoras(is_clinica_parceira)` no select e filtrar em memória,
+      // o que quebraria a contagem/paginação server-side.
+      const idsParceiras = ocultarParceiras
+        ? operadoras.filter((o) => o.isClinicaParceira).map((o) => o.id)
+        : [];
+
+      /** `notas` com todos os filtros da tela, sem ordem nem paginação. */
+      const filtrada = (colunas: string, opcoes?: { count: 'exact' }) => {
+        let query = supabase
+          .from('notas')
+          .select(`${colunas}${glosa ? ', glosas(id_glosa)' : ''}`, opcoes)
+          // Referência do período é a EMISSÃO (revisão de 2026-09-24 sobre a
+          // issue 40, que tinha escolhido vencimento): filtrar por vencimento
+          // fazia um título emitido em agosto sumir do período de agosto. A
+          // emissão nunca é nula, então nenhum título fica fora de todo range.
+          .gte('data_emissao', desde)
+          .lte('data_emissao', ate);
+
+        if (status) {
+          query = query.eq('status', status);
+        } else if (somentePendentes) {
+          // Issue 38: atalho "Somente pendentes" — preset em cima do filtro de Status,
+          // só entra quando não há status manual selecionado (ver conflito em TitulosList).
+          query = query.in('status', STATUS_TITULOS_PENDENTES);
+        }
+        if (operadoraId) query = query.eq('operadora_id', operadoraId);
+        // Os ids vêm da conferência (rota própria, MySQL do apLIS) — recorte no
+        // servidor para contagem e paginação continuarem certas.
+        if (divergenteAplis && idsDivergentesAplis) query = query.in('id_nota', idsDivergentesAplis);
+        // Filtro "Glosa": o embed `glosas(id_glosa)` só entra no select quando o
+        // filtro está ativo, e o recorte é feito no servidor (is null / not is null
+        // sobre o embed), então contagem e paginação continuam certas.
+        if (glosa === 'com') {
+          query = query.not('glosas', 'is', null);
+        } else if (glosa === 'aberta') {
+          query = query.in('glosas.status', STATUS_GLOSA_EM_DISPUTA).not('glosas', 'is', null);
+        } else if (glosa === 'sem') {
+          query = query.is('glosas', null);
+        }
+        if (condicoesBusca) query = query.or(condicoesBusca);
         if (idsParceiras.length > 0) {
           query = query.not('operadora_id', 'in', `(${idsParceiras.join(',')})`);
         }
-      }
 
-      // Issue 37: título é lançamento manual do setor, não uma agregação de
-      // meta — NÃO filtra por is_considerada_meta aqui (ao contrário do
-      // Dashboard/Pendências/AgingDetalheModal, que agregam só as fontes da
-      // whitelist). Removido: um filtro incondicional que tinha sido
-      // adicionado por engano nesta query, escondendo títulos reais de
-      // operadora fora da whitelist mesmo com o dropdown já corrigido.
-      const { data, count, error: erro } = await query;
+        // Issue 37: título é lançamento manual do setor, não uma agregação de
+        // meta — NÃO filtra por is_considerada_meta aqui (ao contrário do
+        // Dashboard/Pendências/AgingDetalheModal, que agregam só as fontes da
+        // whitelist). Removido: um filtro incondicional que tinha sido
+        // adicionado por engano nesta query, escondendo títulos reais de
+        // operadora fora da whitelist mesmo com o dropdown já corrigido.
+        return query;
+      };
+
+      // Card "Recebido" da aba Títulos: soma do recorte inteiro, não da página.
+      // Lido em fatias porque o PostgREST corta cada resposta em 1000 linhas.
+      const somarRecebido = async (): Promise<number> => {
+        let soma = 0;
+        for (let deslocamento = 0; ; deslocamento += FATIA_SOMA) {
+          const { data: fatia, error: erroFatia } = await filtrada('valor_recebido')
+            .order('id_nota')
+            .range(deslocamento, deslocamento + FATIA_SOMA - 1);
+          if (erroFatia) throw new Error(erroFatia.message);
+          const linhas = (fatia ?? []) as unknown as { valor_recebido: number | string }[];
+          soma += linhas.reduce((acc, linha) => acc + num(linha.valor_recebido), 0);
+          if (linhas.length < FATIA_SOMA) return Math.round(soma * 100) / 100;
+        }
+      };
+
+      const [{ data, count, error: erro }, recebido] = await Promise.all([
+        filtrada(SELECT_TITULO, { count: 'exact' })
+          .order('data_vencimento', { ascending: true, nullsFirst: false })
+          .order('data_emissao', { ascending: false })
+          .range(inicio, inicio + porPagina - 1),
+        somarRecebido(),
+      ]);
       if (reqId !== buscaAtual.current) return;
       if (erro) throw new Error(erro.message);
 
       setTitulos((data as unknown as LinhaTitulo[] ?? []).map(normalizar));
       setTotal(count ?? 0);
+      setTotalRecebido(recebido);
     } catch (err) {
       if (reqId !== buscaAtual.current) return;
       setError(err instanceof Error ? err.message : 'Não foi possível carregar os títulos.');
       setTitulos([]);
       setTotal(0);
+      setTotalRecebido(0);
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
@@ -866,6 +904,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     titulos,
     operadoras,
     total,
+    totalRecebido,
     loading,
     error,
     refetch,
