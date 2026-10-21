@@ -1,10 +1,13 @@
 import React, { useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, X, FileSpreadsheet, AlertTriangle, CheckCircle2, Download } from 'lucide-react';
-import { Exam, Payor } from '../../hooks/useCostControl';
+import { Exam, Payor, formatBRL, formatPct } from '../../hooks/useCostControl';
 import {
+  calcularAtendidoImportacao,
+  parseLimiteCsp,
   validarLinhasImportacaoFontePagadora,
   type LinhaImportacaoFontePagadora,
+  type LinhaPlanilhaFontePagadora,
   type LinhaValidada,
 } from './domain/importacaoFontesPagadoras';
 
@@ -17,10 +20,14 @@ interface PayorImportModalProps {
   onClose: () => void;
   payors: Payor[];
   exams: Exam[];
+  // Chaves chaveExclusaoExame(payorId, exameId) — entram no cálculo do Atendido.
+  exameExclusions: Set<string>;
   onImport: (fontePagadora: string, tabelaAssociada: string, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
 }
 
-const REQUIRED_COLUMNS = ['TUSS', 'NOME DO EXAME', 'VALOR', 'ATENDIDO'];
+// Uma coluna Atendido de planilha antiga é aceita e ignorada: o Atendido é
+// calculado pelo % máx CSP (ver calcularAtendidoImportacao).
+const REQUIRED_COLUMNS = ['TUSS', 'NOME DO EXAME', 'VALOR'];
 
 const normalizeHeader = (h: string): string =>
   h
@@ -33,9 +40,10 @@ const normalizeHeader = (h: string): string =>
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payors, exams, onImport }) => {
+const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payors, exams, exameExclusions, onImport }) => {
   const [fontePagadora, setFontePagadora] = useState('');
   const [tabelaAssociada, setTabelaAssociada] = useState('');
+  const [limiteCspTexto, setLimiteCspTexto] = useState('');
   const [fileName, setFileName] = useState('');
   const [rows, setRows] = useState<LinhaValidada[]>([]);
   const [columnError, setColumnError] = useState('');
@@ -54,6 +62,30 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
     return Array.from(new Set(base.map(p => p.table).filter(Boolean))).sort();
   }, [payors, fontePagadora]);
 
+  const validRows = useMemo(
+    () => rows.filter((r): r is LinhaValidada & { data: LinhaPlanilhaFontePagadora } => r.data !== null),
+    [rows],
+  );
+  const limiteCsp = parseLimiteCsp(limiteCspTexto);
+
+  // Recalcula na hora quando o limite (ou a fonte/tabela) muda — a prévia e a
+  // gravação usam o mesmo resultado.
+  const calculadas = useMemo(
+    () =>
+      limiteCsp === null
+        ? null
+        : calcularAtendidoImportacao({
+            linhas: validRows.map(r => r.data),
+            exams,
+            payors,
+            fontePagadora: fontePagadora.trim(),
+            tabelaAssociada: tabelaAssociada.trim(),
+            excluidos: exameExclusions,
+            limiteCsp,
+          }),
+    [validRows, exams, payors, fontePagadora, tabelaAssociada, exameExclusions, limiteCsp],
+  );
+
   if (!open) return null;
 
   const podeEscolherArquivo = fontePagadora.trim().length > 0;
@@ -61,6 +93,7 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
   const reset = () => {
     setFontePagadora('');
     setTabelaAssociada('');
+    setLimiteCspTexto('');
     setFileName('');
     setRows([]);
     setColumnError('');
@@ -109,7 +142,6 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
           tuss: raw[headerMap.get('TUSS')!],
           nomeExame: raw[headerMap.get('NOME DO EXAME')!],
           valor: raw[headerMap.get('VALOR')!],
-          atendido: raw[headerMap.get('ATENDIDO')!],
         }));
 
         setRows(validarLinhasImportacaoFontePagadora(brutas, tussValidos));
@@ -128,22 +160,21 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
 
   const downloadTemplate = () => {
     const worksheet = XLSX.utils.json_to_sheet([
-      { TUSS: '40304361', 'Nome do Exame': 'Hemograma Completo', Valor: 25.5, Atendido: 'Sim' },
+      { TUSS: '40304361', 'Nome do Exame': 'Hemograma Completo', Valor: 25.5 },
     ]);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Fontes Pagadoras');
     XLSX.writeFile(workbook, 'modelo_importacao_custos_fontes_pagadoras.xlsx');
   };
 
-  const validRows = rows.filter((r): r is LinhaValidada & { data: LinhaImportacaoFontePagadora } => r.data !== null);
   const invalidRows = rows.filter(r => r.data === null);
 
   const handleImport = async () => {
-    if (validRows.length === 0 || !podeEscolherArquivo) return;
+    if (!calculadas || calculadas.length === 0 || !podeEscolherArquivo) return;
     setImporting(true);
     setError('');
     try {
-      const count = await onImport(fontePagadora.trim(), tabelaAssociada.trim(), validRows.map(r => r.data));
+      const count = await onImport(fontePagadora.trim(), tabelaAssociada.trim(), calculadas);
       setDone(count);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao importar custos de fontes pagadoras.');
@@ -158,7 +189,7 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
       onClick={handleClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-lg max-h-[92vh] flex flex-col"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -229,6 +260,24 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
                 </div>
               </div>
 
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
+                  % máx CSP <span className="text-red-500">*</span>
+                </label>
+                <input
+                  inputMode="decimal"
+                  value={limiteCspTexto}
+                  onChange={e => setLimiteCspTexto(e.target.value)}
+                  placeholder="Ex.: 40"
+                  className="w-40 px-3 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                />
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  {limiteCspTexto.trim() && limiteCsp === null
+                    ? <span className="text-red-600 dark:text-red-400">Informe um número (ex.: 40 ou 32,5).</span>
+                    : 'Atendido = Sim quando custo / valor fica até esse limite (inclusive).'}
+                </p>
+              </div>
+
               <div
                 className={`rounded-xl border border-dashed p-6 text-center ${
                   podeEscolherArquivo ? 'border-gray-300 dark:border-gray-600' : 'border-gray-200 dark:border-gray-700 opacity-50'
@@ -237,7 +286,7 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
                 <FileSpreadsheet className="w-8 h-8 text-gray-400 mx-auto mb-2" />
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
                   {podeEscolherArquivo
-                    ? 'Selecione uma planilha com as colunas: TUSS, Nome do Exame, Valor, Atendido.'
+                    ? 'Selecione uma planilha com as colunas: TUSS, Nome do Exame, Valor.'
                     : 'Selecione a Fonte Pagadora acima para habilitar o upload.'}
                 </p>
                 <input
@@ -297,6 +346,46 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
                       {invalidRows.length > 10 && <li>e mais {invalidRows.length - 10}…</li>}
                     </ul>
                   )}
+                  {calculadas === null ? (
+                    validRows.length > 0 && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        Informe o % máx CSP para ver o Atendido calculado.
+                      </p>
+                    )
+                  ) : (
+                    calculadas.length > 0 && (
+                      <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                        <table className="w-full text-xs">
+                          <thead className="sticky top-0 bg-slate-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
+                            <tr>
+                              <th className="px-3 py-2 text-left font-semibold">TUSS</th>
+                              <th className="px-3 py-2 text-right font-semibold">Valor</th>
+                              <th className="px-3 py-2 text-right font-semibold">Custo</th>
+                              <th className="px-3 py-2 text-right font-semibold">CSP %</th>
+                              <th className="px-3 py-2 text-center font-semibold">Atendido</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-200">
+                            {calculadas.map((linha, i) => (
+                              <tr key={validRows[i].row}>
+                                <td className="px-3 py-1.5 font-mono">{linha.tuss}</td>
+                                <td className="px-3 py-1.5 text-right">{formatBRL(linha.valor)}</td>
+                                <td className="px-3 py-1.5 text-right">{formatBRL(linha.custoUsado)}</td>
+                                <td className="px-3 py-1.5 text-right">{linha.csp === null ? '—' : formatPct(linha.csp)}</td>
+                                <td
+                                  className={`px-3 py-1.5 text-center font-semibold ${
+                                    linha.atendido ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
+                                  }`}
+                                >
+                                  {linha.atendido ? 'Sim' : 'Não'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )
+                  )}
                 </div>
               )}
 
@@ -322,7 +411,7 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
           {done === null && (
             <button
               type="button"
-              disabled={validRows.length === 0 || importing || !podeEscolherArquivo}
+              disabled={validRows.length === 0 || limiteCsp === null || importing || !podeEscolherArquivo}
               onClick={handleImport}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-md shadow-blue-500/25 active:scale-[.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >

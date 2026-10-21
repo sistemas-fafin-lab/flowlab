@@ -5,7 +5,9 @@
 
 import type { Exam, Payor } from '../../../hooks/useCostControl';
 
-function normalizar(valor: string): string {
+/** Forma de comparação de nomes de fonte/tabela/TUSS: sem acento, minúsculas,
+ *  sem espaço nas bordas. */
+export function normalizar(valor: string): string {
   return removerAcentos(valor.trim().toLowerCase());
 }
 

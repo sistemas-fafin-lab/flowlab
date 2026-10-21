@@ -6,6 +6,20 @@
 
 import type { LinhaBrutaImportacao } from './importacaoFontesPagadoras';
 
+/** A planilha legada ainda traz o Atendido digitado à mão — a importação pela
+ *  tela calcula pelo % máx CSP, mas a migração preserva o que estava lá. */
+export interface LinhaBrutaLegada extends LinhaBrutaImportacao {
+  atendido: unknown;
+}
+
+/** "Sim"/"Não" — célula vazia conta como atendido (mesmo default da coluna
+ *  `atendido` no banco, que é TRUE). */
+export function parseAtendidoLegado(v: unknown): boolean {
+  const s = String(v ?? '').trim().toLowerCase();
+  if (!s) return true;
+  return s === 'sim' || s === 's' || s === 'true' || s === '1';
+}
+
 /** Chave de comparação tolerante a acento/caixa/espaço nas bordas — os nomes de
  *  aba e de convênio da planilha não são consistentes nisso (ex.: "GDF ", "ASSEFAZ "). */
 export const normalizarChave = (s: string): string =>
@@ -139,10 +153,10 @@ export function localizarCabecalho(linhas: unknown[][]): ColunasCabecalho | null
  *  ignorando linhas em branco (TUSS vazio) — ex.: as ~49.600 linhas de
  *  sobra de fórmula arrastada em "ASSEFAZ REAJUSTE". Colunas ausentes
  *  (nome/atendido, quando a aba não tem essa coluna) viram null — o mesmo
- *  valor que parseAtendidoImportacao já trata como "Sim" (atendido). */
-export function extrairLinhasBrutas(linhas: unknown[][], colunas: ColunasCabecalho): LinhaBrutaImportacao[] {
+ *  valor que parseAtendidoLegado já trata como "Sim" (atendido). */
+export function extrairLinhasBrutas(linhas: unknown[][], colunas: ColunasCabecalho): LinhaBrutaLegada[] {
   const dados = linhas.slice(colunas.headerIdx + 1);
-  const resultado: LinhaBrutaImportacao[] = [];
+  const resultado: LinhaBrutaLegada[] = [];
 
   for (const row of dados) {
     const tussRaw = row?.[colunas.tussCol];

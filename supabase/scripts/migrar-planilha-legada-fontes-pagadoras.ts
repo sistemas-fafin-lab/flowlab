@@ -50,6 +50,7 @@ import {
   identificarTipoAba,
   localizarCabecalho,
   normalizarChave,
+  parseAtendidoLegado,
   resolverFonteTabela,
 } from '../../src/components/CostControl/domain/migracaoPlanilhaLegada';
 
@@ -190,7 +191,9 @@ async function main() {
 
     const brutas = extrairLinhasBrutas(linhas, colunas);
     const validadas = validarLinhasImportacaoFontePagadora(brutas, tussValidos);
-    const validas = validadas.flatMap(l => (l.data ? [l.data] : []));
+    const validas = validadas.flatMap((l, i) =>
+      l.data ? [{ ...l.data, atendido: parseAtendidoLegado(brutas[i].atendido) }] : [],
+    );
     const invalidos = validadas.length - validas.length;
 
     const { fontePagadora, tabelaAssociada } = resolverFonteTabela(nomeAba, parceiroPorConvenio);

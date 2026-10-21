@@ -4,6 +4,7 @@ import {
   extrairLinhasBrutas,
   identificarTipoAba,
   localizarCabecalho,
+  parseAtendidoLegado,
   resolverFonteTabela,
 } from './migracaoPlanilhaLegada';
 
@@ -195,5 +196,27 @@ describe('extrairLinhasBrutas', () => {
     expect(extrairLinhasBrutas(linhas, semNomeSemAtendido)).toEqual([
       { tuss: 40301010, nomeExame: null, valor: 'R$  46,22', atendido: null },
     ]);
+  });
+});
+
+describe('parseAtendidoLegado', () => {
+  it('vazio conta como atendido (default do banco é TRUE)', () => {
+    expect(parseAtendidoLegado('')).toBe(true);
+    expect(parseAtendidoLegado(undefined)).toBe(true);
+  });
+
+  it('"Sim" (e variações de caixa) vira true', () => {
+    expect(parseAtendidoLegado('Sim')).toBe(true);
+    expect(parseAtendidoLegado('SIM')).toBe(true);
+    expect(parseAtendidoLegado('sim')).toBe(true);
+  });
+
+  it('"Não" vira false', () => {
+    expect(parseAtendidoLegado('Não')).toBe(false);
+    expect(parseAtendidoLegado('não')).toBe(false);
+  });
+
+  it('valor não reconhecido vira false', () => {
+    expect(parseAtendidoLegado('talvez')).toBe(false);
   });
 });

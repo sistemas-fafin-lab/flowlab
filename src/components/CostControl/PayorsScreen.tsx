@@ -1194,6 +1194,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           onClose={() => setImportModalOpen(false)}
           payors={payors}
           exams={exams}
+          exameExclusions={exameExclusions}
           onImport={importPayors}
         />
       )}
