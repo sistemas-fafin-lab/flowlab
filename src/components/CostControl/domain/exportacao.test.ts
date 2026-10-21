@@ -25,6 +25,7 @@ const fonte = (over: Partial<Payor>): Payor => ({
   id: 'p1',
   payor: 'Unimed',
   table: 'Unimed Coop.',
+  tabelaId: 't1',
   tus: '40304361',
   price: 12.5,
   atendido: true,

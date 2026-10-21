@@ -63,20 +63,6 @@ export function buscarFontesPagadorasPorTermo(payors: Payor[], termo: string): s
   return Array.from(new Set(nomes));
 }
 
-/** Nomes de tabela associada (deduplicados) cujo nome casa com `termo` —
- *  ignora acentos e maiúsculas/minúsculas; `termo` precisa aparecer como
- *  substring contígua. Termo vazio (ou só espaços) devolve lista vazia, não
- *  a lista inteira. */
-export function buscarTabelasAssociadasPorTermo(payors: Payor[], termo: string): string[] {
-  if (!normalizar(termo)) return [];
-
-  const tabelas = payors
-    .map((fonte) => fonte.table)
-    .filter((tabela) => casaTermo(tabela, termo));
-
-  return Array.from(new Set(tabelas));
-}
-
 /** Um exame coberto por uma fonte pagadora, com os campos exibidos na
  *  tabela de exames por fonte pagadora.
  *

@@ -162,6 +162,7 @@ describe('calcularAtendidoImportacao', () => {
     id: 'p1',
     payor: 'Unimed',
     table: 'AMB',
+    tabelaId: 't1',
     tus: '40304361',
     price: 100,
     atendido: true,

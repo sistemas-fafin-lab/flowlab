@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  CriarTabelaAssociada,
   Exam,
   Payor,
   PayorEditData,
@@ -36,6 +37,7 @@ import AutocompleteInput from './AutocompleteInput';
 import PayorImportModal from './PayorImportModal';
 import ValorExameFormModal from './ValorExameFormModal';
 import TabelasDaFonte from './TabelasDaFonte';
+import { tabelasDaFonte } from './domain/tabelasAssociadas';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
@@ -44,7 +46,6 @@ import {
   examesPorFontePagadora,
   fontesPagadorasDoExame,
   irmaosNaLinha,
-  normalizar,
   type ExameDaFontePagadora,
 } from './domain/busca';
 import {
@@ -81,11 +82,8 @@ interface PayorsScreenProps {
   setValorExameDaFontePagadora: (payorId: string, exameId: string, valor: number) => Promise<void>;
   restaurarValorPadraoExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
   updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
-  importPayors: (
-    fontePagadora: string,
-    tabelaAssociada: string,
-    rows: LinhaImportacaoFontePagadora[]
-  ) => Promise<number>;
+  importPayors: (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
+  createTabelaAssociada: CriarTabelaAssociada;
   updateVencimentoTabelaAssociada: (id: string, vencimento: string | null) => Promise<void>;
 }
 
@@ -679,6 +677,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   setValorExameDaFontePagadora,
   restaurarValorPadraoExameDaFontePagadora,
   importPayors,
+  createTabelaAssociada,
   updateVencimentoTabelaAssociada,
   updateExam,
 }) => {
@@ -848,18 +847,15 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       payorId: item.payorId,
       payor: item.fontePagadora,
       table: item.tabelaAssociada,
+      tabelaId: fonte?.tabelaId ?? null,
       tus: item.tuss,
       price: item.valorCobrado,
       exameId: fonte?.exameId ?? null,
     });
   };
 
-  const tabelasDaFonte = useMemo(
-    // Mesma noção de "a fonte" de examesPorFontePagadora (normalizada).
-    () =>
-      fontePagadoraSelecionada
-        ? tabelasAssociadas.filter(t => normalizar(t.fontePagadora) === normalizar(fontePagadoraSelecionada))
-        : [],
+  const tabelasDaFonteSelecionada = useMemo(
+    () => (fontePagadoraSelecionada ? tabelasDaFonte(tabelasAssociadas, fontePagadoraSelecionada) : []),
     [tabelasAssociadas, fontePagadoraSelecionada]
   );
 
@@ -1191,7 +1187,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       {fontePagadoraSelecionada && (
         <TabelasDaFonte
           key={`tabelas-${fontePagadoraSelecionada}`}
-          tabelas={tabelasDaFonte}
+          tabelas={tabelasDaFonteSelecionada}
           podeGerenciar={podeGerenciar}
           onSalvarVencimento={handleSalvarVencimento}
         />
@@ -1238,6 +1234,8 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           payors={payors}
           exams={exams}
           exameExclusions={exameExclusions}
+          tabelasAssociadas={tabelasAssociadas}
+          onCriarTabela={createTabelaAssociada}
           onImport={importPayors}
         />
       )}
@@ -1248,20 +1246,23 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           mode={editingLinha ? 'edit' : 'create'}
           exams={exams}
           payors={payors}
+          tabelasAssociadas={tabelasAssociadas}
+          onCriarTabela={createTabelaAssociada}
           editingPayorId={editingLinha?.payorId}
           payor={
             editingLinha
               ? {
                   payor: editingLinha.payor,
                   table: editingLinha.table,
+                  tabelaId: editingLinha.tabelaId,
                   tus: editingLinha.tus,
                   price: editingLinha.price,
                   exameId: editingLinha.exameId,
                 }
               : creatingNovaLinha
-              ? { payor: fontePagadoraSelecionada ?? '', table: '', tus: '', price: 0, exameId: null }
+              ? { payor: fontePagadoraSelecionada ?? '', table: '', tabelaId: null, tus: '', price: 0, exameId: null }
               : creatingNovaFontePagadora
-              ? { payor: '', table: '', tus: '', price: 0, exameId: null }
+              ? { payor: '', table: '', tabelaId: null, tus: '', price: 0, exameId: null }
               : null
           }
           onClose={handleCloseFormModal}

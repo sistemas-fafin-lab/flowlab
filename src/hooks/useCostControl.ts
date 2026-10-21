@@ -37,7 +37,11 @@ export interface Exam {
 export interface Payor {
   id: string;
   payor: string;
+  // Nome da tabela associada — cópia do cadastro (tabelaId), mantida pelo
+  // trigger custo_fontes_pagadoras_sincroniza_tabela_associada.
   table: string;
+  // custo_tabelas_associadas.id — é o que as gravações mandam (ticket 02).
+  tabelaId: string;
   tus: string;
   price: number;
   atendido: boolean;
@@ -56,8 +60,9 @@ export interface Payor {
 
 // Cadastro da tabela associada (contrato de preço) de uma fonte pagadora —
 // public.custo_tabelas_associadas (migration 20261021170000). Cada linha de
-// custo_fontes_pagadoras aponta pra uma; nesta etapa o banco cria o cadastro
-// a partir do texto `table` da linha, então a tela só lê e edita o vencimento.
+// custo_fontes_pagadoras aponta pra uma por tabelaId. A importação e o modal
+// de linha escolhem daqui (com "+ Nova tabela"); o texto `table` da linha é
+// copiado do nome pelo banco.
 export interface TabelaAssociada {
   id: string;
   fontePagadora: string;
@@ -67,10 +72,21 @@ export interface TabelaAssociada {
   ativa: boolean;
 }
 
+// "+ Nova tabela" (EscolhaTabelaAssociada): cria o cadastro e devolve-o, já
+// pra ser escolhido. vencimento ISO ou null.
+export type CriarTabelaAssociada = (
+  fontePagadora: string,
+  nome: string,
+  vencimento: string | null
+) => Promise<TabelaAssociada>;
+
 // Campos editáveis de uma linha de fonte pagadora via PayorFormModal — não
 // inclui `atendido` nem `elegivelDescontoParticular` (editados via toggle
 // inline, updatePayorAtendido / updatePayorElegivelDescontoParticular).
-export type PayorEditData = Pick<Payor, 'payor' | 'table' | 'tus' | 'price' | 'exameId'>;
+// tabelaId null = nenhuma tabela escolhida ainda (o modal não deixa salvar).
+export type PayorEditData = Pick<Payor, 'payor' | 'table' | 'tus' | 'price' | 'exameId'> & {
+  tabelaId: string | null;
+};
 
 export interface UseCostControlReturn {
   exams: Exam[];
@@ -98,11 +114,8 @@ export interface UseCostControlReturn {
   excludeExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
   setValorExameDaFontePagadora: (payorId: string, exameId: string, valor: number) => Promise<void>;
   restaurarValorPadraoExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
-  importPayors: (
-    fontePagadora: string,
-    tabelaAssociada: string,
-    rows: LinhaImportacaoFontePagadora[]
-  ) => Promise<number>;
+  importPayors: (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
+  createTabelaAssociada: CriarTabelaAssociada;
   updateVencimentoTabelaAssociada: (id: string, vencimento: string | null) => Promise<void>;
 }
 
@@ -171,6 +184,7 @@ const mapPayorRow = (row: any): Payor => ({
   id: row.id,
   payor: row.fonte_pagadora,
   table: row.tabela_associada ?? '',
+  tabelaId: row.tabela_associada_id,
   tus: row.tuss ?? '',
   price: Number(row.valor) || 0,
   atendido: row.atendido ?? true,
@@ -196,9 +210,12 @@ const mapTabelaAssociadaRow = (row: TabelaAssociadaRow): TabelaAssociada => ({
   ativa: row.ativa,
 });
 
+// Só o id da tabela: o banco copia o texto tabela_associada do cadastro
+// (trigger custo_fontes_pagadoras_sincroniza_tabela_associada). Mandar o
+// texto junto faria um texto defasado ganhar do id.
 const toPayorRow = (data: PayorEditData) => ({
   fonte_pagadora: data.payor,
-  tabela_associada: data.table,
+  tabela_associada_id: data.tabelaId,
   tuss: data.tus,
   valor: data.price,
   exame_id: data.exameId ?? null,
@@ -263,9 +280,6 @@ export const useCostControl = (): UseCostControlReturn => {
     setPayors(await buscarTodasFontesPagadoras());
   }, []);
 
-  // Recarregada também depois de gravar linhas: o trigger
-  // custo_fontes_pagadoras_sincroniza_tabela_associada cria o cadastro quando
-  // a linha traz uma tabela nova.
   const fetchTabelasAssociadas = useCallback(async () => {
     const { data, error } = await supabase
       .from('custo_tabelas_associadas')
@@ -276,9 +290,8 @@ export const useCostControl = (): UseCostControlReturn => {
     setTabelasAssociadas((data || []).map(mapTabelaAssociadaRow));
   }, []);
 
-  // Na carga e depois de gravar linha. Falha aqui só deixa o bloco "Tabelas
-  // desta fonte" vazio/desatualizado — não derruba a tela de linhas nem
-  // transforma uma gravação que deu certo em erro.
+  // Na carga. Falha aqui só deixa o bloco "Tabelas desta fonte" e as listas
+  // de escolha vazios — não derruba a tela de linhas.
   const recarregarTabelasAssociadas = useCallback(async () => {
     try {
       await fetchTabelasAssociadas();
@@ -393,8 +406,7 @@ export const useCostControl = (): UseCostControlReturn => {
     if (error) throw error;
     const mapped = mapPayorRow(updated);
     setPayors(prev => prev.map(p => (p.id === id ? mapped : p)));
-    await recarregarTabelasAssociadas();
-  }, [recarregarTabelasAssociadas]);
+  }, []);
 
   const createPayor = useCallback(async (data: PayorEditData) => {
     const { data: inserted, error } = await supabase
@@ -405,8 +417,7 @@ export const useCostControl = (): UseCostControlReturn => {
 
     if (error) throw error;
     setPayors(prev => [mapPayorRow(inserted), ...prev]);
-    await recarregarTabelasAssociadas();
-  }, [recarregarTabelasAssociadas]);
+  }, []);
 
   const deletePayor = useCallback(async (id: string) => {
     const { error } = await supabase.from('custo_fontes_pagadoras').delete().eq('id', id);
@@ -453,21 +464,24 @@ export const useCostControl = (): UseCostControlReturn => {
     });
   }, []);
 
-  // Casamento (upsert) por fonte_pagadora + tabela_associada + tuss — uma
-  // mesma fonte pagadora pode ter dezenas de tabelas associadas (convênios)
-  // com o mesmo TUSS e valores diferentes (ex.: AMHP-DF tem 37), então casar
-  // só por fonte+TUSS colidiria com a linha errada. Ver
-  // domain/importacaoFontesPagadoras.ts e o ticket 02.
+  // Casamento (upsert) por tabela associada + tuss — uma mesma fonte
+  // pagadora pode ter dezenas de tabelas associadas (convênios) com o mesmo
+  // TUSS e valores diferentes (ex.: AMHP-DF tem 37), então casar só por
+  // fonte+TUSS colidiria com a linha errada. Ver
+  // domain/importacaoFontesPagadoras.ts.
   const importPayors = useCallback(
-    async (fontePagadora: string, tabelaAssociada: string, rows: LinhaImportacaoFontePagadora[]) => {
+    async (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => {
       if (rows.length === 0) return 0;
 
       const existentesPorTuss = new Map<string, string>();
       // Só linhas gerais do TUSS: a planilha é por TUSS, então não pode
       // sobrescrever o preço de uma linha que vale só pra um exame.
-      linhasDaFonteETabela(payors, fontePagadora, tabelaAssociada).forEach(p => {
+      // Casa pelo nome exato do cadastro, como a prévia
+      // (calcularAtendidoImportacao) — nome exato ↔ id é 1:1 até o ticket 04.
+      linhasDaFonteETabela(payors, tabela.fontePagadora, tabela.nome).forEach(p => {
         if (!p.exameId) existentesPorTuss.set(p.tus, p.id);
       });
+      const linhaDaTabela = { fonte_pagadora: tabela.fontePagadora, tabela_associada_id: tabela.id };
 
       const { toInsert, toUpdate } = separarUpsertFontePagadora(rows, existentesPorTuss);
 
@@ -480,8 +494,7 @@ export const useCostControl = (): UseCostControlReturn => {
           .from('custo_fontes_pagadoras')
           .insert(
             toInsert.map(r => ({
-              fonte_pagadora: fontePagadora,
-              tabela_associada: tabelaAssociada,
+              ...linhaDaTabela,
               tuss: r.tuss,
               valor: r.valor,
               atendido: r.atendido,
@@ -511,8 +524,7 @@ export const useCostControl = (): UseCostControlReturn => {
           const { data: inserted, error: insertError } = await supabase
             .from('custo_fontes_pagadoras')
             .insert({
-              fonte_pagadora: fontePagadora,
-              tabela_associada: tabelaAssociada,
+              ...linhaDaTabela,
               tuss: u.tuss,
               valor: u.valor,
               atendido: u.atendido,
@@ -531,10 +543,31 @@ export const useCostControl = (): UseCostControlReturn => {
         setPayors(prev => prev.map(p => (p.id === atualizado.id ? atualizado : p)));
       }
 
-      await recarregarTabelasAssociadas();
       return toInsert.length + toUpdate.length;
     },
-    [payors, recarregarTabelasAssociadas]
+    [payors]
+  );
+
+  // Nome repetido na fonte já é barrado na tela (erroNomeNovaTabela, sem
+  // diferenciar maiúsculas); aqui sobra a corrida com outra sessão, pela
+  // unicidade exata custo_tabelas_associadas_fonte_nome_key.
+  const createTabelaAssociada: CriarTabelaAssociada = useCallback(
+    async (fontePagadora, nome, vencimento) => {
+      const nomeLimpo = nome.trim();
+      const { data, error } = await supabase
+        .from('custo_tabelas_associadas')
+        .insert({ fonte_pagadora: fontePagadora, nome: nomeLimpo, vencimento })
+        .select(TABELA_ASSOCIADA_COLUNAS)
+        .single();
+      if (error) {
+        if (error.code === '23505') throw new Error(`Já existe a tabela "${nomeLimpo}" nesta fonte pagadora.`);
+        throw error;
+      }
+      const criada = mapTabelaAssociadaRow(data);
+      setTabelasAssociadas(prev => [...prev, criada]);
+      return criada;
+    },
+    []
   );
 
   const updateVencimentoTabelaAssociada = useCallback(async (id: string, vencimento: string | null) => {
@@ -569,6 +602,7 @@ export const useCostControl = (): UseCostControlReturn => {
     setValorExameDaFontePagadora,
     restaurarValorPadraoExameDaFontePagadora,
     importPayors,
+    createTabelaAssociada,
     updateVencimentoTabelaAssociada,
   };
 };

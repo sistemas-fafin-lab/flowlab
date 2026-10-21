@@ -52,6 +52,7 @@ const CostControlDashboard: React.FC = () => {
     setValorExameDaFontePagadora,
     restaurarValorPadraoExameDaFontePagadora,
     importPayors,
+    createTabelaAssociada,
     updateVencimentoTabelaAssociada,
   } = useCostControl();
 
@@ -132,6 +133,7 @@ const CostControlDashboard: React.FC = () => {
             setValorExameDaFontePagadora={setValorExameDaFontePagadora}
             restaurarValorPadraoExameDaFontePagadora={restaurarValorPadraoExameDaFontePagadora}
             importPayors={importPayors}
+            createTabelaAssociada={createTabelaAssociada}
             updateVencimentoTabelaAssociada={updateVencimentoTabelaAssociada}
             updateExam={updateExam}
           />

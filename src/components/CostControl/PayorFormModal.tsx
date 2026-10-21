@@ -1,14 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Pencil, Plus, X, Save } from 'lucide-react';
-import { formatBRL, type Exam, type Payor, type PayorEditData } from '../../hooks/useCostControl';
+import {
+  formatBRL,
+  type CriarTabelaAssociada,
+  type Exam,
+  type Payor,
+  type PayorEditData,
+  type TabelaAssociada,
+} from '../../hooks/useCostControl';
 import AutocompleteInput from './AutocompleteInput';
+import EscolhaTabelaAssociada from './EscolhaTabelaAssociada';
+import { tabelaEscolhidaDaFonte } from './domain/tabelasAssociadas';
 import {
   analisarLinhaFontePagadora,
   edicaoSeparaDaLinhaGeral,
   examesDoTuss,
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
-  buscarTabelasAssociadasPorTermo,
 } from './domain/busca';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -24,6 +32,8 @@ interface PayorFormModalProps {
   editingPayorId?: string;
   exams: Exam[];
   payors: Payor[];
+  tabelasAssociadas: TabelaAssociada[];
+  onCriarTabela: CriarTabelaAssociada;
   onClose: () => void;
   onSave: (data: PayorEditData) => void;
   saving?: boolean;
@@ -33,7 +43,7 @@ interface PayorFormModalProps {
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const EMPTY_FORM: PayorEditData = { payor: '', table: '', tus: '', price: 0, exameId: null };
+const EMPTY_FORM: PayorEditData = { payor: '', table: '', tabelaId: null, tus: '', price: 0, exameId: null };
 
 const PayorFormModal: React.FC<PayorFormModalProps> = ({
   open,
@@ -42,6 +52,8 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({
   editingPayorId,
   exams,
   payors,
+  tabelasAssociadas,
+  onCriarTabela,
   onClose,
   onSave,
   saving = false,
@@ -63,15 +75,22 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({
   }, [open, payor]);
 
   const sugestoesFonte = useMemo(() => buscarFontesPagadorasPorTermo(payors, form.payor), [payors, form.payor]);
-  const sugestoesTabela = useMemo(() => buscarTabelasAssociadasPorTermo(payors, form.table), [payors, form.table]);
   const sugestoesTuss = useMemo(() => buscarExamesPorTermo(exams, form.tus), [exams, form.tus]);
   const examesDoTussAtual = useMemo(() => examesDoTuss(exams, form.tus), [exams, form.tus]);
 
-  // O que de fato vai pro banco: com "aplicar a todos", sem exameId.
-  const dadosParaSalvar: PayorEditData = useMemo(
-    () => (aplicarATodos && form.tus.trim() ? { ...form, exameId: null } : form),
-    [aplicarATodos, form]
+  const tabelaEscolhida = useMemo(
+    () => tabelaEscolhidaDaFonte(tabelasAssociadas, form.payor, form.tabelaId),
+    [tabelasAssociadas, form.payor, form.tabelaId]
   );
+
+  // O que de fato vai pro banco: fonte e nome com a grafia do cadastro da
+  // tabela; com "aplicar a todos", sem exameId.
+  const dadosParaSalvar: PayorEditData = useMemo(() => {
+    const comTabela = tabelaEscolhida
+      ? { ...form, payor: tabelaEscolhida.fontePagadora, table: tabelaEscolhida.nome, tabelaId: tabelaEscolhida.id }
+      : { ...form, tabelaId: null };
+    return aplicarATodos && form.tus.trim() ? { ...comTabela, exameId: null } : comTabela;
+  }, [aplicarATodos, form, tabelaEscolhida]);
   // Editando a linha geral do TUSS e escolhendo um exame só: o salvar cria
   // uma linha de exame e mantém a geral (ver PayorsScreen).
   const separaDaLinhaGeral = useMemo(
@@ -95,6 +114,10 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (saving || !form.payor.trim()) return;
+    if (!tabelaEscolhida) {
+      setFormError('Escolha a tabela associada, ou crie uma em "+ Nova tabela".');
+      return;
+    }
     if (!form.tus.trim() && !form.exameId) {
       setFormError('Selecione um exame da lista para vincular esta linha, ou informe um código TUSS.');
       return;
@@ -178,17 +201,17 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({
             </div>
             <div className="space-y-1.5">
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
-                Tabela Associada
+                Tabela Associada <span className="text-red-500">*</span>
               </label>
-              <AutocompleteInput
-                value={form.table}
-                onValueChange={v => setForm(f => ({ ...f, table: v }))}
-                onSelect={tabela => setForm(f => ({ ...f, table: tabela }))}
-                suggestions={sugestoesTabela}
-                renderSuggestion={tabela => <span className="font-medium text-gray-800 dark:text-gray-100 truncate">{tabela}</span>}
-                keyOf={tabela => tabela}
-                emptyLabel="Nenhuma tabela associada encontrada — será salva como digitada."
-                placeholder="CBHPM 2022"
+              <EscolhaTabelaAssociada
+                fontePagadora={form.payor}
+                tabelas={tabelasAssociadas}
+                value={form.tabelaId}
+                onChange={tabela => {
+                  setForm(f => ({ ...f, tabelaId: tabela.id, table: tabela.nome }));
+                  setFormError(null);
+                }}
+                onCriar={onCriarTabela}
                 className={inputCls}
               />
             </div>

@@ -3,7 +3,6 @@ import type { Exam, Payor } from '../../../hooks/useCostControl';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
-  buscarTabelasAssociadasPorTermo,
   chaveExclusaoExame,
   examesPorFontePagadora,
   fontesPagadorasPorTuss,
@@ -32,6 +31,7 @@ const fonte = (over: Partial<Payor>): Payor => ({
   id: 'p1',
   payor: 'Unimed',
   table: 'Unimed Coop.',
+  tabelaId: 't1',
   tus: '40304361',
   price: 9.2,
   atendido: true,
@@ -137,35 +137,6 @@ describe('buscarFontesPagadorasPorTermo', () => {
 
   it('NÃO casa de forma fuzzy — precisa ser substring contígua', () => {
     expect(buscarFontesPagadorasPorTermo(fontes, 'brdscsaude')).toEqual([]);
-  });
-});
-
-describe('buscarTabelasAssociadasPorTermo', () => {
-  const fontes = [
-    fonte({ id: 'p1', table: 'Unimed Coop.', tus: '40304361' }),
-    fonte({ id: 'p2', table: 'Unimed Nacional', tus: '40302040' }),
-    fonte({ id: 'p3', table: 'Bradesco Top', tus: '40304312' }),
-    fonte({ id: 'p4', table: 'Unimed Coop.', tus: '99999999' }),
-  ];
-
-  it('termo vazio devolve lista vazia', () => {
-    expect(buscarTabelasAssociadasPorTermo(fontes, '')).toEqual([]);
-  });
-
-  it('termo sem nenhum match devolve lista vazia', () => {
-    expect(buscarTabelasAssociadasPorTermo(fontes, 'inexistente')).toEqual([]);
-  });
-
-  it('casa por nome, parcial e case-insensitive', () => {
-    expect(buscarTabelasAssociadasPorTermo(fontes, 'bradesco')).toEqual(['Bradesco Top']);
-  });
-
-  it('deduplica tabela associada com múltiplas linhas pelo nome', () => {
-    expect(buscarTabelasAssociadasPorTermo(fontes, 'unimed')).toEqual(['Unimed Coop.', 'Unimed Nacional']);
-  });
-
-  it('NÃO casa de forma fuzzy — precisa ser substring contígua', () => {
-    expect(buscarTabelasAssociadasPorTermo(fontes, 'unmdnac')).toEqual([]);
   });
 });
 

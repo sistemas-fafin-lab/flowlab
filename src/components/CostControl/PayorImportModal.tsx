@@ -1,7 +1,9 @@
 import React, { useMemo, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { Upload, X, FileSpreadsheet, AlertTriangle, CheckCircle2, Download } from 'lucide-react';
-import { Exam, Payor, formatBRL, formatPct } from '../../hooks/useCostControl';
+import { CriarTabelaAssociada, Exam, Payor, TabelaAssociada, formatBRL, formatPct } from '../../hooks/useCostControl';
+import EscolhaTabelaAssociada from './EscolhaTabelaAssociada';
+import { tabelaEscolhidaDaFonte } from './domain/tabelasAssociadas';
 import {
   calcularAtendidoImportacao,
   parseLimiteCsp,
@@ -22,7 +24,9 @@ interface PayorImportModalProps {
   exams: Exam[];
   // Chaves chaveExclusaoExame(payorId, exameId) — entram no cálculo do Atendido.
   exameExclusions: Set<string>;
-  onImport: (fontePagadora: string, tabelaAssociada: string, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
+  tabelasAssociadas: TabelaAssociada[];
+  onCriarTabela: CriarTabelaAssociada;
+  onImport: (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
 }
 
 // Uma coluna Atendido de planilha antiga é aceita e ignorada: o Atendido é
@@ -40,9 +44,18 @@ const normalizeHeader = (h: string): string =>
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
 
-const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payors, exams, exameExclusions, onImport }) => {
+const PayorImportModal: React.FC<PayorImportModalProps> = ({
+  open,
+  onClose,
+  payors,
+  exams,
+  exameExclusions,
+  tabelasAssociadas,
+  onCriarTabela,
+  onImport,
+}) => {
   const [fontePagadora, setFontePagadora] = useState('');
-  const [tabelaAssociada, setTabelaAssociada] = useState('');
+  const [tabelaId, setTabelaId] = useState<string | null>(null);
   const [limiteCspTexto, setLimiteCspTexto] = useState('');
   const [fileName, setFileName] = useState('');
   const [rows, setRows] = useState<LinhaValidada[]>([]);
@@ -56,11 +69,10 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
 
   const fontesPagadoras = useMemo(() => Array.from(new Set(payors.map(p => p.payor))).sort(), [payors]);
 
-  const tabelasAssociadas = useMemo(() => {
-    const nomeFonte = fontePagadora.trim();
-    const base = nomeFonte ? payors.filter(p => p.payor === nomeFonte) : payors;
-    return Array.from(new Set(base.map(p => p.table).filter(Boolean))).sort();
-  }, [payors, fontePagadora]);
+  const tabela = useMemo(
+    () => tabelaEscolhidaDaFonte(tabelasAssociadas, fontePagadora, tabelaId),
+    [tabelasAssociadas, fontePagadora, tabelaId],
+  );
 
   const validRows = useMemo(
     () => rows.filter((r): r is LinhaValidada & { data: LinhaPlanilhaFontePagadora } => r.data !== null),
@@ -68,33 +80,33 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
   );
   const limiteCsp = parseLimiteCsp(limiteCspTexto);
 
-  // Recalcula na hora quando o limite (ou a fonte/tabela) muda — a prévia e a
+  // Recalcula na hora quando o limite (ou a tabela) muda — a prévia e a
   // gravação usam o mesmo resultado.
   const calculadas = useMemo(
     () =>
-      limiteCsp === null
+      limiteCsp === null || !tabela
         ? null
         : calcularAtendidoImportacao({
             linhas: validRows.map(r => r.data),
             exams,
             payors,
-            fontePagadora: fontePagadora.trim(),
-            tabelaAssociada: tabelaAssociada.trim(),
+            fontePagadora: tabela.fontePagadora,
+            tabelaAssociada: tabela.nome,
             excluidos: exameExclusions,
             limiteCsp,
           }),
-    [validRows, exams, payors, fontePagadora, tabelaAssociada, exameExclusions, limiteCsp],
+    [validRows, exams, payors, tabela, exameExclusions, limiteCsp],
   );
 
   const totalSim = calculadas?.filter(l => l.atendido).length ?? 0;
 
   if (!open) return null;
 
-  const podeEscolherArquivo = fontePagadora.trim().length > 0;
+  const podeEscolherArquivo = tabela !== null;
 
   const reset = () => {
     setFontePagadora('');
-    setTabelaAssociada('');
+    setTabelaId(null);
     setLimiteCspTexto('');
     setFileName('');
     setRows([]);
@@ -172,11 +184,11 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
   const invalidRows = rows.filter(r => r.data === null);
 
   const handleImport = async () => {
-    if (!calculadas || calculadas.length === 0 || !podeEscolherArquivo) return;
+    if (!calculadas || calculadas.length === 0 || !tabela) return;
     setImporting(true);
     setError('');
     try {
-      const count = await onImport(fontePagadora.trim(), tabelaAssociada.trim(), calculadas);
+      const count = await onImport(tabela, calculadas);
       setDone(count);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao importar custos de fontes pagadoras.');
@@ -245,20 +257,16 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
                 </div>
                 <div className="flex-1 min-w-0">
                   <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">
-                    Tabela Associada
+                    Tabela Associada <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    list="payor-import-tabelas"
-                    value={tabelaAssociada}
-                    onChange={e => setTabelaAssociada(e.target.value)}
-                    placeholder="Opcional"
+                  <EscolhaTabelaAssociada
+                    fontePagadora={fontePagadora}
+                    tabelas={tabelasAssociadas}
+                    value={tabelaId}
+                    onChange={t => setTabelaId(t.id)}
+                    onCriar={onCriarTabela}
                     className="w-full px-3 py-2.5 text-sm rounded-xl bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
                   />
-                  <datalist id="payor-import-tabelas">
-                    {tabelasAssociadas.map(nome => (
-                      <option key={nome} value={nome} />
-                    ))}
-                  </datalist>
                 </div>
               </div>
 
@@ -289,7 +297,7 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
                 <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
                   {podeEscolherArquivo
                     ? 'Selecione uma planilha com as colunas: TUSS, Nome do Exame, Valor.'
-                    : 'Selecione a Fonte Pagadora acima para habilitar o upload.'}
+                    : 'Selecione a Fonte Pagadora e a Tabela Associada acima para habilitar o upload.'}
                 </p>
                 <input
                   ref={inputRef}
@@ -351,7 +359,9 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({ open, onClose, payo
                   {calculadas === null ? (
                     validRows.length > 0 && (
                       <p className="text-xs text-gray-500 dark:text-gray-400">
-                        Informe o % máx CSP para ver o Atendido calculado.
+                        {tabela
+                          ? 'Informe o % máx CSP para ver o Atendido calculado.'
+                          : 'Escolha a Tabela Associada para ver o Atendido calculado.'}
                       </p>
                     )
                   ) : (
