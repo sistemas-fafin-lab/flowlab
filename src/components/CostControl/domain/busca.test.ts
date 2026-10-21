@@ -10,6 +10,8 @@ import {
   analisarLinhaFontePagadora,
   examesDoTuss,
   edicaoSeparaDaLinhaGeral,
+  fontesPagadorasDoExame,
+  irmaosNaLinha,
 } from './busca';
 
 const exame = (over: Partial<Exam>): Exam => ({
@@ -192,6 +194,7 @@ describe('examesPorFontePagadora', () => {
     expect(examesPorFontePagadora(exames, fontes, 'Unimed')).toEqual([
       {
         payorId: 'p2',
+        fontePagadora: 'Unimed',
         exameId: 'e2',
         exame: 'Glicemia de jejum',
         tuss: '40302040',
@@ -207,6 +210,7 @@ describe('examesPorFontePagadora', () => {
       },
       {
         payorId: 'p1',
+        fontePagadora: 'Unimed',
         exameId: 'e1',
         exame: 'Hemograma completo',
         tuss: '40304361',
@@ -230,6 +234,7 @@ describe('examesPorFontePagadora', () => {
     expect(examesPorFontePagadora(exames, fontesComNaoAtendido, 'Amil')).toEqual([
       {
         payorId: 'p4',
+        fontePagadora: 'Amil',
         exameId: 'e1',
         exame: 'Hemograma completo',
         tuss: '40304361',
@@ -260,6 +265,7 @@ describe('examesPorFontePagadora', () => {
     expect(examesPorFontePagadora(exames, fontesParticular, 'Particular')).toEqual([
       {
         payorId: 'p5',
+        fontePagadora: 'Particular',
         exameId: 'e1',
         exame: 'Hemograma completo',
         tuss: '40304361',
@@ -496,5 +502,67 @@ describe('edicaoSeparaDaLinhaGeral', () => {
     expect(edicaoSeparaDaLinhaGeral({ tus: '40503801', exameId: null }, { exameId: null }, exames)).toBe(false);
     expect(edicaoSeparaDaLinhaGeral({ tus: '40503801', exameId: 'e1' }, { exameId: 'e2' }, exames)).toBe(false);
     expect(edicaoSeparaDaLinhaGeral({ tus: '40304361', exameId: null }, { exameId: 'e3' }, exames)).toBe(false);
+  });
+});
+
+describe('fontesPagadorasDoExame', () => {
+  // Caso real: TUSS 40503801 com dois exames; a linha Particular é só do
+  // PAINEL — buscar o CFTR não pode mostrá-la.
+  const exames = [
+    exame({ id: 'painel', tuss: '40503801', name: 'PAINEL PARA CÂNCER HEREDITÁRIO EXPANDIDO' }),
+    exame({ id: 'cftr', tuss: '40503801', name: 'Sequenciamento NGS do Gene CFTR' }),
+  ];
+  const soPainel = fonte({ id: 'p1', payor: 'Particular', table: 'Particular', tus: '40503801', price: 5381.9, exameId: 'painel' });
+  const geralUnimed = fonte({ id: 'p2', payor: 'Unimed', table: 'Unimed Coop.', tus: '40503801', price: 3000 });
+  const outroTuss = fonte({ id: 'p3', payor: 'Unimed', table: 'Unimed Coop.', tus: '40304361', price: 9 });
+
+  it('linha de exame de outro exame do mesmo TUSS não aparece', () => {
+    expect(fontesPagadorasDoExame(exames, [soPainel, geralUnimed, outroTuss], 'cftr').map((f) => f.payorId)).toEqual(['p2']);
+    expect(fontesPagadorasDoExame(exames, [soPainel, geralUnimed, outroTuss], 'painel').map((f) => f.payorId)).toEqual([
+      'p2',
+      'p1',
+    ]);
+  });
+
+  it('linha própria tem precedência sobre a geral da mesma fonte + tabela, e vale o valor por exame', () => {
+    const geralParticular = fonte({ id: 'p4', payor: 'Particular', table: 'Particular', tus: '40503801', price: 100 });
+    const linhas = fontesPagadorasDoExame(
+      exames,
+      [soPainel, geralParticular, geralUnimed],
+      'painel',
+      new Set(),
+      new Map([[chaveExclusaoExame('p2', 'painel'), 3500]]),
+    );
+    expect(linhas.map((f) => [f.payorId, f.fontePagadora, f.valorCobrado])).toEqual([
+      ['p2', 'Unimed', 3500],
+      ['p1', 'Particular', 5381.9],
+    ]);
+  });
+
+  it('exame excluído da linha geral some', () => {
+    expect(
+      fontesPagadorasDoExame(exames, [geralUnimed], 'cftr', new Set([chaveExclusaoExame('p2', 'cftr')])),
+    ).toEqual([]);
+  });
+});
+
+describe('irmaosNaLinha', () => {
+  const exames = [
+    exame({ id: 'e1', tuss: '40503801', name: 'Exame A' }),
+    exame({ id: 'e2', tuss: '40503801', name: 'Exame B' }),
+  ];
+  const geral = fonte({ id: 'p1', payor: 'Particular', table: 'Particular', tus: '40503801', price: 100 });
+
+  it('linha geral compartilhada: os outros exames do TUSS', () => {
+    expect(irmaosNaLinha(exames, [geral], { payorId: 'p1', exameId: 'e1', fontePagadora: 'Particular' }).map((e) => e.exameId)).toEqual([
+      'e2',
+    ]);
+  });
+
+  it('sem irmãos quando o outro exame tem linha própria ou foi excluído', () => {
+    const soE2 = fonte({ id: 'p2', payor: 'Particular', table: 'Particular', tus: '40503801', price: 200, exameId: 'e2' });
+    const item = { payorId: 'p1', exameId: 'e1', fontePagadora: 'Particular' };
+    expect(irmaosNaLinha(exames, [geral, soE2], item)).toEqual([]);
+    expect(irmaosNaLinha(exames, [geral], item, new Set([chaveExclusaoExame('p1', 'e2')]))).toEqual([]);
   });
 });

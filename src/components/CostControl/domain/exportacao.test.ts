@@ -5,6 +5,7 @@ import { linhasExportacaoExamesDaFonte, linhasExportacaoFontesPagadoras } from '
 
 const exameDaFonte = (over: Partial<ExameDaFontePagadora>): ExameDaFontePagadora => ({
   payorId: 'p1',
+  fontePagadora: 'Unimed',
   exameId: 'e1',
   exame: 'Hemograma completo',
   tuss: '40304361',

@@ -85,6 +85,9 @@ export function buscarTabelasAssociadasPorTermo(payors: Payor[], termo: string):
  *  como particular (Payor.atendido, editável na tela). */
 export interface ExameDaFontePagadora {
   payorId: string;
+  // Nome da fonte pagadora da linha (Payor.payor) — na visão por exame
+  // (fontesPagadorasDoExame) cada linha é de uma fonte diferente.
+  fontePagadora: string;
   // Id do Exam cujo nome está em `exame` — necessário porque um mesmo TUSS
   // pode render múltiplas linhas (ver examesPorFontePagadora); é o que
   // permite editar/selecionar o exame certo em vez do primeiro que bater.
@@ -167,20 +170,72 @@ export function examesPorFontePagadora(
   const nomeNormalizado = normalizar(nomeFontePagadora);
   if (!nomeNormalizado) return [];
 
+  const fontesDaFonte = payors.filter((fonte) => normalizar(fonte.payor) === nomeNormalizado);
+  return linhasDeExame(exams, fontesDaFonte, excluidos, valoresPersonalizados).sort(
+    (a, b) => a.valorCobrado - b.valorCobrado || a.exame.localeCompare(b.exame),
+  );
+}
+
+/** Fontes pagadoras de UM exame (por id, não por TUSS), com a mesma regra
+ *  de examesPorFontePagadora: linha de exame de outro exame do mesmo TUSS
+ *  não aparece, e a linha geral do TUSS só aparece onde o exame não tem
+ *  linha própria. Antes a visão por exame filtrava só pelo TUSS — com dois
+ *  exames no TUSS 40503801, buscar um mostrava (e deixava editar) a linha
+ *  do outro. Ordenadas por valor cobrado crescente. */
+export function fontesPagadorasDoExame(
+  exams: Exam[],
+  payors: Payor[],
+  exameId: string,
+  excluidos: Set<string> = new Set(),
+  valoresPersonalizados: Map<string, number> = new Map(),
+): ExameDaFontePagadora[] {
+  const exame = exams.find((e) => e.id === exameId);
+  if (!exame) return [];
+
+  const candidatas = payors.filter((p) => p.exameId === exameId || (!p.exameId && !!exame.tuss && p.tus === exame.tuss));
+  return linhasDeExame(exams, candidatas, excluidos, valoresPersonalizados)
+    .filter((linha) => linha.exameId === exameId)
+    .sort((a, b) => a.valorCobrado - b.valorCobrado || a.fontePagadora.localeCompare(b.fontePagadora));
+}
+
+/** Os outros exames que a mesma linha de custo_fontes_pagadoras de `item`
+ *  cobre na tela (já descontados os excluídos e os que têm linha própria).
+ *  Com irmãos o preço é compartilhado: editar/excluir a partir de um exame
+ *  não pode mexer no registro inteiro. Vale tanto na visão por fonte quanto
+ *  na visão por exame (onde não há fonte fixada pra calcular os irmãos). */
+export function irmaosNaLinha(
+  exams: Exam[],
+  payors: Payor[],
+  item: Pick<ExameDaFontePagadora, 'payorId' | 'exameId' | 'fontePagadora'>,
+  excluidos: Set<string> = new Set(),
+): ExameDaFontePagadora[] {
+  return examesPorFontePagadora(exams, payors, item.fontePagadora, excluidos).filter(
+    (e) => e.payorId === item.payorId && e.exameId !== item.exameId,
+  );
+}
+
+// Núcleo de examesPorFontePagadora/fontesPagadorasDoExame: expande cada
+// linha de `fontes` nos exames que ela cobre.
+function linhasDeExame(
+  exams: Exam[],
+  fontes: Payor[],
+  excluidos: Set<string>,
+  valoresPersonalizados: Map<string, number>,
+): ExameDaFontePagadora[] {
   // Só agrupa por TUSS quando ele existe de verdade — TUSS vazio NÃO é um
   // código compartilhado, é "esse exame não tem código". Sem essa distinção,
   // toda linha de fonte pagadora sem TUSS casaria com TODOS os exames sem
   // TUSS do catálogo inteiro (bug real encontrado em produção: uma linha
   // "Particular" sem TUSS estava exibindo os 20 exames sem código, todos
   // pelo mesmo preço). Ver migration 20260916100000_custo_fontes_pagadoras_exame_id.
-  const fontesDaFonte = payors.filter((fonte) => normalizar(fonte.payor) === nomeNormalizado);
 
-  // Exames com linha própria, por tabela associada — saem da linha geral do
-  // TUSS da mesma tabela (ver precedência no JSDoc).
+  // Exames com linha própria, por fonte + tabela associada — saem da linha
+  // geral do TUSS da mesma fonte + tabela (ver precedência no JSDoc de
+  // examesPorFontePagadora).
+  const chaveLinhaPropria = (fonte: Payor, exameId: string) =>
+    `${normalizar(fonte.payor)}|${normalizar(fonte.table)}|${exameId}`;
   const examesComLinhaPropria = new Set(
-    fontesDaFonte
-      .filter((fonte) => fonte.exameId)
-      .map((fonte) => `${normalizar(fonte.table)}|${fonte.exameId}`),
+    fontes.filter((fonte) => fonte.exameId).map((fonte) => chaveLinhaPropria(fonte, fonte.exameId!)),
   );
 
   const examesPorTuss = new Map<string, Exam[]>();
@@ -201,47 +256,45 @@ export function examesPorFontePagadora(
     else grupo[indice] = exame;
   }
 
-  return fontesDaFonte
-    .flatMap((fonte) => {
-      // exameId preenchido: só aquele exame. Senão, TUSS preenchido: todos os
-      // exames do TUSS que não têm linha própria nesta tabela. TUSS vazio sem
-      // exameId (dado legado ainda não migrado): não aparece em lugar nenhum
-      // — nunca "todo exame sem TUSS".
-      let grupo: Exam[] | undefined;
-      if (fonte.exameId) {
-        const exame = examesPorId.get(fonte.exameId);
-        grupo = exame ? [exame] : undefined;
-      } else if (fonte.tus) {
-        const tabela = normalizar(fonte.table);
-        grupo = examesPorTuss
-          .get(fonte.tus)
-          ?.filter((exame) => !examesComLinhaPropria.has(`${tabela}|${exame.id}`));
-      }
-      if (!grupo) return [];
-      return grupo
-        .filter((exame) => !excluidos.has(chaveExclusaoExame(fonte.id, exame.id)))
-        .map((exame) => {
-          const custo = exame.direct + exame.indirect;
-          const valorPersonalizado = valoresPersonalizados.get(chaveExclusaoExame(fonte.id, exame.id));
-          const valorCobrado = valorPersonalizado ?? fonte.price;
-          return {
-            payorId: fonte.id,
-            exameId: exame.id,
-            exame: exame.name,
-            tuss: exame.tuss,
-            tabelaAssociada: fonte.table,
-            valorCobrado,
-            valorPadraoTuss: fonte.price,
-            temValorPersonalizado: valorPersonalizado !== undefined,
-            custo,
-            dif: valorCobrado - custo,
-            percentualCsp: valorCobrado > 0 ? (custo / valorCobrado) * 100 : 0,
-            atendido: fonte.atendido,
-            elegivelDescontoParticular: fonte.elegivelDescontoParticular,
-          };
-        });
-    })
-    .sort((a, b) => a.valorCobrado - b.valorCobrado || a.exame.localeCompare(b.exame));
+  return fontes.flatMap((fonte) => {
+    // exameId preenchido: só aquele exame. Senão, TUSS preenchido: todos os
+    // exames do TUSS que não têm linha própria nesta tabela. TUSS vazio sem
+    // exameId (dado legado ainda não migrado): não aparece em lugar nenhum
+    // — nunca "todo exame sem TUSS".
+    let grupo: Exam[] | undefined;
+    if (fonte.exameId) {
+      const exame = examesPorId.get(fonte.exameId);
+      grupo = exame ? [exame] : undefined;
+    } else if (fonte.tus) {
+      grupo = examesPorTuss
+        .get(fonte.tus)
+        ?.filter((exame) => !examesComLinhaPropria.has(chaveLinhaPropria(fonte, exame.id)));
+    }
+    if (!grupo) return [];
+    return grupo
+      .filter((exame) => !excluidos.has(chaveExclusaoExame(fonte.id, exame.id)))
+      .map((exame) => {
+        const custo = exame.direct + exame.indirect;
+        const valorPersonalizado = valoresPersonalizados.get(chaveExclusaoExame(fonte.id, exame.id));
+        const valorCobrado = valorPersonalizado ?? fonte.price;
+        return {
+          payorId: fonte.id,
+          fontePagadora: fonte.payor,
+          exameId: exame.id,
+          exame: exame.name,
+          tuss: exame.tuss,
+          tabelaAssociada: fonte.table,
+          valorCobrado,
+          valorPadraoTuss: fonte.price,
+          temValorPersonalizado: valorPersonalizado !== undefined,
+          custo,
+          dif: valorCobrado - custo,
+          percentualCsp: valorCobrado > 0 ? (custo / valorCobrado) * 100 : 0,
+          atendido: fonte.atendido,
+          elegivelDescontoParticular: fonte.elegivelDescontoParticular,
+        };
+      });
+  });
 }
 
 

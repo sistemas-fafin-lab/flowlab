@@ -33,10 +33,16 @@ import {
   casaTermo,
   edicaoSeparaDaLinhaGeral,
   examesPorFontePagadora,
-  fontesPagadorasPorTuss,
+  fontesPagadorasDoExame,
+  irmaosNaLinha,
   type ExameDaFontePagadora,
 } from './domain/busca';
-import { linhasExportacaoExamesDaFonte, linhasExportacaoFontesPagadoras, type LinhaExportacao } from './domain/exportacao';
+import {
+  linhasExportacaoExamesDaFonte,
+  linhasExportacaoFontesDoExame,
+  linhasExportacaoFontesPagadoras,
+  type LinhaExportacao,
+} from './domain/exportacao';
 import type { LinhaImportacaoFontePagadora } from './domain/importacaoFontesPagadoras';
 import { ORDENACAO_PADRAO, alternarOrdenacao, ordenar, type EstadoOrdenacao } from './domain/ordenacao';
 import { CabecalhoOrdenavel } from './domain/CabecalhoOrdenavel';
@@ -193,10 +199,10 @@ function CampoBusca<T>({
 
 type ColunaFontePagadora = 'payor' | 'table' | 'price' | 'atendido';
 
-const VALOR_COLUNA_FONTE_PAGADORA: Record<ColunaFontePagadora, (item: Payor) => string | number> = {
-  payor: item => item.payor,
-  table: item => item.table,
-  price: item => item.price,
+const VALOR_COLUNA_FONTE_PAGADORA: Record<ColunaFontePagadora, (item: ExameDaFontePagadora) => string | number> = {
+  payor: item => item.fontePagadora,
+  table: item => item.tabelaAssociada,
+  price: item => item.valorCobrado,
   atendido: item => (item.atendido ? 1 : 0),
 };
 
@@ -209,15 +215,15 @@ function TabelaFontesPagadoras({
   onDeleteLinha,
   podeGerenciar,
 }: {
-  fontesPagadoras: Payor[];
+  fontesPagadoras: ExameDaFontePagadora[];
   // Custo Total (direct + indirect) do exame selecionado, cadastrado na aba
   // Exames — igual pra todas as linhas aqui, já que a tabela é fixada num
   // único exame.
   custo: number;
   onSelectFontePagadora: (nome: string) => void;
   onToggleAtendido: (payorId: string, atendido: boolean) => void;
-  onEditLinha: (item: Payor) => void;
-  onDeleteLinha: (item: Payor) => void;
+  onEditLinha: (item: ExameDaFontePagadora) => void;
+  onDeleteLinha: (item: ExameDaFontePagadora) => void;
   podeGerenciar: boolean;
 }) {
   const [ordenacao, setOrdenacao] = useState<EstadoOrdenacao>(ORDENACAO_PADRAO);
@@ -229,7 +235,7 @@ function TabelaFontesPagadoras({
         fontesPagadoras,
         ordenacao,
         (item, coluna) => VALOR_COLUNA_FONTE_PAGADORA[coluna as ColunaFontePagadora](item),
-        (a, b) => a.price - b.price,
+        (a, b) => a.valorCobrado - b.valorCobrado,
       ),
     [fontesPagadoras, ordenacao],
   );
@@ -257,27 +263,27 @@ function TabelaFontesPagadoras({
               </tr>
             ) : (
               linhas.map(p => (
-                <tr key={p.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
+                <tr key={p.payorId} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
                   <td className="px-5 py-3.5">
                     <button
                       type="button"
-                      onClick={() => onSelectFontePagadora(p.payor)}
+                      onClick={() => onSelectFontePagadora(p.fontePagadora)}
                       className="flex items-center gap-2 text-left hover:underline"
                     >
                       <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
                         <Building2 className="w-3.5 h-3.5" />
                       </div>
-                      <span className="font-semibold text-gray-800 dark:text-gray-100">{p.payor}</span>
+                      <span className="font-semibold text-gray-800 dark:text-gray-100">{p.fontePagadora}</span>
                     </button>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-semibold rounded-full border bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20">
                       <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                      {p.table}
+                      {p.tabelaAssociada}
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-right tabular-nums font-bold text-emerald-600 dark:text-emerald-400">
-                    {formatBRL(p.price)}
+                    {formatBRL(p.valorCobrado)}
                   </td>
                   <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
                     {formatBRL(custo)}
@@ -285,7 +291,7 @@ function TabelaFontesPagadoras({
                   <td className="px-5 py-3.5 text-right">
                     <button
                       type="button"
-                      onClick={() => onToggleAtendido(p.id, !p.atendido)}
+                      onClick={() => onToggleAtendido(p.payorId, !p.atendido)}
                       disabled={!podeGerenciar}
                       aria-pressed={p.atendido}
                       title={
@@ -715,18 +721,18 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   const fontesDoExame = useMemo(
     () =>
       !fontePagadoraSelecionada && exameSelecionado
-        ? fontesPagadorasPorTuss(payors, exameSelecionado.tuss)
+        ? fontesPagadorasDoExame(exams, payors, exameSelecionado.id, exameExclusions, exameValoresPersonalizados)
         : [],
-    [payors, fontePagadoraSelecionada, exameSelecionado]
+    [exams, payors, fontePagadoraSelecionada, exameSelecionado, exameExclusions, exameValoresPersonalizados]
   );
 
   // Sugestões do campo Fonte Pagadora: se já tem exame fixado, restringe às
   // fontes que efetivamente cobrem aquele exame.
   const sugestoesFonte = useMemo(() => {
     if (fontePagadoraSelecionada) return [];
-    const base = exameSelecionado ? payors.filter(p => p.tus === exameSelecionado.tuss) : payors;
+    const base = exameSelecionado ? payors.filter(p => fontesDoExame.some(f => f.payorId === p.id)) : payors;
     return buscarFontesPagadorasPorTermo(base, termoFonte);
-  }, [payors, termoFonte, fontePagadoraSelecionada, exameSelecionado]);
+  }, [payors, termoFonte, fontePagadoraSelecionada, exameSelecionado, fontesDoExame]);
 
   // Sugestões do campo Exame: campo sempre livre (não trava num chip depois
   // de selecionar, ver AutocompleteInput) — continua filtrando pelo texto
@@ -815,8 +821,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   // personalizado por exame em vez do PayorFormModal. Sem irmãos, não há
   // ambiguidade: edita a linha inteira (fonte/tabela/TUSS/valor) normalmente.
   const handleEditExameDaFonte = (item: ExameDaFontePagadora) => {
-    const temIrmaos = examesDaFonte.some(e => e.payorId === item.payorId && e.exameId !== item.exameId);
-    if (temIrmaos) {
+    if (irmaosNaLinha(exams, payors, item, exameExclusions).length > 0) {
       setEditingValorExame(item);
       return;
     }
@@ -827,7 +832,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     const fonte = payors.find(p => p.id === item.payorId);
     handleEditLinha({
       payorId: item.payorId,
-      payor: fontePagadoraSelecionada ?? '',
+      payor: item.fontePagadora,
       table: item.tabelaAssociada,
       tus: item.tuss,
       price: item.valorCobrado,
@@ -856,16 +861,6 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       showError('Erro ao restaurar valor padrão', err instanceof Error ? err.message : undefined);
     }
   };
-
-  const handleEditFontePagadora = (item: Payor) =>
-    handleEditLinha({
-      payorId: item.id,
-      payor: item.payor,
-      table: item.table,
-      tus: item.tus,
-      price: item.price,
-      exameId: item.exameId,
-    });
 
   const handleNovaLinha = () => {
     setCreatingNovaLinha(true);
@@ -953,7 +948,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     // pagadora (custo_fontes_pagadoras_exclusoes) — o preço e os exames
     // irmãos continuam intactos. Sem irmãos, não há preço compartilhado pra
     // preservar, então exclui a linha de preço de verdade.
-    const irmaos = examesDaFonte.filter(e => e.payorId === item.payorId && e.exameId !== item.exameId);
+    const irmaos = irmaosNaLinha(exams, payors, item, exameExclusions);
 
     if (irmaos.length > 0) {
       showConfirmDialog(
@@ -974,9 +969,6 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
 
     handleDeleteLinha(item.payorId, `${item.exame} (TUSS ${item.tuss})`);
   };
-
-  const handleDeleteFontePagadora = (item: Payor) =>
-    handleDeleteLinha(item.id, `${item.payor} (${item.table})`);
 
   const mostrarConvite = !fontePagadoraSelecionada && !exameSelecionado;
 
@@ -1022,7 +1014,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           showError('Nada para exportar', 'Nenhuma fonte pagadora cadastrada para este exame.');
           return;
         }
-        gerarArquivoExportacao(linhasExportacaoFontesPagadoras(fontesDoExame), 'Fontes Pagadoras', formato);
+        gerarArquivoExportacao(linhasExportacaoFontesDoExame(fontesDoExame), 'Fontes Pagadoras', formato);
         return;
       }
 
@@ -1185,13 +1177,13 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
 
       {!fontePagadoraSelecionada && exameSelecionado && (
         <TabelaFontesPagadoras
-          key={exameSelecionado.tuss}
+          key={exameSelecionado.id}
           fontesPagadoras={fontesDoExame}
           custo={exameSelecionado.direct + exameSelecionado.indirect}
           onSelectFontePagadora={handleSelecionarFonte}
           onToggleAtendido={handleToggleAtendido}
-          onEditLinha={handleEditFontePagadora}
-          onDeleteLinha={handleDeleteFontePagadora}
+          onEditLinha={handleEditExameDaFonte}
+          onDeleteLinha={handleDeleteExameDaFonte}
           podeGerenciar={podeGerenciar}
         />
       )}

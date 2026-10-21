@@ -56,8 +56,8 @@ function AutocompleteInput<T>({
 
   // Sai do campo sem clicar em nada (Tab pra outro campo) também precisa
   // fechar o dropdown — o listener de mousedown abaixo só cobre clique fora.
-  // Delay curto pra não fechar antes do onClick de uma sugestão processar
-  // (clicar nela já dispara blur no input antes do click no botão).
+  // Clicar numa sugestão não chega a tirar o foco do input (o dropdown
+  // cancela o mousedown, ver abaixo); o delay é só uma folga a mais.
   useEffect(() => {
     return () => {
       if (fecharAoPerderFocoRef.current) clearTimeout(fecharAoPerderFocoRef.current);
@@ -142,6 +142,9 @@ function AutocompleteInput<T>({
         }}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        // Depois de escolher uma sugestão o foco continua no input, então
+        // onFocus não dispara de novo — clicar nele reabre a lista.
+        onClick={() => setAberto(true)}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
         autoComplete="off"
@@ -153,6 +156,11 @@ function AutocompleteInput<T>({
         createPortal(
           <ul
             ref={dropdownRef}
+            // Sem isso o mousedown na sugestão tira o foco do input, o blur
+            // fecha o dropdown em 150ms e, num clique mais demorado que isso,
+            // a lista some antes do click — a escolha "não pegava de
+            // primeira" (campo Exame de Fontes Pagadoras e TUSS do modal).
+            onMouseDown={e => e.preventDefault()}
             style={{ top: posicao.top, left: posicao.left, width: posicao.width }}
             className="fixed z-[60] rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-lg max-h-56 overflow-y-auto"
           >

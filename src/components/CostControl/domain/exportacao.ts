@@ -26,9 +26,8 @@ export function linhasExportacaoExamesDaFonte(
   }));
 }
 
-/** Linhas de exportação pra uma listagem de fontes pagadoras — usada tanto
- *  pras fontes de um exame selecionado (TabelaFontesPagadoras) quanto pra
- *  exportação de todas as linhas de custo_fontes_pagadoras sem filtro. */
+/** Linhas de exportação de todas as linhas de custo_fontes_pagadoras, sem
+ *  filtro. */
 export function linhasExportacaoFontesPagadoras(fontes: Payor[]): LinhaExportacao[] {
   return fontes.map(p => ({
     'Fonte Pagadora': p.payor,
@@ -36,5 +35,17 @@ export function linhasExportacaoFontesPagadoras(fontes: Payor[]): LinhaExportaca
     TUSS: p.tus,
     'Valor Cobrado': p.price,
     Atendido: p.atendido ? 'Sim' : 'Não',
+  }));
+}
+
+/** Linhas de exportação pras fontes pagadoras de um exame selecionado
+ *  (TabelaFontesPagadoras) — já com o valor efetivo daquele exame. */
+export function linhasExportacaoFontesDoExame(fontes: ExameDaFontePagadora[]): LinhaExportacao[] {
+  return fontes.map(f => ({
+    'Fonte Pagadora': f.fontePagadora,
+    'Tabela Associada': f.tabelaAssociada,
+    TUSS: f.tuss,
+    'Valor Cobrado': f.valorCobrado,
+    Atendido: f.atendido ? 'Sim' : 'Não',
   }));
 }
