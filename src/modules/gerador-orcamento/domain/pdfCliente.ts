@@ -17,7 +17,7 @@ import {
   textoEscuro,
 } from './pdfComum';
 
-/** Orçamento do cliente: exames, quantidades, preços, Valor Total e Valor com Desconto. */
+/** Orçamento do cliente: exames, quantidades, preços, Valor Total e, se houver desconto, Valor com Desconto. */
 export function montarPdfOrcamentoCliente(
   { carrinho, orcamento, emitidoEm }: DadosPdfOrcamento,
   logo: string | null,
@@ -35,10 +35,12 @@ export function montarPdfOrcamentoCliente(
       numBR(item.preco),
       numBR(item.preco * quantidade),
     ]),
-    // Sempre os dois valores, iguais quando não há desconto; sem percentual (como a tela).
+    // Valor com Desconto só quando há desconto; sem percentual (como a tela).
     foot: [
       ['Valor Total', '', '', numBR(orcamento.valorTotal)],
-      ['Valor com Desconto', '', '', numBR(orcamento.valorComDesconto)],
+      ...(orcamento.percentualAplicado > 0
+        ? [['Valor com Desconto', '', '', numBR(orcamento.valorComDesconto)]]
+        : []),
     ],
     showFoot: 'lastPage',
     styles: { fontSize: 9, cellPadding: 3, textColor: textoEscuro },

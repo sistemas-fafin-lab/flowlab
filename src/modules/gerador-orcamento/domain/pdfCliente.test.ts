@@ -51,11 +51,11 @@ describe('montarPdfOrcamentoCliente', () => {
     expect(texto).toContain('Valor com Desconto 950,00');
   });
 
-  it('sem desconto, mostra os dois valores iguais', () => {
+  it('sem desconto, mostra só o Valor Total', () => {
     const texto = montar([{ item: exame('Exame Não Elegível', 50, false), quantidade: 2 }]);
 
     expect(texto).toContain('Valor Total 100,00');
-    expect(texto).toContain('Valor com Desconto 100,00');
+    expect(texto).not.toContain('Valor com Desconto');
   });
 
   it('nunca mostra custo, margem, percentual de desconto nem outra informação interna', () => {

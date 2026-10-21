@@ -77,7 +77,9 @@ export function montarPdfOrcamentoInterno(
     ]);
   }
   rodape.push(['Valor Total', '', '', numBR(orcamento.valorTotal), '', '']);
-  rodape.push(['Valor com Desconto', '', '', numBR(orcamento.valorComDesconto), '', '']);
+  if (orcamento.percentualAplicado > 0) {
+    rodape.push(['Valor com Desconto', '', '', numBR(orcamento.valorComDesconto), '', '']);
+  }
 
   const doc = new jsPDF();
   desenharCabecalho(doc, logo, emitidoEm, 'ORÇAMENTO INTERNO');

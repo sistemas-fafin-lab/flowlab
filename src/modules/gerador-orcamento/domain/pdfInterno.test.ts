@@ -73,12 +73,12 @@ describe('montarPdfOrcamentoInterno', () => {
     expect(montar(elegiveis)).toContain('Desconto Automático (10% sobre 5 exames elegíveis) - 5,00');
   });
 
-  it('sem desconto, não traz a linha do desconto e mostra os dois valores iguais', () => {
+  it('sem desconto, não traz a linha do desconto nem o Valor com Desconto', () => {
     const texto = montar([{ item: exame('Exame Não Elegível', 50, 10, false), quantidade: 2 }]);
 
     expect(texto).not.toContain('Desconto Automático');
     expect(texto).toContain('Valor Total 100,00');
-    expect(texto).toContain('Valor com Desconto 100,00');
+    expect(texto).not.toContain('Valor com Desconto');
   });
 
   it('tem o cabeçalho do laboratório e a marca d\'água INTERNO', () => {
