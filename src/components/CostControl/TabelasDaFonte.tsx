@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, Check, Lock, Pencil, Plus, Power, Trash2, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { CalendarClock, Check, ChevronDown, Lock, Pencil, Plus, Power, Trash2, X } from 'lucide-react';
 import type { TabelaAssociada } from '../../hooks/useCostControl';
 import { erroNomeTabela, tabelaProtegida } from './domain/tabelasAssociadas';
 import {
@@ -299,7 +300,14 @@ export default function TabelasDaFonte({
   const [filtro, setFiltro] = useState<FiltroVencimento>('todas');
   const [renomeandoId, setRenomeandoId] = useState<string | null>(null);
   const [criando, setCriando] = useState(false);
+  // Começa fechado: o cabeçalho já mostra quantas tabelas pedem atenção.
+  const [aberto, setAberto] = useState(false);
   const hoje = hojeISO();
+
+  const qtdAtencao = useMemo(
+    () => tabelas.filter(t => pedeAtencao(situacaoVencimento(t.vencimento, hoje))).length,
+    [tabelas, hoje]
+  );
 
   const linhas = useMemo(() => {
     const comSituacao = tabelas.map(t => ({ tabela: t, situacao: situacaoVencimento(t.vencimento, hoje) }));
@@ -323,169 +331,201 @@ export default function TabelasDaFonte({
 
   return (
     <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between gap-4">
-        <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
+      <div
+        className={`px-5 py-3 flex items-center justify-between gap-4 ${
+          aberto ? 'border-b border-gray-100 dark:border-gray-700' : ''
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => setAberto(a => !a)}
+          aria-expanded={aberto}
+          className="group flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100"
+        >
           <CalendarClock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           Tabelas desta fonte
-        </h3>
-        <div className="flex items-center gap-1">
-          {botaoFiltro('todas', 'Todas')}
-          {botaoFiltro('atencao', 'Vencidas / a vencer')}
-          {podeGerenciar && (
-            <button
-              type="button"
-              onClick={() => setCriando(true)}
-              disabled={criando}
-              className="ml-2 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors disabled:opacity-50"
-            >
-              <Plus className="w-3.5 h-3.5" /> Nova tabela
-            </button>
+          <span className="text-xs font-normal text-gray-500 dark:text-gray-400">({tabelas.length})</span>
+          {qtdAtencao > 0 && (
+            <span className="px-2 py-0.5 text-[11px] font-medium rounded-full bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300">
+              {qtdAtencao} vencida{qtdAtencao > 1 ? 's' : ''} / a vencer
+            </span>
           )}
-        </div>
-      </div>
-      {podeGerenciar && criando && (
-        <NovaTabela
-          daFonte={tabelas}
-          onCriar={async (nome, vencimento) => {
-            const ok = await onCriar(nome, vencimento);
-            // A nova tabela pode não ter vencimento: mostra todas para ela aparecer.
-            if (ok) setFiltro('todas');
-            return ok;
-          }}
-          onFechar={() => setCriando(false)}
-        />
-      )}
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-5 py-3 text-left font-bold">Tabela Associada</th>
-              <th className="px-5 py-3 text-left font-bold">Vencimento</th>
-              <th className="px-5 py-3 text-left font-bold">Situação</th>
-              <th className="px-5 py-3 text-right font-bold">Linhas</th>
-              {podeGerenciar && <th className="px-5 py-3 text-right font-bold">Ações</th>}
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
-            {linhas.length === 0 ? (
-              <tr>
-                <td colSpan={podeGerenciar ? 5 : 4} className="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
-                  {filtro === 'atencao'
-                    ? `Nenhuma tabela desta fonte vencida ou vencendo nos próximos ${DIAS_AVISO_VENCIMENTO} dias.`
-                    : 'Nenhuma tabela cadastrada para esta fonte pagadora.'}
-                </td>
-              </tr>
-            ) : (
-              linhas.map(({ tabela, situacao }) => {
-                const { texto, classe } = SITUACAO[situacao];
-                const protegida = tabelaProtegida(tabela);
-                const qtdLinhas = linhasPorTabela.get(tabela.id) ?? 0;
-                return (
-                  <tr key={tabela.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
-                    <td className="px-5 py-3">
-                      {renomeandoId === tabela.id ? (
-                        <RenomearTabela
-                          tabela={tabela}
-                          daFonte={tabelas}
-                          onSalvar={onRenomear}
-                          onFechar={() => setRenomeandoId(null)}
-                        />
-                      ) : (
-                        <>
-                          <SeloNome tabela={tabela} />
-                          {protegida && (
-                            <span title={MOTIVO_PROTEGIDA} className="ml-2 inline-flex align-middle text-gray-400 dark:text-gray-500">
-                              <Lock className="w-3.5 h-3.5" aria-label={MOTIVO_PROTEGIDA} />
-                            </span>
-                          )}
-                          {!tabela.ativa && (
-                            <span
-                              title="Some das listas de escolha e não recebe linhas novas; as linhas que já tem continuam valendo."
-                              className="ml-2 text-[11px] font-medium text-gray-400 dark:text-gray-500"
-                            >
-                              inativa
-                            </span>
-                          )}
-                        </>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {podeGerenciar ? (
-                        <CampoVencimento tabela={tabela} onSalvar={onSalvarVencimento} />
-                      ) : (
-                        <span className="text-gray-700 dark:text-gray-200">
-                          {formatarVencimento(tabela.vencimento) || '—'}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3">
-                      {classe ? (
-                        <span
-                          className={`inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-full border ${classe}`}
-                        >
-                          {texto}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-400 dark:text-gray-500">{texto}</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-right tabular-nums text-gray-700 dark:text-gray-200">{qtdLinhas}</td>
-                    {podeGerenciar && (
-                      <td className="px-5 py-3">
-                        {protegida ? (
-                          <p className="text-right text-[11px] text-gray-400 dark:text-gray-500">protegida</p>
-                        ) : (
-                          <div className="flex items-center justify-end gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setRenomeandoId(tabela.id)}
-                              disabled={renomeandoId === tabela.id}
-                              title="Renomear"
-                              className={`${botaoAcao} hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-500/10`}
-                            >
-                              <Pencil className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onAlternarAtiva(tabela)}
-                              aria-pressed={!tabela.ativa}
-                              title={
-                                tabela.ativa
-                                  ? 'Desativar: some das listas de escolha e não recebe linhas novas; as linhas atuais continuam valendo'
-                                  : 'Reativar'
-                              }
-                              className={`${botaoAcao} ${
-                                tabela.ativa
-                                  ? 'hover:text-amber-600 hover:bg-amber-50 dark:hover:text-amber-400 dark:hover:bg-amber-500/10'
-                                  : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10'
-                              }`}
-                            >
-                              <Power className="w-4 h-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => onExcluir(tabela)}
-                              disabled={qtdLinhas > 0}
-                              title={
-                                qtdLinhas > 0
-                                  ? `Não dá para excluir: a tabela tem ${qtdLinhas} linha${qtdLinhas > 1 ? 's' : ''} de preço. Exclua as linhas antes ou desative a tabela.`
-                                  : 'Excluir'
-                              }
-                              className={`${botaoAcao} hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-500/10`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    )}
-                  </tr>
-                );
-              })
+          <motion.span animate={{ rotate: aberto ? 180 : 0 }} transition={{ duration: 0.2 }}>
+            <ChevronDown className="w-4 h-4 text-gray-400 group-hover:text-gray-600 dark:group-hover:text-gray-300" />
+          </motion.span>
+        </button>
+        {aberto && (
+          <div className="flex items-center gap-1">
+            {botaoFiltro('todas', 'Todas')}
+            {botaoFiltro('atencao', 'Vencidas / a vencer')}
+            {podeGerenciar && (
+              <button
+                type="button"
+                onClick={() => setCriando(true)}
+                disabled={criando}
+                className="ml-2 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors disabled:opacity-50"
+              >
+                <Plus className="w-3.5 h-3.5" /> Nova tabela
+              </button>
             )}
-          </tbody>
-        </table>
+          </div>
+        )}
       </div>
+      <AnimatePresence initial={false}>
+        {aberto && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className="overflow-hidden"
+          >
+            {podeGerenciar && criando && (
+              <NovaTabela
+                daFonte={tabelas}
+                onCriar={async (nome, vencimento) => {
+                  const ok = await onCriar(nome, vencimento);
+                  // A nova tabela pode não ter vencimento: mostra todas para ela aparecer.
+                  if (ok) setFiltro('todas');
+                  return ok;
+                }}
+                onFechar={() => setCriando(false)}
+              />
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <tr>
+                    <th className="px-5 py-3 text-left font-bold">Tabela Associada</th>
+                    <th className="px-5 py-3 text-left font-bold">Vencimento</th>
+                    <th className="px-5 py-3 text-left font-bold">Situação</th>
+                    <th className="px-5 py-3 text-right font-bold">Linhas</th>
+                    {podeGerenciar && <th className="px-5 py-3 text-right font-bold">Ações</th>}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
+                  {linhas.length === 0 ? (
+                    <tr>
+                      <td colSpan={podeGerenciar ? 5 : 4} className="px-5 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+                        {filtro === 'atencao'
+                          ? `Nenhuma tabela desta fonte vencida ou vencendo nos próximos ${DIAS_AVISO_VENCIMENTO} dias.`
+                          : 'Nenhuma tabela cadastrada para esta fonte pagadora.'}
+                      </td>
+                    </tr>
+                  ) : (
+                    linhas.map(({ tabela, situacao }) => {
+                      const { texto, classe } = SITUACAO[situacao];
+                      const protegida = tabelaProtegida(tabela);
+                      const qtdLinhas = linhasPorTabela.get(tabela.id) ?? 0;
+                      return (
+                        <tr key={tabela.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
+                          <td className="px-5 py-3">
+                            {renomeandoId === tabela.id ? (
+                              <RenomearTabela
+                                tabela={tabela}
+                                daFonte={tabelas}
+                                onSalvar={onRenomear}
+                                onFechar={() => setRenomeandoId(null)}
+                              />
+                            ) : (
+                              <>
+                                <SeloNome tabela={tabela} />
+                                {protegida && (
+                                  <span title={MOTIVO_PROTEGIDA} className="ml-2 inline-flex align-middle text-gray-400 dark:text-gray-500">
+                                    <Lock className="w-3.5 h-3.5" aria-label={MOTIVO_PROTEGIDA} />
+                                  </span>
+                                )}
+                                {!tabela.ativa && (
+                                  <span
+                                    title="Some das listas de escolha e não recebe linhas novas; as linhas que já tem continuam valendo."
+                                    className="ml-2 text-[11px] font-medium text-gray-400 dark:text-gray-500"
+                                  >
+                                    inativa
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </td>
+                          <td className="px-5 py-3">
+                            {podeGerenciar ? (
+                              <CampoVencimento tabela={tabela} onSalvar={onSalvarVencimento} />
+                            ) : (
+                              <span className="text-gray-700 dark:text-gray-200">
+                                {formatarVencimento(tabela.vencimento) || '—'}
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3">
+                            {classe ? (
+                              <span
+                                className={`inline-flex items-center px-2 py-0.5 text-[11px] font-semibold rounded-full border ${classe}`}
+                              >
+                                {texto}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-gray-400 dark:text-gray-500">{texto}</span>
+                            )}
+                          </td>
+                          <td className="px-5 py-3 text-right tabular-nums text-gray-700 dark:text-gray-200">{qtdLinhas}</td>
+                          {podeGerenciar && (
+                            <td className="px-5 py-3">
+                              {protegida ? (
+                                <p className="text-right text-[11px] text-gray-400 dark:text-gray-500">protegida</p>
+                              ) : (
+                                <div className="flex items-center justify-end gap-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => setRenomeandoId(tabela.id)}
+                                    disabled={renomeandoId === tabela.id}
+                                    title="Renomear"
+                                    className={`${botaoAcao} hover:text-blue-600 hover:bg-blue-50 dark:hover:text-blue-400 dark:hover:bg-blue-500/10`}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onAlternarAtiva(tabela)}
+                                    aria-pressed={!tabela.ativa}
+                                    title={
+                                      tabela.ativa
+                                        ? 'Desativar: some das listas de escolha e não recebe linhas novas; as linhas atuais continuam valendo'
+                                        : 'Reativar'
+                                    }
+                                    className={`${botaoAcao} ${
+                                      tabela.ativa
+                                        ? 'hover:text-amber-600 hover:bg-amber-50 dark:hover:text-amber-400 dark:hover:bg-amber-500/10'
+                                        : 'text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-500/10'
+                                    }`}
+                                  >
+                                    <Power className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => onExcluir(tabela)}
+                                    disabled={qtdLinhas > 0}
+                                    title={
+                                      qtdLinhas > 0
+                                        ? `Não dá para excluir: a tabela tem ${qtdLinhas} linha${qtdLinhas > 1 ? 's' : ''} de preço. Exclua as linhas antes ou desative a tabela.`
+                                        : 'Excluir'
+                                    }
+                                    className={`${botaoAcao} hover:text-red-600 hover:bg-red-50 dark:hover:text-red-400 dark:hover:bg-red-500/10`}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
