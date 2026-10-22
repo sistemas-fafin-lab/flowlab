@@ -19,6 +19,9 @@ export interface TussExame {
 /** Linha de custo_fontes_pagadoras sem valor negociado nem nome da fonte. */
 export interface TussFontePagadora {
   id: string;
+  /** Cadastro da tabela associada — é por ele que "mesma tabela" se compara. */
+  tabela_associada_id: string;
+  /** Nome do cadastro (custo_tabelas_associadas), só para exibição. */
   tabela_associada: string;
   tuss: string;
   /** Preenchido = linha só deste exame (tem precedência); null = linha geral do TUSS. */
@@ -38,6 +41,13 @@ export interface TussExamesPayload {
   fontes_pagadoras: TussFontePagadora[];
   exclusoes: TussExclusao[];
   gerado_em: string;
+}
+
+type FontePagadoraRow = Omit<TussFontePagadora, 'tabela_associada'>;
+
+interface TabelaAssociadaRow {
+  id: string;
+  nome: string;
 }
 
 interface ExameRow {
@@ -66,19 +76,25 @@ export function isAdmissaoApiKeyValid(req: VercelRequest): boolean {
  * se não houver exclusão dele.
  */
 export async function buildTussExames(supabase: SupabaseClient): Promise<TussExamesPayload> {
-  const [exames, fontesPagadoras, exclusoes] = await Promise.all([
+  const [exames, fontesPagadoras, tabelas, exclusoes] = await Promise.all([
     buscarTodasPaginado<ExameRow>(supabase, 'custo_exames', 'id, tuss, aplis_id_exame_tipo, aplis_id_teste'),
-    buscarTodasPaginado<TussFontePagadora>(
+    buscarTodasPaginado<FontePagadoraRow>(
       supabase,
       'custo_fontes_pagadoras',
-      'id, tabela_associada, tuss, exame_id, atendido',
+      'id, tabela_associada_id, tuss, exame_id, atendido',
     ),
+    buscarTodasPaginado<TabelaAssociadaRow>(supabase, 'custo_tabelas_associadas', 'id, nome'),
     buscarTodasPaginado<TussExclusao>(supabase, 'custo_fontes_pagadoras_exclusoes', 'payor_id, exame_id'),
   ]);
 
+  const nomeDaTabela = new Map(tabelas.map(t => [t.id, t.nome]));
+
   return {
     exames: exames.filter((e): e is TussExame => e.aplis_id_exame_tipo !== null),
-    fontes_pagadoras: fontesPagadoras,
+    fontes_pagadoras: fontesPagadoras.map(f => ({
+      ...f,
+      tabela_associada: nomeDaTabela.get(f.tabela_associada_id) ?? '',
+    })),
     exclusoes,
     gerado_em: new Date().toISOString(),
   };

@@ -6,8 +6,25 @@
 
 **Status:** ready-for-agent
 
-- [ ] Unicidade de nome por fonte sem diferenciar maiúsculas/espaços nas pontas.
-- [ ] `tabela_associada_id` obrigatório em `custo_fontes_pagadoras`.
-- [ ] Unicidade por (tabela_associada_id, TUSS) para linhas gerais e (tabela_associada_id, exame) para linhas de exame, substituindo a unicidade por texto.
-- [ ] Nenhum leitor (tela, importação, exportação, orçamento, integrações) usa mais o texto da tabela; a coluna de texto é removida ou mantida só como compatibilidade, sem divergir do cadastro.
-- [ ] Testes e `tsc` verdes; conferência manual das constraints na migração.
+- [x] Unicidade de nome por fonte sem diferenciar maiúsculas/espaços nas pontas.
+- [x] `tabela_associada_id` obrigatório em `custo_fontes_pagadoras`.
+- [x] Unicidade por (tabela_associada_id, TUSS) para linhas gerais e (tabela_associada_id, exame) para linhas de exame, substituindo a unicidade por texto.
+- [x] Nenhum leitor (tela, importação, exportação, orçamento, integrações) usa mais o texto da tabela; a coluna de texto é removida ou mantida só como compatibilidade, sem divergir do cadastro.
+- [ ] Testes e `tsc` verdes; conferência manual das constraints na migração. (testes e `tsc` ok; a conferência manual espera a migração ser aplicada depois da unificação)
+
+## Comments
+
+- 2026-10-22 — Código e migração prontos; a migração **só pode ser aplicada depois da unificação do ticket 06** (que espera o mapa do 05).
+  - Migração `supabase/migrations/20261022120000_custo_tabelas_associadas_contracao.sql`:
+    - começa conferindo; se houver nomes repetidos na fonte (sem diferenciar maiúsculas), nome vazio, linha sem tabela ou linha duplicada por (tabela, TUSS)/(tabela, exame), aborta listando tudo, sem alterar nada. Pelo backup de 2026-10-21, hoje aborta por `Particular`/`PARTICULAR`, `part`/`PART` e a tabela `''` da fonte Particular; as linhas já não têm duplicata;
+    - cria o índice único `(fonte_pagadora, lower(btrim(nome)))` e o CHECK de nome preenchido, e as regras do cadastro passam a valer também no INSERT (nome gravado sem espaços nas pontas, mensagem dizendo qual tabela já existe);
+    - troca a UNIQUE `(fonte, texto, tuss, exame_id)` por índices únicos parciais `(tabela_associada_id, btrim(tuss)) WHERE exame_id IS NULL` e `(tabela_associada_id, exame_id) WHERE exame_id IS NOT NULL`. A UNIQUE antiga, com `exame_id` nulo, nem impedia duas linhas gerais do mesmo TUSS;
+    - a coluna `tabela_associada` fica só por compatibilidade, sempre como cópia do nome do cadastro. Quando a gravação traz o id, o id manda; um update que troca só o texto para o de outra tabela é recusado (23514). Quando traz só o texto, o nome precisa ser de uma tabela já cadastrada na fonte (sem diferenciar maiúsculas); senão dá erro 23503, e o cadastro não é mais criado pelo texto.
+  - Ordem: se a migração da unificação for gerada com timestamp posterior a `20261022120000`, renomear a da contração para depois dela. As consultas da conferência manual estão no cabeçalho do arquivo.
+  - Leitores que ainda usavam o texto:
+    - tela/exportação (`useCostControl`): o nome vem do cadastro por embed (`tabela:custo_tabelas_associadas(nome)`);
+    - payload da Admissão (`api/_lib/tussExames.ts`): o nome vem do cadastro pelo id, e o payload ganhou `tabela_associada_id` (mudança aditiva no contrato);
+    - scripts one-shot `migrar-orcamento-particular.ts` e `migrar-planilha-legada-fontes-pagadoras.ts`: casam e gravam pelo id do cadastro (o da planilha cadastra a tabela que faltar).
+  - Ficou de fora: `supabase/scripts/fix-particular-tuss-40601200.sql` (one-shot antigo, já aplicado) ainda filtra pelo texto. E `supabase/scripts/unificar-tabelas-associadas.ts` ainda lê o texto, de propósito. Ele roda **antes** da contração e a SQL que gera usa `ON CONFLICT (fonte_pagadora, nome)`, que deixa de existir depois do 07.
+  - Nomes já gravados com espaços nas pontas não são aparados pela migração; a unicidade compara por `lower(btrim(nome))`, e os nomes novos ou renomeados já são gravados sem esses espaços.
+  - Erro de tipo antigo, fora deste ticket: `migrar-orcamento-particular.ts` passa `LinhaPlanilhaFontePagadora[]` sem `atendido` para `separarUpsertFontePagadora`. Vem do ticket do % máx CSP.

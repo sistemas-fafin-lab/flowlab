@@ -59,7 +59,8 @@ const TABELA_PARTICULAR = 'particular';
 /** A Tabela Particular, de que o gerador de orçamento depende pelo nome: não
  *  pode ser renomeada, desativada nem excluída (ticket 03). Enquanto a
  *  unificação não roda, "PARTICULAR" também alimenta o orçamento — por isso
- *  também é protegida. O banco aplica a mesma regra. */
+ *  também é protegida; depois da contração (ticket 07) o banco só aceita um
+ *  nome "particular" na fonte. O banco aplica a mesma regra. */
 export function tabelaProtegida(tabela: TabelaAssociada): boolean {
   return tabela.fontePagadora === FONTE_PARTICULAR && tabela.nome.trim().toLowerCase() === TABELA_PARTICULAR;
 }

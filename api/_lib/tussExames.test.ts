@@ -66,7 +66,8 @@ const exameSemVinculo = {
 const fonteGeral = {
   id: 'f1',
   fonte_pagadora: 'ASSEFAZ',
-  tabela_associada: 'ASSEFAZ',
+  tabela_associada: 'assefaz texto antigo',
+  tabela_associada_id: 't1',
   tuss: '40601129',
   exame_id: null,
   valor: 50,
@@ -76,13 +77,17 @@ const fonteGeral = {
 const fonteDeExame = {
   id: 'f2',
   fonte_pagadora: 'ASSEFAZ',
-  tabela_associada: 'ASSEFAZ',
+  tabela_associada: 'assefaz texto antigo',
+  tabela_associada_id: 't2',
   tuss: '40601285',
   exame_id: 'e1',
   valor: '120.00',
   atendido: false,
   elegivel_desconto_particular: false,
 };
+// O nome que vale é o do cadastro, não o texto da linha.
+const tabelaAssefaz = { id: 't1', fonte_pagadora: 'ASSEFAZ', nome: 'ASSEFAZ', vencimento: null, ativa: true };
+const tabelaAssefazExpresso = { id: 't2', fonte_pagadora: 'ASSEFAZ', nome: 'ASSEFAZ Expresso', vencimento: null, ativa: true };
 const exclusao = { payor_id: 'f1', exame_id: 'e3' };
 
 function criarSupabaseMock(dados: Record<string, Record<string, unknown>[]>, falha?: string) {
@@ -115,6 +120,7 @@ function criarSupabaseMock(dados: Record<string, Record<string, unknown>[]>, fal
 const dadosCompletos = {
   custo_exames: [exameLigado, exameLigadoSemTeste, exameSemVinculo],
   custo_fontes_pagadoras: [fonteGeral, fonteDeExame],
+  custo_tabelas_associadas: [tabelaAssefaz, tabelaAssefazExpresso],
   custo_fontes_pagadoras_exclusoes: [exclusao],
 };
 
@@ -128,12 +134,19 @@ describe('buildTussExames', () => {
     ]);
   });
 
-  it('fontes_pagadoras: todas as linhas, sem valor nem fonte_pagadora', async () => {
+  it('fontes_pagadoras: todas as linhas, sem valor nem fonte_pagadora, com a tabela do cadastro', async () => {
     const payload = await buildTussExames(criarSupabaseMock(dadosCompletos));
 
     expect(payload.fontes_pagadoras).toEqual([
-      { id: 'f1', tabela_associada: 'ASSEFAZ', tuss: '40601129', exame_id: null, atendido: true },
-      { id: 'f2', tabela_associada: 'ASSEFAZ', tuss: '40601285', exame_id: 'e1', atendido: false },
+      { id: 'f1', tabela_associada_id: 't1', tabela_associada: 'ASSEFAZ', tuss: '40601129', exame_id: null, atendido: true },
+      {
+        id: 'f2',
+        tabela_associada_id: 't2',
+        tabela_associada: 'ASSEFAZ Expresso',
+        tuss: '40601285',
+        exame_id: 'e1',
+        atendido: false,
+      },
     ]);
   });
 

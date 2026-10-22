@@ -16,7 +16,8 @@ const FONTE_PARTICULAR = 'Particular';
 // proteção da tabela no banco (migration 20261021190000). Enquanto
 // "Particular" e "PARTICULAR" forem dois cadastros (até a unificação, ticket
 // 06), as duas entram juntas aqui, como antes do cadastro — na tela elas são
-// tabelas diferentes.
+// tabelas diferentes. Depois da contração (20261022120000) o banco só aceita
+// um cadastro com esse nome na fonte.
 const TABELA_PARTICULAR = 'particular';
 
 /**

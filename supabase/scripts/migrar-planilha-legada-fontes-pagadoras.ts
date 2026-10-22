@@ -9,8 +9,8 @@
 // Reaproveita a lógica de validação de TUSS e de upsert construídas no
 // ticket 02 (src/components/CostControl/domain/importacaoFontesPagadoras.ts):
 // mesmas regras de "TUSS não cadastrado em custo_exames é pulado" e de
-// casamento fonte_pagadora+tabela_associada+TUSS pra decidir inserir vs.
-// atualizar. A parte específica desta migração (mapear aba → fonte
+// casamento tabela associada (cadastro custo_tabelas_associadas) + TUSS pra
+// decidir inserir vs. atualizar. A parte específica desta migração (mapear aba → fonte
 // pagadora/tabela associada, achar cabeçalho, extrair linhas brutas) vive em
 // src/components/CostControl/domain/migracaoPlanilhaLegada.ts.
 //
@@ -22,8 +22,9 @@
 //   - ASSEFAZ (antiga): descartada em favor de ASSEFAZ REAJUSTE (versão mais
 //     nova e mais completa), que migra como fonte pagadora "ASSEFAZ"
 //
-// Idempotente — casa por fonte_pagadora+tabela_associada+TUSS contra o que
-// já existe no banco (upsert), então pode rodar de novo sem duplicar.
+// Idempotente — casa por tabela associada (cadastro, sem diferenciar
+// maiúsculas; cadastrada se faltar) + TUSS contra o que já existe no banco
+// (upsert), então pode rodar de novo sem duplicar.
 //
 // Variáveis de ambiente necessárias:
 //   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
@@ -68,13 +69,29 @@ const PAGE_SIZE = 1000;
 const CHUNK_INSERT = 500;
 const CONCORRENCIA_UPDATE = 20;
 
-/** Chave de agrupamento fonte_pagadora+tabela_associada. JSON.stringify de um
- *  array escapa aspas/caracteres especiais de cada parte, então não colide
- *  como uma concatenação com separador literal colidiria (ex.: fonte="A B" +
- *  tabela="C" vs. fonte="A" + tabela="B C" dariam a mesma string concatenada
- *  com espaço; aqui viram '["A B","C"]' e '["A","B C"]', inequívocos). */
-function chaveFonteTabela(fontePagadora: string, tabelaAssociada: string): string {
-  return JSON.stringify([fontePagadora, tabelaAssociada]);
+interface TabelaCadastrada {
+  id: string;
+  fonte_pagadora: string;
+  nome: string;
+}
+
+/** O cadastro da tabela na fonte, sem diferenciar maiúsculas nem espaços nas
+ *  pontas — a mesma unicidade do banco (custo_tabelas_associadas_fonte_nome_ci_key). */
+function acharTabela(tabelas: TabelaCadastrada[], fontePagadora: string, nome: string): TabelaCadastrada | undefined {
+  const chave = nome.trim().toLowerCase();
+  return tabelas.find(t => t.fonte_pagadora === fontePagadora && t.nome.trim().toLowerCase() === chave);
+}
+
+/** Cadastra a tabela que a aba pede e ainda não existe na fonte. */
+async function cadastrarTabela(tabelas: TabelaCadastrada[], fontePagadora: string, nome: string): Promise<string> {
+  const { data, error } = await getSupabaseAdminClient()
+    .from('custo_tabelas_associadas')
+    .insert({ fonte_pagadora: fontePagadora, nome: nome.trim() })
+    .select('id,fonte_pagadora,nome')
+    .single();
+  if (error) throw new Error(`Falha ao cadastrar a tabela "${nome}" da fonte "${fontePagadora}": ${error.message}`);
+  tabelas.push(data);
+  return data.id;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {
@@ -129,24 +146,25 @@ async function main() {
   const workbook = XLSX.read(readFileSync(caminhoArquivo));
 
   console.log('Carregando TUSS válidos (custo_exames) e registros existentes (custo_fontes_pagadoras)...');
-  const [examesRows, existentesRows] = await Promise.all([
+  const [examesRows, existentesRows, tabelasRows] = await Promise.all([
     buscarTodasPaginado<{ tuss: string | null }>('custo_exames', 'tuss'),
-    buscarTodasPaginado<{ id: string; fonte_pagadora: string; tabela_associada: string; tuss: string | null }>(
+    buscarTodasPaginado<{ id: string; tabela_associada_id: string; tuss: string | null }>(
       'custo_fontes_pagadoras',
-      'id,fonte_pagadora,tabela_associada,tuss'
+      'id,tabela_associada_id,tuss'
     ),
+    buscarTodasPaginado<TabelaCadastrada>('custo_tabelas_associadas', 'id,fonte_pagadora,nome'),
   ]);
 
   const tussValidos = new Set(examesRows.map(r => String(r.tuss ?? '').trim()).filter(Boolean));
+  const tabelas = [...tabelasRows];
 
-  // Map<chaveFonteTabela(fonte,tabela), Map<tuss, id>> — snapshot do que já
-  // existe, atualizado a cada inserção pra abas processadas em seguida não
-  // colidirem com o que acabou de ser gravado nesta mesma execução.
-  const existentesPorChave = new Map<string, Map<string, string>>();
+  // Map<tabela_associada_id, Map<tuss, id>> — snapshot do que já existe,
+  // atualizado a cada inserção pra abas processadas em seguida não colidirem
+  // com o que acabou de ser gravado nesta mesma execução.
+  const existentesPorTabela = new Map<string, Map<string, string>>();
   for (const row of existentesRows) {
-    const chave = chaveFonteTabela(row.fonte_pagadora, row.tabela_associada);
-    if (!existentesPorChave.has(chave)) existentesPorChave.set(chave, new Map());
-    existentesPorChave.get(chave)!.set(String(row.tuss ?? ''), row.id);
+    if (!existentesPorTabela.has(row.tabela_associada_id)) existentesPorTabela.set(row.tabela_associada_id, new Map());
+    existentesPorTabela.get(row.tabela_associada_id)!.set(String(row.tuss ?? ''), row.id);
   }
 
   // Busca tolerante a acento/caixa/espaço (mesma normalização usada em
@@ -197,19 +215,20 @@ async function main() {
     const invalidos = validadas.length - validas.length;
 
     const { fontePagadora, tabelaAssociada } = resolverFonteTabela(nomeAba, parceiroPorConvenio);
-    const chave = chaveFonteTabela(fontePagadora, tabelaAssociada);
-    const existentesPorTuss = existentesPorChave.get(chave) ?? new Map<string, string>();
+    const tabela = acharTabela(tabelas, fontePagadora, tabelaAssociada);
+    const existentesPorTuss = (tabela && existentesPorTabela.get(tabela.id)) ?? new Map<string, string>();
 
     const { toInsert, toUpdate } = separarUpsertFontePagadora(validas, existentesPorTuss);
 
     if (!dryRun) {
+      const tabelaId = tabela?.id ?? (await cadastrarTabela(tabelas, fontePagadora, tabelaAssociada));
       for (const grupo of chunk(toInsert, CHUNK_INSERT)) {
         const { data: inseridos, error } = await supabase
           .from('custo_fontes_pagadoras')
           .insert(
             grupo.map(r => ({
               fonte_pagadora: fontePagadora,
-              tabela_associada: tabelaAssociada,
+              tabela_associada_id: tabelaId,
               tuss: r.tuss,
               valor: r.valor,
               atendido: r.atendido,
@@ -221,7 +240,7 @@ async function main() {
         }
         (inseridos ?? []).forEach(row => existentesPorTuss.set(String(row.tuss ?? ''), row.id));
       }
-      existentesPorChave.set(chave, existentesPorTuss);
+      existentesPorTabela.set(tabelaId, existentesPorTuss);
 
       await executarComConcorrencia(toUpdate, CONCORRENCIA_UPDATE, async u => {
         const { error } = await supabase

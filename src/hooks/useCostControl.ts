@@ -37,8 +37,8 @@ export interface Exam {
 export interface Payor {
   id: string;
   payor: string;
-  // Nome da tabela associada — cópia do cadastro (tabelaId), mantida pelo
-  // trigger custo_fontes_pagadoras_sincroniza_tabela_associada.
+  // Nome da tabela associada, lido do cadastro (tabelaId). Só exibição —
+  // "mesma tabela" se compara por tabelaId.
   table: string;
   // custo_tabelas_associadas.id — é o que as gravações mandam (ticket 02).
   tabelaId: string;
@@ -183,10 +183,16 @@ const erroAoSalvarExame = (
 
 // custo_fontes_pagadoras guarda snake_case (schema Postgres); a tela usa o
 // formato de Payor. tus casa com Exam.tuss (ver PayorsScreen/AnalyticsScreen).
+// O nome da tabela vem do cadastro (embed pela FK tabela_associada_id), nunca
+// do texto tabela_associada da linha — ticket 07.
+const PAYOR_COLUNAS =
+  'id, fonte_pagadora, tabela_associada_id, tuss, valor, atendido, elegivel_desconto_particular, exame_id, ' +
+  'tabela:custo_tabelas_associadas(nome)';
+
 const mapPayorRow = (row: any): Payor => ({
   id: row.id,
   payor: row.fonte_pagadora,
-  table: row.tabela_associada ?? '',
+  table: row.tabela?.nome ?? '',
   tabelaId: row.tabela_associada_id,
   tus: row.tuss ?? '',
   price: Number(row.valor) || 0,
@@ -244,7 +250,7 @@ export const buscarTodasFontesPagadoras = async (): Promise<Payor[]> => {
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await supabase
       .from('custo_fontes_pagadoras')
-      .select('*')
+      .select(PAYOR_COLUNAS)
       .order('fonte_pagadora', { ascending: true })
       .order('id', { ascending: true })
       .range(from, from + pageSize - 1);
@@ -403,7 +409,7 @@ export const useCostControl = (): UseCostControlReturn => {
       .from('custo_fontes_pagadoras')
       .update(toPayorRow(data))
       .eq('id', id)
-      .select()
+      .select(PAYOR_COLUNAS)
       .single();
 
     if (error) throw error;
@@ -415,7 +421,7 @@ export const useCostControl = (): UseCostControlReturn => {
     const { data: inserted, error } = await supabase
       .from('custo_fontes_pagadoras')
       .insert(toPayorRow(data))
-      .select()
+      .select(PAYOR_COLUNAS)
       .single();
 
     if (error) throw error;
@@ -502,7 +508,7 @@ export const useCostControl = (): UseCostControlReturn => {
               atendido: r.atendido,
             }))
           )
-          .select();
+          .select(PAYOR_COLUNAS);
 
         if (error) throw error;
         const inseridos = (data || []).map(mapPayorRow);
@@ -514,7 +520,7 @@ export const useCostControl = (): UseCostControlReturn => {
           .from('custo_fontes_pagadoras')
           .update({ valor: u.valor, atendido: u.atendido })
           .eq('id', u.id)
-          .select()
+          .select(PAYOR_COLUNAS)
           .single();
 
         // PGRST116 = UPDATE não afetou nenhuma linha (0 rows no retorno de
@@ -531,7 +537,7 @@ export const useCostControl = (): UseCostControlReturn => {
               valor: u.valor,
               atendido: u.atendido,
             })
-            .select()
+            .select(PAYOR_COLUNAS)
             .single();
 
           if (insertError) throw insertError;
@@ -552,7 +558,7 @@ export const useCostControl = (): UseCostControlReturn => {
 
   // Nome repetido na fonte já é barrado na tela (erroNomeTabela, sem
   // diferenciar maiúsculas); aqui sobra a corrida com outra sessão, pela
-  // unicidade exata custo_tabelas_associadas_fonte_nome_key.
+  // unicidade custo_tabelas_associadas_fonte_nome_ci_key (ticket 07).
   const createTabelaAssociada: CriarTabelaAssociada = useCallback(
     async (fontePagadora, nome, vencimento) => {
       const nomeLimpo = nome.trim();

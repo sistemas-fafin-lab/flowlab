@@ -10,8 +10,9 @@
 // domain/importacaoFontesPagadoras.ts (mesmo helper usado pela tela de
 // importação e pela migração da planilha legada em
 // migrar-planilha-legada-fontes-pagadoras.ts): TUSS não cadastrado em
-// custo_exames é pulado, e o casamento fonte_pagadora+tabela_associada+TUSS
-// decide inserir vs. atualizar — então roda de novo sem duplicar.
+// custo_exames é pulado, e o casamento tabela associada (pelo cadastro
+// custo_tabelas_associadas, não pelo texto da linha) + TUSS decide inserir
+// vs. atualizar — então roda de novo sem duplicar.
 //
 // Cabeçalho da aba fica na linha 4 (3 linhas de link/branco antes). Colunas
 // usadas: "Código TUSS" -> tuss, "Descrição Exame" -> nome (só informativo,
@@ -105,21 +106,32 @@ async function main() {
   console.log(`${brutas.length} linhas com TUSS preenchido na planilha.`);
 
   console.log('Carregando TUSS válidos (custo_exames) e registros existentes (custo_fontes_pagadoras)...');
-  const [examesRows, existentesRows] = await Promise.all([
+  const [examesRows, existentesRows, tabelasRows] = await Promise.all([
     buscarTodasPaginado<{ tuss: string | null }>('custo_exames', 'tuss'),
-    buscarTodasPaginado<{ id: string; fonte_pagadora: string; tabela_associada: string; tuss: string | null }>(
+    buscarTodasPaginado<{ id: string; tabela_associada_id: string; tuss: string | null }>(
       'custo_fontes_pagadoras',
-      'id,fonte_pagadora,tabela_associada,tuss'
+      'id,tabela_associada_id,tuss'
+    ),
+    buscarTodasPaginado<{ id: string; fonte_pagadora: string; nome: string }>(
+      'custo_tabelas_associadas',
+      'id,fonte_pagadora,nome'
     ),
   ]);
 
   const tussValidos = new Set(examesRows.map(r => String(r.tuss ?? '').trim()).filter(Boolean));
 
+  // Mesmo critério do backend do orçamento: fonte "Particular" e tabela
+  // "particular" sem diferenciar maiúsculas.
+  const tabela = tabelasRows.find(
+    t => t.fonte_pagadora === FONTE_PAGADORA && t.nome.trim().toLowerCase() === TABELA_ASSOCIADA.toLowerCase()
+  );
+  if (!tabela) {
+    throw new Error(`Tabela associada "${TABELA_ASSOCIADA}" não cadastrada na fonte "${FONTE_PAGADORA}".`);
+  }
+
   const existentesPorTuss = new Map<string, string>();
   for (const row of existentesRows) {
-    if (row.fonte_pagadora === FONTE_PAGADORA && row.tabela_associada === TABELA_ASSOCIADA) {
-      existentesPorTuss.set(String(row.tuss ?? ''), row.id);
-    }
+    if (row.tabela_associada_id === tabela.id) existentesPorTuss.set(String(row.tuss ?? ''), row.id);
   }
 
   const validadas = validarLinhasImportacaoFontePagadora(brutas, tussValidos);
@@ -149,7 +161,7 @@ async function main() {
     const { error } = await supabase.from('custo_fontes_pagadoras').insert(
       grupo.map(r => ({
         fonte_pagadora: FONTE_PAGADORA,
-        tabela_associada: TABELA_ASSOCIADA,
+        tabela_associada_id: tabela.id,
         tuss: r.tuss,
         valor: r.valor,
         atendido: r.atendido,
