@@ -15,6 +15,12 @@ export function tabelasDaFonte(tabelas: TabelaAssociada[], fontePagadora: string
   return tabelas.filter(t => normalizar(t.fontePagadora) === fonte);
 }
 
+/** A fonte gravada numa tabela nova: a grafia já cadastrada nas tabelas da
+ *  fonte, se houver — a digitada pode diferir só em maiúsculas/espaços. */
+export function fonteDaNovaTabela(daFonte: TabelaAssociada[], fontePagadora: string): string {
+  return daFonte[0]?.fontePagadora ?? fontePagadora.trim();
+}
+
 /** A tabela escolhida, se for da fonte digitada — trocar a fonte depois de
  *  escolher deixa o campo sem tabela (null). */
 export function tabelaEscolhidaDaFonte(

@@ -3,6 +3,7 @@ import { Plus } from 'lucide-react';
 import type { CriarTabelaAssociada, TabelaAssociada } from '../../hooks/useCostControl';
 import {
   erroNomeTabela,
+  fonteDaNovaTabela,
   opcoesDeTabela,
   tabelaEscolhidaDaFonte,
   tabelasDaFonte,
@@ -73,10 +74,7 @@ const EscolhaTabelaAssociada: React.FC<EscolhaTabelaAssociadaProps> = ({
     }
     setSalvando(true);
     try {
-      // A grafia da fonte já cadastrada, se houver — a digitada pode diferir
-      // só em maiúsculas/espaços.
-      const fonte = daFonte[0]?.fontePagadora ?? fontePagadora.trim();
-      const criada = await onCriar(fonte, nome, vencimento || null);
+      const criada = await onCriar(fonteDaNovaTabela(daFonte, fontePagadora), nome, vencimento || null);
       onChange(criada);
       fecharNova();
     } catch (err) {

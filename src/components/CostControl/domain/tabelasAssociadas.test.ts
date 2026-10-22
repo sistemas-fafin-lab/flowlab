@@ -3,6 +3,7 @@ import type { Payor, TabelaAssociada } from '../../../hooks/useCostControl';
 import {
   contarLinhasPorTabela,
   erroNomeTabela,
+  fonteDaNovaTabela,
   opcoesDeTabela,
   tabelaEscolhidaDaFonte,
   tabelaProtegida,
@@ -29,6 +30,16 @@ describe('tabelasDaFonte', () => {
 
   it('sem fonte informada não traz nenhuma tabela', () => {
     expect(tabelasDaFonte([tabela('1', 'AMHP', 'PROASA')], '   ')).toEqual([]);
+  });
+});
+
+describe('fonteDaNovaTabela', () => {
+  it('usa a grafia da fonte já cadastrada nas tabelas, não a digitada', () => {
+    expect(fonteDaNovaTabela([tabela('1', 'AMHP-DF', 'PROASA')], ' amhp-df ')).toBe('AMHP-DF');
+  });
+
+  it('fonte ainda sem tabelas fica com a digitada, sem espaços nas pontas', () => {
+    expect(fonteDaNovaTabela([], '  AMHP-DF ')).toBe('AMHP-DF');
   });
 });
 

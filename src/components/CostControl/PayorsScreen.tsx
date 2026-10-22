@@ -37,7 +37,7 @@ import AutocompleteInput from './AutocompleteInput';
 import PayorImportModal from './PayorImportModal';
 import ValorExameFormModal from './ValorExameFormModal';
 import TabelasDaFonte from './TabelasDaFonte';
-import { contarLinhasPorTabela, tabelasDaFonte } from './domain/tabelasAssociadas';
+import { contarLinhasPorTabela, fonteDaNovaTabela, tabelasDaFonte } from './domain/tabelasAssociadas';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
@@ -878,6 +878,22 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
 
   const linhasPorTabela = useMemo(() => contarLinhasPorTabela(payors), [payors]);
 
+  const handleCriarTabela = async (nome: string, vencimento: string | null): Promise<boolean> => {
+    if (!fontePagadoraSelecionada) return false;
+    try {
+      await createTabelaAssociada(
+        fonteDaNovaTabela(tabelasDaFonteSelecionada, fontePagadoraSelecionada),
+        nome,
+        vencimento
+      );
+      showSuccess('Tabela criada com sucesso!');
+      return true;
+    } catch (err) {
+      showError('Erro ao criar tabela', err instanceof Error ? err.message : undefined);
+      return false;
+    }
+  };
+
   const handleRenomearTabela = async (tabela: TabelaAssociada, nome: string): Promise<boolean> => {
     try {
       await renameTabelaAssociada(tabela.id, nome);
@@ -1256,6 +1272,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           tabelas={tabelasDaFonteSelecionada}
           linhasPorTabela={linhasPorTabela}
           podeGerenciar={podeGerenciar}
+          onCriar={handleCriarTabela}
           onSalvarVencimento={handleSalvarVencimento}
           onRenomear={handleRenomearTabela}
           onAlternarAtiva={handleAlternarAtivaTabela}

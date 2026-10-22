@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, Check, Lock, Pencil, Power, Trash2, X } from 'lucide-react';
+import { CalendarClock, Check, Lock, Pencil, Plus, Power, Trash2, X } from 'lucide-react';
 import type { TabelaAssociada } from '../../hooks/useCostControl';
 import { erroNomeTabela, tabelaProtegida } from './domain/tabelasAssociadas';
 import {
@@ -18,6 +18,7 @@ import {
 // tabela vencida continua valendo no orçamento e na importação.
 // Ticket 03: renomear, desativar/reativar e excluir (só sem linhas); a
 // Tabela Particular não tem essas ações. O banco aplica as mesmas regras.
+// Ticket 08: criar tabela pelo próprio bloco.
 // ═══════════════════════════════════════════════════════════════════════════════
 
 type FiltroVencimento = 'todas' | 'atencao';
@@ -184,10 +185,100 @@ function RenomearTabela({
   );
 }
 
+// Ticket 08: "+ Nova tabela" no próprio bloco (nome + vencimento opcional),
+// com a mesma regra de nome do campo de escolha. Enter cria, Esc cancela.
+function NovaTabela({
+  daFonte,
+  onCriar,
+  onFechar,
+}: {
+  daFonte: TabelaAssociada[];
+  onCriar: (nome: string, vencimento: string | null) => Promise<boolean>;
+  onFechar: () => void;
+}) {
+  const [nome, setNome] = useState('');
+  const [vencimento, setVencimento] = useState('');
+  const [erro, setErro] = useState<string | null>(null);
+  const [salvando, setSalvando] = useState(false);
+
+  const criar = async () => {
+    if (salvando) return;
+    const problema = erroNomeTabela(nome, daFonte);
+    if (problema) {
+      setErro(problema);
+      return;
+    }
+    setSalvando(true);
+    const ok = await onCriar(nome, vencimento || null);
+    setSalvando(false);
+    if (ok) onFechar();
+  };
+
+  const campo =
+    'px-2 py-1 text-sm rounded-lg bg-white dark:bg-gray-900/50 border border-gray-200 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60';
+
+  return (
+    <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 bg-slate-50 dark:bg-gray-900/40 space-y-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          autoFocus
+          value={nome}
+          disabled={salvando}
+          onChange={e => {
+            setNome(e.target.value);
+            setErro(null);
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              void criar();
+            }
+            if (e.key === 'Escape') onFechar();
+          }}
+          placeholder="Nome da nova tabela"
+          aria-label="Nome da nova tabela"
+          className={`${campo} flex-1 min-w-[12rem]`}
+        />
+        <input
+          type="date"
+          value={vencimento}
+          disabled={salvando}
+          onChange={e => setVencimento(e.target.value)}
+          aria-label="Vencimento do contrato (opcional)"
+          title="Vencimento do contrato (opcional)"
+          className={campo}
+        />
+        <button
+          type="button"
+          onClick={criar}
+          disabled={salvando}
+          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 active:scale-[.98] transition-all disabled:opacity-50"
+        >
+          <Plus className="w-3.5 h-3.5" /> {salvando ? 'Criando…' : 'Criar tabela'}
+        </button>
+        <button
+          type="button"
+          onClick={onFechar}
+          disabled={salvando}
+          className="px-3 py-1.5 rounded-xl text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700/60 transition-colors disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+      </div>
+      {erro ? (
+        <p className="text-xs text-red-600 dark:text-red-400">{erro}</p>
+      ) : (
+        <p className="text-xs text-gray-500 dark:text-gray-400">Vencimento é opcional.</p>
+      )}
+    </div>
+  );
+}
+
 export default function TabelasDaFonte({
   tabelas,
   linhasPorTabela,
   podeGerenciar,
+  onCriar,
   onSalvarVencimento,
   onRenomear,
   onAlternarAtiva,
@@ -198,6 +289,8 @@ export default function TabelasDaFonte({
   // contarLinhasPorTabela — tabela ausente não tem linhas.
   linhasPorTabela: Map<string, number>;
   podeGerenciar: boolean;
+  // true = criada; o erro do banco já foi mostrado por quem chama.
+  onCriar: (nome: string, vencimento: string | null) => Promise<boolean>;
   onSalvarVencimento: (tabela: TabelaAssociada, vencimento: string | null) => Promise<boolean>;
   onRenomear: (tabela: TabelaAssociada, nome: string) => Promise<boolean>;
   onAlternarAtiva: (tabela: TabelaAssociada) => void;
@@ -205,6 +298,7 @@ export default function TabelasDaFonte({
 }) {
   const [filtro, setFiltro] = useState<FiltroVencimento>('todas');
   const [renomeandoId, setRenomeandoId] = useState<string | null>(null);
+  const [criando, setCriando] = useState(false);
   const hoje = hojeISO();
 
   const linhas = useMemo(() => {
@@ -237,8 +331,30 @@ export default function TabelasDaFonte({
         <div className="flex items-center gap-1">
           {botaoFiltro('todas', 'Todas')}
           {botaoFiltro('atencao', 'Vencidas / a vencer')}
+          {podeGerenciar && (
+            <button
+              type="button"
+              onClick={() => setCriando(true)}
+              disabled={criando}
+              className="ml-2 inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-500/10 transition-colors disabled:opacity-50"
+            >
+              <Plus className="w-3.5 h-3.5" /> Nova tabela
+            </button>
+          )}
         </div>
       </div>
+      {podeGerenciar && criando && (
+        <NovaTabela
+          daFonte={tabelas}
+          onCriar={async (nome, vencimento) => {
+            const ok = await onCriar(nome, vencimento);
+            // A nova tabela pode não ter vencimento: mostra todas para ela aparecer.
+            if (ok) setFiltro('todas');
+            return ok;
+          }}
+          onFechar={() => setCriando(false)}
+        />
+      )}
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
