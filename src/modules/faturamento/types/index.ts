@@ -643,6 +643,19 @@ export interface TituloBaixa {
   createdAt: string;
 }
 
+/** Uma glosa do título, como a linha expandida mostra (todas: com e sem baixa). */
+export interface TituloGlosa {
+  id: string;
+  valor: number;
+  motivo: string;
+  status: GlosaStatus;
+  /** 'aplis' = lançada pelo "Aplicar baixas e glosas do apLIS"; null = digitada. */
+  origem: 'aplis' | null;
+  /** Lançada junto com uma baixa (true) ou avulsa. */
+  comBaixa: boolean;
+  createdAt: string;
+}
+
 export interface TituloReceber {
   id: string;
   /** Pode ser null: operadoras nf_apos_pagamento criam o título antes de ter o número (issue 32). */

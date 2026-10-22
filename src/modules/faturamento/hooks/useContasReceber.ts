@@ -13,6 +13,7 @@ import type {
   LancamentosTitulo,
   OperadoraResumo,
   TituloBaixa,
+  TituloGlosa,
   TituloGuia,
   TituloReceber,
   TitulosFiltros,
@@ -255,6 +256,8 @@ interface UseContasReceberResult {
   /** Baixas (`recebimentos`) do título, mais recente primeiro, com o nome de
    *  quem registrou já resolvido — issue 39. Sempre um array, nunca undefined. */
   buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
+  /** Todas as glosas do título (com e sem baixa), mais antiga primeiro. */
+  buscarGlosas: (notaId: string) => Promise<TituloGlosa[]>;
   /** Baixas (com todos os campos digitados e as glosas de cada uma) e glosas
    *  sem baixa do título, para a correção pelo "Editar título". */
   buscarLancamentos: (notaId: string) => Promise<LancamentosTitulo>;
@@ -557,6 +560,26 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }));
   }, []);
 
+  // Glosas do título para a linha expandida: sem elas, quem olhava o título via
+  // só o total glosado, sem saber o que compunha o número nem onde corrigir.
+  const buscarGlosas = useCallback(async (notaId: string): Promise<TituloGlosa[]> => {
+    const { data, error: erro } = await supabase
+      .from('glosas')
+      .select('id_glosa, recebimento_id, valor, motivo, status, origem, created_at')
+      .eq('nota_id', notaId)
+      .order('created_at', { ascending: true });
+    if (erro) throw new Error(erro.message);
+    return (data ?? []).map((linha) => ({
+      id: linha.id_glosa as string,
+      valor: num(linha.valor as number),
+      motivo: (linha.motivo as string | null) ?? '',
+      status: linha.status as GlosaStatus,
+      origem: linha.origem === 'aplis' ? 'aplis' : null,
+      comBaixa: linha.recebimento_id !== null,
+      createdAt: linha.created_at as string,
+    }));
+  }, []);
+
   // Correção de lançamentos (.scratch/titulos-edicao-lancamentos): baixas com
   // todos os campos digitados, cada uma com as glosas lançadas junto, mais as
   // glosas sem baixa ("Lançar glosa" e backfill).
@@ -674,10 +697,10 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   }, [refetch]);
 
   // Glosa avulsa: a que chega no demonstrativo ANTES de qualquer pagamento.
-  // INSERT direto, e não fat_registrar_baixa com valor zero — isso criaria uma
-  // baixa fantasma de R$ 0 na lista de recebimentos do título. É justamente para
-  // esse caso que a migration tornou glosas.recebimento_id nullable. Uma linha
-  // só, então não há nada a tornar atômico; a trigger recalcula o saldo.
+  // Sem baixa (não fat_registrar_baixa com valor zero — isso criaria uma baixa
+  // fantasma de R$ 0). Via RPC, e não INSERT direto, para ter o mesmo teto
+  // (glosado ≤ total) e a mesma auditoria das outras formas de lançar glosa
+  // (.scratch/faturamento-lancar-glosa-teto). Todas as glosas entram ou nenhuma.
   const lancarGlosas = useCallback(async (
     notaId: string,
     glosas: GlosaLancamentoInput[],
@@ -685,20 +708,19 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     setError(null);
     if (glosas.length === 0) return null;
     try {
-      // Um INSERT só com o array inteiro: as N glosas de um mesmo demonstrativo
-      // entram juntas ou não entram, sem precisar de RPC para isso.
-      const { error: erro } = await supabase.from('glosas').insert(
-        glosas.map((glosa) => ({
-          nota_id: notaId,
-          recebimento_id: null,
-          requisicao_id: glosa.requisicaoId ?? null,
-          lote_id: glosa.loteId ?? null,
-          valor: glosa.valor,
-          motivo: glosa.motivo,
-          codigo_glosa: glosa.codigoGlosa ?? null,
-          status: glosa.status ?? 'aberta',
-        })),
-      );
+      const { error: erro } = await supabase.rpc('fat_lancar_glosas', {
+        p: {
+          notaId,
+          glosas: glosas.map((glosa) => ({
+            valor: glosa.valor,
+            motivo: glosa.motivo,
+            codigoGlosa: glosa.codigoGlosa ?? null,
+            status: glosa.status ?? 'aberta',
+            requisicaoId: glosa.requisicaoId ?? null,
+            loteId: glosa.loteId ?? null,
+          })),
+        },
+      });
       if (erro) throw new Error(erro.message);
       await refetch();
       return null;
@@ -913,6 +935,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     buscarGuias,
     buscarEnvioLotes,
     buscarBaixas,
+    buscarGlosas,
     buscarLancamentos,
     buscarAlteracoes,
     corrigirLancamento,

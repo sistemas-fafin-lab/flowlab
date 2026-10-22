@@ -19,6 +19,7 @@ import type {
   FiltroGlosaTitulo,
   OperadoraResumo,
   TituloBaixa,
+  TituloGlosa,
   TituloGuia,
   TituloLote,
   TituloReceber,
@@ -150,10 +151,19 @@ interface Props {
   buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
   /** Issue 39: histórico de baixas do título, buscado ao expandir a linha. */
   buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
+  /** Glosas do título, buscadas junto com as baixas ao expandir a linha. */
+  buscarGlosas: (notaId: string) => Promise<TituloGlosa[]>;
   /** Correções de baixas/glosas do título (.scratch/titulos-edicao-lancamentos),
    *  buscadas junto com as baixas ao expandir a linha. */
   buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
 }
+
+const ROTULO_STATUS_GLOSA: Record<string, string> = {
+  aberta: 'Aberta',
+  em_recurso: 'Em recurso',
+  revertida: 'Revertida',
+  definitiva: 'Definitiva',
+};
 
 /** Badge de atraso. Só aparece quando há vencimento e o título ainda tem saldo. */
 const Atraso: React.FC<{ titulo: TituloReceber }> = ({ titulo }) => {
@@ -214,6 +224,7 @@ const TitulosList: React.FC<Props> = ({
   buscarGuias,
   buscarEnvioLotes,
   buscarBaixas,
+  buscarGlosas,
   buscarAlteracoes,
 }) => {
   const [expandido, setExpandido] = useState<string | null>(null);
@@ -242,6 +253,10 @@ const TitulosList: React.FC<Props> = ({
   // correção sempre recalcula o título e avança `statusAtualizadoEm`.
   const [alteracoes, setAlteracoes] = useState<Record<string, AlteracaoLancamento[]>>({});
   const [erroAlteracoes, setErroAlteracoes] = useState<Record<string, string>>({});
+  // Glosas do título: mesma chave e mesma versão das baixas — lançar ou
+  // corrigir glosa recalcula o título e avança `statusAtualizadoEm`.
+  const [glosasTitulo, setGlosasTitulo] = useState<Record<string, TituloGlosa[]>>({});
+  const [erroGlosas, setErroGlosas] = useState<Record<string, string>>({});
   const [busca, setBusca] = useState(filtros.busca);
   // Por título: DtaEnvio ao vivo dos seus lotes, chave = aplisId (issue 15).
   // Ausente = ainda não revalidado ou a consulta falhou — dataEnvioEfetiva cai
@@ -294,7 +309,20 @@ const TitulosList: React.FC<Props> = ({
     setCarregandoBaixas((atual) => ({ ...atual, [notaId]: true }));
     setErroBaixas((atual) => ({ ...atual, [notaId]: '' }));
     setErroAlteracoes((atual) => ({ ...atual, [notaId]: '' }));
+    setErroGlosas((atual) => ({ ...atual, [notaId]: '' }));
     let cancelado = false;
+    void buscarGlosas(notaId)
+      .then((lista) => {
+        if (!cancelado) setGlosasTitulo((atual) => ({ ...atual, [notaId]: lista }));
+      })
+      .catch((err) => {
+        if (!cancelado) {
+          setErroGlosas((atual) => ({
+            ...atual,
+            [notaId]: err instanceof Error ? err.message : 'Não foi possível carregar as glosas.',
+          }));
+        }
+      });
     // Falha do histórico não derruba as baixas: cada um mostra o próprio erro.
     void buscarAlteracoes(notaId)
       .then((lista) => {
@@ -808,7 +836,7 @@ const TitulosList: React.FC<Props> = ({
                                 type="button"
                                 onClick={() => onEditar(titulo)}
                                 disabled={titulo.status === 'cancelada'}
-                                title="Editar título"
+                                title="Editar título (número da nota, baixas e glosas)"
                                 className="p-1.5 rounded-lg text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
                               >
                                 <Pencil className="w-4 h-4" />
@@ -892,6 +920,60 @@ const TitulosList: React.FC<Props> = ({
                                 </table>
                               )}
                             </div>
+
+                            {/* Glosas que compõem o "Glosado" da linha, com o atalho
+                                para corrigi-las — a correção mora no "Editar título". */}
+                            {(erroGlosas[titulo.id] || (glosasTitulo[titulo.id]?.length ?? 0) > 0) && (
+                              <div className="mb-3">
+                                <div className="mb-1 flex items-center gap-3">
+                                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                                    Glosas lançadas
+                                  </p>
+                                  {podeEditar && titulo.status !== 'cancelada' && (
+                                    <button
+                                      type="button"
+                                      onClick={() => onEditar(titulo)}
+                                      className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
+                                    >
+                                      <Pencil className="w-3 h-3" /> Corrigir glosas
+                                    </button>
+                                  )}
+                                </div>
+                                {erroGlosas[titulo.id] ? (
+                                  <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
+                                    <AlertTriangle className="w-3.5 h-3.5" />
+                                    {erroGlosas[titulo.id]}
+                                  </p>
+                                ) : (
+                                  <table className="w-full max-w-3xl text-xs">
+                                    <thead>
+                                      <tr className="text-left text-gray-400">
+                                        <th className="py-1">Lançada em</th>
+                                        <th className="py-1 text-right">Valor</th>
+                                        <th className="py-1 pl-3">Motivo</th>
+                                        <th className="py-1">Origem</th>
+                                        <th className="py-1">Status</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {glosasTitulo[titulo.id]?.map((glosa) => (
+                                        <tr key={glosa.id} className="text-gray-600 dark:text-gray-300 align-top">
+                                          <td className="py-1 pr-3 whitespace-nowrap">{formatDataHora(glosa.createdAt)}</td>
+                                          <td className="py-1 text-right tabular-nums text-amber-600 dark:text-amber-400">
+                                            {formatCurrency(glosa.valor)}
+                                          </td>
+                                          <td className="py-1 pl-3 pr-3">{glosa.motivo || '—'}</td>
+                                          <td className="py-1 pr-3 whitespace-nowrap">
+                                            {glosa.origem === 'aplis' ? 'apLIS' : glosa.comBaixa ? 'Com a baixa' : 'Lançar glosa'}
+                                          </td>
+                                          <td className="py-1 whitespace-nowrap">{ROTULO_STATUS_GLOSA[glosa.status] ?? glosa.status}</td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                )}
+                              </div>
+                            )}
 
                             {/* Correções de baixas/glosas pelo "Editar título" — só
                                 aparece quando houve alguma (ou quando a busca falhou). */}

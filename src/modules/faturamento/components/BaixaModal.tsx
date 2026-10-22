@@ -121,6 +121,23 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
     [saldo, recebido, totalGlosas],
   );
 
+  // Glosa já lançada no título (apLIS, baixas anteriores, "Lançar glosa"). A
+  // glosa digitada aqui SOMA a ela — lote 5774: R$ 88,12 do apLIS + o total de
+  // R$ 750,16 digitado por cima deram R$ 838,28, acima do próprio título.
+  const glosadoAntes = titulo?.valorGlosado ?? 0;
+  const glosadoDepois = Math.round((glosadoAntes + totalGlosas) * 100) / 100;
+  const excedeTotal = titulo !== null && glosadoDepois > (titulo.valorTotal ?? 0);
+  // "Lançar só a diferença": quando o operador digitou numa linha só o TOTAL da
+  // glosa (o que já estava lançado incluso), ela vira o que falta para chegar lá.
+  const diferencaSugerida = glosas.length === 1 && glosadoAntes > 0
+    ? Math.round(((Number(glosas[0].valor) || 0) - glosadoAntes) * 100) / 100
+    : 0;
+
+  const lancarSoDiferenca = () => {
+    if (diferencaSugerida <= 0) return;
+    setGlosas((atual) => atual.map((linha) => ({ ...linha, valor: diferencaSugerida })));
+  };
+
   // Cada novo valor de restante negativo precisa de uma confirmação própria — uma
   // baixa de 250,00 digitada como 2500,00 não pode herdar o "sim" de uma edição
   // anterior (achado 4.4: hoje o saldo negativo é aceito sem aviso nenhum).
@@ -166,6 +183,15 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
     }
     if (glosas.some((g) => !(Number(g.valor) > 0))) {
       setErro('Toda glosa precisa de um valor maior que zero.');
+      return;
+    }
+    // Teto duro, o mesmo das RPCs: glosado não passa do total do título.
+    if (excedeTotal) {
+      setErro(
+        `As glosas somariam ${formatCurrency(glosadoDepois)}, acima do total do título `
+        + `(${formatCurrency(titulo.valorTotal)}). Este título já tem ${formatCurrency(glosadoAntes)} de glosa: `
+        + 'lance só a diferença ou corrija as glosas existentes em "Editar título".',
+      );
       return;
     }
     if (restante < 0 && !confirmaExcedente) {
@@ -292,10 +318,39 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
             )}
           </div>
 
+          {/* Glosa já existente: deixa claro que a nova SOMA, e não substitui. */}
+          {glosadoAntes > 0 && (
+            <div className="flex flex-wrap items-start gap-3 px-4 py-3 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50 dark:bg-amber-900/20 text-sm text-amber-800 dark:text-amber-200">
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span className="flex-1 min-w-[16rem]">
+                Este título já tem{' '}
+                <strong className="tabular-nums">{formatCurrency(glosadoAntes)}</strong> de glosa lançada.
+                A glosa digitada aqui é <strong>somada</strong> a ela
+                {totalGlosas > 0 && (
+                  <> — o glosado do título passa a{' '}
+                    <strong className="tabular-nums">{formatCurrency(glosadoDepois)}</strong>
+                  </>
+                )}
+                . Para corrigir as glosas existentes, use o lápis "Editar título".
+              </span>
+              {diferencaSugerida > 0 && (
+                <button
+                  type="button"
+                  onClick={lancarSoDiferenca}
+                  className="text-xs font-medium text-amber-900 dark:text-amber-100 underline hover:no-underline text-left"
+                >
+                  O valor digitado já inclui os {formatCurrency(glosadoAntes)}? Lançar só a diferença
+                  ({formatCurrency(diferencaSugerida)})
+                </button>
+              )}
+            </div>
+          )}
+
           {/* Saldo negativo é aceito pelo banco (pagamento a maior existe de
               verdade), mas não pode passar de um clique distraído — exige
-              confirmação explícita mostrando quanto excede (achado 4.4). */}
-          {restante < 0 && (
+              confirmação explícita mostrando quanto excede (achado 4.4).
+              Glosa acima do total do título nem chega aqui: é recusada. */}
+          {restante < 0 && !excedeTotal && (
             <label className="flex items-start gap-2 px-4 py-3 rounded-xl border border-rose-200 dark:border-rose-900/50 bg-rose-50 dark:bg-rose-900/20 text-sm text-rose-700 dark:text-rose-300">
               <input
                 type="checkbox"
