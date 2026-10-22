@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock, Search, SlidersHorizontal, UserPlus, KanbanSquare, Ban, UserCheck } from 'lucide-react';
+import { Users, Edit, Shield, Plus, X, Save, UserCog, User, ShieldCheck, DollarSign, Settings, Check, Trash2, Lock, Search, SlidersHorizontal, UserPlus, KanbanSquare, Ban, UserCheck, Building2 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import { useNotification } from '../hooks/useNotification';
 import { useDialog } from '../hooks/useDialog';
@@ -10,6 +10,7 @@ import { useBoards } from '../modules/board';
 import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
 import NewUserForm from './NewUserForm';
+import DepartamentosPage from '../modules/rh/components/DepartamentosPage';
 
 // Type for approval level configuration from database
 interface ApprovalLevelConfig {
@@ -68,7 +69,9 @@ const UserManagement: React.FC = () => {
   const topRef = React.useRef<HTMLDivElement>(null);
 
   // ─── Tab management ─────────────────────────────────────────────────────────
-  const [activeTab, setActiveTab] = useState<'users' | 'roles'>('users');
+  const [activeTab, setActiveTab] = useState<'users' | 'roles' | 'departamentos'>('users');
+  // Departamentos e gestores (a mesma tela de RH › Departamentos), para quem os gerencia.
+  const podeGerirDepartamentos = hasPermission(userProfile?.permissions || [], 'canManageDepartamentos');
 
   // ─── Search & filter ────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState('');
@@ -710,7 +713,7 @@ const UserManagement: React.FC = () => {
       <div className="flex justify-between items-center animate-fade-in-up">
         <div>
           <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">Gerenciamento de Usuários</h2>
-          <p className="text-gray-500 dark:text-gray-400">Gerencie perfis, cargos e permissões do sistema</p>
+          <p className="text-gray-500 dark:text-gray-400">Gerencie perfis, cargos, permissões e departamentos do sistema</p>
         </div>
         {hasPermission(userProfile?.permissions || [], 'canManageUsers') && activeTab === 'users' && (
           <div className="flex items-center gap-3">
@@ -756,7 +759,22 @@ const UserManagement: React.FC = () => {
           <Shield className="w-4 h-4" />
           Cargos e Permissões
         </button>
+        {podeGerirDepartamentos && (
+          <button
+            onClick={() => setActiveTab('departamentos')}
+            className={`flex items-center gap-2 px-5 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+              activeTab === 'departamentos'
+                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+            }`}
+          >
+            <Building2 className="w-4 h-4" />
+            Departamentos
+          </button>
+        )}
       </div>
+
+      {activeTab === 'departamentos' && podeGerirDepartamentos && <DepartamentosPage embutido />}
 
       {/* Approval Level Configuration Panel */}
       {activeTab === 'users' && showLevelConfig && (

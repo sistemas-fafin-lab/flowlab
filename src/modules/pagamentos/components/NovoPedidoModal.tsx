@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, FileText, FileUp, Plus, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
@@ -13,7 +13,7 @@ import {
   validateCpfCnpj,
 } from '../../../utils/paymentUtils';
 import { FORMAS, paraISO, rotuloDiaCurto, TIPOS } from '../domain/filtrosPagamentos';
-import { usePaymentAuthorizers } from '../hooks/usePaymentAuthorizers';
+import { useContextoPagamento } from '../hooks/useContextoPagamento';
 import type { usePaymentRequest } from '../hooks/usePaymentRequest';
 import { CAMPO, ROTULO } from './estilos';
 
@@ -41,7 +41,18 @@ const TAMANHO_MAXIMO = 10 * 1024 * 1024;
 
 const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPaymentDate, avisos }) => {
   const { user, userProfile } = useAuth();
-  const { authorizers, loading: carregandoAutorizadores, error: erroAutorizadores } = usePaymentAuthorizers();
+  // Quem autoriza: os gestores aptos do departamento do RH de quem pede (decisão de 22/10).
+  const { contexto, loading: carregandoContexto, error: erroContexto } = useContextoPagamento();
+  const autorizadores = contexto?.autorizadores ?? [];
+  // Sem departamento no RH ou sem gestor apto, não dá para pedir (o banco também recusa).
+  const bloqueio =
+    !contexto || contexto.souAutorizador
+      ? null
+      : contexto.departamentoId === null
+        ? 'sem_departamento'
+        : autorizadores.length === 0
+          ? 'sem_gestor'
+          : null;
   const [enviando, setEnviando] = useState(false);
   const [dataSugerida, setDataSugerida] = useState(() => paraISO(getNextPaymentDate()));
   const [previas, setPrevias] = useState<(string | null)[]>([]);
@@ -64,6 +75,18 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
   });
 
   const alterar = (patch: Partial<PaymentRequestFormValues>) => setForm((atual) => ({ ...atual, ...patch }));
+
+  // Gestor apto do próprio departamento autoriza direto; com um gestor só, ele já vem escolhido.
+  useEffect(() => {
+    if (!contexto) return;
+    if (contexto.souAutorizador && user?.id) {
+      const eu = user.id;
+      setForm((atual) => ({ ...atual, autorizadoPorId: eu, autorizadoPor: userProfile?.name ?? '' }));
+    } else if (contexto.autorizadores.length === 1) {
+      const [unico] = contexto.autorizadores;
+      setForm((atual) => (atual.autorizadoPorId ? atual : { ...atual, autorizadoPorId: unico.id, autorizadoPor: unico.name }));
+    }
+  }, [contexto, user?.id, userProfile?.name]);
   const dataPagamento = typeof form.dataPagamento === 'string' ? form.dataPagamento : paraISO(form.dataPagamento);
 
   const escolherData = (data: string) => {
@@ -79,7 +102,7 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
   };
 
   const escolherAutorizador = (id: string) => {
-    const autorizador = authorizers.find((a) => a.id === id);
+    const autorizador = autorizadores.find((a) => a.id === id);
     alterar({ autorizadoPorId: autorizador?.id ?? '', autorizadoPor: autorizador?.name ?? '' });
   };
 
@@ -180,6 +203,13 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
 
         <form onSubmit={enviar}>
           <div className="px-6 py-5 space-y-5">
+            {bloqueio && (
+              <p role="alert" className="px-4 py-3 rounded-xl text-sm bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
+                {bloqueio === 'sem_departamento'
+                  ? 'Você não está em nenhum departamento no RH, e o pedido de pagamento precisa do gestor do seu departamento. Peça ao RH para colocar você no seu departamento.'
+                  : `O departamento ${contexto?.departamento ?? ''} ainda não tem gestor que autorize pagamentos, então não dá para pedir pagamento agora. Fale com o RH.`}
+              </p>
+            )}
             <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800">
               <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-300 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-blue-800 dark:text-blue-200">
@@ -311,37 +341,50 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
               </div>
               <div>
                 <label className={ROTULO}>Autorizado por *</label>
-                {/* Só aparece quem tem a permissão Ser Autorizador de Pagamentos; o trigger
+                {/* Só os gestores aptos do departamento do RH de quem pede; o trigger
                     payment_request_guard recusa qualquer outra pessoa. */}
-                <Select
-                  value={form.autorizadoPorId}
-                  onChange={escolherAutorizador}
-                  options={authorizers.map((a) => ({ value: a.id, label: a.name, description: a.department ?? undefined }))}
-                  placeholder={carregandoAutorizadores ? 'Carregando…' : 'Selecione quem autorizou'}
-                  disabled={carregandoAutorizadores || authorizers.length === 0}
-                  searchable
-                  searchPlaceholder="Buscar nome ou setor"
-                  emptyText="Ninguém com esse nome pode autorizar."
-                  controlClass={`${CAMPO} disabled:opacity-60 disabled:cursor-not-allowed`}
-                  ariaLabel="Autorizado por"
-                />
-                {erroAutorizadores ? (
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">{erroAutorizadores}</p>
-                ) : !carregandoAutorizadores && authorizers.length === 0 ? (
-                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
-                    Ninguém pode autorizar pagamentos ainda. Peça a quem gerencia cargos para marcar "Ser Autorizador de
-                    Pagamentos" no cargo de quem autoriza.
+                {contexto?.souAutorizador ? (
+                  <p className="px-4 py-3 rounded-xl text-sm bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-800 text-violet-800 dark:text-violet-200">
+                    Você é gestor de <strong>{contexto.departamento}</strong> e autoriza pagamentos: o pedido já nasce
+                    autorizado e vai direto para a aprovação do Financeiro.
                   </p>
-                ) : form.autorizadoPorId && form.autorizadoPorId === user?.id ? (
-                  <p className="text-xs text-violet-700 dark:text-violet-300 mt-2">
-                    Você é o autorizador: o pedido já nasce autorizado e vai direto para a aprovação do Financeiro.
-                  </p>
-                ) : form.autorizadoPorId ? (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    {form.autorizadoPor} recebe um e-mail para autorizar no Flow LAB; só depois o pedido vai para o Financeiro.
+                ) : bloqueio ? (
+                  <p className="px-4 py-3 rounded-xl text-sm bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
+                    {bloqueio === 'sem_departamento' ? (
+                      <>Você não está em nenhum departamento no RH. Peça ao RH para colocar você no seu departamento; até lá não dá para pedir pagamento.</>
+                    ) : (
+                      <>
+                        O departamento <strong>{contexto?.departamento}</strong> ainda não tem gestor que autorize pagamentos.
+                        Fale com o RH; até lá não dá para pedir pagamento.
+                      </>
+                    )}
                   </p>
                 ) : (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Solicitado por {form.solicitadoPor || 'você'}.</p>
+                  <>
+                    <Select
+                      value={form.autorizadoPorId}
+                      onChange={escolherAutorizador}
+                      options={autorizadores.map((a) => ({ value: a.id, label: a.name }))}
+                      placeholder={carregandoContexto ? 'Carregando…' : 'Selecione o gestor que autoriza'}
+                      disabled={carregandoContexto || !!erroContexto}
+                      searchable={autorizadores.length > 6}
+                      searchPlaceholder="Buscar nome"
+                      emptyText="Nenhum gestor com esse nome."
+                      controlClass={`${CAMPO} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      ariaLabel="Autorizado por"
+                    />
+                    {erroContexto ? (
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-2">{erroContexto}</p>
+                    ) : form.autorizadoPorId ? (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        {form.autorizadoPor} recebe um e-mail para autorizar no Flow LAB; só depois o pedido vai para o Financeiro.
+                      </p>
+                    ) : contexto ? (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Gestores de {contexto.departamento} que autorizam pagamentos.
+                      </p>
+                    ) : null}
+                  </>
                 )}
               </div>
             </div>
@@ -406,7 +449,7 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
             </button>
             <button
               type="submit"
-              disabled={enviando}
+              disabled={enviando || carregandoContexto || !!bloqueio || !!erroContexto}
               className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center font-medium shadow-md shadow-blue-500/25"
             >
               {enviando ? (

@@ -6,7 +6,9 @@
  * em melhor esforço, logo depois de:
  *   - criado   → o pedido foi criado: avisa o autorizador (ou, se quem pediu é o próprio
  *                autorizador, o Financeiro);
- *   - decidido → o autorizador decidiu: avisa o solicitante e, se autorizou, o Financeiro.
+ *   - decidido → o autorizador decidiu: avisa o solicitante e, se autorizou, o Financeiro;
+ *   - transferido → na aba Departamentos, os pedidos de um gestor passaram a outro: avisa
+ *                o novo autorizador (só quem tem canManageDepartamentos).
  *
  * O cliente só manda `{ id, evento }`. Destinatários e conteúdo ficam no servidor, que
  * confere quem chama e se o pedido está no estado que o evento diz, logo depois da ação
@@ -74,6 +76,20 @@ async function financeiro(supabase: Supabase): Promise<Pessoa[]> {
   return (data ?? []).filter((p) => !!p.email).map((p) => ({ id: p.id as string, email: p.email as string }));
 }
 
+/** Quem chama tem "Gerenciar Departamentos" (pode avisar de uma transferência). */
+async function gereDepartamentos(supabase: Supabase, userId: string): Promise<boolean> {
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('deleted_at, disabled_at, custom_roles(permissions)')
+    .eq('id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data || data.deleted_at || data.disabled_at) return false;
+  const cargo = data.custom_roles as { permissions?: unknown } | { permissions?: unknown }[] | null;
+  const permissoes = (Array.isArray(cargo) ? cargo[0] : cargo)?.permissions;
+  return Array.isArray(permissoes) && permissoes.includes('canManageDepartamentos');
+}
+
 async function destinatarios(supabase: Supabase, para: Destinatario, pedido: PedidoPagamentoRow): Promise<Pessoa[]> {
   if (para === 'autorizador') return pessoasAtivas(supabase, pedido.autorizado_por_id ? [pedido.autorizado_por_id] : []);
   if (para === 'financeiro') return financeiro(supabase);
@@ -99,7 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   const { id, evento } = (req.body ?? {}) as { id?: unknown; evento?: unknown };
   if (typeof id !== 'string' || !id || typeof evento !== 'string' || !EVENTOS.includes(evento as EventoPagamento)) {
-    res.status(400).json({ success: false, error: 'Campos obrigatórios: id e evento (criado ou decidido).' });
+    res.status(400).json({ success: false, error: 'Campos obrigatórios: id e evento (criado, decidido ou transferido).' });
     return;
   }
 
@@ -120,7 +136,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     const pedido = linha as unknown as PedidoPagamentoRow;
 
-    const plano = planejarEnvios(pedido, evento as EventoPagamento, caller.user.id, new Date());
+    const podeTransferir = evento === 'transferido' && (await gereDepartamentos(supabase, caller.user.id));
+    const plano = planejarEnvios(pedido, evento as EventoPagamento, caller.user.id, new Date(), podeTransferir);
     if (plano.erro) {
       res.status(plano.status ?? 400).json({ success: false, error: plano.erro });
       return;

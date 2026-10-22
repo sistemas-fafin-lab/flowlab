@@ -6,14 +6,15 @@
 
 import { escapeHtml } from './html.js';
 
-export type EventoPagamento = 'criado' | 'decidido';
-export const EVENTOS: readonly EventoPagamento[] = ['criado', 'decidido'];
+export type EventoPagamento = 'criado' | 'decidido' | 'transferido';
+export const EVENTOS: readonly EventoPagamento[] = ['criado', 'decidido', 'transferido'];
 
 export type ModeloPagamento =
   | 'payment_awaiting_authorization'
   | 'payment_authorized'
   | 'payment_authorization_rejected'
-  | 'payment_ready_for_approval';
+  | 'payment_ready_for_approval'
+  | 'payment_authorization_transferred';
 
 export type Destinatario = 'autorizador' | 'solicitante' | 'financeiro';
 
@@ -88,12 +89,17 @@ export function formatarDataPagamento(iso: string | null): string {
 export const caminhoDoPedido = (id: string, aba: Envio['aba']): string =>
   `/requests/payments?aba=${aba}&pedido=${encodeURIComponent(id)}`;
 
-/** O que avisar e a quem, conferindo que o pedido está no estado que o evento diz. */
+/**
+ * O que avisar e a quem, conferindo que o pedido está no estado que o evento diz.
+ * `gereDepartamentos`: quem chama tem canManageDepartamentos (só vale para "transferido",
+ * a transferência feita na aba Departamentos).
+ */
 export function planejarEnvios(
   pedido: PedidoPagamentoRow,
   evento: EventoPagamento,
   chamadorId: string,
   agora: Date,
+  gereDepartamentos = false,
 ): Plano {
   const codigo = pedido.codigo_compacto || pedido.codigo;
   const valor = formatarValor(pedido.valor_total);
@@ -107,6 +113,25 @@ export function planejarEnvios(
     conteudo: `${codigo} (${valor}, ${pedido.fornecedor}) foi autorizado por ${autorizador}.`,
     tipo: 'info',
   };
+
+  if (evento === 'transferido') {
+    if (!gereDepartamentos) {
+      return { envios: [], status: 403, erro: 'Só quem gerencia departamentos avisa sobre transferência.' };
+    }
+    if (pedido.status !== 'awaiting_authorization' || !recente(pedido.updated_at, agora)) return { envios: [] };
+    return {
+      envios: [
+        {
+          para: 'autorizador',
+          modelo: 'payment_authorization_transferred',
+          aba: 'autorizacao',
+          titulo: 'Pedido de pagamento passou para você',
+          conteudo: `${solicitante} pediu ${valor} para ${pedido.fornecedor} (${codigo}); o pedido foi transferido para você autorizar.`,
+          tipo: 'warning',
+        },
+      ],
+    };
+  }
 
   if (evento === 'criado') {
     if (pedido.solicitante_id !== chamadorId) {
