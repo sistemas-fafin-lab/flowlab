@@ -77,11 +77,16 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
   const [erro, setErro] = useState<string | null>(null);
 
   const saldo = titulo?.valorSaldo ?? 0;
+  // O saldo inclui a glosa aberta/em recurso (ainda é dinheiro pendente), mas o
+  // que esta baixa pode explicar é só o que não tem baixa nem glosa nenhuma.
+  const semExplicacao = titulo
+    ? Math.round(((titulo.valorTotal ?? 0) - titulo.valorRecebido - titulo.valorGlosado) * 100) / 100
+    : 0;
 
   // Reabrir o modal em outro título não pode herdar os valores do anterior.
   useEffect(() => {
     if (!titulo) return;
-    setValorRecebido(modo === 'glosa' ? '' : saldo > 0 ? saldo.toFixed(2) : '');
+    setValorRecebido(modo === 'glosa' ? '' : semExplicacao > 0 ? semExplicacao.toFixed(2) : '');
     setDataRecebimento(hojeIso());
     setBancoNome('');
     setFormaRecebimento('');
@@ -91,7 +96,7 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
     setGlosas(modo === 'glosa' ? [novaLinha()] : []);
     setConfirmaExcedente(false);
     setErro(null);
-  }, [titulo, saldo, modo]);
+  }, [titulo, semExplicacao, modo]);
 
   const carregarGuias = useCallback(async () => {
     if (!titulo) return;
@@ -117,8 +122,8 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
   // O que sobra depois desta baixa e destas glosas. Negativo significa que o
   // operador lançou mais do que o título deve.
   const restante = useMemo(
-    () => Math.round((saldo - recebido - totalGlosas) * 100) / 100,
-    [saldo, recebido, totalGlosas],
+    () => Math.round((semExplicacao - recebido - totalGlosas) * 100) / 100,
+    [semExplicacao, recebido, totalGlosas],
   );
 
   // Glosa já lançada no título (apLIS, baixas anteriores, "Lançar glosa"). A
@@ -195,7 +200,7 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
       return;
     }
     if (restante < 0 && !confirmaExcedente) {
-      setErro('Recebido + glosas excede o saldo do título. Confirme abaixo para registrar mesmo assim.');
+      setErro('Recebido + glosas excede o que falta explicar no título. Confirme abaixo para registrar mesmo assim.');
       return;
     }
 
@@ -359,7 +364,7 @@ const BaixaModal: React.FC<Props> = ({ titulo, modo, onFechar, onRegistrar, onLa
                 className="mt-0.5 rounded border-rose-300 dark:border-rose-700"
               />
               <span>
-                Recebido + glosas excede o saldo do título em{' '}
+                Recebido + glosas excede o que falta explicar no título (sem baixa nem glosa) em{' '}
                 <strong className="tabular-nums">{formatCurrency(Math.abs(restante))}</strong>.
                 Confirmo que quero registrar mesmo assim.
               </span>

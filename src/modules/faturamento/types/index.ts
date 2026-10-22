@@ -679,7 +679,8 @@ export interface TituloReceber {
   valorTotal: number;
   valorRecebido: number;
   valorGlosado: number;
-  /** Derivada no banco: total - recebido - glosado. */
+  /** Derivada no banco: total - recebido - glosa definitiva. Glosa aberta ou em
+   *  recurso continua no saldo: ainda é valor pendente. */
   valorSaldo: number;
   status: TituloStatus;
   observacoes: string | null;
