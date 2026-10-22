@@ -19,3 +19,13 @@
 - Pendências do 02: a tabela vazia que sobra quando o usuário cancela depois de "+ Nova tabela" agora se exclui pelo bloco (não há limpeza automática, de propósito). O "separa da linha geral" numa tabela inativa é barrado no modal e no banco.
 - Conferido num Postgres local (migrações 170000 → 180000 → 190000, reaplicável) em 12 cenários: renomear e propagar, nome repetido, nome vazio, troca de fonte, Particular/PARTICULAR protegidas, vencimento da Particular editável, inativa recusando insert por id, por texto e linha movida, edição de preço em tabela inativa, excluir com linhas e sem linhas, reativar.
 - Falta conferir no navegador. Aplicar a migração antes de publicar o front.
+- 2026-10-22 — Conferido no navegador contra o Supabase de teste (migrações 170000, 180000 e 190000 aplicadas), com tabelas "TESTE" na fonte AMHP-DF, apagadas no fim.
+  - Ok:
+    - renomear (a linha mostra o nome novo sem recarregar);
+    - renomear para nome repetido sem diferenciar maiúsculas é recusado;
+    - desativar (some da lista do modal de linha, a linha continua na tela, e na edição a tabela aparece como "(inativa)");
+    - reativar;
+    - excluir desabilitado com linhas e funcionando sem linhas;
+    - "Particular" e "PARTICULAR" protegidas.
+  - Não conferido pela tela: linha nova recusada em tabela inativa pelo banco (exige corrida entre duas abas); fica a conferência no Postgres local acima.
+  - **Lacuna em relação à spec:** a spec pede que o bloco "Tabelas desta fonte" permita criar, editar, desativar e excluir. Hoje só se cria tabela pelo "+ Nova tabela" do campo de escolha (modal de linha e importação); o bloco não tem botão de criar.

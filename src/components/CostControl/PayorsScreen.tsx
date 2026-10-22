@@ -946,6 +946,28 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     setPayorFormOpen(true);
   };
 
+  // Memorizado: o modal reinicia o formulário quando `payor` muda, e um objeto
+  // novo a cada render apagava o que foi digitado sempre que a tela
+  // re-renderizava — ex.: ao criar uma tabela pelo "+ Nova tabela".
+  const payorDoFormulario = useMemo<PayorEditData | null>(
+    () =>
+      editingLinha
+        ? {
+            payor: editingLinha.payor,
+            table: editingLinha.table,
+            tabelaId: editingLinha.tabelaId,
+            tus: editingLinha.tus,
+            price: editingLinha.price,
+            exameId: editingLinha.exameId,
+          }
+        : creatingNovaLinha
+        ? { payor: fontePagadoraSelecionada ?? '', table: '', tabelaId: null, tus: '', price: 0, exameId: null }
+        : creatingNovaFontePagadora
+        ? { payor: '', table: '', tabelaId: null, tus: '', price: 0, exameId: null }
+        : null,
+    [editingLinha, creatingNovaLinha, creatingNovaFontePagadora, fontePagadoraSelecionada]
+  );
+
   const handleCloseFormModal = () => {
     if (savingPayor) return;
     setPayorFormOpen(false);
@@ -1297,22 +1319,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           tabelasAssociadas={tabelasAssociadas}
           onCriarTabela={createTabelaAssociada}
           editingPayorId={editingLinha?.payorId}
-          payor={
-            editingLinha
-              ? {
-                  payor: editingLinha.payor,
-                  table: editingLinha.table,
-                  tabelaId: editingLinha.tabelaId,
-                  tus: editingLinha.tus,
-                  price: editingLinha.price,
-                  exameId: editingLinha.exameId,
-                }
-              : creatingNovaLinha
-              ? { payor: fontePagadoraSelecionada ?? '', table: '', tabelaId: null, tus: '', price: 0, exameId: null }
-              : creatingNovaFontePagadora
-              ? { payor: '', table: '', tabelaId: null, tus: '', price: 0, exameId: null }
-              : null
-          }
+          payor={payorDoFormulario}
           onClose={handleCloseFormModal}
           onSave={handleSavePayorEdit}
           saving={savingPayor}

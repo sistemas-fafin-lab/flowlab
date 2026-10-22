@@ -19,3 +19,7 @@
 - O upsert da importação continua casando pelo nome exato do cadastro, como a prévia (`calcularAtendidoImportacao`): o casamento por id nos dois fica para o ticket 04.
 - Pendências para o 03: "+ Nova tabela" grava o cadastro na hora, então cancelar o modal depois deixa a tabela criada sem linhas (excluir vem no 03). E o caminho "separa da linha geral" cria uma linha nova na tabela da linha editada, mesmo que ela esteja inativa: o 03 precisa barrar isso.
 - Falta conferir no navegador.
+- 2026-10-22 — Conferido no navegador contra o Supabase de teste (migrações 170000, 180000 e 190000 aplicadas), com tabelas "TESTE" na fonte AMHP-DF, apagadas no fim.
+  - Ok: campo desabilitado sem fonte, lista de ativas em ordem alfabética, "+ Nova tabela" com vencimento, "teste a" recusado ao lado de "TESTE A", e a linha salva na tabela nova.
+  - **Bug achado e corrigido:** criar uma tabela pelo "+ Nova tabela" apagava o formulário inteiro (fonte e tabela). `PayorsScreen` passava `payor` como objeto novo a cada render, e o modal reinicia o formulário quando `payor` muda; criar a tabela re-renderiza a tela. Agora `payorDoFormulario` é memorizado. Conferido de novo: a tabela nova já vem escolhida.
+  - Importação por planilha não foi conferida no navegador.
