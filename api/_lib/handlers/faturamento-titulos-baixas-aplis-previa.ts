@@ -15,7 +15,9 @@
  * tem saldo aberto (≥ R$ 1,00) e diferença no apLIS; fechado, ficaria na prévia
  * para sempre como pulado. As glosas já lançadas do apLIS (`glosas.origem`)
  * descontam da sugestão; cada glosa leva o `loteId` (uuid do lote no sistema)
- * que `fat_lancar_glosas_aplis` grava.
+ * que `fat_lancar_glosas_aplis` grava. As glosas digitadas à mão que as do
+ * apLIS substituem vêm em `glosasSubstituidas` — o título entra mesmo com o
+ * saldo fechado ou negativo (glosado em dobro, .scratch/faturamento-glosas-sincronizar-aplis).
  *
  * Fonte do apLIS: MySQL de backup (`recebidosDosLotes`, `recebidosPorDataDosLotes`
  * e `diferencasDosLotes`), ~1 dia de atraso — `meta.dadoAte` diz até quando.
@@ -36,7 +38,7 @@ import type { BaixaSistema, BaixaSugerida, RecebidoAplisNaData, TipoComBaixa } f
 import { centavos, conferirTitulo, somaCentavos } from '../faturamento/conferenciaAplis.js';
 import type { DivergenciaAplis, TipoDivergenciaAplis, TituloConferencia } from '../faturamento/conferenciaAplis.js';
 import { glosasSugeridas } from '../faturamento/glosasAplis.js';
-import type { GlosaSistema, GlosaSugerida, PuladoGlosa } from '../faturamento/glosasAplis.js';
+import type { GlosaSistema, GlosaSubstituida, GlosaSugerida, PuladoGlosa } from '../faturamento/glosasAplis.js';
 import { ErroSupabase, titulosParaConferir, valorNumerico } from '../faturamento/titulosConferencia.js';
 import type { TituloParaConferir } from '../faturamento/titulosConferencia.js';
 import { getSupabaseUserClient } from '../supabase.js';
@@ -60,6 +62,8 @@ interface TituloPrevia {
   /** Saldo do título depois das baixas sugeridas. */
   saldo: number;
   glosas: (GlosaSugerida & { loteId: string })[];
+  /** Glosas digitadas à mão que saem quando as do apLIS entram. */
+  glosasSubstituidas: GlosaSubstituida[];
   puladoGlosa: PuladoGlosa | null;
 }
 
@@ -99,10 +103,11 @@ async function glosasDoSistema(
   for (let i = 0; i < idsNota.length; i += BLOCO_IDS_NOTA) {
     const { data, error } = await supabase
       .from('glosas')
-      .select('nota_id, origem, codigo_glosa, motivo, status, valor, lotes(aplis_id)')
+      .select('id_glosa, nota_id, origem, codigo_glosa, motivo, status, valor, lotes(aplis_id)')
       .in('nota_id', idsNota.slice(i, i + BLOCO_IDS_NOTA));
     if (error) throw new ErroSupabase(`glosas: ${error.message}`);
     for (const linha of (data ?? []) as unknown as {
+      id_glosa: string;
       nota_id: string;
       origem: string | null;
       codigo_glosa: string | null;
@@ -114,6 +119,7 @@ async function glosasDoSistema(
       const idLote = Number(linha.lotes?.aplis_id ?? NaN);
       const glosas = porNota.get(linha.nota_id) ?? [];
       glosas.push({
+        id: linha.id_glosa,
         origem: linha.origem === 'aplis' ? 'aplis' : null,
         idLote: Number.isInteger(idLote) ? idLote : null,
         codigo: linha.codigo_glosa,
@@ -247,13 +253,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         : [];
       const saldoCentavos = centavos(titulo.valorTotal) - centavos(titulo.recebidoSistema)
         - centavos(titulo.glosadoSistema) - somaCentavos(baixas);
-      const { glosas, puladoGlosa } = glosasSugeridas({
+      const { glosas, substituir, puladoGlosa } = glosasSugeridas({
         tipo: divergencia?.tipo ?? null,
         saldo: saldoCentavos / 100,
         glosasSistema: glosasSistema.get(titulo.idNota) ?? [],
         diferencas: diferencasDoTitulo(titulo),
       });
-      const entraPelaGlosa = saldoCentavos >= SALDO_MINIMO_CENTAVOS && (glosas.length > 0 || puladoGlosa !== null);
+      const entraPelaGlosa = substituir.length > 0
+        || (saldoCentavos >= SALDO_MINIMO_CENTAVOS && (glosas.length > 0 || puladoGlosa !== null));
       if (!geraBaixa && !entraPelaGlosa) continue;
       previa.push({
         idNota: titulo.idNota,
@@ -265,6 +272,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         baixas,
         saldo: saldoCentavos / 100,
         glosas: glosas.map((glosa) => ({ ...glosa, loteId: titulo.idLoteSistema[glosa.idLote] })),
+        glosasSubstituidas: substituir,
         puladoGlosa,
       });
     }

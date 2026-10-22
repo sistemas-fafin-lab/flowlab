@@ -305,6 +305,15 @@ export interface GlosaSugeridaAplis {
 /** A glosa do apLIS bate com a do demonstrativo importado (tolerância R$ 0,01)? */
 export type ConferenciaDemonstrativoAplis = 'confere' | 'difere';
 
+/** Glosa digitada à mão que sai do título quando as do apLIS entram. */
+export interface GlosaSubstituidaAplis {
+  /** `glosas.id_glosa`. */
+  id: string;
+  motivo: string;
+  status: StatusGlosaAplis;
+  valor: number;
+}
+
 /** Por que o título não tem glosa a lançar. 'tipo': `sistema-maior` ou `lote-ausente`. */
 export type PuladoGlosaAplis = 'sem-motivo' | 'glosa-manual' | 'passa-do-saldo' | 'tipo';
 
@@ -323,6 +332,8 @@ export interface TituloPreviaBaixasAplis {
   /** Saldo do título depois das baixas sugeridas. */
   saldo: number;
   glosas: GlosaSugeridaAplis[];
+  /** Glosas digitadas à mão que as do apLIS substituem (saem na mesma chamada). */
+  glosasSubstituidas: GlosaSubstituidaAplis[];
   puladoGlosa: PuladoGlosaAplis | null;
 }
 

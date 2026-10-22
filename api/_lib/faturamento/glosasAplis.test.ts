@@ -19,6 +19,7 @@ function diferenca(overrides: Partial<DiferencaAplis> = {}): DiferencaAplis {
 
 function glosaSistema(overrides: Partial<GlosaSistema> = {}): GlosaSistema {
   return {
+    id: 'glosa-1',
     origem: 'aplis',
     idLote: 6228,
     codigo: '2902',
@@ -129,7 +130,7 @@ describe('glosasSugeridas', () => {
       const resultado = glosasSugeridas(entrada({
         diferencas: [diferenca({ motivoCodigo: null, motivoDescricao: null, desMotivoGlosa: null })],
       }));
-      expect(resultado).toEqual({ glosas: [], puladoGlosa: 'sem-motivo' });
+      expect(resultado).toEqual({ glosas: [], substituir: [], puladoGlosa: 'sem-motivo' });
     });
 
     it('diferença sem motivo junto de uma com motivo: lança a com motivo', () => {
@@ -144,15 +145,15 @@ describe('glosasSugeridas', () => {
     });
 
     it('sem diferença no apLIS → nada, sem pulado', () => {
-      expect(glosasSugeridas(entrada({ diferencas: [] }))).toEqual({ glosas: [], puladoGlosa: null });
+      expect(glosasSugeridas(entrada({ diferencas: [] }))).toEqual({ glosas: [], substituir: [], puladoGlosa: null });
       expect(glosasSugeridas(entrada({
         diferencas: [], tipo: 'sistema-maior', glosasSistema: [glosaSistema({ origem: null })],
       })))
-        .toEqual({ glosas: [], puladoGlosa: null });
+        .toEqual({ glosas: [], substituir: [], puladoGlosa: null });
     });
 
     it.each(['sistema-maior', 'lote-ausente'] as const)('título %s → tipo', (tipo) => {
-      expect(glosasSugeridas(entrada({ tipo }))).toEqual({ glosas: [], puladoGlosa: 'tipo' });
+      expect(glosasSugeridas(entrada({ tipo }))).toEqual({ glosas: [], substituir: [], puladoGlosa: 'tipo' });
     });
 
     it.each(['so-no-aplis', 'aplis-maior'] as const)('título %s (com baixa) recebe glosa', (tipo) => {
@@ -164,9 +165,11 @@ describe('glosasSugeridas', () => {
       expect(glosasSugeridas(entrada({ tipo: 'sistema-maior', diferencas: semMotivo })).puladoGlosa).toBe('tipo');
     });
 
-    it('título com glosa digitada à mão (sem origem) → glosa-manual', () => {
-      expect(glosasSugeridas(entrada({ glosasSistema: [glosaSistema({ origem: null, idLote: null, codigo: null })] })))
-        .toEqual({ glosas: [], puladoGlosa: 'glosa-manual' });
+    it('glosa digitada à mão e diferença sem motivo no apLIS → glosa-manual', () => {
+      expect(glosasSugeridas(entrada({
+        glosasSistema: [glosaSistema({ origem: null, idLote: null, codigo: null })],
+        diferencas: [diferenca(), diferenca({ motivoCodigo: null, motivoDescricao: null, desMotivoGlosa: null })],
+      }))).toEqual({ glosas: [], substituir: [], puladoGlosa: 'glosa-manual' });
     });
 
     it('glosa já lançada do apLIS não conta como manual', () => {
@@ -179,7 +182,7 @@ describe('glosasSugeridas', () => {
 
     it('glosa que passa do saldo por mais de R$ 1,00 → passa-do-saldo', () => {
       expect(glosasSugeridas(entrada({ saldo: 98.99, diferencas: [diferenca({ valor: 100 })] })))
-        .toEqual({ glosas: [], puladoGlosa: 'passa-do-saldo' });
+        .toEqual({ glosas: [], substituir: [], puladoGlosa: 'passa-do-saldo' });
     });
 
     it('glosa que passa do saldo até R$ 1,00 (arredondamento) entra', () => {
@@ -192,14 +195,14 @@ describe('glosasSugeridas', () => {
         saldo: 150,
         diferencas: [diferenca({ valor: 100 }), diferenca({ idLote: 6229, valor: 100 })],
       }));
-      expect(resultado).toEqual({ glosas: [], puladoGlosa: 'passa-do-saldo' });
+      expect(resultado).toEqual({ glosas: [], substituir: [], puladoGlosa: 'passa-do-saldo' });
     });
   });
 
   describe('glosas do apLIS já lançadas', () => {
     it('lançada inteira: não sugere de novo, nem como pulado', () => {
       expect(glosasSugeridas(entrada({ glosasSistema: [glosaSistema({ valor: 100 })] })))
-        .toEqual({ glosas: [], puladoGlosa: null });
+        .toEqual({ glosas: [], substituir: [], puladoGlosa: null });
     });
 
     it('o apLIS aumentou a glosa do lote: sugere só a diferença', () => {
@@ -224,7 +227,7 @@ describe('glosasSugeridas', () => {
         diferencas: [diferenca({ codEventoFatur: 18, valor: 100 })],
         glosasSistema: [glosaSistema({ status: 'aberta', valor: 100 })],
       }));
-      expect(resultado).toEqual({ glosas: [], puladoGlosa: null });
+      expect(resultado).toEqual({ glosas: [], substituir: [], puladoGlosa: null });
     });
 
     it('com mais de um status no lote + código, desconta primeiro do mesmo status', () => {
@@ -295,6 +298,95 @@ describe('glosasSugeridas', () => {
         [diferenca({ valor: 150, demonstrativoValor: 150 })],
         [glosaSistema({ valor: 100 })],
       )).toEqual(['confere']);
+    });
+  });
+  describe('glosa total sem motivo (situação 27)', () => {
+    const semMotivo = { motivoCodigo: null, motivoDescricao: null, desMotivoGlosa: null };
+
+    it('vira "Glosa total (apLIS)", sem código e aberta', () => {
+      const resultado = glosasSugeridas(entrada({ diferencas: [diferenca({ ...semMotivo, codEventoFatur: 27, valor: 662.04, procedimentos: 8 })] }));
+      expect(resultado).toEqual({
+        glosas: [{
+          idLote: 6228, codigo: null, motivo: 'Glosa total (apLIS)', status: 'aberta', valor: 662.04, procedimentos: 8, demonstrativo: null,
+        }],
+        substituir: [],
+        puladoGlosa: null,
+      });
+    });
+
+    it('em lote de recurso continua em recurso', () => {
+      const resultado = glosasSugeridas(entrada({ diferencas: [diferenca({ ...semMotivo, codEventoFatur: 27, emRecurso: true })] }));
+      expect(resultado.glosas.map((g) => g.status)).toEqual(['em_recurso']);
+    });
+
+    it('fora da situação 27 continua sem motivo', () => {
+      expect(glosasSugeridas(entrada({ diferencas: [diferenca({ ...semMotivo, codEventoFatur: 6 })] })).puladoGlosa)
+        .toBe('sem-motivo');
+    });
+  });
+
+  describe('substituição das glosas digitadas à mão', () => {
+    const manual = (overrides: Partial<GlosaSistema> = {}) =>
+      glosaSistema({ id: 'manual-1', origem: null, idLote: null, codigo: null, motivo: 'Glosa digitada', ...overrides });
+
+    it('lote 5774: as do apLIS entram e as duas digitadas saem, com o saldo contando com elas', () => {
+      // Título de 750,16: 88,12 já lançados do apLIS + 750,16 e 662,04 à mão → saldo -750,16.
+      const resultado = glosasSugeridas(entrada({
+        saldo: -750.16,
+        glosasSistema: [
+          glosaSistema({ idLote: 5774, codigo: '1319', motivo: 'M1319', status: 'definitiva', valor: 44.06 }),
+          glosaSistema({ idLote: 5774, codigo: '1831', motivo: 'M1831', status: 'definitiva', valor: 44.06 }),
+          manual({ id: 'manual-1', valor: 750.16 }),
+          manual({ id: 'manual-2', valor: 662.04 }),
+        ],
+        diferencas: [
+          diferenca({ idLote: 5774, motivoCodigo: 1319, motivoDescricao: 'M1319', codEventoFatur: 27, valor: 44.06 }),
+          diferenca({ idLote: 5774, motivoCodigo: 1831, motivoDescricao: 'M1831', codEventoFatur: 27, valor: 44.06 }),
+          diferenca({
+            idLote: 5774, motivoCodigo: null, motivoDescricao: null, desMotivoGlosa: null, codEventoFatur: 27,
+            valor: 662.04, procedimentos: 8,
+          }),
+        ],
+      }));
+      expect(resultado.puladoGlosa).toBeNull();
+      expect(resultado.glosas.map((g) => [g.motivo, g.status, g.valor])).toEqual([['Glosa total (apLIS)', 'aberta', 662.04]]);
+      expect(resultado.substituir).toEqual([
+        { id: 'manual-1', motivo: 'Glosa digitada', status: 'aberta', valor: 750.16 },
+        { id: 'manual-2', motivo: 'Glosa digitada', status: 'aberta', valor: 662.04 },
+      ]);
+    });
+
+    it('o já lançado do apLIS cobre tudo: só tira as digitadas', () => {
+      const resultado = glosasSugeridas(entrada({
+        saldo: -100,
+        glosasSistema: [glosaSistema({ valor: 100 }), manual({ valor: 100 })],
+      }));
+      expect(resultado).toEqual({
+        glosas: [],
+        substituir: [{ id: 'manual-1', motivo: 'Glosa digitada', status: 'aberta', valor: 100 }],
+        puladoGlosa: null,
+      });
+    });
+
+    it('a digitada já soma o que o apLIS glosou: fica como está', () => {
+      expect(glosasSugeridas(entrada({ saldo: 0, glosasSistema: [manual({ valor: 100 })] })))
+        .toEqual({ glosas: [], substituir: [], puladoGlosa: null });
+    });
+
+    it('a revertida não é substituída nem conta', () => {
+      const resultado = glosasSugeridas(entrada({ glosasSistema: [manual({ status: 'revertida' })] }));
+      expect(resultado.substituir).toEqual([]);
+      expect(resultado.glosas.map((g) => g.valor)).toEqual([100]);
+    });
+
+    it('sem glosa no apLIS a digitada fica', () => {
+      expect(glosasSugeridas(entrada({ diferencas: [], glosasSistema: [manual()] })))
+        .toEqual({ glosas: [], substituir: [], puladoGlosa: null });
+    });
+
+    it('passa do saldo mesmo contando com a digitada → passa-do-saldo, sem substituir', () => {
+      expect(glosasSugeridas(entrada({ saldo: 0, glosasSistema: [manual({ valor: 50 })], diferencas: [diferenca({ valor: 200 })] })))
+        .toEqual({ glosas: [], substituir: [], puladoGlosa: 'passa-do-saldo' });
     });
   });
 });

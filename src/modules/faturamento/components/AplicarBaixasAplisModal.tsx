@@ -12,6 +12,7 @@ import {
   selecaoPadrao,
   separarPrevia,
   temBaixaAplicavel,
+  temGlosaAplicavel,
   titulosComBaixaRepetida,
   titulosComGlosaRepetida,
   totalALancar,
@@ -25,7 +26,9 @@ import type { ResultadoTitulo } from '../utils/aplicarBaixasAplis';
 // separado e confirma. Título a título, em sequência: as baixas pela mesma RPC
 // do "Registrar baixa" (`fat_registrar_baixa`, uma por vez — a RPC recalcula o
 // título a cada uma) e depois as glosas numa chamada de `fat_lancar_glosas_aplis`,
-// só se todas as baixas marcadas entraram.
+// só se todas as baixas marcadas entraram. As glosas digitadas à mão do título
+// saem nessa mesma chamada, substituídas pelas do apLIS
+// (.scratch/faturamento-glosas-sincronizar-aplis).
 
 const MENSAGEM_PADRAO = 'Não foi possível montar a prévia das baixas e glosas do apLIS.';
 
@@ -78,42 +81,69 @@ function BaixaPulada({ titulo }: { titulo: TituloPreviaBaixasAplis }) {
 
 function GlosasDoTitulo({ titulo }: { titulo: TituloPreviaBaixasAplis }) {
   const pulado = motivoPuladoGlosa(titulo);
-  if (titulo.glosas.length === 0) {
+  if (!temGlosaAplicavel(titulo)) {
     return pulado ? <span className={SELO_PULADO}>pulada — {pulado}</span> : <span className="text-gray-400">—</span>;
   }
   return (
-    <ul className="space-y-0.5">
-      {titulo.glosas.map((glosa) => (
-        <li
-          key={`${glosa.idLote}|${glosa.codigo ?? glosa.motivo}|${glosa.status}`}
-          className="text-gray-700 dark:text-gray-200"
-          title={`${glosa.motivo} · ${plural(glosa.procedimentos, 'procedimento', 'procedimentos')}`}
-        >
-          <span className="tabular-nums">lote {glosa.idLote}</span>
-          {' · '}
-          {glosa.codigo ?? 'sem código'}
-          <span className="ml-1 text-gray-500 dark:text-gray-400 truncate inline-block max-w-[180px] align-bottom">
-            {glosa.motivo}
-          </span>
-          {' · '}
-          <span className="text-gray-500 dark:text-gray-400">{ROTULO_STATUS_GLOSA[glosa.status]}</span>
-          {' · '}
-          <span className="tabular-nums text-gray-500 dark:text-gray-400">{glosa.procedimentos} proc.</span>
-          {' · '}
-          <span className="font-medium tabular-nums text-rose-700 dark:text-rose-300 whitespace-nowrap">
-            {formatCurrency(glosa.valor)}
-          </span>
-          {glosa.demonstrativo && (
-            <span
-              className={`ml-1.5 px-2 py-0.5 text-[11px] rounded-full whitespace-nowrap ${SELO_DEMONSTRATIVO[glosa.demonstrativo].classe}`}
-              title={SELO_DEMONSTRATIVO[glosa.demonstrativo].titulo}
-            >
-              {SELO_DEMONSTRATIVO[glosa.demonstrativo].rotulo}
+    <div className="space-y-1">
+      {titulo.glosas.length === 0 && (
+        <span className="text-gray-500 dark:text-gray-400">nada novo do apLIS — o já lançado cobre o título</span>
+      )}
+      <ul className="space-y-0.5">
+        {titulo.glosas.map((glosa) => (
+          <li
+            key={`${glosa.idLote}|${glosa.codigo ?? glosa.motivo}|${glosa.status}`}
+            className="text-gray-700 dark:text-gray-200"
+            title={`${glosa.motivo} · ${plural(glosa.procedimentos, 'procedimento', 'procedimentos')}`}
+          >
+            <span className="tabular-nums">lote {glosa.idLote}</span>
+            {' · '}
+            {glosa.codigo ?? 'sem código'}
+            <span className="ml-1 text-gray-500 dark:text-gray-400 truncate inline-block max-w-[180px] align-bottom">
+              {glosa.motivo}
             </span>
-          )}
-        </li>
-      ))}
-    </ul>
+            {' · '}
+            <span className="text-gray-500 dark:text-gray-400">{ROTULO_STATUS_GLOSA[glosa.status]}</span>
+            {' · '}
+            <span className="tabular-nums text-gray-500 dark:text-gray-400">{glosa.procedimentos} proc.</span>
+            {' · '}
+            <span className="font-medium tabular-nums text-rose-700 dark:text-rose-300 whitespace-nowrap">
+              {formatCurrency(glosa.valor)}
+            </span>
+            {glosa.demonstrativo && (
+              <span
+                className={`ml-1.5 px-2 py-0.5 text-[11px] rounded-full whitespace-nowrap ${SELO_DEMONSTRATIVO[glosa.demonstrativo].classe}`}
+                title={SELO_DEMONSTRATIVO[glosa.demonstrativo].titulo}
+              >
+                {SELO_DEMONSTRATIVO[glosa.demonstrativo].rotulo}
+              </span>
+            )}
+          </li>
+        ))}
+      </ul>
+      {titulo.glosasSubstituidas.length > 0 && (
+        <div className="pt-1 border-t border-gray-100 dark:border-gray-700">
+          <span className="px-2 py-0.5 text-[11px] rounded-full bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-300">
+            substitui as digitadas
+          </span>
+          <ul className="mt-0.5 space-y-0.5">
+            {titulo.glosasSubstituidas.map((glosa) => (
+              <li
+                key={glosa.id}
+                className="text-gray-500 dark:text-gray-400 line-through"
+                title="Glosa digitada à mão: sai do título quando as do apLIS entram."
+              >
+                <span className="truncate inline-block max-w-[220px] align-bottom">{glosa.motivo}</span>
+                {' · '}
+                {ROTULO_STATUS_GLOSA[glosa.status]}
+                {' · '}
+                <span className="tabular-nums whitespace-nowrap">{formatCurrency(glosa.valor)}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -238,7 +268,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
       .map((titulo) => ({
         titulo,
         baixas: temBaixaAplicavel(titulo) && baixasMarcadas.has(titulo.idNota),
-        glosas: titulo.glosas.length > 0 && glosasMarcadas.has(titulo.idNota),
+        glosas: temGlosaAplicavel(titulo) && glosasMarcadas.has(titulo.idNota),
       }))
       .filter((alvo) => alvo.baixas || alvo.glosas);
     if (alvos.length === 0) return;
@@ -248,7 +278,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
     const estados = new Map<string, ResultadoTitulo>(
       alvos.map(({ titulo }) => [
         titulo.idNota,
-        { estado: 'aguardando', baixasLancadas: 0, glosasLancadas: 0, glosasNaoLancadas: false },
+        { estado: 'aguardando', baixasLancadas: 0, glosasLancadas: 0, glosasSubstituidas: 0, glosasNaoLancadas: false },
       ]),
     );
     const marcar = (idNota: string, resultado: ResultadoTitulo) => {
@@ -296,7 +326,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
   const comBaixa = aplicaveis.filter(temBaixaAplicavel);
   // Lote vinculado a mais de um título: a baixa ou a glosa dele começa desmarcada.
   const repetidos = new Set([...titulosComBaixaRepetida(comBaixa), ...titulosComGlosaRepetida(aplicaveis)]);
-  const comGlosa = aplicaveis.filter((t) => t.glosas.length > 0);
+  const comGlosa = aplicaveis.filter(temGlosaAplicavel);
   const total = totalALancar(aplicaveis, { baixas: baixasMarcadas, glosas: glosasMarcadas });
   // Depois de confirmar, a prévia vira o relatório da execução.
   const travado = executando || resultados.size > 0;
@@ -315,8 +345,8 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Aplicar baixas e glosas do apLIS</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
               Baixas recebidas no apLIS que faltam lançar aqui, uma por data de recebimento, e glosas do apLIS, uma
-              por lote, código e status · as glosas de um título só entram se as baixas marcadas dele entrarem ·
-              dados do apLIS {dadoAte}
+              por lote, código e status · as glosas de um título só entram se as baixas marcadas dele entrarem, e
+              as digitadas à mão saem no lugar delas · dados do apLIS {dadoAte}
             </p>
           </div>
           <button
@@ -465,7 +495,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
                           </td>
                           <td className="px-3 py-2 text-xs">
                             <div className="flex items-start gap-2">
-                              {titulo.glosas.length > 0 && (
+                              {temGlosaAplicavel(titulo) && (
                                 <input
                                   type="checkbox"
                                   checked={glosasMarcadas.has(titulo.idNota)}
@@ -540,6 +570,13 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
                 {' · '}{plural(total.glosas.qtd, 'glosa', 'glosas')}{' '}
                 <strong className="text-rose-700 dark:text-rose-300">{formatCurrency(total.glosas.valor)}</strong>
                 {' '}a lançar
+                {total.substituidas.qtd > 0 && (
+                  <>
+                    {' · '}{plural(total.substituidas.qtd, 'glosa digitada', 'glosas digitadas')}{' '}
+                    <strong className="text-gray-700 dark:text-gray-200">{formatCurrency(total.substituidas.valor)}</strong>
+                    {' '}a excluir
+                  </>
+                )}
               </>
             ) : null}
           </span>
@@ -575,7 +612,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
                   : `Lançar ${[
                     total.baixas.qtd > 0 ? plural(total.baixas.qtd, 'baixa', 'baixas') : null,
                     total.glosas.qtd > 0 ? plural(total.glosas.qtd, 'glosa', 'glosas') : null,
-                  ].filter(Boolean).join(' e ')}`}
+                  ].filter(Boolean).join(' e ') || 'a substituição das glosas'}`}
               </button>
             )}
           </div>

@@ -190,10 +190,11 @@ async function main() {
     const recebidoDepois = recebidoFica + somaCentavos(novasBaixas);
     const tipoDepois = classificarDivergencia(recebidoDepois / 100, recebidoAplis / 100);
     const glosadoFica = somaCentavos(ficamGlosas.filter((g) => g.status !== 'revertida').map((g) => ({ valor: num(g.valor) })));
-    const { glosas: glosasDoAplis, puladoGlosa } = glosasSugeridas({
+    const { glosas: glosasDoAplis, substituir, puladoGlosa } = glosasSugeridas({
       tipo: tipoDepois,
       saldo: (valorAplis - recebidoDepois - glosadoFica) / 100,
       glosasSistema: ficamGlosas.map((g) => ({
+        id: g.id_glosa,
         origem: g.origem === 'aplis' ? 'aplis' : null,
         idLote: Number(ls.find((l) => l.id_lote === g.lote_id)?.aplis_id ?? NaN) || null,
         codigo: g.codigo_glosa, motivo: g.motivo ?? '', status: g.status, valor: num(g.valor),
@@ -202,7 +203,8 @@ async function main() {
     });
     // Glosas que passam do saldo (o apLIS recebeu a mais em outros procedimentos
     // do lote): o título leva valor e baixas do apLIS, e a glosa fica para o operador.
-    const novasGlosas = puladoGlosa === 'passa-do-saldo' ? [] : glosasDoAplis;
+    // Glosa digitada que fica (a regra do "Aplicar" a substituiria): como em 20/10, fica para o operador.
+    const novasGlosas = puladoGlosa === 'passa-do-saldo' || substituir.length > 0 ? [] : glosasDoAplis;
     const glosaDepois = glosadoFica + somaCentavos(novasGlosas);
     const glosaAntes = centavos(num(nota.valor_glosado));
 

@@ -198,6 +198,7 @@ function diferenca(idLote: number, overrides: Partial<DiferencaAplis> = {}): Dif
 // Glosa já lançada, no formato do select de glosas (lote embutido).
 function glosaLancada(notaId: string, extra: Linha = {}): Linha {
   return {
+    id_glosa: `glosa-${notaId}`,
     nota_id: notaId,
     origem: null,
     codigo_glosa: null,
@@ -276,6 +277,7 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
       }],
       saldo: 0,
       glosas: [],
+      glosasSubstituidas: [],
       puladoGlosa: null,
     }]);
   });
@@ -383,6 +385,7 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
           procedimentos: 475,
           demonstrativo: 'confere',
         }],
+        glosasSubstituidas: [],
         puladoGlosa: null,
       }]);
     });
@@ -436,7 +439,7 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
       })]);
     });
 
-    it('título com glosa digitada à mão sai com a glosa pulada (glosa-manual)', async () => {
+    it('título com glosa digitada à mão: as do apLIS a substituem', async () => {
       const res = await executar(
         {
           notas: [nota('nf-9124', ['6228'], { valor_total: 2000, valor_recebido: 1132.14, valor_glosado: 100 })],
@@ -446,7 +449,48 @@ describe('GET /api/faturamento/titulos-baixas-aplis-previa', () => {
         {},
         { 6228: [diferenca(6228)] },
       );
-      expect(res.body.titulos).toEqual([expect.objectContaining({ glosas: [], puladoGlosa: 'glosa-manual' })]);
+      expect(res.body.titulos).toEqual([expect.objectContaining({
+        saldo: 767.86,
+        glosas: [expect.objectContaining({ idLote: 6228, valor: 867.86 })],
+        glosasSubstituidas: [{ id: 'glosa-nf-9124', motivo: 'Glosa digitada', status: 'aberta', valor: 100 }],
+        puladoGlosa: null,
+      })]);
+    });
+
+    it('glosado acima do total (saldo negativo) entra quando há digitada a substituir', async () => {
+      // Lote 5774: título de 750,16 com 88,12 do apLIS e 750,16 + 662,04 digitados.
+      const res = await executar(
+        {
+          notas: [nota('fusex', ['5774'], { valor_total: 750.16, valor_recebido: 0, valor_glosado: 1500.32 })],
+          glosas: [
+            glosaLancada('fusex', { id_glosa: 'm1', valor: 750.16 }),
+            glosaLancada('fusex', { id_glosa: 'm2', valor: 662.04 }),
+            glosaLancada('fusex', {
+              id_glosa: 'a1', origem: 'aplis', codigo_glosa: '2902', motivo: 'GLOSA MANTIDA', valor: 88.12,
+              lotes: { aplis_id: '5774' },
+            }),
+          ],
+        },
+        { 5774: recebido(0) },
+        {},
+        {
+          5774: [
+            diferenca(5774, { valor: 88.12, codEventoFatur: 27 }),
+            diferenca(5774, {
+              motivoCodigo: null, motivoDescricao: null, desMotivoGlosa: null, codEventoFatur: 27, valor: 662.04,
+              demonstrativoValor: null,
+            }),
+          ],
+        },
+      );
+      expect(res.body.titulos).toEqual([expect.objectContaining({
+        saldo: -750.16,
+        glosas: [expect.objectContaining({ motivo: 'Glosa total (apLIS)', status: 'aberta', valor: 662.04 })],
+        glosasSubstituidas: [
+          expect.objectContaining({ id: 'm1', valor: 750.16 }),
+          expect.objectContaining({ id: 'm2', valor: 662.04 }),
+        ],
+      })]);
     });
 
     it('glosa do apLIS já lançada: sugere só o que o apLIS glosou a mais no lote + código', async () => {

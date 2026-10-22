@@ -1139,8 +1139,9 @@ export type DiferencasDosLotesResultado =
  * MySQL: são ~27 mil procedimentos em ~1.400 grupos (medido 14/10).
  *
  * `ValorRecebido` nulo fica fora: a operadora ainda não retornou, e o motivo
- * pode ser só autorização em análise. Recebido 0 sem `DtaRecebido` entra (glosa
- * total). O lote de recurso entra por tabela derivada: `fatloterecursoprocedimento`
+ * pode ser só autorização em análise — salvo na requisição em glosa total
+ * (`CodEventoFatur` 27), onde a diferença é o líquido inteiro (lote 5774: 4 das
+ * 6 requisições sem retorno). Recebido 0 sem `DtaRecebido` entra (glosa total). O lote de recurso entra por tabela derivada: `fatloterecursoprocedimento`
  * não tem índice em `IdRequisicaoProcedimento` (~4 mil linhas). Lote sem
  * diferença fica fora do mapa. Blocos de 1.000 lotes, como `recebidosDosLotes`.
  *
@@ -1172,7 +1173,7 @@ export async function diferencasDosLotes(idsLote: number[]): Promise<DiferencasD
                         fmg.Codigo AS MotivoCodigo, fmg.Descricao AS MotivoDescricao,
                         NULLIF(TRIM(p.DesMotivoGlosa), '') AS DesMotivoGlosa, r.CodEventoFatur,
                         (rp.IdRequisicaoProcedimento IS NOT NULL) AS EmRecurso,
-                        SUM(p.ValorLiquido - p.ValorRecebido) AS Valor, COUNT(*) AS Procedimentos
+                        SUM(p.ValorLiquido - COALESCE(p.ValorRecebido, 0)) AS Valor, COUNT(*) AS Procedimentos
                    FROM requisicao r
                    JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
                    LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = p.IdMotivoGlosa
@@ -1182,8 +1183,8 @@ export async function diferencasDosLotes(idsLote: number[]): Promise<DiferencasD
                    LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = p.IdConvenioProcedimento
                    LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
                   WHERE r.Lote IN (${marcadores})
-                    AND p.ValorRecebido IS NOT NULL
-                    AND p.ValorLiquido - p.ValorRecebido >= 0.01
+                    AND (p.ValorRecebido IS NOT NULL OR r.CodEventoFatur = 27)
+                    AND p.ValorLiquido - COALESCE(p.ValorRecebido, 0) >= 0.01
                   GROUP BY r.Lote, r.IdRequisicao, tp.Codigo, fmg.Codigo, fmg.Descricao,
                            NULLIF(TRIM(p.DesMotivoGlosa), ''), r.CodEventoFatur,
                            (rp.IdRequisicaoProcedimento IS NOT NULL)) x

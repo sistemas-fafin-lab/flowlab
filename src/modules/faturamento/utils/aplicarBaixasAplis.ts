@@ -3,7 +3,8 @@
 // .scratch/faturamento-glosas-automaticas-aplis/spec.md): o que a prévia
 // oferece para lançar, o total marcado, a execução de um título e o resumo. As
 // baixas sugeridas vêm prontas da rota (api/_lib/faturamento/baixasAplis.ts), e
-// as glosas também (api/_lib/faturamento/glosasAplis.ts).
+// as glosas também (api/_lib/faturamento/glosasAplis.ts), com as digitadas à
+// mão que elas substituem (.scratch/faturamento-glosas-sincronizar-aplis).
 
 import type { BaixaInput, GlosaSugeridaAplis, TituloPreviaBaixasAplis } from '../types';
 import { plural } from './formato';
@@ -22,6 +23,11 @@ export function temBaixaAplicavel(titulo: TituloPreviaBaixasAplis): boolean {
   return titulo.baixas.length > 0;
 }
 
+/** Tem glosa do apLIS a lançar ou glosa digitada a substituir. */
+export function temGlosaAplicavel(titulo: TituloPreviaBaixasAplis): boolean {
+  return titulo.glosas.length > 0 || titulo.glosasSubstituidas.length > 0;
+}
+
 /** Por que a baixa do título ficou de fora. Só o título com recebido a lançar
  *  tem baixa; sem baixa é o lote com valor recebido mas sem `DtaRecebido` no
  *  apLIS: sem data não há como lançar. */
@@ -35,7 +41,7 @@ export function motivoPuladoBaixa(titulo: TituloPreviaBaixasAplis): MotivoPulado
 export function motivoPuladoGlosa(titulo: TituloPreviaBaixasAplis): string | null {
   switch (titulo.puladoGlosa) {
     case 'sem-motivo': return 'diferença sem motivo no apLIS';
-    case 'glosa-manual': return 'título já tem glosa lançada';
+    case 'glosa-manual': return 'título tem glosa digitada e parte da diferença no apLIS não tem motivo';
     case 'passa-do-saldo': return 'glosa passa do saldo do título';
     case 'tipo': return titulo.tipo === 'lote-ausente' ? 'lote não encontrado no apLIS' : 'recebido aqui maior que no apLIS';
     default: return null;
@@ -51,7 +57,7 @@ export function separarPrevia(titulos: TituloPreviaBaixasAplis[]): {
   const aplicaveis: TituloPreviaBaixasAplis[] = [];
   const pulados: TituloPulado[] = [];
   for (const titulo of titulos) {
-    if (temBaixaAplicavel(titulo) || titulo.glosas.length > 0) aplicaveis.push(titulo);
+    if (temBaixaAplicavel(titulo) || temGlosaAplicavel(titulo)) aplicaveis.push(titulo);
     else pulados.push({ titulo, motivo: motivoPuladoBaixa(titulo), motivoGlosa: motivoPuladoGlosa(titulo) });
   }
   return { aplicaveis, pulados };
@@ -111,22 +117,29 @@ export function selecaoPadrao(titulos: TituloPreviaBaixasAplis[]): SelecaoAplica
   const glosasRepetidas = titulosComGlosaRepetida(titulos);
   return {
     baixas: new Set(comBaixa.filter((t) => !baixasRepetidas.has(t.idNota)).map((t) => t.idNota)),
-    glosas: new Set(titulos.filter((t) => t.glosas.length > 0 && !glosasRepetidas.has(t.idNota)).map((t) => t.idNota)),
+    glosas: new Set(titulos.filter((t) => temGlosaAplicavel(t) && !glosasRepetidas.has(t.idNota)).map((t) => t.idNota)),
   };
 }
 
-/** Quanto o que está marcado vai lançar, baixas e glosas separadas. Soma em
- *  centavos (0,1 + 0,2). `titulos`: com ao menos um dos dois marcado. */
+/** Quanto o que está marcado vai lançar, baixas e glosas separadas, e quanto de
+ *  glosa digitada sai. Soma em centavos (0,1 + 0,2). `titulos`: com ao menos
+ *  um dos dois marcado. */
 export function totalALancar(
   titulos: TituloPreviaBaixasAplis[],
   selecao: SelecaoAplicacao,
-): { titulos: number; baixas: { qtd: number; valor: number }; glosas: { qtd: number; valor: number } } {
+): {
+  titulos: number;
+  baixas: { qtd: number; valor: number };
+  glosas: { qtd: number; valor: number };
+  substituidas: { qtd: number; valor: number };
+} {
   let qtdTitulos = 0;
   const baixas = { qtd: 0, centavos: 0 };
   const glosas = { qtd: 0, centavos: 0 };
+  const substituidas = { qtd: 0, centavos: 0 };
   for (const titulo of titulos) {
     const comBaixas = selecao.baixas.has(titulo.idNota) && temBaixaAplicavel(titulo);
-    const comGlosas = selecao.glosas.has(titulo.idNota) && titulo.glosas.length > 0;
+    const comGlosas = selecao.glosas.has(titulo.idNota) && temGlosaAplicavel(titulo);
     if (!comBaixas && !comGlosas) continue;
     qtdTitulos += 1;
     if (comBaixas) {
@@ -136,12 +149,15 @@ export function totalALancar(
     if (comGlosas) {
       glosas.qtd += titulo.glosas.length;
       for (const glosa of titulo.glosas) glosas.centavos += Math.round(glosa.valor * 100);
+      substituidas.qtd += titulo.glosasSubstituidas.length;
+      for (const glosa of titulo.glosasSubstituidas) substituidas.centavos += Math.round(glosa.valor * 100);
     }
   }
   return {
     titulos: qtdTitulos,
     baixas: { qtd: baixas.qtd, valor: baixas.centavos / 100 },
     glosas: { qtd: glosas.qtd, valor: glosas.centavos / 100 },
+    substituidas: { qtd: substituidas.qtd, valor: substituidas.centavos / 100 },
   };
 }
 
@@ -153,6 +169,8 @@ export interface ResultadoTitulo {
   estado: EstadoAplicacao;
   baixasLancadas: number;
   glosasLancadas: number;
+  /** Glosas digitadas que saíram no lugar das do apLIS. */
+  glosasSubstituidas: number;
   /** Uma baixa falhou e as glosas marcadas do título não foram tentadas. */
   glosasNaoLancadas: boolean;
   mensagem?: string;
@@ -160,8 +178,9 @@ export interface ResultadoTitulo {
 
 export interface DependenciasAplicacao {
   registrarBaixa: (baixa: BaixaInput) => Promise<void>;
-  /** Todas as glosas do título numa chamada (`fat_lancar_glosas_aplis`): todas ou nenhuma. */
-  lancarGlosas: (notaId: string, glosas: GlosaSugeridaAplis[]) => Promise<void>;
+  /** Todas as glosas do título numa chamada (`fat_lancar_glosas_aplis`), com as
+   *  digitadas que saem (ids): todas ou nenhuma. */
+  lancarGlosas: (notaId: string, glosas: GlosaSugeridaAplis[], substituir: string[]) => Promise<void>;
   /** false: o modal fechou — não começa o próximo lançamento. */
   continuar: () => boolean;
   /** Depois de cada lançamento que entrou. */
@@ -178,11 +197,13 @@ export async function aplicarTitulo(
   deps: DependenciasAplicacao,
 ): Promise<ResultadoTitulo> {
   const { titulo } = alvo;
-  const glosas = alvo.glosas ? titulo.glosas : [];
-  const atual: ResultadoTitulo = { estado: 'lancando', baixasLancadas: 0, glosasLancadas: 0, glosasNaoLancadas: false };
+  const comGlosas = alvo.glosas && temGlosaAplicavel(titulo);
+  const atual: ResultadoTitulo = {
+    estado: 'lancando', baixasLancadas: 0, glosasLancadas: 0, glosasSubstituidas: 0, glosasNaoLancadas: false,
+  };
   const falhou = (err: unknown, padrao: string): ResultadoTitulo => ({
     ...atual,
-    estado: atual.baixasLancadas + atual.glosasLancadas > 0 ? 'parcial' : 'falhou',
+    estado: atual.baixasLancadas + atual.glosasLancadas + atual.glosasSubstituidas > 0 ? 'parcial' : 'falhou',
     mensagem: err instanceof Error ? err.message : padrao,
   });
 
@@ -197,20 +218,21 @@ export async function aplicarTitulo(
         glosas: [],
       });
     } catch (err) {
-      atual.glosasNaoLancadas = glosas.length > 0;
+      atual.glosasNaoLancadas = comGlosas;
       return falhou(err, 'Não foi possível registrar a baixa.');
     }
     atual.baixasLancadas += 1;
     deps.onProgresso?.({ ...atual });
   }
 
-  if (glosas.length > 0 && deps.continuar()) {
+  if (comGlosas && deps.continuar()) {
     try {
-      await deps.lancarGlosas(titulo.idNota, glosas);
+      await deps.lancarGlosas(titulo.idNota, titulo.glosas, titulo.glosasSubstituidas.map((g) => g.id));
     } catch (err) {
       return falhou(err, 'Não foi possível lançar as glosas.');
     }
-    atual.glosasLancadas = glosas.length;
+    atual.glosasLancadas = titulo.glosas.length;
+    atual.glosasSubstituidas = titulo.glosasSubstituidas.length;
     deps.onProgresso?.({ ...atual });
   }
   return { ...atual, estado: 'lancado' };
@@ -223,7 +245,12 @@ export function descricaoResultado(r: ResultadoTitulo): string {
     const partes = [];
     if (r.baixasLancadas > 0) partes.push(baixas);
     if (r.glosasLancadas > 0) partes.push(plural(r.glosasLancadas, 'glosa', 'glosas'));
-    return partes.length > 0 ? `lançado: ${partes.join(' e ')}` : 'nada lançado';
+    if (r.glosasSubstituidas > 0) {
+      partes.push(plural(r.glosasSubstituidas, 'glosa digitada excluída', 'glosas digitadas excluídas'));
+    }
+    if (partes.length === 0) return 'nada lançado';
+    const ultima = partes.pop();
+    return `lançado: ${partes.length > 0 ? `${partes.join(', ')} e ${ultima}` : ultima}`;
   }
   const lancadas = r.baixasLancadas > 0
     ? `${plural(r.baixasLancadas, 'baixa lançada', 'baixas lançadas')}, `

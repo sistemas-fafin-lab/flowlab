@@ -7,6 +7,7 @@ import {
   resumoAplicacao,
   selecaoPadrao,
   separarPrevia,
+  temGlosaAplicavel,
   titulosComBaixaRepetida,
   titulosComGlosaRepetida,
   totalALancar,
@@ -23,6 +24,7 @@ function titulo(parcial: Partial<TituloPreviaBaixasAplis> & { idNota: string }):
     baixas: [{ data: '2026-09-22', valor: 100, observacoes: 'Baixa do apLIS' }],
     saldo: 0,
     glosas: [],
+    glosasSubstituidas: [],
     puladoGlosa: null,
     ...parcial,
   };
@@ -71,7 +73,7 @@ describe('separarPrevia', () => {
     expect(pulados).toEqual([{
       titulo: expect.objectContaining({ idNota: 'a' }),
       motivo: null,
-      motivoGlosa: 'título já tem glosa lançada',
+      motivoGlosa: 'título tem glosa digitada e parte da diferença no apLIS não tem motivo',
     }]);
   });
 
@@ -100,6 +102,7 @@ describe('totalALancar', () => {
       titulos: 3,
       baixas: { qtd: 3, valor: 50.3 },
       glosas: { qtd: 3, valor: 1000.3 },
+      substituidas: { qtd: 0, valor: 0 },
     });
   });
 
@@ -108,6 +111,7 @@ describe('totalALancar', () => {
       titulos: 1,
       baixas: { qtd: 0, valor: 0 },
       glosas: { qtd: 1, valor: 7 },
+      substituidas: { qtd: 0, valor: 0 },
     });
   });
 
@@ -116,14 +120,45 @@ describe('totalALancar', () => {
       titulos: 0,
       baixas: { qtd: 0, valor: 0 },
       glosas: { qtd: 0, valor: 0 },
+      substituidas: { qtd: 0, valor: 0 },
     });
+  });
+
+  it('conta as digitadas que saem do título com as glosas marcadas', () => {
+    const comSubstituidas = [titulo({
+      idNota: 'd', baixas: [], glosasSubstituidas: [{ id: 'm1', motivo: 'x', status: 'aberta', valor: 750.16 }],
+    })];
+    expect(totalALancar(comSubstituidas, { baixas: new Set(), glosas: new Set(['d']) })).toEqual({
+      titulos: 1,
+      baixas: { qtd: 0, valor: 0 },
+      glosas: { qtd: 0, valor: 0 },
+      substituidas: { qtd: 1, valor: 750.16 },
+    });
+  });
+});
+
+describe('temGlosaAplicavel', () => {
+  it('glosa do apLIS a lançar ou digitada a substituir', () => {
+    expect(temGlosaAplicavel(titulo({ idNota: 'a' }))).toBe(false);
+    expect(temGlosaAplicavel(titulo({ idNota: 'a', glosas: [glosa()] }))).toBe(true);
+    expect(temGlosaAplicavel(titulo({
+      idNota: 'a', glosasSubstituidas: [{ id: 'm1', motivo: 'x', status: 'aberta', valor: 1 }],
+    }))).toBe(true);
+  });
+
+  it('título só com digitada a substituir vai para os aplicáveis, com a glosa marcada', () => {
+    const titulos = [titulo({
+      idNota: 'a', tipo: null, baixas: [], glosasSubstituidas: [{ id: 'm1', motivo: 'x', status: 'aberta', valor: 1 }],
+    })];
+    expect(separarPrevia(titulos).aplicaveis.map((t) => t.idNota)).toEqual(['a']);
+    expect(selecaoPadrao(titulos).glosas).toEqual(new Set(['a']));
   });
 });
 
 describe('motivoPuladoGlosa', () => {
   it.each([
     ['sem-motivo', null, 'diferença sem motivo no apLIS'],
-    ['glosa-manual', null, 'título já tem glosa lançada'],
+    ['glosa-manual', null, 'título tem glosa digitada e parte da diferença no apLIS não tem motivo'],
     ['passa-do-saldo', null, 'glosa passa do saldo do título'],
     ['tipo', 'sistema-maior', 'recebido aqui maior que no apLIS'],
     ['tipo', 'lote-ausente', 'lote não encontrado no apLIS'],
@@ -137,7 +172,9 @@ describe('motivoPuladoGlosa', () => {
 });
 
 function resultado(parcial: Partial<ResultadoTitulo> = {}): ResultadoTitulo {
-  return { estado: 'lancado', baixasLancadas: 0, glosasLancadas: 0, glosasNaoLancadas: false, ...parcial };
+  return {
+    estado: 'lancado', baixasLancadas: 0, glosasLancadas: 0, glosasSubstituidas: 0, glosasNaoLancadas: false, ...parcial,
+  };
 }
 
 describe('aplicarTitulo', () => {
@@ -148,7 +185,7 @@ describe('aplicarTitulo', () => {
         chamadaBaixa += 1;
         if (chamadaBaixa === falhas.baixa) throw new Error('Título cancelado não aceita baixa.');
       }),
-      lancarGlosas: vi.fn<(notaId: string, glosas: GlosaSugeridaAplis[]) => Promise<void>>(async () => {
+      lancarGlosas: vi.fn<(notaId: string, glosas: GlosaSugeridaAplis[], substituir: string[]) => Promise<void>>(async () => {
         if (falhas.glosas) throw new Error('Glosa(s) somam mais que o valor do título.');
       }),
       continuar: () => true,
@@ -169,8 +206,26 @@ describe('aplicarTitulo', () => {
     const r = await aplicarTitulo({ titulo: comBaixas, baixas: true, glosas: true }, d);
     expect(d.registrarBaixa.mock.calls.map(([b]) => b.dataRecebimento)).toEqual(['2026-09-01', '2026-09-02']);
     expect(d.lancarGlosas).toHaveBeenCalledTimes(1);
-    expect(d.lancarGlosas).toHaveBeenCalledWith('a', comBaixas.glosas);
+    expect(d.lancarGlosas).toHaveBeenCalledWith('a', comBaixas.glosas, []);
     expect(r).toEqual(resultado({ baixasLancadas: 2, glosasLancadas: 2 }));
+  });
+
+  it('as digitadas a substituir vão na mesma chamada das glosas do apLIS', async () => {
+    const d = deps();
+    const comSubstituidas = { ...comBaixas, glosasSubstituidas: [{ id: 'm1', motivo: 'x', status: 'aberta' as const, valor: 9 }] };
+    const r = await aplicarTitulo({ titulo: comSubstituidas, baixas: false, glosas: true }, d);
+    expect(d.lancarGlosas).toHaveBeenCalledWith('a', comBaixas.glosas, ['m1']);
+    expect(r).toEqual(resultado({ glosasLancadas: 2, glosasSubstituidas: 1 }));
+  });
+
+  it('só digitadas a substituir (nada novo do apLIS): chama mesmo assim, com as glosas vazias', async () => {
+    const d = deps();
+    const soSubstituir = titulo({
+      idNota: 'b', tipo: null, baixas: [], glosasSubstituidas: [{ id: 'm1', motivo: 'x', status: 'aberta', valor: 9 }],
+    });
+    const r = await aplicarTitulo({ titulo: soSubstituir, baixas: false, glosas: true }, d);
+    expect(d.lancarGlosas).toHaveBeenCalledWith('b', [], ['m1']);
+    expect(r).toEqual(resultado({ glosasSubstituidas: 1 }));
   });
 
   it('baixa falhou: as glosas não são lançadas', async () => {
@@ -226,6 +281,10 @@ describe('descricaoResultado', () => {
   it.each([
     [resultado({ baixasLancadas: 2, glosasLancadas: 1 }), 'lançado: 2 baixas e 1 glosa'],
     [resultado({ glosasLancadas: 3 }), 'lançado: 3 glosas'],
+    [
+      resultado({ baixasLancadas: 1, glosasLancadas: 1, glosasSubstituidas: 2 }),
+      'lançado: 1 baixa, 1 glosa e 2 glosas digitadas excluídas',
+    ],
     [resultado({ baixasLancadas: 1 }), 'lançado: 1 baixa'],
     [
       resultado({ estado: 'falhou', glosasNaoLancadas: true, mensagem: 'boom' }),

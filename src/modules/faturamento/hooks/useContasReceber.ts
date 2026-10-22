@@ -139,11 +139,17 @@ export async function rpcRegistrarBaixa(dados: BaixaInput): Promise<void> {
 }
 
 /** As glosas do apLIS de um título (`fat_lancar_glosas_aplis`): todas ou nenhuma,
- *  com origem 'aplis'. Sem refetch, como `rpcRegistrarBaixa`: quem chama relê. */
-export async function rpcLancarGlosasAplis(notaId: string, glosas: GlosaSugeridaAplis[]): Promise<void> {
+ *  com origem 'aplis', e as digitadas que elas substituem saindo na mesma
+ *  transação. Sem refetch, como `rpcRegistrarBaixa`: quem chama relê. */
+export async function rpcLancarGlosasAplis(
+  notaId: string,
+  glosas: GlosaSugeridaAplis[],
+  substituir: string[],
+): Promise<void> {
   const { error } = await supabase.rpc('fat_lancar_glosas_aplis', {
     p: {
       notaId,
+      substituir,
       glosas: glosas.map((g) => ({
         loteId: g.loteId,
         codigo: g.codigo,

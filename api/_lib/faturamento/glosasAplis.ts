@@ -6,7 +6,11 @@
 //
 // No apLIS a glosa não é digitada: a importação do demonstrativo preenche, por
 // procedimento, o recebido e o motivo. Diferença sem motivo pode ser só
-// pagamento atrasado — fica de fora.
+// pagamento atrasado — fica de fora, salvo na requisição em glosa total (27),
+// que vira "Glosa total (apLIS)" (.scratch/faturamento-glosas-sincronizar-aplis).
+//
+// Glosa digitada à mão no título é substituída pelas do apLIS: sai na mesma
+// transação em que as do apLIS entram (`fat_lancar_glosas_aplis`, `substituir`).
 
 import { centavos, somaCentavos } from './conferenciaAplis.js';
 import type { TipoDivergenciaAplis } from './conferenciaAplis.js';
@@ -21,6 +25,10 @@ const EVENTOS_EM_RECURSO = new Set([7, 16]);
 /** `requisicao.CodEventoFatur` de glosa decidida: recebido a menor acatado (18),
  *  glosa total (27), glosa mantida (23), glosa definitiva (8), recurso não acatado (15). */
 const EVENTOS_DEFINITIVA = new Set([18, 27, 23, 8, 15]);
+/** `requisicao.CodEventoFatur` de glosa total: sem motivo nem retorno, a glosa é o líquido inteiro. */
+const EVENTO_GLOSA_TOTAL = 27;
+/** Motivo da glosa total que o apLIS não detalha. */
+export const MOTIVO_GLOSA_TOTAL = 'Glosa total (apLIS)';
 
 const SO_DIGITOS = /^\d+$/;
 
@@ -41,7 +49,7 @@ export interface DiferencaAplis {
   codEventoFatur: number | null;
   /** Procedimento num lote de recurso (`fatloterecursoprocedimento`). */
   emRecurso: boolean;
-  /** Σ(ValorLiquido − ValorRecebido). */
+  /** Σ(ValorLiquido − ValorRecebido); recebido nulo (glosa total sem retorno) conta 0. */
   valor: number;
   procedimentos: number;
   /** Σ `VlrGlosa` do demonstrativo mais recente dos procedimentos que têm
@@ -51,6 +59,8 @@ export interface DiferencaAplis {
 
 /** Glosa já lançada no título. */
 export interface GlosaSistema {
+  /** `glosas.id_glosa`. */
+  id: string;
   /** 'aplis': lançada pelo "Aplicar baixas e glosas do apLIS"; null: digitada à mão. */
   origem: 'aplis' | null;
   /** `aplis_id` do lote da glosa. */
@@ -86,26 +96,39 @@ export interface EntradaGlosasSugeridas {
   diferencas: DiferencaAplis[];
 }
 
+/** Glosa digitada à mão que sai do título no lugar das do apLIS. */
+export interface GlosaSubstituida {
+  id: string;
+  motivo: string;
+  status: StatusGlosaAplis;
+  valor: number;
+}
+
 export interface ResultadoGlosasSugeridas {
   glosas: GlosaSugerida[];
+  /** Glosas digitadas à mão que saem quando as do apLIS entram; vazio quando não há. */
+  substituir: GlosaSubstituida[];
   /** Por que não há glosa a lançar; null quando há, ou quando o apLIS não tem diferença. */
   puladoGlosa: PuladoGlosa | null;
 }
 
-function statusDa(d: DiferencaAplis): StatusGlosaAplis {
+/** Glosa total sem motivo fica aberta (decisão de 22/10: por enquanto). */
+function statusDa(d: DiferencaAplis, glosaTotalSemMotivo: boolean): StatusGlosaAplis {
   if (d.emRecurso || (d.codEventoFatur !== null && EVENTOS_EM_RECURSO.has(d.codEventoFatur))) return 'em_recurso';
+  if (glosaTotalSemMotivo) return 'aberta';
   if (d.codEventoFatur !== null && EVENTOS_DEFINITIVA.has(d.codEventoFatur)) return 'definitiva';
   return 'aberta';
 }
 
-/** Código e motivo: catálogo; sem catálogo, o texto livre (que às vezes é só o código). */
+/** Código e motivo: catálogo; sem catálogo, o texto livre (que às vezes é só o
+ *  código); sem nenhum, a glosa total. */
 function codigoEMotivo(d: DiferencaAplis): { codigo: string | null; motivo: string } | null {
   if (d.motivoCodigo !== null) {
     const codigo = String(d.motivoCodigo);
     return { codigo, motivo: d.motivoDescricao ?? `Código ${codigo} (do apLIS)` };
   }
   const des = d.desMotivoGlosa;
-  if (des === null) return null;
+  if (des === null) return d.codEventoFatur === EVENTO_GLOSA_TOTAL ? { codigo: null, motivo: MOTIVO_GLOSA_TOTAL } : null;
   if (SO_DIGITOS.test(des)) return { codigo: des, motivo: `Código ${des} (do apLIS)` };
   return { codigo: null, motivo: des };
 }
@@ -160,9 +183,14 @@ function conferirDemonstrativo(
  * Glosas a lançar num título, ou o motivo de não lançar nenhuma. Uma por lote +
  * código + status (sem código, por motivo), com o valor somado em centavos e
  * descontado o que já foi lançado do apLIS; grupo abaixo de R$ 0,01 fica fora.
- * Título `sistema-maior`/`lote-ausente`, com glosa digitada à mão ou
- * cuja glosa passaria do saldo (tolerância R$ 1,00) não recebe nenhuma. Cada
- * glosa leva a conferência com o demonstrativo, que não muda nada disso.
+ * Título `sistema-maior`/`lote-ausente` ou cuja glosa passaria do saldo
+ * (tolerância R$ 1,00) não recebe nenhuma. Cada glosa leva a conferência com o
+ * demonstrativo, que não muda nada disso.
+ *
+ * Glosa digitada à mão (fora as revertidas) é substituída: sai em `substituir`
+ * e o saldo volta a contar com ela. Só quando o apLIS explica toda a diferença
+ * (nenhuma sem motivo) e o valor muda — a mão já somando o que o apLIS glosou,
+ * fica como está. Diferença sem motivo junto de glosa à mão → `glosa-manual`.
  */
 export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosasSugeridas {
   const grupos = new Map<string, GrupoGlosa>();
@@ -173,7 +201,7 @@ export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosa
       if (centavos(d.valor) >= 1) semMotivo = true;
       continue;
     }
-    const status = statusDa(d);
+    const status = statusDa(d, identificacao.motivo === MOTIVO_GLOSA_TOTAL && identificacao.codigo === null);
     const chave = `${chaveLoteCodigo(d.idLote, identificacao.codigo, identificacao.motivo)}|${status}`;
     const grupo = grupos.get(chave) ?? {
       idLote: d.idLote, ...identificacao, status, valor: 0, procedimentos: 0,
@@ -188,6 +216,7 @@ export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosa
     grupos.set(chave, grupo);
   }
   descontarLancadas(grupos, entrada.glosasSistema);
+  const temGlosaNoAplis = [...grupos.values()].some((g) => g.brutoCentavos >= 1);
 
   const glosas = [...grupos.values()]
     .filter((g) => g.centavos >= 1)
@@ -201,15 +230,24 @@ export function glosasSugeridas(entrada: EntradaGlosasSugeridas): ResultadoGlosa
       demonstrativo: conferirDemonstrativo({ brutoCentavos, demonstrativoCentavos }),
     }));
 
-  if (glosas.length === 0 && !semMotivo) return { glosas: [], puladoGlosa: null };
+  const manuais: GlosaSubstituida[] = entrada.glosasSistema
+    .filter((g): g is GlosaSistema & { status: StatusGlosaAplis } => g.origem === null && g.status !== 'revertida')
+    .map(({ id, motivo, status, valor }) => ({ id, motivo, status, valor }));
+  const nada: ResultadoGlosasSugeridas = { glosas: [], substituir: [], puladoGlosa: null };
+  // Nada a lançar nem a substituir (sem glosa à mão, o já lançado do apLIS cobre tudo).
+  if (!semMotivo && (manuais.length === 0 ? glosas.length === 0 : !temGlosaNoAplis)) return nada;
 
   // Do motivo mais forte para o mais fraco: o tipo e a falta de número valem
   // para o título inteiro, com ou sem motivo no apLIS.
-  const pular = (puladoGlosa: PuladoGlosa): ResultadoGlosasSugeridas => ({ glosas: [], puladoGlosa });
+  const pular = (puladoGlosa: PuladoGlosa): ResultadoGlosasSugeridas => ({ glosas: [], substituir: [], puladoGlosa });
   if (entrada.tipo === 'sistema-maior' || entrada.tipo === 'lote-ausente') return pular('tipo');
-  if (glosas.length === 0) return pular('sem-motivo');
-  if (entrada.glosasSistema.some((g) => g.origem === null)) return pular('glosa-manual');
-  if (somaCentavos(glosas) - centavos(entrada.saldo) > TOLERANCIA_SALDO_CENTAVOS) return pular('passa-do-saldo');
+  if (!temGlosaNoAplis || (manuais.length === 0 && glosas.length === 0)) return pular('sem-motivo');
+  if (manuais.length > 0) {
+    if (semMotivo) return pular('glosa-manual');
+    if (somaCentavos(glosas) === somaCentavos(manuais)) return nada;
+  }
+  const saldo = centavos(entrada.saldo) + somaCentavos(manuais);
+  if (somaCentavos(glosas) - saldo > TOLERANCIA_SALDO_CENTAVOS) return pular('passa-do-saldo');
 
-  return { glosas, puladoGlosa: null };
+  return { glosas, substituir: manuais, puladoGlosa: null };
 }
