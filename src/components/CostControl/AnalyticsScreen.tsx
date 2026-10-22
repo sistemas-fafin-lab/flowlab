@@ -14,6 +14,7 @@ import {
   Info,
 } from 'lucide-react';
 import { Exam, Payor, formatBRL, formatPct } from '../../hooks/useCostControl';
+import { ehLinhaNaoLevantada } from './domain/busca';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -197,6 +198,8 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
     [exams]
   );
 
+  const examesPorId = useMemo(() => Object.fromEntries(exams.map(e => [e.id, e])), [exams]);
+
   const payorList = useMemo(
     () => Array.from(new Set(payors.map(p => p.payor))).sort(),
     [payors]
@@ -206,7 +209,9 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
   const rows = useMemo<RentabilidadeRow[]>(() => {
     const filteredP = payors.filter(p => payorFilter === 'all' || p.payor === payorFilter);
     return filteredP.flatMap(p => {
-      const ex = examMap[p.tus];
+      // Linha de exame pelo exame dela; linha não levantada (importação sem
+      // exame parecido) não tem custo pra comparar.
+      const ex = p.exameId ? examesPorId[p.exameId] : ehLinhaNaoLevantada(p) ? undefined : examMap[p.tus];
       if (!ex) return [];
       const cost = ex.direct + ex.indirect;
       const revenue = p.price;
@@ -214,7 +219,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
       const margin = revenue > 0 ? ((revenue - cost) / revenue) * 100 : 0;
       return [{ id: p.id, exam: ex, cost, revenue, profit, margin, payor: p.payor, table: p.table }];
     });
-  }, [payors, examMap, payorFilter]);
+  }, [payors, examMap, examesPorId, payorFilter]);
 
   // Apply advanced filters
   const filteredRows = useMemo(

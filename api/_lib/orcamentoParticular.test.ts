@@ -50,6 +50,7 @@ interface FonteRow {
   tabela_associada_id?: string;
   tuss: string;
   exame_id?: string | null;
+  nome_exame_convenio?: string | null;
   // number | string: PostgREST pode devolver NUMERIC como string.
   valor: number | string;
   atendido: boolean;
@@ -480,6 +481,23 @@ describe('buildOrcamentoParticular — linha de exame (exame_id) vs. linha geral
     expect(itens.map(i => [i.nome, i.conveniosAceitos])).toEqual([
       ['BIOPSIA SEXTANTE', []],
       ['BIOPSIA SIMPLES', ['Unimed']],
+    ]);
+  });
+  it('linha não levantada da importação não é linha geral: não dá preço nem conta como convênio', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linha({ id: 'n1', nome_exame_convenio: 'Biópsia de próstata' }),
+        linha({}),
+        linha({ id: 'u1', fonte_pagadora: 'Unimed', atendido: true, nome_exame_convenio: 'Biópsia' }),
+      ],
+      custo_exames: exames,
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
+
+    expect(itens.map(i => [i.nome, i.preco, i.conveniosAceitos])).toEqual([
+      ['BIOPSIA SEXTANTE', 250, []],
+      ['BIOPSIA SIMPLES', 250, []],
     ]);
   });
 });

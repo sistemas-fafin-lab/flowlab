@@ -5,12 +5,15 @@ import { CriarTabelaAssociada, Exam, Payor, TabelaAssociada, formatBRL, formatPc
 import EscolhaTabelaAssociada from './EscolhaTabelaAssociada';
 import { tabelaEscolhidaDaFonte } from './domain/tabelasAssociadas';
 import {
-  calcularAtendidoImportacao,
+  lerPlanilhaConvenio,
   parseLimiteCsp,
-  validarLinhasImportacaoFontePagadora,
-  type LinhaImportacaoFontePagadora,
-  type LinhaPlanilhaFontePagadora,
-  type LinhaValidada,
+  planejarImportacao,
+  validarLinhasPlanilhaConvenio,
+  type LinhaPlanilhaConvenio,
+  type LinhaPlanoImportacao,
+  type LinhaValidadaConvenio,
+  type MotivoNaoLevantado,
+  type PlanoImportacao,
 } from './domain/importacaoFontesPagadoras';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -22,23 +25,27 @@ interface PayorImportModalProps {
   onClose: () => void;
   payors: Payor[];
   exams: Exam[];
-  // Chaves chaveExclusaoExame(payorId, exameId) — entram no cálculo do Atendido.
-  exameExclusions: Set<string>;
   tabelasAssociadas: TabelaAssociada[];
   onCriarTabela: CriarTabelaAssociada;
-  onImport: (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
+  onImport: (tabela: TabelaAssociada, plano: PlanoImportacao) => Promise<number>;
 }
 
-// Uma coluna Atendido de planilha antiga é aceita e ignorada: o Atendido é
-// calculado pelo % máx CSP (ver calcularAtendidoImportacao).
-const REQUIRED_COLUMNS = ['TUSS', 'NOME DO EXAME', 'VALOR'];
+// Colunas lidas: TUSS, Nome do Exame e Valor, achadas por lerPlanilhaConvenio.
+// Uma coluna Atendido de planilha antiga é ignorada: o Atendido é calculado
+// pelo % máx CSP (ver planejarImportacao).
 
-const normalizeHeader = (h: string): string =>
-  h
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .trim()
-    .toUpperCase();
+const TEXTO_MOTIVO: Record<MotivoNaoLevantado, string> = {
+  tuss_sem_exame: 'nenhum exame com este TUSS',
+  nome_diferente: 'nenhum exame do TUSS com nome parecido',
+  exame_ja_vinculado: 'os exames parecidos já têm outra linha nesta tabela',
+};
+
+// Como a linha foi (ou não) vinculada — mostrado embaixo do exame na prévia.
+function descricaoVinculo(linha: LinhaPlanoImportacao): string {
+  if (linha.motivoNaoLevantado) return TEXTO_MOTIVO[linha.motivoNaoLevantado];
+  if (linha.origemVinculo === 'mantido') return 'vínculo mantido da importação anterior';
+  return linha.adotaLinhaPropria ? 'por semelhança · atualiza a linha própria do exame' : 'por semelhança';
+}
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENT
@@ -49,7 +56,6 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
   onClose,
   payors,
   exams,
-  exameExclusions,
   tabelasAssociadas,
   onCriarTabela,
   onImport,
@@ -58,14 +64,12 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
   const [tabelaId, setTabelaId] = useState<string | null>(null);
   const [limiteCspTexto, setLimiteCspTexto] = useState('');
   const [fileName, setFileName] = useState('');
-  const [rows, setRows] = useState<LinhaValidada[]>([]);
+  const [rows, setRows] = useState<LinhaValidadaConvenio[]>([]);
   const [columnError, setColumnError] = useState('');
   const [importing, setImporting] = useState(false);
   const [done, setDone] = useState<number | null>(null);
   const [error, setError] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
-
-  const tussValidos = useMemo(() => new Set(exams.map(e => e.tuss).filter(Boolean)), [exams]);
 
   const fontesPagadoras = useMemo(() => Array.from(new Set(payors.map(p => p.payor))).sort(), [payors]);
 
@@ -75,29 +79,32 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
   );
 
   const validRows = useMemo(
-    () => rows.filter((r): r is LinhaValidada & { data: LinhaPlanilhaFontePagadora } => r.data !== null),
+    () => rows.filter((r): r is LinhaValidadaConvenio & { data: LinhaPlanilhaConvenio } => r.data !== null),
     [rows],
   );
   const limiteCsp = parseLimiteCsp(limiteCspTexto);
 
   // Recalcula na hora quando o limite (ou a tabela) muda — a prévia e a
-  // gravação usam o mesmo resultado.
-  const calculadas = useMemo(
+  // gravação usam o mesmo plano.
+  const plano = useMemo(
     () =>
       limiteCsp === null || !tabela
         ? null
-        : calcularAtendidoImportacao({
+        : planejarImportacao({
             linhas: validRows.map(r => r.data),
             exams,
             payors,
             tabelaId: tabela.id,
-            excluidos: exameExclusions,
             limiteCsp,
           }),
-    [validRows, exams, payors, tabela, exameExclusions, limiteCsp],
+    [validRows, exams, payors, tabela, limiteCsp],
   );
+  const calculadas = plano?.linhas ?? null;
 
   const totalSim = calculadas?.filter(l => l.atendido).length ?? 0;
+  const totalNaoLevantadas = calculadas?.filter(l => !l.exame).length ?? 0;
+  // A planilha pode repetir a mesma linha (TUSS + nome): o plano já deduplicou.
+  const totalImportar = calculadas?.length ?? validRows.length;
 
   if (!open) return null;
 
@@ -133,31 +140,22 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
         // .xlsx/.xls (binário) quanto para .csv (texto), sem código separado.
         const workbook = XLSX.read(data, { type: 'array' });
         const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+        const celulas = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: '' });
 
-        if (json.length === 0) {
+        if (celulas.length === 0) {
           setColumnError('A planilha está vazia.');
           return;
         }
 
-        const headerMap = new Map<string, string>();
-        Object.keys(json[0]).forEach(k => headerMap.set(normalizeHeader(k), k));
-
-        const missing = REQUIRED_COLUMNS.filter(c => !headerMap.has(c));
-        if (missing.length > 0) {
+        const brutas = lerPlanilhaConvenio(celulas);
+        if (!brutas) {
           setColumnError(
-            `Colunas obrigatórias ausentes: ${missing.join(', ')}. Baixe o modelo para conferir o formato esperado.`
+            'Não encontrei as colunas TUSS, Nome do Exame e Valor nas primeiras linhas da planilha. Baixe o modelo para conferir o formato esperado.'
           );
           return;
         }
 
-        const brutas = json.map(raw => ({
-          tuss: raw[headerMap.get('TUSS')!],
-          nomeExame: raw[headerMap.get('NOME DO EXAME')!],
-          valor: raw[headerMap.get('VALOR')!],
-        }));
-
-        setRows(validarLinhasImportacaoFontePagadora(brutas, tussValidos));
+        setRows(validarLinhasPlanilhaConvenio(brutas));
       } catch {
         setColumnError('Não foi possível ler o arquivo. Confira se é um .xlsx, .xls ou .csv válido.');
       }
@@ -183,11 +181,11 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
   const invalidRows = rows.filter(r => r.data === null);
 
   const handleImport = async () => {
-    if (!calculadas || calculadas.length === 0 || !tabela) return;
+    if (!plano || plano.linhas.length === 0 || !tabela) return;
     setImporting(true);
     setError('');
     try {
-      const count = await onImport(tabela, calculadas);
+      const count = await onImport(tabela, plano);
       setDone(count);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao importar custos de fontes pagadoras.');
@@ -202,7 +200,7 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
       onClick={handleClose}
     >
       <div
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[92vh] flex flex-col"
+        className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-4xl max-h-[92vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
@@ -283,7 +281,7 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
                   {limiteCspTexto.trim() && limiteCsp === null
                     ? <span className="text-red-600 dark:text-red-400">Informe um número (ex.: 40 ou 32,5).</span>
-                    : 'Atendido = Sim quando custo / valor fica até esse limite (inclusive).'}
+                    : 'Atendido = Sim quando custo / valor fica até esse limite (inclusive). Exame sem custo levantado fica Não.'}
                 </p>
               </div>
 
@@ -371,12 +369,29 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
                           <strong className="text-emerald-600 dark:text-emerald-400">{totalSim} Sim</strong>
                           {' · '}
                           <strong className="text-red-600 dark:text-red-400">{calculadas.length - totalSim} Não</strong>
+                          {totalNaoLevantadas > 0 && (
+                            <>
+                              {' · '}
+                              <strong className="text-amber-600 dark:text-amber-400">
+                                {totalNaoLevantadas} com custo não levantado
+                              </strong>
+                            </>
+                          )}
                         </p>
-                        <div className="max-h-64 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700">
+                        {plano && plano.linhasGeraisSubstituidas.length > 0 && (
+                          <p className="text-xs text-amber-700 dark:text-amber-300">
+                            {plano.linhasGeraisSubstituidas.length} linha
+                            {plano.linhasGeraisSubstituidas.length !== 1 ? 's' : ''} por TUSS da importação anterior
+                            {plano.linhasGeraisSubstituidas.length !== 1 ? ' serão substituídas' : ' será substituída'} pelas
+                            linhas por exame desta planilha, junto com exclusões e valores personalizados delas.
+                          </p>
+                        )}
+                        <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-200 dark:border-gray-700">
                           <table className="w-full text-xs">
                             <thead className="sticky top-0 bg-slate-50 dark:bg-gray-900 text-gray-500 dark:text-gray-400">
                               <tr>
-                                <th className="px-3 py-2 text-left font-semibold">TUSS</th>
+                                <th className="px-3 py-2 text-left font-semibold">Exame no convênio</th>
+                                <th className="px-3 py-2 text-left font-semibold">Vinculado a</th>
                                 <th className="px-3 py-2 text-right font-semibold">Valor</th>
                                 <th className="px-3 py-2 text-right font-semibold">Custo</th>
                                 <th className="px-3 py-2 text-right font-semibold">CSP %</th>
@@ -385,28 +400,21 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
                             </thead>
                             <tbody className="divide-y divide-gray-100 dark:divide-gray-700 text-gray-700 dark:text-gray-200">
                               {calculadas.map((linha, i) => (
-                                <tr key={validRows[i].row}>
+                                <tr key={`${linha.tuss}-${i}`}>
                                   <td className="px-3 py-1.5">
-                                    <span className="font-mono">{linha.tuss}</span>
-                                    {linha.examesCobertos > 1 && linha.exameDefinidor && (
-                                      <div className="text-[11px] text-gray-500 dark:text-gray-400">
-                                        CSP definido por {linha.exameDefinidor}
-                                      </div>
+                                    <div>{linha.nomeConvenio}</div>
+                                    <div className="font-mono text-[11px] text-gray-500 dark:text-gray-400">{linha.tuss}</div>
+                                  </td>
+                                  <td className="px-3 py-1.5">
+                                    {linha.exame ? (
+                                      <div>{linha.exame.name}</div>
+                                    ) : (
+                                      <div className="text-amber-600 dark:text-amber-400">Custo não levantado</div>
                                     )}
-                                    {linha.examesComLinhaPropria.length > 0 && (
-                                      <div className="text-[11px] text-amber-600 dark:text-amber-400">
-                                        Linha própria, não alterada: {linha.examesComLinhaPropria.join(', ')}
-                                      </div>
-                                    )}
+                                    <div className="text-[11px] text-gray-500 dark:text-gray-400">{descricaoVinculo(linha)}</div>
                                   </td>
                                   <td className="px-3 py-1.5 text-right">{formatBRL(linha.valor)}</td>
-                                  <td className="px-3 py-1.5 text-right">
-                                    {linha.custoNaoCadastrado ? (
-                                      <span className="text-amber-600 dark:text-amber-400">Custo não cadastrado</span>
-                                    ) : (
-                                      formatBRL(linha.custoUsado)
-                                    )}
-                                  </td>
+                                  <td className="px-3 py-1.5 text-right">{linha.custo === null ? '—' : formatBRL(linha.custo)}</td>
                                   <td className="px-3 py-1.5 text-right">{linha.csp === null ? '—' : formatPct(linha.csp)}</td>
                                   <td
                                     className={`px-3 py-1.5 text-center font-semibold ${
@@ -453,7 +461,7 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 shadow-md shadow-blue-500/25 active:scale-[.98] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Upload className="w-4 h-4" />
-              {importing ? 'Importando…' : `Importar ${validRows.length} linha${validRows.length !== 1 ? 's' : ''}`}
+              {importing ? 'Importando…' : `Importar ${totalImportar} linha${totalImportar !== 1 ? 's' : ''}`}
             </button>
           )}
         </div>

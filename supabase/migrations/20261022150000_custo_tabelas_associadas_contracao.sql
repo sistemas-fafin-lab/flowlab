@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Controle de Custos — contração: o cadastro de tabela associada é a única
 -- fonte da verdade
--- Migration: 20261022120000_custo_tabelas_associadas_contracao.sql
+-- Migration: 20261022150000_custo_tabelas_associadas_contracao.sql
 --
 -- Spec: .scratch/controle-custos-tabela-associada/spec.md (ticket 07).
 --
@@ -22,6 +22,8 @@
 --     com texto: o texto precisa ser de uma tabela JÁ cadastrada na fonte
 --     (sem diferenciar maiúsculas) — não cria mais cadastro. Nenhum código lê
 --     o texto.
+--
+-- Depende de 20261022140000 (coluna nome_exame_convenio).
 --
 -- IMPORTANTE: só aplicar DEPOIS da migração da unificação (ticket 06,
 -- gerada por supabase/scripts/unificar-tabelas-associadas.ts). Em produção
@@ -53,7 +55,7 @@
 --     WHERE id = (SELECT id FROM custo_fontes_pagadoras LIMIT 1);                                       -- 23514
 --   INSERT INTO custo_fontes_pagadoras (fonte_pagadora, tabela_associada_id, tuss, valor)
 --     SELECT fonte_pagadora, tabela_associada_id, tuss, valor FROM custo_fontes_pagadoras
---     WHERE exame_id IS NULL LIMIT 1;                                                                   -- 23505
+--     WHERE exame_id IS NULL AND nome_exame_convenio IS NULL LIMIT 1;                                                                  -- 23505
 -- ═══════════════════════════════════════════════════════════════════════════════
 
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -82,7 +84,7 @@ BEGIN
     UNION ALL
     SELECT format('  - tabela %s: %s linhas gerais do TUSS "%s"', tabela_associada_id, count(*), btrim(tuss))
     FROM public.custo_fontes_pagadoras
-    WHERE exame_id IS NULL
+    WHERE exame_id IS NULL AND nome_exame_convenio IS NULL
     GROUP BY tabela_associada_id, btrim(tuss)
     HAVING count(*) > 1
     UNION ALL
@@ -171,7 +173,7 @@ CREATE TRIGGER trigger_custo_tabelas_associadas_regras
   BEFORE INSERT OR UPDATE OR DELETE ON public.custo_tabelas_associadas
   FOR EACH ROW EXECUTE FUNCTION public.custo_tabelas_associadas_regras();
 
-COMMENT ON FUNCTION public.custo_tabela_associada_eh_particular(TEXT, TEXT) IS 'Tabela Particular da fonte Particular — a que o Gerador de Orçamento lê pelo nome. Protegida contra renomear, desativar e excluir. Com a unicidade sem diferenciar maiúsculas (20261022120000), é uma só.';
+COMMENT ON FUNCTION public.custo_tabela_associada_eh_particular(TEXT, TEXT) IS 'Tabela Particular da fonte Particular — a que o Gerador de Orçamento lê pelo nome. Protegida contra renomear, desativar e excluir. Com a unicidade sem diferenciar maiúsculas (20261022150000), é uma só.';
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 2. LINHAS: tabela obrigatória e unicidade pelo id da tabela
@@ -184,10 +186,12 @@ ALTER TABLE public.custo_fontes_pagadoras
   DROP CONSTRAINT IF EXISTS custo_fontes_pagadoras_fonte_tabela_tuss_exame_key;
 
 -- Mesma chave de "mesma linha" da tela e da unificação (chaveDaLinha em
--- src/components/CostControl/domain/unificacaoTabelas.ts).
+-- src/components/CostControl/domain/unificacaoTabelas.ts). Só linhas gerais:
+-- as não levantadas da importação (nome_exame_convenio, 20261022140000)
+-- podem repetir o TUSS e têm a própria unicidade.
 CREATE UNIQUE INDEX IF NOT EXISTS custo_fontes_pagadoras_tabela_tuss_key
   ON public.custo_fontes_pagadoras (tabela_associada_id, btrim(tuss))
-  WHERE exame_id IS NULL;
+  WHERE exame_id IS NULL AND nome_exame_convenio IS NULL;
 
 CREATE UNIQUE INDEX IF NOT EXISTS custo_fontes_pagadoras_tabela_exame_key
   ON public.custo_fontes_pagadoras (tabela_associada_id, exame_id)

@@ -4,6 +4,7 @@ import {
   contarLinhasPorTabela,
   erroNomeTabela,
   fonteDaNovaTabela,
+  gruposParaFiltroDeTabela,
   opcoesDeTabela,
   tabelaEscolhidaDaFonte,
   tabelaProtegida,
@@ -124,6 +125,7 @@ describe('contarLinhasPorTabela', () => {
     atendido: true,
     elegivelDescontoParticular: false,
     exameId: null,
+    nomeConvenio: null,
   });
 
   it('conta as linhas de cada tabela pelo id; tabela sem linhas fica com zero', () => {
@@ -131,5 +133,24 @@ describe('contarLinhasPorTabela', () => {
     expect(contagem.get('t1')).toBe(2);
     expect(contagem.get('t2')).toBe(1);
     expect(contagem.get('t3') ?? 0).toBe(0);
+  });
+});
+
+describe('gruposParaFiltroDeTabela', () => {
+  const tabelas = [
+    tabela('1', 'AMHP-DF', 'Proasa'),
+    tabela('2', 'Bradesco', 'Bradesco Top', false),
+    tabela('3', 'AMHP-DF', 'CONAB'),
+  ];
+
+  it('sem fonte: todas as tabelas (inativas também), agrupadas por fonte, em ordem alfabética', () => {
+    expect(gruposParaFiltroDeTabela(tabelas).map(g => [g.fontePagadora, g.tabelas.map(t => t.id)])).toEqual([
+      ['AMHP-DF', ['3', '1']],
+      ['Bradesco', ['2']],
+    ]);
+  });
+
+  it('com fonte escolhida: só as tabelas dela, sem diferenciar maiúsculas', () => {
+    expect(gruposParaFiltroDeTabela(tabelas, 'amhp-df').map(g => g.tabelas.length)).toEqual([2]);
   });
 });

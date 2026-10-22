@@ -6,6 +6,9 @@ import type { Payor, TabelaAssociada } from '../../../hooks/useCostControl';
 import type { ExameDaFontePagadora } from './busca';
 import { formatarVencimento } from './vencimento';
 
+// Mesmo texto da tela pra linha que a importação não vinculou a um exame.
+export const CUSTO_NAO_LEVANTADO = 'Custo não levantado';
+
 export interface LinhaExportacao {
   [coluna: string]: string | number;
 }
@@ -18,21 +21,23 @@ function vencimentoPorTabela(tabelas: TabelaAssociada[]): (tabelaId: string) => 
 }
 
 /** Linhas de exportação pra tabela "exames de uma fonte pagadora" — mesmas
- *  colunas exibidas em TabelaExamesDaFonte. */
+ *  colunas exibidas em TabelaExamesDaFonte. Linha não levantada sai com
+ *  "Custo não levantado" no Custo e Dif/%CSP vazios. */
 export function linhasExportacaoExamesDaFonte(
   examesDaFonte: ExameDaFontePagadora[],
   tabelas: TabelaAssociada[],
 ): LinhaExportacao[] {
   const vencimento = vencimentoPorTabela(tabelas);
   return examesDaFonte.map(e => ({
-    Exame: e.exame,
+    Exame: e.exameId ? e.exame : '',
+    'Nome no convênio': e.nomeConvenio ?? '',
     TUSS: e.tuss,
     'Tabela Associada': e.tabelaAssociada,
     Vencimento: vencimento(e.tabelaId),
     'Valor Cobrado': e.valorCobrado,
-    Custo: e.custo,
-    Dif: e.dif,
-    '%CSP': Number(e.percentualCsp.toFixed(2)),
+    Custo: e.custoLevantado ? e.custo : CUSTO_NAO_LEVANTADO,
+    Dif: e.custoLevantado ? e.dif : '',
+    '%CSP': e.custoLevantado ? Number(e.percentualCsp.toFixed(2)) : '',
     Atendido: e.atendido ? 'Sim' : 'Não',
   }));
 }
@@ -46,6 +51,7 @@ export function linhasExportacaoFontesPagadoras(fontes: Payor[], tabelas: Tabela
     'Tabela Associada': p.table,
     Vencimento: vencimento(p.tabelaId),
     TUSS: p.tus,
+    'Nome no convênio': p.nomeConvenio ?? '',
     'Valor Cobrado': p.price,
     Atendido: p.atendido ? 'Sim' : 'Não',
   }));

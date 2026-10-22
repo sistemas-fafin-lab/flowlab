@@ -79,8 +79,13 @@ export interface ExameDaFontePagadora {
   // Id do Exam cujo nome está em `exame` — necessário porque um mesmo TUSS
   // pode render múltiplas linhas (ver examesPorFontePagadora); é o que
   // permite editar/selecionar o exame certo em vez do primeiro que bater.
-  exameId: string;
+  // null = linha não levantada (ver ehLinhaNaoLevantada): `exame` é o nome
+  // no convênio e não há custo.
+  exameId: string | null;
   exame: string;
+  // Nome do exame na tabela do convênio (Payor.nomeConvenio) — só nas
+  // linhas gravadas pela importação.
+  nomeConvenio: string | null;
   tuss: string;
   // Cadastro da tabela associada da linha (Payor.tabelaId) — é por ele que
   // "mesma tabela" é decidido; tabelaAssociada é só o nome exibido.
@@ -98,6 +103,9 @@ export interface ExameDaFontePagadora {
   // true quando `valorCobrado` veio de custo_fontes_pagadoras_valores_exame
   // (um valor só pra este exame, diferente dos irmãos), não do padrão do TUSS.
   temValorPersonalizado: boolean;
+  // false = linha não levantada: custo, dif e percentualCsp não têm sentido
+  // (ficam 0 / o valor cobrado) e a tela mostra "Custo não levantado".
+  custoLevantado: boolean;
   custo: number;
   dif: number;
   percentualCsp: number;
@@ -113,6 +121,18 @@ export interface ExameDaFontePagadora {
  *  custo_fontes_pagadoras_valores_exame (mesma forma de chave, tabelas
  *  diferentes). */
 export const chaveExclusaoExame = (payorId: string, exameId: string): string => `${payorId}:${exameId}`;
+
+/** Linha que a importação não conseguiu vincular a um exame: tem o nome no
+ *  convênio, mas não o exame. Não cobre exame nenhum — não é linha geral do
+ *  TUSS — até ser vinculada na tela. Ver
+ *  .scratch/controle-custos-importacao-por-exame/spec.md. */
+export const ehLinhaNaoLevantada = (p: Pick<Payor, 'exameId' | 'nomeConvenio'>): boolean =>
+  !p.exameId && p.nomeConvenio !== null;
+
+/** Linha geral do TUSS: vale para todos os exames do TUSS (menos exclusões e
+ *  linhas próprias). */
+export const ehLinhaGeral = (p: Pick<Payor, 'exameId' | 'nomeConvenio'>): boolean =>
+  !p.exameId && p.nomeConvenio === null;
 
 /** Exames cobertos por uma fonte pagadora, ordenados por valor cobrado
  *  crescente (e, entre linhas de mesmo valor, por nome do exame).
@@ -183,7 +203,7 @@ export function fontesPagadorasDoExame(
   const exame = exams.find((e) => e.id === exameId);
   if (!exame) return [];
 
-  const candidatas = payors.filter((p) => p.exameId === exameId || (!p.exameId && !!exame.tuss && p.tus === exame.tuss));
+  const candidatas = payors.filter((p) => p.exameId === exameId || (ehLinhaGeral(p) && !!exame.tuss && p.tus === exame.tuss));
   return linhasDeExame(exams, candidatas, excluidos, valoresPersonalizados)
     .filter((linha) => linha.exameId === exameId)
     .sort((a, b) => a.valorCobrado - b.valorCobrado || a.fontePagadora.localeCompare(b.fontePagadora));
@@ -247,7 +267,30 @@ function linhasDeExame(
     else grupo[indice] = exame;
   }
 
-  return fontes.flatMap((fonte) => {
+  return fontes.flatMap((fonte): ExameDaFontePagadora[] => {
+    if (ehLinhaNaoLevantada(fonte)) {
+      return [
+        {
+          payorId: fonte.id,
+          fontePagadora: fonte.payor,
+          exameId: null,
+          exame: fonte.nomeConvenio!,
+          nomeConvenio: fonte.nomeConvenio,
+          tuss: fonte.tus,
+          tabelaId: fonte.tabelaId,
+          tabelaAssociada: fonte.table,
+          valorCobrado: fonte.price,
+          valorPadraoTuss: fonte.price,
+          temValorPersonalizado: false,
+          custoLevantado: false,
+          custo: 0,
+          dif: fonte.price,
+          percentualCsp: 0,
+          atendido: fonte.atendido,
+          elegivelDescontoParticular: fonte.elegivelDescontoParticular,
+        },
+      ];
+    }
     // exameId preenchido: só aquele exame. Senão, TUSS preenchido: todos os
     // exames do TUSS que não têm linha própria nesta tabela. TUSS vazio sem
     // exameId (dado legado ainda não migrado): não aparece em lugar nenhum
@@ -273,12 +316,14 @@ function linhasDeExame(
           fontePagadora: fonte.payor,
           exameId: exame.id,
           exame: exame.name,
+          nomeConvenio: fonte.nomeConvenio,
           tuss: exame.tuss,
           tabelaId: fonte.tabelaId,
           tabelaAssociada: fonte.table,
           valorCobrado,
           valorPadraoTuss: fonte.price,
           temValorPersonalizado: valorPersonalizado !== undefined,
+          custoLevantado: true,
           custo,
           dif: valorCobrado - custo,
           percentualCsp: valorCobrado > 0 ? (custo / valorCobrado) * 100 : 0,
@@ -326,7 +371,7 @@ export function analisarLinhaFontePagadora(
 ): AnaliseLinhaFontePagadora {
   const tuss = normalizar(data.tus);
   const mesmaTabela = payors.filter((p) => p.id !== ignorarPayorId && p.tabelaId === data.tabelaId);
-  const linhaGeral = tuss ? mesmaTabela.find((p) => !p.exameId && normalizar(p.tus) === tuss) ?? null : null;
+  const linhaGeral = tuss ? mesmaTabela.find((p) => ehLinhaGeral(p) && normalizar(p.tus) === tuss) ?? null : null;
 
   if (data.exameId) {
     return {
@@ -343,12 +388,13 @@ export function analisarLinhaFontePagadora(
  *  40503801 com um exame novo, "escolhi só ele e mesmo assim alterou os
  *  dois"). Nesse caso a edição grava uma linha de exame nova e a linha geral
  *  continua valendo pros demais. Com um exame só no TUSS não há irmão a
- *  proteger — atualiza a linha normalmente. */
+ *  proteger — atualiza a linha normalmente. Linha não levantada também
+ *  atualiza: escolher o exame é vinculá-la, ela não cobre irmão nenhum. */
 export function edicaoSeparaDaLinhaGeral(
-  original: Pick<Payor, 'tus' | 'exameId'>,
+  original: Pick<Payor, 'tus' | 'exameId'> & { nomeConvenio?: string | null },
   data: Pick<Payor, 'exameId'>,
   exams: Exam[],
 ): boolean {
-  if (original.exameId || !data.exameId) return false;
+  if (original.exameId || original.nomeConvenio || !data.exameId) return false;
   return examesDoTuss(exams, original.tus).length > 1;
 }

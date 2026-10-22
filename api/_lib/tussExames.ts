@@ -43,7 +43,7 @@ export interface TussExamesPayload {
   gerado_em: string;
 }
 
-type FontePagadoraRow = Omit<TussFontePagadora, 'tabela_associada'>;
+type FontePagadoraRow = Omit<TussFontePagadora, 'tabela_associada'> & { nome_exame_convenio: string | null };
 
 interface TabelaAssociadaRow {
   id: string;
@@ -81,7 +81,7 @@ export async function buildTussExames(supabase: SupabaseClient): Promise<TussExa
     buscarTodasPaginado<FontePagadoraRow>(
       supabase,
       'custo_fontes_pagadoras',
-      'id, tabela_associada_id, tuss, exame_id, atendido',
+      'id, tabela_associada_id, tuss, exame_id, nome_exame_convenio, atendido',
     ),
     buscarTodasPaginado<TabelaAssociadaRow>(supabase, 'custo_tabelas_associadas', 'id, nome'),
     buscarTodasPaginado<TussExclusao>(supabase, 'custo_fontes_pagadoras_exclusoes', 'payor_id, exame_id'),
@@ -91,10 +91,19 @@ export async function buildTussExames(supabase: SupabaseClient): Promise<TussExa
 
   return {
     exames: exames.filter((e): e is TussExame => e.aplis_id_exame_tipo !== null),
-    fontes_pagadoras: fontesPagadoras.map(f => ({
-      ...f,
-      tabela_associada: nomeDaTabela.get(f.tabela_associada_id) ?? '',
-    })),
+    // Linha não levantada (importação sem exame parecido: exame_id null com
+    // nome no convênio) fica fora — do lado da Admissão, exame_id null é
+    // linha geral do TUSS e cobriria todos os exames dele.
+    fontes_pagadoras: fontesPagadoras
+      .filter(f => f.exame_id !== null || !f.nome_exame_convenio)
+      .map(f => ({
+        id: f.id,
+        tabela_associada_id: f.tabela_associada_id,
+        tabela_associada: nomeDaTabela.get(f.tabela_associada_id) ?? '',
+        tuss: f.tuss,
+        exame_id: f.exame_id,
+        atendido: f.atendido,
+      })),
     exclusoes,
     gerado_em: new Date().toISOString(),
   };

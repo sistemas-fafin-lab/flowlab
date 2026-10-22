@@ -34,10 +34,11 @@ import Notification from '../Notification';
 import ExamFormModal from './ExamFormModal';
 import PayorFormModal from './PayorFormModal';
 import AutocompleteInput from './AutocompleteInput';
+import FiltroTabelaAssociada from './FiltroTabelaAssociada';
 import PayorImportModal from './PayorImportModal';
 import ValorExameFormModal from './ValorExameFormModal';
 import TabelasDaFonte from './TabelasDaFonte';
-import { contarLinhasPorTabela, fonteDaNovaTabela, tabelasDaFonte } from './domain/tabelasAssociadas';
+import { contarLinhasPorTabela, fonteDaNovaTabela, gruposParaFiltroDeTabela, tabelasDaFonte } from './domain/tabelasAssociadas';
 import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
@@ -49,12 +50,13 @@ import {
   type ExameDaFontePagadora,
 } from './domain/busca';
 import {
+  CUSTO_NAO_LEVANTADO,
   linhasExportacaoExamesDaFonte,
   linhasExportacaoFontesDoExame,
   linhasExportacaoFontesPagadoras,
   type LinhaExportacao,
 } from './domain/exportacao';
-import type { LinhaImportacaoFontePagadora } from './domain/importacaoFontesPagadoras';
+import type { PlanoImportacao } from './domain/importacaoFontesPagadoras';
 import { ORDENACAO_PADRAO, alternarOrdenacao, ordenar, type EstadoOrdenacao } from './domain/ordenacao';
 import { CabecalhoOrdenavel } from './domain/CabecalhoOrdenavel';
 
@@ -82,7 +84,7 @@ interface PayorsScreenProps {
   setValorExameDaFontePagadora: (payorId: string, exameId: string, valor: number) => Promise<void>;
   restaurarValorPadraoExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
   updateExam: (id: string, data: Partial<Omit<Exam, 'id'>>) => Promise<void>;
-  importPayors: (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
+  importPayors: (tabela: TabelaAssociada, plano: PlanoImportacao) => Promise<number>;
   createTabelaAssociada: CriarTabelaAssociada;
   updateVencimentoTabelaAssociada: (id: string, vencimento: string | null) => Promise<void>;
   renameTabelaAssociada: (id: string, nome: string) => Promise<void>;
@@ -93,11 +95,12 @@ interface PayorsScreenProps {
 // Dados de uma linha em edição no PayorFormModal — comum às duas tabelas de
 // resultado (TabelaExamesDaFonte e TabelaFontesPagadoras), que expõem campos
 // diferentes pra mesma linha de Payor.
-type LinhaEditavel = PayorEditData & { payorId: string };
+// nomeConvenio: só pra saber se a linha é não levantada (edicaoSeparaDaLinhaGeral).
+type LinhaEditavel = PayorEditData & { payorId: string; nomeConvenio: string | null };
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// CAMPO DE BUSCA (combobox genérico — usado uma vez pra Fonte Pagadora,
-// outra pra Exame; cada um resolve pra um único item selecionado, com chip
+// CAMPO DE BUSCA (combobox genérico — usado pra Fonte Pagadora; resolve pra
+// um único item selecionado, com chip
 // e X pra limpar, igual o campo único de antes)
 // ═══════════════════════════════════════════════════════════════════════════════
 
@@ -502,6 +505,19 @@ function TabelaExamesDaFonte({
                 return (
                 <tr key={`${e.payorId}-${e.exameId}`} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[.04] transition-colors">
                   <td className="px-5 py-3.5">
+                    {e.exameId === null ? (
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                          <FlaskConical className="w-3.5 h-3.5" />
+                        </div>
+                        <div>
+                          <div className="font-semibold text-gray-800 dark:text-gray-100">{e.exame}</div>
+                          <div className="text-[11px] text-amber-600 dark:text-amber-400">
+                            Nome no convênio · sem exame vinculado
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
@@ -511,7 +527,14 @@ function TabelaExamesDaFonte({
                         <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-blue-500/10 to-indigo-500/10 border border-blue-500/20 flex items-center justify-center text-blue-600 dark:text-blue-400">
                           <FlaskConical className="w-3.5 h-3.5" />
                         </div>
-                        <span className="font-semibold text-gray-800 dark:text-gray-100">{e.exame}</span>
+                        <span>
+                          <span className="block font-semibold text-gray-800 dark:text-gray-100">{e.exame}</span>
+                          {e.nomeConvenio && e.nomeConvenio !== e.exame && (
+                            <span className="block text-[11px] font-normal text-gray-500 dark:text-gray-400">
+                              No convênio: {e.nomeConvenio}
+                            </span>
+                          )}
+                        </span>
                       </button>
                       {irmaos.length > 0 && (
                         <span
@@ -532,6 +555,7 @@ function TabelaExamesDaFonte({
                         </button>
                       )}
                     </div>
+                    )}
                   </td>
                   <td className="px-5 py-3.5 font-mono text-xs text-gray-500 dark:text-gray-400">{e.tuss}</td>
                   <td className="px-5 py-3.5">
@@ -552,17 +576,23 @@ function TabelaExamesDaFonte({
                     </span>
                   </td>
                   <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                    {formatBRL(e.custo)}
+                    {e.custoLevantado ? (
+                      formatBRL(e.custo)
+                    ) : (
+                      <span className="whitespace-nowrap text-xs font-medium text-amber-600 dark:text-amber-400">
+                        {CUSTO_NAO_LEVANTADO}
+                      </span>
+                    )}
                   </td>
                   <td
                     className={`px-5 py-3.5 text-right tabular-nums font-semibold ${
-                      e.dif < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
+                      e.custoLevantado && e.dif < 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
                     }`}
                   >
-                    {formatBRL(e.dif)}
+                    {e.custoLevantado ? formatBRL(e.dif) : '—'}
                   </td>
                   <td className="px-5 py-3.5 text-right tabular-nums text-gray-700 dark:text-gray-300">
-                    {formatPct(e.percentualCsp)}
+                    {e.custoLevantado ? formatPct(e.percentualCsp) : '—'}
                   </td>
                   <td className="px-5 py-3.5 text-right">
                     <button
@@ -698,6 +728,9 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   // continuar instantâneo mesmo com a lista grande recalculando por trás.
   const termoExameDiferido = useDeferredValue(termoExame);
   const [fontePagadoraSelecionada, setFontePagadoraSelecionada] = useState<string | null>(null);
+  // Tabela associada escolhida no filtro: fixa a fonte dela e restringe a
+  // tabela de exames às linhas dessa tabela.
+  const [tabelaSelecionada, setTabelaSelecionada] = useState<TabelaAssociada | null>(null);
   const [exameSelecionado, setExameSelecionado] = useState<Exam | null>(null);
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
   const [exportando, setExportando] = useState(false);
@@ -727,12 +760,22 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   // tabela (onSelectExame) seta termoExame com o nome exato, então acaba
   // isolando aquele exame pelo mesmo mecanismo, sem precisar de um filtro
   // por id separado.
+  const examesDaTabela = useMemo(
+    () => (tabelaSelecionada ? examesDaFonte.filter(e => e.tabelaId === tabelaSelecionada.id) : examesDaFonte),
+    [examesDaFonte, tabelaSelecionada]
+  );
+
   const examesDaFonteFiltrados = useMemo(
     () =>
       termoExameDiferido.trim()
-        ? examesDaFonte.filter(e => casaTermo(e.exame, termoExameDiferido) || casaTermo(e.tuss, termoExameDiferido))
-        : examesDaFonte,
-    [examesDaFonte, termoExameDiferido]
+        ? examesDaTabela.filter(
+            e =>
+              casaTermo(e.exame, termoExameDiferido) ||
+              casaTermo(e.tuss, termoExameDiferido) ||
+              (!!e.nomeConvenio && casaTermo(e.nomeConvenio, termoExameDiferido))
+          )
+        : examesDaTabela,
+    [examesDaTabela, termoExameDiferido]
   );
 
   // Fontes pagadoras do exame selecionado — só relevante quando nenhuma
@@ -768,14 +811,31 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
     return termoExameDiferido.trim() ? buscarExamesPorTermo(base, termoExameDiferido) : base;
   }, [exams, termoExameDiferido, fontePagadoraSelecionada, examesDaFonte]);
 
+  const gruposTabela = useMemo(
+    () => gruposParaFiltroDeTabela(tabelasAssociadas, fontePagadoraSelecionada),
+    [tabelasAssociadas, fontePagadoraSelecionada]
+  );
+
   const handleSelecionarFonte = (nome: string) => {
     setFontePagadoraSelecionada(nome);
     setTermoFonte('');
+    setTabelaSelecionada(null);
   };
 
   const handleLimparFonte = () => {
     setFontePagadoraSelecionada(null);
     setTermoFonte('');
+    setTabelaSelecionada(null);
+  };
+
+  // A tabela é de uma fonte só: escolher a tabela já escolhe a fonte dela.
+  // null = "Todas as tabelas".
+  const handleSelecionarTabela = (tabela: TabelaAssociada | null) => {
+    setTabelaSelecionada(tabela);
+    if (tabela) {
+      setFontePagadoraSelecionada(tabela.fontePagadora);
+      setTermoFonte('');
+    }
   };
 
   const handleSelecionarExame = (exame: Exam) => {
@@ -857,6 +917,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       tus: item.tuss,
       price: item.valorCobrado,
       exameId: fonte?.exameId ?? null,
+      nomeConvenio: fonte?.nomeConvenio ?? null,
     });
   };
 
@@ -1011,10 +1072,10 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
       // examesPorFontePagadora casa a linha pelo exameId (linha de exame) ou
       // pelo TUSS (linha geral) — em ambos os casos, se o alvo não existir
       // mais em Exames, a linha é gravada mas não aparece em nenhuma tabela
-      // até isso ser corrigido.
+      // até isso ser corrigido. Linha não levantada aparece sempre.
       const linhaVaiAparecer = data.exameId
         ? exams.some(e => e.id === data.exameId)
-        : exams.some(e => e.tuss === data.tus);
+        : !!editingLinha?.nomeConvenio || exams.some(e => e.tuss === data.tus);
       if (linhaVaiAparecer) {
         showSuccess(editingLinha ? 'Fonte pagadora atualizada com sucesso!' : 'Linha criada com sucesso!');
       } else {
@@ -1224,6 +1285,12 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
             keyOf={nome => nome}
           />
 
+          <FiltroTabelaAssociada
+            grupos={gruposTabela}
+            selecionada={tabelaSelecionada}
+            onSelecionar={handleSelecionarTabela}
+          />
+
           <div className="flex-1 min-w-0">
             <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1.5">Exame</label>
             <div className="relative">
@@ -1262,7 +1329,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
 
       {mostrarConvite && (
         <div className="rounded-2xl border border-dashed border-gray-200 dark:border-gray-700 bg-white/50 dark:bg-gray-800/30 p-10 text-center text-sm text-gray-500 dark:text-gray-400">
-          Preencha ao menos um dos campos — fonte pagadora, exame, ou os dois — pra ver os dados.
+          Preencha ao menos um dos campos — fonte pagadora, tabela associada ou exame — pra ver os dados.
         </div>
       )}
 
@@ -1296,6 +1363,8 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           mensagemVazia={
             termoExameDiferido.trim()
               ? 'Nenhum exame desta fonte pagadora bate com essa busca.'
+              : tabelaSelecionada
+              ? 'Nenhum exame cadastrado nesta tabela associada.'
               : 'Nenhum exame cadastrado para esta fonte pagadora.'
           }
         />
@@ -1320,7 +1389,6 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
           onClose={() => setImportModalOpen(false)}
           payors={payors}
           exams={exams}
-          exameExclusions={exameExclusions}
           tabelasAssociadas={tabelasAssociadas}
           onCriarTabela={createTabelaAssociada}
           onImport={importPayors}

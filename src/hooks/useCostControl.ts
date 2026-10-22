@@ -1,9 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import {
-  linhasDaTabela,
-  separarUpsertFontePagadora,
-  type LinhaImportacaoFontePagadora,
+import type {
+  LinhaPlanoImportacao,
+  PlanoImportacao,
 } from '../components/CostControl/domain/importacaoFontesPagadoras';
 import { chaveExclusaoExame } from '../components/CostControl/domain/busca';
 import { exameComMesmoVinculoAplis } from '../components/CostControl/domain/vinculoAplis';
@@ -56,6 +55,11 @@ export interface Payor {
   // geral da mesma fonte + tabela — ver examesPorFontePagadora e a migration
   // 20261001150000_custo_fontes_pagadoras_linha_por_exame.
   exameId: string | null;
+  // Nome do exame na tabela do convênio, gravado pela importação (migration
+  // 20261022140000). Preenchido com exameId null = "linha não levantada": a
+  // importação não achou exame parecido, então não cobre exame nenhum até ser
+  // vinculada — ver ehLinhaNaoLevantada em domain/busca.ts.
+  nomeConvenio: string | null;
 }
 
 // Cadastro da tabela associada (contrato de preço) de uma fonte pagadora —
@@ -114,7 +118,7 @@ export interface UseCostControlReturn {
   excludeExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
   setValorExameDaFontePagadora: (payorId: string, exameId: string, valor: number) => Promise<void>;
   restaurarValorPadraoExameDaFontePagadora: (payorId: string, exameId: string) => Promise<void>;
-  importPayors: (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => Promise<number>;
+  importPayors: (tabela: TabelaAssociada, plano: PlanoImportacao) => Promise<number>;
   createTabelaAssociada: CriarTabelaAssociada;
   updateVencimentoTabelaAssociada: (id: string, vencimento: string | null) => Promise<void>;
   renameTabelaAssociada: (id: string, nome: string) => Promise<void>;
@@ -186,7 +190,7 @@ const erroAoSalvarExame = (
 // O nome da tabela vem do cadastro (embed pela FK tabela_associada_id), nunca
 // do texto tabela_associada da linha — ticket 07.
 const PAYOR_COLUNAS =
-  'id, fonte_pagadora, tabela_associada_id, tuss, valor, atendido, elegivel_desconto_particular, exame_id, ' +
+  'id, fonte_pagadora, tabela_associada_id, tuss, valor, atendido, elegivel_desconto_particular, exame_id, nome_exame_convenio, ' +
   'tabela:custo_tabelas_associadas(nome)';
 
 const mapPayorRow = (row: any): Payor => ({
@@ -199,6 +203,7 @@ const mapPayorRow = (row: any): Payor => ({
   atendido: row.atendido ?? true,
   elegivelDescontoParticular: row.elegivel_desconto_particular ?? false,
   exameId: row.exame_id ?? null,
+  nomeConvenio: row.nome_exame_convenio ?? null,
 });
 
 interface TabelaAssociadaRow {
@@ -473,88 +478,75 @@ export const useCostControl = (): UseCostControlReturn => {
     });
   }, []);
 
-  // Casamento (upsert) por tabela associada + tuss — uma mesma fonte
-  // pagadora pode ter dezenas de tabelas associadas (convênios) com o mesmo
-  // TUSS e valores diferentes (ex.: AMHP-DF tem 37), então casar só por
-  // fonte+TUSS colidiria com a linha errada. Ver
-  // domain/importacaoFontesPagadoras.ts.
-  const importPayors = useCallback(
-    async (tabela: TabelaAssociada, rows: LinhaImportacaoFontePagadora[]) => {
-      if (rows.length === 0) return 0;
+  // Grava o plano da importação (planejarImportacao, o mesmo da prévia) na
+  // tabela associada escolhida: remove as linhas gerais do TUSS substituídas
+  // (e as não levantadas que viraram linhas próprias), atualiza as linhas
+  // existentes e insere as novas.
+  const importPayors = useCallback(async (tabela: TabelaAssociada, plano: PlanoImportacao) => {
+    if (plano.linhas.length === 0) return 0;
 
-      const existentesPorTuss = new Map<string, string>();
-      // Só linhas gerais do TUSS: a planilha é por TUSS, então não pode
-      // sobrescrever o preço de uma linha que vale só pra um exame.
-      // Casa pelo id do cadastro, como a prévia (calcularAtendidoImportacao).
-      linhasDaTabela(payors, tabela.id).forEach(p => {
-        if (!p.exameId) existentesPorTuss.set(p.tus, p.id);
-      });
-      const linhaDaTabela = { fonte_pagadora: tabela.fontePagadora, tabela_associada_id: tabela.id };
+    // Reflete cada gravação no estado local assim que ela é confirmada no
+    // banco — se uma gravação no meio do lote falhar, o que já foi gravado
+    // não fica invisível na tela nem é reinserido numa nova tentativa (o
+    // plano é recalculado a partir do state).
+    const substituidas = [...plano.linhasGeraisSubstituidas, ...plano.naoLevantadasRemovidas].map(p => p.id);
+    if (substituidas.length > 0) {
+      const { error } = await supabase.from('custo_fontes_pagadoras').delete().in('id', substituidas);
+      if (error) throw error;
+      // As exclusões e os valores personalizados delas saem junto (ON DELETE CASCADE).
+      const removidas = new Set(substituidas);
+      setPayors(prev => prev.filter(p => !removidas.has(p.id)));
+    }
 
-      const { toInsert, toUpdate } = separarUpsertFontePagadora(rows, existentesPorTuss);
+    const linhaDaTabela = { fonte_pagadora: tabela.fontePagadora, tabela_associada_id: tabela.id };
+    const toRow = (l: LinhaPlanoImportacao) => ({
+      ...linhaDaTabela,
+      tuss: l.tuss,
+      nome_exame_convenio: l.nomeConvenio,
+      exame_id: l.exame?.id ?? null,
+      valor: l.valor,
+      atendido: l.atendido,
+    });
 
-      // Reflete cada gravação no estado local assim que ela é confirmada no
-      // banco — se uma atualização no meio do lote falhar, o que já foi
-      // gravado não fica invisível na tela nem é reinserido numa nova
-      // tentativa (existentesPorTuss seria recalculado a partir do state).
-      if (toInsert.length > 0) {
-        const { data, error } = await supabase
-          .from('custo_fontes_pagadoras')
-          .insert(
-            toInsert.map(r => ({
-              ...linhaDaTabela,
-              tuss: r.tuss,
-              valor: r.valor,
-              atendido: r.atendido,
-            }))
-          )
-          .select(PAYOR_COLUNAS);
-
-        if (error) throw error;
-        const inseridos = (data || []).map(mapPayorRow);
-        setPayors(prev => [...inseridos, ...prev]);
+    const novas: LinhaPlanoImportacao[] = [];
+    for (const l of plano.linhas) {
+      if (!l.existenteId) {
+        novas.push(l);
+        continue;
       }
+      const { data, error } = await supabase
+        .from('custo_fontes_pagadoras')
+        .update(toRow(l))
+        .eq('id', l.existenteId)
+        .select(PAYOR_COLUNAS)
+        .single();
 
-      for (const u of toUpdate) {
-        const { data, error } = await supabase
-          .from('custo_fontes_pagadoras')
-          .update({ valor: u.valor, atendido: u.atendido })
-          .eq('id', u.id)
-          .select(PAYOR_COLUNAS)
-          .single();
-
-        // PGRST116 = UPDATE não afetou nenhuma linha (0 rows no retorno de
-        // .single()). Acontece quando o id ficou obsoleto no state local —
-        // a linha que existia quando a tela carregou já foi apagada no
-        // banco (por esta ou outra sessão). Em vez de estourar um 406 cru e
-        // abortar o lote inteiro, trata como TUSS novo e insere.
-        if (error?.code === 'PGRST116') {
-          const { data: inserted, error: insertError } = await supabase
-            .from('custo_fontes_pagadoras')
-            .insert({
-              ...linhaDaTabela,
-              tuss: u.tuss,
-              valor: u.valor,
-              atendido: u.atendido,
-            })
-            .select(PAYOR_COLUNAS)
-            .single();
-
-          if (insertError) throw insertError;
-          const inseridoAoInvesDeAtualizado = mapPayorRow(inserted);
-          setPayors(prev => [inseridoAoInvesDeAtualizado, ...prev.filter(p => p.id !== u.id)]);
-          continue;
-        }
-
-        if (error) throw error;
-        const atualizado = mapPayorRow(data);
-        setPayors(prev => prev.map(p => (p.id === atualizado.id ? atualizado : p)));
+      // PGRST116 = UPDATE não afetou nenhuma linha: o id ficou obsoleto no
+      // state local (a linha foi apagada no banco por esta ou outra sessão).
+      // Em vez de abortar o lote, insere como nova.
+      if (error?.code === 'PGRST116') {
+        const existenteId = l.existenteId;
+        setPayors(prev => prev.filter(p => p.id !== existenteId));
+        novas.push(l);
+        continue;
       }
+      if (error) throw error;
+      const atualizado = mapPayorRow(data);
+      setPayors(prev => prev.map(p => (p.id === atualizado.id ? atualizado : p)));
+    }
 
-      return toInsert.length + toUpdate.length;
-    },
-    [payors]
-  );
+    if (novas.length > 0) {
+      const { data, error } = await supabase
+        .from('custo_fontes_pagadoras')
+        .insert(novas.map(toRow))
+        .select(PAYOR_COLUNAS);
+      if (error) throw error;
+      const inseridos = (data || []).map(mapPayorRow);
+      setPayors(prev => [...inseridos, ...prev]);
+    }
+
+    return plano.linhas.length;
+  }, []);
 
   // Nome repetido na fonte já é barrado na tela (erroNomeTabela, sem
   // diferenciar maiúsculas); aqui sobra a corrida com outra sessão, pela

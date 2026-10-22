@@ -38,6 +38,7 @@ const fonte = (over: Partial<Payor>): Payor => {
     atendido: true,
     elegivelDescontoParticular: false,
     exameId: null,
+    nomeConvenio: null,
     ...over,
   };
   return { ...linha, tabelaId: over.tabelaId ?? `${linha.payor}/${linha.table}` };
@@ -171,12 +172,14 @@ describe('examesPorFontePagadora', () => {
         fontePagadora: 'Unimed',
         exameId: 'e2',
         exame: 'Glicemia de jejum',
+        nomeConvenio: null,
         tuss: '40302040',
         tabelaId: 'Unimed/Unimed Nacional',
         tabelaAssociada: 'Unimed Nacional',
         valorCobrado: 4.8,
         valorPadraoTuss: 4.8,
         temValorPersonalizado: false,
+        custoLevantado: true,
         custo: 12,
         dif: -7.2,
         percentualCsp: 250,
@@ -188,12 +191,14 @@ describe('examesPorFontePagadora', () => {
         fontePagadora: 'Unimed',
         exameId: 'e1',
         exame: 'Hemograma completo',
+        nomeConvenio: null,
         tuss: '40304361',
         tabelaId: 'Unimed/Unimed Coop.',
         tabelaAssociada: 'Unimed Coop.',
         valorCobrado: 12.5,
         valorPadraoTuss: 12.5,
         temValorPersonalizado: false,
+        custoLevantado: true,
         custo: 12,
         dif: 0.5,
         percentualCsp: 96,
@@ -213,12 +218,14 @@ describe('examesPorFontePagadora', () => {
         fontePagadora: 'Amil',
         exameId: 'e1',
         exame: 'Hemograma completo',
+        nomeConvenio: null,
         tuss: '40304361',
         tabelaId: 'Amil/Amil 400',
         tabelaAssociada: 'Amil 400',
         valorCobrado: 15,
         valorPadraoTuss: 15,
         temValorPersonalizado: false,
+        custoLevantado: true,
         custo: 12,
         dif: 3,
         percentualCsp: 80,
@@ -245,12 +252,14 @@ describe('examesPorFontePagadora', () => {
         fontePagadora: 'Particular',
         exameId: 'e1',
         exame: 'Hemograma completo',
+        nomeConvenio: null,
         tuss: '40304361',
         tabelaId: 'Particular/Tabela Particular',
         tabelaAssociada: 'Tabela Particular',
         valorCobrado: 24,
         valorPadraoTuss: 24,
         temValorPersonalizado: false,
+        custoLevantado: true,
         custo: 12,
         dif: 12,
         percentualCsp: 50,
@@ -498,6 +507,10 @@ describe('edicaoSeparaDaLinhaGeral', () => {
     expect(edicaoSeparaDaLinhaGeral({ tus: '40503801', exameId: 'e1' }, { exameId: 'e2' }, exames)).toBe(false);
     expect(edicaoSeparaDaLinhaGeral({ tus: '40304361', exameId: null }, { exameId: 'e3' }, exames)).toBe(false);
   });
+
+  it('linha não levantada com exame escolhido atualiza (vincula), mesmo com TUSS compartilhado', () => {
+    expect(edicaoSeparaDaLinhaGeral({ tus: '40503801', exameId: null, nomeConvenio: 'Exame X' }, { exameId: 'e2' }, exames)).toBe(false);
+  });
 });
 
 describe('fontesPagadorasDoExame', () => {
@@ -559,5 +572,42 @@ describe('irmaosNaLinha', () => {
     const item = { payorId: 'p1', exameId: 'e1', fontePagadora: 'Particular' };
     expect(irmaosNaLinha(exames, [geral, soE2], item)).toEqual([]);
     expect(irmaosNaLinha(exames, [geral], item, new Set([chaveExclusaoExame('p1', 'e2')]))).toEqual([]);
+  });
+});
+
+describe('linha não levantada (importação sem exame parecido)', () => {
+  const naoLevantada = fonte({ id: 'n1', price: 50, atendido: false, nomeConvenio: 'Hemograma c/ plaquetas' });
+
+  it('aparece na fonte com o nome no convênio, sem exame e sem custo', () => {
+    expect(examesPorFontePagadora([exame({})], [naoLevantada], 'Unimed')).toEqual([
+      expect.objectContaining({
+        payorId: 'n1',
+        exameId: null,
+        exame: 'Hemograma c/ plaquetas',
+        nomeConvenio: 'Hemograma c/ plaquetas',
+        custoLevantado: false,
+        custo: 0,
+        valorCobrado: 50,
+        atendido: false,
+      }),
+    ]);
+  });
+
+  it('não cobre os exames do TUSS — não é linha geral', () => {
+    expect(fontesPagadorasDoExame([exame({})], [naoLevantada], 'e1')).toEqual([]);
+  });
+
+  it('linha vinculada pela importação traz o nome no convênio', () => {
+    const vinculada = fonte({ id: 'v1', exameId: 'e1', nomeConvenio: 'Hemograma' });
+    expect(examesPorFontePagadora([exame({})], [vinculada], 'Unimed')[0]).toMatchObject({
+      exameId: 'e1',
+      exame: 'Hemograma completo',
+      nomeConvenio: 'Hemograma',
+      custoLevantado: true,
+    });
+  });
+
+  it('não conta como linha geral duplicada no modal de linha', () => {
+    expect(analisarLinhaFontePagadora([naoLevantada], { tus: '40304361', exameId: null, tabelaId: 'Unimed/Unimed Coop.' }).duplicada).toBeNull();
   });
 });

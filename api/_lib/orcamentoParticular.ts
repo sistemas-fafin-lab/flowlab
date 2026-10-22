@@ -16,7 +16,7 @@ const FONTE_PARTICULAR = 'Particular';
 // proteção da tabela no banco (migration 20261021190000). Enquanto
 // "Particular" e "PARTICULAR" forem dois cadastros (até a unificação, ticket
 // 06), as duas entram juntas aqui, como antes do cadastro — na tela elas são
-// tabelas diferentes. Depois da contração (20261022120000) o banco só aceita
+// tabelas diferentes. Depois da contração (20261022150000) o banco só aceita
 // um cadastro com esse nome na fonte.
 const TABELA_PARTICULAR = 'particular';
 
@@ -61,6 +61,9 @@ interface FonteRow {
   tuss: string;
   /** Preenchido = linha só deste exame; null = linha geral do TUSS. */
   exame_id: string | null;
+  /** Nome no convênio (importação). Com exame_id null = linha não levantada:
+   *  não cobre exame nenhum, então nem entra aqui. */
+  nome_exame_convenio: string | null;
   valor: number;
   atendido: boolean;
   elegivel_desconto_particular: boolean;
@@ -125,11 +128,11 @@ export async function buildOrcamentoParticular(
   supabase: SupabaseClient,
   { incluirCusto }: OpcoesOrcamentoParticular,
 ): Promise<OrcamentoParticularItemCustoOpcional[]> {
-  const [fontes, exames, exclusoes, valoresPersonalizados, tabelas] = await Promise.all([
+  const [todasFontes, exames, exclusoes, valoresPersonalizados, tabelas] = await Promise.all([
     buscarTodasPaginado<FonteRow>(
       supabase,
       'custo_fontes_pagadoras',
-      'id, fonte_pagadora, tabela_associada_id, tuss, exame_id, valor, atendido, elegivel_desconto_particular',
+      'id, fonte_pagadora, tabela_associada_id, tuss, exame_id, nome_exame_convenio, valor, atendido, elegivel_desconto_particular',
     ),
     buscarTodasPaginado<ExameRow>(
       supabase,
@@ -144,6 +147,10 @@ export async function buildOrcamentoParticular(
     ),
     buscarTodasPaginado<TabelaAssociadaRow>(supabase, 'custo_tabelas_associadas', 'id, fonte_pagadora, nome'),
   ]);
+
+  // Linha não levantada (importação sem exame parecido) não é linha geral do
+  // TUSS — ver ehLinhaNaoLevantada em src/components/CostControl/domain/busca.ts.
+  const fontes = todasFontes.filter(fonte => fonte.exame_id !== null || !fonte.nome_exame_convenio);
 
   // Exame explicitamente excluído desta linha de preço (ver PayorsScreen —
   // "excluir" numa linha de TUSS compartilhado) não deve aparecer aqui,

@@ -79,3 +79,25 @@ export function contarLinhasPorTabela(payors: Payor[]): Map<string, number> {
   payors.forEach(p => contagem.set(p.tabelaId, (contagem.get(p.tabelaId) ?? 0) + 1));
   return contagem;
 }
+
+export interface GrupoTabelasDaFonte {
+  fontePagadora: string;
+  tabelas: TabelaAssociada[];
+}
+
+/** Opções do filtro de tabela associada da aba Fontes Pagadoras, agrupadas
+ *  por fonte: todas as fontes, ou só a `fontePagadora` escolhida. Fontes e
+ *  tabelas em ordem alfabética; inativas também entram (as linhas delas
+ *  continuam na tela). */
+export function gruposParaFiltroDeTabela(
+  tabelas: TabelaAssociada[],
+  fontePagadora: string | null = null,
+): GrupoTabelasDaFonte[] {
+  const base = fontePagadora ? tabelasDaFonte(tabelas, fontePagadora) : tabelas;
+  const porFonte = new Map<string, TabelaAssociada[]>();
+  for (const t of base) porFonte.set(t.fontePagadora, [...(porFonte.get(t.fontePagadora) ?? []), t]);
+  return Array.from(porFonte, ([fonte, daFonte]) => ({
+    fontePagadora: fonte,
+    tabelas: daFonte.sort((a, b) => a.nome.localeCompare(b.nome)),
+  })).sort((a, b) => a.fontePagadora.localeCompare(b.fontePagadora));
+}

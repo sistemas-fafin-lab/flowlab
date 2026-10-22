@@ -15,12 +15,12 @@
 ## Comments
 
 - 2026-10-22 — Código e migração prontos; a migração **só pode ser aplicada depois da unificação do ticket 06** (que espera o mapa do 05).
-  - Migração `supabase/migrations/20261022120000_custo_tabelas_associadas_contracao.sql`:
+  - Migração `supabase/migrations/20261022150000_custo_tabelas_associadas_contracao.sql`:
     - começa conferindo; se houver nomes repetidos na fonte (sem diferenciar maiúsculas), nome vazio, linha sem tabela ou linha duplicada por (tabela, TUSS)/(tabela, exame), aborta listando tudo, sem alterar nada. Pelo backup de 2026-10-21, hoje aborta por `Particular`/`PARTICULAR`, `part`/`PART` e a tabela `''` da fonte Particular; as linhas já não têm duplicata;
     - cria o índice único `(fonte_pagadora, lower(btrim(nome)))` e o CHECK de nome preenchido, e as regras do cadastro passam a valer também no INSERT (nome gravado sem espaços nas pontas, mensagem dizendo qual tabela já existe);
     - troca a UNIQUE `(fonte, texto, tuss, exame_id)` por índices únicos parciais `(tabela_associada_id, btrim(tuss)) WHERE exame_id IS NULL` e `(tabela_associada_id, exame_id) WHERE exame_id IS NOT NULL`. A UNIQUE antiga, com `exame_id` nulo, nem impedia duas linhas gerais do mesmo TUSS;
     - a coluna `tabela_associada` fica só por compatibilidade, sempre como cópia do nome do cadastro. Quando a gravação traz o id, o id manda; um update que troca só o texto para o de outra tabela é recusado (23514). Quando traz só o texto, o nome precisa ser de uma tabela já cadastrada na fonte (sem diferenciar maiúsculas); senão dá erro 23503, e o cadastro não é mais criado pelo texto.
-  - Ordem: se a migração da unificação for gerada com timestamp posterior a `20261022120000`, renomear a da contração para depois dela. As consultas da conferência manual estão no cabeçalho do arquivo.
+  - Ordem: se a migração da unificação for gerada com timestamp posterior a `20261022150000`, renomear a da contração para depois dela. As consultas da conferência manual estão no cabeçalho do arquivo.
   - Leitores que ainda usavam o texto:
     - tela/exportação (`useCostControl`): o nome vem do cadastro por embed (`tabela:custo_tabelas_associadas(nome)`);
     - payload da Admissão (`api/_lib/tussExames.ts`): o nome vem do cadastro pelo id, e o payload ganhou `tabela_associada_id` (mudança aditiva no contrato);

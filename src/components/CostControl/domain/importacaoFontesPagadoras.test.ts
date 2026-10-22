@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Exam, Payor } from '../../../hooks/useCostControl';
-import { chaveExclusaoExame } from './busca';
 import {
-  calcularAtendidoImportacao,
+  lerPlanilhaConvenio,
   parseLimiteCsp,
+  planejarImportacao,
   parseValorImportacao,
   separarUpsertFontePagadora,
   validarLinhasImportacaoFontePagadora,
+  validarLinhasPlanilhaConvenio,
   type LinhaBrutaImportacao,
 } from './importacaoFontesPagadoras';
 
@@ -143,12 +144,72 @@ describe('separarUpsertFontePagadora', () => {
   });
 });
 
-describe('calcularAtendidoImportacao', () => {
+describe('lerPlanilhaConvenio', () => {
+  it('lê o modelo: cabeçalho na primeira linha', () => {
+    expect(
+      lerPlanilhaConvenio([
+        ['TUSS', 'Nome do Exame', 'Valor'],
+        ['40304361', 'Hemograma', 25.5],
+      ]),
+    ).toEqual([{ tuss: '40304361', nomeExame: 'Hemograma', valor: 25.5, linha: 2 }]);
+  });
+
+  it('lê a planilha do convênio: cabeçalho abaixo do topo, fora da coluna A, outros nomes e colunas a mais', () => {
+    expect(
+      lerPlanilhaConvenio([
+        [],
+        ['', 'Codigo TUSS', 'Nome do Exame', 'Valor convênio', 'Custo Alvaro', '%CSP', 'OBS'],
+        ['', 40301150, 'Ácido Úrico, Dosagem', 8.12, 1.98, 0.2438, ''],
+        ['', '', '', '', '', '', ''],
+        ['', 40301222, 'Albumina, Dosagem', 8.12, 2.01, 0.2475, ''],
+      ]),
+    ).toEqual([
+      { tuss: 40301150, nomeExame: 'Ácido Úrico, Dosagem', valor: 8.12, linha: 3 },
+      { tuss: 40301222, nomeExame: 'Albumina, Dosagem', valor: 8.12, linha: 5 },
+    ]);
+  });
+
+  it('sem as três colunas não lê nada', () => {
+    expect(lerPlanilhaConvenio([['TUSS', 'Valor'], ['40304361', 1]])).toBeNull();
+  });
+});
+
+describe('validarLinhasPlanilhaConvenio', () => {
+  const linha = (over: Partial<LinhaBrutaImportacao>): LinhaBrutaImportacao & { linha: number } => ({
+    tuss: '40304361',
+    nomeExame: ' Hemograma ',
+    valor: '25,50',
+    linha: 2,
+    ...over,
+  });
+
+  it('guarda TUSS, nome no convênio (sem espaços nas pontas) e valor', () => {
+    expect(validarLinhasPlanilhaConvenio([linha({})])).toEqual([
+      { row: 2, data: { tuss: '40304361', nomeConvenio: 'Hemograma', valor: 25.5 } },
+    ]);
+  });
+
+  it('TUSS numérico (célula de número) vira texto', () => {
+    expect(validarLinhasPlanilhaConvenio([linha({ tuss: 40301150 })])[0].data?.tuss).toBe('40301150');
+  });
+
+  it('TUSS sem exame na aba Exames é válido — sobe como não levantado', () => {
+    expect(validarLinhasPlanilhaConvenio([linha({ tuss: '99999999' })])[0].data?.tuss).toBe('99999999');
+  });
+
+  it('TUSS ou nome vazio é inválido', () => {
+    const [semTuss, semNome] = validarLinhasPlanilhaConvenio([linha({ tuss: '' }), { ...linha({ nomeExame: '  ' }), linha: 3 }]);
+    expect(semTuss).toEqual({ row: 2, data: null, error: 'TUSS vazio' });
+    expect(semNome).toEqual({ row: 3, data: null, error: 'TUSS 40304361: Nome do Exame vazio' });
+  });
+});
+
+describe('planejarImportacao', () => {
   const exame = (over: Partial<Exam>): Exam => ({
     id: 'e1',
     code: '',
     tuss: '40304361',
-    name: 'Hemograma Completo',
+    name: 'HEMOGRAMA COMPLETO',
     location: '',
     direct: 0,
     indirect: 0,
@@ -168,169 +229,194 @@ describe('calcularAtendidoImportacao', () => {
     atendido: true,
     elegivelDescontoParticular: false,
     exameId: null,
+    nomeConvenio: null,
     ...over,
   });
 
-  const calcular = (over: Partial<Parameters<typeof calcularAtendidoImportacao>[0]>) =>
-    calcularAtendidoImportacao({
-      linhas: [{ tuss: '40304361', valor: 100 }],
-      exams: [],
+  const hemograma = { tuss: '40304361', nomeConvenio: 'Hemograma', valor: 100 };
+
+  const planejar = (over: Partial<Parameters<typeof planejarImportacao>[0]>) =>
+    planejarImportacao({
+      linhas: [hemograma],
+      exams: [exame({ direct: 20, indirect: 10 })],
       payors: [],
       tabelaId: 't1',
-      excluidos: new Set(),
       limiteCsp: 40,
       ...over,
     });
 
-  it('TUSS com um exame: custo dele / valor da planilha, abaixo do limite é Sim', () => {
-    const [resultado] = calcular({ exams: [exame({ direct: 20, indirect: 10 })] });
-    expect(resultado).toEqual({
-      tuss: '40304361',
-      valor: 100,
-      custoUsado: 30,
-      csp: 30,
-      atendido: true,
-      exameDefinidor: 'Hemograma Completo',
-      examesCobertos: 1,
-      custoNaoCadastrado: false,
-      examesComLinhaPropria: [],
-    });
+  it('vincula pelo nome parecido e calcula o CSP pelo custo do exame', () => {
+    const { linhas } = planejar({});
+    expect(linhas).toEqual([
+      {
+        ...hemograma,
+        existenteId: null,
+        exame: exame({ direct: 20, indirect: 10 }),
+        origemVinculo: 'semelhanca',
+        motivoNaoLevantado: null,
+        adotaLinhaPropria: false,
+        custo: 30,
+        csp: 30,
+        atendido: true,
+      },
+    ]);
   });
 
-  it('limite é inclusivo: CSP exatamente igual ao limite é Sim, acima é Não', () => {
-    const exams = [exame({ direct: 7 })];
-    expect(calcular({ exams, limiteCsp: 7 })[0]).toMatchObject({ csp: 7, atendido: true });
-    expect(calcular({ exams, limiteCsp: 6.99 })[0].atendido).toBe(false);
+  it('limite é inclusivo: CSP igual ao limite é Sim, acima é Não', () => {
+    expect(planejar({ limiteCsp: 30 }).linhas[0].atendido).toBe(true);
+    expect(planejar({ limiteCsp: 29.99 }).linhas[0].atendido).toBe(false);
   });
 
-  it('TUSS compartilhado: usa o maior custo entre os exames — Sim só se todos cabem no limite', () => {
-    const exams = [
-      exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
-      exame({ id: 'e2', name: 'Biópsia B', direct: 30, indirect: 20 }),
-    ];
-    expect(calcular({ exams })[0]).toMatchObject({ custoUsado: 50, csp: 50, atendido: false });
-  });
-
-  it('TUSS compartilhado: aponta o exame que definiu o CSP (o de maior custo entre os cobertos)', () => {
-    const exams = [
-      exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
-      exame({ id: 'e2', name: 'Biópsia B', direct: 30, indirect: 20 }),
-      exame({ id: 'e3', name: 'Biópsia C', direct: 10 }),
-    ];
-    expect(calcular({ exams })[0]).toMatchObject({ exameDefinidor: 'Biópsia B', examesCobertos: 3 });
-  });
-
-  it('TUSS com um exame: ele mesmo define o CSP', () => {
-    const [resultado] = calcular({ exams: [exame({ direct: 20 })] });
-    expect(resultado).toMatchObject({ exameDefinidor: 'Hemograma Completo', examesCobertos: 1 });
-  });
-
-  it('exame excluído da linha geral do TUSS nessa tabela não entra no maior custo', () => {
-    const exams = [
-      exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
-      exame({ id: 'e2', name: 'Biópsia B', direct: 90 }),
-    ];
-    const [resultado] = calcular({
-      exams,
-      payors: [linhaDePreco({ id: 'p1' })],
-      excluidos: new Set([chaveExclusaoExame('p1', 'e2')]),
-    });
-    expect(resultado).toMatchObject({ custoUsado: 20, atendido: true, exameDefinidor: 'Biópsia A', examesCobertos: 1 });
-  });
-
-  it('exame com linha própria na mesma tabela não entra no maior custo', () => {
-    const exams = [
-      exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
-      exame({ id: 'e2', name: 'Biópsia Sextante', direct: 90 }),
-    ];
-    const [resultado] = calcular({
-      exams,
-      payors: [linhaDePreco({ id: 'p1' }), linhaDePreco({ id: 'p2', exameId: 'e2', price: 450 })],
-    });
-    expect(resultado).toMatchObject({ custoUsado: 20, atendido: true });
-  });
-
-  it('avisa os exames do TUSS com linha própria na mesma tabela (a importação não os altera)', () => {
-    const exams = [
-      exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
-      exame({ id: 'e2', name: 'Biópsia Sextante', direct: 90 }),
-      exame({ id: 'e3', name: 'Biópsia C', direct: 30 }),
-      exame({ id: 'e4', tuss: '40302040', name: 'Outro TUSS', direct: 5 }),
-    ];
-    const resultado = calcular({
-      exams,
+  it('TUSS compartilhado: cada linha usa o custo do próprio exame, não o do mais caro', () => {
+    const total = exame({ id: 'e1', tuss: '40307271', name: 'IGE TOTAL', direct: 8 });
+    const painel = exame({ id: 'e2', tuss: '40307271', name: 'IgE Painel Alimentos (FX5E)', direct: 45.77 });
+    const { linhas } = planejar({
       linhas: [
-        { tuss: '40304361', valor: 100 },
-        { tuss: '40302040', valor: 100 },
+        { tuss: '40307271', nomeConvenio: 'IgE total', valor: 30 },
+        { tuss: '40307271', nomeConvenio: 'IgE painel alimentos', valor: 100 },
       ],
-      payors: [
-        linhaDePreco({ id: 'p1' }),
-        linhaDePreco({ id: 'p2', exameId: 'e2', price: 450 }),
-        // Outra tabela: não é linha própria nesta importação.
-        linhaDePreco({ id: 'p3', table: 'CBHPM', tabelaId: 't2', exameId: 'e3', price: 450 }),
-        // Outro TUSS: não aparece no aviso do primeiro.
-        linhaDePreco({ id: 'p4', tus: '40302040', exameId: 'e4', price: 10 }),
-      ],
+      exams: [total, painel],
     });
-    expect(resultado[0].examesComLinhaPropria).toEqual(['Biópsia Sextante']);
-    expect(resultado[1].examesComLinhaPropria).toEqual(['Outro TUSS']);
-    expect(calcular({ exams: [exame({ direct: 20 })] })[0].examesComLinhaPropria).toEqual([]);
+    expect(linhas.map(l => [l.exame?.id, l.custo, l.atendido])).toEqual([
+      ['e1', 8, true],
+      ['e2', 45.77, false],
+    ]);
   });
 
-  it('linha própria conta pelo cadastro da tabela (id), não pelo nome: "amb" cadastrada à parte é outra tabela', () => {
-    const exams = [
-      exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
-      exame({ id: 'e2', name: 'Biópsia Sextante', direct: 90 }),
-      exame({ id: 'e3', name: 'Biópsia C', direct: 30 }),
-    ];
-    const [resultado] = calcular({
-      exams,
-      payors: [
-        linhaDePreco({ id: 'p1' }),
-        linhaDePreco({ id: 'p2', table: 'amb', tabelaId: 't2', exameId: 'e2', price: 450 }),
-        linhaDePreco({ id: 'p3', exameId: 'e3', price: 450 }),
-      ],
+  it('exames do TUSS igualmente parecidos: uma linha por exame, todas com o valor do convênio e o custo de cada um', () => {
+    const soro = exame({ id: 's', tuss: '40301630', name: 'CREATININA - S', direct: 2 });
+    const urina = exame({ id: 'u', tuss: '40301630', name: 'CREATININA - U', direct: 5 });
+    const { linhas } = planejar({
+      linhas: [{ tuss: '40301630', nomeConvenio: 'Creatinina, Dosagem', valor: 10 }],
+      exams: [soro, urina],
+      limiteCsp: 40,
     });
-    expect(resultado).toMatchObject({ custoUsado: 90, atendido: false, examesComLinhaPropria: ['Biópsia C'] });
+    expect(linhas.map(l => [l.nomeConvenio, l.exame?.id, l.valor, l.custo, l.atendido])).toEqual([
+      ['Creatinina, Dosagem', 's', 10, 2, true],
+      ['Creatinina, Dosagem', 'u', 10, 5, false],
+    ]);
   });
 
-  it('TUSS novo para a fonte (sem linha geral): só os exames com linha própria ficam fora', () => {
-    const exams = [
-      exame({ id: 'e1', name: 'Biópsia A', direct: 20 }),
-      exame({ id: 'e2', name: 'Biópsia B', direct: 35 }),
-      exame({ id: 'e3', name: 'Biópsia Sextante', direct: 90 }),
-    ];
-    const [resultado] = calcular({
-      exams,
-      payors: [linhaDePreco({ id: 'p2', exameId: 'e3', price: 450 })],
-      // Exclusão de outra linha (de exame) não vale para a linha geral que vai ser criada.
-      excluidos: new Set([chaveExclusaoExame('p2', 'e2')]),
+  it('custo 0 é custo levantado: CSP 0% e Sim', () => {
+    const [linha] = planejar({ exams: [exame({})] }).linhas;
+    expect(linha).toMatchObject({ custo: 0, csp: 0, atendido: true });
+  });
+
+  it('TUSS sem exame sobe como não levantado: Não, sem custo', () => {
+    const [linha] = planejar({ exams: [] }).linhas;
+    expect(linha).toMatchObject({ exame: null, motivoNaoLevantado: 'tuss_sem_exame', custo: null, csp: null, atendido: false });
+  });
+
+  it('nome muito diferente sobe como não levantado', () => {
+    const [linha] = planejar({ linhas: [{ ...hemograma, nomeConvenio: 'Eritrograma' }] }).linhas;
+    expect(linha).toMatchObject({ exame: null, motivoNaoLevantado: 'nome_diferente', atendido: false });
+  });
+
+  it('exame de outro TUSS nunca é candidato', () => {
+    const [linha] = planejar({ exams: [exame({ tuss: '40304362' })] }).linhas;
+    expect(linha.motivoNaoLevantado).toBe('tuss_sem_exame');
+  });
+
+  it('valor 0 é Não mesmo com custo', () => {
+    const [linha] = planejar({ linhas: [{ ...hemograma, valor: 0 }] }).linhas;
+    expect(linha).toMatchObject({ custo: 30, csp: null, atendido: false });
+  });
+
+  it('dois nomes do convênio para o mesmo exame: o primeiro vincula, o segundo fica não levantado', () => {
+    const { linhas } = planejar({
+      linhas: [hemograma, { ...hemograma, nomeConvenio: 'Hemograma completo c/ plaquetas' }],
     });
-    expect(resultado).toMatchObject({ custoUsado: 35, csp: 35, atendido: true });
+    expect(linhas.map(l => l.motivoNaoLevantado)).toEqual([null, 'exame_ja_vinculado']);
   });
 
-  it('valor 0 (ou negativo) na planilha é Não, sem CSP', () => {
-    const exams = [exame({ direct: 20 })];
-    expect(calcular({ exams, linhas: [{ tuss: '40304361', valor: 0 }] })[0]).toMatchObject({ csp: null, atendido: false });
-    expect(calcular({ exams, linhas: [{ tuss: '40304361', valor: -5 }] })[0]).toMatchObject({ csp: null, atendido: false });
+  it('linha repetida na planilha (mesmo TUSS e nome): a última vence', () => {
+    const { linhas } = planejar({ linhas: [hemograma, { ...hemograma, nomeConvenio: 'HEMOGRAMA', valor: 200 }] });
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0].valor).toBe(200);
   });
 
-  it('custo usado 0 (custo não cadastrado) é Não — não vira CSP 0% e Sim', () => {
-    const [resultado] = calcular({ exams: [exame({ direct: 0, indirect: 0 })] });
-    expect(resultado).toMatchObject({ custoUsado: 0, atendido: false });
-  });
-
-  it('custo usado 0 avisa "custo não cadastrado" — também sem nenhum exame coberto; com custo não avisa', () => {
-    expect(calcular({ exams: [exame({ direct: 0, indirect: 0 })] })[0]).toMatchObject({
-      custoNaoCadastrado: true,
-      exameDefinidor: null,
+  describe('reimportação', () => {
+    it('mantém o exame da linha já vinculada (à mão ou não) e atualiza valor e Atendido', () => {
+      const outro = exame({ id: 'e9', name: 'PAINEL QUALQUER', direct: 90 });
+      const [linha] = planejar({
+        exams: [exame({ direct: 20, indirect: 10 }), outro],
+        payors: [linhaDePreco({ id: 'p7', nomeConvenio: 'HEMOGRAMA', exameId: 'e9' })],
+      }).linhas;
+      expect(linha).toMatchObject({ existenteId: 'p7', origemVinculo: 'mantido', custo: 90, atendido: false });
+      expect(linha.exame?.id).toBe('e9');
     });
-    const soLinhaPropria = calcular({
-      exams: [exame({ id: 'e1', direct: 20 })],
-      payors: [linhaDePreco({ id: 'p2', exameId: 'e1' })],
-    })[0];
-    expect(soLinhaPropria).toMatchObject({ custoUsado: 0, custoNaoCadastrado: true, examesCobertos: 0 });
-    expect(calcular({ exams: [exame({ direct: 20 })] })[0].custoNaoCadastrado).toBe(false);
+
+    it('mantém todos os exames de uma linha que valia para vários', () => {
+      const soro = exame({ id: 's', name: 'CREATININA - S' });
+      const urina = exame({ id: 'u', name: 'CREATININA - U' });
+      const { linhas } = planejar({
+        linhas: [{ ...hemograma, nomeConvenio: 'Creatinina' }],
+        exams: [soro, urina, exame({ id: 'u24', name: 'CREATININA - U-24' })],
+        payors: [
+          linhaDePreco({ id: 'p1', nomeConvenio: 'Creatinina', exameId: 's' }),
+          linhaDePreco({ id: 'p2', nomeConvenio: 'Creatinina', exameId: 'u' }),
+        ],
+      });
+      expect(linhas.map(l => [l.existenteId, l.exame?.id, l.origemVinculo])).toEqual([
+        ['p1', 's', 'mantido'],
+        ['p2', 'u', 'mantido'],
+      ]);
+    });
+
+    it('não levantada que passa a valer para vários exames: vira a linha do primeiro, os outros são novos', () => {
+      const { linhas, naoLevantadasRemovidas } = planejar({
+        linhas: [{ ...hemograma, nomeConvenio: 'Creatinina' }],
+        exams: [exame({ id: 's', name: 'CREATININA - S' }), exame({ id: 'u', name: 'CREATININA - U' })],
+        payors: [linhaDePreco({ id: 'n1', nomeConvenio: 'Creatinina' })],
+      });
+      expect(linhas.map(l => [l.existenteId, l.exame?.id])).toEqual([
+        ['n1', 's'],
+        [null, 'u'],
+      ]);
+      expect(naoLevantadasRemovidas).toEqual([]);
+    });
+
+    it('não levantada cujos exames já têm linha própria: as próprias são adotadas e ela sai', () => {
+      const naoLevantada = linhaDePreco({ id: 'n1', nomeConvenio: 'Hemograma' });
+      const { linhas, naoLevantadasRemovidas } = planejar({
+        payors: [naoLevantada, linhaDePreco({ id: 'p5', exameId: 'e1' })],
+      });
+      expect(linhas.map(l => [l.existenteId, l.adotaLinhaPropria])).toEqual([['p5', true]]);
+      expect(naoLevantadasRemovidas).toEqual([naoLevantada]);
+    });
+
+    it('tenta vincular de novo uma linha não levantada', () => {
+      const [linha] = planejar({ payors: [linhaDePreco({ id: 'p7', nomeConvenio: 'Hemograma' })] }).linhas;
+      expect(linha).toMatchObject({ existenteId: 'p7', origemVinculo: 'semelhanca' });
+    });
+
+    it('exame vinculado por outra linha importada que não está na planilha não é pego de novo', () => {
+      const [linha] = planejar({
+        payors: [linhaDePreco({ id: 'p7', nomeConvenio: 'Hemograma antigo', tus: '40304361', exameId: 'e1' })],
+      }).linhas;
+      expect(linha.motivoNaoLevantado).toBe('exame_ja_vinculado');
+    });
+
+    it('casa pela tabela (id): linha de outra tabela da mesma fonte não conta', () => {
+      const [linha] = planejar({
+        payors: [linhaDePreco({ id: 'p7', tabelaId: 't2', nomeConvenio: 'Hemograma', exameId: 'e1' })],
+      }).linhas;
+      expect(linha).toMatchObject({ existenteId: null, origemVinculo: 'semelhanca' });
+    });
+  });
+
+  it('adota a linha própria do exame cadastrada à mão nesta tabela', () => {
+    const [linha] = planejar({ payors: [linhaDePreco({ id: 'p5', exameId: 'e1' })] }).linhas;
+    expect(linha).toMatchObject({ existenteId: 'p5', adotaLinhaPropria: true });
+  });
+
+  it('substitui as linhas gerais (formato antigo) só dos TUSS da planilha', () => {
+    const geral = linhaDePreco({ id: 'g1' });
+    const outroTuss = linhaDePreco({ id: 'g2', tus: '40302040' });
+    const naoLevantada = linhaDePreco({ id: 'n1', nomeConvenio: 'Outro nome' });
+    const deOutraTabela = linhaDePreco({ id: 'g3', tabelaId: 't2' });
+    const { linhasGeraisSubstituidas } = planejar({ payors: [geral, outroTuss, naoLevantada, deOutraTabela] });
+    expect(linhasGeraisSubstituidas.map(p => p.id)).toEqual(['g1']);
   });
 });
 

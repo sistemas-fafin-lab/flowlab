@@ -150,6 +150,17 @@ describe('buildTussExames', () => {
     ]);
   });
 
+  it('fontes_pagadoras: linha não levantada da importação fica fora (lá seria linha geral do TUSS)', async () => {
+    const naoLevantada = { ...fonteGeral, id: 'f3', nome_exame_convenio: 'Peça cirúrgica - biópsia' };
+    const vinculada = { ...fonteDeExame, id: 'f4', nome_exame_convenio: 'Biópsia' };
+    const payload = await buildTussExames(
+      criarSupabaseMock({ ...dadosCompletos, custo_fontes_pagadoras: [fonteGeral, naoLevantada, vinculada] }),
+    );
+
+    expect(payload.fontes_pagadoras.map(f => f.id)).toEqual(['f1', 'f4']);
+    expect(payload.fontes_pagadoras[1]).not.toHaveProperty('nome_exame_convenio');
+  });
+
   it('exclusoes: todas, mesmo de exames sem vínculo', async () => {
     const payload = await buildTussExames(criarSupabaseMock(dadosCompletos));
 
