@@ -103,8 +103,17 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
 
   const totalSim = calculadas?.filter(l => l.atendido).length ?? 0;
   const totalNaoLevantadas = calculadas?.filter(l => !l.exame).length ?? 0;
-  // A planilha pode repetir a mesma linha (TUSS + nome): o plano já deduplicou.
+  // A planilha pode repetir a mesma linha (TUSS + nome): o plano já
+  // deduplicou. E uma linha da planilha vira várias quando vale para mais de
+  // um exame do TUSS — o botão conta as linhas gravadas.
   const totalImportar = calculadas?.length ?? validRows.length;
+  const examesPorLinhaDaPlanilha = new Map<string, number>();
+  calculadas?.forEach(l => {
+    const chave = `${l.tuss}|${l.nomeConvenio}`;
+    examesPorLinhaDaPlanilha.set(chave, (examesPorLinhaDaPlanilha.get(chave) ?? 0) + 1);
+  });
+  const totalRepetidas = calculadas ? validRows.length - examesPorLinhaDaPlanilha.size : 0;
+  const totalMultiplos = Array.from(examesPorLinhaDaPlanilha.values()).filter(n => n > 1).length;
 
   if (!open) return null;
 
@@ -334,7 +343,27 @@ const PayorImportModal: React.FC<PayorImportModalProps> = ({
                 <div className="space-y-2">
                   <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-slate-50/60 dark:bg-gray-900/30 p-4 text-sm text-gray-700 dark:text-gray-200">
                     <strong className="text-gray-900 dark:text-gray-100">{validRows.length}</strong> linha
-                    {validRows.length !== 1 ? 's' : ''} pronta{validRows.length !== 1 ? 's' : ''} para importar
+                    {validRows.length !== 1 ? 's' : ''} lida{validRows.length !== 1 ? 's' : ''} da planilha
+                    {totalRepetidas > 0 && (
+                      <>
+                        {' · '}
+                        {totalRepetidas} repetida{totalRepetidas !== 1 ? 's' : ''} (mesmo TUSS e nome) entra
+                        {totalRepetidas !== 1 ? 'm' : ''} uma vez só
+                      </>
+                    )}
+                    {totalMultiplos > 0 && (
+                      <>
+                        {' · '}
+                        {totalMultiplos} vale{totalMultiplos !== 1 ? 'm' : ''} para mais de um exame do TUSS
+                      </>
+                    )}
+                    {calculadas && (
+                      <>
+                        {' → '}
+                        <strong className="text-gray-900 dark:text-gray-100">{calculadas.length}</strong> linha
+                        {calculadas.length !== 1 ? 's' : ''} a gravar
+                      </>
+                    )}
                     {invalidRows.length > 0 && (
                       <>
                         {' · '}

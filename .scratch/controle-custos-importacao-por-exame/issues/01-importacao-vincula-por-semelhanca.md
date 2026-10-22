@@ -4,7 +4,7 @@
 
 **Blocked by:** None
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Coluna `nome_exame_convenio` em `custo_fontes_pagadoras`, com unicidade das linhas não levantadas por (tabela, TUSS, nome); migração da contração (ticket 07 de `controle-custos-tabela-associada`) ajustada para não tratar essas linhas como linha geral.
 - [x] Domínio: semelhança de nomes (só entre exames do mesmo TUSS, empate → não levantado) e plano da importação (vínculo, custo, CSP, Atendido, linha existente a atualizar, linhas gerais substituídas), com testes.
@@ -29,3 +29,5 @@
   - semelhança: "Dosagem"/"Pesquisa"/"ou" não contam; começo comum de 7+ letras casa ("Triglicerídeos" × "TRIGLICÉRIDES");
   - empate: a linha vale para todos os exames do TUSS com a maior nota (decisão do usuário), uma linha gravada por exame;
   - resultado: 211 linhas distintas da planilha → 185 linhas vinculadas, 44 de TUSS sem exame, 8 de nome diferente (siglas, "Não localizado").
+- 2026-10-22 — Conferido no navegador (Supabase de teste, AMHP-DF / "TESTE CONAB") com `AMH - Conab.xlsx` e limite de 40%: 239 linhas lidas, 237 gravadas, 139 Sim, 98 Não, 52 com custo não levantado; vínculos e "No convênio" corretos na tela. A prévia passou a explicar lidas → repetidas → mais de um exame → a gravar.
+  - Em aberto, decisão do usuário: as linhas que a própria planilha traz como "Não localizado" com valor 0 sobem como não levantadas (Não). Por enquanto ficam assim.
