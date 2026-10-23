@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { RotateCcw, Save, Tag, X } from 'lucide-react';
 import { formatBRL } from '../../hooks/useCostControl';
 import type { ExameDaFontePagadora } from './domain/busca';
+import CampoMoeda from './CampoMoeda';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -88,20 +89,7 @@ const ValorExameFormModal: React.FC<ValorExameFormModalProps> = ({
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
                 Valor de venda para este exame
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 font-medium pointer-events-none">
-                  R$
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  autoFocus
-                  value={valor}
-                  onChange={e => setValor(parseFloat(e.target.value) || 0)}
-                  className={`${inputCls} pl-8 tabular-nums`}
-                />
-              </div>
+              <CampoMoeda autoFocus value={valor} onChange={setValor} className={inputCls} />
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 Valor padrão do TUSS (vale pros demais irmãos): {formatBRL(item.valorPadraoTuss)}
               </p>

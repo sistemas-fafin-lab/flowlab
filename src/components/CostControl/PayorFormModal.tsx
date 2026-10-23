@@ -18,6 +18,7 @@ import {
   buscarExamesPorTermo,
   buscarFontesPagadorasPorTermo,
 } from './domain/busca';
+import CampoMoeda from './CampoMoeda';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -300,19 +301,7 @@ const PayorFormModal: React.FC<PayorFormModalProps> = ({
               <label className="block text-sm font-medium text-slate-700 dark:text-gray-300">
                 Valor Cobrado
               </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 font-medium pointer-events-none">
-                  R$
-                </span>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={form.price}
-                  onChange={e => setForm(f => ({ ...f, price: parseFloat(e.target.value) || 0 }))}
-                  className={`${inputCls} pl-8 tabular-nums`}
-                />
-              </div>
+              <CampoMoeda value={form.price} onChange={valor => setForm(f => ({ ...f, price: valor }))} className={inputCls} />
             </div>
           </div>
 

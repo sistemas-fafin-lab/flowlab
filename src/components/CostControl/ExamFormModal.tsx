@@ -5,6 +5,7 @@ import { useCobrancasTestesAplis, type CobrancaAplis, type TesteAplis } from '..
 import AutocompleteInput from './AutocompleteInput';
 import { casaTermo } from './domain/busca';
 import { nomesVinculoAplis } from './domain/vinculoAplis';
+import CampoMoeda from './CampoMoeda';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -256,19 +257,7 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     Reagentes, descartáveis e insumos consumidos especificamente neste exame.
                   </p>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 font-medium pointer-events-none">
-                      R$
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={form.direct}
-                      onChange={e => setForm(f => ({ ...f, direct: parseFloat(e.target.value) || 0 }))}
-                      className={`${inputCls} pl-8 tabular-nums`}
-                    />
-                  </div>
+                  <CampoMoeda value={form.direct} onChange={valor => setForm(f => ({ ...f, direct: valor }))} className={inputCls} />
                 </div>
               </div>
 
@@ -283,19 +272,7 @@ const ExamFormModal: React.FC<ExamFormModalProps> = ({ open, exam, onClose, onSa
                   <p className="text-xs text-gray-500 dark:text-gray-400">
                     Rateio de pessoal, depreciação de equipamentos e demais custos indiretos, em um único valor.
                   </p>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-gray-500 dark:text-gray-400 font-medium pointer-events-none">
-                      R$
-                    </span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={form.indirect}
-                      onChange={e => setForm(f => ({ ...f, indirect: parseFloat(e.target.value) || 0 }))}
-                      className={`${inputCls} pl-8 tabular-nums`}
-                    />
-                  </div>
+                  <CampoMoeda value={form.indirect} onChange={valor => setForm(f => ({ ...f, indirect: valor }))} className={inputCls} />
                 </div>
               </div>
             </div>
