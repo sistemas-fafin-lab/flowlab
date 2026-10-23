@@ -1,7 +1,7 @@
 // Preset de período usado pelas telas de histórico legado (Faturas, Glosas) que
 // filtram por intervalo de datas. `janelaDoPreset` traduz o preset num range ISO
 // (periodoIni/periodoFim) — a mesma regra estava duplicada em FaturasDashboard.tsx
-// e HistoricoGlosasLegado.tsx.
+// e o antigo histórico de glosas do legado.
 
 import { dayKey } from '../../../utils/datas';
 

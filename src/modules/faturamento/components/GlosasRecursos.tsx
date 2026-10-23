@@ -1,554 +1,206 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   AlertCircle,
-  RefreshCw,
+  AlertTriangle,
+  BarChart3,
   CheckCircle,
+  ClipboardList,
   Clock,
-  XCircle,
-  FileText,
-  Building2,
-  Calendar,
-  Filter,
-  ArrowRight,
-  Undo2,
-  MessageSquare,
-  User,
-  History
+  ListChecks,
+  RefreshCw,
 } from 'lucide-react';
-import { useGlosas } from '../hooks/useGlosas';
-import { useAuth } from '../../../hooks/useAuth';
-import { hasPermission } from '../../../utils/permissions';
-import { formatCurrency } from '../utils/formato';
-import { sanitizarFiltrosGlosas } from '../utils/viewsSalvas';
-import type { Glosa, GlosaStatus, GlosaRecursoInput, GlosasViewFiltros } from '../types';
-import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
-import DatePicker from '../../../components/DatePicker';
-import HistoricoGlosasLegado from './HistoricoGlosasLegado';
-import HistoricoRecursosLegado from './HistoricoRecursosLegado';
-
-const STATUS_FILTRO_OPCOES = [
-  { value: 'todas', label: 'Todos os Status' },
-  { value: 'aberta', label: 'Abertas' },
-  { value: 'em_recurso', label: 'Em Recurso' },
-  { value: 'revertida', label: 'Revertidas' },
-  { value: 'definitiva', label: 'Definitivas' },
-];
-
-const CAMPO_MODAL =
-  'w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
+import { sincronizarGlosasRecursos, useConveniosGlosas } from '../hooks/useGlosasRecursos';
+import type { RecorteGlosas } from '../types';
+import { formatData, hojeIso } from '../utils/formato';
+import LotesRecursoLista from './LotesRecursoLista';
 
 // ============================================================================
 // COMPONENTE: GlosasRecursos
-// Gestão de glosas e recursos junto às operadoras
+// Controle de glosas e recursos (.scratch/glosas-recursos-dashboard/spec.md):
+// três abas com um cabeçalho comum — período (mês do lote de faturamento
+// original), convênio e "Atualizar", que sincroniza a foto do apLIS no recorte.
 // ============================================================================
 
+type Aba = 'dashboard' | 'recentes' | 'acompanhamento';
+type SubAbaAcompanhamento = 'lotes' | 'fora-de-lote';
+
+const ABAS: { id: Aba; label: string; icone: React.ReactNode }[] = [
+  { id: 'dashboard', label: 'Dashboard', icone: <BarChart3 size={16} /> },
+  { id: 'recentes', label: 'Glosas recentes', icone: <Clock size={16} /> },
+  { id: 'acompanhamento', label: 'Acompanhamento dos recursos', icone: <ListChecks size={16} /> },
+];
+
+const SUB_ABAS: { id: SubAbaAcompanhamento; label: string }[] = [
+  { id: 'lotes', label: 'Lotes de recurso' },
+  { id: 'fora-de-lote', label: 'Recursos fora de lote' },
+];
+
+const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
+
+/** Recursos anteriores a 2026 não foram organizados em lotes no apLIS. */
+const ANO_LOTES_ORGANIZADOS = 2026;
+
+const EmBreve: React.FC<{ titulo: string }> = ({ titulo }) => (
+  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-center py-16">
+    <ClipboardList className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+    <p className="text-gray-700 dark:text-gray-300 font-medium">{titulo}</p>
+    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Em breve</p>
+  </div>
+);
+
 const GlosasRecursos: React.FC = () => {
-  const { userProfile } = useAuth();
-  // A RLS nova (20260807120000) exige canManageBilling para UPDATE em glosas; sem
-  // ela o clique não dá erro, só não afeta linha nenhuma. Esconder as ações de
-  // escrita de quem só tem canViewBilling evita esse clique fantasma (achado 4.6).
-  const podeEditar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
+  const convenios = useConveniosGlosas();
+  const [recorte, setRecorte] = useState<RecorteGlosas>(() => ({
+    competencia: hojeIso().slice(0, 7),
+    fontePagadoraId: null,
+  }));
+  const [aba, setAba] = useState<Aba>('dashboard');
+  const [subAba, setSubAba] = useState<SubAbaAcompanhamento>('lotes');
 
-  // Abas: "Nativas" é a tabela `glosas` (comportamento existente, sem mudança) e
-  // "Histórico (apLIS)" lê ao vivo o MySQL de backup do laboratório — sub-abas
-  // porque glosas e lotes de recurso são seções próprias (decisão do design doc),
-  // não uma lista mesclada.
-  const [abaPrincipal, setAbaPrincipal] = useState<'nativas' | 'legado'>('nativas');
-  const [abaLegado, setAbaLegado] = useState<'glosas' | 'recursos'>('glosas');
+  const [sincronizando, setSincronizando] = useState(false);
+  const [erroSync, setErroSync] = useState<string | null>(null);
+  const [avisoSync, setAvisoSync] = useState<string | null>(null);
+  // Muda a cada sincronização concluída: as abas recarregam da foto nova.
+  const [versao, setVersao] = useState(0);
 
-  const [filtroStatus, setFiltroStatus] = useState<GlosaStatus | 'todas'>('todas');
-  const {
-    loading,
-    error,
-    glosas,
-    refetch,
-    atualizarStatusGlosa,
-    limparErro
-  } = useGlosas({ status: filtroStatus !== 'todas' ? filtroStatus : undefined });
+  const atualizar = useCallback(async () => {
+    setSincronizando(true);
+    setErroSync(null);
+    setAvisoSync(null);
+    try {
+      const r = await sincronizarGlosasRecursos(recorte);
+      setAvisoSync(
+        `${r.requisicoes} ${r.requisicoes === 1 ? 'requisição' : 'requisições'} e ${r.lotes} `
+        + `${r.lotes === 1 ? 'lote de recurso' : 'lotes de recurso'} sincronizados`
+        + (r.dadoAte ? ` — apLIS até ${formatData(r.dadoAte)} (a réplica atrasa cerca de 1 dia).` : '.'),
+      );
+      setVersao((v) => v + 1);
+    } catch (err) {
+      setErroSync(err instanceof Error ? err.message : 'Não foi possível sincronizar com o apLIS.');
+    } finally {
+      setSincronizando(false);
+    }
+  }, [recorte]);
 
-  const [showRecursoModal, setShowRecursoModal] = useState(false);
-  const [selectedGlosa, setSelectedGlosa] = useState<Glosa | null>(null);
-  const [recursoForm, setRecursoForm] = useState<GlosaRecursoInput>({
-    status: 'em_recurso',
-    responsavel: ''
-  });
-
-  // Status badge helper
-  const getStatusBadge = (status: GlosaStatus) => {
-    const styles: Record<GlosaStatus, { bg: string; text: string; icon: React.ReactNode; label: string }> = {
-      aberta: { 
-        bg: 'bg-red-100 dark:bg-red-900/30', 
-        text: 'text-red-700 dark:text-red-300', 
-        icon: <AlertCircle size={14} />,
-        label: 'Aberta'
-      },
-      em_recurso: { 
-        bg: 'bg-yellow-100 dark:bg-yellow-900/30', 
-        text: 'text-yellow-700 dark:text-yellow-300', 
-        icon: <Clock size={14} />,
-        label: 'Em Recurso'
-      },
-      revertida: { 
-        bg: 'bg-green-100 dark:bg-green-900/30', 
-        text: 'text-green-700 dark:text-green-300', 
-        icon: <CheckCircle size={14} />,
-        label: 'Revertida'
-      },
-      definitiva: { 
-        bg: 'bg-gray-100 dark:bg-gray-900/30', 
-        text: 'text-gray-700 dark:text-gray-300', 
-        icon: <XCircle size={14} />,
-        label: 'Definitiva'
-      }
-    };
-    const { bg, text, icon, label } = styles[status];
-    return (
-      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium ${bg} ${text}`}>
-        {icon}
-        {label}
-      </span>
-    );
-  };
-
-  // Calcular totais
-  const totais = {
-    abertas: glosas.filter(g => g.status === 'aberta').reduce((sum, g) => sum + g.valor, 0),
-    emRecurso: glosas.filter(g => g.status === 'em_recurso').reduce((sum, g) => sum + g.valor, 0),
-    revertidas: glosas.filter(g => g.status === 'revertida').reduce((sum, g) => sum + g.valor, 0),
-    definitivas: glosas.filter(g => g.status === 'definitiva').reduce((sum, g) => sum + g.valor, 0)
-  };
-
-  // Handlers de ação
-  const handleIniciarRecurso = (glosa: Glosa) => {
-    setSelectedGlosa(glosa);
-    setRecursoForm({
-      status: 'em_recurso',
-      responsavel: '',
-      data_recurso: new Date().toISOString().split('T')[0]
-    });
-    setShowRecursoModal(true);
-  };
-
-  const handleMarcarRevertida = async (glosa: Glosa) => {
-    if (!confirm('Confirma que esta glosa foi REVERTIDA pela operadora?')) return;
-
-    await atualizarStatusGlosa(glosa.id_glosa, {
-      status: 'revertida',
-      resultado_recurso: 'Glosa revertida - valor será creditado'
-    });
-  };
-
-  const handleMarcarDefinitiva = async (glosa: Glosa) => {
-    if (!confirm('Confirma que esta glosa é DEFINITIVA e não será revertida?')) return;
-
-    await atualizarStatusGlosa(glosa.id_glosa, {
-      status: 'definitiva',
-      resultado_recurso: 'Recurso negado - glosa mantida'
-    });
-  };
-
-  const handleSalvarRecurso = async () => {
-    if (!selectedGlosa) return;
-
-    await atualizarStatusGlosa(selectedGlosa.id_glosa, recursoForm);
-    setShowRecursoModal(false);
-    setSelectedGlosa(null);
-  };
+  const anoPeriodo = Number(recorte.competencia.slice(0, 4));
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      {/* Cabeçalho comum às três abas */}
+      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <AlertCircle className="h-7 w-7 text-red-600" />
-            Gestão de Glosas
+            Glosas e Recursos
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Controle de glosas e recursos junto às operadoras
+            Glosas e recursos junto às operadoras, a partir do apLIS
           </p>
         </div>
 
-        {abaPrincipal === 'nativas' && (
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="text-xs text-gray-500 dark:text-gray-400">
+            Período (mês do lote de faturamento)
+            <input
+              type="month"
+              value={recorte.competencia}
+              onChange={(e) => e.target.value && setRecorte((r) => ({ ...r, competencia: e.target.value }))}
+              className={`block ${CAMPO}`}
+            />
+          </label>
+          <label className="text-xs text-gray-500 dark:text-gray-400">
+            Convênio
+            <Select
+              value={recorte.fontePagadoraId === null ? '' : String(recorte.fontePagadoraId)}
+              onChange={(v) => setRecorte((r) => ({ ...r, fontePagadoraId: v ? Number(v) : null }))}
+              options={[
+                { value: '', label: 'Todos' },
+                ...convenios.map((c) => ({ value: String(c.id), label: c.nome })),
+              ]}
+              controlClass={CAMPO}
+              wrapperClass="w-56"
+              searchable
+            />
+          </label>
           <button
-            onClick={refetch}
-            disabled={loading}
+            onClick={() => void atualizar()}
+            disabled={sincronizando}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-            Atualizar
+            <RefreshCw size={16} className={sincronizando ? 'animate-spin' : ''} />
+            {sincronizando ? 'Sincronizando...' : 'Atualizar'}
           </button>
-        )}
+        </div>
       </div>
+
+      {anoPeriodo < ANO_LOTES_ORGANIZADOS && (
+        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-center gap-2">
+          <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0" />
+          <p className="text-sm text-amber-800 dark:text-amber-200">
+            Os recursos de anos anteriores a {ANO_LOTES_ORGANIZADOS} não foram organizados em lotes no apLIS: os
+            números deste período podem estar incompletos.
+          </p>
+        </div>
+      )}
+
+      {erroSync && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 flex items-center gap-2">
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
+          <p className="text-red-700 dark:text-red-300">{erroSync}</p>
+          <button onClick={() => setErroSync(null)} className="ml-auto text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300">×</button>
+        </div>
+      )}
+      {avisoSync && (
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 flex items-center gap-2">
+          <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 shrink-0" />
+          <p className="text-sm text-green-800 dark:text-green-200">{avisoSync}</p>
+          <button onClick={() => setAvisoSync(null)} className="ml-auto text-green-700 dark:text-green-400 hover:text-green-900 dark:hover:text-green-300">×</button>
+        </div>
+      )}
 
       {/* Abas */}
       <div className="flex flex-wrap gap-1 border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => setAbaPrincipal('nativas')}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            abaPrincipal === 'nativas'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-          }`}
-        >
-          <AlertCircle size={16} />
-          Nativas
-        </button>
-        <button
-          onClick={() => setAbaPrincipal('legado')}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            abaPrincipal === 'legado'
-              ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-              : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-          }`}
-        >
-          <History size={16} />
-          Histórico (apLIS)
-        </button>
+        {ABAS.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => setAba(a.id)}
+            className={`inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              aba === a.id
+                ? 'border-blue-600 dark:border-blue-400 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            {a.icone}
+            {a.label}
+          </button>
+        ))}
       </div>
 
-      {abaPrincipal === 'legado' ? (
+      {aba === 'dashboard' && <EmBreve titulo="Dashboard" />}
+      {aba === 'recentes' && <EmBreve titulo="Glosas recentes" />}
+      {aba === 'acompanhamento' && (
         <div className="space-y-4">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            Consulta somente leitura ao banco do laboratório — não é possível iniciar
-            recurso nem alterar status a partir daqui.
-          </p>
-
           <div className="flex flex-wrap gap-1">
-            <button
-              onClick={() => setAbaLegado('glosas')}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                abaLegado === 'glosas'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              Glosas
-            </button>
-            <button
-              onClick={() => setAbaLegado('recursos')}
-              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                abaLegado === 'recursos'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-              }`}
-            >
-              Recursos
-            </button>
-          </div>
-
-          {abaLegado === 'glosas' ? <HistoricoGlosasLegado /> : <HistoricoRecursosLegado />}
-        </div>
-      ) : (
-      <>
-      {/* Error Alert */}
-      {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
-          <div className="flex items-center gap-2">
-            <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400" />
-            <p className="text-red-700 dark:text-red-300">{error}</p>
-            <button onClick={limparErro} className="ml-auto text-red-600 hover:text-red-800">×</button>
-          </div>
-        </div>
-      )}
-
-      {/* Cards de Totais */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-red-200 dark:border-red-800 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Glosas Abertas</p>
-              <p className="text-2xl font-bold text-red-600 dark:text-red-400 mt-1">
-                {formatCurrency(totais.abertas)}
-              </p>
-            </div>
-            <div className="p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-              <AlertCircle className="h-6 w-6 text-red-600 dark:text-red-400" />
-            </div>
-          </div>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {glosas.filter(g => g.status === 'aberta').length} pendentes
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-yellow-200 dark:border-yellow-800 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Em Recurso</p>
-              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400 mt-1">
-                {formatCurrency(totais.emRecurso)}
-              </p>
-            </div>
-            <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-              <Clock className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
-            </div>
-          </div>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {glosas.filter(g => g.status === 'em_recurso').length} aguardando
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-green-200 dark:border-green-800 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Revertidas</p>
-              <p className="text-2xl font-bold text-green-600 dark:text-green-400 mt-1">
-                {formatCurrency(totais.revertidas)}
-              </p>
-            </div>
-            <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
-            </div>
-          </div>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {glosas.filter(g => g.status === 'revertida').length} recuperadas
-          </p>
-        </div>
-
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Definitivas</p>
-              <p className="text-2xl font-bold text-gray-600 dark:text-gray-400 mt-1">
-                {formatCurrency(totais.definitivas)}
-              </p>
-            </div>
-            <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-lg">
-              <XCircle className="h-6 w-6 text-gray-600 dark:text-gray-400" />
-            </div>
-          </div>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            {glosas.filter(g => g.status === 'definitiva').length} finalizadas
-          </p>
-        </div>
-      </div>
-
-      {/* Filtros */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Filter size={16} className="text-gray-500" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Filtrar por:</span>
-          </div>
-          
-          <Select
-            value={filtroStatus}
-            onChange={(v) => setFiltroStatus(v as GlosaStatus | 'todas')}
-            options={STATUS_FILTRO_OPCOES}
-            controlClass="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-700 text-gray-900 dark:text-white min-w-[180px]"
-          />
-
-          <ViewsSalvasMenu<GlosasViewFiltros>
-            tela="glosas"
-            filtros={{ status: filtroStatus }}
-            // A garantia de formato mora no sanitizador (utils/viewsSalvas.ts):
-            // status fora do union vira "todas" antes de chegar aqui, então o
-            // filtro nunca vai quebrado para o Supabase.
-            sanitizar={sanitizarFiltrosGlosas}
-            onAplicar={(view) => setFiltroStatus(view.status)}
-          />
-        </div>
-      </div>
-
-      {/* Lista de Glosas */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Glosas ({glosas.length})
-          </h3>
-        </div>
-        
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <RefreshCw className="h-8 w-8 text-blue-600 animate-spin" />
-          </div>
-        ) : glosas.length === 0 ? (
-          <div className="text-center py-12">
-            <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-4" />
-            <p className="text-gray-500 dark:text-gray-400">Nenhuma glosa encontrada</p>
-          </div>
-        ) : (
-          <div className="divide-y divide-gray-200 dark:divide-gray-700">
-            {glosas.map((glosa) => (
-              <div
-                key={glosa.id_glosa}
-                className="px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+            {SUB_ABAS.map((s) => (
+              <button
+                key={s.id}
+                onClick={() => setSubAba(s.id)}
+                className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  subAba === s.id
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
               >
-                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-                  {/* Informações da Glosa */}
-                  <div className="flex-1 space-y-2">
-                    <div className="flex items-center gap-3">
-                      {getStatusBadge(glosa.status)}
-                      <span className="text-lg font-bold text-red-600 dark:text-red-400">
-                        {formatCurrency(glosa.valor)}
-                      </span>
-                    </div>
-                    
-                    <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                      <span className="flex items-center gap-1">
-                        <FileText size={14} />
-                        {glosa.nota?.numero_nota || glosa.recebimento?.nota?.numero_nota || '-'}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Building2 size={14} />
-                        {glosa.recebimento?.nota?.operadora?.nome || '-'}
-                      </span>
-                      {glosa.codigo_glosa && (
-                        <span className="font-mono text-xs bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded">
-                          Cód: {glosa.codigo_glosa}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="text-sm text-gray-600 dark:text-gray-300">
-                      <strong>Motivo:</strong> {glosa.motivo}
-                    </div>
-
-                    {glosa.recurso && (
-                      <div className="text-sm space-y-1">
-                        {glosa.data_recurso && (
-                          <p className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                            <Calendar size={14} />
-                            Recurso em: {new Date(glosa.data_recurso).toLocaleDateString('pt-BR')}
-                          </p>
-                        )}
-                        {glosa.responsavel && (
-                          <p className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                            <User size={14} />
-                            Responsável: {glosa.responsavel}
-                          </p>
-                        )}
-                        {glosa.resultado_recurso && (
-                          <p className="text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                            <MessageSquare size={14} />
-                            {glosa.resultado_recurso}
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Ações — só para quem pode gravar (canManageBilling); ver podeEditar acima */}
-                  {podeEditar && (
-                  <div className="flex items-center gap-2">
-                    {glosa.status === 'aberta' && (
-                      <button
-                        onClick={() => handleIniciarRecurso(glosa)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 bg-yellow-600 text-white text-sm font-medium rounded-lg hover:bg-yellow-700 transition-colors"
-                      >
-                        <ArrowRight size={16} />
-                        Iniciar Recurso
-                      </button>
-                    )}
-
-                    {glosa.status === 'em_recurso' && (
-                      <>
-                        <button
-                          onClick={() => handleMarcarRevertida(glosa)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
-                        >
-                          <Undo2 size={16} />
-                          Revertida
-                        </button>
-                        <button
-                          onClick={() => handleMarcarDefinitiva(glosa)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 bg-gray-600 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors"
-                        >
-                          <XCircle size={16} />
-                          Definitiva
-                        </button>
-                      </>
-                    )}
-                  </div>
-                  )}
-                </div>
-              </div>
+                {s.label}
+              </button>
             ))}
           </div>
-        )}
-      </div>
 
-      {/* Modal de Recurso */}
-      {showRecursoModal && selectedGlosa && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75" onClick={() => setShowRecursoModal(false)} />
-            
-            <div className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-white dark:bg-gray-800 shadow-xl rounded-2xl">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                <ArrowRight className="h-5 w-5 text-yellow-600" />
-                Iniciar Recurso de Glosa
-              </h3>
-              
-              <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  <strong>Valor da Glosa:</strong> {formatCurrency(selectedGlosa.valor)}
-                </p>
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  <strong>Motivo:</strong> {selectedGlosa.motivo}
-                </p>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Data do Recurso
-                  </label>
-                  <DatePicker
-                    value={recursoForm.data_recurso || ''}
-                    onChange={(v) => setRecursoForm({ ...recursoForm, data_recurso: v })}
-                    controlClass={CAMPO_MODAL}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Responsável pelo Recurso
-                  </label>
-                  <input
-                    type="text"
-                    value={recursoForm.responsavel || ''}
-                    onChange={(e) => setRecursoForm({ ...recursoForm, responsavel: e.target.value })}
-                    placeholder="Nome do responsável"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Observações (opcional)
-                  </label>
-                  <textarea
-                    value={recursoForm.resultado_recurso || ''}
-                    onChange={(e) => setRecursoForm({ ...recursoForm, resultado_recurso: e.target.value })}
-                    rows={3}
-                    placeholder="Detalhes do recurso enviado..."
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setShowRecursoModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={handleSalvarRecurso}
-                  disabled={loading || !recursoForm.responsavel}
-                  className="px-4 py-2 text-sm font-medium text-white bg-yellow-600 rounded-lg hover:bg-yellow-700 transition-colors disabled:opacity-50"
-                >
-                  {loading ? 'Salvando...' : 'Confirmar Recurso'}
-                </button>
-              </div>
-            </div>
-          </div>
+          {subAba === 'lotes'
+            ? <LotesRecursoLista recorte={recorte} versao={versao} />
+            : <EmBreve titulo="Recursos fora de lote" />}
         </div>
-      )}
-      </>
       )}
     </div>
   );

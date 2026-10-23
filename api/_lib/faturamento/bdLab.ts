@@ -32,6 +32,8 @@
 import mysql from 'mysql2/promise';
 import type { DiferencaAplis } from './glosasAplis.js';
 import { cobrancasComTestes } from './cobrancasTestesAplis.js';
+import { STATUS_FOTO } from './recursoGlosa.js';
+import type { RequisicaoGlosaAplis } from './recursoGlosa.js';
 import type {
   CobrancaAplis,
   LinhaCobranca,
@@ -3186,8 +3188,187 @@ export async function detalharRecursoLegado(
   });
 }
 
-// --- Imagens da requisição (requisicaoimagem) — usado pelo botão "Ver imagens" nos
-// dois históricos acima (glosas tem IdRequisicao na própria linha; recursos só no
+// --- Foto de glosas e recursos (.scratch/glosas-recursos-dashboard/spec.md) ---
+// A sincronização da tela Glosas e Recursos lê aqui as requisições glosadas ou
+// recursadas de um mês de faturamento e os lotes de recurso delas. Regra de
+// negócio (glosa fixada etc.) fica em recursoGlosa.ts.
+
+/** Requisição glosada ou recursada, como entra na foto do FlowLab. */
+export interface RequisicaoGlosaRecursoAplis extends RequisicaoGlosaAplis {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  numGuia: string | null;
+  paciente: string | null;
+  /** Lote de faturamento original (`requisicao.Lote`). */
+  idLoteFaturamento: number;
+  /** YYYY-MM de `fatlote.DtaCriacao` do lote de faturamento original. */
+  competencia: string;
+  fontePagadora: { id: number | null; nome: string | null };
+  /** Lote de recurso mais recente da requisição; null fora de lote. */
+  idLoteRecurso: number | null;
+}
+
+/** Lote de recurso (`fatloterecurso`) de alguma requisição da foto. */
+export interface LoteRecursoAplis {
+  idLoteRecurso: number;
+  status: number;
+  statusLabel: string;
+  /** `fatloterecurso.Protocolo`: protocolo do recurso na operadora. */
+  protocolo: string | null;
+  /** `fatloterecurso.ProtocoloRecursado`: protocolo do faturamento recorrido. */
+  protocoloFaturamento: string | null;
+  fontePagadora: { id: number | null; nome: string | null };
+  dtaCriacao: string | null;
+  dtaEnvio: string | null;
+  dtaFinalizacao: string | null;
+  dtaCancelamento: string | null;
+}
+
+export interface GlosasRecursosDoPeriodoParams {
+  /** YYYY-MM do lote de faturamento original. */
+  competencia: string;
+  fontePagadoraId?: number;
+}
+
+export type GlosasRecursosDoPeriodoResultado =
+  | { requisicoes: RequisicaoGlosaRecursoAplis[]; lotesRecurso: LoteRecursoAplis[]; dadoAte: string | null }
+  | { erro: { status: number; mensagem: string } };
+
+// `fatloterecursoprocedimento` não tem índice em IdRequisicao (~4 mil linhas):
+// entra por tabela derivada agrupada, não por EXISTS correlacionado.
+const SQL_REQUISICOES_GLOSA_RECURSO = `
+  SELECT r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente,
+         r.Lote, DATE_FORMAT(l.DtaCriacao, '%Y-%m') AS Competencia,
+         r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial, r.CodEventoFatur,
+         SUM(p.ValorLiquido) AS Liquido, SUM(COALESCE(p.ValorRecebido, 0)) AS Recebido
+    FROM requisicao r
+    JOIN fatlote l ON l.IdLote = r.Lote
+    JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
+    LEFT JOIN (SELECT DISTINCT IdRequisicao FROM fatloterecursoprocedimento) lr
+           ON lr.IdRequisicao = r.IdRequisicao
+    LEFT JOIN paciente pa ON pa.CodPaciente = r.CodPaciente
+    LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = r.IdFontePagadora
+   WHERE %WHERE%
+   GROUP BY r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente, r.Lote,
+            l.DtaCriacao, r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial, r.CodEventoFatur`;
+
+/**
+ * Requisições do mês de faturamento (`fatlote.DtaCriacao` do lote original)
+ * nos status de glosa/recurso, ou presentes em algum lote de recurso, e os
+ * lotes de recurso delas. Requisição em mais de um lote de recurso (32 em
+ * 23/10/2026: 1º e 2º recurso) fica com o mais recente, e o recursado é o
+ * desse lote. Sem cache: o "Atualizar" quer o estado da réplica agora.
+ */
+export async function glosasRecursosDoPeriodo(
+  params: GlosasRecursosDoPeriodoParams,
+): Promise<GlosasRecursosDoPeriodoResultado> {
+  const condicoes = [
+    'l.DtaCriacao >= ?',
+    'l.DtaCriacao < DATE_ADD(?, INTERVAL 1 MONTH)',
+    `(r.CodEventoFatur IN (${STATUS_FOTO.map(() => '?').join(', ')}) OR lr.IdRequisicao IS NOT NULL)`,
+  ];
+  const inicio = `${params.competencia}-01 00:00:00`;
+  const valores: ParametroSql[] = [inicio, inicio, ...STATUS_FOTO];
+  if (params.fontePagadoraId !== undefined) {
+    condicoes.push('r.IdFontePagadora = ?');
+    valores.push(params.fontePagadoraId);
+  }
+
+  return comConexao('glosasRecursosDoPeriodo', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      SQL_REQUISICOES_GLOSA_RECURSO.replace('%WHERE%', condicoes.join(' AND ')),
+      valores,
+    );
+    const ids = linhas.map((linha) => numero(linha.IdRequisicao));
+
+    // Recursado por requisição × lote de recurso; fica o lote mais recente.
+    const recurso = new Map<number, { idLoteRecurso: number; recursado: number }>();
+    for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
+      const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
+      const [itens] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT IdRequisicao, IdLoteRecurso, SUM(COALESCE(VlrRecurso, 0)) AS Recursado
+           FROM fatloterecursoprocedimento
+          WHERE IdRequisicao IN (${bloco.map(() => '?').join(', ')})
+          GROUP BY IdRequisicao, IdLoteRecurso`,
+        bloco,
+      );
+      for (const item of itens) {
+        const idRequisicao = numero(item.IdRequisicao);
+        const idLoteRecurso = numero(item.IdLoteRecurso);
+        const atual = recurso.get(idRequisicao);
+        if (!atual || idLoteRecurso > atual.idLoteRecurso) {
+          recurso.set(idRequisicao, { idLoteRecurso, recursado: numero(item.Recursado) });
+        }
+      }
+    }
+
+    const idsLoteRecurso = [...new Set([...recurso.values()].map((r) => r.idLoteRecurso))];
+    const lotesRecurso: LoteRecursoAplis[] = [];
+    for (let i = 0; i < idsLoteRecurso.length; i += BLOCO_RECEBIDOS) {
+      const bloco = idsLoteRecurso.slice(i, i + BLOCO_RECEBIDOS);
+      const [itens] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT lr.IdLoteRecurso, lr.Status, lr.Protocolo, lr.ProtocoloRecursado,
+                lr.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial,
+                DATE_FORMAT(lr.DtaCriacao,      '%Y-%m-%d') AS DtaCriacao,
+                DATE_FORMAT(lr.DtaEnvio,        '%Y-%m-%d') AS DtaEnvio,
+                DATE_FORMAT(lr.DtaFinalizacao,  '%Y-%m-%d') AS DtaFinalizacao,
+                DATE_FORMAT(lr.DtaCancelamento, '%Y-%m-%d') AS DtaCancelamento
+           FROM fatloterecurso lr
+           LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = lr.IdFontePagadora
+          WHERE lr.IdLoteRecurso IN (${bloco.map(() => '?').join(', ')})`,
+        bloco,
+      );
+      for (const item of itens) {
+        lotesRecurso.push({
+          idLoteRecurso: numero(item.IdLoteRecurso),
+          status: inteiroOuNulo(item.Status) ?? 0,
+          statusLabel: statusLabelRecurso(item),
+          protocolo: texto(item.Protocolo),
+          protocoloFaturamento: texto(item.ProtocoloRecursado),
+          fontePagadora: {
+            id: inteiroOuNulo(item.IdFontePagadora),
+            nome: texto(item.NomFantasia) ?? texto(item.RazaoSocial),
+          },
+          dtaCriacao: dataIso(item.DtaCriacao),
+          dtaEnvio: dataIso(item.DtaEnvio),
+          dtaFinalizacao: dataIso(item.DtaFinalizacao),
+          dtaCancelamento: dataIso(item.DtaCancelamento),
+        });
+      }
+    }
+
+    // Lote de recurso apontado mas ausente em fatloterecurso: a requisição fica
+    // fora de lote, senão a foto quebraria a chave estrangeira.
+    const lotesLidos = new Set(lotesRecurso.map((l) => l.idLoteRecurso));
+    const requisicoes: RequisicaoGlosaRecursoAplis[] = linhas.map((linha) => {
+      const idRequisicao = numero(linha.IdRequisicao);
+      const candidato = recurso.get(idRequisicao);
+      const doRecurso = candidato && lotesLidos.has(candidato.idLoteRecurso) ? candidato : undefined;
+      return {
+        idRequisicao,
+        codRequisicao: texto(linha.CodRequisicao),
+        numGuia: texto(linha.NumGuiaConvenio),
+        paciente: texto(linha.NomPaciente),
+        idLoteFaturamento: numero(linha.Lote),
+        competencia: texto(linha.Competencia) ?? params.competencia,
+        fontePagadora: {
+          id: inteiroOuNulo(linha.IdFontePagadora),
+          nome: texto(linha.NomFantasia) ?? texto(linha.RazaoSocial),
+        },
+        status: inteiroOuNulo(linha.CodEventoFatur),
+        liquido: numero(linha.Liquido),
+        recebido: numero(linha.Recebido),
+        idLoteRecurso: doRecurso?.idLoteRecurso ?? null,
+        recursado: doRecurso?.recursado ?? null,
+      };
+    });
+
+    return { requisicoes, lotesRecurso, dadoAte: await dadoAte(conn, 'requisicao', 'DtaSolicitacao') };
+  });
+}
+
+// --- Imagens da requisição (requisicaoimagem) — usado pelo botão "Ver imagens" dos
+// antigos históricos de glosas e recursos (glosas tem IdRequisicao na própria linha; recursos só no
 // procedimento, ao expandir). Levantamento no banco: ~1,09M linhas, mas só ~1,4% tem
 // o blob (`Img`) preenchido — o resto nunca foi digitalizado no apLIS. `DtaImg` fica
 // nulo até a digitalização acontecer, o que pode levar alguns dias mesmo para

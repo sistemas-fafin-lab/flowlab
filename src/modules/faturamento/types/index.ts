@@ -943,91 +943,60 @@ export interface ViewSalva<TFiltros = Record<string, unknown>> {
 }
 
 // ============================================================================
-// GLOSAS E RECURSOS — HISTÓRICO DO LEGADO (aba "Histórico (apLIS)")
+// GLOSAS E RECURSOS — FOTO DO apLIS
 // ============================================================================
-// Contrato de GET /api/faturamento/glosas-legado e GET /api/faturamento/recursos-legado,
-// que leem ao vivo o MySQL de backup do laboratório — nada é persistido no Supabase.
-// Só consulta/histórico nesta entrega, sem ação de "adotar" para a tabela `glosas`
-// nativa. Espelha api/_lib/faturamento/bdLab.ts; sincronizado à mão, mesmo motivo de
-// LoteFaturamento/RequisicaoLote acima.
-//
-// Ver docs/plans/faturamento/glosas-recursos-legado-design.md.
+// Contrato de POST /api/faturamento/glosas-recursos-sincronizar e
+// GET /api/faturamento/glosas-recursos-lotes (.scratch/glosas-recursos-dashboard/).
+// A foto mora no Supabase; a sincronização a grava a partir do apLIS.
 
-/** Glosa lançada em fatrequisicaoprocedimento.IdMotivoGlosa — não a de
- *  fatdemonstrativoguiaprocedimento (fonte alternativa não escolhida). */
-export interface GlosaRequisicaoLegado {
-  idRequisicaoProcedimento: number;
-  idRequisicao: number;
-  codRequisicao: string | null;
-  numGuiaConvenio: string | null;
-  paciente: string | null;
-  dtaSolicitacao: string | null;
-  procedimentoCodigo: string | null;
-  procedimentoDescricao: string | null;
-  valor: number;
-  idMotivoGlosa: number | null;
-  /** Código oficial do catálogo `fatmotivoglosa` (ex.: código ANS). */
-  motivoCodigo: number | null;
-  /** Descrição do catálogo — complementar ao texto operacional `desMotivoGlosa`,
-   *  não redundante (os dois textos divergem no legado). */
-  motivoDescricao: string | null;
-  /** Texto lançado na própria requisição. */
-  desMotivoGlosa: string | null;
-  /** Código de glosa do demonstrativo de pagamento do convênio — o que a
-   *  operadora de fato devolveu; pode diferir de `motivoCodigo`. */
-  codigoDemonstrativo?: string | null;
-  /** Valor glosado segundo o demonstrativo; null sem demonstrativo. `valor` é o
-   *  valor COBRADO do procedimento. */
-  valorGlosado?: number | null;
-  fontePagadora: { id: number | null; nome: string | null };
-}
+/** Rótulo do lote de recurso, derivado das datas do apLIS. */
+export type StatusLoteRecurso = 'Criado' | 'Enviado' | 'Finalizado' | 'Cancelado';
 
-export interface GlosasLegadoFiltros {
-  /** YYYY-MM-DD — obrigatório: sem período a consulta varreria ~23 mil linhas. */
-  periodoIni: string;
-  periodoFim: string;
-  fontePagadoraId?: number;
-  pagina?: number;
-  tamanho?: number;
-  busca?: string;
-}
-
-/** Lote de recurso (fatloterecurso) já protocolado no legado. */
-export interface LoteRecursoLegado {
+/** Lote de recurso na sub-aba "Lotes de recurso", somado no mês de faturamento. */
+export interface LoteRecursoFoto {
   idLoteRecurso: number;
-  /** Código cru de fatloterecurso.Status — sem tabela de label conhecida. */
-  status: number;
-  /** Derivado das colunas de data (Criado/Enviado/Finalizado/Cancelado), não do
-   *  código cru — ver comentário em bdLab.ts. */
-  statusLabel: string;
-  dtaCriacao: string | null;
-  dtaEnvio: string | null;
-  dtaFinalizacao: string | null;
-  dtaCancelamento: string | null;
+  statusLabel: StatusLoteRecurso;
+  /** Protocolo do recurso na operadora. */
   protocolo: string | null;
-  protocoloRecursado: string | null;
+  /** Protocolo do faturamento recorrido. */
+  protocoloFaturamento: string | null;
   fontePagadora: { id: number | null; nome: string | null };
-  valorTotal: number;
-  qtdProcedimentos: number;
+  dataCriacao: string | null;
+  dataEnvio: string | null;
+  qtdRequisicoes: number;
+  /** Σ glosa fixada das requisições do lote no mês. */
+  valorGlosado: number;
+  /** Σ valor recursado das requisições do lote no mês. */
+  valorRecorrido: number;
 }
 
-/** Procedimento dentro de um lote de recurso, carregado sob demanda ao expandir a linha. */
-export interface ProcedimentoRecursoLegado {
-  idProcedimento: number;
-  idRequisicao: number;
-  numGuia: string | null;
-  valorRecurso: number;
-  idMotivoGlosa: number | null;
-  motivoDescricao: string | null;
-  justificativa: string | null;
+export interface UltimaSincronizacaoGlosas {
+  sincronizadoEm: string;
+  /** Data do dado mais recente da réplica do apLIS (~1 dia de atraso). */
+  dadoAte: string | null;
 }
 
-export interface RecursosLegadoFiltros {
-  status?: number;
-  fontePagadoraId?: number;
+export interface LotesRecursoMeta {
+  pagina: number;
+  tamanho: number;
+  qtdPaginas: number;
+  registros: number;
+  ultimaSincronizacao: UltimaSincronizacaoGlosas | null;
+}
+
+/** Recorte comum às três abas: mês do lote de faturamento original e convênio. */
+export interface RecorteGlosas {
+  /** YYYY-MM. */
+  competencia: string;
+  /** `fatinstituicao.IdInstituicao`; null = todos. */
+  fontePagadoraId: number | null;
+}
+
+export interface LotesRecursoFiltros extends RecorteGlosas {
+  status?: StatusLoteRecurso;
   busca?: string;
-  pagina?: number;
-  tamanho?: number;
+  pagina: number;
+  tamanho: number;
 }
 
 /** Metadados de um documento digitalizado de requisicaoimagem — contrato de
