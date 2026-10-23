@@ -4,7 +4,9 @@
  * Sub-aba Acompanhamento dos recursos → "Lotes de recurso" da tela Glosas e
  * Recursos (.scratch/glosas-recursos-dashboard/spec.md). Lê da foto do
  * Supabase (view glosa_recurso_lotes_lista), não do apLIS: a foto é gravada por
- * /api/faturamento/glosas-recursos-sincronizar.
+ * /api/faturamento/glosas-recursos-sincronizar. Retorno e pagamento previstos e
+ * o selo de atraso saem das regras de prazo do convênio lidas a cada consulta:
+ * alterar uma regra no cadastro muda a lista sem sincronizar.
  *
  * Autorização: `Authorization: Bearer <access_token>` (canViewBilling). Lido
  * com o cliente do usuário, para respeitar a RLS.
@@ -18,16 +20,24 @@
  *   tamanho          1..200, default 50
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { competenciaValida } from '../faturamento/recursoGlosa.js';
+import { competenciaValida, prazosDoLote } from '../faturamento/recursoGlosa.js';
+import type {
+  RegrasPrazoLote,
+  RequisicaoClassificavel,
+  TipoRegraPrazo,
+} from '../faturamento/recursoGlosa.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
 const STATUS_LOTE = ['Criado', 'Enviado', 'Finalizado', 'Cancelado'];
 const MAX_TAMANHO = 200;
 const TAMANHO_PADRAO = 50;
 const MAX_BUSCA = 100;
+/** Linhas por página do PostgREST (o teto padrão é 1000). */
+const PAGINA_LEITURA = 1000;
 
 interface LinhaLista {
   id_lote_recurso: number;
@@ -38,9 +48,30 @@ interface LinhaLista {
   fonte_pagadora_nome: string | null;
   data_criacao_aplis: string | null;
   data_envio_aplis: string | null;
+  fontes_requisicoes: (number | null)[] | null;
   qtd_requisicoes: number;
   valor_glosado: number | string;
   valor_recorrido: number | string;
+}
+
+/** Requisição de um lote da página, em qualquer mês: o selo olha o lote inteiro. */
+interface LinhaRequisicao {
+  id_lote_recurso: number;
+  status_aplis: number | null;
+  liquido: number | string;
+  recebido: number | string;
+  recebido_fixacao: number | string | null;
+  valor_recursado: number | string | null;
+}
+
+interface LinhaRegraFonte {
+  id_fonte_pagadora: number;
+  glosa_prazo_regras: {
+    glosa_analise_tipo: TipoRegraPrazo;
+    glosa_analise_n: number | null;
+    glosa_pagamento_tipo: TipoRegraPrazo;
+    glosa_pagamento_n: number | null;
+  } | null;
 }
 
 interface LinhaSincronizacao {
@@ -58,6 +89,45 @@ function inteiroNaFaixa(bruto: string | undefined, min: number, max: number): nu
   const n = Number(bruto);
   if (!Number.isInteger(n) || n < min || n > max) return null;
   return n;
+}
+
+function numeroOuNulo(valor: number | string | null): number | null {
+  return valor === null ? null : Number(valor);
+}
+
+/** 'YYYY-MM-DD' de hoje no fuso do laboratório. */
+function hojeEmSaoPaulo(): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date());
+}
+
+/**
+ * Fontes que podem dar a regra do lote: a do lote e, depois, as das
+ * requisições (os dois cadastros do Bradesco podem divergir entre lote e
+ * requisição, e só um deles estar ligado à regra).
+ */
+function fontesDoLote(l: LinhaLista): number[] {
+  return [l.id_fonte_pagadora, ...(l.fontes_requisicoes ?? [])].filter((f): f is number => f !== null);
+}
+
+/** Requisições dos lotes, em qualquer mês, paginando o teto do PostgREST. */
+async function requisicoesDosLotes(
+  supabase: SupabaseClient,
+  idsLotes: number[],
+): Promise<{ linhas: LinhaRequisicao[]; erro: string | null }> {
+  const linhas: LinhaRequisicao[] = [];
+  if (idsLotes.length === 0) return { linhas, erro: null };
+  for (let de = 0; ; de += PAGINA_LEITURA) {
+    const { data, error } = await supabase
+      .from('glosa_recurso_requisicoes')
+      .select('id_lote_recurso, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado')
+      .in('id_lote_recurso', idsLotes)
+      .order('id_requisicao')
+      .range(de, de + PAGINA_LEITURA - 1);
+    if (error) return { linhas, erro: error.message };
+    const pagina = (data ?? []) as LinhaRequisicao[];
+    linhas.push(...pagina);
+    if (pagina.length < PAGINA_LEITURA) return { linhas, erro: null };
+  }
 }
 
 /** `%` e `_` digitados são texto, não curinga do ILIKE. */
@@ -107,7 +177,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let consulta = supabase
       .from('glosa_recurso_lotes_lista')
       .select(
-        'id_lote_recurso, status_label, protocolo, protocolo_faturamento, id_fonte_pagadora, fonte_pagadora_nome, data_criacao_aplis, data_envio_aplis, qtd_requisicoes, valor_glosado, valor_recorrido',
+        'id_lote_recurso, status_label, protocolo, protocolo_faturamento, id_fonte_pagadora, fonte_pagadora_nome, data_criacao_aplis, data_envio_aplis, fontes_requisicoes, qtd_requisicoes, valor_glosado, valor_recorrido',
         { count: 'exact' },
       )
       .eq('competencia', competencia);
@@ -133,8 +203,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .order('sincronizado_em', { ascending: false })
       .limit(1);
 
-    if (error || erroSync) {
-      console.error('[faturamento/glosas-recursos-lotes] Supabase:', (error ?? erroSync)?.message);
+    const linhas = (data ?? []) as LinhaLista[];
+    const idsLotes = linhas.map((l) => l.id_lote_recurso);
+    const fontes = [...new Set(linhas.flatMap(fontesDoLote))];
+
+    const [{ linhas: requisicoes, erro: erroReq }, { data: regrasFontes, error: erroRegras }] = await Promise.all([
+      requisicoesDosLotes(supabase, idsLotes),
+      fontes.length === 0
+        ? Promise.resolve({ data: [], error: null })
+        : supabase
+          .from('glosa_prazo_regra_fontes')
+          .select('id_fonte_pagadora, glosa_prazo_regras(glosa_analise_tipo, glosa_analise_n, glosa_pagamento_tipo, glosa_pagamento_n)')
+          .in('id_fonte_pagadora', fontes),
+    ]);
+
+    const erroLeitura = (error ?? erroSync ?? erroRegras)?.message ?? erroReq;
+    if (erroLeitura) {
+      console.error('[faturamento/glosas-recursos-lotes] Supabase:', erroLeitura);
       res.status(502).json({
         success: false,
         error: 'Não foi possível ler os lotes de recurso agora — tente novamente em alguns minutos.',
@@ -143,6 +228,38 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const ultima = ((sincronizacoes ?? []) as LinhaSincronizacao[])[0] ?? null;
+
+    const regraPorFonte = new Map<number, RegrasPrazoLote>();
+    for (const f of (regrasFontes ?? []) as unknown as LinhaRegraFonte[]) {
+      const r = f.glosa_prazo_regras;
+      if (!r) continue;
+      regraPorFonte.set(f.id_fonte_pagadora, {
+        glosaAnalise: { tipo: r.glosa_analise_tipo, n: r.glosa_analise_n },
+        glosaPagamento: { tipo: r.glosa_pagamento_tipo, n: r.glosa_pagamento_n },
+      });
+    }
+
+    // As edições manuais (lápis, ticket 07) entram aqui: valores da requisição
+    // em `edicoes`, data de envio editada e data real de retorno do lote.
+    const requisicoesPorLote = new Map<number, RequisicaoClassificavel[]>();
+    const enviados = new Set(linhas.filter((l) => l.data_envio_aplis).map((l) => l.id_lote_recurso));
+    for (const r of requisicoes) {
+      const lista = requisicoesPorLote.get(r.id_lote_recurso) ?? [];
+      lista.push({
+        foto: {
+          status: r.status_aplis,
+          liquido: Number(r.liquido),
+          recebido: Number(r.recebido),
+          recebidoFixacao: numeroOuNulo(r.recebido_fixacao),
+          valorRecursado: numeroOuNulo(r.valor_recursado),
+          emLoteRecurso: true,
+          loteEnviado: enviados.has(r.id_lote_recurso),
+        },
+      });
+      requisicoesPorLote.set(r.id_lote_recurso, lista);
+    }
+
+    const hoje = hojeEmSaoPaulo();
 
     const registros = count ?? 0;
     res.setHeader('Cache-Control', 'no-store');
@@ -155,7 +272,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         registros,
         ultimaSincronizacao: ultima ? { sincronizadoEm: ultima.sincronizado_em, dadoAte: ultima.dado_ate } : null,
       },
-      lotes: ((data ?? []) as LinhaLista[]).map((l) => ({
+      lotes: linhas.map((l) => {
+        const fonteComRegra = fontesDoLote(l).find((f) => regraPorFonte.has(f));
+        const prazos = prazosDoLote(
+          {
+            dataEnvio: l.data_envio_aplis,
+            dataRetornoReal: null,
+            requisicoes: requisicoesPorLote.get(l.id_lote_recurso) ?? [],
+          },
+          fonteComRegra === undefined ? null : regraPorFonte.get(fonteComRegra) ?? null,
+          hoje,
+        );
+        return {
         idLoteRecurso: l.id_lote_recurso,
         statusLabel: l.status_label,
         protocolo: l.protocolo,
@@ -166,7 +294,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         qtdRequisicoes: l.qtd_requisicoes,
         valorGlosado: Number(l.valor_glosado),
         valorRecorrido: Number(l.valor_recorrido),
-      })),
+          dataRetornoPrevista: prazos.dataRetornoPrevista,
+          dataPagamentoPrevista: prazos.dataPagamentoPrevista,
+          selo: prazos.selo,
+        };
+      }),
     });
   } catch (err) {
     console.error('[faturamento/glosas-recursos-lotes] erro:', describeError(err));

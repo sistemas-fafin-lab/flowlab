@@ -952,6 +952,9 @@ export interface ViewSalva<TFiltros = Record<string, unknown>> {
 /** Rótulo do lote de recurso, derivado das datas do apLIS. */
 export type StatusLoteRecurso = 'Criado' | 'Enviado' | 'Finalizado' | 'Cancelado';
 
+/** Selo de atraso do lote; 'sem-regra' é o "—" (convênio sem regra de análise). */
+export type SeloAtrasoLote = 'no-prazo' | 'vence-hoje' | 'atrasado' | 'sem-regra';
+
 /** Lote de recurso na sub-aba "Lotes de recurso", somado no mês de faturamento. */
 export interface LoteRecursoFoto {
   idLoteRecurso: number;
@@ -968,6 +971,12 @@ export interface LoteRecursoFoto {
   valorGlosado: number;
   /** Σ valor recursado das requisições do lote no mês. */
   valorRecorrido: number;
+  /** Envio + regra Glosa – Análise do convênio; null sem envio ou sem regra. */
+  dataRetornoPrevista: string | null;
+  /** Retorno (real ou previsto) + regra Glosa – Pagamento; null sem base ou sem regra. */
+  dataPagamentoPrevista: string | null;
+  /** null: não conta (lote não enviado, com retorno real ou classificação final). */
+  selo: SeloAtrasoLote | null;
 }
 
 export interface UltimaSincronizacaoGlosas {

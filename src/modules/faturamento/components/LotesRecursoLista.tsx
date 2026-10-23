@@ -3,13 +3,14 @@ import { AlertCircle, ChevronLeft, ChevronRight, FileText, Search } from 'lucide
 import { useLotesRecurso } from '../hooks/useGlosasRecursos';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
-import type { RecorteGlosas, StatusLoteRecurso } from '../types';
+import type { RecorteGlosas, SeloAtrasoLote, StatusLoteRecurso } from '../types';
 import { formatCurrency, formatData, formatDataHora } from '../utils/formato';
 
 // Acompanhamento dos recursos → "Lotes de recurso": os lotes de recurso da foto
 // do apLIS no recorte do cabeçalho (mês do lote de faturamento original +
-// convênio). Prazos, selo de atraso e o card de detalhes vêm nas próximas issues
-// de .scratch/glosas-recursos-dashboard/.
+// convênio), com retorno e pagamento previstos e o selo de atraso calculados
+// no servidor pelas regras de prazo do convênio. O card de detalhes vem nas
+// próximas issues de .scratch/glosas-recursos-dashboard/.
 
 const TAMANHO = 50;
 
@@ -18,6 +19,12 @@ const STATUS_CORES: Record<StatusLoteRecurso, string> = {
   Enviado: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
   Finalizado: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
   Cancelado: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+};
+
+const SELOS: Record<Exclude<SeloAtrasoLote, 'sem-regra'>, { label: string; cor: string }> = {
+  'no-prazo': { label: 'No prazo', cor: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
+  'vence-hoje': { label: 'Vence hoje', cor: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' },
+  atrasado: { label: 'Atrasado', cor: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' },
 };
 
 const STATUS_OPCOES = [
@@ -157,7 +164,10 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao }) => {
                     <th className="px-3 py-3 text-right">Valor glosado</th>
                     <th className="px-3 py-3 text-right">Valor recorrido</th>
                     <th className="px-3 py-3">Envio</th>
-                    <th className="px-5 py-3">Status</th>
+                    <th className="px-3 py-3">Retorno previsto</th>
+                    <th className="px-3 py-3">Pagamento previsto</th>
+                    <th className="px-3 py-3">Status</th>
+                    <th className="px-5 py-3">Atraso</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -185,10 +195,25 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao }) => {
                       <td className="px-3 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         {formatData(l.dataEnvio)}
                       </td>
-                      <td className="px-5 py-4">
+                      <td className="px-3 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {formatData(l.dataRetornoPrevista)}
+                      </td>
+                      <td className="px-3 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                        {formatData(l.dataPagamentoPrevista)}
+                      </td>
+                      <td className="px-3 py-4">
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_CORES[l.statusLabel]}`}>
                           {l.statusLabel}
                         </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        {l.selo === 'sem-regra' ? (
+                          <span className="text-gray-400 dark:text-gray-500" title="Convênio sem regra de prazo de análise">—</span>
+                        ) : l.selo && (
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${SELOS[l.selo].cor}`}>
+                            {SELOS[l.selo].label}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}

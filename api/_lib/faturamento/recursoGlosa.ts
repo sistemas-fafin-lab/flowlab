@@ -255,3 +255,144 @@ export function resumirAcompanhamento(
     acatada: { quantidade: somas.acatada.quantidade, valor: somas.acatada.valor },
   };
 }
+
+/** Tipos de regra de prazo (tabela glosa_prazo_regras). */
+export type TipoRegraPrazo =
+  | 'dias_corridos'
+  | 'dias_uteis'
+  | 'dia_mes_seguinte'
+  | 'dia_util_mes_seguinte'
+  | 'ultimo_dia_mes_seguinte'
+  | 'sem_prazo';
+
+export interface RegraPrazo {
+  tipo: TipoRegraPrazo;
+  /** Dias, dia do mês ou N-ésimo dia útil; null nos tipos sem N. */
+  n: number | null;
+}
+
+/** 'YYYY-MM-DD' ↔ Date em UTC: a conta é de calendário, sem fuso. */
+function paraData(iso: string): Date {
+  const [ano, mes, dia] = iso.slice(0, 10).split('-').map(Number);
+  return new Date(Date.UTC(ano, mes - 1, dia));
+}
+
+function paraIso(data: Date): string {
+  return data.toISOString().slice(0, 10);
+}
+
+function somarDias(data: Date, dias: number): Date {
+  return new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth(), data.getUTCDate() + dias));
+}
+
+/** Dia útil: segunda a sexta, sem feriados. */
+function diaUtil(data: Date): boolean {
+  const semana = data.getUTCDay();
+  return semana !== 0 && semana !== 6;
+}
+
+function somarDiasUteis(data: Date, dias: number): Date {
+  let atual = data;
+  for (let contados = 0; contados < dias;) {
+    atual = somarDias(atual, 1);
+    if (diaUtil(atual)) contados += 1;
+  }
+  return atual;
+}
+
+/** Último dia do mês seguinte ao da data. */
+function fimDoMesSeguinte(data: Date): Date {
+  return new Date(Date.UTC(data.getUTCFullYear(), data.getUTCMonth() + 2, 0));
+}
+
+/** N-ésimo dia útil do mês seguinte; além dos dias úteis do mês, o último deles. */
+function diaUtilDoMesSeguinte(data: Date, n: number): Date {
+  const fim = fimDoMesSeguinte(data);
+  let atual = new Date(Date.UTC(fim.getUTCFullYear(), fim.getUTCMonth(), 1));
+  let ultimoUtil = atual;
+  for (let contados = 0; atual <= fim; atual = somarDias(atual, 1)) {
+    if (!diaUtil(atual)) continue;
+    ultimoUtil = atual;
+    contados += 1;
+    if (contados === n) return atual;
+  }
+  return ultimoUtil;
+}
+
+/**
+ * Data limite da regra a partir da data base ('YYYY-MM-DD'). null: sem prazo.
+ */
+export function aplicarRegraPrazo(regra: RegraPrazo, base: string): string | null {
+  const data = paraData(base);
+  const n = regra.n ?? 0;
+  switch (regra.tipo) {
+    case 'dias_corridos':
+      return paraIso(somarDias(data, n));
+    case 'dias_uteis':
+      return paraIso(somarDiasUteis(data, n));
+    case 'dia_mes_seguinte': {
+      const fim = fimDoMesSeguinte(data);
+      return paraIso(new Date(Date.UTC(fim.getUTCFullYear(), fim.getUTCMonth(), Math.min(n, fim.getUTCDate()))));
+    }
+    case 'dia_util_mes_seguinte':
+      return paraIso(diaUtilDoMesSeguinte(data, n));
+    case 'ultimo_dia_mes_seguinte':
+      return paraIso(fimDoMesSeguinte(data));
+    case 'sem_prazo':
+      return null;
+  }
+}
+
+/** As regras do convênio que a lista de lotes usa. */
+export interface RegrasPrazoLote {
+  /** Data de retorno prevista, contada do envio. */
+  glosaAnalise: RegraPrazo;
+  /** Data de pagamento prevista, contada do retorno (real ou previsto). */
+  glosaPagamento: RegraPrazo;
+}
+
+export interface LoteParaPrazo {
+  /** Envio editado (ticket 07) ou do apLIS; null: lote não enviado. */
+  dataEnvio: string | null;
+  /** Retorno real da operadora, registrado pelo lápis (ticket 07). */
+  dataRetornoReal: string | null;
+  requisicoes: RequisicaoClassificavel[];
+}
+
+/** 'sem-regra' é o "—": o convênio não tem regra de análise. */
+export type SeloAtraso = 'no-prazo' | 'vence-hoje' | 'atrasado' | 'sem-regra';
+
+export interface PrazosLote {
+  dataRetornoPrevista: string | null;
+  dataPagamentoPrevista: string | null;
+  /** null: o selo não conta (lote não enviado, com retorno real ou classificação final). */
+  selo: SeloAtraso | null;
+}
+
+/** A operadora já deu resultado a todas as requisições do lote (nenhuma em análise). */
+function loteComClassificacaoFinal(requisicoes: RequisicaoClassificavel[]): boolean {
+  return requisicoes.length > 0 && requisicoes.every((r) => {
+    const c = classificarRequisicao(r.foto, r.edicoes);
+    return c !== null && c.classe !== 'em-analise';
+  });
+}
+
+/**
+ * Datas previstas e selo de atraso de um lote de recurso (spec, "Prazos").
+ * `regras` null: convênio sem regra ligada. `hoje` é 'YYYY-MM-DD'.
+ */
+export function prazosDoLote(lote: LoteParaPrazo, regras: RegrasPrazoLote | null, hoje: string): PrazosLote {
+  if (lote.dataEnvio === null) return { dataRetornoPrevista: null, dataPagamentoPrevista: null, selo: null };
+  const retornoPrevisto = regras ? aplicarRegraPrazo(regras.glosaAnalise, lote.dataEnvio) : null;
+  const basePagamento = lote.dataRetornoReal ?? retornoPrevisto;
+  const pagamentoPrevisto = regras && basePagamento ? aplicarRegraPrazo(regras.glosaPagamento, basePagamento) : null;
+
+  let selo: SeloAtraso | null;
+  if (lote.dataRetornoReal !== null || loteComClassificacaoFinal(lote.requisicoes)) selo = null;
+  else if (retornoPrevisto === null) selo = 'sem-regra';
+  else if (hoje < retornoPrevisto) selo = 'no-prazo';
+  else if (hoje === retornoPrevisto) selo = 'vence-hoje';
+  else selo = 'atrasado';
+
+  return { dataRetornoPrevista: retornoPrevisto, dataPagamentoPrevista: pagamentoPrevisto, selo };
+}
