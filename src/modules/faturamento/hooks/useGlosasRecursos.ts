@@ -38,6 +38,8 @@ export function useConveniosGlosas(): ConvenioGlosas[] {
       .then(({ data }) => {
         if (!ativo) return;
         setConvenios((data ?? [])
+          // aplis_id não numérico (OP001…) é operadora de exemplo, sem fonte no apLIS.
+          .filter((o) => /^\d+$/.test(o.aplis_id as string))
           .filter((o) => o.aplis_id !== ID_FONTE_PAGADORA_PARTICULAR && o.aplis_id !== ID_FONTE_PAGADORA_CORTESIA)
           .map((o) => ({ id: Number(o.aplis_id), nome: o.nome as string })));
       });

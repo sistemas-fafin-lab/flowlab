@@ -10,10 +10,13 @@ import {
   RefreshCw,
 } from 'lucide-react';
 import Select from '../../../components/Select';
+import { useAuth } from '../../../hooks/useAuth';
+import { hasPermission } from '../../../utils/permissions';
 import { sincronizarGlosasRecursos, useConveniosGlosas } from '../hooks/useGlosasRecursos';
 import type { RecorteGlosas } from '../types';
 import { formatData, hojeIso } from '../utils/formato';
 import LotesRecursoLista from './LotesRecursoLista';
+import RegrasPrazoConvenios from './RegrasPrazoConvenios';
 import ResumoRecursosCards from './ResumoRecursosCards';
 
 // ============================================================================
@@ -24,7 +27,7 @@ import ResumoRecursosCards from './ResumoRecursosCards';
 // ============================================================================
 
 type Aba = 'dashboard' | 'recentes' | 'acompanhamento';
-type SubAbaAcompanhamento = 'lotes' | 'fora-de-lote';
+type SubAbaAcompanhamento = 'lotes' | 'fora-de-lote' | 'regras';
 
 const ABAS: { id: Aba; label: string; icone: React.ReactNode }[] = [
   { id: 'dashboard', label: 'Dashboard', icone: <BarChart3 size={16} /> },
@@ -35,6 +38,7 @@ const ABAS: { id: Aba; label: string; icone: React.ReactNode }[] = [
 const SUB_ABAS: { id: SubAbaAcompanhamento; label: string }[] = [
   { id: 'lotes', label: 'Lotes de recurso' },
   { id: 'fora-de-lote', label: 'Recursos fora de lote' },
+  { id: 'regras', label: 'Regras de prazo' },
 ];
 
 const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
@@ -51,6 +55,8 @@ const EmBreve: React.FC<{ titulo: string }> = ({ titulo }) => (
 );
 
 const GlosasRecursos: React.FC = () => {
+  const { userProfile } = useAuth();
+  const podeEditar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
   const convenios = useConveniosGlosas();
   const [recorte, setRecorte] = useState<RecorteGlosas>(() => ({
     competencia: hojeIso().slice(0, 7),
@@ -200,9 +206,9 @@ const GlosasRecursos: React.FC = () => {
             ))}
           </div>
 
-          {subAba === 'lotes'
-            ? <LotesRecursoLista recorte={recorte} versao={versao} />
-            : <EmBreve titulo="Recursos fora de lote" />}
+          {subAba === 'lotes' && <LotesRecursoLista recorte={recorte} versao={versao} />}
+          {subAba === 'fora-de-lote' && <EmBreve titulo="Recursos fora de lote" />}
+          {subAba === 'regras' && <RegrasPrazoConvenios versao={versao} podeEditar={podeEditar} />}
         </div>
       )}
     </div>
