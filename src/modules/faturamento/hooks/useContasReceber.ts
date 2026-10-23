@@ -33,8 +33,17 @@ import { STATUS_GLOSA_EM_DISPUTA, STATUS_TITULOS_PENDENTES } from '../types';
 // título fica mentindo entre um statement e outro.
 
 const TAMANHO_PADRAO = 25;
-/** Linhas por ida ao banco na soma do recebido — o teto padrão do PostgREST. */
+/** Linhas por ida ao banco nas somas dos cards — o teto padrão do PostgREST. */
 const FATIA_SOMA = 1000;
+
+/** Somas dos cards da aba Títulos, sobre o recorte inteiro (todas as páginas). */
+export interface TotaisTitulos {
+  recebido: number;
+  glosado: number;
+  saldo: number;
+}
+
+const TOTAIS_ZERADOS: TotaisTitulos = { recebido: 0, glosado: 0, saldo: 0 };
 
 /** Nome (`user_profiles.name`) por id. `registrado_por_id` referencia
  *  auth.users, não user_profiles — sem FK direta o PostgREST não embeda o nome
@@ -185,6 +194,7 @@ interface LinhaTitulo {
       codigo_lote: string;
       status: string | null;
       data_envio: string | null;
+      protocolo: string | null;
       valor_total: number | string;
       qtd_requisicoes: number | null;
       responsavel_fechamento: string | null;
@@ -195,7 +205,7 @@ interface LinhaTitulo {
 const SELECT_TITULO = `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
   valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes, updated_at,
   operadoras(nome),
-  nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, valor_total, qtd_requisicoes, responsavel_fechamento))`;
+  nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, protocolo, valor_total, qtd_requisicoes, responsavel_fechamento))`;
 
 const num = (bruto: number | string | null | undefined): number => {
   const n = Number(bruto ?? 0);
@@ -212,6 +222,7 @@ function normalizar(linha: LinhaTitulo): TituloReceber {
       codigoLote: lote.codigo_lote,
       statusLabel: lote.status,
       dataEnvio: lote.data_envio,
+      protocolo: lote.protocolo,
       valorTotal: num(lote.valor_total),
       qtdRequisicoes: lote.qtd_requisicoes ?? 0,
       responsavelFechamento: lote.responsavel_fechamento,
@@ -241,8 +252,8 @@ interface UseContasReceberResult {
   titulos: TituloReceber[];
   operadoras: OperadoraResumo[];
   total: number;
-  /** Soma do `valor_recebido` de todos os títulos do recorte (todas as páginas). */
-  totalRecebido: number;
+  /** Somas de recebido, glosado e saldo de todos os títulos do recorte (todas as páginas). */
+  totais: TotaisTitulos;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
@@ -305,7 +316,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const [titulos, setTitulos] = useState<TituloReceber[]>([]);
   const [operadoras, setOperadoras] = useState<OperadoraResumo[]>([]);
   const [total, setTotal] = useState(0);
-  const [totalRecebido, setTotalRecebido] = useState(0);
+  const [totais, setTotais] = useState<TotaisTitulos>(TOTAIS_ZERADOS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -334,7 +345,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     if (divergenteAplis && (!idsDivergentesAplis || idsDivergentesAplis.length === 0)) {
       setTitulos([]);
       setTotal(0);
-      setTotalRecebido(0);
+      setTotais(TOTAIS_ZERADOS);
       setLoading(false);
       return;
     }
@@ -365,12 +376,12 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         }
         // Código do lote também mora numa tabela à parte (nota_lote é N:N com
         // lotes) — mesma resolução em dois passos usada acima pra operadora:
-        // busca os títulos vinculados a lotes cujo código bate e inclui os ids
-        // no or() como `id_nota.in.(...)`.
+        // busca os títulos vinculados a lotes cujo código ou protocolo bate e
+        // inclui os ids no or() como `id_nota.in.(...)`.
         const { data: lotesBatidos } = await supabase
           .from('nota_lote')
-          .select('id_nota, lotes!inner(codigo_lote)')
-          .ilike('lotes.codigo_lote', padrao);
+          .select('id_nota, lotes!inner(codigo_lote, protocolo)')
+          .or(`codigo_lote.ilike.${citado},protocolo.ilike.${citado}`, { referencedTable: 'lotes' });
         const idsPorLote = [...new Set((lotesBatidos ?? []).map((l) => l.id_nota as string))];
         if (idsPorLote.length > 0) {
           condicoes.push(`id_nota.in.(${idsPorLote.join(',')})`);
@@ -434,40 +445,56 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         return query;
       };
 
-      // Card "Recebido" da aba Títulos: soma do recorte inteiro, não da página.
-      // Lido em fatias porque o PostgREST corta cada resposta em 1000 linhas.
-      const somarRecebido = async (): Promise<number> => {
-        let soma = 0;
+      // Cards "Recebido", "Glosado" e "Saldo" da aba Títulos: soma do recorte
+      // inteiro, não da página. Lido em fatias porque o PostgREST corta cada
+      // resposta em 1000 linhas.
+      const somarTotais = async (): Promise<TotaisTitulos> => {
+        const soma = { ...TOTAIS_ZERADOS };
+        const centavos = (valor: number) => Math.round(valor * 100) / 100;
         for (let deslocamento = 0; ; deslocamento += FATIA_SOMA) {
-          const { data: fatia, error: erroFatia } = await filtrada('valor_recebido')
+          const { data: fatia, error: erroFatia } = await filtrada('valor_recebido, valor_glosado, valor_saldo')
             .order('id_nota')
             .range(deslocamento, deslocamento + FATIA_SOMA - 1);
           if (erroFatia) throw new Error(erroFatia.message);
-          const linhas = (fatia ?? []) as unknown as { valor_recebido: number | string }[];
-          soma += linhas.reduce((acc, linha) => acc + num(linha.valor_recebido), 0);
-          if (linhas.length < FATIA_SOMA) return Math.round(soma * 100) / 100;
+          const linhas = (fatia ?? []) as unknown as {
+            valor_recebido: number | string;
+            valor_glosado: number | string;
+            valor_saldo: number | string;
+          }[];
+          for (const linha of linhas) {
+            soma.recebido += num(linha.valor_recebido);
+            soma.glosado += num(linha.valor_glosado);
+            soma.saldo += num(linha.valor_saldo);
+          }
+          if (linhas.length < FATIA_SOMA) {
+            return {
+              recebido: centavos(soma.recebido),
+              glosado: centavos(soma.glosado),
+              saldo: centavos(soma.saldo),
+            };
+          }
         }
       };
 
-      const [{ data, count, error: erro }, recebido] = await Promise.all([
+      const [{ data, count, error: erro }, somas] = await Promise.all([
         filtrada(SELECT_TITULO, { count: 'exact' })
           .order('data_vencimento', { ascending: true, nullsFirst: false })
           .order('data_emissao', { ascending: false })
           .range(inicio, inicio + porPagina - 1),
-        somarRecebido(),
+        somarTotais(),
       ]);
       if (reqId !== buscaAtual.current) return;
       if (erro) throw new Error(erro.message);
 
       setTitulos((data as unknown as LinhaTitulo[] ?? []).map(normalizar));
       setTotal(count ?? 0);
-      setTotalRecebido(recebido);
+      setTotais(somas);
     } catch (err) {
       if (reqId !== buscaAtual.current) return;
       setError(err instanceof Error ? err.message : 'Não foi possível carregar os títulos.');
       setTitulos([]);
       setTotal(0);
-      setTotalRecebido(0);
+      setTotais(TOTAIS_ZERADOS);
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
@@ -932,7 +959,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     titulos,
     operadoras,
     total,
-    totalRecebido,
+    totais,
     loading,
     error,
     refetch,

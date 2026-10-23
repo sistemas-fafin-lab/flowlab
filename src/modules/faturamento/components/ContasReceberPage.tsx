@@ -155,7 +155,7 @@ const ContasReceberPage: React.FC = () => {
   }), [filtros, idsDivergentesAplis]);
 
   const {
-    titulos, operadoras, total, totalRecebido, loading, error, refetch, refetchOperadoras, buscarTitulo,
+    titulos, operadoras, total, totais, loading, error, refetch, refetchOperadoras, buscarTitulo,
     buscarGuias, buscarEnvioLotes, buscarBaixas, buscarGlosas, buscarLancamentos, buscarAlteracoes, corrigirLancamento, excluirBaixa,
     criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
     atualizarNumeroNota, desvincularLote, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
@@ -437,7 +437,7 @@ const ContasReceberPage: React.FC = () => {
           titulos={titulos}
           operadoras={operadoras}
           total={total}
-          totalRecebido={totalRecebido}
+          totais={totais}
           // Com o filtro "Divergente do apLIS" ligado, a lista depende da
           // conferência: até ela chegar, é "carregando", não "nenhum título".
           loading={loading || (filtros.divergenteAplis && !conferencia.titulos && !conferencia.erro)}

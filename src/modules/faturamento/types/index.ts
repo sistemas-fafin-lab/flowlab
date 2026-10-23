@@ -636,6 +636,8 @@ export interface TituloLote {
   codigoLote: string;
   statusLabel: string | null;
   dataEnvio: string | null;
+  /** Protocolo do lote na operadora (`lotes.protocolo`, cópia do apLIS); null se não informado. */
+  protocolo: string | null;
   valorTotal: number;
   qtdRequisicoes: number;
   /** Quem fechou o lote no apLIS (`lotes.responsavel_fechamento`); null se não registrado. */

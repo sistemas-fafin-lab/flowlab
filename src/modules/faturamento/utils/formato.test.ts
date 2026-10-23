@@ -2,10 +2,48 @@ import { describe, expect, it } from 'vitest';
 import {
   diasDeAtraso,
   faixaAgingParaRange,
+  faixaSaldo,
+  formatCurrency,
+  formatSaldoComSinal,
   formatDataHora,
   protocoloDuplicadoLotesLabel,
+  protocolosDoTitulo,
   responsaveisDoTitulo,
 } from './formato';
+
+describe('faixaSaldo', () => {
+  it('classifica pelo sinal do saldo', () => {
+    expect(faixaSaldo(0.01)).toBe('positivo');
+    expect(faixaSaldo(0)).toBe('zerado');
+    expect(faixaSaldo(-0.01)).toBe('negativo');
+  });
+});
+
+describe('formatSaldoComSinal', () => {
+  it('põe "+" no saldo a receber, "-" no recebido a mais e nada no zero', () => {
+    expect(formatSaldoComSinal(1234.5)).toBe(`+ ${formatCurrency(1234.5)}`);
+    expect(formatSaldoComSinal(-80)).toBe(`- ${formatCurrency(80)}`);
+    expect(formatSaldoComSinal(0)).toBe(formatCurrency(0));
+  });
+});
+
+describe('protocolosDoTitulo', () => {
+  it('junta os protocolos sem repetir e sem vazios, e diz no completo de qual lote é cada um', () => {
+    expect(
+      protocolosDoTitulo([
+        { codigoLote: '101', protocolo: '555' },
+        { codigoLote: '102', protocolo: null },
+        { codigoLote: '103', protocolo: ' 777 ' },
+        { codigoLote: '104', protocolo: '555' },
+      ]),
+    ).toEqual({ curto: '555, 777', completo: '101 → 555\n103 → 777\n104 → 555' });
+  });
+
+  it('mostra travessão quando nenhum lote tem protocolo', () => {
+    expect(protocolosDoTitulo([{ codigoLote: '101', protocolo: '  ' }])).toEqual({ curto: '—', completo: null });
+    expect(protocolosDoTitulo([])).toEqual({ curto: '—', completo: null });
+  });
+});
 
 describe('responsaveisDoTitulo', () => {
   it('encurta para primeiro nome + último sobrenome e mantém o nome completo', () => {

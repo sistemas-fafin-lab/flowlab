@@ -12,6 +12,7 @@ import {
   Search,
   Settings,
   Unlink,
+  Wallet,
 } from 'lucide-react';
 import type {
   AlteracaoLancamento,
@@ -27,15 +28,19 @@ import type {
   TitulosViewFiltros,
 } from '../types';
 import {
+  faixaSaldo,
   formatCompetencia,
   formatCurrency,
   formatData,
   formatDataHora,
+  formatSaldoComSinal,
   periodoEsteMes,
   periodoEsteTrimestre,
   periodoMesPassado,
+  protocolosDoTitulo,
   responsaveisDoTitulo,
 } from '../utils/formato';
+import type { TotaisTitulos } from '../hooks/useContasReceber';
 import { dataEnvioEfetiva } from '../utils/envioAoVivo';
 import { descreverAlteracao } from '../utils/correcaoLancamento';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
@@ -101,8 +106,8 @@ interface Props {
   titulos: TituloReceber[];
   operadoras: OperadoraResumo[];
   total: number;
-  /** Soma do recebido de todos os títulos do recorte, não só da página. */
-  totalRecebido: number;
+  /** Somas de recebido, glosado e saldo de todos os títulos do recorte, não só da página. */
+  totais: TotaisTitulos;
   loading: boolean;
   error: string | null;
   /** Conferência com o apLIS por `idNota` (só os divergentes); null enquanto
@@ -184,6 +189,46 @@ const Atraso: React.FC<{ titulo: TituloReceber }> = ({ titulo }) => {
   );
 };
 
+// Neutro só enquanto carrega — sem saldo ainda, não há sinal para colorir.
+const COR_FAIXA_SALDO: Record<ReturnType<typeof faixaSaldo> | 'neutro', { icone: string; valor: string }> = {
+  positivo: {
+    icone: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400',
+    valor: 'text-emerald-600 dark:text-emerald-400',
+  },
+  zerado: {
+    icone: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
+    valor: 'text-blue-600 dark:text-blue-400',
+  },
+  negativo: {
+    icone: 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400',
+    valor: 'text-red-600 dark:text-red-400',
+  },
+  neutro: {
+    icone: 'bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300',
+    valor: 'text-gray-900 dark:text-gray-100',
+  },
+};
+
+/** Card de total do recorte, acima da tabela. */
+const CardTotal: React.FC<{
+  icone: React.ReactNode;
+  corIcone: string;
+  rotulo: string;
+  valor: string;
+  /** Cor do valor; sem ela, o texto padrão. */
+  corValor?: string;
+}> = ({
+  icone, corIcone, rotulo, valor, corValor = 'text-gray-900 dark:text-gray-100',
+}) => (
+  <div className="inline-flex items-center gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/40 px-4 py-2.5">
+    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${corIcone}`}>{icone}</div>
+    <div>
+      <p className="text-[11px] text-gray-500 dark:text-gray-400">{rotulo}</p>
+      <p className={`text-base font-semibold tabular-nums ${corValor}`}>{valor}</p>
+    </div>
+  </div>
+);
+
 /** Selo do título divergente do apLIS; os dois valores no tooltip. */
 const SeloAplis: React.FC<{ divergencia: DivergenciaAplis }> = ({ divergencia }) => {
   const selo = seloDivergencia(divergencia);
@@ -203,7 +248,7 @@ const TitulosList: React.FC<Props> = ({
   titulos,
   operadoras,
   total,
-  totalRecebido,
+  totais,
   loading,
   error,
   divergencias,
@@ -426,6 +471,8 @@ const TitulosList: React.FC<Props> = ({
     }
   };
 
+  const faixaSaldoRecorte = loading ? 'neutro' : faixaSaldo(totais.saldo);
+
   const qtdPaginas = useMemo(
     () => (filtros.tamanho > 0 ? Math.max(1, Math.ceil(total / filtros.tamanho)) : 1),
     [total, filtros.tamanho],
@@ -607,7 +654,7 @@ const TitulosList: React.FC<Props> = ({
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por nota, lote, operadora, competência, observações…"
+              placeholder="Buscar por nota, lote, protocolo, operadora, competência, observações…"
               className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100"
             />
           </div>
@@ -668,20 +715,29 @@ const TitulosList: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Total recebido do recorte: acompanha todos os filtros acima, somando
-          todas as páginas (a soma vem do hook, não de `titulos`). */}
-      <div className="inline-flex items-center gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800/40 px-4 py-2.5">
-        <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-          <DollarSign className="w-4 h-4" />
-        </div>
-        <div>
-          <p className="text-[11px] text-gray-500 dark:text-gray-400">
-            Total recebido · {total} título{total === 1 ? '' : 's'} no filtro
-          </p>
-          <p className="text-base font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
-            {loading ? '—' : formatCurrency(totalRecebido)}
-          </p>
-        </div>
+      {/* Totais do recorte: acompanham todos os filtros acima, somando todas as
+          páginas (as somas vêm do hook, não de `titulos`). Recebido e Glosado
+          seguem as cores das colunas; o Saldo muda de cor pelo sinal. */}
+      <div className="flex flex-wrap gap-3">
+        <CardTotal
+          icone={<DollarSign className="w-4 h-4" />}
+          corIcone="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400"
+          rotulo="Total recebido"
+          valor={loading ? '—' : formatCurrency(totais.recebido)}
+        />
+        <CardTotal
+          icone={<AlertTriangle className="w-4 h-4" />}
+          corIcone="bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
+          rotulo="Total glosado"
+          valor={loading ? '—' : formatCurrency(totais.glosado)}
+        />
+        <CardTotal
+          icone={<Wallet className="w-4 h-4" />}
+          corIcone={COR_FAIXA_SALDO[faixaSaldoRecorte].icone}
+          corValor={COR_FAIXA_SALDO[faixaSaldoRecorte].valor}
+          rotulo="Saldo"
+          valor={loading ? '—' : formatSaldoComSinal(totais.saldo)}
+        />
       </div>
 
       {/* ── Tabela ───────────────────────────────────────────────────────── */}
@@ -714,6 +770,7 @@ const TitulosList: React.FC<Props> = ({
                   <th className="px-3 py-2 w-8" />
                   <th className="px-3 py-2">Nota</th>
                   <th className="px-3 py-2">Lote</th>
+                  <th className="px-3 py-2">Protocolo</th>
                   <th className="px-3 py-2">Operadora</th>
                   <th className="px-3 py-2" title="Quem fechou a fatura (lote) no apLIS">Responsável</th>
                   <th className="px-3 py-2">Competência</th>
@@ -731,6 +788,7 @@ const TitulosList: React.FC<Props> = ({
                   const aberto = expandido === titulo.id;
                   const encerrado = titulo.status === 'cancelada' || titulo.valorSaldo <= 0;
                   const responsaveis = responsaveisDoTitulo(titulo.lotes);
+                  const protocolos = protocolosDoTitulo(titulo.lotes);
                   const divergencia = divergencias?.get(titulo.id);
                   return (
                     <React.Fragment key={titulo.id}>
@@ -780,6 +838,12 @@ const TitulosList: React.FC<Props> = ({
                           {titulo.lotes.length === 0
                             ? '—'
                             : titulo.lotes.map((lote) => lote.codigoLote).join(', ')}
+                        </td>
+                        <td
+                          className="px-3 py-2 text-gray-500 dark:text-gray-400 tabular-nums truncate max-w-[160px]"
+                          title={protocolos.completo ?? undefined}
+                        >
+                          {protocolos.curto}
                         </td>
                         <td className="px-3 py-2 text-gray-600 dark:text-gray-300 truncate max-w-[200px]">
                           {titulo.operadoraNome ?? '—'}
@@ -875,7 +939,7 @@ const TitulosList: React.FC<Props> = ({
 
                       {aberto && (
                         <tr className="bg-gray-50/70 dark:bg-gray-700/20">
-                          <td colSpan={podeEditar ? 13 : 12} className="px-6 py-3">
+                          <td colSpan={podeEditar ? 14 : 13} className="px-6 py-3">
                             {titulo.observacoes && (
                               <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
                                 {titulo.observacoes}
@@ -1069,6 +1133,9 @@ const TitulosList: React.FC<Props> = ({
                                       <span className="font-medium text-gray-800 dark:text-gray-100">
                                         Lote {lote.codigoLote}
                                       </span>
+                                      {lote.protocolo && (
+                                        <span className="text-gray-400">protocolo {lote.protocolo}</span>
+                                      )}
                                       {lote.statusLabel && (
                                         <span className="text-gray-400">{lote.statusLabel}</span>
                                       )}

@@ -5,8 +5,9 @@
 // (dashboard + títulos + modais) garantiria que uma delas divergisse.
 
 import type { AgingBucket, OperadoraResumo } from '../types';
+import { formatCurrency } from '../../../utils/paymentUtils';
 
-export { formatCurrency } from '../../../utils/paymentUtils';
+export { formatCurrency };
 
 /**
  * Data ISO (YYYY-MM-DD) no formato brasileiro.
@@ -143,6 +144,44 @@ export const responsaveisDoTitulo = (
     return partes.length > 1 ? `${partes[0]} ${partes[partes.length - 1]}` : partes[0];
   });
   return { curto: curto.join(', '), completo: nomes.join(', ') };
+};
+
+/**
+ * Cor do card "Saldo" da aba Títulos, pelo sinal (o mesmo que
+ * `formatSaldoComSinal` mostra): positivo verde, negativo vermelho, zerado azul.
+ */
+export const faixaSaldo = (saldo: number): 'positivo' | 'zerado' | 'negativo' => {
+  if (saldo > 0) return 'positivo';
+  if (saldo < 0) return 'negativo';
+  return 'zerado';
+};
+
+/**
+ * Valor do card "Saldo" com o sinal na frente: "+" quando ainda há o que
+ * receber, "-" quando recebeu a mais. Zero vai sem sinal.
+ */
+export const formatSaldoComSinal = (saldo: number): string => {
+  if (saldo === 0) return formatCurrency(0);
+  return `${saldo > 0 ? '+' : '-'} ${formatCurrency(Math.abs(saldo))}`;
+};
+
+/**
+ * Coluna "Protocolo" da aba Títulos: protocolos dos lotes, sem repetir e sem
+ * vazios. O title diz qual protocolo é de qual lote ("lote → protocolo"), já
+ * que a célula junta tudo numa linha só.
+ */
+export const protocolosDoTitulo = (
+  lotes: { codigoLote: string; protocolo: string | null }[],
+): { curto: string; completo: string | null } => {
+  const comProtocolo = lotes
+    .map((lote) => ({ codigoLote: lote.codigoLote, protocolo: lote.protocolo?.trim() ?? '' }))
+    .filter((lote) => lote.protocolo !== '');
+  if (comProtocolo.length === 0) return { curto: '—', completo: null };
+
+  return {
+    curto: [...new Set(comProtocolo.map((lote) => lote.protocolo))].join(', '),
+    completo: comProtocolo.map((lote) => `${lote.codigoLote} → ${lote.protocolo}`).join('\n'),
+  };
 };
 
 /**
