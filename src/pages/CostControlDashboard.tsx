@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ChevronRight, FlaskConical, Building2, TrendingUp } from 'lucide-react';
 import { useCostControl } from '../hooks/useCostControl';
 import ExamsScreen from '../components/CostControl/ExamsScreen';
@@ -59,10 +59,25 @@ const CostControlDashboard: React.FC = () => {
     deleteTabelaAssociada,
   } = useCostControl();
 
+  // Altura do cabeçalho fixo vira --cc-cabecalho: o TheadFixo das tabelas para
+  // logo abaixo dela ao rolar a página.
+  const raizRef = useRef<HTMLDivElement>(null);
+  const cabecalhoRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const raiz = raizRef.current;
+    const cabecalho = cabecalhoRef.current;
+    if (!raiz || !cabecalho) return;
+    const observer = new ResizeObserver(() => {
+      raiz.style.setProperty('--cc-cabecalho', `${cabecalho.offsetHeight}px`);
+    });
+    observer.observe(cabecalho);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div className="min-h-full">
+    <div ref={raizRef} className="min-h-full">
       {/* Page header + tab bar */}
-      <div className="border-b border-gray-100 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md sticky top-0 z-20">
+      <div ref={cabecalhoRef} className="border-b border-gray-100 dark:border-gray-800 bg-white/70 dark:bg-gray-900/70 backdrop-blur-md sticky top-0 z-20">
         <div className="px-4 sm:px-6 lg:px-8 pt-5 pb-0">
           {/* Breadcrumb */}
           <div className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400 mb-1">

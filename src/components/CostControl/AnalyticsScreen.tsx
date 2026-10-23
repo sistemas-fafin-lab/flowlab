@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { Exam, Payor, formatBRL, formatPct } from '../../hooks/useCostControl';
 import { ehLinhaNaoLevantada } from './domain/busca';
+import { CaixaTabela, TheadFixo } from './domain/TheadFixo';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -382,7 +383,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
       </div>
 
       {/* Results table */}
-      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+      <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-clip">
         <div className="px-5 py-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between flex-wrap gap-2">
           <div>
             <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
@@ -405,9 +406,9 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        <CaixaTabela>
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <TheadFixo>
               <tr>
                 <th className="px-5 py-3 text-left font-bold">Exame</th>
                 <th className="px-5 py-3 text-left font-bold">Pagador / Tabela</th>
@@ -417,7 +418,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
                 <th className="px-5 py-3 text-right font-bold">Margem</th>
                 <th className="px-5 py-3 text-center font-bold w-32">Status</th>
               </tr>
-            </thead>
+            </TheadFixo>
             <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
               {filteredRows.length === 0 ? (
                 <tr>
@@ -503,7 +504,7 @@ const AnalyticsScreen: React.FC<AnalyticsScreenProps> = ({ exams, payors }) => {
               )}
             </tbody>
           </table>
-        </div>
+        </CaixaTabela>
 
         <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
           <span>

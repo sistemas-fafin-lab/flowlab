@@ -4,6 +4,7 @@ import { Exam, formatBRL } from '../../hooks/useCostControl';
 import type { CobrancaAplis } from '../../hooks/useCobrancasTestesAplis';
 import { descricaoVinculoAplis } from './domain/vinculoAplis';
 import { CabecalhoOrdenavel } from './domain/CabecalhoOrdenavel';
+import { CaixaTabela, TheadFixo } from './domain/TheadFixo';
 import type { EstadoOrdenacao } from './domain/ordenacao';
 
 export type ColunaExame = 'code' | 'tuss' | 'name' | 'location' | 'direct' | 'indirect' | 'total';
@@ -47,10 +48,10 @@ const ExamTable: React.FC<ExamTableProps> = ({
   const allSelected = exams.every(e => selectedIds.has(e.id));
 
   return (
-    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-clip">
+      <CaixaTabela>
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <TheadFixo>
             <tr>
               <th className="px-5 py-3 text-left font-bold w-10">
                 <input
@@ -71,7 +72,7 @@ const ExamTable: React.FC<ExamTableProps> = ({
               <CabecalhoOrdenavel coluna="total" titulo="Custo Total" ordenacao={ordenacao} onClick={onSort} align="right" />
               <th className="px-5 py-3 text-right font-bold w-28">Ações</th>
             </tr>
-          </thead>
+          </TheadFixo>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {exams.map(exam => (
               <tr
@@ -150,7 +151,7 @@ const ExamTable: React.FC<ExamTableProps> = ({
             ))}
           </tbody>
         </table>
-      </div>
+      </CaixaTabela>
       <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
         <span>
           {exams.length} {exams.length === 1 ? 'exame' : 'exames'} encontrado{exams.length !== 1 ? 's' : ''}

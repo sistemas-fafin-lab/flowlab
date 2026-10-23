@@ -59,6 +59,7 @@ import {
 import type { PlanoImportacao } from './domain/importacaoFontesPagadoras';
 import { ORDENACAO_PADRAO, alternarOrdenacao, ordenar, type EstadoOrdenacao } from './domain/ordenacao';
 import { CabecalhoOrdenavel } from './domain/CabecalhoOrdenavel';
+import { CaixaTabela, TheadFixo } from './domain/TheadFixo';
 
 // Mesmo valor usado pelo backend (api/_lib/orcamentoParticular.ts,
 // FONTE_PARTICULAR) pra identificar a fonte pagadora "Particular" — só ela
@@ -257,10 +258,10 @@ function TabelaFontesPagadoras({
   );
 
   return (
-    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-clip">
+      <CaixaTabela>
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <TheadFixo>
             <tr>
               <CabecalhoOrdenavel coluna="payor" titulo="Fonte Pagadora" ordenacao={ordenacao} onClick={alternar} />
               <CabecalhoOrdenavel coluna="table" titulo="Tabela Associada" ordenacao={ordenacao} onClick={alternar} />
@@ -269,7 +270,7 @@ function TabelaFontesPagadoras({
               <CabecalhoOrdenavel coluna="atendido" titulo="Atendido" ordenacao={ordenacao} onClick={alternar} align="right" />
               {podeGerenciar && <th className="px-5 py-3 text-right font-bold w-24">Ações</th>}
             </tr>
-          </thead>
+          </TheadFixo>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {linhas.length === 0 ? (
               <tr>
@@ -353,7 +354,7 @@ function TabelaFontesPagadoras({
             )}
           </tbody>
         </table>
-      </div>
+      </CaixaTabela>
       <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
         <span>
           {linhas.length} {linhas.length === 1 ? 'fonte pagadora' : 'fontes pagadoras'}
@@ -453,7 +454,7 @@ function TabelaExamesDaFonte({
   }, [examesDaFonte]);
 
   return (
-    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-clip">
       {podeGerenciar && (
         <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-end">
           <button
@@ -465,9 +466,9 @@ function TabelaExamesDaFonte({
           </button>
         </div>
       )}
-      <div className="overflow-x-auto">
+      <CaixaTabela>
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          <TheadFixo>
             <tr>
               <CabecalhoOrdenavel coluna="exame" titulo="Exame" ordenacao={ordenacao} onClick={alternar} />
               <CabecalhoOrdenavel coluna="tuss" titulo="TUSS" ordenacao={ordenacao} onClick={alternar} />
@@ -488,7 +489,7 @@ function TabelaExamesDaFonte({
               )}
               {podeGerenciar && <th className="px-5 py-3 text-right font-bold w-24">Ações</th>}
             </tr>
-          </thead>
+          </TheadFixo>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
             {linhas.length === 0 ? (
               <tr>
@@ -668,7 +669,7 @@ function TabelaExamesDaFonte({
             )}
           </tbody>
         </table>
-      </div>
+      </CaixaTabela>
       <div className="px-5 py-3 border-t border-gray-100 dark:border-gray-700 bg-slate-50/50 dark:bg-gray-900/30 text-xs text-gray-500 dark:text-gray-400 flex items-center justify-between">
         <span>
           {linhas.length} {linhas.length === 1 ? 'exame' : 'exames'}

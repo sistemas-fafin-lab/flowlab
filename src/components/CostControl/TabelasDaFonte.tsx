@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { CalendarClock, Check, ChevronDown, Lock, Pencil, Plus, Power, Trash2, X } from 'lucide-react';
 import type { TabelaAssociada } from '../../hooks/useCostControl';
 import { erroNomeTabela, tabelaProtegida } from './domain/tabelasAssociadas';
+import { CaixaTabela, TheadFixo } from './domain/TheadFixo';
 import {
   DIAS_AVISO_VENCIMENTO,
   formatarVencimento,
@@ -330,7 +331,7 @@ export default function TabelasDaFonte({
   );
 
   return (
-    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 shadow-sm overflow-clip">
       <div
         className={`px-5 py-3 flex items-center justify-between gap-4 ${
           aberto ? 'border-b border-gray-100 dark:border-gray-700' : ''
@@ -378,7 +379,7 @@ export default function TabelasDaFonte({
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="overflow-hidden"
+            className="overflow-clip"
           >
             {podeGerenciar && criando && (
               <NovaTabela
@@ -392,9 +393,9 @@ export default function TabelasDaFonte({
                 onFechar={() => setCriando(false)}
               />
             )}
-            <div className="overflow-x-auto">
+            <CaixaTabela>
               <table className="w-full text-sm">
-                <thead className="bg-slate-50 dark:bg-gray-900/40 text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <TheadFixo>
                   <tr>
                     <th className="px-5 py-3 text-left font-bold">Tabela Associada</th>
                     <th className="px-5 py-3 text-left font-bold">Vencimento</th>
@@ -402,7 +403,7 @@ export default function TabelasDaFonte({
                     <th className="px-5 py-3 text-right font-bold">Linhas</th>
                     {podeGerenciar && <th className="px-5 py-3 text-right font-bold">Ações</th>}
                   </tr>
-                </thead>
+                </TheadFixo>
                 <tbody className="divide-y divide-gray-100 dark:divide-gray-700/60">
                   {linhas.length === 0 ? (
                     <tr>
@@ -522,7 +523,7 @@ export default function TabelasDaFonte({
                   )}
                 </tbody>
               </table>
-            </div>
+            </CaixaTabela>
           </motion.div>
         )}
       </AnimatePresence>
