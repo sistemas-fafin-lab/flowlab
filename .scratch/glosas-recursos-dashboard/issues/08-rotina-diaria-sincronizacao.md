@@ -6,9 +6,9 @@ Spec: `.scratch/glosas-recursos-dashboard/spec.md`
 
 **Blocked by:** 01
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] O cron está registrado e protegido como os outros crons do projeto.
-- [ ] A rotina sincroniza mês a mês e não estoura o tempo máximo da função; se precisar, ajusta o `maxDuration` ou divide em partes.
-- [ ] Uma falha num mês não impede os outros e é registrada no log.
-- [ ] O cabeçalho da página mostra a data e hora da última sincronização e a data do dado do apLIS.
+- [x] O cron está registrado e protegido como os outros crons do projeto.
+- [x] A rotina sincroniza mês a mês e não estoura o tempo máximo da função; se precisar, ajusta o `maxDuration` ou divide em partes.
+- [x] Uma falha num mês não impede os outros e é registrada no log.
+- [x] O cabeçalho da página mostra a data e hora da última sincronização e a data do dado do apLIS.

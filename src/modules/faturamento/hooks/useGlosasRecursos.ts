@@ -9,6 +9,7 @@ import type {
   RecorteGlosas,
   RequisicaoRecursoFoto,
   ResumoAcompanhamentoRecursos,
+  UltimaSincronizacaoGlosas,
 } from '../types';
 import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
@@ -50,6 +51,37 @@ export function useConveniosGlosas(): ConvenioGlosas[] {
   }, []);
 
   return convenios;
+}
+
+/**
+ * Última sincronização que cobre o recorte — a de todos os convênios ou a do
+ * pedido —, seja do botão "Atualizar" ou da rotina diária. `versao` relê depois
+ * de um "Atualizar". null = período ainda não sincronizado.
+ */
+export function useUltimaSincronizacaoGlosas(recorte: RecorteGlosas, versao: number): UltimaSincronizacaoGlosas | null {
+  const [ultima, setUltima] = useState<UltimaSincronizacaoGlosas | null>(null);
+  const { competencia, fontePagadoraId } = recorte;
+
+  useEffect(() => {
+    let ativo = true;
+    void supabase
+      .from('glosa_recurso_sincronizacoes')
+      .select('sincronizado_em, dado_ate')
+      .eq('competencia', competencia)
+      .or(fontePagadoraId !== null
+        ? `id_fonte_pagadora.is.null,id_fonte_pagadora.eq.${fontePagadoraId}`
+        : 'id_fonte_pagadora.is.null')
+      .order('sincronizado_em', { ascending: false })
+      .limit(1)
+      .then(({ data }) => {
+        if (!ativo) return;
+        const linha = data?.[0];
+        setUltima(linha ? { sincronizadoEm: linha.sincronizado_em as string, dadoAte: (linha.dado_ate as string | null) ?? null } : null);
+      });
+    return () => { ativo = false; };
+  }, [competencia, fontePagadoraId, versao]);
+
+  return ultima;
 }
 
 export interface ResultadoSincronizacao {

@@ -12,9 +12,9 @@ import {
 import Select from '../../../components/Select';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
-import { sincronizarGlosasRecursos, useConveniosGlosas } from '../hooks/useGlosasRecursos';
+import { sincronizarGlosasRecursos, useConveniosGlosas, useUltimaSincronizacaoGlosas } from '../hooks/useGlosasRecursos';
 import type { RecorteGlosas } from '../types';
-import { formatData, hojeIso } from '../utils/formato';
+import { formatData, formatDataHora, hojeIso } from '../utils/formato';
 import LotesRecursoLista from './LotesRecursoLista';
 import RegrasPrazoConvenios from './RegrasPrazoConvenios';
 import ResumoRecursosCards from './ResumoRecursosCards';
@@ -71,6 +71,7 @@ const GlosasRecursos: React.FC = () => {
   // Muda a cada sincronização ou edição (lápis) concluída: as abas recarregam da foto nova.
   const [versao, setVersao] = useState(0);
   const aposEdicao = useCallback(() => setVersao((v) => v + 1), []);
+  const ultimaSync = useUltimaSincronizacaoGlosas(recorte, versao);
 
   const atualizar = useCallback(async () => {
     setSincronizando(true);
@@ -104,6 +105,12 @@ const GlosasRecursos: React.FC = () => {
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             Glosas e recursos junto às operadoras, a partir do apLIS
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {ultimaSync
+              ? <>Última sincronização em {formatDataHora(ultimaSync.sincronizadoEm)}
+                  {ultimaSync.dadoAte && <> · dado do apLIS até {formatData(ultimaSync.dadoAte)}</>}</>
+              : 'Período ainda não sincronizado — use "Atualizar"'}
           </p>
         </div>
 

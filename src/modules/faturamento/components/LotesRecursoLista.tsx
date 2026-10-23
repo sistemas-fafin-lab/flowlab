@@ -4,7 +4,7 @@ import { useLotesRecurso } from '../hooks/useGlosasRecursos';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import type { LoteRecursoFoto, RecorteGlosas, StatusLoteRecurso } from '../types';
-import { formatCurrency, formatData, formatDataHora } from '../utils/formato';
+import { formatCurrency, formatData } from '../utils/formato';
 import { SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
 import { MarcaEditado } from './CampoEditavelRecurso';
 import DetalhesRecursoCard from './DetalhesRecursoCard';
@@ -103,7 +103,6 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEdi
   }, [versao, refetch]);
 
   const qtdPaginas = meta?.qtdPaginas ?? 0;
-  const ultima = meta?.ultimaSincronizacao ?? null;
 
   const paginacao = (
     <div className="flex items-center gap-2">
@@ -167,15 +166,7 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEdi
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               Lotes de recurso ({meta?.registros ?? 0})
             </h3>
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {ultima
-                  ? <>Sincronizado em {formatDataHora(ultima.sincronizadoEm)}
-                      {ultima.dadoAte && <> · apLIS até {formatData(ultima.dadoAte)}</>}</>
-                  : 'Período ainda não sincronizado — use "Atualizar"'}
-              </span>
-              {lotes.length > 0 && paginacao}
-            </div>
+            {lotes.length > 0 && paginacao}
           </div>
 
           {loading ? (

@@ -84,11 +84,6 @@ interface LinhaRegraFonte {
   } | null;
 }
 
-interface LinhaSincronizacao {
-  sincronizado_em: string;
-  dado_ate: string | null;
-}
-
 function primeiro(valor: string | string[] | undefined): string | undefined {
   if (Array.isArray(valor)) return valor[0];
   return valor;
@@ -202,17 +197,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       .order('id_lote_recurso', { ascending: false })
       .range(de, de + tamanhoPagina - 1);
 
-    // Última sincronização que cobre o recorte: a de todos os convênios ou a do pedido.
-    const { data: sincronizacoes, error: erroSync } = await supabase
-      .from('glosa_recurso_sincronizacoes')
-      .select('sincronizado_em, dado_ate')
-      .eq('competencia', competencia)
-      .or(fontePagadoraId !== undefined
-        ? `id_fonte_pagadora.is.null,id_fonte_pagadora.eq.${fontePagadoraId}`
-        : 'id_fonte_pagadora.is.null')
-      .order('sincronizado_em', { ascending: false })
-      .limit(1);
-
     const linhas = (data ?? []) as LinhaLista[];
     const idsLotes = linhas.map((l) => l.id_lote_recurso);
     const fontes = [...new Set(linhas.flatMap(fontesDoLote))];
@@ -227,7 +211,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           .in('id_fonte_pagadora', fontes),
     ]);
 
-    const erroLeitura = (error ?? erroSync ?? erroRegras)?.message ?? erroReq;
+    const erroLeitura = (error ?? erroRegras)?.message ?? erroReq;
     if (erroLeitura) {
       console.error('[faturamento/glosas-recursos-lotes] Supabase:', erroLeitura);
       res.status(502).json({
@@ -237,7 +221,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
-    const ultima = ((sincronizacoes ?? []) as LinhaSincronizacao[])[0] ?? null;
 
     const regraPorFonte = new Map<number, RegrasPrazoLote>();
     for (const f of (regrasFontes ?? []) as unknown as LinhaRegraFonte[]) {
@@ -282,7 +265,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         tamanho: tamanhoPagina,
         qtdPaginas: Math.ceil(registros / tamanhoPagina),
         registros,
-        ultimaSincronizacao: ultima ? { sincronizadoEm: ultima.sincronizado_em, dadoAte: ultima.dado_ate } : null,
       },
       lotes: linhas.map((l) => {
         const fonteComRegra = fontesDoLote(l).find((f) => regraPorFonte.has(f));

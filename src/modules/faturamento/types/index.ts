@@ -1080,7 +1080,6 @@ export interface LotesRecursoMeta {
   tamanho: number;
   qtdPaginas: number;
   registros: number;
-  ultimaSincronizacao: UltimaSincronizacaoGlosas | null;
 }
 
 /** Recorte comum às três abas: mês do lote de faturamento original e convênio. */

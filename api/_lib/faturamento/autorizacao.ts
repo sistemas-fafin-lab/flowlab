@@ -9,8 +9,10 @@
 // entre MÓDULOS de propósito (ver o comentário em uploadDocumentoRecepcao.ts), e essa
 // escolha fica preservada — nada aqui é importado por outro módulo. Dentro do módulo de
 // faturamento são dois handlers com a MESMA permissão, e duplicar a regra entre eles só
-// criaria a chance de os dois divergirem numa alteração futura.
+// criaria a chance de os dois divergirem numa alteração futura. Os crons do módulo
+// (glosas-recursos-cron) usam `cronAutorizado`, cópia da do ti-agente.
 
+import type { VercelRequest } from '@vercel/node';
 import { getSupabaseAdminClient } from '../supabase.js';
 
 export interface FalhaAutorizacao {
@@ -73,4 +75,10 @@ export async function autorizarFaturamento(
 export function tokenDoHeader(authorization: string | undefined): string | null {
   const header = authorization ?? '';
   return header.startsWith('Bearer ') ? header.slice(7) : null;
+}
+
+/** Crons da Vercel: `Authorization: Bearer <CRON_SECRET>` (como umami-inatividade-cron). */
+export function cronAutorizado(req: VercelRequest): boolean {
+  const segredo = process.env.CRON_SECRET;
+  return !!segredo && req.headers.authorization === `Bearer ${segredo}`;
 }
