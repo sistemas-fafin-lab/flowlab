@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { AlertCircle, CheckCircle, Clock, Layers, MinusCircle, TrendingDown, TrendingUp, XCircle } from 'lucide-react';
 import { useResumoRecursos } from '../hooks/useGlosasRecursos';
 import type { CardRecursos, RecorteGlosas } from '../types';
-import { formatCurrency, plural } from '../utils/formato';
+import { formatCurrency, formatPercentual, plural } from '../utils/formato';
 
 // Acompanhamento dos recursos → cards do topo: Total de recursos (com variação
 // sobre o mês de faturamento anterior), Em análise, Deferidos e Indeferidos,
@@ -10,10 +10,6 @@ import { formatCurrency, plural } from '../utils/formato';
 // (api/_lib/faturamento/recursoGlosa.ts).
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5';
-
-function formatPercentual(valor: number): string {
-  return `${valor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
-}
 
 function requisicoes(quantidade: number): string {
   return plural(quantidade, 'requisição', 'requisições');

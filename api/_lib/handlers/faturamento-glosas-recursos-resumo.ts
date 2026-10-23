@@ -19,7 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { competenciaValida, edicoesDaFoto, resumirAcompanhamento } from '../faturamento/recursoGlosa.js';
+import { competenciaValida, edicoesDaFoto, resumirAcompanhamento, somarMeses } from '../faturamento/recursoGlosa.js';
 import type { RequisicaoClassificavel } from '../faturamento/recursoGlosa.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
@@ -43,12 +43,6 @@ class ErroLeitura extends Error {}
 function primeiro(valor: string | string[] | undefined): string | undefined {
   if (Array.isArray(valor)) return valor[0];
   return valor;
-}
-
-/** 'YYYY-MM' do mês anterior. */
-function competenciaAnterior(competencia: string): string {
-  const [ano, mes] = competencia.split('-').map(Number);
-  return mes === 1 ? `${ano - 1}-12` : `${ano}-${String(mes - 1).padStart(2, '0')}`;
 }
 
 function numeroOuNulo(valor: number | string | null): number | null {
@@ -129,7 +123,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     try {
       const [atual, anterior] = await Promise.all([
         requisicoesDoMes(supabase, competencia, fontePagadoraId),
-        requisicoesDoMes(supabase, competenciaAnterior(competencia), fontePagadoraId),
+        requisicoesDoMes(supabase, somarMeses(competencia, -1), fontePagadoraId),
       ]);
       resumo = resumirAcompanhamento(atual, anterior);
     } catch (err) {

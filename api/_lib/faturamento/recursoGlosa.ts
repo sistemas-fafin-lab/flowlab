@@ -295,6 +295,218 @@ export function statusDashboard(foto: RequisicaoFoto, edicoes: EdicoesRequisicao
   return null;
 }
 
+/** Requisição da foto com o que o Dashboard agrupa. */
+export interface RequisicaoDashboard extends RequisicaoClassificavel {
+  /** null: deferido total sem lote de recurso (conta 0). */
+  glosaFixada: number | null;
+  /** Nome da fonte pagadora; null sem cadastro. */
+  convenio: string | null;
+  /** Procedimentos glosados ('código descrição'). */
+  procedimentos: string[];
+  /** Motivos do catálogo `fatmotivoglosa` ('código descrição'). */
+  motivos: string[];
+}
+
+export interface CardDashboard {
+  quantidade: number;
+  valor: number;
+  /** % do valor sobre o mês de faturamento anterior; null sem valor nele. */
+  variacao: number | null;
+}
+
+export interface MesEvolucao {
+  competencia: string;
+  aberta: number;
+  emRecurso: number;
+  revertida: number;
+}
+
+export interface ResumoDashboard {
+  cards: Record<StatusDashboard, CardDashboard>;
+  /** Os 6 meses até o período, do mais antigo ao filtrado; valores dos cards. */
+  evolucao: MesEvolucao[];
+  /** Total = requisições nos quatro status; percentual da quantidade, uma casa. */
+  distribuicao: {
+    total: number;
+    status: { status: StatusDashboard; quantidade: number; valor: number; percentual: number }[];
+  };
+  procedimentos: { porValor: ItemRankingGlosa[]; porOcorrencias: ItemRankingGlosa[] };
+  /** Por glosa fixada; percentual sobre o total glosado do mês. */
+  convenios: ItemRankingGlosa[];
+  /** Por ocorrências; os menores somados em "Outros". Percentual sobre as ocorrências. */
+  motivos: ItemRankingGlosa[];
+}
+
+/** Linha de ranking (procedimento, convênio, motivo). */
+export interface ItemRankingGlosa {
+  nome: string;
+  /** Glosa fixada; a de uma requisição se divide entre os itens dela. */
+  valor: number;
+  /** Requisições em que o item aparece. */
+  quantidade: number;
+  /** Uma casa decimal, sobre a base do ranking. */
+  percentual: number;
+}
+
+/** Linhas dos rankings de procedimentos e de convênios. */
+const TOPO_RANKING = 10;
+
+/** Fatias do resumo por motivo: além disso, os menores viram "Outros". */
+const MAX_MOTIVOS = 6;
+
+/** Meses da evolução, contando o filtrado. */
+export const MESES_EVOLUCAO = 6;
+
+const STATUS_DO_DASHBOARD: StatusDashboard[] = ['aberta', 'em-recurso', 'revertida', 'definitiva'];
+
+/** 'YYYY-MM' deslocado `meses` meses (negativo volta). */
+export function somarMeses(competencia: string, meses: number): string {
+  const [ano, mes] = competencia.split('-').map(Number);
+  const total = ano * 12 + (mes - 1) + meses;
+  return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
+}
+
+/** Valor da requisição no card: nas Revertidas, o deferido (ΔRec); nos outros, a glosa fixada. */
+function valorNoStatus(status: StatusDashboard, r: RequisicaoDashboard): number {
+  if (status === 'revertida') return valorRecebidoGlosa(r.foto, r.edicoes) ?? 0;
+  return r.glosaFixada ?? 0;
+}
+
+function somarCards(requisicoes: RequisicaoDashboard[]): Record<StatusDashboard, { quantidade: number; valor: number }> {
+  const somas = Object.fromEntries(STATUS_DO_DASHBOARD.map((s) => [s, { quantidade: 0, valor: 0 }])) as Record<
+    StatusDashboard,
+    { quantidade: number; valor: number }
+  >;
+  for (const r of requisicoes) {
+    const status = statusDashboard(r.foto, r.edicoes);
+    if (!status) continue;
+    somas[status].quantidade += 1;
+    somas[status].valor = centavos(somas[status].valor + valorNoStatus(status, r));
+  }
+  return somas;
+}
+
+/**
+ * Soma a glosa fixada e as ocorrências por item. A foto não guarda o valor de
+ * cada procedimento (nem de cada motivo): a glosa da requisição se divide
+ * igualmente entre os itens dela.
+ */
+function agruparPorItem(
+  requisicoes: RequisicaoDashboard[],
+  itens: (r: RequisicaoDashboard) => string[],
+): { nome: string; valor: number; quantidade: number }[] {
+  const grupos = new Map<string, { nome: string; valor: number; quantidade: number }>();
+  for (const r of requisicoes) {
+    const daRequisicao = [...new Set(itens(r))];
+    for (const nome of daRequisicao) {
+      const grupo = grupos.get(nome) ?? { nome, valor: 0, quantidade: 0 };
+      grupo.valor += (r.glosaFixada ?? 0) / daRequisicao.length;
+      grupo.quantidade += 1;
+      grupos.set(nome, grupo);
+    }
+  }
+  return [...grupos.values()].map((g) => ({ ...g, valor: centavos(g.valor) }));
+}
+
+function comPercentual(
+  grupos: { nome: string; valor: number; quantidade: number }[],
+  base: (g: { valor: number; quantidade: number }) => number,
+  total: number,
+): ItemRankingGlosa[] {
+  return grupos.map((g) => ({ ...g, percentual: total === 0 ? 0 : umaCasa((base(g) / total) * 100) }));
+}
+
+/** Os `MAX_MOTIVOS − 1` maiores e o resto somado em "Outros". */
+function agruparMenores(itens: ItemRankingGlosa[], ocorrencias: number): ItemRankingGlosa[] {
+  if (itens.length <= MAX_MOTIVOS) return itens;
+  const resto = itens.slice(MAX_MOTIVOS - 1);
+  const quantidade = resto.reduce((soma, i) => soma + i.quantidade, 0);
+  return [
+    ...itens.slice(0, MAX_MOTIVOS - 1),
+    {
+      nome: 'Outros',
+      valor: centavos(resto.reduce((soma, i) => soma + i.valor, 0)),
+      quantidade,
+      percentual: umaCasa((quantidade / ocorrencias) * 100),
+    },
+  ];
+}
+
+const porValorDesc = (a: ItemRankingGlosa, b: ItemRankingGlosa) =>
+  b.valor - a.valor || b.quantidade - a.quantidade || a.nome.localeCompare(b.nome);
+const porQuantidadeDesc = (a: ItemRankingGlosa, b: ItemRankingGlosa) =>
+  b.quantidade - a.quantidade || b.valor - a.valor || a.nome.localeCompare(b.nome);
+
+/**
+ * Dashboard de Glosas e Recursos (spec, "Status do Dashboard"). `porMes` são
+ * as requisições da foto por mês do lote de faturamento original, já no
+ * convênio do recorte; `competencia` é o mês filtrado.
+ */
+export function resumirDashboard(
+  competencia: string,
+  porMes: Record<string, RequisicaoDashboard[]>,
+): ResumoDashboard {
+  const doMes = (c: string) => porMes[c] ?? [];
+  const atual = somarCards(doMes(competencia));
+  const anterior = somarCards(doMes(somarMeses(competencia, -1)));
+  const cards = Object.fromEntries(STATUS_DO_DASHBOARD.map((s) => [s, {
+    ...atual[s],
+    variacao: anterior[s].valor === 0
+      ? null
+      : umaCasa(((atual[s].valor - anterior[s].valor) / anterior[s].valor) * 100),
+  }])) as Record<StatusDashboard, CardDashboard>;
+
+  const evolucao = Array.from({ length: MESES_EVOLUCAO }, (_, i) => {
+    const mes = somarMeses(competencia, i - (MESES_EVOLUCAO - 1));
+    const somas = somarCards(doMes(mes));
+    return {
+      competencia: mes,
+      aberta: somas.aberta.valor,
+      emRecurso: somas['em-recurso'].valor,
+      revertida: somas.revertida.valor,
+    };
+  });
+
+  const totalGlosas = STATUS_DO_DASHBOARD.reduce((soma, s) => soma + atual[s].quantidade, 0);
+  const distribuicao = {
+    total: totalGlosas,
+    status: STATUS_DO_DASHBOARD.map((s) => ({
+      status: s,
+      ...atual[s],
+      percentual: totalGlosas === 0 ? 0 : umaCasa((atual[s].quantidade / totalGlosas) * 100),
+    })),
+  };
+
+  // Os rankings contam as mesmas glosas da distribuição (os quatro status),
+  // todas pela glosa fixada: é o que foi glosado, seja qual for o desfecho.
+  const glosasDoMes = doMes(competencia).filter((r) => statusDashboard(r.foto, r.edicoes) !== null);
+  const totalGlosado = glosasDoMes.reduce((soma, r) => soma + (r.glosaFixada ?? 0), 0);
+  const procedimentos = agruparPorItem(glosasDoMes, (r) => r.procedimentos);
+  const ocorrencias = procedimentos.reduce((soma, p) => soma + p.quantidade, 0);
+  const motivos = agruparPorItem(glosasDoMes, (r) => r.motivos);
+  const ocorrenciasMotivo = motivos.reduce((soma, m) => soma + m.quantidade, 0);
+  return {
+    cards,
+    evolucao,
+    distribuicao,
+    procedimentos: {
+      porValor: comPercentual(procedimentos, (p) => p.valor, totalGlosado).sort(porValorDesc).slice(0, TOPO_RANKING),
+      porOcorrencias: comPercentual(procedimentos, (p) => p.quantidade, ocorrencias)
+        .sort(porQuantidadeDesc)
+        .slice(0, TOPO_RANKING),
+    },
+    convenios: comPercentual(
+      agruparPorItem(glosasDoMes, (r) => [r.convenio ?? 'Sem convênio']),
+      (c) => c.valor,
+      totalGlosado,
+    ).sort(porValorDesc).slice(0, TOPO_RANKING),
+    motivos: agruparMenores(
+      comPercentual(motivos, (m) => m.quantidade, ocorrenciasMotivo).sort(porQuantidadeDesc),
+      ocorrenciasMotivo,
+    ),
+  };
+}
+
 /** Tipos de regra de prazo (tabela glosa_prazo_regras). */
 export type TipoRegraPrazo =
   | 'dias_corridos'

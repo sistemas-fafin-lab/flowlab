@@ -1183,6 +1183,42 @@ export interface ResumoAcompanhamentoRecursos {
   acatada: { quantidade: number; valor: number };
 }
 
+/** Card do Dashboard: variação do valor sobre o mês de faturamento anterior (null sem valor nele). */
+export interface CardDashboardGlosas {
+  quantidade: number;
+  valor: number;
+  variacao: number | null;
+}
+
+/** Linha de ranking do Dashboard (procedimento, convênio, motivo). */
+export interface ItemRankingGlosa {
+  nome: string;
+  /** Glosa fixada; a de uma requisição se divide entre os itens dela. */
+  valor: number;
+  /** Requisições em que o item aparece. */
+  quantidade: number;
+  percentual: number;
+}
+
+/** Aba Dashboard de Glosas e Recursos — contrato de GET /api/faturamento/glosas-recursos-dashboard. */
+export interface DashboardGlosas {
+  /** Revertidas: valor deferido; os outros: glosa fixada. */
+  cards: Record<StatusGlosaDashboard, CardDashboardGlosas>;
+  /** Os 6 meses até o período, do mais antigo ao filtrado. */
+  evolucao: { competencia: string; aberta: number; emRecurso: number; revertida: number }[];
+  /** Total = requisições nos quatro status; percentual da quantidade. */
+  distribuicao: {
+    total: number;
+    status: { status: StatusGlosaDashboard; quantidade: number; valor: number; percentual: number }[];
+  };
+  /** Percentual: do total glosado (por valor) ou das ocorrências (por ocorrências). */
+  procedimentos: { porValor: ItemRankingGlosa[]; porOcorrencias: ItemRankingGlosa[] };
+  /** Percentual do total glosado. */
+  convenios: ItemRankingGlosa[];
+  /** Por ocorrências, os menores em "Outros"; percentual das ocorrências. */
+  motivos: ItemRankingGlosa[];
+}
+
 /** Metadados de um documento digitalizado de requisicaoimagem — contrato de
  *  GET /api/faturamento/imagens-legado. Os bytes vêm à parte, sob demanda, por
  *  GET /api/faturamento/imagem-legado-arquivo. */

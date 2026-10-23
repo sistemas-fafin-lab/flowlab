@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type {
+  DashboardGlosas,
   DetalheRequisicaoRecurso,
   EdicaoRecurso,
   GlosaRecente,
@@ -335,6 +336,51 @@ export function useResumoRecursos(recorte: RecorteGlosas): UseResumoRecursosResu
   }, [refetch]);
 
   return { resumo, loading, error, refetch };
+}
+
+interface RespostaDashboardGlosas {
+  success?: boolean;
+  error?: string;
+  dashboard?: DashboardGlosas;
+}
+
+const MENSAGEM_ERRO_DASHBOARD = 'Não foi possível carregar o dashboard de glosas.';
+
+/** Aba Dashboard no recorte (mês + convênio). */
+export function useDashboardGlosas(recorte: RecorteGlosas) {
+  const [dashboard, setDashboard] = useState<DashboardGlosas | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const buscaAtual = useRef(0);
+
+  const { competencia, fontePagadoraId } = recorte;
+
+  const refetch = useCallback(async () => {
+    const reqId = ++buscaAtual.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ competencia });
+      if (fontePagadoraId !== null) params.set('fontePagadoraId', String(fontePagadoraId));
+      const body = await chamarLegadoApi<RespostaDashboardGlosas>('glosas-recursos-dashboard', params, MENSAGEM_ERRO_DASHBOARD);
+      if (reqId !== buscaAtual.current) return;
+      setDashboard(body.dashboard ?? null);
+    } catch (err) {
+      if (reqId !== buscaAtual.current) return;
+      setError(err instanceof Error ? err.message : MENSAGEM_ERRO_DASHBOARD);
+      setDashboard(null);
+    } finally {
+      if (reqId === buscaAtual.current) setLoading(false);
+    }
+  }, [competencia, fontePagadoraId]);
+
+  useEffect(() => {
+    void refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { buscaAtual.current++; };
+  }, [refetch]);
+
+  return { dashboard, loading, error, refetch };
 }
 
 interface UseDetalheRecursoResult<T> {

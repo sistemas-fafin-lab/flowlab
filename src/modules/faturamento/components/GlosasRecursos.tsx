@@ -4,7 +4,6 @@ import {
   AlertTriangle,
   BarChart3,
   CheckCircle,
-  ClipboardList,
   Clock,
   ListChecks,
   RefreshCw,
@@ -15,6 +14,7 @@ import { hasPermission } from '../../../utils/permissions';
 import { sincronizarGlosasRecursos, useConveniosGlosas, useUltimaSincronizacaoGlosas } from '../hooks/useGlosasRecursos';
 import type { RecorteGlosas } from '../types';
 import { formatData, formatDataHora, hojeIso } from '../utils/formato';
+import GlosasDashboard from './GlosasDashboard';
 import GlosasRecentesLista from './GlosasRecentesLista';
 import LotesRecursoLista from './LotesRecursoLista';
 import RecursosForaDeLoteLista from './RecursosForaDeLoteLista';
@@ -47,14 +47,6 @@ const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray
 
 /** Recursos anteriores a 2026 não foram organizados em lotes no apLIS. */
 const ANO_LOTES_ORGANIZADOS = 2026;
-
-const EmBreve: React.FC<{ titulo: string }> = ({ titulo }) => (
-  <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 text-center py-16">
-    <ClipboardList className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-    <p className="text-gray-700 dark:text-gray-300 font-medium">{titulo}</p>
-    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Em breve</p>
-  </div>
-);
 
 const GlosasRecursos: React.FC = () => {
   const { userProfile } = useAuth();
@@ -194,7 +186,7 @@ const GlosasRecursos: React.FC = () => {
         ))}
       </div>
 
-      {aba === 'dashboard' && <EmBreve titulo="Dashboard" />}
+      {aba === 'dashboard' && <GlosasDashboard recorte={recorte} versao={versao} />}
       {aba === 'recentes' && (
         <GlosasRecentesLista recorte={recorte} versao={versao} podeEditar={podeEditar} onEditado={aposEdicao} />
       )}

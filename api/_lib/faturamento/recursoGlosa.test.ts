@@ -9,10 +9,17 @@ import {
   prazoParaRecorrer,
   prazosDoLote,
   resumirAcompanhamento,
+  resumirDashboard,
   statusDashboard,
   valorRecebidoGlosa,
 } from './recursoGlosa.js';
-import type { LoteParaPrazo, RegrasPrazoLote, RequisicaoFoto, RequisicaoGlosaAplis } from './recursoGlosa.js';
+import type {
+  LoteParaPrazo,
+  RegrasPrazoLote,
+  RequisicaoDashboard,
+  RequisicaoFoto,
+  RequisicaoGlosaAplis,
+} from './recursoGlosa.js';
 
 function requisicao(overrides: Partial<RequisicaoGlosaAplis> = {}): RequisicaoGlosaAplis {
   return { status: 6, liquido: 1000, recebido: 700, recursado: null, ...overrides };
@@ -271,6 +278,165 @@ describe('resumirAcompanhamento', () => {
       total: { quantidade: 0, valor: 0, variacao: -100 },
       emAnalise: { quantidade: 0, valor: 0, percentual: 0 },
     });
+  });
+});
+
+describe('resumirDashboard', () => {
+  function glosa(overrides: Partial<RequisicaoDashboard> = {}): RequisicaoDashboard {
+    return {
+      foto: foto({ status: 6, emLoteRecurso: false, loteEnviado: false, valorRecursado: null }),
+      glosaFixada: 300,
+      convenio: 'BRADESCO',
+      procedimentos: ['40301630 HEMOGRAMA'],
+      motivos: ['1801 PROCEDIMENTO NÃO AUTORIZADO'],
+      ...overrides,
+    };
+  }
+  const aberta = (glosaFixada = 300) => glosa({ glosaFixada });
+  const emRecurso = (glosaFixada = 300) => glosa({ foto: foto(), glosaFixada });
+  // Deferido parcial: R = 300, ΔRec = 100.
+  const revertida = () => glosa({ foto: foto({ recebido: 800 }) });
+  const definitiva = () => glosa({ foto: foto({ status: 15 }) });
+
+  it('cards: glosa fixada, e nas Revertidas o valor deferido, com a variação sobre o mês anterior', () => {
+    const resumo = resumirDashboard('2026-10', {
+      '2026-09': [aberta(200), emRecurso(500), emRecurso(500)],
+      '2026-10': [aberta(), aberta(), emRecurso(), revertida(), definitiva()],
+    });
+    expect(resumo.cards).toEqual({
+      aberta: { quantidade: 2, valor: 600, variacao: 200 },
+      'em-recurso': { quantidade: 1, valor: 300, variacao: -70 },
+      // R$ 100 deferidos, não os R$ 300 da glosa fixada.
+      revertida: { quantidade: 1, valor: 100, variacao: null },
+      definitiva: { quantidade: 1, valor: 300, variacao: null },
+    });
+  });
+
+  it('evolução: Abertas, Em recurso e Revertidas nos 6 meses até o período, atravessando o ano', () => {
+    const resumo = resumirDashboard('2026-02', {
+      '2025-08': [aberta(999)], // fora dos 6 meses
+      '2025-09': [aberta(100)],
+      '2025-12': [emRecurso(250), revertida(), definitiva()],
+      '2026-02': [aberta(), aberta()],
+    });
+    expect(resumo.evolucao).toEqual([
+      { competencia: '2025-09', aberta: 100, emRecurso: 0, revertida: 0 },
+      { competencia: '2025-10', aberta: 0, emRecurso: 0, revertida: 0 },
+      { competencia: '2025-11', aberta: 0, emRecurso: 0, revertida: 0 },
+      { competencia: '2025-12', aberta: 0, emRecurso: 250, revertida: 100 },
+      { competencia: '2026-01', aberta: 0, emRecurso: 0, revertida: 0 },
+      { competencia: '2026-02', aberta: 600, emRecurso: 0, revertida: 0 },
+    ]);
+  });
+
+  it('distribuição: total de glosas, quantidade e percentual de cada status', () => {
+    const semStatus = glosa({ foto: foto({ status: 33, emLoteRecurso: false, loteEnviado: false }) });
+    const resumo = resumirDashboard('2026-10', {
+      '2026-10': [aberta(), aberta(), aberta(), emRecurso(), revertida(), definitiva(), semStatus],
+    });
+    expect(resumo.distribuicao).toEqual({
+      // A requisição fora dos quatro status não entra no total.
+      total: 6,
+      status: [
+        { status: 'aberta', quantidade: 3, valor: 900, percentual: 50 },
+        { status: 'em-recurso', quantidade: 1, valor: 300, percentual: 16.7 },
+        { status: 'revertida', quantidade: 1, valor: 100, percentual: 16.7 },
+        { status: 'definitiva', quantidade: 1, valor: 300, percentual: 16.7 },
+      ],
+    });
+    expect(resumirDashboard('2026-10', {}).distribuicao.status[0]).toEqual(
+      { status: 'aberta', quantidade: 0, valor: 0, percentual: 0 },
+    );
+  });
+
+  it('procedimentos: por maior valor e por mais ocorrências, com percentual do total glosado', () => {
+    const resumo = resumirDashboard('2026-10', {
+      '2026-10': [
+        glosa({ glosaFixada: 600, procedimentos: ['TSH'] }),
+        // A glosa da requisição se divide entre os procedimentos glosados dela.
+        glosa({ glosaFixada: 200, procedimentos: ['HEMOGRAMA', 'TSH'] }),
+        glosa({ glosaFixada: 100, procedimentos: ['HEMOGRAMA'] }),
+        glosa({ glosaFixada: 100, procedimentos: ['HEMOGRAMA'] }),
+        glosa({ glosaFixada: 0, procedimentos: [] }),
+      ],
+    });
+    expect(resumo.procedimentos.porValor).toEqual([
+      { nome: 'TSH', valor: 700, quantidade: 2, percentual: 70 },
+      { nome: 'HEMOGRAMA', valor: 300, quantidade: 3, percentual: 30 },
+    ]);
+    // Percentual das ocorrências sobre as 5 ocorrências de procedimento.
+    expect(resumo.procedimentos.porOcorrencias).toEqual([
+      { nome: 'HEMOGRAMA', valor: 300, quantidade: 3, percentual: 60 },
+      { nome: 'TSH', valor: 700, quantidade: 2, percentual: 40 },
+    ]);
+  });
+
+  it('procedimentos: só os 10 primeiros de cada ordem', () => {
+    const muitos = Array.from({ length: 12 }, (_, i) => glosa({ glosaFixada: 100 + i, procedimentos: [`P${i}`] }));
+    const { porValor } = resumirDashboard('2026-10', { '2026-10': muitos }).procedimentos;
+    expect(porValor).toHaveLength(10);
+    expect(porValor[0].nome).toBe('P11');
+  });
+
+  it('convênios: os que mais glosam, com valor e percentual do total glosado', () => {
+    const resumo = resumirDashboard('2026-10', {
+      '2026-10': [
+        glosa({ convenio: 'CASSI', glosaFixada: 100 }),
+        glosa({ convenio: 'BRADESCO', glosaFixada: 500 }),
+        glosa({ convenio: 'BRADESCO', glosaFixada: 250 }),
+        glosa({ convenio: null, glosaFixada: 150 }),
+      ],
+    });
+    expect(resumo.convenios).toEqual([
+      { nome: 'BRADESCO', valor: 750, quantidade: 2, percentual: 75 },
+      { nome: 'Sem convênio', valor: 150, quantidade: 1, percentual: 15 },
+      { nome: 'CASSI', valor: 100, quantidade: 1, percentual: 10 },
+    ]);
+  });
+
+  it('motivos: por ocorrências, os 5 primeiros e o resto em "Outros"', () => {
+    const comMotivos = (motivos: string[], n: number) =>
+      Array.from({ length: n }, () => glosa({ glosaFixada: 100, motivos }));
+    const resumo = resumirDashboard('2026-10', {
+      '2026-10': [
+        ...comMotivos(['M1'], 6),
+        ...comMotivos(['M2'], 5),
+        ...comMotivos(['M3'], 4),
+        ...comMotivos(['M4', 'M5'], 3),
+        ...comMotivos(['M6'], 2),
+        ...comMotivos(['M7'], 2),
+      ],
+    });
+    // 25 ocorrências de motivo.
+    expect(resumo.motivos).toEqual([
+      { nome: 'M1', valor: 600, quantidade: 6, percentual: 24 },
+      { nome: 'M2', valor: 500, quantidade: 5, percentual: 20 },
+      { nome: 'M3', valor: 400, quantidade: 4, percentual: 16 },
+      { nome: 'M4', valor: 150, quantidade: 3, percentual: 12 },
+      { nome: 'M5', valor: 150, quantidade: 3, percentual: 12 },
+      { nome: 'Outros', valor: 400, quantidade: 4, percentual: 16 },
+    ]);
+  });
+
+  it('motivos: só o catálogo do apLIS; com até 6 motivos não há "Outros"', () => {
+    const resumo = resumirDashboard('2026-10', {
+      // Procedimento recebido abaixo do líquido, sem motivo no apLIS: fica fora do resumo.
+      '2026-10': [glosa({ motivos: ['M1'] }), glosa({ motivos: [] })],
+    });
+    expect(resumo.motivos).toEqual([{ nome: 'M1', valor: 300, quantidade: 1, percentual: 100 }]);
+  });
+
+  it('rankings: contam as mesmas glosas da distribuição (os quatro status)', () => {
+    const semStatus = glosa({
+      foto: foto({ status: 33, emLoteRecurso: false, loteEnviado: false }),
+      convenio: 'CASSI',
+      procedimentos: ['TSH'],
+      motivos: ['M9'],
+    });
+    const resumo = resumirDashboard('2026-10', { '2026-10': [glosa(), semStatus] });
+    expect(resumo.convenios.map((c) => c.nome)).toEqual(['BRADESCO']);
+    expect(resumo.procedimentos.porValor.map((p) => p.nome)).toEqual(['40301630 HEMOGRAMA']);
+    expect(resumo.motivos.map((m) => m.nome)).toEqual(['1801 PROCEDIMENTO NÃO AUTORIZADO']);
   });
 });
 

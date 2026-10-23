@@ -239,6 +239,11 @@ export const faixaAgingParaRange = (bucket: AgingBucket, hoje: string = hojeIso(
 };
 
 /** "1 título" / "3 títulos": a contagem com o texto no singular ou no plural. */
+/** Percentual com uma casa decimal: 33.3 → "33,3%". */
+export function formatPercentual(valor: number): string {
+  return `${valor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
+}
+
 export function plural(n: number, singular: string, pluralTexto: string): string {
   return `${n} ${n === 1 ? singular : pluralTexto}`;
 }
