@@ -1,11 +1,13 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertCircle, ChevronLeft, ChevronRight, Eye, FileText, Search } from 'lucide-react';
+import { AlertCircle, Eye, FileText, Search } from 'lucide-react';
 import { useRecursosForaDeLote } from '../hooks/useGlosasRecursos';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import type { RecorteGlosas, RecursoForaDeLote } from '../types';
 import { formatCurrency, formatData } from '../utils/formato';
 import { rotuloStatusAplis, SELOS_ATRASO } from '../utils/recursoGlosaVisual';
 import DetalhesRecursoCard from './DetalhesRecursoCard';
+import ListaResumida from './ListaResumida';
+import PaginacaoGlosas from './PaginacaoGlosas';
 
 // Acompanhamento dos recursos → "Recursos fora de lote" (issue 09): requisições
 // do recorte que não estão em nenhum lote de recurso — glosadas sem recurso
@@ -24,19 +26,6 @@ const TIPOS = {
 };
 
 const CHIP = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap';
-
-/** O primeiro item e "+N"; a lista inteira no título. */
-const ListaResumida: React.FC<{ itens: string[] }> = ({ itens }) => {
-  if (itens.length === 0) return <span className="text-gray-400 dark:text-gray-500">—</span>;
-  return (
-    <div className="max-w-xs" title={itens.join('\n')}>
-      <span className="line-clamp-2">{itens[0]}</span>
-      {itens.length > 1 && (
-        <span className="text-xs text-gray-500 dark:text-gray-400">+{itens.length - 1}</span>
-      )}
-    </div>
-  );
-};
 
 interface Props {
   recorte: RecorteGlosas;
@@ -90,27 +79,7 @@ const RecursosForaDeLoteLista: React.FC<Props> = ({ recorte, versao, podeEditar,
   const qtdPaginas = meta?.qtdPaginas ?? 0;
 
   const paginacao = (
-    <div className="flex items-center gap-2">
-      <span className="text-sm text-gray-500 dark:text-gray-400">
-        Página {pagina} de {Math.max(qtdPaginas, 1)}
-      </span>
-      <button
-        onClick={() => setPagina((p) => Math.max(1, p - 1))}
-        disabled={pagina <= 1 || loading}
-        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        <ChevronLeft size={16} />
-        Anterior
-      </button>
-      <button
-        onClick={() => setPagina((p) => p + 1)}
-        disabled={pagina >= qtdPaginas || loading}
-        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        Próxima
-        <ChevronRight size={16} />
-      </button>
-    </div>
+    <PaginacaoGlosas pagina={pagina} qtdPaginas={qtdPaginas} loading={loading} onPagina={setPagina} />
   );
 
   const tipo = (r: RecursoForaDeLote) => (r.status === STATUS_GLOSADO_SEM_RECURSO ? TIPOS.semRecurso : TIPOS.semLote);

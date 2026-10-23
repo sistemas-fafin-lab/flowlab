@@ -274,6 +274,27 @@ export function resumirAcompanhamento(
   };
 }
 
+/** Status da glosa no Dashboard e em Glosas recentes (spec, "Status do Dashboard"). */
+export type StatusDashboard = 'aberta' | 'em-recurso' | 'revertida' | 'definitiva';
+
+/**
+ * Abertas = status 6; Revertidas = deferido + deferido parcial; Definitivas =
+ * acatada + indeferido; Em recurso = 7 ou 16 sem classificação final. A
+ * classificação vale acima do status 7/16 do apLIS (o recebido já voltou);
+ * 34 e 17 são deferido total pelo próprio apLIS.
+ * null: fora dos quatro (por exemplo, em tratativas sem nada recebido).
+ */
+export function statusDashboard(foto: RequisicaoFoto, edicoes: EdicoesRequisicao = {}): StatusDashboard | null {
+  if (foto.status === STATUS_GLOSA.glosadoSemRecurso) return 'aberta';
+  // Deferido total pelo apLIS, mesmo sem envio registrado ou sem recursado.
+  if (foto.status !== null && STATUS_DEFERIDO_TOTAL.includes(foto.status)) return 'revertida';
+  const classe = classificarRequisicao(foto, edicoes)?.classe;
+  if (classe === 'deferido' || classe === 'deferido-parcial') return 'revertida';
+  if (classe === 'acatada' || classe === 'indeferido') return 'definitiva';
+  if (foto.status === STATUS_GLOSA.primeiroRecurso || foto.status === STATUS_GLOSA.segundoRecurso) return 'em-recurso';
+  return null;
+}
+
 /** Tipos de regra de prazo (tabela glosa_prazo_regras). */
 export type TipoRegraPrazo =
   | 'dias_corridos'

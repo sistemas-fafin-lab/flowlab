@@ -15,6 +15,7 @@ import { hasPermission } from '../../../utils/permissions';
 import { sincronizarGlosasRecursos, useConveniosGlosas, useUltimaSincronizacaoGlosas } from '../hooks/useGlosasRecursos';
 import type { RecorteGlosas } from '../types';
 import { formatData, formatDataHora, hojeIso } from '../utils/formato';
+import GlosasRecentesLista from './GlosasRecentesLista';
 import LotesRecursoLista from './LotesRecursoLista';
 import RecursosForaDeLoteLista from './RecursosForaDeLoteLista';
 import RegrasPrazoConvenios from './RegrasPrazoConvenios';
@@ -194,7 +195,9 @@ const GlosasRecursos: React.FC = () => {
       </div>
 
       {aba === 'dashboard' && <EmBreve titulo="Dashboard" />}
-      {aba === 'recentes' && <EmBreve titulo="Glosas recentes" />}
+      {aba === 'recentes' && (
+        <GlosasRecentesLista recorte={recorte} versao={versao} podeEditar={podeEditar} onEditado={aposEdicao} />
+      )}
       {aba === 'acompanhamento' && (
         <div className="space-y-4">
           <ResumoRecursosCards recorte={recorte} versao={versao} />

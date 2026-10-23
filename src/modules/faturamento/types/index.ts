@@ -1013,10 +1013,38 @@ export interface RecursoForaDeLote {
   selo: SeloAtrasoLote;
 }
 
-export interface RecursosForaDeLoteFiltros extends RecorteGlosas {
+/** Filtros das listas de requisições (Recursos fora de lote, Glosas recentes). */
+export interface ListaRequisicoesGlosasFiltros extends RecorteGlosas {
   busca?: string;
   pagina: number;
   tamanho: number;
+}
+
+/** Status da glosa como no Dashboard (spec, "Status do Dashboard"). */
+export type StatusGlosaDashboard = 'aberta' | 'em-recurso' | 'revertida' | 'definitiva';
+
+/** Glosa na aba "Glosas recentes" (GET glosas-recursos-recentes). */
+export interface GlosaRecente {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  numGuia: string | null;
+  paciente: string | null;
+  /** YYYY-MM do lote de faturamento original. */
+  competencia: string;
+  fontePagadora: { id: number | null; nome: string | null };
+  /** Evento de faturamento do apLIS. */
+  statusAplis: number | null;
+  /** Data de recebimento da requisição; null sem retorno do convênio. */
+  dataGlosa: string | null;
+  /** Procedimentos glosados ('código descrição'). */
+  procedimentos: string[];
+  /** Motivos do catálogo do apLIS ('código descrição'). */
+  motivos: string[];
+  /** Glosa fixada. */
+  valorGlosado: number | null;
+  valorInicialEstimado: boolean;
+  /** null: fora dos quatro status (por exemplo, em tratativas sem nada recebido). */
+  status: StatusGlosaDashboard | null;
 }
 
 /** Requisição da foto no card "Detalhes do recurso" (GET glosas-recursos-detalhe). */

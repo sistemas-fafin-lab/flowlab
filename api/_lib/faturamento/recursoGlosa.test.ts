@@ -9,6 +9,7 @@ import {
   prazoParaRecorrer,
   prazosDoLote,
   resumirAcompanhamento,
+  statusDashboard,
   valorRecebidoGlosa,
 } from './recursoGlosa.js';
 import type { LoteParaPrazo, RegrasPrazoLote, RequisicaoFoto, RequisicaoGlosaAplis } from './recursoGlosa.js';
@@ -174,6 +175,50 @@ describe('classificarRequisicao', () => {
       expect(classificarRequisicao(aplis, { valorRecursado: 250, valorRecebidoGlosa: 250 }))
         .toEqual({ classe: 'deferido', valor: 250 });
     });
+  });
+});
+
+describe('statusDashboard', () => {
+  it('Aberta: glosado sem recurso (status 6)', () => {
+    expect(statusDashboard(foto({ status: 6, emLoteRecurso: false, loteEnviado: false, valorRecursado: null })))
+      .toBe('aberta');
+  });
+
+  it.each([7, 16])('Em recurso: status %i ainda sem classificação final', (status) => {
+    expect(statusDashboard(foto({ status }))).toBe('em-recurso');
+    expect(statusDashboard(foto({ status, loteEnviado: false }))).toBe('em-recurso');
+    expect(statusDashboard(foto({ status, emLoteRecurso: false, loteEnviado: false }))).toBe('em-recurso');
+  });
+
+  it('Revertida: deferido ou deferido parcial, mesmo com o apLIS ainda em 1º/2º recurso', () => {
+    expect(statusDashboard(foto({ status: 7, recebido: 1000 }))).toBe('revertida');
+    expect(statusDashboard(foto({ status: 16, recebido: 800 }))).toBe('revertida');
+    expect(statusDashboard(foto({ status: 33, recebido: 800 }))).toBe('revertida');
+  });
+
+  it.each([34, 17])('Revertida: status %i (deferido total), mesmo sem lote nem base fixada', (status) => {
+    expect(statusDashboard(foto({ status, recebido: 1000 }))).toBe('revertida');
+    expect(statusDashboard(foto({ status, recebido: 1000, recebidoFixacao: null, valorRecursado: null, emLoteRecurso: false, loteEnviado: false })))
+      .toBe('revertida');
+    // Deferido total pelo apLIS vale mesmo com o lote não enviado ou sem recursado.
+    expect(statusDashboard(foto({ status, recebido: 1000, loteEnviado: false }))).toBe('revertida');
+    expect(statusDashboard(foto({ status, recebido: 1000, recebidoFixacao: 1000, valorRecursado: null }))).toBe('revertida');
+  });
+
+  it('o recebido de glosa editado à mão decide entre em recurso e revertida', () => {
+    expect(statusDashboard(foto(), { valorRecebidoGlosa: 120 })).toBe('revertida');
+    expect(statusDashboard(foto({ recebido: 1000 }), { valorRecebidoGlosa: 0 })).toBe('em-recurso');
+  });
+
+  it.each([15, 18, 8])('Definitiva: status %i (indeferido ou glosa acatada), mesmo com parte recebida', (status) => {
+    expect(statusDashboard(foto({ status }))).toBe('definitiva');
+    expect(statusDashboard(foto({ status, recebido: 800 }))).toBe('definitiva');
+    expect(statusDashboard(foto({ status, emLoteRecurso: false, loteEnviado: false, valorRecursado: null })))
+      .toBe('definitiva');
+  });
+
+  it('fora dos quatro: em tratativas sem nada recebido fora de lote', () => {
+    expect(statusDashboard(foto({ status: 33, emLoteRecurso: false, loteEnviado: false }))).toBeNull();
   });
 });
 

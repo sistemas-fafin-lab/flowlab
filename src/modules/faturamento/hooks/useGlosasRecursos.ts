@@ -3,12 +3,13 @@ import { supabase } from '../../../lib/supabase';
 import type {
   DetalheRequisicaoRecurso,
   EdicaoRecurso,
+  GlosaRecente,
   LoteRecursoFoto,
   LotesRecursoFiltros,
+  ListaRequisicoesGlosasFiltros,
   LotesRecursoMeta,
   RecorteGlosas,
   RecursoForaDeLote,
-  RecursosForaDeLoteFiltros,
   RequisicaoRecursoFoto,
   ResumoAcompanhamentoRecursos,
   UltimaSincronizacaoGlosas,
@@ -195,30 +196,39 @@ export function useLotesRecurso(filtros: LotesRecursoFiltros): UseLotesRecursoRe
   return { lotes, meta, loading, error, refetch };
 }
 
-interface RespostaRecursosForaDeLote {
+/** As linhas vêm numa chave própria de cada endpoint (`requisicoes`, `glosas`). */
+interface RespostaListaRequisicoes {
   success?: boolean;
   error?: string;
   meta?: LotesRecursoMeta;
-  requisicoes?: RecursoForaDeLote[];
+  [chave: string]: unknown;
 }
 
-interface UseRecursosForaDeLoteResult {
-  requisicoes: RecursoForaDeLote[];
+interface UseListaRequisicoesResult<T> {
+  itens: T[];
   meta: LotesRecursoMeta | null;
   loading: boolean;
   error: string | null;
   refetch: () => Promise<void>;
 }
 
-const MENSAGEM_ERRO_FORA_DE_LOTE = 'Não foi possível carregar os recursos fora de lote.';
-
-/** Requisições glosadas ou em recurso sem lote de recurso, no recorte. */
-export function useRecursosForaDeLote(filtros: RecursosForaDeLoteFiltros): UseRecursosForaDeLoteResult {
-  const [requisicoes, setRequisicoes] = useState<RecursoForaDeLote[]>([]);
+/**
+ * Lista paginada de requisições da foto no recorte, com busca. `ler` tira as
+ * linhas do corpo da resposta (cada endpoint as devolve numa chave).
+ */
+function useListaRequisicoesGlosas<T>(
+  action: string,
+  mensagemErro: string,
+  ler: (body: RespostaListaRequisicoes) => T[] | undefined,
+  filtros: ListaRequisicoesGlosasFiltros,
+): UseListaRequisicoesResult<T> {
+  const [itens, setItens] = useState<T[]>([]);
   const [meta, setMeta] = useState<LotesRecursoMeta | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const buscaAtual = useRef(0);
+  const lerRef = useRef(ler);
+  lerRef.current = ler;
 
   const { competencia, fontePagadoraId, busca, pagina, tamanho } = filtros;
 
@@ -230,19 +240,19 @@ export function useRecursosForaDeLote(filtros: RecursosForaDeLoteFiltros): UseRe
       const params = new URLSearchParams({ competencia, pagina: String(pagina), tamanho: String(tamanho) });
       if (fontePagadoraId !== null) params.set('fontePagadoraId', String(fontePagadoraId));
       if (busca) params.set('busca', busca);
-      const body = await chamarLegadoApi<RespostaRecursosForaDeLote>('glosas-recursos-fora-de-lote', params, MENSAGEM_ERRO_FORA_DE_LOTE);
+      const body = await chamarLegadoApi<RespostaListaRequisicoes>(action, params, mensagemErro);
       if (reqId !== buscaAtual.current) return;
-      setRequisicoes(body.requisicoes ?? []);
+      setItens(lerRef.current(body) ?? []);
       setMeta(body.meta ?? null);
     } catch (err) {
       if (reqId !== buscaAtual.current) return;
-      setError(err instanceof Error ? err.message : MENSAGEM_ERRO_FORA_DE_LOTE);
-      setRequisicoes([]);
+      setError(err instanceof Error ? err.message : mensagemErro);
+      setItens([]);
       setMeta(null);
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [competencia, fontePagadoraId, busca, pagina, tamanho]);
+  }, [action, mensagemErro, competencia, fontePagadoraId, busca, pagina, tamanho]);
 
   useEffect(() => {
     void refetch();
@@ -250,7 +260,29 @@ export function useRecursosForaDeLote(filtros: RecursosForaDeLoteFiltros): UseRe
     return () => { buscaAtual.current++; };
   }, [refetch]);
 
-  return { requisicoes, meta, loading, error, refetch };
+  return { itens, meta, loading, error, refetch };
+}
+
+/** Requisições glosadas ou em recurso sem lote de recurso, no recorte. */
+export function useRecursosForaDeLote(filtros: ListaRequisicoesGlosasFiltros) {
+  const { itens, ...resto } = useListaRequisicoesGlosas<RecursoForaDeLote>(
+    'glosas-recursos-fora-de-lote',
+    'Não foi possível carregar os recursos fora de lote.',
+    (body) => body.requisicoes as RecursoForaDeLote[] | undefined,
+    filtros,
+  );
+  return { requisicoes: itens, ...resto };
+}
+
+/** Glosas do recorte, da mais recente para a mais antiga. */
+export function useGlosasRecentes(filtros: ListaRequisicoesGlosasFiltros) {
+  const { itens, ...resto } = useListaRequisicoesGlosas<GlosaRecente>(
+    'glosas-recursos-recentes',
+    'Não foi possível carregar as glosas recentes.',
+    (body) => body.glosas as GlosaRecente[] | undefined,
+    filtros,
+  );
+  return { glosas: itens, ...resto };
 }
 
 interface RespostaResumoRecursos {

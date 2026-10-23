@@ -1,7 +1,7 @@
 // Rótulos e cores da tela Glosas e Recursos, comuns à lista de lotes de
 // recurso e ao card "Detalhes do recurso".
 
-import type { SeloAtrasoLote, StatusLoteRecurso } from '../types';
+import type { SeloAtrasoLote, StatusGlosaDashboard, StatusLoteRecurso } from '../types';
 
 export const STATUS_LOTE_CORES: Record<StatusLoteRecurso, string> = {
   Criado: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
@@ -14,6 +14,14 @@ export const SELOS_ATRASO: Record<Exclude<SeloAtrasoLote, 'sem-regra'>, { label:
   'no-prazo': { label: 'No prazo', cor: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
   'vence-hoje': { label: 'Vence hoje', cor: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' },
   atrasado: { label: 'Atrasado', cor: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' },
+};
+
+/** Status da glosa no Dashboard e em Glosas recentes. */
+export const STATUS_GLOSA_DASHBOARD: Record<StatusGlosaDashboard, { label: string; cor: string }> = {
+  aberta: { label: 'Aberta', cor: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' },
+  'em-recurso': { label: 'Em recurso', cor: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
+  revertida: { label: 'Revertida', cor: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
+  definitiva: { label: 'Definitiva', cor: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300' },
 };
 
 /** Eventos de faturamento (`eventofatur`) que aparecem na foto de glosas e recursos. */

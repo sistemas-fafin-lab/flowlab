@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { AlertCircle, ChevronLeft, ChevronRight, Eye, FileText, Search } from 'lucide-react';
+import { AlertCircle, Eye, FileText, Search } from 'lucide-react';
 import { useLotesRecurso } from '../hooks/useGlosasRecursos';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
@@ -8,6 +8,7 @@ import { formatCurrency, formatData } from '../utils/formato';
 import { SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
 import { MarcaEditado } from './CampoEditavelRecurso';
 import DetalhesRecursoCard from './DetalhesRecursoCard';
+import PaginacaoGlosas from './PaginacaoGlosas';
 
 // Acompanhamento dos recursos → "Lotes de recurso": os lotes de recurso da foto
 // do apLIS no recorte do cabeçalho (mês do lote de faturamento original +
@@ -105,27 +106,7 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEdi
   const qtdPaginas = meta?.qtdPaginas ?? 0;
 
   const paginacao = (
-    <div className="flex items-center gap-2">
-      <span className="text-sm text-gray-500 dark:text-gray-400">
-        Página {pagina} de {Math.max(qtdPaginas, 1)}
-      </span>
-      <button
-        onClick={() => setPagina((p) => Math.max(1, p - 1))}
-        disabled={pagina <= 1 || loading}
-        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        <ChevronLeft size={16} />
-        Anterior
-      </button>
-      <button
-        onClick={() => setPagina((p) => p + 1)}
-        disabled={pagina >= qtdPaginas || loading}
-        className="inline-flex items-center gap-1 px-3 py-2 rounded-lg text-sm font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        Próxima
-        <ChevronRight size={16} />
-      </button>
-    </div>
+    <PaginacaoGlosas pagina={pagina} qtdPaginas={qtdPaginas} loading={loading} onPagina={setPagina} />
   );
 
   return (
