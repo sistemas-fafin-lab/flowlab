@@ -1019,10 +1019,33 @@ export interface ObservacaoRecurso {
   obsConclusao: string | null;
 }
 
+export type TipoEventoHistoricoRecurso =
+  | 'inicio_acompanhamento'
+  | 'entrada_lote_recurso'
+  | 'mudanca_status'
+  | 'mudanca_recebido'
+  | 'envio_lote';
+
+/** Evento da aba Histórico (glosa_recurso_historico): da requisição ou do lote dela. */
+export interface EventoHistoricoRecurso {
+  id: string;
+  idLoteRecurso: number | null;
+  /** ISO: quando a sincronização viu a mudança (ou a edição foi feita). */
+  ocorridoEm: string;
+  tipo: TipoEventoHistoricoRecurso;
+  valorAnterior: string | null;
+  valorNovo: string | null;
+  descricao: string;
+  /** Preenchido nas edições manuais; null nos eventos da sincronização. */
+  usuarioId: string | null;
+}
+
 export interface DetalheRequisicaoRecurso {
   requisicao: RequisicaoRecursoFoto;
   justificativas: JustificativaRecurso[];
   observacoes: ObservacaoRecurso[];
+  /** Do mais antigo ao mais novo. */
+  historico: EventoHistoricoRecurso[];
 }
 
 export interface UltimaSincronizacaoGlosas {

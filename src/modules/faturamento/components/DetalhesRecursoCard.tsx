@@ -5,10 +5,14 @@ import {
   CheckCircle2,
   ChevronRight,
   Clock,
+  DollarSign,
   FileText,
+  FolderInput,
   History,
   ImageIcon,
   MessageSquare,
+  PlayCircle,
+  Send,
   X,
 } from 'lucide-react';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
@@ -16,13 +20,15 @@ import { useDetalheRequisicaoRecurso, useRequisicoesLoteRecurso } from '../hooks
 import { useImagensRequisicaoLegado } from '../hooks/useImagensRequisicaoLegado';
 import type {
   DetalheRequisicaoRecurso,
+  EventoHistoricoRecurso,
   JustificativaRecurso,
   LoteRecursoFoto,
   ObservacaoRecurso,
   RequisicaoRecursoFoto,
+  TipoEventoHistoricoRecurso,
 } from '../types';
 import { corStatusFaturamento } from '../utils/corStatusFaturamento';
-import { formatCompetencia, formatCurrency, formatData } from '../utils/formato';
+import { formatCompetencia, formatCurrency, formatData, formatDataHora } from '../utils/formato';
 import { rotuloStatusAplis, SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
 import { ImagensRequisicaoLegadoModal } from './ImagensRequisicaoLegadoModal';
 
@@ -186,6 +192,40 @@ const ResumoRequisicao: React.FC<{ requisicao: RequisicaoRecursoFoto }> = ({ req
   </div>
 );
 
+const ICONE_EVENTO: Record<TipoEventoHistoricoRecurso, { icone: React.ElementType; cor: string }> = {
+  inicio_acompanhamento: { icone: PlayCircle, cor: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300' },
+  entrada_lote_recurso: { icone: FolderInput, cor: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
+  envio_lote: { icone: Send, cor: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' },
+  mudanca_status: { icone: History, cor: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' },
+  mudanca_recebido: { icone: DollarSign, cor: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
+};
+
+const AbaHistorico: React.FC<{ historico: EventoHistoricoRecurso[] }> = ({ historico }) => {
+  if (historico.length === 0) {
+    return <Vazio icone={History} texto="Sem eventos: a requisição ainda não foi sincronizada" />;
+  }
+  return (
+    <ol className="space-y-3">
+      {historico.map((e) => {
+        const { icone: Icone, cor } = ICONE_EVENTO[e.tipo] ?? ICONE_EVENTO.mudanca_status;
+        return (
+          <li key={e.id} className="flex gap-3">
+            <span className={`h-7 w-7 rounded-full flex items-center justify-center shrink-0 ${cor}`}>
+              <Icone size={14} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm text-gray-900 dark:text-white break-words">{e.descricao}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                {formatDataHora(e.ocorridoEm)} · {e.usuarioId ? 'Edição manual' : 'Sincronização com o apLIS'}
+              </p>
+            </div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+};
+
 const AbaJustificativa: React.FC<{ justificativas: JustificativaRecurso[]; foraDeLote: boolean }> = ({
   justificativas,
   foraDeLote,
@@ -287,9 +327,9 @@ const AbaDocumentos: React.FC<{ idRequisicao: number }> = ({ idRequisicao }) => 
   );
 };
 
-/** Justificativa e Observações: as duas vêm da mesma consulta ao apLIS. */
-const AbaDoAplis: React.FC<{
-  aba: 'justificativa' | 'observacoes';
+/** Histórico, Justificativa e Observações vêm da mesma consulta. */
+const AbaDoDetalhe: React.FC<{
+  aba: 'historico' | 'justificativa' | 'observacoes';
   dados: DetalheRequisicaoRecurso | null;
   loading: boolean;
   error: string | null;
@@ -297,6 +337,7 @@ const AbaDoAplis: React.FC<{
   if (loading) return <LoadingSpinner message="Consultando o apLIS..." />;
   if (error) return <Erro mensagem={error} />;
   if (!dados) return null;
+  if (aba === 'historico') return <AbaHistorico historico={dados.historico} />;
   if (aba === 'observacoes') return <AbaObservacoes observacoes={dados.observacoes} />;
   return (
     <AbaJustificativa justificativas={dados.justificativas} foraDeLote={dados.requisicao.idLoteRecurso === null} />
@@ -309,8 +350,7 @@ const DetalheRequisicao: React.FC<{
   previa: RequisicaoRecursoFoto | null;
 }> = ({ idRequisicao, previa }) => {
   const { dados, loading, error } = useDetalheRequisicaoRecurso(idRequisicao);
-  // O Histórico ainda está vazio (ticket 06): abre na Justificativa.
-  const [aba, setAba] = useState<AbaRequisicao>('justificativa');
+  const [aba, setAba] = useState<AbaRequisicao>('historico');
   const requisicao = dados?.requisicao ?? previa;
 
   return (
@@ -335,10 +375,10 @@ const DetalheRequisicao: React.FC<{
         ))}
       </div>
 
-      {aba === 'historico' && <Vazio icone={History} texto="Histórico da requisição — em breve" />}
-      {aba === 'documentos' && <AbaDocumentos idRequisicao={idRequisicao} />}
-      {(aba === 'justificativa' || aba === 'observacoes') && (
-        <AbaDoAplis aba={aba} dados={dados} loading={loading} error={error} />
+      {aba === 'documentos' ? (
+        <AbaDocumentos idRequisicao={idRequisicao} />
+      ) : (
+        <AbaDoDetalhe aba={aba} dados={dados} loading={loading} error={error} />
       )}
     </div>
   );

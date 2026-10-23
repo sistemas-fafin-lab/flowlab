@@ -257,7 +257,7 @@ export function useRequisicoesLoteRecurso(idLoteRecurso: number | null): UseDeta
   );
 }
 
-/** Requisição da foto com justificativa e observações do apLIS. */
+/** Requisição da foto com justificativa e observações do apLIS e o histórico do FlowLab. */
 export function useDetalheRequisicaoRecurso(idRequisicao: number | null): UseDetalheRecursoResult<DetalheRequisicaoRecurso> {
   return useDetalheRecurso(
     'idRequisicao',
@@ -266,6 +266,7 @@ export function useDetalheRequisicaoRecurso(idRequisicao: number | null): UseDet
       requisicao: body.requisicao as RequisicaoRecursoFoto,
       justificativas: body.justificativas ?? [],
       observacoes: body.observacoes ?? [],
+      historico: body.historico ?? [],
     }),
     'Não foi possível carregar o detalhe da requisição.',
   );

@@ -13,6 +13,11 @@
  * envio do recurso. A mesma marca vale para a requisição que entra já num
  * lote de recurso enviado.
  *
+ * Histórico: a foto anterior de cada requisição e de cada lote é comparada
+ * com a nova (recursoGlosa.eventosDaRequisicao / eventosDoLote) e os eventos
+ * vão para glosa_recurso_historico, antes da foto: uma falha no meio repete
+ * eventos na próxima sincronização em vez de perdê-los.
+ *
  * Fonte do apLIS: MySQL de backup, ~1 dia de atraso; `meta.dadoAte` diz até
  * quando. Falha na réplica → erro, sem gravar nada.
  *
@@ -31,8 +36,13 @@ import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { glosasRecursosDoPeriodo } from '../faturamento/bdLab.js';
 import type { LoteRecursoAplis, RequisicaoGlosaRecursoAplis } from '../faturamento/bdLab.js';
-import { competenciaValida, fixarGlosa } from '../faturamento/recursoGlosa.js';
-import type { GlosaFixada } from '../faturamento/recursoGlosa.js';
+import { competenciaValida, eventosDaRequisicao, eventosDoLote, fixarGlosa } from '../faturamento/recursoGlosa.js';
+import type {
+  EventoHistorico,
+  FotoHistoricoLote,
+  FotoHistoricoRequisicao,
+  GlosaFixada,
+} from '../faturamento/recursoGlosa.js';
 import { getSupabaseAdminClient } from '../supabase.js';
 
 /** Ids por `.in()` / linhas por upsert: o maior mês de 2026 tem ~700 requisições. */
@@ -43,8 +53,11 @@ interface CorpoSincronizar {
   fontePagadoraId?: unknown;
 }
 
-interface FixacaoGravada {
+interface RequisicaoGravada {
   id_requisicao: number;
+  status_aplis: number | null;
+  recebido: number | string;
+  id_lote_recurso: number | null;
   glosa_fixada: number | string | null;
   recebido_fixacao: number | string | null;
   valor_inicial_estimado: boolean;
@@ -63,26 +76,95 @@ function numeroOuNulo(valor: number | string | null): number | null {
   return valor === null ? null : Number(valor);
 }
 
-async function fixacoesGravadas(
+interface RequisicaoAnterior {
+  fixacao: GlosaFixada;
+  historico: FotoHistoricoRequisicao;
+}
+
+async function requisicoesGravadas(
   supabase: SupabaseClient,
   ids: number[],
-): Promise<Map<number, GlosaFixada>> {
-  const porId = new Map<number, GlosaFixada>();
+): Promise<Map<number, RequisicaoAnterior>> {
+  const porId = new Map<number, RequisicaoAnterior>();
   for (const bloco of blocos(ids)) {
     const { data, error } = await supabase
       .from('glosa_recurso_requisicoes')
-      .select('id_requisicao, glosa_fixada, recebido_fixacao, valor_inicial_estimado')
+      .select('id_requisicao, status_aplis, recebido, id_lote_recurso, glosa_fixada, recebido_fixacao, valor_inicial_estimado')
       .in('id_requisicao', bloco);
     if (error) throw new ErroGravacao(`foto das requisições: ${error.message}`);
-    for (const linha of (data ?? []) as FixacaoGravada[]) {
+    for (const linha of (data ?? []) as RequisicaoGravada[]) {
       porId.set(Number(linha.id_requisicao), {
-        glosaFixada: numeroOuNulo(linha.glosa_fixada),
-        recebidoFixacao: numeroOuNulo(linha.recebido_fixacao),
-        valorInicialEstimado: Boolean(linha.valor_inicial_estimado),
+        fixacao: {
+          glosaFixada: numeroOuNulo(linha.glosa_fixada),
+          recebidoFixacao: numeroOuNulo(linha.recebido_fixacao),
+          valorInicialEstimado: Boolean(linha.valor_inicial_estimado),
+        },
+        historico: {
+          status: linha.status_aplis,
+          recebido: Number(linha.recebido),
+          idLoteRecurso: linha.id_lote_recurso,
+        },
       });
     }
   }
   return porId;
+}
+
+async function lotesGravados(
+  supabase: SupabaseClient,
+  ids: number[],
+): Promise<Map<number, FotoHistoricoLote>> {
+  const porId = new Map<number, FotoHistoricoLote>();
+  for (const bloco of blocos(ids)) {
+    const { data, error } = await supabase
+      .from('glosa_recurso_lotes')
+      .select('id_lote_recurso, data_envio_aplis')
+      .in('id_lote_recurso', bloco);
+    if (error) throw new ErroGravacao(`foto dos lotes: ${error.message}`);
+    for (const linha of (data ?? []) as { id_lote_recurso: number; data_envio_aplis: string | null }[]) {
+      porId.set(Number(linha.id_lote_recurso), {
+        idLoteRecurso: Number(linha.id_lote_recurso),
+        dataEnvio: linha.data_envio_aplis,
+      });
+    }
+  }
+  return porId;
+}
+
+/** Eventos da sincronização, comparando a foto gravada com o apLIS de agora. */
+function eventosDaSincronizacao(
+  aplis: { requisicoes: RequisicaoGlosaRecursoAplis[]; lotesRecurso: LoteRecursoAplis[] },
+  requisicoesAnteriores: Map<number, RequisicaoAnterior>,
+  lotesAnteriores: Map<number, FotoHistoricoLote>,
+  agora: string,
+): Record<string, unknown>[] {
+  const paraLinhaHistorico = (idRequisicao: number | null, idLoteRecurso: number | null) => (e: EventoHistorico) => ({
+    id_requisicao: idRequisicao,
+    id_lote_recurso: idLoteRecurso,
+    tipo: e.tipo,
+    valor_anterior: e.valorAnterior,
+    valor_novo: e.valorNovo,
+    descricao: e.descricao,
+    ocorrido_em: agora,
+    usuario_id: null,
+  });
+
+  // Lote com alguma requisição já acompanhada: não é carga inicial.
+  const lotesAcompanhados = new Set(
+    aplis.requisicoes
+      .filter((r) => r.idLoteRecurso !== null && requisicoesAnteriores.has(r.idRequisicao))
+      .map((r) => r.idLoteRecurso),
+  );
+  const doLote = aplis.lotesRecurso.flatMap((lote) => eventosDoLote(
+    lotesAnteriores.get(lote.idLoteRecurso) ?? null,
+    { idLoteRecurso: lote.idLoteRecurso, dataEnvio: lote.dtaEnvio },
+    { acompanhado: lotesAcompanhados.has(lote.idLoteRecurso) },
+  ).map(paraLinhaHistorico(null, lote.idLoteRecurso)));
+  const daRequisicao = aplis.requisicoes.flatMap((r) => eventosDaRequisicao(
+    requisicoesAnteriores.get(r.idRequisicao)?.historico ?? null,
+    { status: r.status, recebido: r.recebido, idLoteRecurso: r.idLoteRecurso },
+  ).map(paraLinhaHistorico(r.idRequisicao, r.idLoteRecurso)));
+  return [...doLote, ...daRequisicao];
 }
 
 /** Convênios já cobertos por uma sincronização do mês; `null` no conjunto = todos. */
@@ -192,13 +274,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const agora = new Date().toISOString();
 
     try {
-      const anteriores = await fixacoesGravadas(supabase, aplis.requisicoes.map((r) => r.idRequisicao));
+      const anteriores = await requisicoesGravadas(supabase, aplis.requisicoes.map((r) => r.idRequisicao));
+      const lotesAnteriores = await lotesGravados(supabase, aplis.lotesRecurso.map((l) => l.idLoteRecurso));
       const cobertos = await conveniosSincronizados(supabase, competencia);
       const cargaInicial = (r: RequisicaoGlosaRecursoAplis): boolean =>
         !cobertos.has(null) && !cobertos.has(r.fontePagadora.id);
       const lotesEnviados = new Set(
         aplis.lotesRecurso.filter((l) => l.dtaEnvio !== null).map((l) => l.idLoteRecurso),
       );
+
+      const eventos = eventosDaSincronizacao(aplis, anteriores, lotesAnteriores, agora);
+      for (const bloco of blocos(eventos)) {
+        const { error } = await supabase.from('glosa_recurso_historico').insert(bloco);
+        if (error) throw new ErroGravacao(`glosa_recurso_historico: ${error.message}`);
+      }
 
       // Lotes antes das requisições: id_lote_recurso é chave estrangeira.
       await gravarEmBlocos(
@@ -212,7 +301,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         'glosa_recurso_requisicoes',
         aplis.requisicoes.map((r) => linhaRequisicao(
           r,
-          fixarGlosa(r, anteriores.get(r.idRequisicao) ?? null, {
+          fixarGlosa(r, anteriores.get(r.idRequisicao)?.fixacao ?? null, {
             cargaInicial: cargaInicial(r),
             recursoEnviado: r.idLoteRecurso !== null && lotesEnviados.has(r.idLoteRecurso),
           }),

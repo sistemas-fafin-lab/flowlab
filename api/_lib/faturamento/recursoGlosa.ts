@@ -403,3 +403,151 @@ export function prazosDoLote(lote: LoteParaPrazo, regras: RegrasPrazoLote | null
 
   return { dataRetornoPrevista: retornoPrevisto, dataPagamentoPrevista: pagamentoPrevisto, selo };
 }
+
+/** Rótulo do evento de faturamento no histórico; espelha rotuloStatusAplis da tela (src/…/recursoGlosaVisual.ts). */
+const ROTULO_STATUS: Record<number, string> = {
+  5: 'Recebido',
+  [STATUS_GLOSA.glosadoSemRecurso]: 'Glosado sem recurso',
+  [STATUS_GLOSA.primeiroRecurso]: '1º recurso',
+  [STATUS_GLOSA.glosaDefinitivaAcatada]: 'Glosa definitiva – acatada diretoria',
+  [STATUS_GLOSA.recursoNaoAcatado]: 'Recurso não acatado',
+  [STATUS_GLOSA.segundoRecurso]: '2º recurso',
+  [STATUS_GLOSA.recursoPago]: 'Recurso de glosa pago',
+  [STATUS_GLOSA.recebidoAMenorAcatado]: 'Recebido a menor – acatado',
+  [STATUS_GLOSA.emTratativas]: 'Em tratativas com convênio',
+  [STATUS_GLOSA.glosaRecebida]: 'Glosa recebida',
+};
+
+function rotuloStatus(status: number | null): string {
+  if (status === null) return 'sem status';
+  return ROTULO_STATUS[status] ?? `evento ${status}`;
+}
+
+export type TipoEventoHistorico =
+  | 'inicio_acompanhamento'
+  | 'entrada_lote_recurso'
+  | 'mudanca_status'
+  | 'mudanca_recebido'
+  | 'envio_lote';
+
+/** Evento do histórico (tabela glosa_recurso_historico), sem data nem dono. */
+export interface EventoHistorico {
+  tipo: TipoEventoHistorico;
+  valorAnterior: string | null;
+  valorNovo: string | null;
+  descricao: string;
+}
+
+/** O que a mudança para cada status quer dizer, no texto do histórico. */
+const TEXTO_PARA_STATUS: Record<number, string> = {
+  [STATUS_GLOSA.glosadoSemRecurso]: 'Voltou para glosado sem recurso',
+  [STATUS_GLOSA.primeiroRecurso]: 'Entrou em 1º recurso',
+  [STATUS_GLOSA.segundoRecurso]: 'Foi para 2º recurso',
+  [STATUS_GLOSA.recursoNaoAcatado]: 'Recurso não acatado',
+  [STATUS_GLOSA.recursoPago]: 'Recurso pago',
+  [STATUS_GLOSA.glosaRecebida]: 'Glosa recebida',
+  [STATUS_GLOSA.emTratativas]: 'Em tratativas com o convênio',
+  [STATUS_GLOSA.recebidoAMenorAcatado]: 'Glosa acatada (recebido a menor)',
+  [STATUS_GLOSA.glosaDefinitivaAcatada]: 'Glosa definitiva – acatada pela diretoria',
+};
+
+function reais(valor: number): string {
+  return `R$ ${valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function codigoOuNulo(status: number | null): string | null {
+  return status === null ? null : String(status);
+}
+
+/** O que a foto da requisição guarda e o histórico compara. */
+export interface FotoHistoricoRequisicao {
+  status: number | null;
+  recebido: number;
+  idLoteRecurso: number | null;
+}
+
+/**
+ * Eventos da requisição entre a foto anterior e a nova (spec, "Histórico").
+ * `anterior` null: primeira sincronização — um só evento de início do
+ * acompanhamento, sem reconstruir o passado.
+ */
+export function eventosDaRequisicao(
+  anterior: FotoHistoricoRequisicao | null,
+  nova: FotoHistoricoRequisicao,
+): EventoHistorico[] {
+  if (anterior === null) {
+    return [{
+      tipo: 'inicio_acompanhamento',
+      valorAnterior: null,
+      valorNovo: codigoOuNulo(nova.status),
+      descricao: `Início do acompanhamento (${rotuloStatus(nova.status)})`,
+    }];
+  }
+
+  const eventos: EventoHistorico[] = [];
+  if (nova.idLoteRecurso !== null && anterior.idLoteRecurso !== nova.idLoteRecurso) {
+    eventos.push({
+      tipo: 'entrada_lote_recurso',
+      valorAnterior: anterior.idLoteRecurso === null ? null : String(anterior.idLoteRecurso),
+      valorNovo: String(nova.idLoteRecurso),
+      descricao: `Entrou no lote de recurso ${nova.idLoteRecurso}`,
+    });
+  }
+  if (anterior.status !== nova.status) {
+    eventos.push({
+      tipo: 'mudanca_status',
+      valorAnterior: codigoOuNulo(anterior.status),
+      valorNovo: codigoOuNulo(nova.status),
+      descricao: (nova.status !== null ? TEXTO_PARA_STATUS[nova.status] : undefined)
+        ?? `Status mudou de ${rotuloStatus(anterior.status)} para ${rotuloStatus(nova.status)}`,
+    });
+  }
+  const recebidoAnterior = centavos(anterior.recebido);
+  const recebidoNovo = centavos(nova.recebido);
+  if (recebidoAnterior !== recebidoNovo) {
+    eventos.push({
+      tipo: 'mudanca_recebido',
+      valorAnterior: recebidoAnterior.toFixed(2),
+      valorNovo: recebidoNovo.toFixed(2),
+      descricao: `Recebido mudou de ${reais(recebidoAnterior)} para ${reais(recebidoNovo)}`,
+    });
+  }
+  return eventos;
+}
+
+/** O que a foto do lote de recurso guarda e o histórico compara. */
+export interface FotoHistoricoLote {
+  idLoteRecurso: number;
+  /** 'YYYY-MM-DD' do apLIS; null: não enviado. */
+  dataEnvio: string | null;
+}
+
+function dataBr(iso: string): string {
+  const [ano, mes, dia] = iso.slice(0, 10).split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+/**
+ * Eventos do lote de recurso entre a foto anterior e a nova. Lote novo na
+ * foto: o envio só conta se o lote junta requisições já acompanhadas
+ * (`acompanhado`) — foi criado e enviado entre duas sincronizações; senão é
+ * carga inicial e o passado não é reconstruído.
+ */
+export function eventosDoLote(
+  anterior: FotoHistoricoLote | null,
+  novo: FotoHistoricoLote,
+  opcoes: { acompanhado: boolean },
+): EventoHistorico[] {
+  if (novo.dataEnvio === null) return [];
+  if (anterior === null && !opcoes.acompanhado) return [];
+  const envioAnterior = anterior?.dataEnvio ?? null;
+  if (envioAnterior === novo.dataEnvio) return [];
+  return [{
+    tipo: 'envio_lote',
+    valorAnterior: envioAnterior,
+    valorNovo: novo.dataEnvio,
+    descricao: envioAnterior === null
+      ? `Lote de recurso ${novo.idLoteRecurso} enviado em ${dataBr(novo.dataEnvio)}`
+      : `Data de envio do lote de recurso ${novo.idLoteRecurso} mudou de ${dataBr(envioAnterior)} para ${dataBr(novo.dataEnvio)}`,
+  }];
+}

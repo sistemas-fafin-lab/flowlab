@@ -30,6 +30,7 @@ interface Cenario {
   usuario?: { id: string } | null;
   permissoes?: string[];
   fotos?: Linha[];
+  lotes?: Linha[];
   sincronizacoes?: Linha[];
 }
 
@@ -78,7 +79,8 @@ function mockarSupabase(cenario: Cenario = {}): Gravado {
     user_profiles: [perfil],
     glosa_recurso_requisicoes: cenario.fotos ?? [],
     glosa_recurso_sincronizacoes: cenario.sincronizacoes ?? [],
-    glosa_recurso_lotes: [],
+    glosa_recurso_lotes: cenario.lotes ?? [],
+    glosa_recurso_historico: [],
   };
   getSupabaseAdminClientMock.mockReturnValue({
     auth: {
@@ -340,7 +342,7 @@ describe('POST /api/faturamento/glosas-recursos-sincronizar', () => {
       const { gravado } = await executar(
         {
           sincronizacoes: jaSincronizado,
-          fotos: [{ id_requisicao: 501, glosa_fixada: 300, recebido_fixacao: 700, valor_inicial_estimado: false }],
+          fotos: [{ id_requisicao: 501, status_aplis: 6, recebido: '700.00', id_lote_recurso: null, glosa_fixada: 300, recebido_fixacao: 700, valor_inicial_estimado: false }],
         },
         { competencia: '2026-09' },
         { requisicoes: [requisicao({ status: 34, recebido: 1000, idLoteRecurso: 441, recursado: 280 })] },
@@ -359,7 +361,7 @@ describe('POST /api/faturamento/glosas-recursos-sincronizar', () => {
     // nas outras. A data da primeira sincronização fica com o default do banco.
     it('atualiza a última sincronização e deixa a primeira para o banco', async () => {
       const { gravado } = await executar(
-        { fotos: [{ id_requisicao: 501, glosa_fixada: 300, recebido_fixacao: 700, valor_inicial_estimado: false }] },
+        { fotos: [{ id_requisicao: 501, status_aplis: 6, recebido: '700.00', id_lote_recurso: null, glosa_fixada: 300, recebido_fixacao: 700, valor_inicial_estimado: false }] },
         { competencia: '2026-09' },
         {
           requisicoes: [requisicao({ idRequisicao: 501 }), requisicao({ idRequisicao: 502, idLoteRecurso: 441 })],
@@ -380,6 +382,119 @@ describe('POST /api/faturamento/glosas-recursos-sincronizar', () => {
       await handler(criarReq({ competencia: '2026-09' }), res);
       expect(res.statusCode).toBe(502);
       expect(gravado).toEqual({ upserts: {}, inserts: {} });
+    });
+  });
+
+  describe('histórico', () => {
+    const jaSincronizado = [{ competencia: '2026-09', id_fonte_pagadora: null }];
+    const fotoAnterior = {
+      id_requisicao: 501,
+      status_aplis: 7,
+      recebido: '700.00',
+      id_lote_recurso: 441,
+      glosa_fixada: '300.00',
+      recebido_fixacao: '700.00',
+      valor_inicial_estimado: false,
+    };
+
+    function eventosGravados(gravado: Gravado): Linha[] {
+      return gravado.inserts.glosa_recurso_historico ?? [];
+    }
+
+    it('a primeira sincronização da requisição grava só o início do acompanhamento', async () => {
+      const { res, gravado } = await executar(
+        { sincronizacoes: jaSincronizado },
+        { competencia: '2026-09' },
+        { requisicoes: [requisicao({ status: 7, idLoteRecurso: 441, recursado: 300 })], lotesRecurso: [loteRecurso()] },
+      );
+      expect(res.statusCode).toBe(200);
+      expect(eventosGravados(gravado)).toEqual([{
+        id_requisicao: 501,
+        id_lote_recurso: 441,
+        tipo: 'inicio_acompanhamento',
+        valor_anterior: null,
+        valor_novo: '7',
+        descricao: 'Início do acompanhamento (1º recurso)',
+        ocorrido_em: res.body?.meta.sincronizadoEm,
+        usuario_id: null,
+      }]);
+    });
+
+    it('requisição já acompanhada: grava a mudança de status e de recebido', async () => {
+      const { res, gravado } = await executar(
+        { sincronizacoes: jaSincronizado, fotos: [fotoAnterior], lotes: [{ id_lote_recurso: 441, data_envio_aplis: '2026-10-22' }] },
+        { competencia: '2026-09' },
+        {
+          requisicoes: [requisicao({ status: 16, recebido: 850, idLoteRecurso: 441, recursado: 300 })],
+          lotesRecurso: [loteRecurso()],
+        },
+      );
+      expect(eventosGravados(gravado)).toEqual([
+        expect.objectContaining({
+          id_requisicao: 501,
+          tipo: 'mudanca_status',
+          valor_anterior: '7',
+          valor_novo: '16',
+          descricao: 'Foi para 2º recurso',
+          ocorrido_em: res.body?.meta.sincronizadoEm,
+        }),
+        expect.objectContaining({ id_requisicao: 501, tipo: 'mudanca_recebido', valor_anterior: '700.00', valor_novo: '850.00' }),
+      ]);
+    });
+
+    it('lote enviado desde a última sincronização: evento do lote, sem requisição', async () => {
+      const { gravado } = await executar(
+        { sincronizacoes: jaSincronizado, fotos: [fotoAnterior], lotes: [{ id_lote_recurso: 441, data_envio_aplis: null }] },
+        { competencia: '2026-09' },
+        {
+          requisicoes: [requisicao({ status: 7, recebido: 700, idLoteRecurso: 441, recursado: 300 })],
+          lotesRecurso: [loteRecurso()],
+        },
+      );
+      expect(eventosGravados(gravado)).toEqual([expect.objectContaining({
+        id_requisicao: null,
+        id_lote_recurso: 441,
+        tipo: 'envio_lote',
+        valor_anterior: null,
+        valor_novo: '2026-10-22',
+      })]);
+    });
+
+    it('requisição acompanhada entra num lote novo já enviado: entrada e envio', async () => {
+      const { gravado } = await executar(
+        { sincronizacoes: jaSincronizado, fotos: [{ ...fotoAnterior, id_lote_recurso: null }] },
+        { competencia: '2026-09' },
+        {
+          requisicoes: [requisicao({ status: 7, recebido: 700, idLoteRecurso: 441, recursado: 300 })],
+          lotesRecurso: [loteRecurso()],
+        },
+      );
+      expect(eventosGravados(gravado).map((e) => [e.tipo, e.id_requisicao, e.id_lote_recurso])).toEqual([
+        ['envio_lote', null, 441],
+        ['entrada_lote_recurso', 501, 441],
+      ]);
+    });
+
+    it('lote novo só com requisições novas é carga inicial: só o início do acompanhamento', async () => {
+      const { gravado } = await executar(
+        { sincronizacoes: jaSincronizado },
+        { competencia: '2026-09' },
+        { requisicoes: [requisicao({ status: 7, idLoteRecurso: 441, recursado: 300 })], lotesRecurso: [loteRecurso()] },
+      );
+      expect(eventosGravados(gravado).map((e) => e.tipo)).toEqual(['inicio_acompanhamento']);
+    });
+
+    it('nada mudou: não grava evento', async () => {
+      const { res, gravado } = await executar(
+        { sincronizacoes: jaSincronizado, fotos: [fotoAnterior], lotes: [{ id_lote_recurso: 441, data_envio_aplis: '2026-10-22' }] },
+        { competencia: '2026-09' },
+        {
+          requisicoes: [requisicao({ status: 7, recebido: 700, idLoteRecurso: 441, recursado: 300 })],
+          lotesRecurso: [loteRecurso()],
+        },
+      );
+      expect(res.statusCode).toBe(200);
+      expect(gravado.inserts.glosa_recurso_historico).toBeUndefined();
     });
   });
 });

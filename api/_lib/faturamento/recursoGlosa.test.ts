@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import {
   aplicarRegraPrazo,
   classificarRequisicao,
+  eventosDaRequisicao,
+  eventosDoLote,
   fixarGlosa,
   prazosDoLote,
   resumirAcompanhamento,
@@ -355,5 +357,129 @@ describe('prazosDoLote', () => {
     const emAnalise = lote().requisicoes[0];
     const requisicoes = [{ foto: { ...emAnalise.foto, status: 15 } }, emAnalise];
     expect(prazosDoLote(lote({ requisicoes }), regras, '2026-12-01').selo).toBe('atrasado');
+  });
+});
+
+describe('eventosDaRequisicao', () => {
+  const foto = { status: 7, recebido: 700, idLoteRecurso: 441 };
+
+  it('primeira sincronização: um único evento de início do acompanhamento', () => {
+    expect(eventosDaRequisicao(null, foto)).toEqual([{
+      tipo: 'inicio_acompanhamento',
+      valorAnterior: null,
+      valorNovo: '7',
+      descricao: 'Início do acompanhamento (1º recurso)',
+    }]);
+  });
+
+  it('sem mudança não gera evento', () => {
+    expect(eventosDaRequisicao(foto, { ...foto })).toEqual([]);
+  });
+
+  it.each([
+    [7, 16, 'Foi para 2º recurso'],
+    [7, 18, 'Glosa acatada (recebido a menor)'],
+    [6, 7, 'Entrou em 1º recurso'],
+    [7, 15, 'Recurso não acatado'],
+    [16, 34, 'Glosa recebida'],
+    [7, 17, 'Recurso pago'],
+    [7, 8, 'Glosa definitiva – acatada pela diretoria'],
+    [7, 33, 'Em tratativas com o convênio'],
+    [7, 6, 'Voltou para glosado sem recurso'],
+  ])('status %i → %i: "%s"', (de, para, texto) => {
+    expect(eventosDaRequisicao({ ...foto, status: de }, { ...foto, status: para })).toEqual([{
+      tipo: 'mudanca_status',
+      valorAnterior: String(de),
+      valorNovo: String(para),
+      descricao: texto,
+    }]);
+  });
+
+  it('status fora do catálogo: diz de qual para qual', () => {
+    expect(eventosDaRequisicao({ ...foto, status: 7 }, { ...foto, status: 99 })[0].descricao)
+      .toBe('Status mudou de 1º recurso para evento 99');
+  });
+
+  it('entra num lote de recurso', () => {
+    expect(eventosDaRequisicao({ ...foto, idLoteRecurso: null }, foto)).toEqual([{
+      tipo: 'entrada_lote_recurso',
+      valorAnterior: null,
+      valorNovo: '441',
+      descricao: 'Entrou no lote de recurso 441',
+    }]);
+  });
+
+  it('passa para outro lote de recurso', () => {
+    expect(eventosDaRequisicao(foto, { ...foto, idLoteRecurso: 520 })).toEqual([
+      expect.objectContaining({ tipo: 'entrada_lote_recurso', valorAnterior: '441', valorNovo: '520' }),
+    ]);
+  });
+
+  it('sair do lote de recurso não é entrada', () => {
+    expect(eventosDaRequisicao(foto, { ...foto, idLoteRecurso: null })).toEqual([]);
+  });
+
+  it('recebido mudou: valores em reais, com centavos', () => {
+    expect(eventosDaRequisicao(foto, { ...foto, recebido: 850.5 })).toEqual([{
+      tipo: 'mudanca_recebido',
+      valorAnterior: '700.00',
+      valorNovo: '850.50',
+      descricao: 'Recebido mudou de R$ 700,00 para R$ 850,50',
+    }]);
+  });
+
+  it('diferença abaixo de um centavo não é mudança', () => {
+    expect(eventosDaRequisicao(foto, { ...foto, recebido: 700.001 })).toEqual([]);
+  });
+
+  it('várias mudanças na mesma sincronização: lote, status e recebido, nessa ordem', () => {
+    const anterior = { status: 6, recebido: 700, idLoteRecurso: null };
+    const nova = { status: 34, recebido: 1000, idLoteRecurso: 441 };
+    expect(eventosDaRequisicao(anterior, nova).map((e) => e.tipo))
+      .toEqual(['entrada_lote_recurso', 'mudanca_status', 'mudanca_recebido']);
+  });
+});
+
+describe('eventosDoLote', () => {
+  const criado = { idLoteRecurso: 441, dataEnvio: null };
+  const enviado = { idLoteRecurso: 441, dataEnvio: '2026-10-22' };
+
+  it('lote enviado desde a última sincronização', () => {
+    expect(eventosDoLote(criado, enviado, { acompanhado: true })).toEqual([{
+      tipo: 'envio_lote',
+      valorAnterior: null,
+      valorNovo: '2026-10-22',
+      descricao: 'Lote de recurso 441 enviado em 22/10/2026',
+    }]);
+  });
+
+  it('a data de envio mudou no apLIS', () => {
+    expect(eventosDoLote({ ...enviado, dataEnvio: '2026-10-20' }, enviado, { acompanhado: true })).toEqual([{
+      tipo: 'envio_lote',
+      valorAnterior: '2026-10-20',
+      valorNovo: '2026-10-22',
+      descricao: 'Data de envio do lote de recurso 441 mudou de 20/10/2026 para 22/10/2026',
+    }]);
+  });
+
+  it('sem mudança não gera evento', () => {
+    expect(eventosDoLote(enviado, { ...enviado }, { acompanhado: true })).toEqual([]);
+    expect(eventosDoLote(criado, { ...criado }, { acompanhado: true })).toEqual([]);
+  });
+
+  // Lote novo na foto que junta requisições já acompanhadas: foi criado e
+  // enviado entre duas sincronizações.
+  it('lote novo já enviado, com requisições já acompanhadas: registra o envio', () => {
+    expect(eventosDoLote(null, enviado, { acompanhado: true })).toEqual([
+      expect.objectContaining({ tipo: 'envio_lote', valorAnterior: null, valorNovo: '2026-10-22' }),
+    ]);
+  });
+
+  it('lote novo só com requisições novas é carga inicial: sem reconstruir o passado', () => {
+    expect(eventosDoLote(null, enviado, { acompanhado: false })).toEqual([]);
+  });
+
+  it('lote novo ainda não enviado não gera evento', () => {
+    expect(eventosDoLote(null, criado, { acompanhado: true })).toEqual([]);
   });
 });

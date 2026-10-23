@@ -8,13 +8,17 @@
  *                     do Supabase: a lista do card aberto pelo olho do lote.
  *   ?idRequisicao=N   a requisição da foto + justificativa (procedimentos dela
  *                     no lote de recurso) e observações (tarefas do setor
- *                     GLOSA - FATURAMENTO), lidas ao vivo do apLIS. Os
- *                     documentos vêm de /api/faturamento/imagens-legado.
+ *                     GLOSA - FATURAMENTO), lidas ao vivo do apLIS, e o
+ *                     histórico do FlowLab (glosa_recurso_historico): os
+ *                     eventos da requisição e os dos lotes de recurso por
+ *                     onde ela passou, em ordem cronológica. Os documentos
+ *                     vêm de /api/faturamento/imagens-legado.
  *
  * Autorização: `Authorization: Bearer <access_token>` (canViewBilling). A foto
  * é lida com o cliente do usuário, para respeitar a RLS.
  */
 
+import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
@@ -41,6 +45,76 @@ interface LinhaRequisicao {
   recebido_fixacao: number | string | null;
   valor_recursado: number | string | null;
   valor_inicial_estimado: boolean;
+}
+
+const COLUNAS_HISTORICO = 'id, id_requisicao, id_lote_recurso, ocorrido_em, tipo, valor_anterior, valor_novo, descricao, usuario_id';
+
+interface LinhaHistorico {
+  id: string;
+  id_requisicao: number | null;
+  id_lote_recurso: number | null;
+  ocorrido_em: string;
+  tipo: string;
+  valor_anterior: string | null;
+  valor_novo: string | null;
+  descricao: string;
+  usuario_id: string | null;
+}
+
+class ErroLeitura extends Error {}
+
+/**
+ * Eventos da requisição + eventos dos lotes de recurso por onde ela passou,
+ * do mais antigo ao mais novo. Do lote, só o que aconteceu a partir do
+ * primeiro evento dela nele: o envio de antes de ela entrar não é dela.
+ */
+async function historicoDaRequisicao(
+  supabase: SupabaseClient,
+  idRequisicao: number,
+  idLoteAtual: number | null,
+): Promise<LinhaHistorico[]> {
+  const proprios = await supabase
+    .from('glosa_recurso_historico')
+    .select(COLUNAS_HISTORICO)
+    .eq('id_requisicao', idRequisicao)
+    .order('ocorrido_em');
+  if (proprios.error) throw new ErroLeitura(proprios.error.message);
+  const eventos = (proprios.data ?? []) as LinhaHistorico[];
+
+  // Cada evento dela guarda o lote em que ela estava naquele momento.
+  const desde = new Map<number, number>();
+  for (const e of eventos) {
+    if (e.id_lote_recurso === null || desde.has(e.id_lote_recurso)) continue;
+    desde.set(e.id_lote_recurso, Date.parse(e.ocorrido_em));
+  }
+  if (idLoteAtual !== null && !desde.has(idLoteAtual)) desde.set(idLoteAtual, -Infinity);
+  if (desde.size === 0) return eventos;
+
+  const doLote = await supabase
+    .from('glosa_recurso_historico')
+    .select(COLUNAS_HISTORICO)
+    .is('id_requisicao', null)
+    .in('id_lote_recurso', [...desde.keys()])
+    .order('ocorrido_em');
+  if (doLote.error) throw new ErroLeitura(doLote.error.message);
+  // Na mesma sincronização, o envio do lote vem antes do que ela mudou.
+  const doLoteDela = ((doLote.data ?? []) as LinhaHistorico[])
+    .filter((e) => Date.parse(e.ocorrido_em) >= (desde.get(e.id_lote_recurso as number) ?? Infinity));
+  return [...doLoteDela, ...eventos]
+    .sort((a, b) => Date.parse(a.ocorrido_em) - Date.parse(b.ocorrido_em));
+}
+
+function eventoParaResposta(e: LinhaHistorico) {
+  return {
+    id: e.id,
+    idLoteRecurso: e.id_lote_recurso,
+    ocorridoEm: e.ocorrido_em,
+    tipo: e.tipo,
+    valorAnterior: e.valor_anterior,
+    valorNovo: e.valor_novo,
+    descricao: e.descricao,
+    usuarioId: e.usuario_id,
+  };
 }
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
@@ -151,6 +225,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const linha = data as LinhaRequisicao;
+    let historico: LinhaHistorico[];
+    try {
+      historico = await historicoDaRequisicao(supabase, linha.id_requisicao, linha.id_lote_recurso);
+    } catch (err) {
+      if (!(err instanceof ErroLeitura)) throw err;
+      console.error('[faturamento/glosas-recursos-detalhe] Supabase (histórico):', err.message);
+      res.status(502).json({ success: false, error: ERRO_LEITURA });
+      return;
+    }
+
     const aplis = await detalheRecursoRequisicao(linha.id_requisicao, linha.id_lote_recurso);
     if ('erro' in aplis) {
       res.status(aplis.erro.status).json({ success: false, error: aplis.erro.mensagem });
@@ -162,6 +246,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       requisicao: paraResposta(linha),
       justificativas: aplis.justificativas,
       observacoes: aplis.observacoes,
+      historico: historico.map(eventoParaResposta),
     });
   } catch (err) {
     console.error('[faturamento/glosas-recursos-detalhe] erro:', describeError(err));
