@@ -395,6 +395,14 @@ function loteComClassificacaoFinal(requisicoes: RequisicaoClassificavel[]): bool
   });
 }
 
+/** Selo de uma data limite; null (sem prazo) é o "—". */
+function seloDoPrazo(prazo: string | null, hoje: string): SeloAtraso {
+  if (prazo === null) return 'sem-regra';
+  if (hoje < prazo) return 'no-prazo';
+  if (hoje === prazo) return 'vence-hoje';
+  return 'atrasado';
+}
+
 /**
  * Datas previstas e selo de atraso de um lote de recurso (spec, "Prazos").
  * `regras` null: convênio sem regra ligada. `hoje` é 'YYYY-MM-DD'.
@@ -407,12 +415,30 @@ export function prazosDoLote(lote: LoteParaPrazo, regras: RegrasPrazoLote | null
 
   let selo: SeloAtraso | null;
   if (lote.dataRetornoReal !== null || loteComClassificacaoFinal(lote.requisicoes)) selo = null;
-  else if (retornoPrevisto === null) selo = 'sem-regra';
-  else if (hoje < retornoPrevisto) selo = 'no-prazo';
-  else if (hoje === retornoPrevisto) selo = 'vence-hoje';
-  else selo = 'atrasado';
+  else selo = seloDoPrazo(retornoPrevisto, hoje);
 
   return { dataRetornoPrevista: retornoPrevisto, dataPagamentoPrevista: pagamentoPrevisto, selo };
+}
+
+export interface PrazoParaRecorrer {
+  /** Data limite para recorrer; null: sem regra, regra sem prazo ou sem data de recebimento. */
+  prazo: string | null;
+  /** 'sem-regra' é o "—": não há prazo para comparar. */
+  selo: SeloAtraso;
+}
+
+/**
+ * Prazo para recorrer da requisição fora de lote (sub-aba "Recursos fora de
+ * lote"): regra GLOSA – RECURSO do convênio contada da data de recebimento da
+ * requisição. `regra` null: convênio sem regra ligada. `hoje` é 'YYYY-MM-DD'.
+ */
+export function prazoParaRecorrer(
+  dataRecebimento: string | null,
+  regra: RegraPrazo | null,
+  hoje: string,
+): PrazoParaRecorrer {
+  const prazo = regra && dataRecebimento ? aplicarRegraPrazo(regra, dataRecebimento) : null;
+  return { prazo, selo: seloDoPrazo(prazo, hoje) };
 }
 
 /** Rótulo do evento de faturamento no histórico; espelha rotuloStatusAplis da tela (src/…/recursoGlosaVisual.ts). */

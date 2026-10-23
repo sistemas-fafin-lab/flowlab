@@ -16,6 +16,7 @@ import { sincronizarGlosasRecursos, useConveniosGlosas, useUltimaSincronizacaoGl
 import type { RecorteGlosas } from '../types';
 import { formatData, formatDataHora, hojeIso } from '../utils/formato';
 import LotesRecursoLista from './LotesRecursoLista';
+import RecursosForaDeLoteLista from './RecursosForaDeLoteLista';
 import RegrasPrazoConvenios from './RegrasPrazoConvenios';
 import ResumoRecursosCards from './ResumoRecursosCards';
 
@@ -217,7 +218,9 @@ const GlosasRecursos: React.FC = () => {
           {subAba === 'lotes' && (
             <LotesRecursoLista recorte={recorte} versao={versao} podeEditar={podeEditar} onEditado={aposEdicao} />
           )}
-          {subAba === 'fora-de-lote' && <EmBreve titulo="Recursos fora de lote" />}
+          {subAba === 'fora-de-lote' && (
+            <RecursosForaDeLoteLista recorte={recorte} versao={versao} podeEditar={podeEditar} onEditado={aposEdicao} />
+          )}
           {subAba === 'regras' && <RegrasPrazoConvenios versao={versao} podeEditar={podeEditar} />}
         </div>
       )}

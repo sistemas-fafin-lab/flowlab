@@ -7,6 +7,8 @@ import type {
   LotesRecursoFiltros,
   LotesRecursoMeta,
   RecorteGlosas,
+  RecursoForaDeLote,
+  RecursosForaDeLoteFiltros,
   RequisicaoRecursoFoto,
   ResumoAcompanhamentoRecursos,
   UltimaSincronizacaoGlosas,
@@ -191,6 +193,64 @@ export function useLotesRecurso(filtros: LotesRecursoFiltros): UseLotesRecursoRe
   }, [refetch]);
 
   return { lotes, meta, loading, error, refetch };
+}
+
+interface RespostaRecursosForaDeLote {
+  success?: boolean;
+  error?: string;
+  meta?: LotesRecursoMeta;
+  requisicoes?: RecursoForaDeLote[];
+}
+
+interface UseRecursosForaDeLoteResult {
+  requisicoes: RecursoForaDeLote[];
+  meta: LotesRecursoMeta | null;
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+}
+
+const MENSAGEM_ERRO_FORA_DE_LOTE = 'Não foi possível carregar os recursos fora de lote.';
+
+/** Requisições glosadas ou em recurso sem lote de recurso, no recorte. */
+export function useRecursosForaDeLote(filtros: RecursosForaDeLoteFiltros): UseRecursosForaDeLoteResult {
+  const [requisicoes, setRequisicoes] = useState<RecursoForaDeLote[]>([]);
+  const [meta, setMeta] = useState<LotesRecursoMeta | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const buscaAtual = useRef(0);
+
+  const { competencia, fontePagadoraId, busca, pagina, tamanho } = filtros;
+
+  const refetch = useCallback(async () => {
+    const reqId = ++buscaAtual.current;
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ competencia, pagina: String(pagina), tamanho: String(tamanho) });
+      if (fontePagadoraId !== null) params.set('fontePagadoraId', String(fontePagadoraId));
+      if (busca) params.set('busca', busca);
+      const body = await chamarLegadoApi<RespostaRecursosForaDeLote>('glosas-recursos-fora-de-lote', params, MENSAGEM_ERRO_FORA_DE_LOTE);
+      if (reqId !== buscaAtual.current) return;
+      setRequisicoes(body.requisicoes ?? []);
+      setMeta(body.meta ?? null);
+    } catch (err) {
+      if (reqId !== buscaAtual.current) return;
+      setError(err instanceof Error ? err.message : MENSAGEM_ERRO_FORA_DE_LOTE);
+      setRequisicoes([]);
+      setMeta(null);
+    } finally {
+      if (reqId === buscaAtual.current) setLoading(false);
+    }
+  }, [competencia, fontePagadoraId, busca, pagina, tamanho]);
+
+  useEffect(() => {
+    void refetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => { buscaAtual.current++; };
+  }, [refetch]);
+
+  return { requisicoes, meta, loading, error, refetch };
 }
 
 interface RespostaResumoRecursos {

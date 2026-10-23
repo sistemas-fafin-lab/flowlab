@@ -3206,6 +3206,12 @@ export interface RequisicaoGlosaRecursoAplis extends RequisicaoGlosaAplis {
   fontePagadora: { id: number | null; nome: string | null };
   /** Lote de recurso mais recente da requisição; null fora de lote. */
   idLoteRecurso: number | null;
+  /** YYYY-MM-DD do último `DtaRecebido` dos procedimentos: a data da glosa; null sem retorno. */
+  dataRecebimento: string | null;
+  /** Procedimentos glosados ('código descrição'), sem repetição. */
+  procedimentos: string[];
+  /** Motivos de glosa do catálogo `fatmotivoglosa` ('código descrição'), sem repetição. */
+  motivos: string[];
 }
 
 /** Lote de recurso (`fatloterecurso`) de alguma requisição da foto. */
@@ -3240,7 +3246,8 @@ const SQL_REQUISICOES_GLOSA_RECURSO = `
   SELECT r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente,
          r.Lote, DATE_FORMAT(l.DtaCriacao, '%Y-%m') AS Competencia,
          r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial, r.CodEventoFatur,
-         SUM(p.ValorLiquido) AS Liquido, SUM(COALESCE(p.ValorRecebido, 0)) AS Recebido
+         SUM(p.ValorLiquido) AS Liquido, SUM(COALESCE(p.ValorRecebido, 0)) AS Recebido,
+         DATE_FORMAT(MAX(p.DtaRecebido), '%Y-%m-%d') AS DtaRecebido
     FROM requisicao r
     JOIN fatlote l ON l.IdLote = r.Lote
     JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
@@ -3251,6 +3258,25 @@ const SQL_REQUISICOES_GLOSA_RECURSO = `
    WHERE %WHERE%
    GROUP BY r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente, r.Lote,
             l.DtaCriacao, r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial, r.CodEventoFatur`;
+
+// Procedimento glosado: com motivo de glosa ou recebido abaixo do líquido
+// (o recurso pago sobrescreve o recebido, mas o motivo fica).
+const SQL_PROCEDIMENTOS_GLOSADOS = `
+  SELECT DISTINCT p.IdRequisicao, tp.Codigo AS ProcCodigo, tp.Descricao AS ProcDescricao,
+         fmg.Codigo AS MotivoCodigo, fmg.Descricao AS MotivoDescricao
+    FROM fatrequisicaoprocedimento p
+    LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = p.IdConvenioProcedimento
+    LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
+    LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = p.IdMotivoGlosa
+   WHERE p.IdRequisicao IN (%IDS%)
+     AND (p.IdMotivoGlosa IS NOT NULL OR COALESCE(p.ValorRecebido, 0) < p.ValorLiquido)
+   ORDER BY p.IdRequisicao, tp.Codigo`;
+
+/** 'código descrição', sem as partes vazias; null se nenhuma. */
+function codigoEDescricao(codigo: unknown, descricao: unknown): string | null {
+  const partes = [texto(codigo), texto(descricao)].filter((p): p is string => p !== null);
+  return partes.length > 0 ? partes.join(' ') : null;
+}
 
 /**
  * Requisições do mês de faturamento (`fatlote.DtaCriacao` do lote original)
@@ -3299,6 +3325,24 @@ export async function glosasRecursosDoPeriodo(
         if (!atual || idLoteRecurso > atual.idLoteRecurso) {
           recurso.set(idRequisicao, { idLoteRecurso, recursado: numero(item.Recursado) });
         }
+      }
+    }
+
+    const glosados = new Map<number, { procedimentos: Set<string>; motivos: Set<string> }>();
+    for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
+      const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
+      const [itens] = await conn.execute<mysql.RowDataPacket[]>(
+        SQL_PROCEDIMENTOS_GLOSADOS.replace('%IDS%', bloco.map(() => '?').join(', ')),
+        bloco,
+      );
+      for (const item of itens) {
+        const idRequisicao = numero(item.IdRequisicao);
+        const daRequisicao = glosados.get(idRequisicao) ?? { procedimentos: new Set<string>(), motivos: new Set<string>() };
+        const procedimento = codigoEDescricao(item.ProcCodigo, item.ProcDescricao);
+        const motivo = codigoEDescricao(item.MotivoCodigo, item.MotivoDescricao);
+        if (procedimento) daRequisicao.procedimentos.add(procedimento);
+        if (motivo) daRequisicao.motivos.add(motivo);
+        glosados.set(idRequisicao, daRequisicao);
       }
     }
 
@@ -3360,6 +3404,9 @@ export async function glosasRecursosDoPeriodo(
         recebido: numero(linha.Recebido),
         idLoteRecurso: doRecurso?.idLoteRecurso ?? null,
         recursado: doRecurso?.recursado ?? null,
+        dataRecebimento: dataIso(linha.DtaRecebido),
+        procedimentos: [...(glosados.get(idRequisicao)?.procedimentos ?? [])],
+        motivos: [...(glosados.get(idRequisicao)?.motivos ?? [])],
       };
     });
 

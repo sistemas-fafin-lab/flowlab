@@ -110,6 +110,9 @@ function requisicao(overrides: Partial<RequisicaoGlosaRecursoAplis> = {}): Requi
     recebido: 700,
     idLoteRecurso: null,
     recursado: null,
+    dataRecebimento: '2026-10-05',
+    procedimentos: ['40304361 HEMOGRAMA COMPLETO'],
+    motivos: ['1801 PROCEDIMENTO INVÁLIDO'],
     ...overrides,
   };
 }
@@ -289,6 +292,20 @@ describe('POST /api/faturamento/glosas-recursos-sincronizar', () => {
         lotes: 1,
         sincronizado_por: 'user-1',
       })]);
+    });
+
+    it('grava a data de recebimento, os procedimentos glosados e os motivos da requisição', async () => {
+      const { gravado } = await executar({ sincronizacoes: jaSincronizado }, { competencia: '2026-09' }, {
+        requisicoes: [requisicao({
+          procedimentos: ['40304361 HEMOGRAMA COMPLETO', '40302040 GLICOSE'],
+          motivos: ['1801 PROCEDIMENTO INVÁLIDO', '1702 COBRANÇA EM DUPLICIDADE'],
+        })],
+      });
+      expect(fotoGravada(gravado)[0]).toMatchObject({
+        data_recebimento: '2026-10-05',
+        procedimentos: ['40304361 HEMOGRAMA COMPLETO', '40302040 GLICOSE'],
+        motivos: ['1801 PROCEDIMENTO INVÁLIDO', '1702 COBRANÇA EM DUPLICIDADE'],
+      });
     });
 
     it('a primeira sincronização do mês marca o valor inicial estimado', async () => {

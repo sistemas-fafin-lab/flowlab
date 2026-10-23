@@ -6,6 +6,7 @@ import {
   eventoEdicaoManual,
   eventosDoLote,
   fixarGlosa,
+  prazoParaRecorrer,
   prazosDoLote,
   resumirAcompanhamento,
   valorRecebidoGlosa,
@@ -358,6 +359,29 @@ describe('prazosDoLote', () => {
     const emAnalise = lote().requisicoes[0];
     const requisicoes = [{ foto: { ...emAnalise.foto, status: 15 } }, emAnalise];
     expect(prazosDoLote(lote({ requisicoes }), regras, '2026-12-01').selo).toBe('atrasado');
+  });
+});
+
+describe('prazoParaRecorrer', () => {
+  const noventaDias = { tipo: 'dias_corridos' as const, n: 90 };
+
+  it('conta a regra GLOSA – RECURSO da data de recebimento: antes do prazo, no prazo', () => {
+    expect(prazoParaRecorrer('2026-08-10', noventaDias, '2026-11-07')).toEqual({
+      prazo: '2026-11-08',
+      selo: 'no-prazo',
+    });
+  });
+
+  it('hoje é o prazo: vence hoje; depois dele: atrasado', () => {
+    expect(prazoParaRecorrer('2026-08-10', noventaDias, '2026-11-08').selo).toBe('vence-hoje');
+    expect(prazoParaRecorrer('2026-08-10', noventaDias, '2026-11-09').selo).toBe('atrasado');
+  });
+
+  it('convênio sem regra, regra sem prazo ou requisição sem data de recebimento: "—"', () => {
+    const traco = { prazo: null, selo: 'sem-regra' };
+    expect(prazoParaRecorrer('2026-08-10', null, '2026-11-09')).toEqual(traco);
+    expect(prazoParaRecorrer('2026-08-10', { tipo: 'sem_prazo', n: null }, '2026-11-09')).toEqual(traco);
+    expect(prazoParaRecorrer(null, noventaDias, '2026-11-09')).toEqual(traco);
   });
 });
 

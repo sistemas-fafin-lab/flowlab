@@ -234,6 +234,9 @@ function linhaRequisicao(
     glosa_fixada: fixacao.glosaFixada,
     recebido_fixacao: fixacao.recebidoFixacao,
     valor_inicial_estimado: fixacao.valorInicialEstimado,
+    data_recebimento: req.dataRecebimento,
+    procedimentos: req.procedimentos,
+    motivos: req.motivos,
     ultima_sincronizacao: agora,
   };
 }

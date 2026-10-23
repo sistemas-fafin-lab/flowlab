@@ -987,6 +987,38 @@ export interface LoteRecursoFoto {
   selo: SeloAtrasoLote | null;
 }
 
+/** Requisição na sub-aba "Recursos fora de lote" (GET glosas-recursos-fora-de-lote). */
+export interface RecursoForaDeLote {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  numGuia: string | null;
+  paciente: string | null;
+  /** YYYY-MM do lote de faturamento original. */
+  competencia: string;
+  fontePagadora: { id: number | null; nome: string | null };
+  /** 6: glosado sem recurso; 7 ou 16: em recurso sem lote. */
+  status: number;
+  /** Data de recebimento da requisição; null sem retorno do convênio. */
+  dataGlosa: string | null;
+  /** Procedimentos glosados ('código descrição'). */
+  procedimentos: string[];
+  /** Motivos do catálogo do apLIS ('código descrição'). */
+  motivos: string[];
+  /** Glosa fixada. */
+  valorGlosado: number | null;
+  valorInicialEstimado: boolean;
+  /** Recebimento + regra Glosa – Recurso; null sem regra ou sem recebimento. */
+  prazoRecorrer: string | null;
+  /** 'sem-regra' é o "—": não há prazo para comparar. */
+  selo: SeloAtrasoLote;
+}
+
+export interface RecursosForaDeLoteFiltros extends RecorteGlosas {
+  busca?: string;
+  pagina: number;
+  tamanho: number;
+}
+
 /** Requisição da foto no card "Detalhes do recurso" (GET glosas-recursos-detalhe). */
 export interface RequisicaoRecursoFoto {
   idRequisicao: number;
