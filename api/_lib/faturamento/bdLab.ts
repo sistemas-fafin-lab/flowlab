@@ -3367,6 +3367,99 @@ export async function glosasRecursosDoPeriodo(
   });
 }
 
+/** Setor "GLOSA - FATURAMENTO" (`setor.CodSetor`): as tarefas dele são as observações do card. */
+const SETOR_GLOSA_FATURAMENTO = 22;
+
+/** Procedimento da requisição no lote de recurso, com o que foi argumentado. */
+export interface JustificativaRecursoAplis {
+  idProcedimento: number;
+  /** Código + descrição do procedimento na tabela do convênio. */
+  procedimento: string | null;
+  valorRecurso: number;
+  motivoGlosa: string | null;
+  justificativa: string | null;
+}
+
+/** Tarefa do apLIS da requisição direcionada ao setor GLOSA - FATURAMENTO. */
+export interface ObservacaoRecursoAplis {
+  codTarefa: number;
+  /** 'YYYY-MM-DD HH:MM' no horário do laboratório. */
+  data: string | null;
+  tipo: string | null;
+  remetente: string | null;
+  mensagem: string | null;
+  concluida: boolean;
+  obsConclusao: string | null;
+}
+
+export type DetalheRecursoRequisicaoResultado =
+  | { justificativas: JustificativaRecursoAplis[]; observacoes: ObservacaoRecursoAplis[] }
+  | { erro: { status: number; mensagem: string } };
+
+const SQL_JUSTIFICATIVAS_RECURSO = `
+  SELECT lrp.IdProcedimento, lrp.VlrRecurso, lrp.Justificativa,
+         tp.Codigo, tp.Descricao, fmg.Descricao AS MotivoDescricao
+    FROM fatloterecursoprocedimento lrp
+    LEFT JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicaoProcedimento = lrp.IdRequisicaoProcedimento
+    LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
+    LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
+    LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = lrp.IdMotivoGlosa
+   WHERE lrp.IdLoteRecurso = ? AND lrp.IdRequisicao = ?
+   ORDER BY lrp.IdProcedimento`;
+
+const SQL_OBSERVACOES_RECURSO = `
+  SELECT t.CodTarefa, DATE_FORMAT(t.DtaInclusao, '%Y-%m-%d %H:%i') AS DtaInclusao,
+         tt.DesTarefaTipo, u.NomUsuario, t.MsgTarefa, t.Concluido, t.ObsConclusao
+    FROM tarefa t
+    LEFT JOIN tarefatipo tt ON tt.CodTarefaTipo = t.CodTarefaTipo
+    LEFT JOIN autusuario u ON u.IdUsuario = t.IdRemetente
+   WHERE t.IdRequisicao = ? AND t.CodSetor = ?
+   ORDER BY t.DtaInclusao DESC, t.CodTarefa DESC`;
+
+/**
+ * Justificativa (procedimentos da requisição no lote de recurso) e
+ * observações (tarefas do setor GLOSA - FATURAMENTO) do card "Detalhes do
+ * recurso". Sem lote de recurso, a justificativa vem vazia. Sem cache: são
+ * poucas linhas por requisição.
+ */
+export async function detalheRecursoRequisicao(
+  idRequisicao: number,
+  idLoteRecurso: number | null,
+): Promise<DetalheRecursoRequisicaoResultado> {
+  return comConexao('detalheRecursoRequisicao', async (conn) => {
+    const [linhasJustificativa] = idLoteRecurso === null
+      ? [[] as mysql.RowDataPacket[]]
+      : await conn.execute<mysql.RowDataPacket[]>(SQL_JUSTIFICATIVAS_RECURSO, [idLoteRecurso, idRequisicao]);
+    const [linhasTarefa] = await conn.execute<mysql.RowDataPacket[]>(
+      SQL_OBSERVACOES_RECURSO,
+      [idRequisicao, SETOR_GLOSA_FATURAMENTO],
+    );
+
+    return {
+      justificativas: linhasJustificativa.map((linha) => {
+        const codigo = texto(linha.Codigo);
+        const descricao = texto(linha.Descricao);
+        return {
+          idProcedimento: numero(linha.IdProcedimento),
+          procedimento: [codigo, descricao].filter(Boolean).join(' – ') || null,
+          valorRecurso: numero(linha.VlrRecurso),
+          motivoGlosa: texto(linha.MotivoDescricao),
+          justificativa: texto(linha.Justificativa),
+        };
+      }),
+      observacoes: linhasTarefa.map((linha) => ({
+        codTarefa: numero(linha.CodTarefa),
+        data: texto(linha.DtaInclusao),
+        tipo: texto(linha.DesTarefaTipo),
+        remetente: texto(linha.NomUsuario),
+        mensagem: texto(linha.MsgTarefa),
+        concluida: numero(linha.Concluido) === 1,
+        obsConclusao: texto(linha.ObsConclusao),
+      })),
+    };
+  });
+}
+
 // --- Imagens da requisição (requisicaoimagem) — usado pelo botão "Ver imagens" dos
 // antigos históricos de glosas e recursos (glosas tem IdRequisicao na própria linha; recursos só no
 // procedimento, ao expandir). Levantamento no banco: ~1,09M linhas, mas só ~1,4% tem

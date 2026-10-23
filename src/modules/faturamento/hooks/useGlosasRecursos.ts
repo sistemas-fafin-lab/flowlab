@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type {
+  DetalheRequisicaoRecurso,
   LoteRecursoFoto,
   LotesRecursoFiltros,
   LotesRecursoMeta,
   RecorteGlosas,
+  RequisicaoRecursoFoto,
   ResumoAcompanhamentoRecursos,
 } from '../types';
 import { chamarLegadoApi, getTokenLegado } from './legado/api';
@@ -192,4 +194,79 @@ export function useResumoRecursos(recorte: RecorteGlosas): UseResumoRecursosResu
   }, [refetch]);
 
   return { resumo, loading, error, refetch };
+}
+
+interface UseDetalheRecursoResult<T> {
+  dados: T | null;
+  loading: boolean;
+  error: string | null;
+}
+
+/**
+ * Leitura do card "Detalhes do recurso" por um id; null não busca. Troca de id
+ * descarta a resposta anterior em voo.
+ */
+function useDetalheRecurso<T>(
+  parametro: 'idLoteRecurso' | 'idRequisicao',
+  id: number | null,
+  extrair: (body: RespostaDetalheRecurso) => T,
+  mensagemErro: string,
+): UseDetalheRecursoResult<T> {
+  const [dados, setDados] = useState<T | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const extrairRef = useRef(extrair);
+  extrairRef.current = extrair;
+
+  useEffect(() => {
+    setDados(null);
+    setError(null);
+    if (id === null) {
+      setLoading(false);
+      return;
+    }
+    let cancelado = false;
+    setLoading(true);
+    chamarLegadoApi<RespostaDetalheRecurso>(
+      'glosas-recursos-detalhe',
+      new URLSearchParams({ [parametro]: String(id) }),
+      mensagemErro,
+    )
+      .then((body) => { if (!cancelado) setDados(extrairRef.current(body)); })
+      .catch((err) => { if (!cancelado) setError(err instanceof Error ? err.message : mensagemErro); })
+      .finally(() => { if (!cancelado) setLoading(false); });
+    return () => { cancelado = true; };
+  }, [parametro, id, mensagemErro]);
+
+  return { dados, loading, error };
+}
+
+interface RespostaDetalheRecurso extends Partial<DetalheRequisicaoRecurso> {
+  success?: boolean;
+  error?: string;
+  requisicoes?: RequisicaoRecursoFoto[];
+}
+
+/** Requisições de um lote de recurso, em qualquer mês. */
+export function useRequisicoesLoteRecurso(idLoteRecurso: number | null): UseDetalheRecursoResult<RequisicaoRecursoFoto[]> {
+  return useDetalheRecurso(
+    'idLoteRecurso',
+    idLoteRecurso,
+    (body) => body.requisicoes ?? [],
+    'Não foi possível carregar as requisições do lote de recurso.',
+  );
+}
+
+/** Requisição da foto com justificativa e observações do apLIS. */
+export function useDetalheRequisicaoRecurso(idRequisicao: number | null): UseDetalheRecursoResult<DetalheRequisicaoRecurso> {
+  return useDetalheRecurso(
+    'idRequisicao',
+    idRequisicao,
+    (body) => ({
+      requisicao: body.requisicao as RequisicaoRecursoFoto,
+      justificativas: body.justificativas ?? [],
+      observacoes: body.observacoes ?? [],
+    }),
+    'Não foi possível carregar o detalhe da requisição.',
+  );
 }

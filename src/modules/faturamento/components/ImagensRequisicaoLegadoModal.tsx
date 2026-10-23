@@ -15,25 +15,27 @@ import type { ImagemRequisicaoLegado } from '../types';
 import { formatData } from '../utils/formato';
 
 // Visualizador das imagens/documentos digitalizados de uma requisição no legado
-// (requisicaoimagem), aberto pelo botão "Ver imagens" dos históricos de Glosas e
-// Recursos. Vai num portal por consistência com DocumentoLightbox (analises-clinicas),
+// (requisicaoimagem), aberto pela aba Documentos do card "Detalhes do recurso"
+// (Glosas e Recursos). Vai num portal por consistência com DocumentoLightbox (analises-clinicas),
 // mesmo padrão de overlay fullscreen + navegação por teclado.
 
 const EXTENSOES_IMAGEM = new Set(['JPG', 'JPE', 'JFI', 'JPEG', 'PNG', 'GIF', 'BMP', 'TIF', 'TIFF']);
 
 export const ImagensRequisicaoLegadoModal: React.FC<{
   idRequisicao: number;
+  /** Posição na lista de imagens em que o visualizador abre. */
+  indiceInicial?: number;
   onClose: () => void;
-}> = ({ idRequisicao, onClose }) => {
+}> = ({ idRequisicao, indiceInicial = 0, onClose }) => {
   const { imagens, loading, error, carregarArquivo } = useImagensRequisicaoLegado(idRequisicao);
-  const [indice, setIndice] = useState(0);
+  const [indice, setIndice] = useState(indiceInicial);
   const [url, setUrl] = useState<string | null>(null);
   const [carregandoArquivo, setCarregandoArquivo] = useState(false);
   const [erroArquivo, setErroArquivo] = useState<string | null>(null);
 
   useEffect(() => {
-    setIndice(0);
-  }, [idRequisicao]);
+    setIndice(indiceInicial);
+  }, [idRequisicao, indiceInicial]);
 
   const total = imagens.length;
   const atual: ImagemRequisicaoLegado | undefined = imagens[indice];

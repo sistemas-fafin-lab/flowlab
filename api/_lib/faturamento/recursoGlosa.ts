@@ -116,6 +116,17 @@ function recursadoEfetivo(foto: RequisicaoFoto, edicoes: EdicoesRequisicao): num
   return edicoes.valorRecursado ?? foto.valorRecursado ?? 0;
 }
 
+/**
+ * Valor recebido de glosa (ΔRec): o que entrou de recebido desde a fixação, ou
+ * o valor corrigido pelo lápis. null quando não há base (deferido total sem
+ * lote de recurso, até a responsável completar).
+ */
+export function valorRecebidoGlosa(foto: RequisicaoFoto, edicoes: EdicoesRequisicao = {}): number | null {
+  if (edicoes.valorRecebidoGlosa !== undefined) return edicoes.valorRecebidoGlosa;
+  if (foto.recebidoFixacao === null) return null;
+  return centavos(foto.recebido - foto.recebidoFixacao);
+}
+
 export type ClasseRecurso = 'em-analise' | 'deferido' | 'deferido-parcial' | 'indeferido' | 'acatada';
 
 export interface ClassificacaoRecurso {
@@ -146,15 +157,11 @@ export function classificarRequisicao(
   if (foto.emLoteRecurso && !foto.loteEnviado) return null;
   // Deferido total sem lote: a fixação ficou em branco, e o valor também,
   // até a responsável completar pelo lápis.
-  let deltaRecebido: number;
-  if (edicoes.valorRecebidoGlosa !== undefined) {
-    deltaRecebido = edicoes.valorRecebidoGlosa;
-  } else if (foto.recebidoFixacao === null) {
+  const deltaRecebido = valorRecebidoGlosa(foto, edicoes);
+  if (deltaRecebido === null) {
     return foto.status !== null && STATUS_DEFERIDO_TOTAL.includes(foto.status)
       ? { classe: 'deferido', valor: 0 }
       : null;
-  } else {
-    deltaRecebido = centavos(foto.recebido - foto.recebidoFixacao);
   }
   if (deltaRecebido > 0 && deltaRecebido >= recursado) return { classe: 'deferido', valor: deltaRecebido };
   if (deltaRecebido > 0) {

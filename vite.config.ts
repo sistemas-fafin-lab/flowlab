@@ -625,6 +625,8 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
     'glosas-legado', 'recursos-legado',
     'pendencias-nao-faturadas', 'pendencia-lote-detalhe', 'pendencias-particulares',
     'pendencias-sem-lote', 'locais-origem', 'envios-por-convenio', 'status-faturamento', 'recebidos-mes',
+    'imagens-legado', 'imagem-legado-arquivo',
+    'glosas-recursos-sincronizar', 'glosas-recursos-lotes', 'glosas-recursos-resumo', 'glosas-recursos-detalhe',
   ]);
   // O nome do arquivo do handler segue a action, exceto estas duas: os handlers
   // de pendências (issues 07/08) nasceram com nome mais curto que a action
@@ -695,6 +697,11 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
           json(payload: unknown) {
             if (!res.headersSent) res.setHeader('Content-Type', 'application/json');
             res.end(JSON.stringify(payload));
+            return vRes;
+          },
+          // Bytes crus (imagem-legado-arquivo).
+          send(payload: Buffer | string) {
+            res.end(payload);
             return vRes;
           },
         });

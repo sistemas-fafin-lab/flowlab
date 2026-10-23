@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { aplicarRegraPrazo, classificarRequisicao, fixarGlosa, prazosDoLote, resumirAcompanhamento } from './recursoGlosa.js';
+import {
+  aplicarRegraPrazo,
+  classificarRequisicao,
+  fixarGlosa,
+  prazosDoLote,
+  resumirAcompanhamento,
+  valorRecebidoGlosa,
+} from './recursoGlosa.js';
 import type { LoteParaPrazo, RegrasPrazoLote, RequisicaoFoto, RequisicaoGlosaAplis } from './recursoGlosa.js';
 
 function requisicao(overrides: Partial<RequisicaoGlosaAplis> = {}): RequisicaoGlosaAplis {
@@ -163,6 +170,20 @@ describe('classificarRequisicao', () => {
       expect(classificarRequisicao(aplis, { valorRecursado: 250, valorRecebidoGlosa: 250 }))
         .toEqual({ classe: 'deferido', valor: 250 });
     });
+  });
+});
+
+describe('valorRecebidoGlosa', () => {
+  it('é o que entrou de recebido desde a fixação (ΔRec)', () => {
+    expect(valorRecebidoGlosa(foto({ recebido: 820.5 }))).toBe(120.5);
+  });
+
+  it('o valor corrigido pelo lápis vale acima do apLIS', () => {
+    expect(valorRecebidoGlosa(foto({ recebido: 1000 }), { valorRecebidoGlosa: 50 })).toBe(50);
+  });
+
+  it('deferido total sem lote: sem base, fica em branco', () => {
+    expect(valorRecebidoGlosa(foto({ status: 34, recebidoFixacao: null }))).toBeNull();
   });
 });
 

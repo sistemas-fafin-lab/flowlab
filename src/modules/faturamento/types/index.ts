@@ -979,6 +979,52 @@ export interface LoteRecursoFoto {
   selo: SeloAtrasoLote | null;
 }
 
+/** Requisição da foto no card "Detalhes do recurso" (GET glosas-recursos-detalhe). */
+export interface RequisicaoRecursoFoto {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  numGuia: string | null;
+  paciente: string | null;
+  /** YYYY-MM do lote de faturamento original. */
+  competencia: string;
+  fontePagadora: { id: number | null; nome: string | null };
+  idLoteRecurso: number | null;
+  /** `requisicao.CodEventoFatur`. */
+  statusAplis: number | null;
+  glosaFixada: number | null;
+  valorRecursado: number | null;
+  /** ΔRec: o que entrou de recebido desde a fixação; null sem base. */
+  valorRecebidoGlosa: number | null;
+  valorInicialEstimado: boolean;
+}
+
+/** Procedimento da requisição no lote de recurso, com o que foi argumentado. */
+export interface JustificativaRecurso {
+  idProcedimento: number;
+  procedimento: string | null;
+  valorRecurso: number;
+  motivoGlosa: string | null;
+  justificativa: string | null;
+}
+
+/** Tarefa do apLIS da requisição para o setor GLOSA - FATURAMENTO. */
+export interface ObservacaoRecurso {
+  codTarefa: number;
+  /** 'YYYY-MM-DD HH:MM' no horário do laboratório. */
+  data: string | null;
+  tipo: string | null;
+  remetente: string | null;
+  mensagem: string | null;
+  concluida: boolean;
+  obsConclusao: string | null;
+}
+
+export interface DetalheRequisicaoRecurso {
+  requisicao: RequisicaoRecursoFoto;
+  justificativas: JustificativaRecurso[];
+  observacoes: ObservacaoRecurso[];
+}
+
 export interface UltimaSincronizacaoGlosas {
   sincronizadoEm: string;
   /** Data do dado mais recente da réplica do apLIS (~1 dia de atraso). */

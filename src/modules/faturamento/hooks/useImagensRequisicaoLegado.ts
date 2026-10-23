@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ImagemRequisicaoLegado } from '../types';
 import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
-// Lista + bytes das imagens de uma requisição do legado (requisicaoimagem), aberto
-// pelo botão "Ver imagens" dos históricos de Glosas e Recursos. Rota própria de
+// Lista + bytes das imagens de uma requisição do legado (requisicaoimagem), usado
+// pela aba Documentos do card "Detalhes do recurso" (Glosas e Recursos). Rota própria de
 // propósito: metadados (lista) e bytes (arquivo) são endpoints separados — o blob
 // pode pesar alguns MB e só o item que o operador está olhando precisa descer.
 //
