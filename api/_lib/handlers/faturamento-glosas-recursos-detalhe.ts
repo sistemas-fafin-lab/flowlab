@@ -11,7 +11,8 @@
  *                     GLOSA - FATURAMENTO), lidas ao vivo do apLIS, e o
  *                     histórico do FlowLab (glosa_recurso_historico): os
  *                     eventos da requisição e os dos lotes de recurso por
- *                     onde ela passou, em ordem cronológica. Os documentos
+ *                     onde ela passou, em ordem cronológica, com o nome de
+ *                     quem fez cada edição manual. Os documentos
  *                     vêm de /api/faturamento/imagens-legado.
  *
  * Autorização: `Authorization: Bearer <access_token>` (canViewBilling). A foto
@@ -23,11 +24,11 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { detalheRecursoRequisicao } from '../faturamento/bdLab.js';
-import { valorRecebidoGlosa } from '../faturamento/recursoGlosa.js';
-import { getSupabaseUserClient } from '../supabase.js';
+import { edicoesDaFoto, valorRecebidoGlosa } from '../faturamento/recursoGlosa.js';
+import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
 
 const COLUNAS_REQUISICAO =
-  'id_requisicao, cod_requisicao, num_guia, paciente, competencia, id_fonte_pagadora, fonte_pagadora_nome, id_lote_recurso, status_aplis, liquido, recebido, glosa_fixada, recebido_fixacao, valor_recursado, valor_inicial_estimado';
+  'id_requisicao, cod_requisicao, num_guia, paciente, competencia, id_fonte_pagadora, fonte_pagadora_nome, id_lote_recurso, status_aplis, liquido, recebido, glosa_fixada, recebido_fixacao, valor_recursado, valor_inicial_estimado, valor_recursado_editado, valor_recebido_glosa_editado';
 
 interface LinhaRequisicao {
   id_requisicao: number;
@@ -45,6 +46,8 @@ interface LinhaRequisicao {
   recebido_fixacao: number | string | null;
   valor_recursado: number | string | null;
   valor_inicial_estimado: boolean;
+  valor_recursado_editado: number | string | null;
+  valor_recebido_glosa_editado: number | string | null;
 }
 
 const COLUNAS_HISTORICO = 'id, id_requisicao, id_lote_recurso, ocorrido_em, tipo, valor_anterior, valor_novo, descricao, usuario_id';
@@ -104,7 +107,28 @@ async function historicoDaRequisicao(
     .sort((a, b) => Date.parse(a.ocorrido_em) - Date.parse(b.ocorrido_em));
 }
 
-function eventoParaResposta(e: LinhaHistorico) {
+/**
+ * Nome de quem fez cada edição manual. Com o cliente admin: o perfil de outro
+ * usuário não é legível pela RLS de user_profiles, e é só o nome.
+ */
+async function nomesDosUsuarios(ids: string[]): Promise<Map<string, string>> {
+  const nomes = new Map<string, string>();
+  if (ids.length === 0) return nomes;
+  const { data, error } = await getSupabaseAdminClient()
+    .from('user_profiles')
+    .select('id, name')
+    .in('id', ids);
+  if (error) {
+    console.error('[faturamento/glosas-recursos-detalhe] Supabase (usuários):', error.message);
+    return nomes;
+  }
+  for (const u of (data ?? []) as { id: string; name: string | null }[]) {
+    if (u.name) nomes.set(u.id, u.name);
+  }
+  return nomes;
+}
+
+function eventoParaResposta(e: LinhaHistorico, nomes: Map<string, string>) {
   return {
     id: e.id,
     idLoteRecurso: e.id_lote_recurso,
@@ -114,6 +138,7 @@ function eventoParaResposta(e: LinhaHistorico) {
     valorNovo: e.valor_novo,
     descricao: e.descricao,
     usuarioId: e.usuario_id,
+    usuarioNome: e.usuario_id ? nomes.get(e.usuario_id) ?? null : null,
   };
 }
 
@@ -133,10 +158,13 @@ function numeroOuNulo(valor: number | string | null): number | null {
   return valor === null ? null : Number(valor);
 }
 
-// As edições manuais (lápis, ticket 07) entram aqui, em `valorRecebidoGlosa`
-// e no recursado.
+/** Os valores editados pelo lápis valem acima do apLIS; `editados` marca quais. */
 function paraResposta(r: LinhaRequisicao) {
-  const valorRecursado = numeroOuNulo(r.valor_recursado);
+  const valorRecursadoAplis = numeroOuNulo(r.valor_recursado);
+  const edicoes = edicoesDaFoto({
+    valorRecursado: numeroOuNulo(r.valor_recursado_editado),
+    valorRecebidoGlosa: numeroOuNulo(r.valor_recebido_glosa_editado),
+  });
   return {
     idRequisicao: r.id_requisicao,
     codRequisicao: r.cod_requisicao,
@@ -147,16 +175,20 @@ function paraResposta(r: LinhaRequisicao) {
     idLoteRecurso: r.id_lote_recurso,
     statusAplis: r.status_aplis,
     glosaFixada: numeroOuNulo(r.glosa_fixada),
-    valorRecursado,
+    valorRecursado: edicoes.valorRecursado ?? valorRecursadoAplis,
     valorRecebidoGlosa: valorRecebidoGlosa({
       status: r.status_aplis,
       liquido: Number(r.liquido),
       recebido: Number(r.recebido),
       recebidoFixacao: numeroOuNulo(r.recebido_fixacao),
-      valorRecursado,
+      valorRecursado: valorRecursadoAplis,
       emLoteRecurso: r.id_lote_recurso !== null,
       loteEnviado: false,
-    }),
+    }, edicoes),
+    editados: {
+      valorRecursado: edicoes.valorRecursado !== undefined,
+      valorRecebidoGlosa: edicoes.valorRecebidoGlosa !== undefined,
+    },
     valorInicialEstimado: r.valor_inicial_estimado,
   };
 }
@@ -235,6 +267,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
 
+    const nomes = await nomesDosUsuarios([
+      ...new Set(historico.map((e) => e.usuario_id).filter((id): id is string => id !== null)),
+    ]);
+
     const aplis = await detalheRecursoRequisicao(linha.id_requisicao, linha.id_lote_recurso);
     if ('erro' in aplis) {
       res.status(aplis.erro.status).json({ success: false, error: aplis.erro.mensagem });
@@ -246,7 +282,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       requisicao: paraResposta(linha),
       justificativas: aplis.justificativas,
       observacoes: aplis.observacoes,
-      historico: historico.map(eventoParaResposta),
+      historico: historico.map((e) => eventoParaResposta(e, nomes)),
     });
   } catch (err) {
     console.error('[faturamento/glosas-recursos-detalhe] erro:', describeError(err));

@@ -965,7 +965,15 @@ export interface LoteRecursoFoto {
   protocoloFaturamento: string | null;
   fontePagadora: { id: number | null; nome: string | null };
   dataCriacao: string | null;
+  /** A que vale: a editada pelo lápis ou a do apLIS. */
   dataEnvio: string | null;
+  dataEnvioAplis: string | null;
+  /** A data de envio foi corrigida pelo lápis. */
+  dataEnvioEditada: boolean;
+  /** Retorno real da operadora, registrado pelo lápis: encerra o selo. */
+  dataRetornoReal: string | null;
+  /** Pagamento real do recurso, registrado pelo lápis. */
+  dataPagamentoReal: string | null;
   qtdRequisicoes: number;
   /** Σ glosa fixada das requisições do lote no mês. */
   valorGlosado: number;
@@ -995,8 +1003,19 @@ export interface RequisicaoRecursoFoto {
   valorRecursado: number | null;
   /** ΔRec: o que entrou de recebido desde a fixação; null sem base. */
   valorRecebidoGlosa: number | null;
+  /** Valores corrigidos pelo lápis (valem acima do apLIS). */
+  editados: { valorRecursado: boolean; valorRecebidoGlosa: boolean };
   valorInicialEstimado: boolean;
 }
+
+/** Campos que o lápis corrige — contrato de POST /api/faturamento/glosas-recursos-editar. */
+export type CampoEdicaoLoteRecurso = 'dataEnvio' | 'dataRetornoReal' | 'dataPagamentoReal';
+export type CampoEdicaoRequisicaoRecurso = 'valorRecursado' | 'valorRecebidoGlosa';
+
+/** Uma edição manual; `valor` null remove a edição e volta a valer o apLIS. */
+export type EdicaoRecurso =
+  | { idLoteRecurso: number; campo: CampoEdicaoLoteRecurso; valor: string | null }
+  | { idRequisicao: number; campo: CampoEdicaoRequisicaoRecurso; valor: number | null };
 
 /** Procedimento da requisição no lote de recurso, com o que foi argumentado. */
 export interface JustificativaRecurso {
@@ -1024,7 +1043,8 @@ export type TipoEventoHistoricoRecurso =
   | 'entrada_lote_recurso'
   | 'mudanca_status'
   | 'mudanca_recebido'
-  | 'envio_lote';
+  | 'envio_lote'
+  | 'edicao_manual';
 
 /** Evento da aba Histórico (glosa_recurso_historico): da requisição ou do lote dela. */
 export interface EventoHistoricoRecurso {
@@ -1038,6 +1058,7 @@ export interface EventoHistoricoRecurso {
   descricao: string;
   /** Preenchido nas edições manuais; null nos eventos da sincronização. */
   usuarioId: string | null;
+  usuarioNome: string | null;
 }
 
 export interface DetalheRequisicaoRecurso {

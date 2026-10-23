@@ -18,6 +18,11 @@
  * vão para glosa_recurso_historico, antes da foto: uma falha no meio repete
  * eventos na próxima sincronização em vez de perdê-los.
  *
+ * Edições manuais (lápis, glosas-recursos-editar): moram em colunas próprias
+ * da foto (`*_editada`, `*_editado`) que o upsert não manda, então a
+ * sincronização não as sobrescreve. O campo editado também não gera evento —
+ * o valor do apLIS é ignorado nele.
+ *
  * Fonte do apLIS: MySQL de backup, ~1 dia de atraso; `meta.dadoAte` diz até
  * quando. Falha na réplica → erro, sem gravar nada.
  *
@@ -61,6 +66,7 @@ interface RequisicaoGravada {
   glosa_fixada: number | string | null;
   recebido_fixacao: number | string | null;
   valor_inicial_estimado: boolean;
+  valor_recebido_glosa_editado: number | string | null;
 }
 
 class ErroGravacao extends Error {}
@@ -79,6 +85,13 @@ function numeroOuNulo(valor: number | string | null): number | null {
 interface RequisicaoAnterior {
   fixacao: GlosaFixada;
   historico: FotoHistoricoRequisicao;
+  recebidoGlosaEditado: boolean;
+}
+
+interface LoteAnterior {
+  historico: FotoHistoricoLote;
+  /** Data de envio corrigida pelo lápis; null sem edição. */
+  envioEditado: string | null;
 }
 
 async function requisicoesGravadas(
@@ -89,7 +102,7 @@ async function requisicoesGravadas(
   for (const bloco of blocos(ids)) {
     const { data, error } = await supabase
       .from('glosa_recurso_requisicoes')
-      .select('id_requisicao, status_aplis, recebido, id_lote_recurso, glosa_fixada, recebido_fixacao, valor_inicial_estimado')
+      .select('id_requisicao, status_aplis, recebido, id_lote_recurso, glosa_fixada, recebido_fixacao, valor_inicial_estimado, valor_recebido_glosa_editado')
       .in('id_requisicao', bloco);
     if (error) throw new ErroGravacao(`foto das requisições: ${error.message}`);
     for (const linha of (data ?? []) as RequisicaoGravada[]) {
@@ -104,6 +117,7 @@ async function requisicoesGravadas(
           recebido: Number(linha.recebido),
           idLoteRecurso: linha.id_lote_recurso,
         },
+        recebidoGlosaEditado: (linha.valor_recebido_glosa_editado ?? null) !== null,
       });
     }
   }
@@ -113,18 +127,19 @@ async function requisicoesGravadas(
 async function lotesGravados(
   supabase: SupabaseClient,
   ids: number[],
-): Promise<Map<number, FotoHistoricoLote>> {
-  const porId = new Map<number, FotoHistoricoLote>();
+): Promise<Map<number, LoteAnterior>> {
+  const porId = new Map<number, LoteAnterior>();
   for (const bloco of blocos(ids)) {
     const { data, error } = await supabase
       .from('glosa_recurso_lotes')
-      .select('id_lote_recurso, data_envio_aplis')
+      .select('id_lote_recurso, data_envio_aplis, data_envio_editada')
       .in('id_lote_recurso', bloco);
     if (error) throw new ErroGravacao(`foto dos lotes: ${error.message}`);
-    for (const linha of (data ?? []) as { id_lote_recurso: number; data_envio_aplis: string | null }[]) {
+    type Linha = { id_lote_recurso: number; data_envio_aplis: string | null; data_envio_editada?: string | null };
+    for (const linha of (data ?? []) as Linha[]) {
       porId.set(Number(linha.id_lote_recurso), {
-        idLoteRecurso: Number(linha.id_lote_recurso),
-        dataEnvio: linha.data_envio_aplis,
+        historico: { idLoteRecurso: Number(linha.id_lote_recurso), dataEnvio: linha.data_envio_aplis },
+        envioEditado: linha.data_envio_editada ?? null,
       });
     }
   }
@@ -135,7 +150,7 @@ async function lotesGravados(
 function eventosDaSincronizacao(
   aplis: { requisicoes: RequisicaoGlosaRecursoAplis[]; lotesRecurso: LoteRecursoAplis[] },
   requisicoesAnteriores: Map<number, RequisicaoAnterior>,
-  lotesAnteriores: Map<number, FotoHistoricoLote>,
+  lotesAnteriores: Map<number, LoteAnterior>,
   agora: string,
 ): Record<string, unknown>[] {
   const paraLinhaHistorico = (idRequisicao: number | null, idLoteRecurso: number | null) => (e: EventoHistorico) => ({
@@ -155,15 +170,22 @@ function eventosDaSincronizacao(
       .filter((r) => r.idLoteRecurso !== null && requisicoesAnteriores.has(r.idRequisicao))
       .map((r) => r.idLoteRecurso),
   );
-  const doLote = aplis.lotesRecurso.flatMap((lote) => eventosDoLote(
-    lotesAnteriores.get(lote.idLoteRecurso) ?? null,
-    { idLoteRecurso: lote.idLoteRecurso, dataEnvio: lote.dtaEnvio },
-    { acompanhado: lotesAcompanhados.has(lote.idLoteRecurso) },
-  ).map(paraLinhaHistorico(null, lote.idLoteRecurso)));
-  const daRequisicao = aplis.requisicoes.flatMap((r) => eventosDaRequisicao(
-    requisicoesAnteriores.get(r.idRequisicao)?.historico ?? null,
-    { status: r.status, recebido: r.recebido, idLoteRecurso: r.idLoteRecurso },
-  ).map(paraLinhaHistorico(r.idRequisicao, r.idLoteRecurso)));
+  const doLote = aplis.lotesRecurso.flatMap((lote) => {
+    const anterior = lotesAnteriores.get(lote.idLoteRecurso);
+    return eventosDoLote(
+      anterior?.historico ?? null,
+      { idLoteRecurso: lote.idLoteRecurso, dataEnvio: lote.dtaEnvio },
+      { acompanhado: lotesAcompanhados.has(lote.idLoteRecurso), envioEditado: Boolean(anterior?.envioEditado) },
+    ).map(paraLinhaHistorico(null, lote.idLoteRecurso));
+  });
+  const daRequisicao = aplis.requisicoes.flatMap((r) => {
+    const anterior = requisicoesAnteriores.get(r.idRequisicao);
+    return eventosDaRequisicao(
+      anterior?.historico ?? null,
+      { status: r.status, recebido: r.recebido, idLoteRecurso: r.idLoteRecurso },
+      { recebidoGlosaEditado: anterior?.recebidoGlosaEditado },
+    ).map(paraLinhaHistorico(r.idRequisicao, r.idLoteRecurso));
+  });
   return [...doLote, ...daRequisicao];
 }
 
@@ -279,8 +301,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       const cobertos = await conveniosSincronizados(supabase, competencia);
       const cargaInicial = (r: RequisicaoGlosaRecursoAplis): boolean =>
         !cobertos.has(null) && !cobertos.has(r.fontePagadora.id);
+      // Enviado pelo apLIS ou pela data de envio editada.
       const lotesEnviados = new Set(
-        aplis.lotesRecurso.filter((l) => l.dtaEnvio !== null).map((l) => l.idLoteRecurso),
+        aplis.lotesRecurso
+          .filter((l) => l.dtaEnvio !== null || Boolean(lotesAnteriores.get(l.idLoteRecurso)?.envioEditado))
+          .map((l) => l.idLoteRecurso),
       );
 
       const eventos = eventosDaSincronizacao(aplis, anteriores, lotesAnteriores, agora);

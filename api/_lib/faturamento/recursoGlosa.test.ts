@@ -3,6 +3,7 @@ import {
   aplicarRegraPrazo,
   classificarRequisicao,
   eventosDaRequisicao,
+  eventoEdicaoManual,
   eventosDoLote,
   fixarGlosa,
   prazosDoLote,
@@ -438,6 +439,15 @@ describe('eventosDaRequisicao', () => {
     expect(eventosDaRequisicao(anterior, nova).map((e) => e.tipo))
       .toEqual(['entrada_lote_recurso', 'mudanca_status', 'mudanca_recebido']);
   });
+
+  // O valor recebido de glosa editado vale acima do recebido do apLIS: a
+  // mudança do recebido não é evento, porque a sincronização é ignorada nele.
+  it('recebido de glosa editado à mão: a mudança do recebido não gera evento', () => {
+    const anterior = { status: 7, recebido: 700, idLoteRecurso: 441 };
+    const nova = { status: 16, recebido: 850, idLoteRecurso: 441 };
+    expect(eventosDaRequisicao(anterior, nova, { recebidoGlosaEditado: true }).map((e) => e.tipo))
+      .toEqual(['mudanca_status']);
+  });
 });
 
 describe('eventosDoLote', () => {
@@ -481,5 +491,52 @@ describe('eventosDoLote', () => {
 
   it('lote novo ainda não enviado não gera evento', () => {
     expect(eventosDoLote(null, criado, { acompanhado: true })).toEqual([]);
+  });
+
+  it('data de envio editada à mão: o envio no apLIS não gera evento', () => {
+    expect(eventosDoLote(criado, enviado, { acompanhado: true, envioEditado: true })).toEqual([]);
+  });
+});
+
+describe('eventoEdicaoManual', () => {
+  it('data de envio corrigida: data anterior e nova', () => {
+    expect(eventoEdicaoManual('dataEnvio', '2026-10-20', '2026-10-22')).toEqual({
+      tipo: 'edicao_manual',
+      valorAnterior: '2026-10-20',
+      valorNovo: '2026-10-22',
+      descricao: 'Data de envio editada manualmente: de 20/10/2026 para 22/10/2026',
+    });
+  });
+
+  it('data real de retorno registrada pela primeira vez: sem valor anterior', () => {
+    expect(eventoEdicaoManual('dataRetornoReal', null, '2026-11-05')).toEqual({
+      tipo: 'edicao_manual',
+      valorAnterior: null,
+      valorNovo: '2026-11-05',
+      descricao: 'Data real de retorno editada manualmente: de — para 05/11/2026',
+    });
+  });
+
+  it('valor recursado corrigido: em reais, com centavos', () => {
+    expect(eventoEdicaoManual('valorRecursado', 300, 250.5)).toEqual({
+      tipo: 'edicao_manual',
+      valorAnterior: '300.00',
+      valorNovo: '250.50',
+      descricao: 'Valor recursado editado manualmente: de R$ 300,00 para R$ 250,50',
+    });
+  });
+
+  it('edição removida: volta a valer o valor do apLIS', () => {
+    expect(eventoEdicaoManual('valorRecebidoGlosa', 120, 80, { removida: true })).toEqual({
+      tipo: 'edicao_manual',
+      valorAnterior: '120.00',
+      valorNovo: '80.00',
+      descricao: 'Edição manual do valor recebido de glosa removida: volta a valer R$ 80,00 (apLIS)',
+    });
+  });
+
+  it('edição removida de um campo que o apLIS não tem', () => {
+    expect(eventoEdicaoManual('dataPagamentoReal', '2026-11-30', null, { removida: true }).descricao)
+      .toBe('Edição manual da data real de pagamento removida');
   });
 });

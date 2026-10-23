@@ -484,6 +484,62 @@ describe('POST /api/faturamento/glosas-recursos-sincronizar', () => {
       expect(eventosGravados(gravado).map((e) => e.tipo)).toEqual(['inicio_acompanhamento']);
     });
 
+    it('data de envio editada à mão: não é sobrescrita e o envio no apLIS não gera evento', async () => {
+      const { res, gravado } = await executar(
+        {
+          sincronizacoes: jaSincronizado,
+          fotos: [fotoAnterior],
+          lotes: [{
+            id_lote_recurso: 441,
+            data_envio_aplis: null,
+            data_envio_editada: '2026-10-15',
+            data_envio_editada_por: 'user-9',
+            data_envio_editada_em: '2026-10-16T12:00:00Z',
+          }],
+        },
+        { competencia: '2026-09' },
+        {
+          requisicoes: [requisicao({ status: 7, recebido: 700, idLoteRecurso: 441, recursado: 300 })],
+          lotesRecurso: [loteRecurso()],
+        },
+      );
+      expect(res.statusCode).toBe(200);
+      const [linhaLote] = gravado.upserts.glosa_recurso_lotes[0].linhas;
+      expect(linhaLote.data_envio_aplis).toBe('2026-10-22');
+      for (const coluna of ['data_envio_editada', 'data_envio_editada_por', 'data_envio_editada_em']) {
+        expect(linhaLote).not.toHaveProperty(coluna);
+      }
+      expect(gravado.inserts.glosa_recurso_historico).toBeUndefined();
+    });
+
+    it('valores da requisição editados à mão: não são sobrescritos e o recebido não gera evento', async () => {
+      const { gravado } = await executar(
+        {
+          sincronizacoes: jaSincronizado,
+          fotos: [{
+            ...fotoAnterior,
+            valor_recursado_editado: '250.00',
+            valor_recebido_glosa_editado: '120.00',
+          }],
+          lotes: [{ id_lote_recurso: 441, data_envio_aplis: '2026-10-22' }],
+        },
+        { competencia: '2026-09' },
+        {
+          requisicoes: [requisicao({ status: 16, recebido: 850, idLoteRecurso: 441, recursado: 300 })],
+          lotesRecurso: [loteRecurso()],
+        },
+      );
+      const [linha] = gravado.upserts.glosa_recurso_requisicoes[0].linhas;
+      expect(linha).toMatchObject({ recebido: 850, valor_recursado: 300 });
+      for (const coluna of [
+        'valor_recursado_editado', 'valor_recursado_editado_por', 'valor_recursado_editado_em',
+        'valor_recebido_glosa_editado', 'valor_recebido_glosa_editado_por', 'valor_recebido_glosa_editado_em',
+      ]) {
+        expect(linha).not.toHaveProperty(coluna);
+      }
+      expect(eventosGravados(gravado).map((e) => e.tipo)).toEqual(['mudanca_status']);
+    });
+
     it('nada mudou: não grava evento', async () => {
       const { res, gravado } = await executar(
         { sincronizacoes: jaSincronizado, fotos: [fotoAnterior], lotes: [{ id_lote_recurso: 441, data_envio_aplis: '2026-10-22' }] },

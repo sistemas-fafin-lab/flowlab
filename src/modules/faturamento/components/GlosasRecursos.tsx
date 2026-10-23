@@ -68,8 +68,9 @@ const GlosasRecursos: React.FC = () => {
   const [sincronizando, setSincronizando] = useState(false);
   const [erroSync, setErroSync] = useState<string | null>(null);
   const [avisoSync, setAvisoSync] = useState<string | null>(null);
-  // Muda a cada sincronização concluída: as abas recarregam da foto nova.
+  // Muda a cada sincronização ou edição (lápis) concluída: as abas recarregam da foto nova.
   const [versao, setVersao] = useState(0);
+  const aposEdicao = useCallback(() => setVersao((v) => v + 1), []);
 
   const atualizar = useCallback(async () => {
     setSincronizando(true);
@@ -206,7 +207,9 @@ const GlosasRecursos: React.FC = () => {
             ))}
           </div>
 
-          {subAba === 'lotes' && <LotesRecursoLista recorte={recorte} versao={versao} />}
+          {subAba === 'lotes' && (
+            <LotesRecursoLista recorte={recorte} versao={versao} podeEditar={podeEditar} onEditado={aposEdicao} />
+          )}
           {subAba === 'fora-de-lote' && <EmBreve titulo="Recursos fora de lote" />}
           {subAba === 'regras' && <RegrasPrazoConvenios versao={versao} podeEditar={podeEditar} />}
         </div>

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import type {
   DetalheRequisicaoRecurso,
+  EdicaoRecurso,
   LoteRecursoFoto,
   LotesRecursoFiltros,
   LotesRecursoMeta,
@@ -81,6 +82,22 @@ export async function sincronizarGlosasRecursos(recorte: RecorteGlosas): Promise
     throw new Error(body.error || 'Não foi possível sincronizar com o apLIS.');
   }
   return { requisicoes: body.requisicoes ?? 0, lotes: body.lotes ?? 0, dadoAte: body.meta?.dadoAte ?? null };
+}
+
+/** Grava uma edição manual (lápis). Lança com a mensagem da rota. */
+export async function editarRecurso(edicao: EdicaoRecurso): Promise<void> {
+  const token = await getTokenLegado();
+  if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+
+  const res = await fetch('/api/faturamento/glosas-recursos-editar', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(edicao),
+  });
+  const body = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+  if (!res.ok || !body.success) {
+    throw new Error(body.error || 'Não foi possível gravar a edição.');
+  }
 }
 
 interface RespostaLotesRecurso {
@@ -204,11 +221,13 @@ interface UseDetalheRecursoResult<T> {
 
 /**
  * Leitura do card "Detalhes do recurso" por um id; null não busca. Troca de id
- * descarta a resposta anterior em voo.
+ * descarta a resposta anterior em voo; outra `versao` (uma edição gravada)
+ * relê sem limpar o que está na tela.
  */
 function useDetalheRecurso<T>(
   parametro: 'idLoteRecurso' | 'idRequisicao',
   id: number | null,
+  versao: number,
   extrair: (body: RespostaDetalheRecurso) => T,
   mensagemErro: string,
 ): UseDetalheRecursoResult<T> {
@@ -220,6 +239,9 @@ function useDetalheRecurso<T>(
 
   useEffect(() => {
     setDados(null);
+  }, [parametro, id]);
+
+  useEffect(() => {
     setError(null);
     if (id === null) {
       setLoading(false);
@@ -236,7 +258,7 @@ function useDetalheRecurso<T>(
       .catch((err) => { if (!cancelado) setError(err instanceof Error ? err.message : mensagemErro); })
       .finally(() => { if (!cancelado) setLoading(false); });
     return () => { cancelado = true; };
-  }, [parametro, id, mensagemErro]);
+  }, [parametro, id, versao, mensagemErro]);
 
   return { dados, loading, error };
 }
@@ -248,20 +270,28 @@ interface RespostaDetalheRecurso extends Partial<DetalheRequisicaoRecurso> {
 }
 
 /** Requisições de um lote de recurso, em qualquer mês. */
-export function useRequisicoesLoteRecurso(idLoteRecurso: number | null): UseDetalheRecursoResult<RequisicaoRecursoFoto[]> {
+export function useRequisicoesLoteRecurso(
+  idLoteRecurso: number | null,
+  versao = 0,
+): UseDetalheRecursoResult<RequisicaoRecursoFoto[]> {
   return useDetalheRecurso(
     'idLoteRecurso',
     idLoteRecurso,
+    versao,
     (body) => body.requisicoes ?? [],
     'Não foi possível carregar as requisições do lote de recurso.',
   );
 }
 
 /** Requisição da foto com justificativa e observações do apLIS e o histórico do FlowLab. */
-export function useDetalheRequisicaoRecurso(idRequisicao: number | null): UseDetalheRecursoResult<DetalheRequisicaoRecurso> {
+export function useDetalheRequisicaoRecurso(
+  idRequisicao: number | null,
+  versao = 0,
+): UseDetalheRecursoResult<DetalheRequisicaoRecurso> {
   return useDetalheRecurso(
     'idRequisicao',
     idRequisicao,
+    versao,
     (body) => ({
       requisicao: body.requisicao as RequisicaoRecursoFoto,
       justificativas: body.justificativas ?? [],

@@ -6,7 +6,10 @@
  * Supabase (view glosa_recurso_lotes_lista), não do apLIS: a foto é gravada por
  * /api/faturamento/glosas-recursos-sincronizar. Retorno e pagamento previstos e
  * o selo de atraso saem das regras de prazo do convênio lidas a cada consulta:
- * alterar uma regra no cadastro muda a lista sem sincronizar.
+ * alterar uma regra no cadastro muda a lista sem sincronizar. As edições
+ * manuais (lápis) valem acima do apLIS: a data de envio editada recalcula
+ * retorno, pagamento e selo; a data real de retorno encerra o selo; o valor
+ * recursado e o recebido de glosa editados entram na classificação.
  *
  * Autorização: `Authorization: Bearer <access_token>` (canViewBilling). Lido
  * com o cliente do usuário, para respeitar a RLS.
@@ -24,7 +27,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { competenciaValida, prazosDoLote } from '../faturamento/recursoGlosa.js';
+import { competenciaValida, edicoesDaFoto, prazosDoLote } from '../faturamento/recursoGlosa.js';
 import type {
   RegrasPrazoLote,
   RequisicaoClassificavel,
@@ -48,6 +51,11 @@ interface LinhaLista {
   fonte_pagadora_nome: string | null;
   data_criacao_aplis: string | null;
   data_envio_aplis: string | null;
+  /** Editada (lápis) ou do apLIS. */
+  data_envio: string | null;
+  data_envio_editada: boolean;
+  data_retorno_real: string | null;
+  data_pagamento_real: string | null;
   fontes_requisicoes: (number | null)[] | null;
   qtd_requisicoes: number;
   valor_glosado: number | string;
@@ -62,6 +70,8 @@ interface LinhaRequisicao {
   recebido: number | string;
   recebido_fixacao: number | string | null;
   valor_recursado: number | string | null;
+  valor_recursado_editado: number | string | null;
+  valor_recebido_glosa_editado: number | string | null;
 }
 
 interface LinhaRegraFonte {
@@ -119,7 +129,7 @@ async function requisicoesDosLotes(
   for (let de = 0; ; de += PAGINA_LEITURA) {
     const { data, error } = await supabase
       .from('glosa_recurso_requisicoes')
-      .select('id_lote_recurso, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado')
+      .select('id_lote_recurso, status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado')
       .in('id_lote_recurso', idsLotes)
       .order('id_requisicao')
       .range(de, de + PAGINA_LEITURA - 1);
@@ -177,7 +187,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let consulta = supabase
       .from('glosa_recurso_lotes_lista')
       .select(
-        'id_lote_recurso, status_label, protocolo, protocolo_faturamento, id_fonte_pagadora, fonte_pagadora_nome, data_criacao_aplis, data_envio_aplis, fontes_requisicoes, qtd_requisicoes, valor_glosado, valor_recorrido',
+        'id_lote_recurso, status_label, protocolo, protocolo_faturamento, id_fonte_pagadora, fonte_pagadora_nome, data_criacao_aplis, data_envio_aplis, data_envio, data_envio_editada, data_retorno_real, data_pagamento_real, fontes_requisicoes, qtd_requisicoes, valor_glosado, valor_recorrido',
         { count: 'exact' },
       )
       .eq('competencia', competencia);
@@ -239,10 +249,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       });
     }
 
-    // As edições manuais (lápis, ticket 07) entram aqui: valores da requisição
-    // em `edicoes`, data de envio editada e data real de retorno do lote.
     const requisicoesPorLote = new Map<number, RequisicaoClassificavel[]>();
-    const enviados = new Set(linhas.filter((l) => l.data_envio_aplis).map((l) => l.id_lote_recurso));
+    const enviados = new Set(linhas.filter((l) => l.data_envio).map((l) => l.id_lote_recurso));
     for (const r of requisicoes) {
       const lista = requisicoesPorLote.get(r.id_lote_recurso) ?? [];
       lista.push({
@@ -255,6 +263,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           emLoteRecurso: true,
           loteEnviado: enviados.has(r.id_lote_recurso),
         },
+        edicoes: edicoesDaFoto({
+          valorRecursado: numeroOuNulo(r.valor_recursado_editado),
+          valorRecebidoGlosa: numeroOuNulo(r.valor_recebido_glosa_editado),
+        }),
       });
       requisicoesPorLote.set(r.id_lote_recurso, lista);
     }
@@ -276,8 +288,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         const fonteComRegra = fontesDoLote(l).find((f) => regraPorFonte.has(f));
         const prazos = prazosDoLote(
           {
-            dataEnvio: l.data_envio_aplis,
-            dataRetornoReal: null,
+            dataEnvio: l.data_envio,
+            dataRetornoReal: l.data_retorno_real,
             requisicoes: requisicoesPorLote.get(l.id_lote_recurso) ?? [],
           },
           fonteComRegra === undefined ? null : regraPorFonte.get(fonteComRegra) ?? null,
@@ -290,7 +302,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         protocoloFaturamento: l.protocolo_faturamento,
         fontePagadora: { id: l.id_fonte_pagadora, nome: l.fonte_pagadora_nome },
         dataCriacao: l.data_criacao_aplis,
-        dataEnvio: l.data_envio_aplis,
+        dataEnvio: l.data_envio,
+        dataEnvioAplis: l.data_envio_aplis,
+        dataEnvioEditada: l.data_envio_editada,
+        dataRetornoReal: l.data_retorno_real,
+        dataPagamentoReal: l.data_pagamento_real,
         qtdRequisicoes: l.qtd_requisicoes,
         valorGlosado: Number(l.valor_glosado),
         valorRecorrido: Number(l.valor_recorrido),

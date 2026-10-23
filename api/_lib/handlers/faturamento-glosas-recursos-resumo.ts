@@ -19,7 +19,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { competenciaValida, resumirAcompanhamento } from '../faturamento/recursoGlosa.js';
+import { competenciaValida, edicoesDaFoto, resumirAcompanhamento } from '../faturamento/recursoGlosa.js';
 import type { RequisicaoClassificavel } from '../faturamento/recursoGlosa.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
@@ -32,8 +32,10 @@ interface LinhaFoto {
   recebido: number | string;
   recebido_fixacao: number | string | null;
   valor_recursado: number | string | null;
+  valor_recursado_editado: number | string | null;
+  valor_recebido_glosa_editado: number | string | null;
   id_lote_recurso: number | null;
-  glosa_recurso_lotes: { data_envio_aplis: string | null } | null;
+  glosa_recurso_lotes: { data_envio_aplis: string | null; data_envio_editada: string | null } | null;
 }
 
 class ErroLeitura extends Error {}
@@ -62,15 +64,14 @@ async function requisicoesDoMes(
   for (let de = 0; ; de += PAGINA) {
     let consulta = supabase
       .from('glosa_recurso_requisicoes')
-      .select('status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, id_lote_recurso, glosa_recurso_lotes(data_envio_aplis)')
+      .select('status_aplis, liquido, recebido, recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado, id_lote_recurso, glosa_recurso_lotes(data_envio_aplis, data_envio_editada)')
       .eq('competencia', competencia);
     if (fontePagadoraId !== undefined) consulta = consulta.eq('id_fonte_pagadora', fontePagadoraId);
     const { data, error } = await consulta.order('id_requisicao').range(de, de + PAGINA - 1);
     if (error) throw new ErroLeitura(error.message);
     const linhas = (data ?? []) as unknown as LinhaFoto[];
-    // As edições manuais (lápis, ticket 07) entram aqui: valor recursado e
-    // recebido de glosa em `edicoes`, e a data de envio editada do lote em
-    // `loteEnviado`.
+    // As edições manuais (lápis) valem acima do apLIS: valor recursado e
+    // recebido de glosa em `edicoes`, e a data de envio editada em `loteEnviado`.
     for (const l of linhas) {
       saida.push({
         foto: {
@@ -80,8 +81,12 @@ async function requisicoesDoMes(
           recebidoFixacao: numeroOuNulo(l.recebido_fixacao),
           valorRecursado: numeroOuNulo(l.valor_recursado),
           emLoteRecurso: l.id_lote_recurso !== null,
-          loteEnviado: Boolean(l.glosa_recurso_lotes?.data_envio_aplis),
+          loteEnviado: Boolean(l.glosa_recurso_lotes?.data_envio_editada ?? l.glosa_recurso_lotes?.data_envio_aplis),
         },
+        edicoes: edicoesDaFoto({
+          valorRecursado: numeroOuNulo(l.valor_recursado_editado),
+          valorRecebidoGlosa: numeroOuNulo(l.valor_recebido_glosa_editado),
+        }),
       });
     }
     if (linhas.length < PAGINA) return saida;

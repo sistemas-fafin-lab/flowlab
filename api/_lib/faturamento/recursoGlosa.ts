@@ -111,6 +111,17 @@ export interface EdicoesRequisicao {
   valorRecebidoGlosa?: number;
 }
 
+/** As edições como a foto as guarda (null = sem edição). */
+export function edicoesDaFoto(editados: {
+  valorRecursado: number | null;
+  valorRecebidoGlosa: number | null;
+}): EdicoesRequisicao {
+  const edicoes: EdicoesRequisicao = {};
+  if (editados.valorRecursado !== null) edicoes.valorRecursado = editados.valorRecursado;
+  if (editados.valorRecebidoGlosa !== null) edicoes.valorRecebidoGlosa = editados.valorRecebidoGlosa;
+  return edicoes;
+}
+
 /** R: o recursado editado vale acima do do apLIS. */
 function recursadoEfetivo(foto: RequisicaoFoto, edicoes: EdicoesRequisicao): number {
   return edicoes.valorRecursado ?? foto.valorRecursado ?? 0;
@@ -428,7 +439,8 @@ export type TipoEventoHistorico =
   | 'entrada_lote_recurso'
   | 'mudanca_status'
   | 'mudanca_recebido'
-  | 'envio_lote';
+  | 'envio_lote'
+  | 'edicao_manual';
 
 /** Evento do histórico (tabela glosa_recurso_historico), sem data nem dono. */
 export interface EventoHistorico {
@@ -469,11 +481,14 @@ export interface FotoHistoricoRequisicao {
 /**
  * Eventos da requisição entre a foto anterior e a nova (spec, "Histórico").
  * `anterior` null: primeira sincronização — um só evento de início do
- * acompanhamento, sem reconstruir o passado.
+ * acompanhamento, sem reconstruir o passado. `recebidoGlosaEditado`: o valor
+ * recebido de glosa foi corrigido pelo lápis e vale acima do recebido do
+ * apLIS, então a mudança do recebido não é evento.
  */
 export function eventosDaRequisicao(
   anterior: FotoHistoricoRequisicao | null,
   nova: FotoHistoricoRequisicao,
+  opcoes: { recebidoGlosaEditado?: boolean } = {},
 ): EventoHistorico[] {
   if (anterior === null) {
     return [{
@@ -504,7 +519,7 @@ export function eventosDaRequisicao(
   }
   const recebidoAnterior = centavos(anterior.recebido);
   const recebidoNovo = centavos(nova.recebido);
-  if (recebidoAnterior !== recebidoNovo) {
+  if (!opcoes.recebidoGlosaEditado && recebidoAnterior !== recebidoNovo) {
     eventos.push({
       tipo: 'mudanca_recebido',
       valorAnterior: recebidoAnterior.toFixed(2),
@@ -531,14 +546,15 @@ function dataBr(iso: string): string {
  * Eventos do lote de recurso entre a foto anterior e a nova. Lote novo na
  * foto: o envio só conta se o lote junta requisições já acompanhadas
  * (`acompanhado`) — foi criado e enviado entre duas sincronizações; senão é
- * carga inicial e o passado não é reconstruído.
+ * carga inicial e o passado não é reconstruído. `envioEditado`: a data de
+ * envio foi corrigida pelo lápis e vale acima da do apLIS — sem evento.
  */
 export function eventosDoLote(
   anterior: FotoHistoricoLote | null,
   novo: FotoHistoricoLote,
-  opcoes: { acompanhado: boolean },
+  opcoes: { acompanhado: boolean; envioEditado?: boolean },
 ): EventoHistorico[] {
-  if (novo.dataEnvio === null) return [];
+  if (novo.dataEnvio === null || opcoes.envioEditado) return [];
   if (anterior === null && !opcoes.acompanhado) return [];
   const envioAnterior = anterior?.dataEnvio ?? null;
   if (envioAnterior === novo.dataEnvio) return [];
@@ -550,4 +566,58 @@ export function eventosDoLote(
       ? `Lote de recurso ${novo.idLoteRecurso} enviado em ${dataBr(novo.dataEnvio)}`
       : `Data de envio do lote de recurso ${novo.idLoteRecurso} mudou de ${dataBr(envioAnterior)} para ${dataBr(novo.dataEnvio)}`,
   }];
+}
+
+/** Campos que o lápis corrige: os três do lote e os dois da requisição. */
+export type CampoEdicaoLote = 'dataEnvio' | 'dataRetornoReal' | 'dataPagamentoReal';
+export type CampoEdicaoRequisicao = 'valorRecursado' | 'valorRecebidoGlosa';
+export type CampoEdicao = CampoEdicaoLote | CampoEdicaoRequisicao;
+
+const CAMPOS_EDICAO: Record<CampoEdicao, { nome: string; feminino: boolean; data: boolean }> = {
+  dataEnvio: { nome: 'data de envio', feminino: true, data: true },
+  dataRetornoReal: { nome: 'data real de retorno', feminino: true, data: true },
+  dataPagamentoReal: { nome: 'data real de pagamento', feminino: true, data: true },
+  valorRecursado: { nome: 'valor recursado', feminino: false, data: false },
+  valorRecebidoGlosa: { nome: 'valor recebido de glosa', feminino: false, data: false },
+};
+
+/** Data 'YYYY-MM-DD' ou valor em reais, como o histórico guarda. */
+type ValorEdicao = string | number | null;
+
+function valorGuardado(campo: CampoEdicao, valor: ValorEdicao): string | null {
+  if (valor === null) return null;
+  return CAMPOS_EDICAO[campo].data ? String(valor) : centavos(Number(valor)).toFixed(2);
+}
+
+function valorLegivel(campo: CampoEdicao, valor: ValorEdicao): string {
+  if (valor === null) return '—';
+  return CAMPOS_EDICAO[campo].data ? dataBr(String(valor)) : reais(centavos(Number(valor)));
+}
+
+/**
+ * Evento de uma edição manual (lápis). `anterior` e `novo` são o valor que
+ * valia antes e depois — o editado ou, sem edição, o do apLIS. `removida`:
+ * a edição foi apagada e `novo` é o do apLIS de novo (null se o apLIS não tem).
+ */
+export function eventoEdicaoManual(
+  campo: CampoEdicao,
+  anterior: ValorEdicao,
+  novo: ValorEdicao,
+  opcoes: { removida?: boolean } = {},
+): EventoHistorico {
+  const { nome, feminino } = CAMPOS_EDICAO[campo];
+  let descricao: string;
+  if (opcoes.removida) {
+    descricao = `Edição manual ${feminino ? 'da' : 'do'} ${nome} removida`;
+    if (novo !== null) descricao += `: volta a valer ${valorLegivel(campo, novo)} (apLIS)`;
+  } else {
+    const rotulo = nome.charAt(0).toUpperCase() + nome.slice(1);
+    descricao = `${rotulo} ${feminino ? 'editada' : 'editado'} manualmente: de ${valorLegivel(campo, anterior)} para ${valorLegivel(campo, novo)}`;
+  }
+  return {
+    tipo: 'edicao_manual',
+    valorAnterior: valorGuardado(campo, anterior),
+    valorNovo: valorGuardado(campo, novo),
+    descricao,
+  };
 }

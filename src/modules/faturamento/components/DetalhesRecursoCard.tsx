@@ -11,14 +11,17 @@ import {
   History,
   ImageIcon,
   MessageSquare,
+  Pencil,
   PlayCircle,
   Send,
   X,
 } from 'lucide-react';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
-import { useDetalheRequisicaoRecurso, useRequisicoesLoteRecurso } from '../hooks/useGlosasRecursos';
+import { editarRecurso, useDetalheRequisicaoRecurso, useRequisicoesLoteRecurso } from '../hooks/useGlosasRecursos';
 import { useImagensRequisicaoLegado } from '../hooks/useImagensRequisicaoLegado';
 import type {
+  CampoEdicaoLoteRecurso,
+  CampoEdicaoRequisicaoRecurso,
   DetalheRequisicaoRecurso,
   EventoHistoricoRecurso,
   JustificativaRecurso,
@@ -30,13 +33,16 @@ import type {
 import { corStatusFaturamento } from '../utils/corStatusFaturamento';
 import { formatCompetencia, formatCurrency, formatData, formatDataHora } from '../utils/formato';
 import { rotuloStatusAplis, SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
+import CampoEditavelRecurso, { MarcaEditado } from './CampoEditavelRecurso';
 import { ImagensRequisicaoLegadoModal } from './ImagensRequisicaoLegadoModal';
 
 // Card lateral "Detalhes do recurso" (.scratch/glosas-recursos-dashboard/,
 // issue 05). Aberto pelo olho de um lote: bloco do lote + requisições do lote;
 // clicar numa requisição abre as abas. Aberto só com `idRequisicao` (Glosas
 // recentes, Recursos fora de lote), vai direto à requisição, sem o lote.
-// É um painel ao lado da lista, não um modal.
+// É um painel ao lado da lista, não um modal. Quem gerencia o faturamento vê
+// o lápis (issue 07): datas do lote e valores da requisição; cada edição
+// gravada chama `onEditado`, e a página relê lista, cards e o próprio card.
 
 type AbaRequisicao = 'historico' | 'justificativa' | 'observacoes' | 'documentos';
 
@@ -82,34 +88,72 @@ const Vazio: React.FC<{ icone: React.ElementType; texto: string }> = ({ icone: I
   </div>
 );
 
-const BlocoLote: React.FC<{ lote: LoteRecursoFoto }> = ({ lote }) => (
-  <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-    <Campo rotulo="Lote de recurso">
-      <span className="font-semibold">{lote.idLoteRecurso}</span>
-    </Campo>
-    <Campo rotulo="Status">
-      <span className={`${CHIP} ${STATUS_LOTE_CORES[lote.statusLabel]}`}>{lote.statusLabel}</span>
-    </Campo>
-    <Campo rotulo="Protocolo do recurso">{lote.protocolo ?? '—'}</Campo>
-    <Campo rotulo="Protocolo de faturamento">
-      <span className="font-mono text-xs">{lote.protocoloFaturamento ?? '—'}</span>
-    </Campo>
-    <div className="col-span-2">
-      <Campo rotulo="Convênio">{lote.fontePagadora.nome ?? 'Não identificado'}</Campo>
-    </div>
-    <Campo rotulo="Criação">{formatData(lote.dataCriacao)}</Campo>
-    <Campo rotulo="Envio">{formatData(lote.dataEnvio)}</Campo>
-    <Campo rotulo="Retorno previsto">{formatData(lote.dataRetornoPrevista)}</Campo>
-    <Campo rotulo="Pagamento previsto">{formatData(lote.dataPagamentoPrevista)}</Campo>
-    <Campo rotulo="Atraso">
-      {lote.selo === 'sem-regra' || lote.selo === null ? (
-        <span className="text-gray-400 dark:text-gray-500">—</span>
-      ) : (
-        <span className={`${CHIP} ${SELOS_ATRASO[lote.selo].cor}`}>{SELOS_ATRASO[lote.selo].label}</span>
-      )}
-    </Campo>
-  </dl>
-);
+/** O que o card precisa para o lápis. */
+interface AcoesEdicao {
+  podeEditar: boolean;
+  /** Muda a cada edição gravada: o card relê. */
+  versao: number;
+  onEditado: () => void;
+}
+
+const BlocoLote: React.FC<{ lote: LoteRecursoFoto; edicao: AcoesEdicao }> = ({ lote, edicao }) => {
+  const salvar = (campo: CampoEdicaoLoteRecurso) => async (valor: string | null) => {
+    await editarRecurso({ idLoteRecurso: lote.idLoteRecurso, campo, valor });
+    edicao.onEditado();
+  };
+  return (
+    <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+      <Campo rotulo="Lote de recurso">
+        <span className="font-semibold">{lote.idLoteRecurso}</span>
+      </Campo>
+      <Campo rotulo="Status">
+        <span className={`${CHIP} ${STATUS_LOTE_CORES[lote.statusLabel]}`}>{lote.statusLabel}</span>
+      </Campo>
+      <Campo rotulo="Protocolo do recurso">{lote.protocolo ?? '—'}</Campo>
+      <Campo rotulo="Protocolo de faturamento">
+        <span className="font-mono text-xs">{lote.protocoloFaturamento ?? '—'}</span>
+      </Campo>
+      <div className="col-span-2">
+        <Campo rotulo="Convênio">{lote.fontePagadora.nome ?? 'Não identificado'}</Campo>
+      </div>
+      <Campo rotulo="Criação">{formatData(lote.dataCriacao)}</Campo>
+      <CampoEditavelRecurso
+        tipo="data"
+        rotulo="Envio"
+        valor={lote.dataEnvio}
+        editado={lote.dataEnvioEditada}
+        podeEditar={edicao.podeEditar}
+        dica={lote.dataEnvioEditada ? `apLIS: ${lote.dataEnvioAplis ? formatData(lote.dataEnvioAplis) : 'não enviado'}` : null}
+        onSalvar={salvar('dataEnvio')}
+      />
+      <Campo rotulo="Retorno previsto">{formatData(lote.dataRetornoPrevista)}</Campo>
+      <CampoEditavelRecurso
+        tipo="data"
+        rotulo="Retorno real"
+        valor={lote.dataRetornoReal}
+        editado={lote.dataRetornoReal !== null}
+        podeEditar={edicao.podeEditar}
+        onSalvar={salvar('dataRetornoReal')}
+      />
+      <Campo rotulo="Pagamento previsto">{formatData(lote.dataPagamentoPrevista)}</Campo>
+      <CampoEditavelRecurso
+        tipo="data"
+        rotulo="Pagamento real"
+        valor={lote.dataPagamentoReal}
+        editado={lote.dataPagamentoReal !== null}
+        podeEditar={edicao.podeEditar}
+        onSalvar={salvar('dataPagamentoReal')}
+      />
+      <Campo rotulo="Atraso">
+        {lote.selo === 'sem-regra' || lote.selo === null ? (
+          <span className="text-gray-400 dark:text-gray-500">—</span>
+        ) : (
+          <span className={`${CHIP} ${SELOS_ATRASO[lote.selo].cor}`}>{SELOS_ATRASO[lote.selo].label}</span>
+        )}
+      </Campo>
+    </dl>
+  );
+};
 
 const ChipStatusAplis: React.FC<{ codigo: number | null }> = ({ codigo }) => {
   const rotulo = rotuloStatusAplis(codigo);
@@ -118,11 +162,12 @@ const ChipStatusAplis: React.FC<{ codigo: number | null }> = ({ codigo }) => {
 
 const ListaRequisicoes: React.FC<{
   idLoteRecurso: number;
+  versao: number;
   onAbrir: (r: RequisicaoRecursoFoto) => void;
-}> = ({ idLoteRecurso, onAbrir }) => {
-  const { dados: requisicoes, loading, error } = useRequisicoesLoteRecurso(idLoteRecurso);
+}> = ({ idLoteRecurso, versao, onAbrir }) => {
+  const { dados: requisicoes, loading, error } = useRequisicoesLoteRecurso(idLoteRecurso, versao);
 
-  if (loading) return <LoadingSpinner message="Carregando requisições..." />;
+  if (loading && !requisicoes) return <LoadingSpinner message="Carregando requisições..." />;
   if (error) return <Erro mensagem={error} />;
   if (!requisicoes || requisicoes.length === 0) {
     return <Vazio icone={FileText} texto="Nenhuma requisição deste lote na foto" />;
@@ -149,9 +194,15 @@ const ListaRequisicoes: React.FC<{
             </div>
             <div className="text-right shrink-0 text-xs">
               <div className="text-gray-500 dark:text-gray-400">Recursado</div>
-              <div className="font-semibold text-gray-900 dark:text-white">{valorOuTraco(r.valorRecursado)}</div>
+              <div className="font-semibold text-gray-900 dark:text-white">
+                {valorOuTraco(r.valorRecursado)}
+                {r.editados.valorRecursado && <MarcaEditado compacta />}
+              </div>
               <div className="text-gray-500 dark:text-gray-400 mt-1">Recebido de glosa</div>
-              <div className="font-semibold text-green-700 dark:text-green-400">{valorOuTraco(r.valorRecebidoGlosa)}</div>
+              <div className="font-semibold text-green-700 dark:text-green-400">
+                {valorOuTraco(r.valorRecebidoGlosa)}
+                {r.editados.valorRecebidoGlosa && <MarcaEditado compacta />}
+              </div>
             </div>
             <ChevronRight size={16} className="text-gray-400 shrink-0" />
           </button>
@@ -161,36 +212,56 @@ const ListaRequisicoes: React.FC<{
   );
 };
 
-const ResumoRequisicao: React.FC<{ requisicao: RequisicaoRecursoFoto }> = ({ requisicao: r }) => (
-  <div className="space-y-3">
-    <div>
-      <div className="text-base font-semibold text-gray-900 dark:text-white break-words">
-        {r.paciente ?? 'Paciente não identificado'}
+const ResumoRequisicao: React.FC<{ requisicao: RequisicaoRecursoFoto; edicao: AcoesEdicao }> = ({ requisicao: r, edicao }) => {
+  const salvar = (campo: CampoEdicaoRequisicaoRecurso) => async (valor: number | null) => {
+    await editarRecurso({ idRequisicao: r.idRequisicao, campo, valor });
+    edicao.onEditado();
+  };
+  return (
+    <div className="space-y-3">
+      <div>
+        <div className="text-base font-semibold text-gray-900 dark:text-white break-words">
+          {r.paciente ?? 'Paciente não identificado'}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          <ChipStatusAplis codigo={r.statusAplis} />
+          {r.valorInicialEstimado && (
+            <span
+              className={`${CHIP} bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300`}
+              title="A foto foi tirada depois do envio do recurso: a glosa fixada pode não ser a original."
+            >
+              Valor inicial estimado
+            </span>
+          )}
+        </div>
       </div>
-      <div className="flex flex-wrap items-center gap-2 mt-1">
-        <ChipStatusAplis codigo={r.statusAplis} />
-        {r.valorInicialEstimado && (
-          <span
-            className={`${CHIP} bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300`}
-            title="A foto foi tirada depois do envio do recurso: a glosa fixada pode não ser a original."
-          >
-            Valor inicial estimado
-          </span>
-        )}
-      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+        <Campo rotulo="Requisição">{r.codRequisicao ?? r.idRequisicao}</Campo>
+        <Campo rotulo="Guia">{r.numGuia ?? '—'}</Campo>
+        <Campo rotulo="Convênio">{r.fontePagadora.nome ?? 'Não identificado'}</Campo>
+        <Campo rotulo="Mês de faturamento">{formatCompetencia(r.competencia)}</Campo>
+        <Campo rotulo="Lote de recurso">{r.idLoteRecurso ?? 'Fora de lote'}</Campo>
+        <Campo rotulo="Glosa fixada">{valorOuTraco(r.glosaFixada)}</Campo>
+        <CampoEditavelRecurso
+          tipo="moeda"
+          rotulo="Valor recursado"
+          valor={r.valorRecursado}
+          editado={r.editados.valorRecursado}
+          podeEditar={edicao.podeEditar}
+          onSalvar={salvar('valorRecursado')}
+        />
+        <CampoEditavelRecurso
+          tipo="moeda"
+          rotulo="Recebido de glosa"
+          valor={r.valorRecebidoGlosa}
+          editado={r.editados.valorRecebidoGlosa}
+          podeEditar={edicao.podeEditar}
+          onSalvar={salvar('valorRecebidoGlosa')}
+        />
+      </dl>
     </div>
-    <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
-      <Campo rotulo="Requisição">{r.codRequisicao ?? r.idRequisicao}</Campo>
-      <Campo rotulo="Guia">{r.numGuia ?? '—'}</Campo>
-      <Campo rotulo="Convênio">{r.fontePagadora.nome ?? 'Não identificado'}</Campo>
-      <Campo rotulo="Mês de faturamento">{formatCompetencia(r.competencia)}</Campo>
-      <Campo rotulo="Lote de recurso">{r.idLoteRecurso ?? 'Fora de lote'}</Campo>
-      <Campo rotulo="Glosa fixada">{valorOuTraco(r.glosaFixada)}</Campo>
-      <Campo rotulo="Valor recursado">{valorOuTraco(r.valorRecursado)}</Campo>
-      <Campo rotulo="Recebido de glosa">{valorOuTraco(r.valorRecebidoGlosa)}</Campo>
-    </dl>
-  </div>
-);
+  );
+};
 
 const ICONE_EVENTO: Record<TipoEventoHistoricoRecurso, { icone: React.ElementType; cor: string }> = {
   inicio_acompanhamento: { icone: PlayCircle, cor: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300' },
@@ -198,6 +269,7 @@ const ICONE_EVENTO: Record<TipoEventoHistoricoRecurso, { icone: React.ElementTyp
   envio_lote: { icone: Send, cor: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' },
   mudanca_status: { icone: History, cor: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' },
   mudanca_recebido: { icone: DollarSign, cor: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' },
+  edicao_manual: { icone: Pencil, cor: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300' },
 };
 
 const AbaHistorico: React.FC<{ historico: EventoHistoricoRecurso[] }> = ({ historico }) => {
@@ -216,7 +288,9 @@ const AbaHistorico: React.FC<{ historico: EventoHistoricoRecurso[] }> = ({ histo
             <div className="min-w-0 flex-1">
               <p className="text-sm text-gray-900 dark:text-white break-words">{e.descricao}</p>
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                {formatDataHora(e.ocorridoEm)} · {e.usuarioId ? 'Edição manual' : 'Sincronização com o apLIS'}
+                {formatDataHora(e.ocorridoEm)} · {e.tipo === 'edicao_manual'
+                  ? `Edição manual por ${e.usuarioNome ?? 'usuário removido'}`
+                  : 'Sincronização com o apLIS'}
               </p>
             </div>
           </li>
@@ -334,7 +408,7 @@ const AbaDoDetalhe: React.FC<{
   loading: boolean;
   error: string | null;
 }> = ({ aba, dados, loading, error }) => {
-  if (loading) return <LoadingSpinner message="Consultando o apLIS..." />;
+  if (loading && !dados) return <LoadingSpinner message="Consultando o apLIS..." />;
   if (error) return <Erro mensagem={error} />;
   if (!dados) return null;
   if (aba === 'historico') return <AbaHistorico historico={dados.historico} />;
@@ -348,14 +422,15 @@ const DetalheRequisicao: React.FC<{
   idRequisicao: number;
   /** Já lida na lista do lote: mostra o resumo antes do detalhe chegar. */
   previa: RequisicaoRecursoFoto | null;
-}> = ({ idRequisicao, previa }) => {
-  const { dados, loading, error } = useDetalheRequisicaoRecurso(idRequisicao);
+  edicao: AcoesEdicao;
+}> = ({ idRequisicao, previa, edicao }) => {
+  const { dados, loading, error } = useDetalheRequisicaoRecurso(idRequisicao, edicao.versao);
   const [aba, setAba] = useState<AbaRequisicao>('historico');
   const requisicao = dados?.requisicao ?? previa;
 
   return (
     <div className="space-y-4">
-      {requisicao && <ResumoRequisicao requisicao={requisicao} />}
+      {requisicao && <ResumoRequisicao requisicao={requisicao} edicao={edicao} />}
 
       <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto" role="tablist">
         {ABAS.map(({ id, label }) => (
@@ -389,10 +464,23 @@ interface Props {
   lote?: LoteRecursoFoto | null;
   /** Requisição aberta direto; sem `lote`, o card mostra só ela. */
   idRequisicao?: number | null;
+  /** canManageBilling: mostra o lápis. */
+  podeEditar: boolean;
+  /** Muda a cada edição gravada: o card relê o lote e a requisição. */
+  versao: number;
+  onEditado: () => void;
   onClose: () => void;
 }
 
-const DetalhesRecursoCard: React.FC<Props> = ({ lote = null, idRequisicao = null, onClose }) => {
+const DetalhesRecursoCard: React.FC<Props> = ({
+  lote = null,
+  idRequisicao = null,
+  podeEditar,
+  versao,
+  onEditado,
+  onClose,
+}) => {
+  const edicao: AcoesEdicao = { podeEditar, versao, onEditado };
   const [requisicaoAberta, setRequisicaoAberta] = useState<{ id: number; previa: RequisicaoRecursoFoto | null } | null>(
     idRequisicao === null ? null : { id: idRequisicao, previa: null },
   );
@@ -434,16 +522,21 @@ const DetalhesRecursoCard: React.FC<Props> = ({ lote = null, idRequisicao = null
         {/* Escondido, não desmontado: voltar do detalhe não recarrega a lista. */}
         {lote && (
           <div className={`space-y-5 ${requisicaoAberta ? 'hidden' : ''}`}>
-            <BlocoLote lote={lote} />
+            <BlocoLote lote={lote} edicao={edicao} />
             <div>
               <h4 className="text-sm font-semibold text-gray-900 dark:text-white">Requisições do lote</h4>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Todos os meses de faturamento</p>
-              <ListaRequisicoes idLoteRecurso={lote.idLoteRecurso} onAbrir={(r) => setRequisicaoAberta({ id: r.idRequisicao, previa: r })} />
+              <ListaRequisicoes idLoteRecurso={lote.idLoteRecurso} versao={versao} onAbrir={(r) => setRequisicaoAberta({ id: r.idRequisicao, previa: r })} />
             </div>
           </div>
         )}
         {requisicaoAberta && (
-          <DetalheRequisicao key={requisicaoAberta.id} idRequisicao={requisicaoAberta.id} previa={requisicaoAberta.previa} />
+          <DetalheRequisicao
+            key={requisicaoAberta.id}
+            idRequisicao={requisicaoAberta.id}
+            previa={requisicaoAberta.previa}
+            edicao={edicao}
+          />
         )}
       </div>
     </aside>

@@ -6,13 +6,15 @@ import Select from '../../../components/Select';
 import type { LoteRecursoFoto, RecorteGlosas, StatusLoteRecurso } from '../types';
 import { formatCurrency, formatData, formatDataHora } from '../utils/formato';
 import { SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
+import { MarcaEditado } from './CampoEditavelRecurso';
 import DetalhesRecursoCard from './DetalhesRecursoCard';
 
 // Acompanhamento dos recursos → "Lotes de recurso": os lotes de recurso da foto
 // do apLIS no recorte do cabeçalho (mês do lote de faturamento original +
 // convênio), com retorno e pagamento previstos e o selo de atraso calculados
 // no servidor pelas regras de prazo do convênio. O olho abre o card
-// "Detalhes do recurso" ao lado da lista.
+// "Detalhes do recurso" ao lado da lista. Retorno e pagamento mostram a data
+// real (registrada pelo lápis) quando há, diferenciada da prevista.
 
 const TAMANHO = 50;
 
@@ -23,13 +25,36 @@ const STATUS_OPCOES = [
 
 const CAMPO = 'px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-white';
 
+/** Data real (lápis) acima da prevista; a prevista fica apagada e rotulada. */
+const DataRealOuPrevista: React.FC<{ real: string | null; prevista: string | null }> = ({ real, prevista }) => {
+  if (real) {
+    return (
+      <div>
+        <div className="font-medium text-gray-900 dark:text-white">{formatData(real)}</div>
+        <div className="text-[10px] uppercase tracking-wide text-green-700 dark:text-green-400">real</div>
+      </div>
+    );
+  }
+  if (!prevista) return <span className="text-gray-400 dark:text-gray-500">—</span>;
+  return (
+    <div>
+      <div className="italic text-gray-500 dark:text-gray-400">{formatData(prevista)}</div>
+      <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">prevista</div>
+    </div>
+  );
+};
+
 interface Props {
   recorte: RecorteGlosas;
-  /** Muda a cada sincronização concluída: recarrega a lista. */
+  /** Muda a cada sincronização ou edição concluída: recarrega a lista. */
   versao: number;
+  /** canManageBilling: o card mostra o lápis. */
+  podeEditar: boolean;
+  /** Uma edição do lápis foi gravada: a página relê lista e cards. */
+  onEditado: () => void;
 }
 
-const LotesRecursoLista: React.FC<Props> = ({ recorte, versao }) => {
+const LotesRecursoLista: React.FC<Props> = ({ recorte, versao, podeEditar, onEditado }) => {
   const [busca, setBusca] = useState('');
   const [buscaDebounced, setBuscaDebounced] = useState('');
   const [status, setStatus] = useState<StatusLoteRecurso | ''>('');
@@ -173,8 +198,8 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao }) => {
                       <th className="px-3 py-3 text-right">Valor glosado</th>
                       <th className="px-3 py-3 text-right">Valor recorrido</th>
                       <th className="px-3 py-3">Envio</th>
-                      <th className="px-3 py-3">Retorno previsto</th>
-                      <th className="px-3 py-3">Pagamento previsto</th>
+                      <th className="px-3 py-3">Retorno</th>
+                      <th className="px-3 py-3">Pagamento</th>
                       <th className="px-3 py-3">Status</th>
                       <th className="px-5 py-3">Atraso</th>
                     </tr>
@@ -220,12 +245,13 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao }) => {
                         </td>
                         <td className="px-3 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
                           {formatData(l.dataEnvio)}
+                          {l.dataEnvioEditada && <MarcaEditado compacta />}
                         </td>
-                        <td className="px-3 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                          {formatData(l.dataRetornoPrevista)}
+                        <td className="px-3 py-4 whitespace-nowrap">
+                          <DataRealOuPrevista real={l.dataRetornoReal} prevista={l.dataRetornoPrevista} />
                         </td>
-                        <td className="px-3 py-4 text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                          {formatData(l.dataPagamentoPrevista)}
+                        <td className="px-3 py-4 whitespace-nowrap">
+                          <DataRealOuPrevista real={l.dataPagamentoReal} prevista={l.dataPagamentoPrevista} />
                         </td>
                         <td className="px-3 py-4">
                           <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap ${STATUS_LOTE_CORES[l.statusLabel]}`}>
@@ -256,7 +282,13 @@ const LotesRecursoLista: React.FC<Props> = ({ recorte, versao }) => {
 
         {loteAberto && (
           <div ref={cardRef} className="w-full xl:w-[420px] shrink-0 xl:sticky xl:top-4 scroll-mt-4">
-            <DetalhesRecursoCard lote={loteAberto} onClose={() => setLoteAberto(null)} />
+            <DetalhesRecursoCard
+              lote={loteAberto}
+              podeEditar={podeEditar}
+              versao={versao}
+              onEditado={onEditado}
+              onClose={() => setLoteAberto(null)}
+            />
           </div>
         )}
       </div>
