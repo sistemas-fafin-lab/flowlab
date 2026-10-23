@@ -999,6 +999,32 @@ export interface LotesRecursoFiltros extends RecorteGlosas {
   tamanho: number;
 }
 
+/** Card do Acompanhamento: percentual da quantidade sobre o total de recursos. */
+export interface CardRecursos {
+  quantidade: number;
+  valor: number;
+  percentual: number;
+}
+
+/** Cards do Acompanhamento dos recursos — contrato de GET /api/faturamento/glosas-recursos-resumo. */
+export interface ResumoAcompanhamentoRecursos {
+  /** Requisições em lote de recurso; valor = Σ recursado. */
+  total: {
+    quantidade: number;
+    valor: number;
+    /** % sobre o mês de faturamento anterior; null sem recursos nele. */
+    variacao: number | null;
+  };
+  emAnalise: CardRecursos;
+  /** Valor = o que voltou do recurso. */
+  deferidos: CardRecursos;
+  indeferidos: CardRecursos;
+  /** Em tratativa: valor recebido e o que falta a operadora pagar. */
+  deferidoParcial: { quantidade: number; valor: number; pendente: number };
+  /** Saldo negativo das requisições em 18 ou 8, com ou sem recurso. */
+  acatada: { quantidade: number; valor: number };
+}
+
 /** Metadados de um documento digitalizado de requisicaoimagem — contrato de
  *  GET /api/faturamento/imagens-legado. Os bytes vêm à parte, sob demanda, por
  *  GET /api/faturamento/imagem-legado-arquivo. */

@@ -14,6 +14,7 @@ import { sincronizarGlosasRecursos, useConveniosGlosas } from '../hooks/useGlosa
 import type { RecorteGlosas } from '../types';
 import { formatData, hojeIso } from '../utils/formato';
 import LotesRecursoLista from './LotesRecursoLista';
+import ResumoRecursosCards from './ResumoRecursosCards';
 
 // ============================================================================
 // COMPONENTE: GlosasRecursos
@@ -181,6 +182,8 @@ const GlosasRecursos: React.FC = () => {
       {aba === 'recentes' && <EmBreve titulo="Glosas recentes" />}
       {aba === 'acompanhamento' && (
         <div className="space-y-4">
+          <ResumoRecursosCards recorte={recorte} versao={versao} />
+
           <div className="flex flex-wrap gap-1">
             {SUB_ABAS.map((s) => (
               <button

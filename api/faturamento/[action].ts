@@ -39,6 +39,7 @@ import faturamentoRecebidosMes from '../_lib/handlers/faturamento-recebidos-mes.
 import faturamentoAplisCobrancasTestes from '../_lib/handlers/faturamento-aplis-cobrancas-testes.js';
 import faturamentoGlosasRecursosSincronizar from '../_lib/handlers/faturamento-glosas-recursos-sincronizar.js';
 import faturamentoGlosasRecursosLotes from '../_lib/handlers/faturamento-glosas-recursos-lotes.js';
+import faturamentoGlosasRecursosResumo from '../_lib/handlers/faturamento-glosas-recursos-resumo.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
@@ -69,6 +70,7 @@ const ROTAS: Record<string, Handler> = {
   'aplis-cobrancas-testes': faturamentoAplisCobrancasTestes,
   'glosas-recursos-sincronizar': faturamentoGlosasRecursosSincronizar,
   'glosas-recursos-lotes': faturamentoGlosasRecursosLotes,
+  'glosas-recursos-resumo': faturamentoGlosasRecursosResumo,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
