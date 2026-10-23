@@ -10,6 +10,8 @@ import {
   prazosDoLote,
   resumirAcompanhamento,
   resumirDashboard,
+  somarGlosasDoTitulo,
+  somarGlosasPorLote,
   statusDashboard,
   valorRecebidoGlosa,
 } from './recursoGlosa.js';
@@ -19,6 +21,7 @@ import type {
   RequisicaoDashboard,
   RequisicaoFoto,
   RequisicaoGlosaAplis,
+  RequisicaoTitulo,
 } from './recursoGlosa.js';
 
 function requisicao(overrides: Partial<RequisicaoGlosaAplis> = {}): RequisicaoGlosaAplis {
@@ -773,5 +776,62 @@ describe('eventoEdicaoManual', () => {
   it('edição removida de um campo que o apLIS não tem', () => {
     expect(eventoEdicaoManual('dataPagamentoReal', '2026-11-30', null, { removida: true }).descricao)
       .toBe('Edição manual da data real de pagamento removida');
+  });
+});
+
+describe('somarGlosasPorLote', () => {
+  function daFoto(overrides: Partial<RequisicaoFoto> = {}, extra: Partial<RequisicaoTitulo> = {}): RequisicaoTitulo {
+    return { idLoteFaturamento: 10, glosaFixada: 300, foto: foto(overrides), ...extra };
+  }
+
+  it('Glosado: glosa fixada das requisições em status 6, por lote de faturamento', () => {
+    const porLote = somarGlosasPorLote([
+      daFoto({ status: 6, emLoteRecurso: false }, { glosaFixada: 300 }),
+      daFoto({ status: 6, emLoteRecurso: false }, { glosaFixada: 120.5 }),
+      daFoto({ status: 6, emLoteRecurso: false }, { idLoteFaturamento: 20, glosaFixada: 80 }),
+      // Em recurso: não é mais "glosado sem recurso".
+      daFoto({ status: 7, recebido: 700 }, { glosaFixada: 500 }),
+    ]);
+    expect(porLote.get(10)?.glosado).toBe(420.5);
+    expect(porLote.get(20)?.glosado).toBe(80);
+  });
+
+  it('Glosa recebida: o valor deferido dos recursos (total ou parcial), com o lápis acima do apLIS', () => {
+    const porLote = somarGlosasPorLote([
+      // Deferido total: ΔRec = 1000 − 700 = R.
+      daFoto({ recebido: 1000 }),
+      // Deferido parcial: 100 de 300.
+      daFoto({ recebido: 800 }),
+      // Recebido de glosa corrigido pelo lápis: 50, não os 300 do apLIS.
+      { ...daFoto({ recebido: 1000 }), edicoes: { valorRecebidoGlosa: 50 } },
+      // Em análise: nada voltou ainda.
+      daFoto(),
+      // Deferido total pelo apLIS (34) sem base: em branco até o lápis, conta 0.
+      daFoto({ status: 34, recebidoFixacao: null, emLoteRecurso: false }, { glosaFixada: null }),
+    ]);
+    expect(porLote.get(10)?.glosaRecebida).toBe(450);
+    expect(porLote.get(10)?.glosado).toBe(0);
+  });
+
+  it('Glosa acatada: o saldo negativo (líquido − recebido) das requisições em 18 e 8', () => {
+    const porLote = somarGlosasPorLote([
+      daFoto({ status: 18, liquido: 1000, recebido: 850 }),
+      daFoto({ status: 8, liquido: 400, recebido: 0, emLoteRecurso: false }, { glosaFixada: 400 }),
+      // Indeferido: definitiva no Dashboard, mas não acatada.
+      daFoto({ status: 15 }),
+    ]);
+    expect(porLote.get(10)).toEqual({ glosado: 0, glosaRecebida: 0, glosaAcatada: 550 });
+  });
+});
+
+describe('somarGlosasDoTitulo', () => {
+  it('soma os lotes de faturamento do título; lote sem glosa na foto conta 0', () => {
+    const porLote = new Map([
+      [10, { glosado: 300, glosaRecebida: 100.1, glosaAcatada: 0 }],
+      [20, { glosado: 50, glosaRecebida: 0.2, glosaAcatada: 75 }],
+      [30, { glosado: 999, glosaRecebida: 999, glosaAcatada: 999 }],
+    ]);
+    expect(somarGlosasDoTitulo([10, 20, 40], porLote)).toEqual({ glosado: 350, glosaRecebida: 100.3, glosaAcatada: 75 });
+    expect(somarGlosasDoTitulo([], porLote)).toEqual({ glosado: 0, glosaRecebida: 0, glosaAcatada: 0 });
   });
 });

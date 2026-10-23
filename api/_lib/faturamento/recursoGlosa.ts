@@ -507,6 +507,56 @@ export function resumirDashboard(
   };
 }
 
+/** Requisição da foto com o lote de faturamento original: a ponte com o título. */
+export interface RequisicaoTitulo extends RequisicaoClassificavel {
+  /** `fatlote.IdLote` do faturamento original (`lotes.aplis_id` do título). */
+  idLoteFaturamento: number;
+  /** null: deferido total sem lote de recurso (conta 0). */
+  glosaFixada: number | null;
+}
+
+/** As três colunas de glosa de Contas a Receber → Títulos. */
+export interface GlosasTitulo {
+  /** Σ glosa fixada das requisições em "GLOSADO ainda SEM RECURSO" (6). */
+  glosado: number;
+  /** Σ valor deferido (total ou parcial): o mesmo das Revertidas do Dashboard. */
+  glosaRecebida: number;
+  /** Σ líquido − recebido das requisições em 18 e 8: o que foi dado como perdido. */
+  glosaAcatada: number;
+}
+
+/** Título ou lote sem glosa na foto. */
+export const GLOSAS_ZERADAS: Readonly<GlosasTitulo> = { glosado: 0, glosaRecebida: 0, glosaAcatada: 0 };
+
+/** Glosado, Glosa recebida e Glosa acatada de cada lote de faturamento. */
+export function somarGlosasPorLote(requisicoes: RequisicaoTitulo[]): Map<number, GlosasTitulo> {
+  const porLote = new Map<number, GlosasTitulo>();
+  for (const r of requisicoes) {
+    const soma = porLote.get(r.idLoteFaturamento) ?? { ...GLOSAS_ZERADAS };
+    if (r.foto.status === STATUS_GLOSA.glosadoSemRecurso) soma.glosado = centavos(soma.glosado + (r.glosaFixada ?? 0));
+    if (statusDashboard(r.foto, r.edicoes) === 'revertida') {
+      soma.glosaRecebida = centavos(soma.glosaRecebida + (valorRecebidoGlosa(r.foto, r.edicoes) ?? 0));
+    }
+    const classificacao = classificarRequisicao(r.foto, r.edicoes);
+    if (classificacao?.classe === 'acatada') soma.glosaAcatada = centavos(soma.glosaAcatada + classificacao.valor);
+    porLote.set(r.idLoteFaturamento, soma);
+  }
+  return porLote;
+}
+
+/** As três colunas de um título: a soma dos lotes de faturamento dele (lote fora da foto conta 0). */
+export function somarGlosasDoTitulo(idsLote: number[], porLote: Map<number, GlosasTitulo>): GlosasTitulo {
+  const soma: GlosasTitulo = { ...GLOSAS_ZERADAS };
+  for (const id of idsLote) {
+    const doLote = porLote.get(id);
+    if (!doLote) continue;
+    soma.glosado = centavos(soma.glosado + doLote.glosado);
+    soma.glosaRecebida = centavos(soma.glosaRecebida + doLote.glosaRecebida);
+    soma.glosaAcatada = centavos(soma.glosaAcatada + doLote.glosaAcatada);
+  }
+  return soma;
+}
+
 /** Tipos de regra de prazo (tabela glosa_prazo_regras). */
 export type TipoRegraPrazo =
   | 'dias_corridos'

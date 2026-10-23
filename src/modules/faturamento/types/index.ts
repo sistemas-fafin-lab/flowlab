@@ -1,3 +1,7 @@
+import type { GlosasTitulo } from '../../../../api/_lib/faturamento/recursoGlosa.js';
+
+export type { GlosasTitulo };
+
 // ============================================================================
 // FATURAMENTO - Types & Interfaces
 // Sistema de Gestão de Faturamento e Recebíveis (Espelho APLIS)
@@ -680,10 +684,16 @@ export interface TituloReceber {
   competencia: string | null;
   valorTotal: number;
   valorRecebido: number;
+  /** Glosas lançadas no título (tabela `glosas`): base do saldo e da baixa. A
+   *  coluna "Glosado" da tela vem de `glosasAplis`. */
   valorGlosado: number;
   /** Derivada no banco: total - recebido - glosa definitiva. Glosa aberta ou em
    *  recurso continua no saldo: ainda é valor pendente. */
   valorSaldo: number;
+  /** Glosado, Glosa recebida e Glosa acatada da foto de Glosas e Recursos, somados
+   *  nos lotes do título (.scratch/glosas-recursos-dashboard, issue 12). null:
+   *  a leitura falhou — a tela mostra "—". */
+  glosasAplis: GlosasTitulo | null;
   status: TituloStatus;
   observacoes: string | null;
   /** Dias corridos de atraso; negativo = ainda a vencer, null = sem vencimento. */

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { diasDeAtraso } from '../utils/formato';
 import { padraoContem, valorCitadoPostgrest } from '../utils/buscaLike';
+import { GLOSAS_ZERADAS, somarGlosasDoTitulo } from '../../../../api/_lib/faturamento/recursoGlosa.js';
 import type {
   AlteracaoLancamento,
   BaixaInput,
@@ -10,6 +11,7 @@ import type {
   GlosaLancamentoInput,
   GlosaSugeridaAplis,
   GlosaStatus,
+  GlosasTitulo,
   LancamentosTitulo,
   OperadoraResumo,
   TituloBaixa,
@@ -39,11 +41,32 @@ const FATIA_SOMA = 1000;
 /** Somas dos cards da aba Títulos, sobre o recorte inteiro (todas as páginas). */
 export interface TotaisTitulos {
   recebido: number;
-  glosado: number;
   saldo: number;
+  /** Glosado, Glosa recebida e Glosa acatada da foto do apLIS; null se a leitura falhou. */
+  glosas: GlosasTitulo | null;
 }
 
-const TOTAIS_ZERADOS: TotaisTitulos = { recebido: 0, glosado: 0, saldo: 0 };
+const centavos = (valor: number) => Math.round(valor * 100) / 100;
+const TOTAIS_ZERADOS: TotaisTitulos = { recebido: 0, saldo: 0, glosas: GLOSAS_ZERADAS };
+
+/** `lotes.aplis_id` (texto) → `fatlote.IdLote`; lote criado fora do apLIS fica de fora. */
+function idsAplis(aplisIds: (string | null | undefined)[]): number[] {
+  return aplisIds
+    .map((id) => Number(id))
+    .filter((id) => Number.isInteger(id) && id > 0);
+}
+
+/** Glosado, Glosa recebida e Glosa acatada por lote de faturamento, da foto de
+ *  Glosas e Recursos (POST /api/faturamento/titulos-glosas-aplis). */
+async function buscarGlosasAplisPorLote(lotes: number[]): Promise<Map<number, GlosasTitulo>> {
+  if (lotes.length === 0) return new Map();
+  const { porLote } = await chamarApi<{ porLote: Record<string, GlosasTitulo> }>(
+    '/api/faturamento/titulos-glosas-aplis',
+    'Não foi possível ler as glosas do apLIS.',
+    { method: 'POST', body: { lotes: [...new Set(lotes)] } },
+  );
+  return new Map(Object.entries(porLote).map(([id, glosas]) => [Number(id), glosas]));
+}
 
 /** Nome (`user_profiles.name`) por id. `registrado_por_id` referencia
  *  auth.users, não user_profiles — sem FK direta o PostgREST não embeda o nome
@@ -240,6 +263,8 @@ function normalizar(linha: LinhaTitulo): TituloReceber {
     valorRecebido: num(linha.valor_recebido),
     valorGlosado: num(linha.valor_glosado),
     valorSaldo: num(linha.valor_saldo),
+    // Preenchido pelo refetch, depois da leitura da foto do apLIS.
+    glosasAplis: null,
     status: linha.status,
     observacoes: linha.observacoes,
     diasAtraso: diasDeAtraso(linha.data_vencimento),
@@ -252,10 +277,12 @@ interface UseContasReceberResult {
   titulos: TituloReceber[];
   operadoras: OperadoraResumo[];
   total: number;
-  /** Somas de recebido, glosado e saldo de todos os títulos do recorte (todas as páginas). */
+  /** Somas de recebido, glosas e saldo de todos os títulos do recorte (todas as páginas). */
   totais: TotaisTitulos;
   loading: boolean;
   error: string | null;
+  /** Falha ao ler as glosas do apLIS: a lista segue, com as três colunas em "—". */
+  erroGlosasAplis: string | null;
   refetch: () => Promise<void>;
   /** Recarrega o seletor de operadoras — chamado depois de sincronizar com o apLIS. */
   refetchOperadoras: () => Promise<void>;
@@ -319,6 +346,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const [totais, setTotais] = useState<TotaisTitulos>(TOTAIS_ZERADOS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [erroGlosasAplis, setErroGlosasAplis] = useState<string | null>(null);
 
   // Desestruturado para que as deps do useCallback sejam primitivas — com o
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
@@ -335,6 +363,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     const reqId = ++buscaAtual.current;
     setLoading(true);
     setError(null);
+    setErroGlosasAplis(null);
 
     const porPagina = tamanho ?? TAMANHO_PADRAO;
     const inicio = ((pagina ?? 1) - 1) * porPagina;
@@ -445,33 +474,30 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         return query;
       };
 
-      // Cards "Recebido", "Glosado" e "Saldo" da aba Títulos: soma do recorte
-      // inteiro, não da página. Lido em fatias porque o PostgREST corta cada
-      // resposta em 1000 linhas.
-      const somarTotais = async (): Promise<TotaisTitulos> => {
-        const soma = { ...TOTAIS_ZERADOS };
-        const centavos = (valor: number) => Math.round(valor * 100) / 100;
+      // Cards de totais da aba Títulos: soma do recorte inteiro, não da página.
+      // Lido em fatias porque o PostgREST corta cada resposta em 1000 linhas.
+      // Recebido e saldo saem de `notas`; as glosas, dos lotes de cada título
+      // (`lotesPorTitulo`), somadas depois de ler a foto do apLIS.
+      const somarTotais = async (): Promise<{ recebido: number; saldo: number; lotesPorTitulo: number[][] }> => {
+        const soma = { recebido: 0, saldo: 0 };
+        const lotesPorTitulo: number[][] = [];
         for (let deslocamento = 0; ; deslocamento += FATIA_SOMA) {
-          const { data: fatia, error: erroFatia } = await filtrada('valor_recebido, valor_glosado, valor_saldo')
+          const { data: fatia, error: erroFatia } = await filtrada('valor_recebido, valor_saldo, nota_lote(lotes(aplis_id))')
             .order('id_nota')
             .range(deslocamento, deslocamento + FATIA_SOMA - 1);
           if (erroFatia) throw new Error(erroFatia.message);
           const linhas = (fatia ?? []) as unknown as {
             valor_recebido: number | string;
-            valor_glosado: number | string;
             valor_saldo: number | string;
+            nota_lote: { lotes: { aplis_id: string | null } | null }[] | null;
           }[];
           for (const linha of linhas) {
             soma.recebido += num(linha.valor_recebido);
-            soma.glosado += num(linha.valor_glosado);
             soma.saldo += num(linha.valor_saldo);
+            lotesPorTitulo.push(idsAplis((linha.nota_lote ?? []).map((v) => v.lotes?.aplis_id)));
           }
           if (linhas.length < FATIA_SOMA) {
-            return {
-              recebido: centavos(soma.recebido),
-              glosado: centavos(soma.glosado),
-              saldo: centavos(soma.saldo),
-            };
+            return { recebido: centavos(soma.recebido), saldo: centavos(soma.saldo), lotesPorTitulo };
           }
         }
       };
@@ -485,10 +511,24 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       ]);
       if (reqId !== buscaAtual.current) return;
       if (erro) throw new Error(erro.message);
+      const daPagina = (data as unknown as LinhaTitulo[] ?? []).map(normalizar);
 
-      setTitulos((data as unknown as LinhaTitulo[] ?? []).map(normalizar));
+      // Os lotes da página estão entre os do recorte: uma ida só ao apLIS.
+      // Falha aqui não derruba a lista — só as três colunas de glosa ficam em "—".
+      let porLote: Map<number, GlosasTitulo> | null = null;
+      try {
+        porLote = await buscarGlosasAplisPorLote(somas.lotesPorTitulo.flat());
+      } catch (errGlosas) {
+        if (reqId !== buscaAtual.current) return;
+        setErroGlosasAplis(errGlosas instanceof Error ? errGlosas.message : 'Não foi possível ler as glosas do apLIS.');
+      }
+      if (reqId !== buscaAtual.current) return;
+
+      // O total é a soma das colunas dos títulos: os lotes de todos juntos.
+      const glosasDosLotes = (lotes: number[]) => (porLote ? somarGlosasDoTitulo(lotes, porLote) : null);
+      setTitulos(daPagina.map((t) => ({ ...t, glosasAplis: glosasDosLotes(idsAplis(t.lotes.map((l) => l.aplisId))) })));
       setTotal(count ?? 0);
-      setTotais(somas);
+      setTotais({ recebido: somas.recebido, saldo: somas.saldo, glosas: glosasDosLotes(somas.lotesPorTitulo.flat()) });
     } catch (err) {
       if (reqId !== buscaAtual.current) return;
       setError(err instanceof Error ? err.message : 'Não foi possível carregar os títulos.');
@@ -962,6 +1002,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     totais,
     loading,
     error,
+    erroGlosasAplis,
     refetch,
     refetchOperadoras,
     buscarTitulo,

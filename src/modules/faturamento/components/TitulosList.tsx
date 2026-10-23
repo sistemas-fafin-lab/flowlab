@@ -11,6 +11,7 @@ import {
   Scissors,
   Search,
   Settings,
+  Undo2,
   Unlink,
   Wallet,
 } from 'lucide-react';
@@ -106,10 +107,12 @@ interface Props {
   titulos: TituloReceber[];
   operadoras: OperadoraResumo[];
   total: number;
-  /** Somas de recebido, glosado e saldo de todos os títulos do recorte, não só da página. */
+  /** Somas de recebido, glosas e saldo de todos os títulos do recorte, não só da página. */
   totais: TotaisTitulos;
   loading: boolean;
   error: string | null;
+  /** Falha ao ler as glosas do apLIS: aviso discreto, as três colunas em "—". */
+  erroGlosasAplis: string | null;
   /** Conferência com o apLIS por `idNota` (só os divergentes); null enquanto
    *  não chegou ou se falhou — aí a linha sai sem selo. */
   divergencias: Map<string, DivergenciaAplis> | null;
@@ -251,6 +254,7 @@ const TitulosList: React.FC<Props> = ({
   totais,
   loading,
   error,
+  erroGlosasAplis,
   divergencias,
   erroConferencia,
   podeEditar,
@@ -715,9 +719,19 @@ const TitulosList: React.FC<Props> = ({
         </div>
       )}
 
+      {erroGlosasAplis && (
+        <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-300">
+          <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+          <span>
+            Glosas do apLIS indisponíveis ({erroGlosasAplis}): Glosado, Glosa recebida e Glosa acatada aparecem como "—".
+          </span>
+        </div>
+      )}
+
       {/* Totais do recorte: acompanham todos os filtros acima, somando todas as
-          páginas (as somas vêm do hook, não de `titulos`). Recebido e Glosado
-          seguem as cores das colunas; o Saldo muda de cor pelo sinal. */}
+          páginas (as somas vêm do hook, não de `titulos`). Recebido e as glosas
+          seguem as cores das colunas; o Saldo muda de cor pelo sinal. As glosas
+          vêm da foto de Glosas e Recursos (apLIS). */}
       <div className="flex flex-wrap gap-3">
         <CardTotal
           icone={<DollarSign className="w-4 h-4" />}
@@ -729,7 +743,19 @@ const TitulosList: React.FC<Props> = ({
           icone={<AlertTriangle className="w-4 h-4" />}
           corIcone="bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400"
           rotulo="Total glosado"
-          valor={loading ? '—' : formatCurrency(totais.glosado)}
+          valor={loading || !totais.glosas ? '—' : formatCurrency(totais.glosas.glosado)}
+        />
+        <CardTotal
+          icone={<Undo2 className="w-4 h-4" />}
+          corIcone="bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400"
+          rotulo="Glosa recebida"
+          valor={loading || !totais.glosas ? '—' : formatCurrency(totais.glosas.glosaRecebida)}
+        />
+        <CardTotal
+          icone={<Ban className="w-4 h-4" />}
+          corIcone="bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
+          rotulo="Glosa acatada"
+          valor={loading || !totais.glosas ? '—' : formatCurrency(totais.glosas.glosaAcatada)}
         />
         <CardTotal
           icone={<Wallet className="w-4 h-4" />}
@@ -777,7 +803,9 @@ const TitulosList: React.FC<Props> = ({
                   <th className="px-3 py-2">Vencimento</th>
                   <th className="px-3 py-2 text-right">Total</th>
                   <th className="px-3 py-2 text-right">Recebido</th>
-                  <th className="px-3 py-2 text-right">Glosado</th>
+                  <th className="px-3 py-2 text-right" title="Glosa fixada das requisições em &quot;GLOSADO ainda SEM RECURSO&quot; dos lotes do título (apLIS)">Glosado</th>
+                  <th className="px-3 py-2 text-right" title="Valor deferido dos recursos das requisições do título (apLIS)">Glosa recebida</th>
+                  <th className="px-3 py-2 text-right" title="Saldo negativo das requisições em &quot;Recebido a menor – acatado&quot; e &quot;Glosa definitiva – acatada diretoria&quot; (apLIS)">Glosa acatada</th>
                   <th className="px-3 py-2 text-right">Saldo</th>
                   <th className="px-3 py-2">Status</th>
                   {podeEditar && <th className="px-3 py-2 w-40" />}
@@ -876,7 +904,13 @@ const TitulosList: React.FC<Props> = ({
                           {formatCurrency(titulo.valorRecebido)}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums text-amber-600 dark:text-amber-400">
-                          {formatCurrency(titulo.valorGlosado)}
+                          {titulo.glosasAplis ? formatCurrency(titulo.glosasAplis.glosado) : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-sky-600 dark:text-sky-400">
+                          {titulo.glosasAplis ? formatCurrency(titulo.glosasAplis.glosaRecebida) : '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-rose-600 dark:text-rose-400">
+                          {titulo.glosasAplis ? formatCurrency(titulo.glosasAplis.glosaAcatada) : '—'}
                         </td>
                         <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">
                           {formatCurrency(titulo.valorSaldo)}
@@ -939,7 +973,7 @@ const TitulosList: React.FC<Props> = ({
 
                       {aberto && (
                         <tr className="bg-gray-50/70 dark:bg-gray-700/20">
-                          <td colSpan={podeEditar ? 14 : 13} className="px-6 py-3">
+                          <td colSpan={podeEditar ? 16 : 15} className="px-6 py-3">
                             {titulo.observacoes && (
                               <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
                                 {titulo.observacoes}
