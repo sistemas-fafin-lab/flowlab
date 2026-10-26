@@ -264,6 +264,42 @@ const ResumoRequisicao: React.FC<{ requisicao: RequisicaoRecursoFoto; edicao: Ac
   );
 };
 
+// Mesma estrutura do resumo, com os valores no lugar: as abas não pulam quando
+// o detalhe chega. Sem `animado` (a consulta falhou), só os rótulos e traços.
+const RESUMO_ROTULOS = [
+  'Requisição',
+  'Guia',
+  'Convênio',
+  'Mês de faturamento',
+  'Lote de recurso',
+  'Glosa fixada',
+  'Valor recursado',
+  'Recebido de glosa',
+];
+
+const ResumoRequisicaoEsqueleto: React.FC<{ animado: boolean }> = ({ animado }) => {
+  const barra = `inline-block align-middle rounded bg-gray-200 dark:bg-gray-700 ${animado ? 'animate-pulse' : ''}`;
+  return (
+    <div className="space-y-3" aria-busy={animado}>
+      <div>
+        <div className="text-base">
+          <span className={`${barra} h-5 w-48`} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          <span className={`${barra} h-6 w-24 rounded-full`} />
+        </div>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
+        {RESUMO_ROTULOS.map((rotulo) => (
+          <Campo key={rotulo} rotulo={rotulo}>
+            {animado ? <span className={`${barra} h-4 w-20`} /> : '—'}
+          </Campo>
+        ))}
+      </dl>
+    </div>
+  );
+};
+
 const ICONE_EVENTO: Record<TipoEventoHistoricoRecurso, { icone: React.ElementType; cor: string }> = {
   inicio_acompanhamento: { icone: PlayCircle, cor: 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300' },
   entrada_lote_recurso: { icone: FolderInput, cor: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' },
@@ -431,7 +467,11 @@ const DetalheRequisicao: React.FC<{
 
   return (
     <div className="space-y-4">
-      {requisicao && <ResumoRequisicao requisicao={requisicao} edicao={edicao} />}
+      {requisicao ? (
+        <ResumoRequisicao requisicao={requisicao} edicao={edicao} />
+      ) : (
+        <ResumoRequisicaoEsqueleto animado={!error} />
+      )}
 
       <div className="flex border-b border-gray-200 dark:border-gray-700 overflow-x-auto" role="tablist">
         {ABAS.map(({ id, label }) => (
