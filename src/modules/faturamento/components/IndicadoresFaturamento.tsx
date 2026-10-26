@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Bar,
   BarChart,
@@ -20,16 +20,23 @@ import {
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
+import DatePicker from '../../../components/DatePicker';
 import { useTheme } from '../../../hooks/useTheme';
 import { useIndicadoresFaturamento } from '../hooks/useIndicadoresFaturamento';
-import type { CardIndicadorFaturamento, ItemRankingIndicadores, RankingIndicadores } from '../types';
-import { formatCurrency, formatPercentual, hojeIso } from '../utils/formato';
+import type {
+  CardIndicadorFaturamento,
+  ItemRankingIndicadores,
+  PeriodoIndicadoresFaturamento,
+  RankingIndicadores,
+} from '../types';
+import { formatCurrency, formatData, formatPercentual, hojeIso, periodoMesPassado } from '../utils/formato';
 
 // ============================================================================
 // COMPONENTE: IndicadoresFaturamento
 // Faturamento → Indicadores (.scratch/faturamento-indicadores/spec.md): total
-// faturado, requisições e exames faturados no mês (pela criação do lote, sem
-// os cancelados), com a variação sobre o mês anterior, e os rankings Top 10.
+// faturado, requisições e exames faturados no mês ou num período livre (pela
+// criação do lote, sem os cancelados), com a variação sobre o mês anterior ou o
+// período anterior de mesmo tamanho, e os rankings Top 10.
 // Os números vêm prontos do servidor (api/_lib/faturamento/indicadoresFaturamento.ts),
 // cada ranking já nas duas ordens: o botão R$/Qtd só escolhe qual mostrar.
 //
@@ -58,6 +65,14 @@ const formatInteiro = (n: number): string => n.toLocaleString('pt-BR');
 /** Métrica dos rankings, escolhida no botão R$/Qtd do cabeçalho. */
 type MetricaRanking = 'valor' | 'quantidade';
 
+type ModoPeriodo = PeriodoIndicadoresFaturamento['modo'];
+
+/** Textos que mudam com o modo do cabeçalho. */
+const TEXTOS_MODO: Record<ModoPeriodo, { no: string; deste: string; anterior: string; Anterior: string }> = {
+  mes: { no: 'no mês', deste: 'deste mês', anterior: 'mês anterior', Anterior: 'Mês anterior' },
+  periodo: { no: 'no período', deste: 'deste período', anterior: 'período anterior', Anterior: 'Período anterior' },
+};
+
 const COR_RANKING = '#6366f1'; // indigo-500
 
 /** Rótulo do eixo dos rankings; o nome inteiro fica no tooltip. */
@@ -71,9 +86,9 @@ const encurtar = (nome: string): string => (nome.length > MAX_ROTULO ? `${nome.s
 
 const alturaRanking = (linhas: number) => Math.max(linhas * 34 + 16, 192);
 
-const Variacao: React.FC<{ variacao: number | null }> = ({ variacao }) => {
-  if (variacao === null) return <><span className="font-medium">—</span> sem valor no mês anterior</>;
-  if (variacao === 0) return <>Igual ao mês anterior</>;
+const Variacao: React.FC<{ variacao: number | null; anterior: string }> = ({ variacao, anterior }) => {
+  if (variacao === null) return <><span className="font-medium">—</span> sem valor no {anterior}</>;
+  if (variacao === 0) return <>Igual ao {anterior}</>;
   const sobe = variacao > 0;
   const Seta = sobe ? TrendingUp : TrendingDown;
   const cor = sobe ? 'text-green-700 dark:text-green-300' : 'text-amber-700 dark:text-amber-300';
@@ -81,7 +96,7 @@ const Variacao: React.FC<{ variacao: number | null }> = ({ variacao }) => {
     <>
       <Seta className={`inline h-4 w-4 mr-1 align-[-3px] ${cor}`} />
       <span className={`font-medium ${cor}`}>{sobe ? '+' : ''}{formatPercentual(variacao)}</span>{' '}
-      em relação ao mês anterior
+      em relação ao {anterior}
     </>
   );
 };
@@ -92,45 +107,59 @@ interface CardProps {
   formatar: (n: number) => string;
   icone: React.ReactNode;
   corIcone: string;
+  textos: (typeof TEXTOS_MODO)[ModoPeriodo];
 }
 
-const CardIndicador: React.FC<CardProps> = ({ titulo, card, formatar, icone, corIcone }) => (
+const CardIndicador: React.FC<CardProps> = ({ titulo, card, formatar, icone, corIcone, textos }) => (
   <div className={CARD}>
     <div className="flex items-center justify-between">
       <div>
         <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{titulo}</p>
         <p className="text-2xl font-bold text-gray-900 dark:text-white mt-1">{formatar(card.atual)}</p>
-        <p className="text-sm text-gray-500 dark:text-gray-400">Mês anterior: {formatar(card.anterior)}</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          {textos.Anterior}: {formatar(card.anterior)}
+        </p>
       </div>
       <div className={`p-3 rounded-lg ${corIcone}`}>{icone}</div>
     </div>
     <div className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-      <Variacao variacao={card.variacao} />
+      <Variacao variacao={card.variacao} anterior={textos.anterior} />
     </div>
   </div>
 );
 
-const BotaoMetrica: React.FC<{ metrica: MetricaRanking; onChange: (m: MetricaRanking) => void }> = ({ metrica, onChange }) => (
-  <div className="text-xs text-gray-500 dark:text-gray-400">
-    Rankings por
-    <div className="mt-1 flex rounded-lg bg-gray-100 dark:bg-gray-700 p-0.5 text-sm font-medium">
-      {([['valor', 'R$'], ['quantidade', 'Qtd']] as const).map(([id, label]) => (
-        <button
-          key={id}
-          onClick={() => onChange(id)}
-          aria-pressed={metrica === id}
-          className={`px-3 py-1.5 rounded-md transition-colors ${
-            metrica === id
-              ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
-              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-          }`}
-        >
-          {label}
-        </button>
-      ))}
+/** Botões lado a lado, um ativo: Mês/Período e R$/Qtd. */
+function Alternancia<T extends string>({ rotulo, opcoes, valor, onChange }: {
+  rotulo: string;
+  opcoes: readonly (readonly [T, string])[];
+  valor: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="text-xs text-gray-500 dark:text-gray-400">
+      {rotulo}
+      <div className="mt-1 flex rounded-lg bg-gray-100 dark:bg-gray-700 p-0.5 text-sm font-medium">
+        {opcoes.map(([id, label]) => (
+          <button
+            key={id}
+            onClick={() => onChange(id)}
+            aria-pressed={valor === id}
+            className={`px-3 py-1.5 rounded-md transition-colors ${
+              valor === id
+                ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
     </div>
-  </div>
-);
+  );
+}
+
+const OPCOES_MODO = [['mes', 'Mês'], ['periodo', 'Período']] as const;
+const OPCOES_METRICA = [['valor', 'R$'], ['quantidade', 'Qtd']] as const;
 
 interface RankingBarrasProps {
   titulo: string;
@@ -225,10 +254,20 @@ const RankingBarras: React.FC<RankingBarrasProps> = ({ titulo, sub, ranking, met
 };
 
 const IndicadoresFaturamento: React.FC = () => {
+  const [modo, setModo] = useState<ModoPeriodo>('mes');
   const [mes, setMes] = useState(mesAnterior);
+  // Período livre: começa no mês passado, como o modo Mês.
+  const [inicio, setInicio] = useState(() => periodoMesPassado().desde);
+  const [fim, setFim] = useState(() => periodoMesPassado().ate);
   // Só estado de tela: os dois rankings já vêm prontos, sem nova consulta.
   const [metrica, setMetrica] = useState<MetricaRanking>('valor');
-  const { indicadores, meta, loading, error, refetch } = useIndicadoresFaturamento(mes);
+  const periodo = useMemo<PeriodoIndicadoresFaturamento>(
+    () => (modo === 'mes' ? { modo, mes } : { modo, inicio, fim }),
+    [modo, mes, inicio, fim],
+  );
+  const { indicadores, meta, loading, error, refetch } = useIndicadoresFaturamento(periodo);
+  const textos = TEXTOS_MODO[modo];
+  const janelaAnterior = modo === 'periodo' ? meta?.janelas?.anterior : undefined;
 
   return (
     <div className="space-y-6">
@@ -239,7 +278,10 @@ const IndicadoresFaturamento: React.FC = () => {
             Indicadores de Faturamento
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Lotes de faturamento criados no mês, sem os cancelados
+            Lotes de faturamento criados {textos.no}, sem os cancelados
+            {janelaAnterior && (
+              <>; comparados com {formatData(janelaAnterior.inicio)} a {formatData(janelaAnterior.fim)}</>
+            )}
           </p>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {meta?.dadoAte
@@ -249,16 +291,30 @@ const IndicadoresFaturamento: React.FC = () => {
         </div>
 
         <div className="flex flex-wrap items-end gap-3">
-          <label className="text-xs text-gray-500 dark:text-gray-400">
-            Mês (criação do lote)
-            <input
-              type="month"
-              value={mes}
-              onChange={(e) => e.target.value && setMes(e.target.value)}
-              className={`block ${CAMPO}`}
-            />
-          </label>
-          <BotaoMetrica metrica={metrica} onChange={setMetrica} />
+          <Alternancia<ModoPeriodo> rotulo="Período por" opcoes={OPCOES_MODO} valor={modo} onChange={setModo} />
+          {modo === 'mes' ? (
+            <label className="text-xs text-gray-500 dark:text-gray-400">
+              Mês (criação do lote)
+              <DatePicker
+                value={`${mes}-01`}
+                onChange={(v) => v && setMes(v.slice(0, 7))}
+                controlClass={CAMPO}
+                granularity="month"
+              />
+            </label>
+          ) : (
+            <>
+              <label className="text-xs text-gray-500 dark:text-gray-400">
+                Lotes criados de
+                <DatePicker value={inicio} onChange={setInicio} controlClass={CAMPO} />
+              </label>
+              <label className="text-xs text-gray-500 dark:text-gray-400">
+                até (inclusive)
+                <DatePicker value={fim} onChange={setFim} controlClass={CAMPO} />
+              </label>
+            </>
+          )}
+          <Alternancia<MetricaRanking> rotulo="Rankings por" opcoes={OPCOES_METRICA} valor={metrica} onChange={setMetrica} />
           <button
             onClick={() => void refetch(true)}
             disabled={loading}
@@ -275,7 +331,7 @@ const IndicadoresFaturamento: React.FC = () => {
           <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
           <div>
             <p className="font-medium text-red-700 dark:text-red-300">
-              Os números deste mês não foram carregados.
+              Os números {textos.deste} não foram carregados.
             </p>
             <p className="text-sm text-red-600 dark:text-red-400 mt-1">{error}</p>
           </div>
@@ -298,6 +354,7 @@ const IndicadoresFaturamento: React.FC = () => {
               formatar={formatCurrency}
               icone={<DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />}
               corIcone="bg-green-100 dark:bg-green-900/30"
+              textos={textos}
             />
             <CardIndicador
               titulo="Requisições faturadas"
@@ -305,6 +362,7 @@ const IndicadoresFaturamento: React.FC = () => {
               formatar={formatInteiro}
               icone={<FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />}
               corIcone="bg-blue-100 dark:bg-blue-900/30"
+              textos={textos}
             />
             <CardIndicador
               titulo="Exames faturados"
@@ -312,6 +370,7 @@ const IndicadoresFaturamento: React.FC = () => {
               formatar={formatInteiro}
               icone={<FlaskConical className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />}
               corIcone="bg-indigo-100 dark:bg-indigo-900/30"
+              textos={textos}
             />
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -323,7 +382,7 @@ const IndicadoresFaturamento: React.FC = () => {
               ranking={indicadores.rankings.exames}
               metrica={metrica}
               unidade={{ singular: 'exame', plural: 'exames' }}
-              vazio="Nenhum exame faturado no mês."
+              vazio={`Nenhum exame faturado ${textos.no}.`}
               nota="Particular entra no mês em que o lote mensal é criado."
             />
             <RankingBarras
@@ -334,17 +393,17 @@ const IndicadoresFaturamento: React.FC = () => {
               ranking={indicadores.rankings.convenios}
               metrica={metrica}
               unidade={{ singular: 'exame', plural: 'exames' }}
-              vazio="Nenhum convênio faturado no mês."
+              vazio={`Nenhum convênio faturado ${textos.no}.`}
             />
             <RankingBarras
               titulo="Clínicas com mais requisições faturadas"
               sub={metrica === 'valor'
-                ? '10 clínicas com maior valor faturado, pelo mês do lote'
-                : '10 clínicas com mais requisições faturadas, pelo mês do lote'}
+                ? '10 clínicas com maior valor faturado, pela criação do lote'
+                : '10 clínicas com mais requisições faturadas, pela criação do lote'}
               ranking={indicadores.rankings.clinicas}
               metrica={metrica}
               unidade={{ singular: 'requisição', plural: 'requisições' }}
-              vazio="Nenhuma clínica com requisição faturada no mês."
+              vazio={`Nenhuma clínica com requisição faturada ${textos.no}.`}
             />
           </div>
         </div>

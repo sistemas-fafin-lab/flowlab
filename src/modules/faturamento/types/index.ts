@@ -1319,7 +1319,20 @@ export interface IndicadoresFaturamento {
   };
 }
 
+/** Período pedido a GET /api/faturamento/indicadores; o fim do modo Período é inclusivo. */
+export type PeriodoIndicadoresFaturamento =
+  | { modo: 'mes'; mes: string }
+  | { modo: 'periodo'; inicio: string; fim: string };
+
+/** Janela de datas 'YYYY-MM-DD', as duas pontas inclusivas. */
+export interface JanelaIndicadoresFaturamento {
+  inicio: string;
+  fim: string;
+}
+
 export interface IndicadoresFaturamentoMeta {
   /** Criação do lote mais recente do backup, 'YYYY-MM-DD HH:MM' (hora do banco). */
   dadoAte: string | null;
+  /** Janela pedida e a anterior, com que os cards comparam. */
+  janelas: { atual: JanelaIndicadoresFaturamento; anterior: JanelaIndicadoresFaturamento };
 }

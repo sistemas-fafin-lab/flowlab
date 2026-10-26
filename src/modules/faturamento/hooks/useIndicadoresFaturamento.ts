@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { IndicadoresFaturamento, IndicadoresFaturamentoMeta } from '../types';
+import type { IndicadoresFaturamento, IndicadoresFaturamentoMeta, PeriodoIndicadoresFaturamento } from '../types';
 import { chamarLegadoApi } from './legado/api';
 
 // Página Faturamento → Indicadores: lê o resumo pronto de
 // /api/faturamento/indicadores (MySQL de backup do laboratório) e busca de novo
-// quando o mês muda.
+// quando o período (Mês ou Período) muda.
 
 interface RespostaIndicadores {
   success?: boolean;
@@ -15,7 +15,10 @@ interface RespostaIndicadores {
 
 const MENSAGEM_ERRO = 'Não foi possível consultar o banco do laboratório.';
 
-export function useIndicadoresFaturamento(mes: string) {
+export function useIndicadoresFaturamento(periodo: PeriodoIndicadoresFaturamento) {
+  // Chave de texto: o objeto do período é recriado a cada render da página.
+  const chave = new URLSearchParams(periodo).toString();
+
   const [indicadores, setIndicadores] = useState<IndicadoresFaturamento | null>(null);
   const [meta, setMeta] = useState<IndicadoresFaturamentoMeta | null>(null);
   const [loading, setLoading] = useState(true);
@@ -27,7 +30,7 @@ export function useIndicadoresFaturamento(mes: string) {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams({ mes });
+      const params = new URLSearchParams(chave);
       if (force) params.set('semCache', '1');
       const body = await chamarLegadoApi<RespostaIndicadores>('indicadores', params, MENSAGEM_ERRO);
       if (reqId !== buscaAtual.current) return;
@@ -37,10 +40,11 @@ export function useIndicadoresFaturamento(mes: string) {
       if (reqId !== buscaAtual.current) return;
       setError(err instanceof Error ? err.message : MENSAGEM_ERRO);
       setIndicadores(null);
+      setMeta(null);
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [mes]);
+  }, [chave]);
 
   useEffect(() => {
     void refetch();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { janelasDoPeriodo, resumirIndicadores } from './indicadoresFaturamento.js';
+import { erroDoPeriodo, janelasDoPeriodo, resumirIndicadores } from './indicadoresFaturamento.js';
 import type { LinhaFaturada } from './indicadoresFaturamento.js';
 
 const SETEMBRO = janelasDoPeriodo({ modo: 'mes', mes: '2026-09' });
@@ -88,6 +88,48 @@ describe('janelasDoPeriodo', () => {
       inicio: '2028-02-01',
       fim: '2028-02-29',
     });
+  });
+
+  it('modo Período: o anterior tem o mesmo número de dias e cruza a virada de mês', () => {
+    expect(janelasDoPeriodo({ modo: 'periodo', inicio: '2026-10-01', fim: '2026-10-15' })).toEqual({
+      atual: { inicio: '2026-10-01', fim: '2026-10-15' },
+      anterior: { inicio: '2026-09-16', fim: '2026-09-30' },
+    });
+  });
+
+  it('modo Período: um dia só compara com o dia anterior, inclusive na virada de ano', () => {
+    expect(janelasDoPeriodo({ modo: 'periodo', inicio: '2026-01-01', fim: '2026-01-01' })).toEqual({
+      atual: { inicio: '2026-01-01', fim: '2026-01-01' },
+      anterior: { inicio: '2025-12-31', fim: '2025-12-31' },
+    });
+  });
+
+  it('modo Período: o fim é inclusivo — um lote no último dia conta na atual', () => {
+    const janelas = janelasDoPeriodo({ modo: 'periodo', inicio: '2026-10-01', fim: '2026-10-15' });
+    const { cards } = resumirIndicadores([
+      linha({ dataLote: '2026-10-15', idRequisicao: 1, valorLiquido: 40 }),
+      linha({ dataLote: '2026-09-16', idRequisicao: 2, valorLiquido: 20 }),
+      linha({ dataLote: '2026-09-15', idRequisicao: 3, valorLiquido: 999 }),
+    ], janelas);
+
+    expect(cards.totalFaturado).toMatchObject({ atual: 40, anterior: 20, variacao: 100 });
+  });
+});
+
+describe('erroDoPeriodo', () => {
+  it('aceita um período válido, inclusive de um dia', () => {
+    expect(erroDoPeriodo('2026-10-01', '2026-10-15')).toBeNull();
+    expect(erroDoPeriodo('2026-10-01', '2026-10-01')).toBeNull();
+  });
+
+  it('recusa fim antes do início', () => {
+    expect(erroDoPeriodo('2026-10-15', '2026-10-01')).toBe('O fim do período deve ser igual ou posterior ao início.');
+  });
+
+  it('recusa datas que não existem ou fora do formato', () => {
+    expect(erroDoPeriodo('2026-02-30', '2026-03-01')).toBe('Parâmetro inválido: inicio (YYYY-MM-DD).');
+    expect(erroDoPeriodo('2026-10-01', '15/10/2026')).toBe('Parâmetro inválido: fim (YYYY-MM-DD).');
+    expect(erroDoPeriodo('', '2026-10-01')).toBe('Parâmetro inválido: inicio (YYYY-MM-DD).');
   });
 });
 

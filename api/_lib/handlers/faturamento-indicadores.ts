@@ -12,7 +12,10 @@
  * Autorização: `Authorization: Bearer <access_token>` (canViewBilling).
  *
  * Query params:
- *   mes       YYYY-MM, obrigatório — mês da criação do lote
+ *   modo      'mes' (padrão) | 'periodo'
+ *   mes       YYYY-MM, obrigatório no modo Mês — mês da criação do lote
+ *   inicio    YYYY-MM-DD, obrigatório no modo Período — criação do lote, inclusivo
+ *   fim       YYYY-MM-DD, obrigatório no modo Período — inclusivo, ≥ inicio
  *   semCache  1 — fura o cache em memória da consulta
  */
 
@@ -20,11 +23,25 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { listarLinhasFaturadas } from '../faturamento/bdLab.js';
-import { janelasDoPeriodo, mesValido, resumirIndicadores } from '../faturamento/indicadoresFaturamento.js';
+import { erroDoPeriodo, janelasDoPeriodo, mesValido, resumirIndicadores } from '../faturamento/indicadoresFaturamento.js';
+import type { PeriodoIndicadores } from '../faturamento/indicadoresFaturamento.js';
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
   if (Array.isArray(valor)) return valor[0];
   return valor;
+}
+
+function lerPeriodo(q: Record<string, string | string[] | undefined>): PeriodoIndicadores | { erro: string } {
+  const modo = primeiro(q.modo)?.trim() || 'mes';
+  if (modo === 'periodo') {
+    const inicio = primeiro(q.inicio)?.trim() ?? '';
+    const fim = primeiro(q.fim)?.trim() ?? '';
+    const erro = erroDoPeriodo(inicio, fim);
+    return erro ? { erro } : { modo, inicio, fim };
+  }
+  if (modo !== 'mes') return { erro: "Parâmetro inválido: modo ('mes' ou 'periodo')." };
+  const mes = primeiro(q.mes)?.trim() ?? '';
+  return mesValido(mes) ? { modo, mes } : { erro: 'Parâmetro inválido: mes (YYYY-MM).' };
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -43,13 +60,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const q = req.query as Record<string, string | string[] | undefined>;
-    const mes = primeiro(q.mes)?.trim() ?? '';
-    if (!mesValido(mes)) {
-      res.status(400).json({ success: false, error: 'Parâmetro inválido: mes (YYYY-MM).' });
+    const periodo = lerPeriodo(q);
+    if ('erro' in periodo) {
+      res.status(400).json({ success: false, error: periodo.erro });
       return;
     }
 
-    const janelas = janelasDoPeriodo({ modo: 'mes', mes });
+    const janelas = janelasDoPeriodo(periodo);
     const resultado = await listarLinhasFaturadas({
       desde: janelas.anterior.inicio,
       ate: janelas.atual.fim,

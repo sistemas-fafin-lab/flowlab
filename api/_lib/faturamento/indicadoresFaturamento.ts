@@ -7,7 +7,9 @@
 // inclusivo; os lotes cancelados já vêm filtrados pela consulta.
 
 /** Período pedido pela tela. */
-export type PeriodoIndicadores = { modo: 'mes'; mes: string };
+export type PeriodoIndicadores =
+  | { modo: 'mes'; mes: string }
+  | { modo: 'periodo'; inicio: string; fim: string };
 
 /** Janela de datas 'YYYY-MM-DD', as duas pontas inclusivas. */
 export interface JanelaIndicadores {
@@ -30,6 +32,25 @@ function janelaDoMes(ano: number, mes: number): JanelaIndicadores {
   const ultimoDia = new Date(Date.UTC(ano, mes, 0)).getUTCDate();
   const prefixo = `${ano}-${String(mes).padStart(2, '0')}`;
   return { inicio: `${prefixo}-01`, fim: `${prefixo}-${String(ultimoDia).padStart(2, '0')}` };
+}
+
+const MS_DIA = 86_400_000;
+
+// 'YYYY-MM-DD' ↔ dias desde a época, em UTC: conta de dias sem fuso nem horário de verão.
+const isoParaDia = (iso: string): number => Date.parse(`${iso}T00:00:00Z`) / MS_DIA;
+const diaParaIso = (dia: number): string => new Date(dia * MS_DIA).toISOString().slice(0, 10);
+
+/** Data 'YYYY-MM-DD' que existe no calendário (recusa 2026-02-30). */
+function dataValida(valor: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}$/.test(valor) && !Number.isNaN(isoParaDia(valor)) && diaParaIso(isoParaDia(valor)) === valor;
+}
+
+/** Mensagem do período inválido do modo Período, ou null quando está ok. */
+export function erroDoPeriodo(inicio: string, fim: string): string | null {
+  if (!dataValida(inicio)) return 'Parâmetro inválido: inicio (YYYY-MM-DD).';
+  if (!dataValida(fim)) return 'Parâmetro inválido: fim (YYYY-MM-DD).';
+  if (fim < inicio) return 'O fim do período deve ser igual ou posterior ao início.';
+  return null;
 }
 
 /** Um procedimento cobrado numa requisição de um lote — a linha da consulta. */
@@ -205,8 +226,17 @@ export function resumirIndicadores(linhas: LinhaFaturada[], janelas: JanelasIndi
   };
 }
 
-/** Janela atual e a anterior: no modo Mês, o mês anterior. */
+/** Janela atual e a anterior: no modo Mês, o mês anterior; no modo Período,
+ *  o intervalo imediatamente anterior, com o mesmo número de dias. */
 export function janelasDoPeriodo(periodo: PeriodoIndicadores): JanelasIndicadores {
+  if (periodo.modo === 'periodo') {
+    const inicio = isoParaDia(periodo.inicio);
+    const dias = isoParaDia(periodo.fim) - inicio + 1;
+    return {
+      atual: { inicio: periodo.inicio, fim: periodo.fim },
+      anterior: { inicio: diaParaIso(inicio - dias), fim: diaParaIso(inicio - 1) },
+    };
+  }
   const [ano, mes] = periodo.mes.split('-').map(Number);
   return {
     atual: janelaDoMes(ano, mes),
