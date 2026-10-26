@@ -6,21 +6,23 @@
  * Glosas e Recursos. Só metadados — os bytes de cada imagem vêm sob demanda por
  * /api/faturamento/imagem-legado-arquivo, ao abrir/navegar no visualizador.
  *
- * `disponivel: false` quando a linha existe mas ainda não foi digitalizada
- * (Img nulo no apLIS) — a réplica atrasa ~1 dia, e a digitalização em si pode
- * levar mais alguns dias além disso.
+ * A réplica só tem o blob das fotos do tipo 10; os demais tipos vêm do S3 do
+ * apLIS. Com o S3 configurado toda linha sai `disponivel: true`; sem ele, só as
+ * que têm o blob na réplica.
  *
  * Autorização: `Authorization: Bearer <access_token>` da sessão do operador
  * (exige canViewBilling).
  *
  * Variáveis de ambiente: DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME
- *   + SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY para validar a sessão.
+ *   + SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY para validar a sessão
+ *   + AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY para saber se o S3 está configurado.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { listarImagensRequisicaoLegado } from '../faturamento/bdLab.js';
+import { s3AplisConfigurado } from '../faturamento/s3Aplis.js';
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
   if (Array.isArray(valor)) return valor[0];
@@ -56,7 +58,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     res.setHeader('Cache-Control', 'no-store');
-    res.status(200).json({ success: true, imagens: resultado.imagens });
+    const comS3 = s3AplisConfigurado();
+    const imagens = resultado.imagens.map((img) => ({ ...img, disponivel: img.disponivel || comS3 }));
+    res.status(200).json({ success: true, imagens });
   } catch (err) {
     console.error('[faturamento/imagens-legado] erro:', describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });

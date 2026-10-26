@@ -385,7 +385,7 @@ const AbaDocumentos: React.FC<{ idRequisicao: number }> = ({ idRequisicao }) => 
               <ImageIcon size={16} className="text-gray-400 shrink-0" />
               <span className="flex-1 min-w-0 text-sm text-gray-900 dark:text-white truncate">{img.nomeArquivo}</span>
               <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                {img.disponivel ? formatData(img.data) : 'Aguardando digitalização'}
+                {img.disponivel ? formatData(img.data) : 'Indisponível'}
               </span>
             </button>
           </li>

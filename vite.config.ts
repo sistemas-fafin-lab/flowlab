@@ -640,9 +640,11 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
     'pendencia-lote-detalhe': 'pendencia-detalhe',
   };
   // DB_* é o MySQL de backup do laboratório: a fonte da aba Faturas (antes era o apLIS).
+  // AWS_* / S3_BUCKET_NAME: arquivos de requisicaoimagem que a réplica não tem (S3 do apLIS).
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
     'DB_HOST', 'DB_PORT', 'DB_USER', 'DB_PASSWORD', 'DB_NAME',
+    'AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_REGION', 'S3_BUCKET_NAME',
   ];
 
   const ensureProcessEnv = () => {

@@ -143,8 +143,8 @@ export const ImagensRequisicaoLegadoModal: React.FC<{
           ) : !atual?.disponivel ? (
             <p className="text-white/70 text-sm flex items-center gap-2 text-center max-w-sm">
               <Clock size={16} className="shrink-0" />
-              Esta imagem ainda não foi digitalizada no sistema do laboratório — pode levar
-              alguns dias após a requisição.
+              Este arquivo não está no banco de backup e o acesso ao S3 do apLIS não está
+              configurado.
             </p>
           ) : carregandoArquivo ? (
             <p className="text-white/70 text-sm flex items-center gap-2">

@@ -1202,9 +1202,9 @@ export interface ImagemRequisicaoLegado {
   nomeArquivo: string;
   extensao: string | null;
   tipo: number | null;
-  /** Data em que o arquivo foi digitalizado — null enquanto `disponivel` é false. */
+  /** Data em que o arquivo foi digitalizado — a réplica só a tem para o tipo 10. */
   data: string | null;
-  /** false quando a linha existe no apLIS mas ainda não foi digitalizada. */
+  /** false quando o arquivo não está na réplica e o S3 do apLIS não está configurado. */
   disponivel: boolean;
 }
 
