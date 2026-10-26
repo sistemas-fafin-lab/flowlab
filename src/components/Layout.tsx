@@ -480,7 +480,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const [expandedItems, setExpandedItems] = useState<string[]>(() => {
     const path = window.location.pathname;
     if (['/products', '/add-product', '/expiration', '/changelog'].includes(path)) return ['Produtos'];
-    if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas'].includes(path)) return ['Faturamento'];
+    if (['/faturamento/faturas', '/faturamento/recebimentos', '/faturamento/glosas', '/faturamento/indicadores'].includes(path)) return ['Faturamento'];
     if (['/request-periods', '/messaging-settings', '/system/notifications'].includes(path)) return ['Sistema'];
     if (['/it/inicio', '/it/eva', '/it/eva/reunioes', '/it/eva/membros', '/it/eva/configuracoes', '/it/dashboard', '/it/kanban', '/it/mindmap', '/it/projects', '/it/projects/', '/it/gastos', '/it/gastos/despesas', '/it/gastos/mes-a-mes', '/it/gastos/orcamento'].includes(path)) return ['Tecnologia'];
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
@@ -641,6 +641,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Faturas', href: '/faturamento/faturas', icon: FileText, permission: 'canViewBilling' },
           { name: 'Contas a Receber', href: '/faturamento/recebimentos', icon: DollarSign, permission: 'canViewBilling' },
           { name: 'Glosas e Recursos', href: '/faturamento/glosas', icon: AlertCircle, permission: 'canViewBilling' },
+          { name: 'Indicadores', href: '/faturamento/indicadores', icon: BarChart3, permission: 'canViewBilling' },
         ],
       },
       {

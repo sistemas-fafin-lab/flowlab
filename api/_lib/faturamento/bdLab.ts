@@ -33,6 +33,7 @@ import mysql from 'mysql2/promise';
 import { cobrancasComTestes } from './cobrancasTestesAplis.js';
 import { STATUS_FOTO } from './recursoGlosa.js';
 import type { RequisicaoGlosaAplis } from './recursoGlosa.js';
+import type { LinhaFaturada } from './indicadoresFaturamento.js';
 import type {
   CobrancaAplis,
   LinhaCobranca,
@@ -315,16 +316,19 @@ async function comConexao<T>(
 const TTL_DADO_ATE = 30 * 60_000;
 const cacheDadoAte = new Map<string, { valor: string | null; ts: number }>();
 
+/** 'YYYY-MM-DD', ou 'YYYY-MM-DD HH:MM' com `comHora`. */
 async function dadoAte(
   conn: mysql.Connection,
   tabela: 'fatlote' | 'requisicao' | 'fatloterecurso',
   coluna: 'DtaCriacao' | 'DtaSolicitacao',
+  comHora = false,
 ): Promise<string | null> {
-  const chave = `${tabela}.${coluna}`;
+  const chave = `${tabela}.${coluna}${comHora ? '.hora' : ''}`;
   const cache = cacheDadoAte.get(chave);
   if (cache && Date.now() - cache.ts <= TTL_DADO_ATE) return cache.valor;
+  const formato = comHora ? '%Y-%m-%d %H:%i' : '%Y-%m-%d';
   const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-    `SELECT DATE_FORMAT(MAX(${coluna}), '%Y-%m-%d') AS mx FROM ${tabela}`,
+    `SELECT DATE_FORMAT(MAX(${coluna}), '${formato}') AS mx FROM ${tabela}`,
     [],
   );
   const valor = dataIso(linhas[0]?.mx);
@@ -3503,5 +3507,77 @@ export async function buscarImagemRequisicaoLegado(
         nomeArquivo: texto(linha.NomArquivo) ?? `imagem-${idRequisicaoImagem}`,
       },
     };
+  });
+}
+
+// ============================================================================
+// INDICADORES — página Faturamento → Indicadores (.scratch/faturamento-indicadores/)
+// ============================================================================
+// Só lê e achata: lote × requisição × procedimento dos lotes criados no período,
+// sem os cancelados. A regra (janelas, cards, rankings) é de
+// faturamento/indicadoresFaturamento.ts.
+//
+// Conferido em 26/10/2026: lotes criados em set/2026 → 9.832 linhas, R$ 1.380.054,78.
+
+export type LinhasFaturadasResultado =
+  | { linhas: LinhaFaturada[]; dadoAte: string | null }
+  | { erro: { status: number; mensagem: string } };
+
+const STATUS_LOTE_CANCELADO = 5;
+
+const cacheLinhasFaturadas = new Map<string, EntradaCache<LinhasFaturadasResultado>>();
+
+const SQL_LINHAS_FATURADAS = `
+  SELECT l.IdLote, DATE_FORMAT(l.DtaCriacao, '%Y-%m-%d') AS DtaLote,
+         r.IdRequisicao, tp.Codigo, tp.Descricao,
+         frp.Quantidade, frp.ValorLiquido,
+         l.IdFontePagadora, fp.NomFantasia AS NomFontePagadora,
+         r.IdLocalOrigem, lo.NomFantasia AS NomLocalOrigem
+    FROM fatlote l
+    JOIN requisicao r ON r.Lote = l.IdLote
+    JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+    LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
+    LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
+    LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora
+    LEFT JOIN fatinstituicao lo ON lo.IdInstituicao = r.IdLocalOrigem
+   WHERE l.DtaCriacao >= ?
+     AND l.DtaCriacao < DATE_ADD(?, INTERVAL 1 DAY)
+     AND l.Status <> ${STATUS_LOTE_CANCELADO}`;
+
+/** Linhas dos lotes criados entre `desde` e `ate` (YYYY-MM-DD, inclusivos), e
+ *  a data/hora do lote mais recente do backup ('YYYY-MM-DD HH:MM'). */
+export async function listarLinhasFaturadas(params: {
+  desde: string;
+  ate: string;
+  ignorarCache?: boolean;
+}): Promise<LinhasFaturadasResultado> {
+  const chave = `linhasFaturadas|${params.desde}|${params.ate}`;
+  const cacheHit = params.ignorarCache ? null : daCache(cacheLinhasFaturadas, chave, false);
+  if (cacheHit) return cacheHit;
+
+  return comConexao('listarLinhasFaturadas', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(SQL_LINHAS_FATURADAS, [
+      `${params.desde} 00:00:00`,
+      `${params.ate} 00:00:00`,
+    ]);
+    return {
+      linhas: linhas.map((linha) => ({
+        idLote: numero(linha.IdLote),
+        dataLote: String(linha.DtaLote),
+        idRequisicao: numero(linha.IdRequisicao),
+        codigo: texto(linha.Codigo),
+        descricao: texto(linha.Descricao),
+        quantidade: numero(linha.Quantidade),
+        valorLiquido: numero(linha.ValorLiquido),
+        fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
+        fontePagadoraNome: texto(linha.NomFontePagadora),
+        localOrigemId: inteiroOuNulo(linha.IdLocalOrigem),
+        localOrigemNome: texto(linha.NomLocalOrigem),
+      })),
+      dadoAte: await dadoAte(conn, 'fatlote', 'DtaCriacao', true),
+    };
+  }).then((resultado) => {
+    if (!('erro' in resultado)) doCache(cacheLinhasFaturadas, chave, resultado);
+    return resultado;
   });
 }

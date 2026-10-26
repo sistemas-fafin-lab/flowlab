@@ -1276,3 +1276,29 @@ export interface AlteracaoLancamento {
   feitoPorNome: string;
   feitoEm: string;
 }
+
+// ============================================================================
+// INDICADORES DE FATURAMENTO (.scratch/faturamento-indicadores/)
+// ============================================================================
+
+/** Um card: valor da janela atual, da anterior e a variação (% com uma casa;
+ *  null quando a anterior é zero). */
+export interface CardIndicadorFaturamento {
+  atual: number;
+  anterior: number;
+  variacao: number | null;
+}
+
+/** Contrato de GET /api/faturamento/indicadores. */
+export interface IndicadoresFaturamento {
+  cards: {
+    totalFaturado: CardIndicadorFaturamento;
+    requisicoes: CardIndicadorFaturamento;
+    exames: CardIndicadorFaturamento;
+  };
+}
+
+export interface IndicadoresFaturamentoMeta {
+  /** Criação do lote mais recente do backup, 'YYYY-MM-DD HH:MM' (hora do banco). */
+  dadoAte: string | null;
+}
