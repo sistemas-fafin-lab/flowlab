@@ -55,7 +55,7 @@ import {
 const args = process.argv.slice(2);
 const iBackup = args.indexOf('--backup');
 const pastaBackup = iBackup >= 0 ? args[iBackup + 1] : null;
-const [caminhoMapa, caminhoSaida] = args.filter((_, i) => i !== iBackup && i !== iBackup + 1);
+const [caminhoMapa, caminhoSaida] = iBackup >= 0 ? args.filter((_, i) => i !== iBackup && i !== iBackup + 1) : args;
 
 if (!caminhoMapa || (iBackup >= 0 && !pastaBackup)) {
   console.error(
