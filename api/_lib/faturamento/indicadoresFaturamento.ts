@@ -79,6 +79,8 @@ export interface ResumoIndicadores {
     convenios: RankingIndicadores;
     /** Código do procedimento; nome = código e a descrição mais usada dele. */
     exames: RankingIndicadores;
+    /** Local de Origem da requisição; quantidade = requisições distintas. */
+    clinicas: RankingIndicadores;
   };
 }
 
@@ -120,20 +122,27 @@ const porValorDesc = (a: ItemRankingIndicadores, b: ItemRankingIndicadores) =>
 const porQuantidadeDesc = (a: ItemRankingIndicadores, b: ItemRankingIndicadores) =>
   b.quantidade - a.quantidade || b.valor - a.valor || a.nome.localeCompare(b.nome);
 
-/** Soma valor e quantidade por grupo; Top 10 em cada ordem. */
+/** Soma o valor por grupo; a quantidade é a soma da cobrada ('quantidadeCobrada')
+ *  ou o número de requisições distintas ('requisicoes'). Top 10 em cada ordem. */
 function ranquear(
   linhas: LinhaFaturada[],
   grupo: (l: LinhaFaturada) => { chave: string; nome: string },
+  contar: 'quantidadeCobrada' | 'requisicoes' = 'quantidadeCobrada',
 ): RankingIndicadores {
-  const itens = new Map<string, ItemRankingIndicadores>();
+  const itens = new Map<string, ItemRankingIndicadores & { requisicoes: Set<number> }>();
   for (const l of linhas) {
     const { chave, nome } = grupo(l);
-    const item = itens.get(chave) ?? { nome, valor: 0, quantidade: 0 };
+    const item = itens.get(chave) ?? { nome, valor: 0, quantidade: 0, requisicoes: new Set<number>() };
     item.valor += l.valorLiquido;
     item.quantidade += l.quantidade;
+    item.requisicoes.add(l.idRequisicao);
     itens.set(chave, item);
   }
-  const todos = [...itens.values()].map((i) => ({ ...i, valor: centavos(i.valor) }));
+  const todos = [...itens.values()].map(({ nome, valor, quantidade, requisicoes }) => ({
+    nome,
+    valor: centavos(valor),
+    quantidade: contar === 'quantidadeCobrada' ? quantidade : requisicoes.size,
+  }));
   return {
     porValor: [...todos].sort(porValorDesc).slice(0, TOPO_RANKING),
     porQuantidade: [...todos].sort(porQuantidadeDesc).slice(0, TOPO_RANKING),
@@ -144,6 +153,12 @@ const porFontePagadora = (l: LinhaFaturada) => ({
   chave: String(l.fontePagadoraId),
   nome: l.fontePagadoraNome
     ?? (l.fontePagadoraId === null ? 'Sem fonte pagadora' : `Fonte pagadora ${l.fontePagadoraId}`),
+});
+
+const porLocalOrigem = (l: LinhaFaturada) => ({
+  chave: String(l.localOrigemId),
+  nome: l.localOrigemNome
+    ?? (l.localOrigemId === null ? 'Sem clínica' : `Local de origem ${l.localOrigemId}`),
 });
 
 /** Agrupa pelo código: a descrição muda de tabela para tabela (de convênio para
@@ -185,6 +200,7 @@ export function resumirIndicadores(linhas: LinhaFaturada[], janelas: JanelasIndi
     rankings: {
       convenios: ranquear(linhasAtual, porFontePagadora),
       exames: ranquear(linhasAtual, porCodigoDoExame(linhasAtual)),
+      clinicas: ranquear(linhasAtual, porLocalOrigem, 'requisicoes'),
     },
   };
 }

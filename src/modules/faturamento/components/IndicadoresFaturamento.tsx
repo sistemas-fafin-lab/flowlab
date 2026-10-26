@@ -286,7 +286,7 @@ const IndicadoresFaturamento: React.FC = () => {
             {[0, 1, 2].map((i) => <div key={i} className={`${CARD} h-36 animate-pulse`} />)}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {[0, 1].map((i) => <div key={i} className={`${CARD} h-96 animate-pulse`} />)}
+            {[0, 1, 2].map((i) => <div key={i} className={`${CARD} h-96 animate-pulse`} />)}
           </div>
         </div>
       ) : (
@@ -335,6 +335,16 @@ const IndicadoresFaturamento: React.FC = () => {
               metrica={metrica}
               unidade={{ singular: 'exame', plural: 'exames' }}
               vazio="Nenhum convênio faturado no mês."
+            />
+            <RankingBarras
+              titulo="Clínicas com mais requisições faturadas"
+              sub={metrica === 'valor'
+                ? '10 clínicas com maior valor faturado, pelo mês do lote'
+                : '10 clínicas com mais requisições faturadas, pelo mês do lote'}
+              ranking={indicadores.rankings.clinicas}
+              metrica={metrica}
+              unidade={{ singular: 'requisição', plural: 'requisições' }}
+              vazio="Nenhuma clínica com requisição faturada no mês."
             />
           </div>
         </div>

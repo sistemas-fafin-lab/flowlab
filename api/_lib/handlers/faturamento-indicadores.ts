@@ -3,8 +3,8 @@
  *
  * Página Faturamento → Indicadores (.scratch/faturamento-indicadores/spec.md):
  * total faturado, requisições e exames faturados do período, com a variação
- * sobre o período anterior, e o Top 10 de exames e de convênios (nas ordens
- * R$ e Qtd).
+ * sobre o período anterior, e o Top 10 de exames, de convênios e de clínicas
+ * (nas ordens R$ e Qtd).
  * Lê do MySQL de backup do laboratório (bdLab.ts → listarLinhasFaturadas) as
  * linhas das duas janelas numa consulta só; a regra é de
  * faturamento/indicadoresFaturamento.ts.

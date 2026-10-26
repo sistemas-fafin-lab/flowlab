@@ -1314,6 +1314,8 @@ export interface IndicadoresFaturamento {
     convenios: RankingIndicadores;
     /** Código do procedimento; nome = código e a descrição mais usada dele. */
     exames: RankingIndicadores;
+    /** Local de Origem da requisição; quantidade = requisições distintas. */
+    clinicas: RankingIndicadores;
   };
 }
 

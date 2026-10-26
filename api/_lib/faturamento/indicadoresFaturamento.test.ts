@@ -178,3 +178,51 @@ describe('resumirIndicadores — ranking de exames', () => {
       ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', 'E10'].map((c) => `${c} - X`));
   });
 });
+
+describe('resumirIndicadores — ranking de clínicas', () => {
+  it('a quantidade é o número de requisições distintas, mesmo com vários procedimentos', () => {
+    const { rankings } = resumirIndicadores([
+      linha({ idRequisicao: 100, codigo: '1', quantidade: 2, valorLiquido: 10 }),
+      linha({ idRequisicao: 100, codigo: '2', quantidade: 1, valorLiquido: 20 }),
+      linha({ idRequisicao: 101, codigo: '1', quantidade: 1, valorLiquido: 5 }),
+    ], SETEMBRO);
+
+    expect(rankings.clinicas.porValor).toEqual([{ nome: 'CLÍNICA A', valor: 35, quantidade: 2 }]);
+  });
+
+  it('as requisições sem Local de Origem viram "Sem clínica"', () => {
+    const { rankings } = resumirIndicadores([
+      linha({ idRequisicao: 1, localOrigemId: null, localOrigemNome: null, valorLiquido: 10 }),
+      linha({ idRequisicao: 2, localOrigemId: null, localOrigemNome: null, valorLiquido: 15 }),
+      linha({ idRequisicao: 3, valorLiquido: 5 }),
+    ], SETEMBRO);
+
+    expect(rankings.clinicas.porValor).toEqual([
+      { nome: 'Sem clínica', valor: 25, quantidade: 2 },
+      { nome: 'CLÍNICA A', valor: 5, quantidade: 1 },
+    ]);
+  });
+
+  it('a ordem por valor é diferente da ordem por quantidade', () => {
+    const clinica = (id: number, nome: string) => ({ localOrigemId: id, localOrigemNome: nome });
+    const { rankings } = resumirIndicadores([
+      // A: 1 requisição cara. B: 3 requisições baratas. C: 2 requisições médias.
+      linha({ idRequisicao: 1, ...clinica(1, 'A'), valorLiquido: 900 }),
+      linha({ idRequisicao: 2, ...clinica(2, 'B'), valorLiquido: 10 }),
+      linha({ idRequisicao: 3, ...clinica(2, 'B'), valorLiquido: 10 }),
+      linha({ idRequisicao: 4, ...clinica(2, 'B'), valorLiquido: 10 }),
+      linha({ idRequisicao: 5, ...clinica(3, 'C'), valorLiquido: 100 }),
+      linha({ idRequisicao: 6, ...clinica(3, 'C'), valorLiquido: 100 }),
+    ], SETEMBRO);
+
+    expect(rankings.clinicas.porValor.map((c) => c.nome)).toEqual(['A', 'C', 'B']);
+    expect(rankings.clinicas.porQuantidade.map((c) => c.nome)).toEqual(['B', 'C', 'A']);
+  });
+
+  it('corta no Top 10', () => {
+    const linhas = Array.from({ length: 12 }, (_, i) =>
+      linha({ idRequisicao: i, localOrigemId: i, localOrigemNome: `C${i}`, valorLiquido: i + 1 }));
+
+    expect(resumirIndicadores(linhas, SETEMBRO).rankings.clinicas.porValor).toHaveLength(10);
+  });
+});
