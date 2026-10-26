@@ -8,7 +8,6 @@ import {
   Pencil,
   Plus,
   RefreshCw,
-  Scissors,
   Search,
   Settings,
   Undo2,
@@ -19,15 +18,17 @@ import type {
   AlteracaoLancamento,
   DivergenciaAplis,
   FiltroGlosaTitulo,
+  GlosaAplisTitulo,
   OperadoraResumo,
   TituloBaixa,
-  TituloGlosa,
   TituloGuia,
   TituloLote,
   TituloReceber,
   TituloStatus,
   TitulosViewFiltros,
 } from '../types';
+import ListaResumida from './ListaResumida';
+import { rotuloStatusAplis, STATUS_GLOSA_DASHBOARD } from '../utils/recursoGlosaVisual';
 import {
   faixaSaldo,
   formatCompetencia,
@@ -147,7 +148,6 @@ interface Props {
   /** Abre o modal de gerenciamento da whitelist "fontes consideradas na meta". */
   onGerenciarConsideradaMeta: () => void;
   onBaixa: (titulo: TituloReceber) => void;
-  onGlosa: (titulo: TituloReceber) => void;
   onCancelar: (titulo: TituloReceber) => void;
   /** Issue 33: abre o modal de edição do número da nota. */
   onEditar: (titulo: TituloReceber) => void;
@@ -159,19 +159,13 @@ interface Props {
   buscarEnvioLotes: (idsAplis: string[]) => Promise<Record<string, string | null>>;
   /** Issue 39: histórico de baixas do título, buscado ao expandir a linha. */
   buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
-  /** Glosas do título, buscadas junto com as baixas ao expandir a linha. */
-  buscarGlosas: (notaId: string) => Promise<TituloGlosa[]>;
+  /** Glosas do apLIS dos lotes do título, buscadas ao expandir a linha. */
+  buscarGlosasAplis: (lotesAplis: number[]) => Promise<GlosaAplisTitulo[]>;
   /** Correções de baixas/glosas do título (.scratch/titulos-edicao-lancamentos),
    *  buscadas junto com as baixas ao expandir a linha. */
   buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
 }
 
-const ROTULO_STATUS_GLOSA: Record<string, string> = {
-  aberta: 'Aberta',
-  em_recurso: 'Em recurso',
-  revertida: 'Revertida',
-  definitiva: 'Definitiva',
-};
 
 /** Badge de atraso. Só aparece quando há vencimento e o título ainda tem saldo. */
 const Atraso: React.FC<{ titulo: TituloReceber }> = ({ titulo }) => {
@@ -266,14 +260,13 @@ const TitulosList: React.FC<Props> = ({
   onGerenciarRegraNf,
   onGerenciarConsideradaMeta,
   onBaixa,
-  onGlosa,
   onCancelar,
   onEditar,
   onDesvincularLote,
   buscarGuias,
   buscarEnvioLotes,
   buscarBaixas,
-  buscarGlosas,
+  buscarGlosasAplis,
   buscarAlteracoes,
 }) => {
   const [expandido, setExpandido] = useState<string | null>(null);
@@ -302,9 +295,8 @@ const TitulosList: React.FC<Props> = ({
   // correção sempre recalcula o título e avança `statusAtualizadoEm`.
   const [alteracoes, setAlteracoes] = useState<Record<string, AlteracaoLancamento[]>>({});
   const [erroAlteracoes, setErroAlteracoes] = useState<Record<string, string>>({});
-  // Glosas do título: mesma chave e mesma versão das baixas — lançar ou
-  // corrigir glosa recalcula o título e avança `statusAtualizadoEm`.
-  const [glosasTitulo, setGlosasTitulo] = useState<Record<string, TituloGlosa[]>>({});
+  // Glosas do apLIS do título (foto de Glosas e Recursos), relidas a cada expansão.
+  const [glosasTitulo, setGlosasTitulo] = useState<Record<string, GlosaAplisTitulo[]>>({});
   const [erroGlosas, setErroGlosas] = useState<Record<string, string>>({});
   const [busca, setBusca] = useState(filtros.busca);
   // Por título: DtaEnvio ao vivo dos seus lotes, chave = aplisId (issue 15).
@@ -344,6 +336,32 @@ const TitulosList: React.FC<Props> = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [expandido]);
 
+  // Glosas do apLIS do título: de onde vêm Glosado, Glosa recebida e Glosa acatada.
+  useEffect(() => {
+    if (!expandido) return;
+    const titulo = titulos.find((t) => t.id === expandido);
+    if (!titulo) return;
+    const notaId = expandido;
+    const lotesAplis = titulo.lotes.map((lote) => Number(lote.aplisId)).filter((id) => Number.isInteger(id) && id > 0);
+
+    setErroGlosas((atual) => ({ ...atual, [notaId]: '' }));
+    let cancelado = false;
+    void buscarGlosasAplis(lotesAplis)
+      .then((lista) => {
+        if (!cancelado) setGlosasTitulo((atual) => ({ ...atual, [notaId]: lista }));
+      })
+      .catch((err) => {
+        if (!cancelado) {
+          setErroGlosas((atual) => ({
+            ...atual,
+            [notaId]: err instanceof Error ? err.message : 'Não foi possível carregar as glosas do apLIS.',
+          }));
+        }
+      });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandido]);
+
   // Issue 39: busca as baixas do título assim que ele é expandido, cacheadas
   // por id — mas revalida se `statusAtualizadoEm` avançou desde a última busca
   // (uma baixa registrada nesta sessão, com a linha ainda aberta).
@@ -358,20 +376,7 @@ const TitulosList: React.FC<Props> = ({
     setCarregandoBaixas((atual) => ({ ...atual, [notaId]: true }));
     setErroBaixas((atual) => ({ ...atual, [notaId]: '' }));
     setErroAlteracoes((atual) => ({ ...atual, [notaId]: '' }));
-    setErroGlosas((atual) => ({ ...atual, [notaId]: '' }));
     let cancelado = false;
-    void buscarGlosas(notaId)
-      .then((lista) => {
-        if (!cancelado) setGlosasTitulo((atual) => ({ ...atual, [notaId]: lista }));
-      })
-      .catch((err) => {
-        if (!cancelado) {
-          setErroGlosas((atual) => ({
-            ...atual,
-            [notaId]: err instanceof Error ? err.message : 'Não foi possível carregar as glosas.',
-          }));
-        }
-      });
     // Falha do histórico não derruba as baixas: cada um mostra o próprio erro.
     void buscarAlteracoes(notaId)
       .then((lista) => {
@@ -950,15 +955,6 @@ const TitulosList: React.FC<Props> = ({
                               </button>
                               <button
                                 type="button"
-                                onClick={() => onGlosa(titulo)}
-                                disabled={titulo.status === 'cancelada'}
-                                title="Lançar glosa"
-                                className="p-1.5 rounded-lg text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/20 disabled:opacity-40 disabled:cursor-not-allowed"
-                              >
-                                <Scissors className="w-4 h-4" />
-                              </button>
-                              <button
-                                type="button"
                                 onClick={() => onCancelar(titulo)}
                                 disabled={encerrado}
                                 title="Cancelar título"
@@ -1019,52 +1015,63 @@ const TitulosList: React.FC<Props> = ({
                               )}
                             </div>
 
-                            {/* Glosas que compõem o "Glosado" da linha, com o atalho
-                                para corrigi-las — a correção mora no "Editar título". */}
+                            {/* Glosas do apLIS que compõem Glosado, Glosa recebida e
+                                Glosa acatada da linha, uma por requisição. */}
                             {(erroGlosas[titulo.id] || (glosasTitulo[titulo.id]?.length ?? 0) > 0) && (
                               <div className="mb-3">
-                                <div className="mb-1 flex items-center gap-3">
-                                  <p className="text-xs font-medium text-gray-500 dark:text-gray-400">
-                                    Glosas lançadas
-                                  </p>
-                                  {podeEditar && titulo.status !== 'cancelada' && (
-                                    <button
-                                      type="button"
-                                      onClick={() => onEditar(titulo)}
-                                      className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1"
-                                    >
-                                      <Pencil className="w-3 h-3" /> Corrigir glosas
-                                    </button>
-                                  )}
-                                </div>
+                                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
+                                  Glosas do apLIS
+                                </p>
                                 {erroGlosas[titulo.id] ? (
                                   <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
                                     <AlertTriangle className="w-3.5 h-3.5" />
                                     {erroGlosas[titulo.id]}
                                   </p>
                                 ) : (
-                                  <table className="w-full max-w-3xl text-xs">
+                                  <table className="w-full max-w-4xl text-xs">
                                     <thead>
                                       <tr className="text-left text-gray-400">
-                                        <th className="py-1">Lançada em</th>
-                                        <th className="py-1 text-right">Valor</th>
+                                        <th className="py-1">Requisição</th>
                                         <th className="py-1 pl-3">Motivo</th>
-                                        <th className="py-1">Origem</th>
-                                        <th className="py-1">Status</th>
+                                        <th className="py-1 text-right">Glosado</th>
+                                        <th className="py-1 pl-3">Classificação</th>
                                       </tr>
                                     </thead>
                                     <tbody>
                                       {glosasTitulo[titulo.id]?.map((glosa) => (
-                                        <tr key={glosa.id} className="text-gray-600 dark:text-gray-300 align-top">
-                                          <td className="py-1 pr-3 whitespace-nowrap">{formatDataHora(glosa.createdAt)}</td>
-                                          <td className="py-1 text-right tabular-nums text-amber-600 dark:text-amber-400">
-                                            {formatCurrency(glosa.valor)}
+                                        <tr key={glosa.idRequisicao} className="text-gray-600 dark:text-gray-300 align-top">
+                                          <td className="py-1 pr-3">
+                                            <div className="tabular-nums whitespace-nowrap">
+                                              {glosa.codRequisicao ?? glosa.idRequisicao}
+                                              <span className="text-gray-400"> · lote {glosa.idLoteFaturamento}</span>
+                                            </div>
+                                            {(glosa.numGuia || glosa.paciente) && (
+                                              <div className="text-gray-400 truncate max-w-[16rem]">
+                                                {[glosa.numGuia && `guia ${glosa.numGuia}`, glosa.paciente].filter(Boolean).join(' · ')}
+                                              </div>
+                                            )}
                                           </td>
-                                          <td className="py-1 pl-3 pr-3">{glosa.motivo || '—'}</td>
-                                          <td className="py-1 pr-3 whitespace-nowrap">
-                                            {glosa.origem === 'aplis' ? 'apLIS' : glosa.comBaixa ? 'Com a baixa' : 'Lançar glosa'}
+                                          <td className="py-1 pl-3 pr-3"><ListaResumida itens={glosa.motivos} /></td>
+                                          <td className="py-1 text-right tabular-nums text-amber-600 dark:text-amber-400 whitespace-nowrap">
+                                            {glosa.valorGlosado === null ? '—' : formatCurrency(glosa.valorGlosado)}
                                           </td>
-                                          <td className="py-1 whitespace-nowrap">{ROTULO_STATUS_GLOSA[glosa.status] ?? glosa.status}</td>
+                                          <td className="py-1 pl-3 whitespace-nowrap" title={rotuloStatusAplis(glosa.statusAplis)}>
+                                            {glosa.status ? (
+                                              <span className={`px-2 py-0.5 rounded-full ${STATUS_GLOSA_DASHBOARD[glosa.status].cor}`}>
+                                                {STATUS_GLOSA_DASHBOARD[glosa.status].label}
+                                              </span>
+                                            ) : (
+                                              <span className="text-gray-400">{rotuloStatusAplis(glosa.statusAplis)}</span>
+                                            )}
+                                            {glosa.glosaAcatada !== null && (
+                                              <span
+                                                className="ml-2 tabular-nums text-rose-600 dark:text-rose-400"
+                                                title="Glosa acatada: sai do saldo do título"
+                                              >
+                                                acatada {formatCurrency(glosa.glosaAcatada)}
+                                              </span>
+                                            )}
+                                          </td>
                                         </tr>
                                       ))}
                                     </tbody>

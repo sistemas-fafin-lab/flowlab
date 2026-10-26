@@ -6,11 +6,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TituloConferencia } from './conferenciaAplis.js';
 
-/** Título da conferência com o id no sistema de cada lote — a prévia das glosas
- *  grava a glosa no lote (`glosas.lote_id`). */
+/** Título da conferência com o saldo, que a prévia das baixas mostra. */
 export interface TituloParaConferir extends TituloConferencia {
-  /** `aplis_id` → `lotes.id_lote`. */
-  idLoteSistema: Record<number, string>;
+  /** `notas.valor_saldo`: total − recebido − glosa acatada do apLIS. */
+  saldoSistema: number;
 }
 
 /** Página do PostgREST (max-rows padrão do Supabase). */
@@ -36,8 +35,8 @@ export async function titulosParaConferir(supabase: SupabaseClient): Promise<Tit
     const { data, error } = await supabase
       .from('notas')
       .select(
-        'id_nota, numero_nota, status, data_emissao, valor_total, valor_recebido, valor_glosado, '
-        + 'operadoras(nome), nota_lote(lotes(id_lote, aplis_id))',
+        'id_nota, numero_nota, status, data_emissao, valor_total, valor_recebido, valor_glosado, valor_saldo, '
+        + 'operadoras(nome), nota_lote(lotes(aplis_id))',
       )
       .neq('status', 'cancelada')
       .order('id_nota', { ascending: true })
@@ -51,18 +50,17 @@ export async function titulosParaConferir(supabase: SupabaseClient): Promise<Tit
       valor_total: unknown;
       valor_recebido: unknown;
       valor_glosado: unknown;
+      valor_saldo: unknown;
       operadoras: { nome: string | null } | null;
-      nota_lote: { lotes: { id_lote: string; aplis_id: string | null } | null }[] | null;
+      nota_lote: { lotes: { aplis_id: string | null } | null }[] | null;
     }[];
     for (const nota of pagina) {
       const vinculos = nota.nota_lote ?? [];
       const idsLote: number[] = [];
-      const idLoteSistema: Record<number, string> = {};
       for (const { lotes } of vinculos) {
         const id = Number(lotes?.aplis_id ?? NaN);
         if (!lotes || !Number.isInteger(id) || id <= 0) continue;
         idsLote.push(id);
-        idLoteSistema[id] = lotes.id_lote;
       }
       if (vinculos.length === 0 || idsLote.length !== vinculos.length) continue;
       titulos.push({
@@ -74,8 +72,8 @@ export async function titulosParaConferir(supabase: SupabaseClient): Promise<Tit
         valorTotal: valorNumerico(nota.valor_total),
         recebidoSistema: valorNumerico(nota.valor_recebido),
         glosadoSistema: valorNumerico(nota.valor_glosado),
+        saldoSistema: valorNumerico(nota.valor_saldo),
         idsLote,
-        idLoteSistema,
       });
     }
     if (pagina.length < PAGINA_NOTAS) break;

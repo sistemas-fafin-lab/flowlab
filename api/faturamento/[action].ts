@@ -30,6 +30,7 @@ import faturamentoTitulosAplisPrevia from '../_lib/handlers/faturamento-titulos-
 import faturamentoTitulosConferenciaAplis from '../_lib/handlers/faturamento-titulos-conferencia-aplis.js';
 import faturamentoTitulosBaixasAplisPrevia from '../_lib/handlers/faturamento-titulos-baixas-aplis-previa.js';
 import faturamentoTitulosGlosasAplis from '../_lib/handlers/faturamento-titulos-glosas-aplis.js';
+import faturamentoTituloGlosasAplis from '../_lib/handlers/faturamento-titulo-glosas-aplis.js';
 import faturamentoOperadorasSync from '../_lib/handlers/faturamento-operadoras-sync.js';
 import faturamentoGlosasLegado from '../_lib/handlers/faturamento-glosas-legado.js';
 import faturamentoRecursosLegado from '../_lib/handlers/faturamento-recursos-legado.js';
@@ -68,6 +69,7 @@ const ROTAS: Record<string, Handler> = {
   'titulos-conferencia-aplis': faturamentoTitulosConferenciaAplis,
   'titulos-baixas-aplis-previa': faturamentoTitulosBaixasAplisPrevia,
   'titulos-glosas-aplis': faturamentoTitulosGlosasAplis,
+  'titulo-glosas-aplis': faturamentoTituloGlosasAplis,
   'operadoras-sync': faturamentoOperadorasSync,
   'glosas-legado': faturamentoGlosasLegado,
   'recursos-legado': faturamentoRecursosLegado,

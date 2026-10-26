@@ -7,15 +7,13 @@ import type {
   AlteracaoLancamento,
   BaixaInput,
   CorrecaoLancamentoPayload,
+  GlosaAplisTitulo,
   GlosaLancada,
-  GlosaLancamentoInput,
-  GlosaSugeridaAplis,
   GlosaStatus,
   GlosasTitulo,
   LancamentosTitulo,
   OperadoraResumo,
   TituloBaixa,
-  TituloGlosa,
   TituloGuia,
   TituloReceber,
   TitulosFiltros,
@@ -49,11 +47,12 @@ export interface TotaisTitulos {
 const centavos = (valor: number) => Math.round(valor * 100) / 100;
 const TOTAIS_ZERADOS: TotaisTitulos = { recebido: 0, saldo: 0, glosas: GLOSAS_ZERADAS };
 
-/** `lotes.aplis_id` (texto) → `fatlote.IdLote`; lote criado fora do apLIS fica de fora. */
+/** `lotes.aplis_id` (texto) → `fatlote.IdLote`; lote criado fora do apLIS fica de
+ *  fora, e o mesmo lote vinculado duas vezes conta uma, como no saldo do banco. */
 function idsAplis(aplisIds: (string | null | undefined)[]): number[] {
-  return aplisIds
+  return [...new Set(aplisIds
     .map((id) => Number(id))
-    .filter((id) => Number.isInteger(id) && id > 0);
+    .filter((id) => Number.isInteger(id) && id > 0))];
 }
 
 /** Glosado, Glosa recebida e Glosa acatada por lote de faturamento, da foto de
@@ -170,30 +169,6 @@ export async function rpcRegistrarBaixa(dados: BaixaInput): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-/** As glosas do apLIS de um título (`fat_lancar_glosas_aplis`): todas ou nenhuma,
- *  com origem 'aplis', e as digitadas que elas substituem saindo na mesma
- *  transação. Sem refetch, como `rpcRegistrarBaixa`: quem chama relê. */
-export async function rpcLancarGlosasAplis(
-  notaId: string,
-  glosas: GlosaSugeridaAplis[],
-  substituir: string[],
-): Promise<void> {
-  const { error } = await supabase.rpc('fat_lancar_glosas_aplis', {
-    p: {
-      notaId,
-      substituir,
-      glosas: glosas.map((g) => ({
-        loteId: g.loteId,
-        codigo: g.codigo,
-        motivo: g.motivo,
-        status: g.status,
-        valor: g.valor,
-      })),
-    },
-  });
-  if (error) throw new Error(error.message);
-}
-
 // Formato cru devolvido pelo PostgREST — snake_case, com os embeds aninhados.
 interface LinhaTitulo {
   id_nota: string;
@@ -204,7 +179,6 @@ interface LinhaTitulo {
   competencia: string | null;
   valor_total: number | string;
   valor_recebido: number | string;
-  valor_glosado: number | string;
   valor_saldo: number | string;
   status: TituloReceber['status'];
   observacoes: string | null;
@@ -226,7 +200,7 @@ interface LinhaTitulo {
 }
 
 const SELECT_TITULO = `id_nota, numero_nota, operadora_id, data_emissao, data_vencimento, competencia,
-  valor_total, valor_recebido, valor_glosado, valor_saldo, status, observacoes, updated_at,
+  valor_total, valor_recebido, valor_saldo, status, observacoes, updated_at,
   operadoras(nome),
   nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, protocolo, valor_total, qtd_requisicoes, responsavel_fechamento))`;
 
@@ -261,7 +235,6 @@ function normalizar(linha: LinhaTitulo): TituloReceber {
     competencia: linha.competencia,
     valorTotal: num(linha.valor_total),
     valorRecebido: num(linha.valor_recebido),
-    valorGlosado: num(linha.valor_glosado),
     valorSaldo: num(linha.valor_saldo),
     // Preenchido pelo refetch, depois da leitura da foto do apLIS.
     glosasAplis: null,
@@ -300,8 +273,8 @@ interface UseContasReceberResult {
   /** Baixas (`recebimentos`) do título, mais recente primeiro, com o nome de
    *  quem registrou já resolvido — issue 39. Sempre um array, nunca undefined. */
   buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
-  /** Todas as glosas do título (com e sem baixa), mais antiga primeiro. */
-  buscarGlosas: (notaId: string) => Promise<TituloGlosa[]>;
+  /** Glosas do apLIS dos lotes do título (`lotes.aplis_id`), uma por requisição. */
+  buscarGlosasAplis: (lotesAplis: number[]) => Promise<GlosaAplisTitulo[]>;
   /** Baixas (com todos os campos digitados e as glosas de cada uma) e glosas
    *  sem baixa do título, para a correção pelo "Editar título". */
   buscarLancamentos: (notaId: string) => Promise<LancamentosTitulo>;
@@ -320,7 +293,6 @@ interface UseContasReceberResult {
     observacoes?: string;
   }) => Promise<string | null>;
   registrarBaixa: (dados: BaixaInput) => Promise<string | null>;
-  lancarGlosas: (notaId: string, glosas: GlosaLancamentoInput[]) => Promise<string | null>;
   cancelarTitulo: (notaId: string) => Promise<string | null>;
   /** Issue 33: preenche/corrige o número da nota de um título já existente. */
   atualizarNumeroNota: (notaId: string, numeroNota: string) => Promise<string | null>;
@@ -633,24 +605,15 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }));
   }, []);
 
-  // Glosas do título para a linha expandida: sem elas, quem olhava o título via
-  // só o total glosado, sem saber o que compunha o número nem onde corrigir.
-  const buscarGlosas = useCallback(async (notaId: string): Promise<TituloGlosa[]> => {
-    const { data, error: erro } = await supabase
-      .from('glosas')
-      .select('id_glosa, recebimento_id, valor, motivo, status, origem, created_at')
-      .eq('nota_id', notaId)
-      .order('created_at', { ascending: true });
-    if (erro) throw new Error(erro.message);
-    return (data ?? []).map((linha) => ({
-      id: linha.id_glosa as string,
-      valor: num(linha.valor as number),
-      motivo: (linha.motivo as string | null) ?? '',
-      status: linha.status as GlosaStatus,
-      origem: linha.origem === 'aplis' ? 'aplis' : null,
-      comBaixa: linha.recebimento_id !== null,
-      createdAt: linha.created_at as string,
-    }));
+  // Glosas do apLIS do título para a linha expandida: de onde vêm as colunas
+  // Glosado, Glosa recebida e Glosa acatada (foto de Glosas e Recursos).
+  const buscarGlosasAplis = useCallback(async (lotesAplis: number[]): Promise<GlosaAplisTitulo[]> => {
+    if (lotesAplis.length === 0) return [];
+    const { glosas } = await chamarApi<{ glosas: GlosaAplisTitulo[] }>(
+      `/api/faturamento/titulo-glosas-aplis?lotes=${[...new Set(lotesAplis)].join(',')}`,
+      'Não foi possível ler as glosas do apLIS.',
+    );
+    return glosas;
   }, []);
 
   // Correção de lançamentos (.scratch/titulos-edicao-lancamentos): baixas com
@@ -764,41 +727,6 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       return null;
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Não foi possível registrar a baixa.';
-      setError(msg);
-      return msg;
-    }
-  }, [refetch]);
-
-  // Glosa avulsa: a que chega no demonstrativo ANTES de qualquer pagamento.
-  // Sem baixa (não fat_registrar_baixa com valor zero — isso criaria uma baixa
-  // fantasma de R$ 0). Via RPC, e não INSERT direto, para ter o mesmo teto
-  // (glosado ≤ total) e a mesma auditoria das outras formas de lançar glosa
-  // (.scratch/faturamento-lancar-glosa-teto). Todas as glosas entram ou nenhuma.
-  const lancarGlosas = useCallback(async (
-    notaId: string,
-    glosas: GlosaLancamentoInput[],
-  ): Promise<string | null> => {
-    setError(null);
-    if (glosas.length === 0) return null;
-    try {
-      const { error: erro } = await supabase.rpc('fat_lancar_glosas', {
-        p: {
-          notaId,
-          glosas: glosas.map((glosa) => ({
-            valor: glosa.valor,
-            motivo: glosa.motivo,
-            codigoGlosa: glosa.codigoGlosa ?? null,
-            status: glosa.status ?? 'aberta',
-            requisicaoId: glosa.requisicaoId ?? null,
-            loteId: glosa.loteId ?? null,
-          })),
-        },
-      });
-      if (erro) throw new Error(erro.message);
-      await refetch();
-      return null;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Não foi possível lançar as glosas.';
       setError(msg);
       return msg;
     }
@@ -1009,14 +937,13 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     buscarGuias,
     buscarEnvioLotes,
     buscarBaixas,
-    buscarGlosas,
+    buscarGlosasAplis,
     buscarLancamentos,
     buscarAlteracoes,
     corrigirLancamento,
     excluirBaixa,
     criarTitulo,
     registrarBaixa,
-    lancarGlosas,
     cancelarTitulo,
     atualizarNumeroNota,
     desvincularLote,

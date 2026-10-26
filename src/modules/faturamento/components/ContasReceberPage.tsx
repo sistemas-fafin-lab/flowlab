@@ -36,7 +36,7 @@ import EditarTituloModal from './EditarTituloModal';
 // billing-sync jamais saiu do mock) e por isso sempre mostrou vazio.
 //
 // O modelo agora é manual e explícito: o operador agrupa lotes do apLIS num
-// título e registra sobre ele baixas parciais e glosas.
+// título e registra sobre ele baixas parciais (a glosa vem do apLIS).
 // ============================================================================
 
 /** Primeiro dia do mês de N meses atrás, em ISO local. */
@@ -111,7 +111,6 @@ const ContasReceberPage: React.FC = () => {
   const [consideradaMetaAberto, setConsideradaMetaAberto] = useState(false);
   const [tituloBaixa, setTituloBaixa] = useState<TituloReceber | null>(null);
   const [tituloEditar, setTituloEditar] = useState<TituloReceber | null>(null);
-  const [modoModal, setModoModal] = useState<'baixa' | 'glosa'>('baixa');
   const [sincronizando, setSincronizando] = useState(false);
   // Tipado para o card poder distinguir sucesso de falha — antes os dois caíam
   // no mesmo card azul de informação, e "Falha ao sincronizar operadoras" saía
@@ -156,8 +155,8 @@ const ContasReceberPage: React.FC = () => {
 
   const {
     titulos, operadoras, total, totais, loading, error, erroGlosasAplis, refetch, refetchOperadoras, buscarTitulo,
-    buscarGuias, buscarEnvioLotes, buscarBaixas, buscarGlosas, buscarLancamentos, buscarAlteracoes, corrigirLancamento, excluirBaixa,
-    criarTitulo, registrarBaixa, lancarGlosas, cancelarTitulo,
+    buscarGuias, buscarEnvioLotes, buscarBaixas, buscarGlosasAplis, buscarLancamentos, buscarAlteracoes, corrigirLancamento, excluirBaixa,
+    criarTitulo, registrarBaixa, cancelarTitulo,
     atualizarNumeroNota, desvincularLote, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
   } = useContasReceber(parametros);
 
@@ -253,18 +252,10 @@ const ContasReceberPage: React.FC = () => {
     }
   };
 
-  // O mesmo modal atende os dois casos: o formulário de glosa é idêntico, muda
-  // só o caminho de escrita (ver o comentário de `modo` no BaixaModal).
   const abrirBaixa = useCallback((titulo: TituloReceber) => {
     tituloSalvoRef.current = false;
-    setModoModal('baixa');
     setTituloBaixa(titulo);
   }, []);
-  const abrirGlosa = (titulo: TituloReceber) => {
-    tituloSalvoRef.current = false;
-    setModoModal('glosa');
-    setTituloBaixa(titulo);
-  };
 
   const abrirEditar = useCallback((titulo: TituloReceber) => {
     tituloSalvoRef.current = false;
@@ -320,7 +311,7 @@ const ContasReceberPage: React.FC = () => {
           <div>
             <h1 className="text-xl font-bold text-gray-900 dark:text-gray-100">Contas a Receber</h1>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Títulos formados por lotes do apLIS, com baixas e glosas registradas aqui
+              Títulos formados por lotes do apLIS, com as baixas registradas aqui e as glosas do apLIS
             </p>
           </div>
         </div>
@@ -346,7 +337,7 @@ const ContasReceberPage: React.FC = () => {
               className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
             >
               <CheckCheck className="w-4 h-4" />
-              Aplicar baixas e glosas do apLIS
+              Aplicar baixas do apLIS
             </button>
           )}
           {podeEditar && (
@@ -454,14 +445,13 @@ const ContasReceberPage: React.FC = () => {
           onGerenciarRegraNf={() => setRegraNfAberto(true)}
           onGerenciarConsideradaMeta={() => setConsideradaMetaAberto(true)}
           onBaixa={abrirBaixa}
-          onGlosa={abrirGlosa}
           onCancelar={(titulo) => void confirmarCancelamento(titulo)}
           onEditar={abrirEditar}
           onDesvincularLote={desvincularLote}
           buscarGuias={buscarGuias}
           buscarEnvioLotes={buscarEnvioLotes}
           buscarBaixas={buscarBaixas}
-          buscarGlosas={buscarGlosas}
+          buscarGlosasAplis={buscarGlosasAplis}
           buscarAlteracoes={buscarAlteracoes}
         />
       )}
@@ -532,11 +522,8 @@ const ContasReceberPage: React.FC = () => {
 
       <BaixaModal
         titulo={tituloBaixa}
-        modo={modoModal}
         onFechar={() => fecharLancamento(() => setTituloBaixa(null))}
         onRegistrar={async (dados) => anotarSalvo(await registrarBaixa(dados))}
-        onLancarGlosas={async (notaId, glosas) => anotarSalvo(await lancarGlosas(notaId, glosas))}
-        buscarGuias={buscarGuias}
       />
 
       <ClinicasParceirasModal

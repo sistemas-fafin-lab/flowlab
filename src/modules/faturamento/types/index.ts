@@ -287,58 +287,18 @@ export interface BaixaSugeridaAplis {
   observacoes: string;
 }
 
-export type StatusGlosaAplis = Exclude<GlosaStatus, 'revertida'>;
-
-/** Glosa a lançar a partir do apLIS: uma por lote + código + status
- *  (.scratch/faturamento-glosas-automaticas-aplis). */
-export interface GlosaSugeridaAplis {
-  /** `aplis_id` do lote. */
-  idLote: number;
-  /** `lotes.id_lote` — o lote que `fat_lancar_glosas_aplis` grava na glosa. */
-  loteId: string;
-  codigo: string | null;
-  motivo: string;
-  status: StatusGlosaAplis;
-  valor: number;
-  procedimentos: number;
-  /** Conferência com o demonstrativo importado no apLIS (só informação, não muda a
-   *  seleção); null quando nenhum procedimento do grupo tem demonstrativo. */
-  demonstrativo: ConferenciaDemonstrativoAplis | null;
-}
-
-/** A glosa do apLIS bate com a do demonstrativo importado (tolerância R$ 0,01)? */
-export type ConferenciaDemonstrativoAplis = 'confere' | 'difere';
-
-/** Glosa digitada à mão que sai do título quando as do apLIS entram. */
-export interface GlosaSubstituidaAplis {
-  /** `glosas.id_glosa`. */
-  id: string;
-  motivo: string;
-  status: StatusGlosaAplis;
-  valor: number;
-}
-
-/** Por que o título não tem glosa a lançar. 'tipo': `sistema-maior` ou `lote-ausente`. */
-export type PuladoGlosaAplis = 'sem-motivo' | 'glosa-manual' | 'passa-do-saldo' | 'tipo';
-
-/** Título da prévia "Aplicar baixas e glosas do apLIS"
+/** Título da prévia "Aplicar baixas do apLIS"
  *  (GET /api/faturamento/titulos-baixas-aplis-previa). */
 export interface TituloPreviaBaixasAplis {
   idNota: string;
   numeroNota: string | null;
   operadora: string;
-  /** null: o recebido bate com o apLIS — o título está na prévia pela glosa. */
-  tipo: TipoDivergenciaAplis | null;
+  tipo: Extract<TipoDivergenciaAplis, 'so-no-aplis' | 'aplis-maior'>;
   recebidoSistema: number;
-  /** null quando algum lote não existe no apLIS. */
-  recebidoAplis: number | null;
+  recebidoAplis: number;
   baixas: BaixaSugeridaAplis[];
   /** Saldo do título depois das baixas sugeridas. */
   saldo: number;
-  glosas: GlosaSugeridaAplis[];
-  /** Glosas digitadas à mão que as do apLIS substituem (saem na mesma chamada). */
-  glosasSubstituidas: GlosaSubstituidaAplis[];
-  puladoGlosa: PuladoGlosaAplis | null;
 }
 
 export interface PreviaBaixasAplis {
@@ -660,17 +620,25 @@ export interface TituloBaixa {
   createdAt: string;
 }
 
-/** Uma glosa do título, como a linha expandida mostra (todas: com e sem baixa). */
-export interface TituloGlosa {
-  id: string;
-  valor: number;
-  motivo: string;
-  status: GlosaStatus;
-  /** 'aplis' = lançada pelo "Aplicar baixas e glosas do apLIS"; null = digitada. */
-  origem: 'aplis' | null;
-  /** Lançada junto com uma baixa (true) ou avulsa. */
-  comBaixa: boolean;
-  createdAt: string;
+/** Glosa do apLIS de um título, uma por requisição, como a linha expandida
+ *  mostra (GET /api/faturamento/titulo-glosas-aplis). */
+export interface GlosaAplisTitulo {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  numGuia: string | null;
+  paciente: string | null;
+  /** `aplis_id` do lote de faturamento do título. */
+  idLoteFaturamento: number;
+  /** Evento de faturamento do apLIS. */
+  statusAplis: number | null;
+  /** Motivos do catálogo do apLIS ('código descrição'). */
+  motivos: string[];
+  /** Glosa fixada; null no deferido total sem lote de recurso. */
+  valorGlosado: number | null;
+  /** Líquido − recebido nos status 18 e 8: o que sai do saldo do título; null nos demais. */
+  glosaAcatada: number | null;
+  /** null: fora dos quatro status (por exemplo, em tratativas sem nada recebido). */
+  status: StatusGlosaDashboard | null;
 }
 
 export interface TituloReceber {
@@ -684,11 +652,8 @@ export interface TituloReceber {
   competencia: string | null;
   valorTotal: number;
   valorRecebido: number;
-  /** Glosas lançadas no título (tabela `glosas`): base do saldo e da baixa. A
-   *  coluna "Glosado" da tela vem de `glosasAplis`. */
-  valorGlosado: number;
-  /** Derivada no banco: total - recebido - glosa definitiva. Glosa aberta ou em
-   *  recurso continua no saldo: ainda é valor pendente. */
+  /** Derivada no banco: total − recebido − glosa acatada do apLIS
+   *  (.scratch/glosas-recursos-dashboard, issue 13). */
   valorSaldo: number;
   /** Glosado, Glosa recebida e Glosa acatada da foto de Glosas e Recursos, somados
    *  nos lotes do título (.scratch/glosas-recursos-dashboard, issue 12). null:
