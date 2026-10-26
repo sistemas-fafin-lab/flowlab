@@ -12,7 +12,7 @@ import PaginacaoGlosas from './PaginacaoGlosas';
 // Aba "Glosas recentes" (issue 10): as glosas do recorte, da mais recente para
 // a mais antiga (data de recebimento da requisição). O status vem do servidor
 // traduzido como no Dashboard. Sem caixas de seleção nem ações em lote. O olho
-// abre o card "Detalhes do recurso" direto na requisição.
+// abre "Detalhes do recurso" direto na requisição, num modal na lateral direita.
 
 const TAMANHO = 50;
 
@@ -33,7 +33,6 @@ const GlosasRecentesLista: React.FC<Props> = ({ recorte, versao, podeEditar, onE
   const [buscaDebounced, setBuscaDebounced] = useState('');
   const [pagina, setPagina] = useState(1);
   const [idAberto, setIdAberto] = useState<number | null>(null);
-  const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const t = setTimeout(() => setBuscaDebounced(busca.trim()), 350);
@@ -48,9 +47,19 @@ const GlosasRecentesLista: React.FC<Props> = ({ recorte, versao, podeEditar, onE
     setIdAberto(null);
   }, [recorte.competencia, recorte.fontePagadoraId]);
 
-  // Em tela estreita o card fica abaixo da lista: rola até ele.
+  // Modal aberto: Esc fecha e a página atrás não rola.
   useEffect(() => {
-    if (idAberto !== null) cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    if (idAberto === null) return;
+    const fecharNoEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setIdAberto(null);
+    };
+    document.addEventListener('keydown', fecharNoEsc);
+    const overflowAnterior = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', fecharNoEsc);
+      document.body.style.overflow = overflowAnterior;
+    };
   }, [idAberto]);
 
   const { glosas, meta, loading, error, refetch } = useGlosasRecentes({
@@ -95,8 +104,8 @@ const GlosasRecentesLista: React.FC<Props> = ({ recorte, versao, podeEditar, onE
         />
       </div>
 
-      <div className="flex flex-col xl:flex-row xl:items-start gap-4">
-        <div className="flex-1 min-w-0 w-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+      <div>
+        <div className="w-full bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-2">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
               Glosas recentes ({meta?.registros ?? 0})
@@ -198,18 +207,32 @@ const GlosasRecentesLista: React.FC<Props> = ({ recorte, versao, podeEditar, onE
           )}
         </div>
 
-        {idAberto !== null && (
-          <div ref={cardRef} className="w-full xl:w-[420px] shrink-0 xl:sticky xl:top-4 scroll-mt-4">
+      </div>
+
+      {idAberto !== null && (
+        <>
+          <div
+            className="fixed inset-0 z-40 bg-black/25 dark:bg-black/45 backdrop-blur-sm animate-fade-in"
+            onClick={() => setIdAberto(null)}
+            aria-hidden="true"
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Detalhes do recurso"
+            className="fixed inset-y-2 right-2 z-50 w-[480px] max-w-[calc(100vw-1rem)] rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-2xl animate-slide-in-right"
+          >
             <DetalhesRecursoCard
               idRequisicao={idAberto}
               podeEditar={podeEditar}
               versao={versao}
               onEditado={onEditado}
               onClose={() => setIdAberto(null)}
+              emModal
             />
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 };

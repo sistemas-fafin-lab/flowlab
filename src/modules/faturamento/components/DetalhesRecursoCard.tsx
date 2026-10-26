@@ -40,7 +40,8 @@ import { ImagensRequisicaoLegadoModal } from './ImagensRequisicaoLegadoModal';
 // issue 05). Aberto pelo olho de um lote: bloco do lote + requisições do lote;
 // clicar numa requisição abre as abas. Aberto só com `idRequisicao` (Glosas
 // recentes, Recursos fora de lote), vai direto à requisição, sem o lote.
-// É um painel ao lado da lista, não um modal. Quem gerencia o faturamento vê
+// Nos lotes e em Recursos fora de lote é um painel ao lado da lista; em Glosas
+// recentes vai dentro de um modal lateral (`emModal`). Quem gerencia o faturamento vê
 // o lápis (issue 07): datas do lote e valores da requisição; cada edição
 // gravada chama `onEditado`, e a página relê lista, cards e o próprio card.
 
@@ -470,6 +471,8 @@ interface Props {
   versao: number;
   onEditado: () => void;
   onClose: () => void;
+  /** Dentro de um modal lateral: ocupa a altura toda, sem borda nem sombra. */
+  emModal?: boolean;
 }
 
 const DetalhesRecursoCard: React.FC<Props> = ({
@@ -479,6 +482,7 @@ const DetalhesRecursoCard: React.FC<Props> = ({
   versao,
   onEditado,
   onClose,
+  emModal = false,
 }) => {
   const edicao: AcoesEdicao = { podeEditar, versao, onEditado };
   const [requisicaoAberta, setRequisicaoAberta] = useState<{ id: number; previa: RequisicaoRecursoFoto | null } | null>(
@@ -493,7 +497,9 @@ const DetalhesRecursoCard: React.FC<Props> = ({
   return (
     <aside
       aria-label="Detalhes do recurso"
-      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 flex flex-col overflow-hidden xl:max-h-[calc(100vh-2rem)]"
+      className={`bg-white dark:bg-gray-800 flex flex-col overflow-hidden ${
+        emModal ? 'h-full' : 'rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 xl:max-h-[calc(100vh-2rem)]'
+      }`}
     >
       <div className="px-5 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
