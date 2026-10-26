@@ -90,3 +90,42 @@ describe('janelasDoPeriodo', () => {
     });
   });
 });
+
+describe('resumirIndicadores — ranking de convênios', () => {
+  it('agrupa pela fonte pagadora do lote, e o Particular é uma fonte qualquer', () => {
+    const { rankings } = resumirIndicadores([
+      linha({ idLote: 1, idRequisicao: 1, fontePagadoraId: 10, fontePagadoraNome: 'CASSI', valorLiquido: 30, quantidade: 1 }),
+      linha({ idLote: 2, idRequisicao: 2, fontePagadoraId: 10, fontePagadoraNome: 'CASSI', valorLiquido: 20, quantidade: 2 }),
+      linha({ idLote: 3, idRequisicao: 3, fontePagadoraId: 1102, fontePagadoraNome: 'PARTICULAR', valorLiquido: 40, quantidade: 1 }),
+      linha({ dataLote: '2026-08-10', fontePagadoraId: 20, fontePagadoraNome: 'UNIMED', valorLiquido: 999 }),
+    ], SETEMBRO);
+
+    expect(rankings.convenios.porValor).toEqual([
+      { nome: 'CASSI', valor: 50, quantidade: 3 },
+      { nome: 'PARTICULAR', valor: 40, quantidade: 1 },
+    ]);
+  });
+
+  it('a ordem por valor é diferente da ordem por quantidade', () => {
+    const { rankings } = resumirIndicadores([
+      linha({ fontePagadoraId: 10, fontePagadoraNome: 'CASSI', valorLiquido: 500, quantidade: 2 }),
+      linha({ fontePagadoraId: 20, fontePagadoraNome: 'UNIMED', valorLiquido: 100, quantidade: 9 }),
+      linha({ fontePagadoraId: 30, fontePagadoraNome: 'BRADESCO', valorLiquido: 300, quantidade: 5 }),
+    ], SETEMBRO);
+
+    expect(rankings.convenios.porValor.map((c) => c.nome)).toEqual(['CASSI', 'BRADESCO', 'UNIMED']);
+    expect(rankings.convenios.porQuantidade.map((c) => c.nome)).toEqual(['UNIMED', 'BRADESCO', 'CASSI']);
+  });
+
+  it('corta no Top 10, nas duas ordens', () => {
+    // Fonte i: valor cresce com i, quantidade decresce com i.
+    const linhas = Array.from({ length: 12 }, (_, i) =>
+      linha({ fontePagadoraId: i + 1, fontePagadoraNome: `F${i + 1}`, valorLiquido: (i + 1) * 10, quantidade: 13 - (i + 1) }));
+    const { rankings } = resumirIndicadores(linhas, SETEMBRO);
+
+    expect(rankings.convenios.porValor.map((c) => c.nome)).toEqual(
+      ['F12', 'F11', 'F10', 'F9', 'F8', 'F7', 'F6', 'F5', 'F4', 'F3']);
+    expect(rankings.convenios.porQuantidade.map((c) => c.nome)).toEqual(
+      ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10']);
+  });
+});

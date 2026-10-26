@@ -1289,12 +1289,29 @@ export interface CardIndicadorFaturamento {
   variacao: number | null;
 }
 
+/** Uma barra de ranking, com as duas métricas (a não escolhida vai no tooltip). */
+export interface ItemRankingIndicadores {
+  nome: string;
+  valor: number;
+  quantidade: number;
+}
+
+/** Top 10 já calculado nas duas ordens; o botão R$/Qtd escolhe qual mostrar. */
+export interface RankingIndicadores {
+  porValor: ItemRankingIndicadores[];
+  porQuantidade: ItemRankingIndicadores[];
+}
+
 /** Contrato de GET /api/faturamento/indicadores. */
 export interface IndicadoresFaturamento {
   cards: {
     totalFaturado: CardIndicadorFaturamento;
     requisicoes: CardIndicadorFaturamento;
     exames: CardIndicadorFaturamento;
+  };
+  rankings: {
+    /** Fonte pagadora do lote; quantidade = exames faturados. */
+    convenios: RankingIndicadores;
   };
 }
 

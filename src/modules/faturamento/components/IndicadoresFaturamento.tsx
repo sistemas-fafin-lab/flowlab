@@ -1,5 +1,16 @@
 import React, { useState } from 'react';
 import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+  type LabelProps,
+} from 'recharts';
+import {
   AlertCircle,
   BarChart3,
   DollarSign,
@@ -9,16 +20,21 @@ import {
   TrendingDown,
   TrendingUp,
 } from 'lucide-react';
+import { useTheme } from '../../../hooks/useTheme';
 import { useIndicadoresFaturamento } from '../hooks/useIndicadoresFaturamento';
-import type { CardIndicadorFaturamento } from '../types';
+import type { CardIndicadorFaturamento, ItemRankingIndicadores, RankingIndicadores } from '../types';
 import { formatCurrency, formatPercentual, hojeIso } from '../utils/formato';
 
 // ============================================================================
 // COMPONENTE: IndicadoresFaturamento
 // Faturamento → Indicadores (.scratch/faturamento-indicadores/spec.md): total
 // faturado, requisições e exames faturados no mês (pela criação do lote, sem
-// os cancelados), com a variação sobre o mês anterior. Os números vêm prontos
-// do servidor (api/_lib/faturamento/indicadoresFaturamento.ts).
+// os cancelados), com a variação sobre o mês anterior, e os rankings Top 10.
+// Os números vêm prontos do servidor (api/_lib/faturamento/indicadoresFaturamento.ts),
+// cada ranking já nas duas ordens: o botão R$/Qtd só escolhe qual mostrar.
+//
+// Rankings no padrão do Dashboard de Glosas (GlosasDashboard.tsx): recharts,
+// barras horizontais, eixos e tooltip pelo tema.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5';
@@ -38,6 +54,22 @@ function formatDiaMesHora(valor: string): string {
 }
 
 const formatInteiro = (n: number): string => n.toLocaleString('pt-BR');
+
+/** Métrica dos rankings, escolhida no botão R$/Qtd do cabeçalho. */
+type MetricaRanking = 'valor' | 'quantidade';
+
+const COR_RANKING = '#6366f1'; // indigo-500
+
+/** Rótulo do eixo dos rankings; o nome inteiro fica no tooltip. */
+const MAX_ROTULO = 20;
+
+// Eixo em milhares: valores de faturamento estouram a largura do eixo em reais.
+const eixoMoeda = (valor: number): string =>
+  Math.abs(valor) >= 1000 ? `${Math.round(valor / 1000)}k` : String(valor);
+
+const encurtar = (nome: string): string => (nome.length > MAX_ROTULO ? `${nome.slice(0, MAX_ROTULO - 1)}…` : nome);
+
+const alturaRanking = (linhas: number) => Math.max(linhas * 34 + 16, 192);
 
 const Variacao: React.FC<{ variacao: number | null }> = ({ variacao }) => {
   if (variacao === null) return <><span className="font-medium">—</span> sem valor no mês anterior</>;
@@ -78,8 +110,121 @@ const CardIndicador: React.FC<CardProps> = ({ titulo, card, formatar, icone, cor
   </div>
 );
 
+const BotaoMetrica: React.FC<{ metrica: MetricaRanking; onChange: (m: MetricaRanking) => void }> = ({ metrica, onChange }) => (
+  <div className="text-xs text-gray-500 dark:text-gray-400">
+    Rankings por
+    <div className="mt-1 flex rounded-lg bg-gray-100 dark:bg-gray-700 p-0.5 text-sm font-medium">
+      {([['valor', 'R$'], ['quantidade', 'Qtd']] as const).map(([id, label]) => (
+        <button
+          key={id}
+          onClick={() => onChange(id)}
+          aria-pressed={metrica === id}
+          className={`px-3 py-1.5 rounded-md transition-colors ${
+            metrica === id
+              ? 'bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm'
+              : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+          }`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
+interface RankingBarrasProps {
+  titulo: string;
+  sub: string;
+  ranking: RankingIndicadores;
+  metrica: MetricaRanking;
+  /** O que a quantidade conta ('exame' / 'exames'). */
+  unidade: { singular: string; plural: string };
+  vazio: string;
+}
+
+const RankingBarras: React.FC<RankingBarrasProps> = ({ titulo, sub, ranking, metrica, unidade, vazio }) => {
+  const { isDark } = useTheme();
+  const axisTick = { fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' };
+  const gridColor = isDark ? 'rgba(51,65,85,0.4)' : 'rgba(226,232,240,0.8)';
+  // Faixa do hover nas barras: a padrão do recharts (#ccc) acende no tema escuro.
+  const cursorBarra = { fill: isDark ? 'rgba(51,65,85,0.35)' : 'rgba(226,232,240,0.6)' };
+  const tooltipStyle: React.CSSProperties = {
+    background: isDark ? '#0f172a' : '#ffffff',
+    border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
+    borderRadius: 12,
+    fontSize: 12,
+  };
+  const tooltipItem: React.CSSProperties = { color: isDark ? '#e2e8f0' : '#334155' };
+  const tooltipLabel: React.CSSProperties = { color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 };
+  const corRotuloBarra = isDark ? '#cbd5e1' : '#475569';
+  // <text> próprio: o rótulo padrão quebra a linha na largura da barra.
+  const rotuloBarra = ({ x, y, width, height, value }: LabelProps) => (
+    <text
+      x={Number(x) + Number(width) + 6}
+      y={Number(y) + Number(height) / 2}
+      dy="0.35em"
+      fontSize={11}
+      fill={corRotuloBarra}
+    >
+      {value}
+    </text>
+  );
+
+  const quantidade = (n: number) => `${formatInteiro(n)} ${n === 1 ? unidade.singular : unidade.plural}`;
+  // Ao lado da barra, a métrica escolhida; no tooltip, o nome inteiro e a outra.
+  const itens = (metrica === 'valor' ? ranking.porValor : ranking.porQuantidade).map((i) => ({
+    ...i,
+    rotulo: metrica === 'valor' ? formatCurrency(i.valor) : quantidade(i.quantidade),
+  }));
+  const tooltipRanking = (_valor: number, _nome: string, item: { payload?: ItemRankingIndicadores }) => {
+    const p = item.payload as ItemRankingIndicadores;
+    return [metrica === 'valor' ? quantidade(p.quantidade) : formatCurrency(p.valor), p.nome];
+  };
+
+  return (
+    <div className={`${CARD} flex flex-col`}>
+      <div className="mb-3">
+        <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{titulo}</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{sub}</p>
+      </div>
+      {itens.length > 0 ? (
+        <div style={{ height: alturaRanking(itens.length) }}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={itens} layout="vertical" margin={{ top: 4, right: 120, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
+              <XAxis
+                type="number"
+                dataKey={metrica}
+                tick={axisTick}
+                axisLine={false}
+                tickLine={false}
+                tickFormatter={metrica === 'valor' ? eixoMoeda : undefined}
+                allowDecimals={metrica === 'valor'}
+              />
+              <YAxis type="category" dataKey="nome" tick={axisTick} axisLine={false} tickLine={false} width={120} tickFormatter={encurtar} />
+              <Tooltip cursor={cursorBarra} contentStyle={tooltipStyle} itemStyle={tooltipItem} labelStyle={tooltipLabel} formatter={tooltipRanking} labelFormatter={() => ''} />
+              <Bar dataKey={metrica} fill={COR_RANKING} radius={[0, 6, 6, 0]} maxBarSize={24}>
+                <LabelList dataKey="rotulo" content={rotuloBarra} />
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="min-h-[12rem] flex flex-col items-center justify-center text-center text-gray-400 dark:text-gray-500">
+          <div className="w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center mb-2">
+            <BarChart3 className="w-6 h-6" />
+          </div>
+          <p className="text-sm">{vazio}</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const IndicadoresFaturamento: React.FC = () => {
   const [mes, setMes] = useState(mesAnterior);
+  // Só estado de tela: os dois rankings já vêm prontos, sem nova consulta.
+  const [metrica, setMetrica] = useState<MetricaRanking>('valor');
   const { indicadores, meta, loading, error, refetch } = useIndicadoresFaturamento(mes);
 
   return (
@@ -110,6 +255,7 @@ const IndicadoresFaturamento: React.FC = () => {
               className={`block ${CAMPO}`}
             />
           </label>
+          <BotaoMetrica metrica={metrica} onChange={setMetrica} />
           <button
             onClick={() => void refetch(true)}
             disabled={loading}
@@ -132,32 +278,51 @@ const IndicadoresFaturamento: React.FC = () => {
           </div>
         </div>
       ) : !indicadores ? (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {[0, 1, 2].map((i) => <div key={i} className={`${CARD} h-36 animate-pulse`} />)}
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[0, 1, 2].map((i) => <div key={i} className={`${CARD} h-36 animate-pulse`} />)}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className={`${CARD} h-96 animate-pulse`} />
+          </div>
         </div>
       ) : (
-        <div className={`grid grid-cols-1 md:grid-cols-3 gap-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
-          <CardIndicador
-            titulo="Total faturado"
-            card={indicadores.cards.totalFaturado}
-            formatar={formatCurrency}
-            icone={<DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />}
-            corIcone="bg-green-100 dark:bg-green-900/30"
-          />
-          <CardIndicador
-            titulo="Requisições faturadas"
-            card={indicadores.cards.requisicoes}
-            formatar={formatInteiro}
-            icone={<FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />}
-            corIcone="bg-blue-100 dark:bg-blue-900/30"
-          />
-          <CardIndicador
-            titulo="Exames faturados"
-            card={indicadores.cards.exames}
-            formatar={formatInteiro}
-            icone={<FlaskConical className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />}
-            corIcone="bg-indigo-100 dark:bg-indigo-900/30"
-          />
+        <div className={`space-y-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <CardIndicador
+              titulo="Total faturado"
+              card={indicadores.cards.totalFaturado}
+              formatar={formatCurrency}
+              icone={<DollarSign className="h-6 w-6 text-green-600 dark:text-green-400" />}
+              corIcone="bg-green-100 dark:bg-green-900/30"
+            />
+            <CardIndicador
+              titulo="Requisições faturadas"
+              card={indicadores.cards.requisicoes}
+              formatar={formatInteiro}
+              icone={<FileText className="h-6 w-6 text-blue-600 dark:text-blue-400" />}
+              corIcone="bg-blue-100 dark:bg-blue-900/30"
+            />
+            <CardIndicador
+              titulo="Exames faturados"
+              card={indicadores.cards.exames}
+              formatar={formatInteiro}
+              icone={<FlaskConical className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />}
+              corIcone="bg-indigo-100 dark:bg-indigo-900/30"
+            />
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <RankingBarras
+              titulo="Convênios que mais faturaram"
+              sub={metrica === 'valor'
+                ? '10 fontes pagadoras com maior valor faturado'
+                : '10 fontes pagadoras com mais exames faturados'}
+              ranking={indicadores.rankings.convenios}
+              metrica={metrica}
+              unidade={{ singular: 'exame', plural: 'exames' }}
+              vazio="Nenhum convênio faturado no mês."
+            />
+          </div>
         </div>
       )}
     </div>

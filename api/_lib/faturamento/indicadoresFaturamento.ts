@@ -55,11 +55,28 @@ export interface CardIndicador {
   variacao: number | null;
 }
 
+/** Uma barra de ranking: as duas métricas, para o tooltip mostrar a outra. */
+export interface ItemRankingIndicadores {
+  nome: string;
+  valor: number;
+  quantidade: number;
+}
+
+/** O mesmo ranking nas duas ordens: o botão R$/Qtd da tela só escolhe uma. */
+export interface RankingIndicadores {
+  porValor: ItemRankingIndicadores[];
+  porQuantidade: ItemRankingIndicadores[];
+}
+
 export interface ResumoIndicadores {
   cards: {
     totalFaturado: CardIndicador;
     requisicoes: CardIndicador;
     exames: CardIndicador;
+  };
+  rankings: {
+    /** Fonte pagadora do lote; quantidade = exames faturados. */
+    convenios: RankingIndicadores;
   };
 }
 
@@ -93,17 +110,55 @@ function card(atual: number, anterior: number): CardIndicador {
   };
 }
 
-/** Cards da janela atual, comparados com a anterior. */
+const TOPO_RANKING = 10;
+
+// Empate: a outra métrica, depois o nome — ordem estável entre consultas.
+const porValorDesc = (a: ItemRankingIndicadores, b: ItemRankingIndicadores) =>
+  b.valor - a.valor || b.quantidade - a.quantidade || a.nome.localeCompare(b.nome);
+const porQuantidadeDesc = (a: ItemRankingIndicadores, b: ItemRankingIndicadores) =>
+  b.quantidade - a.quantidade || b.valor - a.valor || a.nome.localeCompare(b.nome);
+
+/** Soma valor e quantidade por grupo; Top 10 em cada ordem. */
+function ranquear(
+  linhas: LinhaFaturada[],
+  grupo: (l: LinhaFaturada) => { chave: string; nome: string },
+): RankingIndicadores {
+  const itens = new Map<string, ItemRankingIndicadores>();
+  for (const l of linhas) {
+    const { chave, nome } = grupo(l);
+    const item = itens.get(chave) ?? { nome, valor: 0, quantidade: 0 };
+    item.valor += l.valorLiquido;
+    item.quantidade += l.quantidade;
+    itens.set(chave, item);
+  }
+  const todos = [...itens.values()].map((i) => ({ ...i, valor: centavos(i.valor) }));
+  return {
+    porValor: [...todos].sort(porValorDesc).slice(0, TOPO_RANKING),
+    porQuantidade: [...todos].sort(porQuantidadeDesc).slice(0, TOPO_RANKING),
+  };
+}
+
+const porFontePagadora = (l: LinhaFaturada) => ({
+  chave: String(l.fontePagadoraId),
+  nome: l.fontePagadoraNome
+    ?? (l.fontePagadoraId === null ? 'Sem fonte pagadora' : `Fonte pagadora ${l.fontePagadoraId}`),
+});
+
+/** Cards da janela atual, comparados com a anterior, e os rankings da atual. */
 export function resumirIndicadores(linhas: LinhaFaturada[], janelas: JanelasIndicadores): ResumoIndicadores {
   // 'YYYY-MM-DD' compara como texto.
   const dentro = (j: JanelaIndicadores) => (l: LinhaFaturada) => l.dataLote >= j.inicio && l.dataLote <= j.fim;
-  const atual = somar(linhas.filter(dentro(janelas.atual)));
+  const linhasAtual = linhas.filter(dentro(janelas.atual));
+  const atual = somar(linhasAtual);
   const anterior = somar(linhas.filter(dentro(janelas.anterior)));
   return {
     cards: {
       totalFaturado: card(atual.totalFaturado, anterior.totalFaturado),
       requisicoes: card(atual.requisicoes, anterior.requisicoes),
       exames: card(atual.exames, anterior.exames),
+    },
+    rankings: {
+      convenios: ranquear(linhasAtual, porFontePagadora),
     },
   };
 }
