@@ -164,6 +164,8 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
 
   const axisTick = { fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' };
   const gridColor = isDark ? 'rgba(51,65,85,0.4)' : 'rgba(226,232,240,0.8)';
+  // Faixa do hover nas barras: a padrão do recharts (#ccc) acende no tema escuro.
+  const cursorBarra = { fill: isDark ? 'rgba(51,65,85,0.35)' : 'rgba(226,232,240,0.6)' };
   const tooltipStyle: React.CSSProperties = {
     background: isDark ? '#0f172a' : '#ffffff',
     border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
@@ -272,6 +274,7 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
                   <XAxis dataKey="rotulo" tick={axisTick} axisLine={false} tickLine={false} />
                   <YAxis tick={axisTick} axisLine={false} tickLine={false} tickFormatter={eixoMoeda} />
                   <Tooltip
+                    cursor={cursorBarra}
                     contentStyle={tooltipStyle}
                     itemStyle={tooltipItem}
                     labelStyle={tooltipLabel}
@@ -381,7 +384,7 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
                     allowDecimals={false}
                   />
                   <YAxis type="category" dataKey="nome" tick={axisTick} axisLine={false} tickLine={false} width={120} tickFormatter={encurtar} />
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItem} labelStyle={tooltipLabel} formatter={tooltipRanking} labelFormatter={() => ''} />
+                  <Tooltip cursor={cursorBarra} contentStyle={tooltipStyle} itemStyle={tooltipItem} labelStyle={tooltipLabel} formatter={tooltipRanking} labelFormatter={() => ''} />
                   <Bar dataKey={ordem === 'valor' ? 'valor' : 'quantidade'} fill={COR_RANKING} radius={[0, 6, 6, 0]} maxBarSize={24}>
                     <LabelList dataKey="rotulo" content={rotuloBarra} />
                   </Bar>
@@ -401,7 +404,7 @@ const GlosasDashboard: React.FC<Props> = ({ recorte, versao }) => {
                   <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
                   <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={eixoMoeda} />
                   <YAxis type="category" dataKey="nome" tick={axisTick} axisLine={false} tickLine={false} width={120} tickFormatter={encurtar} />
-                  <Tooltip contentStyle={tooltipStyle} itemStyle={tooltipItem} labelStyle={tooltipLabel} formatter={tooltipRanking} labelFormatter={() => ''} />
+                  <Tooltip cursor={cursorBarra} contentStyle={tooltipStyle} itemStyle={tooltipItem} labelStyle={tooltipLabel} formatter={tooltipRanking} labelFormatter={() => ''} />
                   <Bar dataKey="valor" fill={COR_STATUS.definitiva} radius={[0, 6, 6, 0]} maxBarSize={24}>
                     <LabelList dataKey="rotulo" content={rotuloBarra} />
                   </Bar>
