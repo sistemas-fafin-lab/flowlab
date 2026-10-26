@@ -1312,6 +1312,8 @@ export interface IndicadoresFaturamento {
   rankings: {
     /** Fonte pagadora do lote; quantidade = exames faturados. */
     convenios: RankingIndicadores;
+    /** Código do procedimento; nome = código e a descrição mais usada dele. */
+    exames: RankingIndicadores;
   };
 }
 

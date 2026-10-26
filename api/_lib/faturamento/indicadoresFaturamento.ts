@@ -77,6 +77,8 @@ export interface ResumoIndicadores {
   rankings: {
     /** Fonte pagadora do lote; quantidade = exames faturados. */
     convenios: RankingIndicadores;
+    /** Código do procedimento; nome = código e a descrição mais usada dele. */
+    exames: RankingIndicadores;
   };
 }
 
@@ -144,6 +146,29 @@ const porFontePagadora = (l: LinhaFaturada) => ({
     ?? (l.fontePagadoraId === null ? 'Sem fonte pagadora' : `Fonte pagadora ${l.fontePagadoraId}`),
 });
 
+/** Agrupa pelo código: a descrição muda de tabela para tabela (de convênio para
+ *  convênio). O nome leva a descrição mais frequente do código, ponderada pela
+ *  quantidade; no empate, a primeira em ordem alfabética. */
+function porCodigoDoExame(linhas: LinhaFaturada[]): (l: LinhaFaturada) => { chave: string; nome: string } {
+  const pesos = new Map<string, Map<string, number>>();
+  for (const l of linhas) {
+    if (l.codigo === null || l.descricao === null) continue;
+    const doCodigo = pesos.get(l.codigo) ?? new Map<string, number>();
+    doCodigo.set(l.descricao, (doCodigo.get(l.descricao) ?? 0) + l.quantidade);
+    pesos.set(l.codigo, doCodigo);
+  }
+  const descricoes = new Map<string, string>();
+  for (const [codigo, doCodigo] of pesos) {
+    const [[maisUsada]] = [...doCodigo].sort(([da, pa], [db, pb]) => pb - pa || da.localeCompare(db));
+    descricoes.set(codigo, maisUsada);
+  }
+  return (l) => {
+    if (l.codigo === null) return { chave: '', nome: 'Sem código' };
+    const descricao = descricoes.get(l.codigo);
+    return { chave: l.codigo, nome: descricao ? `${l.codigo} - ${descricao}` : l.codigo };
+  };
+}
+
 /** Cards da janela atual, comparados com a anterior, e os rankings da atual. */
 export function resumirIndicadores(linhas: LinhaFaturada[], janelas: JanelasIndicadores): ResumoIndicadores {
   // 'YYYY-MM-DD' compara como texto.
@@ -159,6 +184,7 @@ export function resumirIndicadores(linhas: LinhaFaturada[], janelas: JanelasIndi
     },
     rankings: {
       convenios: ranquear(linhasAtual, porFontePagadora),
+      exames: ranquear(linhasAtual, porCodigoDoExame(linhasAtual)),
     },
   };
 }

@@ -140,9 +140,11 @@ interface RankingBarrasProps {
   /** O que a quantidade conta ('exame' / 'exames'). */
   unidade: { singular: string; plural: string };
   vazio: string;
+  /** Aviso curto sob o gráfico. */
+  nota?: string;
 }
 
-const RankingBarras: React.FC<RankingBarrasProps> = ({ titulo, sub, ranking, metrica, unidade, vazio }) => {
+const RankingBarras: React.FC<RankingBarrasProps> = ({ titulo, sub, ranking, metrica, unidade, vazio, nota }) => {
   const { isDark } = useTheme();
   const axisTick = { fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' };
   const gridColor = isDark ? 'rgba(51,65,85,0.4)' : 'rgba(226,232,240,0.8)';
@@ -217,6 +219,7 @@ const RankingBarras: React.FC<RankingBarrasProps> = ({ titulo, sub, ranking, met
           <p className="text-sm">{vazio}</p>
         </div>
       )}
+      {nota && <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">{nota}</p>}
     </div>
   );
 };
@@ -283,7 +286,7 @@ const IndicadoresFaturamento: React.FC = () => {
             {[0, 1, 2].map((i) => <div key={i} className={`${CARD} h-36 animate-pulse`} />)}
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <div className={`${CARD} h-96 animate-pulse`} />
+            {[0, 1].map((i) => <div key={i} className={`${CARD} h-96 animate-pulse`} />)}
           </div>
         </div>
       ) : (
@@ -312,6 +315,17 @@ const IndicadoresFaturamento: React.FC = () => {
             />
           </div>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <RankingBarras
+              titulo="Exames mais faturados"
+              sub={metrica === 'valor'
+                ? '10 exames com maior valor faturado'
+                : '10 exames mais cobrados'}
+              ranking={indicadores.rankings.exames}
+              metrica={metrica}
+              unidade={{ singular: 'exame', plural: 'exames' }}
+              vazio="Nenhum exame faturado no mês."
+              nota="Particular entra no mês em que o lote mensal é criado."
+            />
             <RankingBarras
               titulo="Convênios que mais faturaram"
               sub={metrica === 'valor'

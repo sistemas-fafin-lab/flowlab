@@ -129,3 +129,52 @@ describe('resumirIndicadores — ranking de convênios', () => {
       ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10']);
   });
 });
+
+describe('resumirIndicadores — ranking de exames', () => {
+  it('o mesmo código com descrições diferentes vira uma barra, com a descrição mais frequente pela quantidade', () => {
+    const { rankings } = resumirIndicadores([
+      // 2 linhas de 1 na CASSI, 1 linha de 3 na UNIMED: a da UNIMED pesa mais.
+      linha({ fontePagadoraId: 10, codigo: '40301630', descricao: 'HEMOGRAMA COMPLETO', quantidade: 1, valorLiquido: 10 }),
+      linha({ fontePagadoraId: 10, codigo: '40301630', descricao: 'HEMOGRAMA COMPLETO', quantidade: 1, valorLiquido: 10 }),
+      linha({ fontePagadoraId: 20, codigo: '40301630', descricao: 'HEMOGRAMA C/ PLAQUETAS', quantidade: 3, valorLiquido: 25 }),
+      linha({ codigo: '40302040', descricao: 'GLICOSE', quantidade: 1, valorLiquido: 5 }),
+    ], SETEMBRO);
+
+    expect(rankings.exames.porValor).toEqual([
+      { nome: '40301630 - HEMOGRAMA C/ PLAQUETAS', valor: 45, quantidade: 5 },
+      { nome: '40302040 - GLICOSE', valor: 5, quantidade: 1 },
+    ]);
+  });
+
+  it('no empate de peso, a descrição não depende da ordem das linhas', () => {
+    const a = linha({ codigo: '40301630', descricao: 'HEMOGRAMA', quantidade: 2 });
+    const b = linha({ codigo: '40301630', descricao: 'HEMOGRAMA COMPLETO', quantidade: 2 });
+
+    const nomes = [[a, b], [b, a]].map((linhas) => resumirIndicadores(linhas, SETEMBRO).rankings.exames.porValor[0].nome);
+
+    expect(nomes).toEqual(['40301630 - HEMOGRAMA', '40301630 - HEMOGRAMA']);
+  });
+
+  it('a ordem por valor é diferente da ordem por quantidade', () => {
+    const { rankings } = resumirIndicadores([
+      linha({ codigo: '1', descricao: 'TSH', valorLiquido: 500, quantidade: 2 }),
+      linha({ codigo: '2', descricao: 'GLICOSE', valorLiquido: 100, quantidade: 9 }),
+      linha({ codigo: '3', descricao: 'UREIA', valorLiquido: 300, quantidade: 5 }),
+    ], SETEMBRO);
+
+    expect(rankings.exames.porValor.map((e) => e.nome)).toEqual(['1 - TSH', '3 - UREIA', '2 - GLICOSE']);
+    expect(rankings.exames.porQuantidade.map((e) => e.nome)).toEqual(['2 - GLICOSE', '3 - UREIA', '1 - TSH']);
+  });
+
+  it('corta no Top 10, nas duas ordens', () => {
+    // Exame i: valor cresce com i, quantidade decresce com i.
+    const linhas = Array.from({ length: 12 }, (_, i) =>
+      linha({ codigo: `E${i + 1}`, descricao: 'X', valorLiquido: (i + 1) * 10, quantidade: 13 - (i + 1) }));
+    const { rankings } = resumirIndicadores(linhas, SETEMBRO);
+
+    expect(rankings.exames.porValor.map((e) => e.nome)).toEqual(
+      ['E12', 'E11', 'E10', 'E9', 'E8', 'E7', 'E6', 'E5', 'E4', 'E3'].map((c) => `${c} - X`));
+    expect(rankings.exames.porQuantidade.map((e) => e.nome)).toEqual(
+      ['E1', 'E2', 'E3', 'E4', 'E5', 'E6', 'E7', 'E8', 'E9', 'E10'].map((c) => `${c} - X`));
+  });
+});
