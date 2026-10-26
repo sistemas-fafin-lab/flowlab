@@ -3145,6 +3145,8 @@ export type GlosasRecursosDoPeriodoResultado =
 
 // `fatloterecursoprocedimento` não tem índice em IdRequisicao (~4 mil linhas):
 // entra por tabela derivada agrupada, não por EXISTS correlacionado.
+// Lote de recurso criado antes do lote de faturamento atual é de um faturamento
+// anterior da requisição (refaturada, por exemplo, para outro convênio) e não conta.
 const SQL_REQUISICOES_GLOSA_RECURSO = `
   SELECT r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente,
          r.Lote, DATE_FORMAT(l.DtaCriacao, '%Y-%m') AS Competencia,
@@ -3154,8 +3156,12 @@ const SQL_REQUISICOES_GLOSA_RECURSO = `
     FROM requisicao r
     JOIN fatlote l ON l.IdLote = r.Lote
     JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
-    LEFT JOIN (SELECT DISTINCT IdRequisicao FROM fatloterecursoprocedimento) lr
+    LEFT JOIN (SELECT lrp.IdRequisicao, MAX(lrc.DtaCriacao) AS UltimoRecurso
+                 FROM fatloterecursoprocedimento lrp
+                 JOIN fatloterecurso lrc ON lrc.IdLoteRecurso = lrp.IdLoteRecurso
+                GROUP BY lrp.IdRequisicao) lr
            ON lr.IdRequisicao = r.IdRequisicao
+          AND lr.UltimoRecurso >= DATE(l.DtaCriacao)
     LEFT JOIN paciente pa ON pa.CodPaciente = r.CodPaciente
     LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = r.IdFontePagadora
    WHERE %WHERE%
@@ -3183,7 +3189,8 @@ function codigoEDescricao(codigo: unknown, descricao: unknown): string | null {
 
 /**
  * Requisições do mês de faturamento (`fatlote.DtaCriacao` do lote original)
- * nos status de glosa/recurso, ou presentes em algum lote de recurso, e os
+ * nos status de glosa/recurso, ou presentes em algum lote de recurso criado a
+ * partir do lote de faturamento atual, e os
  * lotes de recurso delas. Requisição em mais de um lote de recurso (32 em
  * 23/10/2026: 1º e 2º recurso) fica com o mais recente, e o recursado é o
  * desse lote. Sem cache: o "Atualizar" quer o estado da réplica agora.
@@ -3210,15 +3217,20 @@ export async function glosasRecursosDoPeriodo(
     );
     const ids = linhas.map((linha) => numero(linha.IdRequisicao));
 
-    // Recursado por requisição × lote de recurso; fica o lote mais recente.
+    // Recursado por requisição × lote de recurso; fica o lote mais recente. Só
+    // conta lote de recurso do faturamento atual (ver SQL_REQUISICOES_GLOSA_RECURSO).
     const recurso = new Map<number, { idLoteRecurso: number; recursado: number }>();
     for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
       const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
       const [itens] = await conn.execute<mysql.RowDataPacket[]>(
-        `SELECT IdRequisicao, IdLoteRecurso, SUM(COALESCE(VlrRecurso, 0)) AS Recursado
-           FROM fatloterecursoprocedimento
-          WHERE IdRequisicao IN (${bloco.map(() => '?').join(', ')})
-          GROUP BY IdRequisicao, IdLoteRecurso`,
+        `SELECT lrp.IdRequisicao, lrp.IdLoteRecurso, SUM(COALESCE(lrp.VlrRecurso, 0)) AS Recursado
+           FROM fatloterecursoprocedimento lrp
+           JOIN fatloterecurso lrc ON lrc.IdLoteRecurso = lrp.IdLoteRecurso
+           JOIN requisicao r ON r.IdRequisicao = lrp.IdRequisicao
+           JOIN fatlote l ON l.IdLote = r.Lote
+          WHERE lrp.IdRequisicao IN (${bloco.map(() => '?').join(', ')})
+            AND lrc.DtaCriacao >= DATE(l.DtaCriacao)
+          GROUP BY lrp.IdRequisicao, lrp.IdLoteRecurso`,
         bloco,
       );
       for (const item of itens) {
