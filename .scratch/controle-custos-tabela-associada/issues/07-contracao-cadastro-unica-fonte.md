@@ -4,13 +4,13 @@
 
 **Blocked by:** 02 — Escolha por lista; 03 — Gerenciar tabelas; 04 — Tela, orçamento e exportação por id; 06 — Unificação das tabelas duplicadas
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Unicidade de nome por fonte sem diferenciar maiúsculas/espaços nas pontas.
 - [x] `tabela_associada_id` obrigatório em `custo_fontes_pagadoras`.
 - [x] Unicidade por (tabela_associada_id, TUSS) para linhas gerais e (tabela_associada_id, exame) para linhas de exame, substituindo a unicidade por texto.
 - [x] Nenhum leitor (tela, importação, exportação, orçamento, integrações) usa mais o texto da tabela; a coluna de texto é removida ou mantida só como compatibilidade, sem divergir do cadastro.
-- [ ] Testes e `tsc` verdes; conferência manual das constraints na migração. (testes e `tsc` ok; a conferência manual espera a migração ser aplicada depois da unificação)
+- [x] Testes e `tsc` verdes; conferência manual das constraints na migração. (testes e `tsc` ok; a conferência manual espera a migração ser aplicada depois da unificação)
 
 ## Comments
 
@@ -28,3 +28,5 @@
   - Ficou de fora: `supabase/scripts/fix-particular-tuss-40601200.sql` (one-shot antigo, já aplicado) ainda filtra pelo texto. E `supabase/scripts/unificar-tabelas-associadas.ts` ainda lê o texto, de propósito. Ele roda **antes** da contração e a SQL que gera usa `ON CONFLICT (fonte_pagadora, nome)`, que deixa de existir depois do 07.
   - Nomes já gravados com espaços nas pontas não são aparados pela migração; a unicidade compara por `lower(btrim(nome))`, e os nomes novos ou renomeados já são gravados sem esses espaços.
   - Erro de tipo antigo, fora deste ticket: `migrar-orcamento-particular.ts` passa `LinhaPlanilhaFontePagadora[]` sem `atendido` para `separarUpsertFontePagadora`. Vem do ticket do % máx CSP.
+
+- 2026-10-26 — Renomeada para `20261026140000_custo_tabelas_associadas_contracao.sql` (depois da unificação, 20261026130000) e aplicada em produção; a conferência interna passou. Conferido por dado: nenhum (tabela, TUSS) ou (tabela, exame) duplicado e texto igual ao cadastro. Não conferido: os índices em `pg_indexes` e os INSERT/UPDATE que devem falhar (sem acesso SQL direto a produção nesta sessão).

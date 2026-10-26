@@ -4,12 +4,12 @@
 
 **Blocked by:** 01 — Cadastro de tabelas associadas; 04 — Tela, orçamento e exportação por id; 05 — Levantamento das tabelas duplicadas
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Função pura de planejamento: recebe linhas atuais, mapa de junção e escolhas de preço; devolve os conflitos sem resposta **ou** as operações (apontar linhas para a tabela que fica, remover linhas perdedoras, remapear exclusões e valores personalizados, remover cadastros vazios).
 - [x] Testes: sem conflitos → operações; conflito sem escolha → bloqueio; escolha aplicada → linha perdedora removida e ajustes remapeados; nome fora do mapa intocado.
-- [ ] Migração gerada a partir de um plano sem conflitos, aplicando o mapa e as escolhas registrados no ticket 05.
-- [ ] Conferência pós-migração: nenhum par (tabela, TUSS) ou (tabela, exame) duplicado; Tabela Particular do orçamento com os preços escolhidos.
+- [x] Migração gerada a partir de um plano sem conflitos, aplicando o mapa e as escolhas registrados no ticket 05.
+- [x] Conferência pós-migração: nenhum par (tabela, TUSS) ou (tabela, exame) duplicado; Tabela Particular do orçamento com os preços escolhidos.
 
 ## Comments
 
@@ -27,3 +27,6 @@
   - **Decisão em aberto:** quando uma linha sai, as exclusões e os valores personalizados dela passam para a linha que fica, como a spec manda. Se a linha que fica já tem ajuste para o mesmo exame, o dela prevalece. Isso pode mudar o preço escolhido para aquele exame. Confirmar com o faturamento.
 
 - 2026-10-22 — A importação por exame (`controle-custos-importacao-por-exame`) cria linhas "não levantadas": `exame_id` null com `nome_exame_convenio` preenchido, várias por (tabela, TUSS). `planejarUnificacao` e o gerador não leem essa coluna e as tratam como linhas gerais. Se a unificação rodar depois de uma importação nova, duas delas com o mesmo TUSS aparecem como conflito e bloqueiam a geração, o que é seguro. Se isso acontecer, incluir `nome_exame_convenio` em `chaveDaLinha`.
+
+- 2026-10-26 — `supabase/migrations/20261026130000_custo_tabelas_associadas_unificacao.sql`, gerada de produção com `../mapa-unificacao.json`, aplicada em produção. Backup antes: `../backup-20261026-110631-antes-unificacao/`. Corrigido no gerador: sem `--backup`, o filtro de argumentos descartava o caminho do mapa.
+  - Conferência em produção: 83 tabelas (eram 87), fonte Particular só com "Particular" (395 linhas = 389 + 6; 1 removida, a do TUSS 40601200 de "PART", igual à da Particular), 12 exclusões (13 − 2 da linha removida + 1 passada), 93 valores por exame; nenhum (tabela, TUSS) ou (tabela, exame) duplicado, texto igual ao cadastro.

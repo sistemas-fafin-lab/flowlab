@@ -1,7 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Controle de Custos — contração: o cadastro de tabela associada é a única
 -- fonte da verdade
--- Migration: 20261022150000_custo_tabelas_associadas_contracao.sql
+-- Migration: 20261026140000_custo_tabelas_associadas_contracao.sql
 --
 -- Spec: .scratch/controle-custos-tabela-associada/spec.md (ticket 07).
 --
@@ -173,7 +173,7 @@ CREATE TRIGGER trigger_custo_tabelas_associadas_regras
   BEFORE INSERT OR UPDATE OR DELETE ON public.custo_tabelas_associadas
   FOR EACH ROW EXECUTE FUNCTION public.custo_tabelas_associadas_regras();
 
-COMMENT ON FUNCTION public.custo_tabela_associada_eh_particular(TEXT, TEXT) IS 'Tabela Particular da fonte Particular — a que o Gerador de Orçamento lê pelo nome. Protegida contra renomear, desativar e excluir. Com a unicidade sem diferenciar maiúsculas (20261022150000), é uma só.';
+COMMENT ON FUNCTION public.custo_tabela_associada_eh_particular(TEXT, TEXT) IS 'Tabela Particular da fonte Particular — a que o Gerador de Orçamento lê pelo nome. Protegida contra renomear, desativar e excluir. Com a unicidade sem diferenciar maiúsculas (20261026140000), é uma só.';
 
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- 2. LINHAS: tabela obrigatória e unicidade pelo id da tabela
