@@ -250,7 +250,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/cost-control"
           element={
-            <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
+            <ProtectedRoute anyOf={['canViewControleCustos', 'canManageControleCustos']} permissions={userPermissions}>
               <CostControlDashboard />
             </ProtectedRoute>
           }

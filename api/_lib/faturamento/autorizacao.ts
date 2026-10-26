@@ -20,8 +20,24 @@ export interface FalhaAutorizacao {
   payload: Record<string, unknown>;
 }
 
-/** Permissão exigida pela rota. `canManageBilling` é o nível de escrita. */
-export type PermissaoFaturamento = 'canViewBilling' | 'canManageBilling';
+/**
+ * Permissão exigida pela rota. `canManageBilling` é o nível de escrita.
+ * `canViewControleCustos` serve as rotas do Controle de Custos, que desde 20261026150000
+ * têm chaves próprias (gerenciar implica ver), fora das do Faturamento.
+ */
+export type PermissaoFaturamento = 'canViewBilling' | 'canManageBilling' | 'canViewControleCustos';
+
+const ACEITAS: Record<PermissaoFaturamento, string[]> = {
+  canViewBilling: ['canViewBilling', 'canManageBilling'],
+  canManageBilling: ['canManageBilling'],
+  canViewControleCustos: ['canViewControleCustos', 'canManageControleCustos'],
+};
+
+const MENSAGEM_SEM_PERMISSAO: Record<PermissaoFaturamento, string> = {
+  canViewBilling: 'Sem permissão para consultar faturamento.',
+  canManageBilling: 'Sem permissão para gerenciar contas a receber.',
+  canViewControleCustos: 'Sem permissão para acessar o Controle de Custos.',
+};
 
 /**
  * Devolve `null` quando o operador tem `permissao`; a falha a devolver, senão.
@@ -53,18 +69,14 @@ export async function autorizarFaturamento(
 
   const callerPermissions: string[] =
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
-  const aceitas: string[] =
-    permissao === 'canViewBilling' ? ['canViewBilling', 'canManageBilling'] : ['canManageBilling'];
-  const authorized = aceitas.some((p) => callerPermissions.includes(p));
+  const authorized = ACEITAS[permissao].some((p) => callerPermissions.includes(p));
 
   if (!authorized) {
     return {
       status: 403,
       payload: {
         success: false,
-        error: permissao === 'canManageBilling'
-          ? 'Sem permissão para gerenciar contas a receber.'
-          : 'Sem permissão para consultar faturamento.',
+        error: MENSAGEM_SEM_PERMISSAO[permissao],
       },
     };
   }

@@ -719,7 +719,7 @@ const PayorsScreen: React.FC<PayorsScreenProps> = ({
   updateExam,
 }) => {
   const { userProfile } = useAuth();
-  const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
+  const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageControleCustos');
   const { notification, showSuccess, showWarning, showError, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
   const [termoFonte, setTermoFonte] = useState('');

@@ -15,6 +15,8 @@ const CHAVES_POSTERIORES: Record<string, string> = {
   canUseGeradorOrcamento: '20261020180000_gerador_orcamento_atendente.sql',
   canViewGeradorOrcamentoCustos: '20261020190000_gerador_orcamento_custos.sql',
   canManageDepartamentos: '20261020215000_rh_departamentos.sql',
+  canViewControleCustos: '20261026150000_controle_custos_permissoes_proprias.sql',
+  canManageControleCustos: '20261026150000_controle_custos_permissoes_proprias.sql',
 };
 
 /** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */

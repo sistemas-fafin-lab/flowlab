@@ -115,6 +115,11 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // Custo na resposta da lista de preços e PDF interno (custo × venda × margem). Sem ela, o
   // servidor nem consulta o custo. Só o Administrador recebe por padrão (não o "atendente").
   { key: 'canViewGeradorOrcamentoCustos', label: 'Ver custos e margem no Gerador de Orçamento', group: 'Atendimento' },
+  // ── Controle de Custos ──────────────────────────────────────────────────────
+  // Fora das chaves do Faturamento de propósito: custo e margem são sensíveis e poucos
+  // veem (20261026150000). Gerenciar implica ver, na tela e na RLS das tabelas custo_*.
+  { key: 'canViewControleCustos', label: 'Visualizar Controle de Custos', group: 'Controle de Custos' },
+  { key: 'canManageControleCustos', label: 'Gerenciar Controle de Custos', group: 'Controle de Custos' },
 ];
 
 // ─── Cargo padrão de todo cadastro novo ───────────────────────────────────────

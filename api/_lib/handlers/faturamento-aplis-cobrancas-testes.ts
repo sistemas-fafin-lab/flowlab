@@ -7,7 +7,7 @@
  * consulta em api/_lib/faturamento/bdLab.ts (listarCobrancasTestesAplis).
  *
  * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do operador
- * (exige canViewBilling ou canManageBilling — o gate da rota /cost-control). A
+ * (exige canViewControleCustos ou canManageControleCustos — o gate da rota /cost-control). A
  * gravação do vínculo não passa por aqui: vai direto em custo_exames, com a RLS
  * como gate.
  *
@@ -28,7 +28,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization), 'canViewControleCustos');
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

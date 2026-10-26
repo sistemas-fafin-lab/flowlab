@@ -628,7 +628,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         name: 'Controle de Custos',
         href: '/cost-control',
         icon: Wallet,
-        permission: 'canViewBilling',
+        anyOf: ['canViewControleCustos', 'canManageControleCustos'],
         category: 'OPERAÇÕES',
       },
       {

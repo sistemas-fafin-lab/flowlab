@@ -240,8 +240,8 @@ const toPayorRow = (data: PayorEditData) => ({
 //
 // Exames persistem em public.custo_exames (migration 20260903130000) e Fontes
 // Pagadoras em public.custo_fontes_pagadoras (migration 20260904110000),
-// ambas sob RLS de canViewBilling/canManageBilling — mesmo gate da rota
-// /cost-control.
+// ambas sob RLS de canViewControleCustos/canManageControleCustos — mesmo gate
+// da rota /cost-control (20261026150000).
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // custo_fontes_pagadoras passa de 1000 linhas — acima do limite padrão de
