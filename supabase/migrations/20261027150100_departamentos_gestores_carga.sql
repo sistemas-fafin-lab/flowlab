@@ -1,8 +1,8 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Pagamentos: carga dos gestores que autorizam e dos aprovadores de SC
--- Migration: 20261023120100_departamentos_gestores_carga.sql
+-- Migration: 20261027150100_departamentos_gestores_carga.sql
 --
--- Roda logo depois de 20261023120000_departamentos_gestores_pagamentos.sql, no mesmo
+-- Roda logo depois de 20261027150000_departamentos_gestores_pagamentos.sql, no mesmo
 -- deploy: sem gestor marcado, ninguém consegue pedir pagamento.
 --
 -- Lista enviada pelo usuário em 23/10/2026:
@@ -55,7 +55,7 @@ BEGIN;
 DO $$
 BEGIN
   IF to_regprocedure('public.departamento_autorizadores_pagamento(uuid, uuid[])') IS NULL THEN
-    RAISE EXCEPTION 'Aplique antes 20261023120000_departamentos_gestores_pagamentos.sql.';
+    RAISE EXCEPTION 'Aplique antes 20261027150000_departamentos_gestores_pagamentos.sql.';
   END IF;
 END $$;
 

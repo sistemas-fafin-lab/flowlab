@@ -1,6 +1,6 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Pagamentos: o autorizador é o gestor do departamento de quem pede
--- Migration: 20261023120000_departamentos_gestores_pagamentos.sql
+-- Migration: 20261027150000_departamentos_gestores_pagamentos.sql
 --
 -- Pedido do usuário (22/Out). Os gestores são os responsáveis do departamento
 -- (departamento_responsaveis, 20261020215000), com uma marcação própria para autorizar

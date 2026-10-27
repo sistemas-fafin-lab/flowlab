@@ -1,5 +1,5 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
--- Prévia da carga 20261023120100_departamentos_gestores_carga.sql — SÓ LEITURA
+-- Prévia da carga 20261027150100_departamentos_gestores_carga.sql — SÓ LEITURA
 --
 -- Rode no SQL Editor do projeto do app ANTES de aplicar as migrations. Uma linha por
 -- departamento e papel (gestor que autoriza pagamentos / aprovador de SC). A carga só

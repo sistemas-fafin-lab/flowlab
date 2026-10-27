@@ -41,7 +41,7 @@ export function colaboradoresSemDepartamento<
     .sort(porNome);
 }
 
-// ─── Gestores que autorizam pagamentos (20261023120000) ────────────────────────
+// ─── Gestores que autorizam pagamentos (20261027150000) ────────────────────────
 // O banco decide (departamento_autorizadores_pagamento) e barra a saída do último gestor;
 // aqui é a mesma leitura, para a tela avisar antes.
 
