@@ -3532,7 +3532,8 @@ const SQL_LINHAS_FATURADAS = `
          r.IdRequisicao, tp.Codigo, tp.Descricao,
          frp.Quantidade, frp.ValorLiquido,
          l.IdFontePagadora, fp.NomFantasia AS NomFontePagadora,
-         r.IdLocalOrigem, lo.NomFantasia AS NomLocalOrigem
+         r.IdLocalOrigem, lo.NomFantasia AS NomLocalOrigem,
+         l.IdLogin, u.NomUsuario
     FROM fatlote l
     JOIN requisicao r ON r.Lote = l.IdLote
     JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
@@ -3540,6 +3541,8 @@ const SQL_LINHAS_FATURADAS = `
     LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
     LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora
     LEFT JOIN fatinstituicao lo ON lo.IdInstituicao = r.IdLocalOrigem
+    -- autusuario tem Senha, CPF, TokenGPT: daqui só sai o nome.
+    LEFT JOIN autusuario u ON u.IdUsuario = l.IdLogin
    WHERE l.DtaCriacao >= ?
      AND l.DtaCriacao < DATE_ADD(?, INTERVAL 1 DAY)
      AND l.Status <> ${STATUS_LOTE_CANCELADO}`;
@@ -3573,6 +3576,8 @@ export async function listarLinhasFaturadas(params: {
         fontePagadoraNome: texto(linha.NomFontePagadora),
         localOrigemId: inteiroOuNulo(linha.IdLocalOrigem),
         localOrigemNome: texto(linha.NomLocalOrigem),
+        faturistaId: inteiroOuNulo(linha.IdLogin),
+        faturistaNome: texto(linha.NomUsuario),
       })),
       dadoAte: await dadoAte(conn, 'fatlote', 'DtaCriacao', true),
     };

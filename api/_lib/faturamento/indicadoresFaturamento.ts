@@ -67,6 +67,9 @@ export interface LinhaFaturada {
   fontePagadoraNome: string | null;
   localOrigemId: number | null;
   localOrigemNome: string | null;
+  /** Quem abriu o lote (`fatlote.IdLogin` → `autusuario`). */
+  faturistaId: number | null;
+  faturistaNome: string | null;
 }
 
 export interface CardIndicador {
@@ -81,6 +84,8 @@ export interface ItemRankingIndicadores {
   nome: string;
   valor: number;
   quantidade: number;
+  /** Lotes distintos do grupo; só no ranking de faturistas. */
+  lotes?: number;
 }
 
 /** O mesmo ranking nas duas ordens: o botão R$/Qtd da tela só escolhe uma. */
@@ -102,6 +107,8 @@ export interface ResumoIndicadores {
     exames: RankingIndicadores;
     /** Local de Origem da requisição; quantidade = requisições distintas. */
     clinicas: RankingIndicadores;
+    /** Quem abriu o lote; quantidade = requisições distintas, com o nº de lotes. */
+    faturistas: RankingIndicadores;
   };
 }
 
@@ -144,25 +151,32 @@ const porQuantidadeDesc = (a: ItemRankingIndicadores, b: ItemRankingIndicadores)
   b.quantidade - a.quantidade || b.valor - a.valor || a.nome.localeCompare(b.nome);
 
 /** Soma o valor por grupo; a quantidade é a soma da cobrada ('quantidadeCobrada')
- *  ou o número de requisições distintas ('requisicoes'). Top 10 em cada ordem. */
+ *  ou o número de requisições distintas ('requisicoes'). Com `contarLotes`, cada
+ *  item leva também o nº de lotes distintos. Top 10 em cada ordem. */
 function ranquear(
   linhas: LinhaFaturada[],
   grupo: (l: LinhaFaturada) => { chave: string; nome: string },
-  contar: 'quantidadeCobrada' | 'requisicoes' = 'quantidadeCobrada',
+  { contar = 'quantidadeCobrada', contarLotes = false }: {
+    contar?: 'quantidadeCobrada' | 'requisicoes';
+    contarLotes?: boolean;
+  } = {},
 ): RankingIndicadores {
-  const itens = new Map<string, ItemRankingIndicadores & { requisicoes: Set<number> }>();
+  const itens = new Map<string, ItemRankingIndicadores & { requisicoes: Set<number>; idsLote: Set<number> }>();
   for (const l of linhas) {
     const { chave, nome } = grupo(l);
-    const item = itens.get(chave) ?? { nome, valor: 0, quantidade: 0, requisicoes: new Set<number>() };
+    const item = itens.get(chave)
+      ?? { nome, valor: 0, quantidade: 0, requisicoes: new Set<number>(), idsLote: new Set<number>() };
     item.valor += l.valorLiquido;
     item.quantidade += l.quantidade;
     item.requisicoes.add(l.idRequisicao);
+    item.idsLote.add(l.idLote);
     itens.set(chave, item);
   }
-  const todos = [...itens.values()].map(({ nome, valor, quantidade, requisicoes }) => ({
+  const todos = [...itens.values()].map(({ nome, valor, quantidade, requisicoes, idsLote }) => ({
     nome,
     valor: centavos(valor),
     quantidade: contar === 'quantidadeCobrada' ? quantidade : requisicoes.size,
+    ...(contarLotes ? { lotes: idsLote.size } : {}),
   }));
   return {
     porValor: [...todos].sort(porValorDesc).slice(0, TOPO_RANKING),
@@ -181,6 +195,12 @@ const porLocalOrigem = (l: LinhaFaturada) => ({
   nome: l.localOrigemNome
     ?? (l.localOrigemId === null ? 'Sem clínica' : `Local de origem ${l.localOrigemId}`),
 });
+
+// Sem IdLogin ou com um IdLogin que não acha usuário: os dois num grupo só.
+const porFaturista = (l: LinhaFaturada) =>
+  l.faturistaNome === null
+    ? { chave: '', nome: 'Sem usuário' }
+    : { chave: String(l.faturistaId), nome: l.faturistaNome };
 
 /** Agrupa pelo código: a descrição muda de tabela para tabela (de convênio para
  *  convênio). O nome leva a descrição mais frequente do código, ponderada pela
@@ -221,7 +241,8 @@ export function resumirIndicadores(linhas: LinhaFaturada[], janelas: JanelasIndi
     rankings: {
       convenios: ranquear(linhasAtual, porFontePagadora),
       exames: ranquear(linhasAtual, porCodigoDoExame(linhasAtual)),
-      clinicas: ranquear(linhasAtual, porLocalOrigem, 'requisicoes'),
+      clinicas: ranquear(linhasAtual, porLocalOrigem, { contar: 'requisicoes' }),
+      faturistas: ranquear(linhasAtual, porFaturista, { contar: 'requisicoes', contarLotes: true }),
     },
   };
 }

@@ -17,6 +17,8 @@ function linha(overrides: Partial<LinhaFaturada> = {}): LinhaFaturada {
     fontePagadoraNome: 'CASSI',
     localOrigemId: 500,
     localOrigemNome: 'CLÍNICA A',
+    faturistaId: 235,
+    faturistaNome: 'RENATA',
     ...overrides,
   };
 }
@@ -266,5 +268,47 @@ describe('resumirIndicadores — ranking de clínicas', () => {
       linha({ idRequisicao: i, localOrigemId: i, localOrigemNome: `C${i}`, valorLiquido: i + 1 }));
 
     expect(resumirIndicadores(linhas, SETEMBRO).rankings.clinicas.porValor).toHaveLength(10);
+  });
+});
+
+describe('resumirIndicadores — ranking de faturistas', () => {
+  it('quantidade = requisições distintas e lotes = lotes distintos que a faturista abriu', () => {
+    const { rankings } = resumirIndicadores([
+      linha({ idLote: 1, idRequisicao: 100, codigo: '1', quantidade: 2, valorLiquido: 10 }),
+      linha({ idLote: 1, idRequisicao: 100, codigo: '2', quantidade: 1, valorLiquido: 20 }),
+      linha({ idLote: 1, idRequisicao: 101, valorLiquido: 5 }),
+      linha({ idLote: 2, idRequisicao: 102, valorLiquido: 5 }),
+    ], SETEMBRO);
+
+    expect(rankings.faturistas.porValor).toEqual([{ nome: 'RENATA', valor: 40, quantidade: 3, lotes: 2 }]);
+  });
+
+  it('lote sem IdLogin e lote com usuário que não existe viram um só "Sem usuário"', () => {
+    const { rankings } = resumirIndicadores([
+      linha({ idLote: 1, idRequisicao: 1, faturistaId: null, faturistaNome: null, valorLiquido: 10 }),
+      linha({ idLote: 2, idRequisicao: 2, faturistaId: 999, faturistaNome: null, valorLiquido: 15 }),
+      linha({ idLote: 3, idRequisicao: 3, valorLiquido: 5 }),
+    ], SETEMBRO);
+
+    expect(rankings.faturistas.porValor).toEqual([
+      { nome: 'Sem usuário', valor: 25, quantidade: 2, lotes: 2 },
+      { nome: 'RENATA', valor: 5, quantidade: 1, lotes: 1 },
+    ]);
+  });
+
+  it('a ordem por valor é diferente da ordem por quantidade', () => {
+    const faturista = (id: number, nome: string) => ({ faturistaId: id, faturistaNome: nome });
+    const { rankings } = resumirIndicadores([
+      // A: 1 requisição cara. B: 3 requisições baratas. C: 2 requisições médias.
+      linha({ idRequisicao: 1, ...faturista(1, 'A'), valorLiquido: 900 }),
+      linha({ idRequisicao: 2, ...faturista(2, 'B'), valorLiquido: 10 }),
+      linha({ idRequisicao: 3, ...faturista(2, 'B'), valorLiquido: 10 }),
+      linha({ idRequisicao: 4, ...faturista(2, 'B'), valorLiquido: 10 }),
+      linha({ idRequisicao: 5, ...faturista(3, 'C'), valorLiquido: 100 }),
+      linha({ idRequisicao: 6, ...faturista(3, 'C'), valorLiquido: 100 }),
+    ], SETEMBRO);
+
+    expect(rankings.faturistas.porValor.map((f) => f.nome)).toEqual(['A', 'C', 'B']);
+    expect(rankings.faturistas.porQuantidade.map((f) => f.nome)).toEqual(['B', 'C', 'A']);
   });
 });

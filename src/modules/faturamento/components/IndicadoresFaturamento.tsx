@@ -201,7 +201,8 @@ const RankingBarras: React.FC<RankingBarrasProps> = ({ titulo, sub, ranking, met
     </text>
   );
 
-  const quantidade = (n: number) => `${formatInteiro(n)} ${n === 1 ? unidade.singular : unidade.plural}`;
+  const contagem = (n: number, singular: string, plural: string) => `${formatInteiro(n)} ${n === 1 ? singular : plural}`;
+  const quantidade = (n: number) => contagem(n, unidade.singular, unidade.plural);
   // Ao lado da barra, a métrica escolhida; no tooltip, o nome inteiro e a outra.
   const itens = (metrica === 'valor' ? ranking.porValor : ranking.porQuantidade).map((i) => ({
     ...i,
@@ -209,7 +210,9 @@ const RankingBarras: React.FC<RankingBarrasProps> = ({ titulo, sub, ranking, met
   }));
   const tooltipRanking = (_valor: number, _nome: string, item: { payload?: ItemRankingIndicadores }) => {
     const p = item.payload as ItemRankingIndicadores;
-    return [metrica === 'valor' ? quantidade(p.quantidade) : formatCurrency(p.valor), p.nome];
+    const outra = metrica === 'valor' ? quantidade(p.quantidade) : formatCurrency(p.valor);
+    const lotes = p.lotes === undefined ? '' : ` · ${contagem(p.lotes, 'lote', 'lotes')}`;
+    return [`${outra}${lotes}`, p.nome];
   };
 
   return (
@@ -404,6 +407,17 @@ const IndicadoresFaturamento: React.FC = () => {
               metrica={metrica}
               unidade={{ singular: 'requisição', plural: 'requisições' }}
               vazio={`Nenhuma clínica com requisição faturada ${textos.no}.`}
+            />
+            <RankingBarras
+              titulo="Faturistas (por quem abriu o lote)"
+              sub={metrica === 'valor'
+                ? '10 faturistas com maior valor nos lotes que abriram'
+                : '10 faturistas com mais requisições nos lotes que abriram'}
+              ranking={indicadores.rankings.faturistas}
+              metrica={metrica}
+              unidade={{ singular: 'requisição', plural: 'requisições' }}
+              vazio={`Nenhum lote aberto ${textos.no}.`}
+              nota="Conta quem criou o lote no apLIS; conferência, guias e glosas podem ter sido feitas por outra pessoa."
             />
           </div>
         </div>

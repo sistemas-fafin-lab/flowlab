@@ -1294,6 +1294,8 @@ export interface ItemRankingIndicadores {
   nome: string;
   valor: number;
   quantidade: number;
+  /** Lotes distintos do grupo; só no ranking de faturistas. */
+  lotes?: number;
 }
 
 /** Top 10 já calculado nas duas ordens; o botão R$/Qtd escolhe qual mostrar. */
@@ -1316,6 +1318,8 @@ export interface IndicadoresFaturamento {
     exames: RankingIndicadores;
     /** Local de Origem da requisição; quantidade = requisições distintas. */
     clinicas: RankingIndicadores;
+    /** Quem abriu o lote; quantidade = requisições distintas, com o nº de lotes. */
+    faturistas: RankingIndicadores;
   };
 }
 
