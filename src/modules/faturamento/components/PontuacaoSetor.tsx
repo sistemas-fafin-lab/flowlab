@@ -32,7 +32,7 @@ const formatQtd = (n: number): string => n.toLocaleString('pt-BR');
 const DetalheTarefas: React.FC<{ detalhe: DetalheTarefasPontuacao }> = ({ detalhe }) => {
   const linhas = [
     ...detalhe.pessoas.map((p) => ({ chave: String(p.idUsuarioAplis), nome: p.nome, pendencias: p.pendencias })),
-    { chave: 'setor', nome: 'Setor GLOSA – FATURAMENTO', pendencias: detalhe.setor },
+    { chave: 'setor', nome: 'SETOR', pendencias: detalhe.setor },
   ];
   return (
     <table className="w-full text-xs">

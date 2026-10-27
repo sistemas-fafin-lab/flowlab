@@ -190,7 +190,7 @@ describe('pontuarMes — tarefas pendentes', () => {
     for (const frente of ['faturamento', 'recursoGlosa'] as const) {
       expect(criterio(resumo, frente, 'tarefasPendentes')).toMatchObject({
         pontosAtingidos: 0,
-        observacao: '2 pendências: setor GLOSA – FATURAMENTO',
+        observacao: '2 pendências: SETOR',
         detalhe: { setor: 2 },
       });
     }

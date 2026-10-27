@@ -162,15 +162,13 @@ const OBSERVACOES_META: Record<ReturnType<typeof faixaDaMeta>, { metaMensal: str
   superada: { metaMensal: 'Substituída pela meta superada', metaSuperada: 'Faturado a partir de 115% da meta' },
 };
 
-export const NOME_SETOR_TAREFAS = 'GLOSA – FATURAMENTO';
-
 /** Só ganha o ponto a Frente com todos os membros, e o setor, zerados. */
 function pontuarTarefas(def: DefinicaoCriterio, fato: FatoTarefas, membros: MembroFrente[]): Omit<CriterioPontuado, keyof DefinicaoCriterio> {
   const pessoas = membros
     .filter((m) => m.frente === def.frente)
     .map(({ idUsuarioAplis, nome }) => ({ idUsuarioAplis, nome, pendencias: fato.porUsuario[idUsuarioAplis] ?? 0 }));
   const quem = pessoas.filter((p) => p.pendencias > 0).map((p) => p.nome);
-  if (fato.doSetor > 0) quem.push(`setor ${NOME_SETOR_TAREFAS}`);
+  if (fato.doSetor > 0) quem.push('SETOR');
   const total = fato.doSetor + pessoas.reduce((soma, p) => soma + p.pendencias, 0);
   return {
     pontosAtingidos: total === 0 ? def.pontosBase : 0,
