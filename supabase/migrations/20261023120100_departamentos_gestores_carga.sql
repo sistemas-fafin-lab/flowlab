@@ -11,7 +11,7 @@
 --   Área técnica         Paulo Vítor                      Paulo Vítor
 --   Atendimento          Louise Fontel                    Louise Fontel
 --   Biologia Molecular   Paulo Vítor                      Paulo Vítor
---   Comercial            Cristiane Madeiro                Cristiane Madeiro
+--   Comercial            Cristiane Lacerda Dos Santos Madeiro (as duas funções)
 --   Copa/Limpeza         Suane Batista De Oliveira        Suane Batista De Oliveira
 --   Diretoria            Mario Gorini                     Mario Gorini
 --   Equipe Médica        Paulo Vítor                      Paulo Vítor
@@ -20,12 +20,14 @@
 --   Financeiro           Louise Fontel                    Louise Fontel
 --   Qualidade            Eduarda Silva Fabri              Eduarda Silva Fabri (antes: Paulo Vítor)
 --   RH                   Suane Batista De Oliveira        Suane Batista De Oliveira
---   TI                   Gabriel Queiroz de Souza         Gabriel Queiroz de Souza
+--   TI                   Gabriel Queiroz                  Gabriel Queiroz
 --   Transporte           Lucas Moreira                    Louise Fontel
 --
 -- Decisões dele (23/10): a Qualidade passa a ter a Eduarda como aprovadora de SC; a
 -- Louise continua responsável pelo Faturamento (holerites da equipe), sem autorizar os
 -- pagamentos dele; a carga dá "Ser Autorizador de Pagamentos" aos cargos dos gestores.
+-- Em 27/10, depois da prévia em produção, ele mandou os ids da Cristiane, Eduarda,
+-- Gabriel, Raquel e Lucas, que não casavam pelo nome.
 --
 -- O que faz:
 --   1. Cada gestor da lista vira responsável do departamento (se ainda não era), marcado
@@ -40,8 +42,10 @@
 --   4. Confere no fim: todo departamento ativo com gente tem gestor apto. Senão, aborta
 --      e diz qual (gestor sem login, usuário inativo, sem cargo).
 --
--- Pessoas e departamentos são casados pelo nome, sem diferenciar maiúsculas, acentos nem
--- espaços repetidos (a lista veio com "Louíse"). Aborta se não houver exatamente um
+-- Quem tem id na lista é achado por ele: o id pode ser do colaborador ou do usuário
+-- vinculado ao colaborador. Os demais e os departamentos são casados pelo nome, sem
+-- diferenciar maiúsculas, acentos nem espaços repetidos (a lista veio com "Louíse").
+-- Aborta se o id não levar a um colaborador ativo, se não houver exatamente um
 -- colaborador ativo com o nome, ou se o departamento não existir.
 -- Antes de aplicar, dá para conferir com supabase/scripts/departamentos_gestores_previa.sql.
 -- ═══════════════════════════════════════════════════════════════════════════════
@@ -65,13 +69,27 @@ AS $$
            '\s+', ' ', 'g');
 $$;
 
-CREATE OR REPLACE FUNCTION pg_temp.colaborador_ativo(p_nome TEXT)
+CREATE OR REPLACE FUNCTION pg_temp.colaborador_ativo(p_nome TEXT, p_id UUID)
 RETURNS UUID
 LANGUAGE plpgsql
 AS $$
 DECLARE
-  v_ids UUID[];
+  v_ids    UUID[];
+  v_status TEXT;
 BEGIN
+  IF p_id IS NOT NULL THEN
+    SELECT array_agg(id), min(status) INTO v_ids, v_status
+      FROM public.colaboradores
+     WHERE id = p_id OR user_profile_id = p_id;
+    IF coalesce(array_length(v_ids, 1), 0) <> 1 THEN
+      RAISE EXCEPTION '% (id %): o id não é de um colaborador nem de um usuário vinculado a um colaborador.', p_nome, p_id;
+    END IF;
+    IF v_status <> 'ativo' THEN
+      RAISE EXCEPTION '% (id %): o colaborador está %.', p_nome, p_id, v_status;
+    END IF;
+    RETURN v_ids[1];
+  END IF;
+
   SELECT array_agg(id) INTO v_ids
     FROM public.colaboradores
    WHERE status = 'ativo'
@@ -99,26 +117,42 @@ BEGIN
 END;
 $$;
 
-CREATE TEMP TABLE carga_gestores (departamento TEXT, gestor TEXT, aprovador TEXT) ON COMMIT DROP;
-INSERT INTO carga_gestores (departamento, gestor, aprovador) VALUES
-  ('Área técnica',       'Paulo Vítor',               'Paulo Vítor'),
-  ('Atendimento',        'Louise Fontel',             'Louise Fontel'),
-  ('Biologia Molecular', 'Paulo Vítor',               'Paulo Vítor'),
-  ('Comercial',          'Cristiane Madeiro',         'Cristiane Madeiro'),
-  ('Copa/Limpeza',       'Suane Batista De Oliveira', 'Suane Batista De Oliveira'),
-  ('Diretoria',          'Mario Gorini',              'Mario Gorini'),
-  ('Equipe Médica',      'Paulo Vítor',               'Paulo Vítor'),
-  ('Estoque',            'Louise Fontel',             'Louise Fontel'),
-  ('Faturamento',        'Raquel Dos Santos Avelino', 'Louise Fontel'),
-  ('Financeiro',         'Louise Fontel',             'Louise Fontel'),
-  ('Qualidade',          'Eduarda Silva Fabri',       'Eduarda Silva Fabri'),
-  ('RH',                 'Suane Batista De Oliveira', 'Suane Batista De Oliveira'),
-  ('TI',                 'Gabriel Queiroz de Souza',  'Gabriel Queiroz de Souza'),
-  ('Transporte',         'Lucas Moreira',             'Louise Fontel');
+CREATE TEMP TABLE carga_gestores (
+  departamento TEXT, gestor TEXT, gestor_id UUID, aprovador TEXT, aprovador_id UUID
+) ON COMMIT DROP;
+INSERT INTO carga_gestores (departamento, gestor, gestor_id, aprovador, aprovador_id) VALUES
+  ('Área técnica',       'Paulo Vítor',                          NULL,
+                         'Paulo Vítor',                          NULL),
+  ('Atendimento',        'Louise Fontel',                        NULL,
+                         'Louise Fontel',                        NULL),
+  ('Biologia Molecular', 'Paulo Vítor',                          NULL,
+                         'Paulo Vítor',                          NULL),
+  ('Comercial',          'Cristiane Lacerda Dos Santos Madeiro', '1c502999-fe20-4aa5-93bd-09c56bd036bd',
+                         'Cristiane Lacerda Dos Santos Madeiro', '1c502999-fe20-4aa5-93bd-09c56bd036bd'),
+  ('Copa/Limpeza',       'Suane Batista De Oliveira',            NULL,
+                         'Suane Batista De Oliveira',            NULL),
+  ('Diretoria',          'Mario Gorini',                         NULL,
+                         'Mario Gorini',                         NULL),
+  ('Equipe Médica',      'Paulo Vítor',                          NULL,
+                         'Paulo Vítor',                          NULL),
+  ('Estoque',            'Louise Fontel',                        NULL,
+                         'Louise Fontel',                        NULL),
+  ('Faturamento',        'Raquel Dos Santos Avelino',            '99b8ef9e-1d54-4214-8989-111d481105f6',
+                         'Louise Fontel',                        NULL),
+  ('Financeiro',         'Louise Fontel',                        NULL,
+                         'Louise Fontel',                        NULL),
+  ('Qualidade',          'Eduarda Silva Fabri',                  '8a12d83d-cdd6-4e06-84de-92d7c651e1b6',
+                         'Eduarda Silva Fabri',                  '8a12d83d-cdd6-4e06-84de-92d7c651e1b6'),
+  ('RH',                 'Suane Batista De Oliveira',            NULL,
+                         'Suane Batista De Oliveira',            NULL),
+  ('TI',                 'Gabriel Queiroz',                      '0ecd17de-b183-4a4d-ae01-a3c13a27462e',
+                         'Gabriel Queiroz',                      '0ecd17de-b183-4a4d-ae01-a3c13a27462e'),
+  ('Transporte',         'Lucas Moreira',                        '7dda5483-b642-4cb2-a9e4-7f337d786aeb',
+                         'Louise Fontel',                        NULL);
 
 -- ─── 1. Gestores que autorizam pagamentos ─────────────────────────────────────
 INSERT INTO public.departamento_responsaveis (departamento_id, colaborador_id, autoriza_pagamentos)
-SELECT pg_temp.departamento(departamento), pg_temp.colaborador_ativo(gestor), true
+SELECT pg_temp.departamento(departamento), pg_temp.colaborador_ativo(gestor, gestor_id), true
   FROM carga_gestores
 ON CONFLICT (departamento_id, colaborador_id) DO UPDATE SET autoriza_pagamentos = true;
 
@@ -126,7 +160,7 @@ ON CONFLICT (departamento_id, colaborador_id) DO UPDATE SET autoriza_pagamentos 
 UPDATE public.departamentos d
    SET aprovador_sc_id = x.aprovador_id
   FROM (SELECT pg_temp.departamento(departamento) AS departamento_id,
-               pg_temp.colaborador_ativo(aprovador) AS aprovador_id
+               pg_temp.colaborador_ativo(aprovador, aprovador_id) AS aprovador_id
           FROM carga_gestores) x
  WHERE d.id = x.departamento_id
    AND d.aprovador_sc_id IS DISTINCT FROM x.aprovador_id;
@@ -138,7 +172,7 @@ UPDATE public.custom_roles cr
  WHERE cr.id IN (
          SELECT p.custom_role_id
            FROM carga_gestores g
-           JOIN public.colaboradores c ON c.id = pg_temp.colaborador_ativo(g.gestor)
+           JOIN public.colaboradores c ON c.id = pg_temp.colaborador_ativo(g.gestor, g.gestor_id)
            JOIN public.user_profiles p ON p.id = c.user_profile_id
           WHERE p.custom_role_id IS NOT NULL)
    AND NOT cr.permissions ? 'canAuthorizePayments';
