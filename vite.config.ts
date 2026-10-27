@@ -624,7 +624,7 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
     'titulos-aplis-previa', 'titulos-conferencia-aplis', 'titulos-baixas-aplis-previa', 'titulos-glosas-aplis', 'titulo-glosas-aplis',
     'glosas-legado', 'recursos-legado',
     'pendencias-nao-faturadas', 'pendencia-lote-detalhe', 'pendencias-particulares',
-    'pendencias-sem-lote', 'locais-origem', 'envios-por-convenio', 'status-faturamento', 'recebidos-mes',
+    'pendencias-sem-lote', 'tarefas-requisicao', 'locais-origem', 'envios-por-convenio', 'status-faturamento', 'recebidos-mes',
     'imagens-legado', 'imagem-legado-arquivo',
     'glosas-recursos-sincronizar', 'glosas-recursos-lotes', 'glosas-recursos-resumo', 'glosas-recursos-detalhe',
     'glosas-recursos-editar', 'glosas-recursos-fora-de-lote', 'glosas-recursos-recentes', 'glosas-recursos-dashboard',

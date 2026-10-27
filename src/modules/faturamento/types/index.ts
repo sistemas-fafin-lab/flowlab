@@ -422,6 +422,11 @@ export interface RequisicaoPendencia {
   /** "Status Faturamento" do apLIS (`autStatusFat`), por requisição. */
   codEventoFatur: number | null;
   eventoFaturLabel: string | null;
+  /** Status da requisição no fluxo do laboratório (`requisicao.CodEvento`). */
+  codEvento: number | null;
+  eventoLabel: string | null;
+  /** Tarefas do apLIS da requisição ainda não concluídas. */
+  qtdTarefasAbertas: number;
 }
 
 export interface PendenciasFiltros {
@@ -473,6 +478,8 @@ export interface RequisicaoParticularPendencia {
   /** Local de origem marcado como "não emite NF". Só vem `true` com
    *  `incluirSemNf`; sem ele essas requisições nem aparecem. */
   clinicaSemNf: boolean;
+  /** Tarefas do apLIS da requisição ainda não concluídas. */
+  qtdTarefasAbertas: number;
 }
 
 export interface ParticularesPendentesFiltros {
@@ -529,6 +536,11 @@ export interface RequisicaoSemLotePendencia {
   paciente: string | null;
   valor: number;
   fontePagadora: { id: number | null; nome: string | null; razaoSocial: string | null };
+  /** Status da requisição no fluxo do laboratório (`requisicao.CodEvento`). */
+  codEvento: number | null;
+  eventoLabel: string | null;
+  /** Tarefas do apLIS da requisição ainda não concluídas. */
+  qtdTarefasAbertas: number;
 }
 
 export interface RequisicoesSemLoteFiltros {
@@ -1059,6 +1071,23 @@ export interface JustificativaRecurso {
   valorRecurso: number;
   motivoGlosa: string | null;
   justificativa: string | null;
+}
+
+/** Tarefa do apLIS de uma requisição, de qualquer setor, em texto puro
+ *  (GET /api/faturamento/tarefas-requisicao). */
+export interface TarefaRequisicao {
+  codTarefa: number;
+  /** 'YYYY-MM-DD HH:MM' no horário do laboratório. */
+  data: string | null;
+  tipo: string | null;
+  remetente: string | null;
+  /** Setor de destino ou, sem setor, o usuário destinatário. */
+  destino: string | null;
+  mensagem: string | null;
+  concluida: boolean;
+  /** 'YYYY-MM-DD HH:MM'. */
+  dataConclusao: string | null;
+  obsConclusao: string | null;
 }
 
 /** Tarefa do apLIS da requisição para o setor GLOSA - FATURAMENTO. */

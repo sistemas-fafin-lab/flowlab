@@ -6,6 +6,7 @@ import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import DatePicker from '../../../components/DatePicker';
 import Switch from '../../../components/Switch';
 import ClinicasSemNfModal from './ClinicasSemNfModal';
+import { BotaoTarefas, StatusRequisicao, TarefasRequisicaoModal, type RequisicaoDasTarefas } from './TarefasRequisicao';
 
 // Aba Contas a Receber → Pendências → Particulares: requisições da fonte
 // pagadora PARTICULAR (IdFontePagadora 1102) sem NF emitida, solicitadas até
@@ -39,6 +40,8 @@ const PendenciasParticulares: React.FC<Props> = ({ podeEditar }) => {
   const [pagina, setPagina] = useState(1);
   const [incluirSemNf, setIncluirSemNf] = useState(false);
   const [clinicasSemNfAberto, setClinicasSemNfAberto] = useState(false);
+  const [tarefasDe, setTarefasDe] = useState<RequisicaoDasTarefas | null>(null);
+  const fecharTarefas = useCallback(() => setTarefasDe(null), []);
 
   const { requisicoes, meta, loading, error, refetch } = usePendenciasParticulares({
     desde: desde || undefined,
@@ -145,9 +148,11 @@ const PendenciasParticulares: React.FC<Props> = ({ podeEditar }) => {
                   <th className="px-3 py-2">Paciente</th>
                   <th className="px-3 py-2">Clínica</th>
                   <th className="px-3 py-2">Solicitação</th>
-                  <th className="px-3 py-2">Evento</th>
                   <th className="px-3 py-2">Lote</th>
+                  <th className="px-3 py-2">Status da requisição</th>
+                  <th className="px-3 py-2">Laudo liberado</th>
                   <th className="px-3 py-2 text-right">Valor</th>
+                  <th className="px-3 py-2 w-10"><span className="sr-only">Tarefas</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -178,16 +183,23 @@ const PendenciasParticulares: React.FC<Props> = ({ podeEditar }) => {
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
                       {formatData(req.dtaSolicitacao)}
                     </td>
-                    <td className="px-3 py-2">
-                      <span className="inline-flex px-2 py-1 rounded-full text-xs font-medium whitespace-nowrap bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                        {req.eventoLabel ?? `Evento ${req.codEvento}`}
-                      </span>
-                    </td>
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
                       {req.idLote ?? '—'}
                     </td>
+                    <td className="px-3 py-2">
+                      <StatusRequisicao codEvento={req.codEvento} label={req.eventoLabel} />
+                    </td>
+                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
+                      {formatData(req.dtaFinalizacao)}
+                    </td>
                     <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">
                       {formatCurrency(req.valor)}
+                    </td>
+                    <td className="px-3 py-2 text-center">
+                      <BotaoTarefas
+                        qtdAbertas={req.qtdTarefasAbertas}
+                        onClick={() => setTarefasDe({ idRequisicao: req.idRequisicao, codRequisicao: req.codRequisicao })}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -228,6 +240,7 @@ const PendenciasParticulares: React.FC<Props> = ({ podeEditar }) => {
         onFechar={fecharClinicasSemNf}
         podeEditar={podeEditar}
       />
+      <TarefasRequisicaoModal requisicao={tarefasDe} onFechar={fecharTarefas} />
     </div>
   );
 };

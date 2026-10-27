@@ -45,6 +45,13 @@ export const formatCompetencia = (competencia: string | null | undefined): strin
   return ano && mes ? `${mes}/${ano}` : competencia;
 };
 
+/** 'YYYY-MM-DD HH:MM' do banco do apLIS → 'dd/mm/aaaa hh:mm', sem converter fuso. */
+export const formatDataHoraAplis = (valor: string | null): string => {
+  if (!valor) return '—';
+  const [dia, hora] = valor.split(' ');
+  return hora ? `${formatData(dia)} ${hora}` : formatData(dia);
+};
+
 /** 'YYYY-MM-DD HH:MM' do banco → 'dd/mm hh:mm', sem converter fuso. */
 export const formatDiaMesHora = (valor: string): string => {
   const [data, hora = ''] = valor.split(' ');

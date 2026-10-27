@@ -5,6 +5,7 @@ import {
   procedimentoTemGlosa,
   protocoloEhData,
   resolverCodigoGlosa,
+  textoDaMensagemTarefa,
 } from './bdLab.js';
 
 // Casos vêm da issue 10 (.scratch/faturamento-feedback-usuario/issues/10-lotes-protocolo-duplicado.md):
@@ -173,5 +174,31 @@ describe('idLoteDaBusca', () => {
     expect(idLoteDaBusca('cassi')).toBeNull();
     expect(idLoteDaBusca('6700a')).toBeNull();
     expect(idLoteDaBusca(undefined)).toBeNull();
+  });
+});
+
+describe('textoDaMensagemTarefa', () => {
+  it('tira o link em HTML que o apLIS grava na mensagem', () => {
+    // Mensagem real das tarefas de "Consenso" (banco, 26/10/2026).
+    expect(textoDaMensagemTarefa('Clique <a href="#" onclick="_g_Micro();">aqui</a> para visualizar o caso'))
+      .toBe('Clique aqui para visualizar o caso');
+  });
+
+  it('troca <br> por quebra de linha e decodifica entidades', () => {
+    expect(textoDaMensagemTarefa('Guia&nbsp;sem assinatura<br/>Conferir &amp; devolver &#233;'))
+      .toBe('Guia sem assinatura\nConferir & devolver é');
+  });
+
+  it('preserva < e > de texto livre', () => {
+    expect(textoDaMensagemTarefa('valor < 50 e glosa > 10 conferir')).toBe('valor < 50 e glosa > 10 conferir');
+  });
+
+  it('decodifica entidades hexadecimais e fora do plano básico', () => {
+    expect(textoDaMensagemTarefa('d&#x27;água &#128512; &#99999999;')).toBe("d'água 😀 &#99999999;");
+  });
+
+  it('devolve null quando não sobra texto', () => {
+    expect(textoDaMensagemTarefa(null)).toBeNull();
+    expect(textoDaMensagemTarefa('<p></p>')).toBeNull();
   });
 });

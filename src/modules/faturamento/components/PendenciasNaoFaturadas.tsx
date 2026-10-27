@@ -10,6 +10,7 @@ import { formatCurrency, formatData } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
+import { BotaoTarefas, StatusRequisicao, TarefasRequisicaoModal, type RequisicaoDasTarefas } from './TarefasRequisicao';
 
 // Aba Contas a Receber → Pendências: lotes do apLIS sem NF/RPS vinculado, fora da
 // janela normal de fechamento (2 meses mais recentes). Regra completa e o achado
@@ -56,6 +57,8 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
   const [requisicoes, setRequisicoes] = useState<Record<number, RequisicaoPendencia[]>>({});
   const [carregandoDet, setCarregandoDet] = useState<number | null>(null);
   const [erroDet, setErroDet] = useState<Record<number, string>>({});
+  const [tarefasDe, setTarefasDe] = useState<RequisicaoDasTarefas | null>(null);
+  const fecharTarefas = useCallback(() => setTarefasDe(null), []);
 
   const carregarDetalhe = useCallback(async (idLote: number, force = false) => {
     setCarregandoDet(idLote);
@@ -275,7 +278,10 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
                                     <th className="py-1">Solicitação</th>
                                     <th className="py-1">Status faturamento</th>
                                     <th className="py-1">NF / RPS</th>
+                                    <th className="py-1">Status da requisição</th>
+                                    <th className="py-1">Laudo liberado</th>
                                     <th className="py-1 text-right">Valor</th>
+                                    <th className="py-1 w-10"><span className="sr-only">Tarefas</span></th>
                                   </tr>
                                 </thead>
                                 <tbody>
@@ -306,7 +312,17 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
                                           )
                                           : '—'}
                                       </td>
+                                      <td className="py-1">
+                                        <StatusRequisicao codEvento={req.codEvento} label={req.eventoLabel} compacto />
+                                      </td>
+                                      <td className="py-1 tabular-nums">{formatData(req.dtaFinalizacao)}</td>
                                       <td className="py-1 text-right tabular-nums">{formatCurrency(req.valor)}</td>
+                                      <td className="py-1 text-center">
+                                        <BotaoTarefas
+                                          qtdAbertas={req.qtdTarefasAbertas}
+                                          onClick={() => setTarefasDe({ idRequisicao: req.idRequisicao, codRequisicao: req.codRequisicao })}
+                                        />
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>
@@ -349,6 +365,8 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
           </div>
         </div>
       )}
+
+      <TarefasRequisicaoModal requisicao={tarefasDe} onFechar={fecharTarefas} />
     </div>
   );
 };

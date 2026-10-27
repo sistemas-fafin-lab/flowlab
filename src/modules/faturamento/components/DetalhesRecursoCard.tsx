@@ -31,7 +31,7 @@ import type {
   TipoEventoHistoricoRecurso,
 } from '../types';
 import { corStatusFaturamento } from '../utils/corStatusFaturamento';
-import { formatCompetencia, formatCurrency, formatData, formatDataHora } from '../utils/formato';
+import { formatCompetencia, formatCurrency, formatData, formatDataHora, formatDataHoraAplis } from '../utils/formato';
 import { rotuloStatusAplis, SELOS_ATRASO, STATUS_LOTE_CORES } from '../utils/recursoGlosaVisual';
 import CampoEditavelRecurso, { MarcaEditado } from './CampoEditavelRecurso';
 import { ImagensRequisicaoLegadoModal } from './ImagensRequisicaoLegadoModal';
@@ -59,13 +59,6 @@ const CHIP = 'inline-flex items-center px-2 py-1 rounded-full text-xs font-mediu
 
 function valorOuTraco(valor: number | null): string {
   return valor === null ? '—' : formatCurrency(valor);
-}
-
-/** 'YYYY-MM-DD HH:MM' do apLIS → 'DD/MM/AAAA HH:MM'. */
-function dataHoraAplis(valor: string | null): string {
-  if (!valor) return '—';
-  const [dia, hora] = valor.split(' ');
-  return hora ? `${formatData(dia)} ${hora}` : formatData(dia);
 }
 
 const Campo: React.FC<{ rotulo: string; children: React.ReactNode }> = ({ rotulo, children }) => (
@@ -377,7 +370,7 @@ const AbaObservacoes: React.FC<{ observacoes: ObservacaoRecurso[] }> = ({ observ
         <li key={o.codTarefa} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="text-xs font-medium text-gray-700 dark:text-gray-300">{o.tipo ?? 'Tarefa'}</span>
-            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{dataHoraAplis(o.data)}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{formatDataHoraAplis(o.data)}</span>
           </div>
           <p className="text-sm text-gray-900 dark:text-white whitespace-pre-line break-words">{o.mensagem ?? '—'}</p>
           <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">

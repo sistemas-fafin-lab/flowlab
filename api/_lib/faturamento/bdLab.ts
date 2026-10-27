@@ -1900,6 +1900,13 @@ const EVENTOS_NAO_COBRAVEIS = [8, 64, 1023, 1037];
 
 const SQL_EVENTO_COBRAVEL = `(r.CodEvento IS NULL OR r.CodEvento NOT IN (${EVENTOS_NAO_COBRAVEIS.join(', ')}))`;
 
+// Contador do ícone de tarefas das três listas de Pendências: tarefas do apLIS
+// da requisição ainda não concluídas, de qualquer setor ou destinatário. Mesma
+// regra do modal (`listarTarefasRequisicao`): só `Concluido = 1` é concluída.
+// Usa o índice de `tarefa.IdRequisicao`.
+const SQL_QTD_TAREFAS_ABERTAS = `(SELECT COUNT(*) FROM tarefa t
+     WHERE t.IdRequisicao = r.IdRequisicao AND (t.Concluido IS NULL OR t.Concluido <> 1)) AS QtdTarefasAbertas`;
+
 const cachePendencias = new Map<string, EntradaCache<ListarLotesPendentesResultado>>();
 
 function chavePendencias(params: ListarLotesPendentesParams): string {
@@ -2130,6 +2137,10 @@ export interface RequisicaoPendencia {
    *  por lote. */
   codEventoFatur: number | null;
   eventoFaturLabel: string | null;
+  /** `requisicao.CodEvento` — status da requisição no fluxo do laboratório. */
+  codEvento: number | null;
+  eventoLabel: string | null;
+  qtdTarefasAbertas: number;
 }
 
 export type DetalharLotePendenciaResultado =
@@ -2161,10 +2172,12 @@ const SQL_DETALHE_PENDENCIA = `
          (SELECT rps.NFeNumero FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps
            WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL
            ORDER BY rps.DataEmissao DESC LIMIT 1) AS NFeNumero,
-         r.CodEventoFatur, ef.DesEvento AS DesEventoFatur
+         r.CodEventoFatur, ef.DesEvento AS DesEventoFatur,
+         r.CodEvento, ev.DesEvento, ${SQL_QTD_TAREFAS_ABERTAS}
     FROM requisicao r
     LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
     LEFT JOIN eventofatur ef ON ef.CodEvento = r.CodEventoFatur
+    LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
    WHERE r.Lote = ?
      AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
    ORDER BY r.CodRequisicao`;
@@ -2196,6 +2209,9 @@ export async function detalharLotePendencia(
       nfeNumero: texto(linha.NFeNumero),
       codEventoFatur: inteiroOuNulo(linha.CodEventoFatur),
       eventoFaturLabel: texto(linha.DesEventoFatur),
+      codEvento: inteiroOuNulo(linha.CodEvento),
+      eventoLabel: texto(linha.DesEvento),
+      qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
     }));
     return { requisicoes };
   }).then((resultado) => {
@@ -2242,6 +2258,7 @@ export interface RequisicaoParticularPendencia {
   /** Local de origem marcado como "não emite NF" (`idsClinicasSemNf`). Só vem
    *  `true` com `incluirSemNf`; sem ele essas requisições nem aparecem. */
   clinicaSemNf: boolean;
+  qtdTarefasAbertas: number;
 }
 
 export interface ListarParticularesPendentesParams {
@@ -2326,6 +2343,7 @@ function normalizarParticularPendencia(
     idLote: inteiroOuNulo(linha.Lote),
     localOrigem: { id: idLocalOrigem, nome: texto(linha.NomLocalOrigem) },
     clinicaSemNf: idLocalOrigem !== null && idsClinicasSemNf.includes(idLocalOrigem),
+    qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
   };
 }
 
@@ -2389,7 +2407,8 @@ export async function listarParticularesPendentes(
               p.NomPaciente, r.CodEvento, ev.DesEvento, r.Lote,
               r.IdLocalOrigem, lo.NomFantasia AS NomLocalOrigem,
               COALESCE((SELECT SUM(frp.ValorLiquido) FROM fatrequisicaoprocedimento frp
-                         WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor
+                         WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor,
+              ${SQL_QTD_TAREFAS_ABERTAS}
          FROM requisicao r
          LEFT JOIN fatlote l ON l.IdLote = r.Lote
          LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
@@ -2451,6 +2470,10 @@ export interface RequisicaoSemLotePendencia {
   paciente: string | null;
   valor: number;
   fontePagadora: { id: number | null; nome: string | null; razaoSocial: string | null };
+  /** `requisicao.CodEvento` — status da requisição no fluxo do laboratório. */
+  codEvento: number | null;
+  eventoLabel: string | null;
+  qtdTarefasAbertas: number;
 }
 
 export interface ListarRequisicoesSemLoteParams {
@@ -2529,6 +2552,9 @@ function normalizarRequisicaoSemLote(linha: mysql.RowDataPacket): RequisicaoSemL
       nome: texto(linha.NomFantasia),
       razaoSocial: texto(linha.RazaoSocial),
     },
+    codEvento: inteiroOuNulo(linha.CodEvento),
+    eventoLabel: texto(linha.DesEvento),
+    qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
   };
 }
 
@@ -2594,11 +2620,14 @@ export async function listarRequisicoesSemLote(
               DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d') AS DtaSolicitacao,
               DATE_FORMAT(r.DtaFinalizacao, '%Y-%m-%d') AS DtaFinalizacao,
               p.NomPaciente, r.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
+              r.CodEvento, ev.DesEvento,
               COALESCE((SELECT SUM(frp.ValorLiquido) FROM fatrequisicaoprocedimento frp
-                         WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor
+                         WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor,
+              ${SQL_QTD_TAREFAS_ABERTAS}
          FROM requisicao r
          LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
          LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = r.IdFontePagadora
+         LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
         WHERE ${where}
         ORDER BY r.DtaSolicitacao ASC, r.IdRequisicao ASC
         LIMIT ${limite} OFFSET ${deslocamento}`,
@@ -3434,9 +3463,104 @@ export async function detalheRecursoRequisicao(
         data: texto(linha.DtaInclusao),
         tipo: texto(linha.DesTarefaTipo),
         remetente: texto(linha.NomUsuario),
-        mensagem: texto(linha.MsgTarefa),
+        mensagem: textoDaMensagemTarefa(texto(linha.MsgTarefa)),
         concluida: numero(linha.Concluido) === 1,
-        obsConclusao: texto(linha.ObsConclusao),
+        obsConclusao: textoDaMensagemTarefa(texto(linha.ObsConclusao)),
+      })),
+    };
+  });
+}
+
+// --- Tarefas da requisição (modal do ícone de tarefas da aba Pendências) ---
+// Todas as tarefas do apLIS da requisição, de qualquer setor. A maioria vai
+// para um USUÁRIO (`IdDestinatario`), não para um setor (`CodSetor` vem nulo em
+// ~99,8% das linhas, conferido em 27/10/2026), por isso o "Para" cai no setor
+// e, sem ele, no usuário destinatário.
+
+/** Tarefa do apLIS de uma requisição, em texto puro. */
+export interface TarefaRequisicaoAplis {
+  codTarefa: number;
+  /** 'YYYY-MM-DD HH:MM' no horário do laboratório. */
+  data: string | null;
+  tipo: string | null;
+  remetente: string | null;
+  /** Setor de destino ou, sem setor, o usuário destinatário. */
+  destino: string | null;
+  mensagem: string | null;
+  concluida: boolean;
+  /** 'YYYY-MM-DD HH:MM'. */
+  dataConclusao: string | null;
+  obsConclusao: string | null;
+}
+
+export type ListarTarefasRequisicaoResultado =
+  | { tarefas: TarefaRequisicaoAplis[] }
+  | { erro: { status: number; mensagem: string } };
+
+const ENTIDADES_HTML: Record<string, string> = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+};
+
+// Só tags HTML conhecidas: a mensagem também é texto livre do operador, e um
+// "valor < 50 e glosa > 10" não pode perder o trecho entre os sinais.
+const TAG_HTML = /<\/?(?:a|b|i|u|p|br|hr|div|span|font|strong|em|small|center|img|ul|ol|li|table|thead|tbody|tr|td|th|h[1-6])\b[^<>]*>/gi;
+
+/** Código numérico de entidade (`&#233;`, `&#x27;`) → caractere; inválido fica como veio. */
+function caractereDaEntidade(entidade: string, codigo: string): string {
+  const n = codigo[1] === 'x' || codigo[1] === 'X' ? parseInt(codigo.slice(2), 16) : Number(codigo.slice(1));
+  return Number.isInteger(n) && n > 0 && n <= 0x10ffff ? String.fromCodePoint(n) : entidade;
+}
+
+/** A mensagem da tarefa às vezes traz HTML do próprio apLIS (ex.: link
+ *  "Clique <a onclick=…>aqui</a>"). O modal e o card do recurso mostram texto
+ *  puro: quebra de linha vira `\n`, as tags conhecidas somem e as entidades
+ *  comuns são decodificadas. */
+export function textoDaMensagemTarefa(html: string | null): string | null {
+  if (html === null) return null;
+  const limpo = html
+    .replace(/<br\s*\/?>|<\/p>|<\/div>/gi, '\n')
+    .replace(TAG_HTML, '')
+    .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (entidade, nome: string) => {
+      if (nome.startsWith('#')) return caractereDaEntidade(entidade, nome);
+      return ENTIDADES_HTML[nome.toLowerCase()] ?? entidade;
+    })
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+  return limpo || null;
+}
+
+const SQL_TAREFAS_REQUISICAO = `
+  SELECT t.CodTarefa, DATE_FORMAT(t.DtaInclusao, '%Y-%m-%d %H:%i') AS DtaInclusao,
+         tt.DesTarefaTipo, ur.NomUsuario AS NomRemetente,
+         COALESCE(s.NomSetor, ud.NomUsuario) AS Destino,
+         t.MsgTarefa, t.Concluido,
+         DATE_FORMAT(t.DtaConclusao, '%Y-%m-%d %H:%i') AS DtaConclusao, t.ObsConclusao
+    FROM tarefa t
+    LEFT JOIN tarefatipo tt ON tt.CodTarefaTipo = t.CodTarefaTipo
+    LEFT JOIN autusuario ur ON ur.IdUsuario = t.IdRemetente
+    LEFT JOIN autusuario ud ON ud.IdUsuario = t.IdDestinatario
+    LEFT JOIN setor s ON s.CodSetor = t.CodSetor
+   WHERE t.IdRequisicao = ?
+   ORDER BY t.DtaInclusao DESC, t.CodTarefa DESC`;
+
+/** Tarefas da requisição, da mais recente para a mais antiga. Sem cache: são
+ *  poucas linhas por requisição e o modal abre sob demanda. */
+export async function listarTarefasRequisicao(
+  idRequisicao: number,
+): Promise<ListarTarefasRequisicaoResultado> {
+  return comConexao('listarTarefasRequisicao', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(SQL_TAREFAS_REQUISICAO, [idRequisicao]);
+    return {
+      tarefas: linhas.map((linha) => ({
+        codTarefa: numero(linha.CodTarefa),
+        data: texto(linha.DtaInclusao),
+        tipo: texto(linha.DesTarefaTipo),
+        remetente: texto(linha.NomRemetente),
+        destino: texto(linha.Destino),
+        mensagem: textoDaMensagemTarefa(texto(linha.MsgTarefa)),
+        concluida: numero(linha.Concluido) === 1,
+        dataConclusao: texto(linha.DtaConclusao),
+        obsConclusao: textoDaMensagemTarefa(texto(linha.ObsConclusao)),
       })),
     };
   });
