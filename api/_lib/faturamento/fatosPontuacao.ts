@@ -2,9 +2,10 @@
 // Leitura dos fatos da Pontuação do setor (.scratch/faturamento-pontuacao/spec.md).
 // Só lê e achata; a regra de pontos é de pontuacaoSetor.ts.
 
-import { getSupabaseUserClient } from '../supabase.js';
-import { tarefasPendentesNoFimDoMes } from './bdLab.js';
-import type { FatoMeta, FatoTarefas, FrentePontuacao, MembroFrente } from './pontuacaoSetor.js';
+import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
+import { guiasSemLotePorConvenio, tarefasPendentesNoFimDoMes } from './bdLab.js';
+import { listarFontesConsideradasMeta } from './fontesConsideradas.js';
+import type { FatoGuiasSemLote, FatoMeta, FatoTarefas, FrentePontuacao, MembroFrente } from './pontuacaoSetor.js';
 
 export type FalhaFato = { erro: { status: number; mensagem: string } };
 
@@ -51,6 +52,21 @@ export async function lerMembros(token: string): Promise<MembroFrente[] | FalhaF
   }));
 }
 
+const primeiroDia = (ano: number, mes: number): string => `${ano}-${String(mes).padStart(2, '0')}-01`;
+
+/** Guias sem lote: convênios com requisição solicitada no mês anterior (M-1),
+ *  com as mesmas fontes consideradas da aba Pendências → Sem lote. */
+export async function lerFatoGuiasSemLote(ano: number, mes: number): Promise<FatoGuiasSemLote | FalhaFato> {
+  const anterior = mes === 1 ? { ano: ano - 1, mes: 12 } : { ano, mes: mes - 1 };
+  // Cliente admin, como o handler da aba: a lista de operadoras não depende de quem pede.
+  const fontesConsideradas = await listarFontesConsideradasMeta(getSupabaseAdminClient());
+  return guiasSemLotePorConvenio({
+    desde: primeiroDia(anterior.ano, anterior.mes),
+    ateExclusivo: primeiroDia(ano, mes),
+    fontesConsideradas,
+  });
+}
+
 /** Tarefas do apLIS abertas às 23h59 do último dia do mês, só dos membros. */
 export async function lerFatoTarefas(
   membros: MembroFrente[],
@@ -60,7 +76,7 @@ export async function lerFatoTarefas(
   const seguinte = mes === 12 ? { ano: ano + 1, mes: 1 } : { ano, mes: mes + 1 };
   const resultado = await tarefasPendentesNoFimDoMes({
     idsUsuarios: membros.map((m) => m.idUsuarioAplis),
-    ateExclusivo: `${seguinte.ano}-${String(seguinte.mes).padStart(2, '0')}-01`,
+    ateExclusivo: primeiroDia(seguinte.ano, seguinte.mes),
   });
   if ('erro' in resultado) return resultado;
   const { porUsuario, doSetor, dadoAte } = resultado;

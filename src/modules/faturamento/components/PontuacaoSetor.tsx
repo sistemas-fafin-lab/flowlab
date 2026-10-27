@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight } from 'lucide-react';
 import type {
   CriterioPontuacao,
+  DetalheGuiasSemLotePontuacao,
   DetalheMetaPontuacao,
   DetalheTarefasPontuacao,
   FrentePontuada,
@@ -60,6 +61,44 @@ const DetalheTarefas: React.FC<{ detalhe: DetalheTarefasPontuacao }> = ({ detalh
   );
 };
 
+const DetalheGuiasSemLote: React.FC<{ detalhe: DetalheGuiasSemLotePontuacao }> = ({ detalhe }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+    <div>
+      <p className="pb-1 font-medium text-gray-500 dark:text-gray-400">
+        Fechados sem pendência ({formatQtd(detalhe.semPendencia.length)})
+      </p>
+      {detalhe.semPendencia.length > 0 ? (
+        <ul className="space-y-0.5">
+          {detalhe.semPendencia.map((c) => (
+            <li key={c.idFontePagadora} className="text-gray-900 dark:text-white">{c.nome}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-500 dark:text-gray-400">Nenhum</p>
+      )}
+    </div>
+    <div>
+      <table className="w-full">
+        <thead>
+          <tr className="text-gray-500 dark:text-gray-400">
+            <th className="pb-1 text-left font-medium">Com pendência ({formatQtd(detalhe.comPendencia.length)})</th>
+            <th className="pb-1 text-right font-medium">Sem lote</th>
+          </tr>
+        </thead>
+        <tbody>
+          {detalhe.comPendencia.map((c) => (
+            <tr key={c.idFontePagadora}>
+              <td className="py-0.5 text-gray-900 dark:text-white">{c.nome}</td>
+              <td className="py-0.5 text-right tabular-nums font-medium text-red-600 dark:text-red-400">{formatQtd(c.pendentes)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {detalhe.comPendencia.length === 0 && <p className="text-gray-500 dark:text-gray-400">Nenhum</p>}
+    </div>
+  </div>
+);
+
 const DetalheMeta: React.FC<{ detalhe: DetalheMetaPontuacao }> = ({ detalhe }) => {
   return (
     <dl className="grid grid-cols-3 gap-3 text-xs">
@@ -86,7 +125,9 @@ const DetalheMeta: React.FC<{ detalhe: DetalheMetaPontuacao }> = ({ detalhe }) =
 const DetalheCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }) => {
   const { detalhe } = criterio;
   if (!detalhe) return null;
-  return detalhe.tipo === 'tarefas' ? <DetalheTarefas detalhe={detalhe} /> : <DetalheMeta detalhe={detalhe} />;
+  if (detalhe.tipo === 'tarefas') return <DetalheTarefas detalhe={detalhe} />;
+  if (detalhe.tipo === 'guiasSemLote') return <DetalheGuiasSemLote detalhe={detalhe} />;
+  return <DetalheMeta detalhe={detalhe} />;
 };
 
 const LinhaCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }) => {

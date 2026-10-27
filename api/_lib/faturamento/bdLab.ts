@@ -34,6 +34,7 @@ import { cobrancasComTestes } from './cobrancasTestesAplis.js';
 import { STATUS_FOTO } from './recursoGlosa.js';
 import type { RequisicaoGlosaAplis } from './recursoGlosa.js';
 import type { LinhaFaturada } from './indicadoresFaturamento.js';
+import type { ConvenioSemLote } from './pontuacaoSetor.js';
 import type {
   CobrancaAplis,
   LinhaCobranca,
@@ -2498,11 +2499,18 @@ function chaveRequisicoesSemLote(params: ListarRequisicoesSemLoteParams): string
 // `SQL_EVENTO_COBRAVEL` (issue 26, ampliado depois): requisição em estado final
 // não cobrável nunca vai gerar lote — sem esse corte a lista mistura pendência
 // real com requisição que nunca vai sair do estado "sem lote".
+//
+// Dividida em duas partes para a Pontuação do setor (guias sem lote) contar por
+// convênio com a mesma regra: `SQL_CONVENIO_COBRAVEL` é o universo (requisição de
+// convênio que deveria ir para um lote) e `SQL_SEM_LOTE_WHERE`, a pendência.
+const SQL_CONVENIO_COBRAVEL = `
+  r.IdFontePagadora NOT IN (${ID_FONTE_PAGADORA_PARTICULAR}, ${ID_FONTE_PAGADORA_CORTESIA})
+  AND ${SQL_EVENTO_COBRAVEL}
+  AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)`;
+
 const SQL_SEM_LOTE_WHERE = `
   r.Lote IS NULL
-  AND r.IdFontePagadora NOT IN (${ID_FONTE_PAGADORA_PARTICULAR}, ${ID_FONTE_PAGADORA_CORTESIA})
-  AND ${SQL_EVENTO_COBRAVEL}
-  AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
+  AND ${SQL_CONVENIO_COBRAVEL}
   AND NOT EXISTS (
     SELECT 1 FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps
     WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL
@@ -3639,5 +3647,55 @@ export async function tarefasPendentesNoFimDoMes(params: {
       else porUsuario[id] = numero(linha.Qtd);
     }
     return { porUsuario, doSetor, dadoAte: await dadoAte(conn, 'tarefa', 'DtaInclusao', true) };
+  });
+}
+
+// ============================================================================
+// Guias sem lote da Pontuação do setor (.scratch/faturamento-pontuacao/)
+// ============================================================================
+// Só lê e conta; a regra de pontos é de faturamento/pontuacaoSetor.ts. A
+// pendência é a mesma condição da aba Pendências → Sem lote
+// (`SQL_SEM_LOTE_WHERE`), e o universo, as requisições de convênio cobráveis
+// (`SQL_CONVENIO_COBRAVEL`) solicitadas no mês.
+
+export type GuiasSemLotePorConvenioResultado =
+  | { convenios: ConvenioSemLote[] }
+  | { erro: { status: number; mensagem: string } };
+
+/** Convênios com requisição solicitada em [`desde`, `ateExclusivo`) e quantas
+ *  delas estão sem lote hoje, por nome. `fontesConsideradas` é a mesma lista
+ *  da aba; vazia não qualifica nenhuma fonte. */
+export async function guiasSemLotePorConvenio(params: {
+  /** 'YYYY-MM-DD'. */
+  desde: string;
+  /** 'YYYY-MM-DD'. */
+  ateExclusivo: string;
+  fontesConsideradas: number[];
+}): Promise<GuiasSemLotePorConvenioResultado> {
+  const fontes = params.fontesConsideradas;
+  const daFonte = fontes.length > 0 ? `r.IdFontePagadora IN (${fontes.map(() => '?').join(', ')})` : '1 = 0';
+  const sql = `
+    SELECT r.IdFontePagadora, COALESCE(fp.NomFantasia, fp.RazaoSocial) AS Nome,
+           SUM(CASE WHEN ${SQL_SEM_LOTE_WHERE} THEN 1 ELSE 0 END) AS Pendentes
+      FROM requisicao r
+      LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = r.IdFontePagadora
+     WHERE r.DtaSolicitacao >= ? AND r.DtaSolicitacao < ?
+       AND ${SQL_CONVENIO_COBRAVEL}
+       AND ${daFonte}
+     GROUP BY r.IdFontePagadora, Nome
+     ORDER BY Nome`;
+
+  return comConexao('guiasSemLotePorConvenio', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      sql,
+      [`${params.desde} 00:00:00`, `${params.ateExclusivo} 00:00:00`, ...fontes],
+    );
+    return {
+      convenios: linhas.map((linha) => ({
+        idFontePagadora: numero(linha.IdFontePagadora),
+        nome: texto(linha.Nome) ?? `Fonte ${numero(linha.IdFontePagadora)}`,
+        pendentes: numero(linha.Pendentes),
+      })),
+    };
   });
 }

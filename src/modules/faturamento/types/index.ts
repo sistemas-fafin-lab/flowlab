@@ -1362,7 +1362,20 @@ export interface DetalheTarefasPontuacao {
   setor: number;
 }
 
-export type DetalheCriterioPontuacao = DetalheMetaPontuacao | DetalheTarefasPontuacao;
+export interface ConvenioSemLotePontuacao {
+  idFontePagadora: number;
+  nome: string;
+  pendentes: number;
+}
+
+/** Convênios com requisição solicitada no mês anterior, com e sem requisição sem lote. */
+export interface DetalheGuiasSemLotePontuacao {
+  tipo: 'guiasSemLote';
+  semPendencia: Omit<ConvenioSemLotePontuacao, 'pendentes'>[];
+  comPendencia: ConvenioSemLotePontuacao[];
+}
+
+export type DetalheCriterioPontuacao = DetalheMetaPontuacao | DetalheTarefasPontuacao | DetalheGuiasSemLotePontuacao;
 
 export interface CriterioPontuacao {
   chave: string;

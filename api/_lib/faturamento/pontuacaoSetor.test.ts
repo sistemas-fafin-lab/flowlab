@@ -196,3 +196,55 @@ describe('pontuarMes — tarefas pendentes', () => {
     }
   });
 });
+
+describe('pontuarMes — guias sem lote', () => {
+  const zerado = (id: number) => ({ idFontePagadora: id, nome: `Convênio ${id}`, pendentes: 0 });
+
+  it('12 convênios fechados sem pendência dão exatamente 1,2', () => {
+    const convenios = Array.from({ length: 12 }, (_, i) => zerado(i + 1));
+    const resumo = pontuarMes(entrada({ guiasSemLote: { convenios } }));
+
+    expect(criterio(resumo, 'faturamento', 'guiasSemLote')).toMatchObject({
+      pontosAtingidos: 1.2,
+      tipo: 'automatico',
+      pontosBase: 0.1,
+      porConvenio: true,
+    });
+    expect(resumo.frentes[0].total).toBe(1.2);
+  });
+
+  it('convênio com pendência vai para a lista "com pendência" e não pontua', () => {
+    const resumo = pontuarMes(entrada({
+      guiasSemLote: {
+        convenios: [
+          { idFontePagadora: 5, nome: 'Bradesco Saúde', pendentes: 0 },
+          { idFontePagadora: 7, nome: 'Sul América', pendentes: 3 },
+          { idFontePagadora: 9, nome: 'Fascal', pendentes: 0 },
+        ],
+      },
+    }));
+
+    expect(criterio(resumo, 'faturamento', 'guiasSemLote')).toMatchObject({
+      pontosAtingidos: 0.2,
+      observacao: '2 de 3 convênios fechados sem pendência',
+      detalhe: {
+        tipo: 'guiasSemLote',
+        semPendencia: [
+          { idFontePagadora: 5, nome: 'Bradesco Saúde' },
+          { idFontePagadora: 9, nome: 'Fascal' },
+        ],
+        comPendencia: [{ idFontePagadora: 7, nome: 'Sul América', pendentes: 3 }],
+      },
+    });
+  });
+
+  it('mês anterior sem requisições: 0 ponto, sem convênio nas listas', () => {
+    const resumo = pontuarMes(entrada({ guiasSemLote: { convenios: [] } }));
+
+    expect(criterio(resumo, 'faturamento', 'guiasSemLote')).toMatchObject({
+      pontosAtingidos: 0,
+      observacao: 'Nenhuma requisição solicitada no mês anterior',
+      detalhe: { tipo: 'guiasSemLote', semPendencia: [], comPendencia: [] },
+    });
+  });
+});

@@ -68,9 +68,22 @@ export interface FatoTarefas {
   doSetor: number;
 }
 
+/** Convênio (fonte pagadora) e quantas requisições dele ainda estão sem lote. */
+export interface ConvenioSemLote {
+  idFontePagadora: number;
+  nome: string;
+  pendentes: number;
+}
+
+/** Convênios com requisição solicitada no mês anterior (M-1). */
+export interface FatoGuiasSemLote {
+  convenios: ConvenioSemLote[];
+}
+
 /** Fatos do mês, já lidos e achatados. Fato ausente: o critério não aparece. */
 export interface FatosPontuacao {
   meta?: FatoMeta;
+  guiasSemLote?: FatoGuiasSemLote;
   tarefas?: FatoTarefas;
 }
 
@@ -111,7 +124,13 @@ export interface DetalheTarefas {
   setor: number;
 }
 
-export type DetalheCriterio = DetalheMeta | DetalheTarefas;
+export interface DetalheGuiasSemLote {
+  tipo: 'guiasSemLote';
+  semPendencia: Omit<ConvenioSemLote, 'pendentes'>[];
+  comPendencia: ConvenioSemLote[];
+}
+
+export type DetalheCriterio = DetalheMeta | DetalheTarefas | DetalheGuiasSemLote;
 
 export interface CriterioPontuado extends Omit<DefinicaoCriterio, 'frente'> {
   pontosAtingidos: number;
@@ -177,8 +196,24 @@ function pontuarTarefas(def: DefinicaoCriterio, fato: FatoTarefas, membros: Memb
   };
 }
 
+/** 0,1 por convênio que fechou o mês anterior sem nenhuma requisição sem lote. */
+function pontuarGuiasSemLote(def: DefinicaoCriterio, fato: FatoGuiasSemLote): Omit<CriterioPontuado, keyof DefinicaoCriterio> {
+  const semPendencia = fato.convenios
+    .filter((c) => c.pendentes === 0)
+    .map(({ idFontePagadora, nome }) => ({ idFontePagadora, nome }));
+  const comPendencia = fato.convenios.filter((c) => c.pendentes > 0);
+  return {
+    pontosAtingidos: umaCasa(semPendencia.length * def.pontosBase),
+    observacao: fato.convenios.length === 0
+      ? 'Nenhuma requisição solicitada no mês anterior'
+      : `${semPendencia.length} de ${fato.convenios.length} convênios fechados sem pendência`,
+    detalhe: { tipo: 'guiasSemLote', semPendencia, comPendencia },
+  };
+}
+
 /** Pontos e observação de um critério automático, ou null quando ainda não há fato para ele. */
 function pontuarAutomatico(def: DefinicaoCriterio, fatos: FatosPontuacao, membros: MembroFrente[]): Omit<CriterioPontuado, keyof DefinicaoCriterio> | null {
+  if (def.chave === 'guiasSemLote' && fatos.guiasSemLote) return pontuarGuiasSemLote(def, fatos.guiasSemLote);
   if (def.chave === 'tarefasPendentes' && fatos.tarefas) return pontuarTarefas(def, fatos.tarefas, membros);
   if ((def.chave === 'metaMensal' || def.chave === 'metaSuperada') && fatos.meta) {
     const faixa = faixaDaMeta(fatos.meta);
