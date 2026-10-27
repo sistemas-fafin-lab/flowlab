@@ -43,6 +43,8 @@ import { IT_REQUESTS_PATH, itRequestUrl } from '../../utils/itRequestLink';
 import Notification from '../Notification';
 import ITTaskDrawer from './ITTaskDrawer';
 import ITProjectManager from './ITProjectManager';
+import ITResolucaoModal, { type ResultadoResolucao } from './ITResolucaoModal';
+import { exigeResolucao } from '../../utils/itResolucao';
 import { KanbanBoard, type KanbanBoardColumnConfig } from '../shared/KanbanBoard';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -63,6 +65,9 @@ export interface ITRequest {
   created_at: string;
   updated_at: string;
   last_status_email_at?: string | null;
+  // Resolução obrigatória dos chamados (20261023120000_it_chamados_resolucao_anexos)
+  resolution?: string | null;
+  resolved_at?: string | null;
   // ITSM upgrade fields
   is_internal?: boolean;
   estimated_hours?: number | null;
@@ -470,6 +475,26 @@ const ITKanbanBoard: React.FC = () => {
     setSelectedTask((prev) => prev && prev.id === updated.id ? { ...prev, ...updated } : prev);
   };
 
+  // ─── Chamado levado a "Concluído" ─────────────────────────────────────────
+  // Concluir um chamado (não tarefa interna) resolve o chamado, e isso pede o texto
+  // de resolução: o card só muda de coluna depois do modal, que também avisa o
+  // solicitante (ver ITResolucaoModal).
+  const [resolvingTask, setResolvingTask] = useState<ITRequest | null>(null);
+
+  const handleKanbanResolved = (resultado: ResultadoResolucao) => {
+    if (!resolvingTask) return;
+    handleTaskUpdate({
+      id: resolvingTask.id,
+      kanban_status: 'done',
+      status: 'resolved',
+      resolution: resultado.resolution,
+      resolved_at: resultado.resolved_at,
+      ...(resultado.last_status_email_at ? { last_status_email_at: resultado.last_status_email_at } : {}),
+    });
+    showSuccess(`${resolvingTask.codigo} resolvido e movido para Concluído.`);
+    setResolvingTask(null);
+  };
+
   // ─── Fetch ──────────────────────────────────────────────────────────────────
   const fetchRequests = useCallback(async () => {
     try {
@@ -770,6 +795,11 @@ const ITKanbanBoard: React.FC = () => {
 
   const handleContextStatusChange = async (newStatus: KanbanColumn) => {
     if (!contextMenu) return;
+    if (newStatus === 'done' && contextMenu.task.kanban_status !== 'done' && exigeResolucao(contextMenu.task)) {
+      setResolvingTask(contextMenu.task);
+      handleContextMenuClose();
+      return;
+    }
     try {
       const updatePayload: Record<string, unknown> = { kanban_status: newStatus };
       if (newStatus === 'done') {
@@ -786,9 +816,10 @@ const ITKanbanBoard: React.FC = () => {
       showSuccess('Status atualizado!');
 
       // Notifica o solicitante quando o chamado é concluído via menu de contexto
+      // (já resolvido antes, o aviso saiu na resolução)
       if (newStatus === 'done') {
         const task = contextMenu.task;
-        if (task && task.requested_by) {
+        if (task && task.requested_by && task.status !== 'resolved') {
           const statusLabel = 'Resolvido';
           const lastEmailAt = task.last_status_email_at ? new Date(task.last_status_email_at).getTime() : 0;
           const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
@@ -915,6 +946,13 @@ const ITKanbanBoard: React.FC = () => {
     const sourceCol = source.droppableId as KanbanColumn;
     const destinationCol = destination.droppableId as KanbanColumn;
 
+    // Chamado solto em "Concluído": fica onde estava até a resolução ser registrada
+    const draggedTask = requests.find((r) => r.id === draggableId);
+    if (sourceCol !== destinationCol && destinationCol === 'done' && draggedTask && exigeResolucao(draggedTask)) {
+      setResolvingTask(draggedTask);
+      return;
+    }
+
     // Reordena localmente para manter a animacao de drop suave
     setRequests((prev) => {
       const columns: Record<KanbanColumn, ITRequest[]> = {
@@ -968,9 +1006,10 @@ const ITKanbanBoard: React.FC = () => {
       if (error) throw error;
 
       // Notifica o solicitante quando o chamado é concluído no Kanban
+      // (já resolvido antes, o aviso saiu na resolução)
       if (destinationCol === 'done') {
         const task = requests.find((r) => r.id === draggableId);
-        if (task && task.requested_by) {
+        if (task && task.requested_by && task.status !== 'resolved') {
           const statusLabel = 'Resolvido';
           const lastEmailAt = task.last_status_email_at ? new Date(task.last_status_email_at).getTime() : 0;
           const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
@@ -1500,6 +1539,14 @@ const ITKanbanBoard: React.FC = () => {
           />
         )}
       </AnimatePresence>
+
+      {/* Resolução de chamado levado a "Concluído" (arrastar ou menu de contexto) */}
+      <ITResolucaoModal
+        chamado={resolvingTask}
+        concluirCard
+        onClose={() => setResolvingTask(null)}
+        onResolvido={handleKanbanResolved}
+      />
 
       {/* Project Manager */}
       <AnimatePresence>
