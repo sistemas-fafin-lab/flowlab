@@ -57,7 +57,7 @@ export const OverdueCard: React.FC<Props> = ({ rows, filter, onFilterChange, onC
               <button
                 type="button"
                 disabled={r.charged || !!r.chargeHint}
-                title={r.charged ? undefined : r.chargeHint}
+                title={r.charged ? undefined : r.chargeHint ?? r.chargeNote}
                 onClick={() => onCharge(r)}
                 className={`px-3 py-1.5 rounded-[10px] text-xs font-semibold whitespace-nowrap flex-shrink-0 border transition-colors ${
                   r.charged

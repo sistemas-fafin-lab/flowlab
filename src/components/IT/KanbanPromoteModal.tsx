@@ -11,6 +11,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import Select from '../Select';
 import type { ITProject, ITSprint } from './ITKanbanBoard';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -34,6 +35,10 @@ const KANBAN_COLUMNS = [
   { value: 'review',      label: 'Revisão' },
   { value: 'done',        label: 'Concluído' },
 ];
+
+// Moldura dos dropdowns do modal (Select do design system, no lugar do <select> nativo)
+const SELECT_CLASS =
+  'w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -224,10 +229,10 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 8 }}
         transition={{ duration: 0.18 }}
-        className="relative z-10 w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 overflow-hidden"
+        className="relative z-10 w-full max-w-md bg-white dark:bg-gray-900 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700"
       >
-        {/* Color accent bar */}
-        <div className="h-1 bg-gradient-to-r from-violet-500 to-blue-500" />
+        {/* Color accent bar (sem overflow-hidden no card: os dropdowns precisam sair dele) */}
+        <div className="h-1 rounded-t-2xl bg-gradient-to-r from-violet-500 to-blue-500" />
 
         {/* Header */}
         <div className="flex items-center gap-3 px-6 py-4 border-b border-gray-100 dark:border-gray-800">
@@ -359,18 +364,17 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <label htmlFor="kanban-promote-coluna-inicial" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Coluna inicial
                 </label>
-                <select
+                <Select
+                  id="kanban-promote-coluna-inicial"
                   value={createColumn}
-                  onChange={(e) => setCreateColumn(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
-                >
-                  {KANBAN_COLUMNS.map((col) => (
-                    <option key={col.value} value={col.value}>{col.label}</option>
-                  ))}
-                </select>
+                  onChange={setCreateColumn}
+                  options={KANBAN_COLUMNS}
+                  controlClass={SELECT_CLASS}
+                  tone="vidro"
+                />
               </div>
 
               {/* Add to Kanban toggle */}
@@ -419,7 +423,7 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
             >
               {/* Project select */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <label htmlFor="kanban-promote-projeto" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Projeto <span className="text-gray-400 font-normal">(opcional)</span>
                 </label>
                 {loadingProjects ? (
@@ -427,52 +431,55 @@ const KanbanPromoteModal: React.FC<KanbanPromoteModalProps> = ({
                     <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando projetos…
                   </div>
                 ) : (
-                  <select
+                  <Select
+                    id="kanban-promote-projeto"
                     value={selectedProjectId}
-                    onChange={(e) => setSelectedProjectId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
-                  >
-                    <option value="">Sem projeto</option>
-                    {projects.map((p) => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </select>
+                    onChange={setSelectedProjectId}
+                    options={[
+                      { value: '', label: 'Sem projeto' },
+                      ...projects.map((p) => ({ value: p.id, label: p.name })),
+                    ]}
+                    controlClass={SELECT_CLASS}
+                    tone="vidro"
+                    searchable={projects.length > 8}
+                    searchPlaceholder="Buscar projeto…"
+                  />
                 )}
               </div>
 
               {/* Sprint select */}
               {selectedProjectId && (
                 <div>
-                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  <label htmlFor="kanban-promote-sprint" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                     Sprint <span className="text-gray-400 font-normal">(opcional)</span>
                   </label>
-                  <select
+                  <Select
+                    id="kanban-promote-sprint"
                     value={selectedSprintId}
-                    onChange={(e) => setSelectedSprintId(e.target.value)}
-                    className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
-                  >
-                    <option value="">Nenhuma sprint</option>
-                    {sprints.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
+                    onChange={setSelectedSprintId}
+                    options={[
+                      { value: '', label: 'Nenhuma sprint' },
+                      ...sprints.map((s) => ({ value: s.id, label: s.name })),
+                    ]}
+                    controlClass={SELECT_CLASS}
+                    tone="vidro"
+                  />
                 </div>
               )}
 
               {/* Column */}
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                <label htmlFor="kanban-promote-coluna" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
                   Coluna
                 </label>
-                <select
+                <Select
+                  id="kanban-promote-coluna"
                   value={cardColumn}
-                  onChange={(e) => setCardColumn(e.target.value)}
-                  className="w-full px-3 py-2 text-sm border border-gray-200 dark:border-gray-600 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
-                >
-                  {KANBAN_COLUMNS.map((col) => (
-                    <option key={col.value} value={col.value}>{col.label}</option>
-                  ))}
-                </select>
+                  onChange={setCardColumn}
+                  options={KANBAN_COLUMNS}
+                  controlClass={SELECT_CLASS}
+                  tone="vidro"
+                />
               </div>
 
               {error && <p className="text-xs text-red-600 dark:text-red-400">{error}</p>}

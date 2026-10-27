@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  depoisDaFalha, digitosDoChatId, horarioNaFila, idCurtoWaha, mesmoNumero, quandoFoi, quandoSera, statusPeloAck, ultimoContato, venceuNaFila,
-  type MensagemFila,
+  depoisDaFalha, digitosDoChatId, horarioNaFila, idCurtoWaha, mesmoNumero, quandoFoi, quandoSera, rotuloDoGrupo, statusPeloAck, ultimoContato,
+  venceuNaFila, type MensagemFila,
 } from './whatsapp';
 
 const HOJE = '2026-10-13';
@@ -119,5 +119,21 @@ describe('ultimoContato (D24)', () => {
     expect(ultimoContato('c1', ['u-bruno'], [msg({ status: 'falhou', enviada_em: null })], agora, HOJE, JANELA).texto).toBe('A cobrança às 10:12 falhou');
     const diaria = msg({ tipo: 'cobranca', created_at: '2026-10-13T11:05:00Z', enviada_em: '2026-10-13T11:05:10Z' });
     expect(ultimoContato('c1', ['u-bruno'], [diaria], agora, HOJE, JANELA)).toMatchObject({ texto: 'Cobrada às 08:05 · sem resposta', cobradaNaJanela: false });
+  });
+
+  it('cobrada no grupo (D35): conta para a janela, sem "sem resposta" (a EVA não lê o grupo)', () => {
+    const noGrupo = msg({ membro_id: null, membro_user_id: null, membro_nome: null, chat_id_destino: '120363000000000001@g.us' });
+    const r = ultimoContato('c1', ['u-bruno'], [noGrupo], agora, HOJE, JANELA);
+    expect(r).toEqual({ texto: 'Cobrada no grupo às 10:12', cobradaNaJanela: true, ultimaManualEm: '2026-10-13T13:12:00Z', semResposta: null });
+    // Se a pessoa responder no privado, aparece.
+    const recebida = msg({ direcao: 'entrada', tipo: 'recebida', status: 'recebida', card_ids: [], created_at: '2026-10-13T13:40:00Z', enviada_em: null });
+    expect(ultimoContato('c1', ['u-bruno'], [noGrupo, recebida], agora, HOJE, JANELA).texto).toBe('Cobrada no grupo às 10:12 · respondeu às 10:40');
+  });
+});
+
+describe('rotuloDoGrupo', () => {
+  it('com e sem o nome guardado', () => {
+    expect(rotuloDoGrupo('TI FAFIN')).toBe('grupo "TI FAFIN"');
+    expect(rotuloDoGrupo(null)).toBe('grupo da equipe');
   });
 });

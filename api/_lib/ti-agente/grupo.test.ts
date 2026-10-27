@@ -70,6 +70,8 @@ describe('textos do grupo', () => {
 
   it('aviso com o primeiro nome de quem pediu; grupo precisa de WhatsApp ligado e id @g.us', () => {
     expect(montarAviso('Ana Souza', '  Reunião às 10h. ')).toBe('📢 Aviso de Ana:\nReunião às 10h.');
+    // D35: no grupo, para quem não tem WhatsApp, o nome de quem recebe.
+    expect(montarAviso('Ana Souza', 'Reunião às 10h.', 'Bruno')).toBe('📢 Aviso de Ana para Bruno:\nReunião às 10h.');
     const cfg = { whatsappAtivo: true, grupoId: GRUPO, grupoNome: 'TI', fechamento: true, resumoReuniao: true };
     expect(motivoSemGrupo(cfg)).toBeNull();
     expect(motivoSemGrupo({ ...cfg, whatsappAtivo: false })).toContain('desligado');

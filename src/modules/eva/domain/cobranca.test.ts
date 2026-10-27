@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  JANELA_COBRANCA_MS, chaveDia, destinatarios, montarCobrancaManual, montarMensagemDiaria, pendenciasDoMembro, podeCobrar, proximaJanelaDeCobranca,
-  type MembroCobranca,
+  JANELA_COBRANCA_MS, chaveDia, citadosNoGrupo, destinatarios, destinoDaCobranca, montarCobrancaManual, montarCobrancaNoGrupo, montarMensagemDiaria,
+  pendenciasDoMembro, podeCobrar, proximaJanelaDeCobranca, situacaoDoCobrar, type MembroCobranca, type MembroNoWhatsapp,
 } from './cobranca';
 import { card } from './testes/fabricas';
 
@@ -144,5 +144,49 @@ describe('cobrança sob demanda (D22, RN16)', () => {
     const doisDonos = { ...doBruno, assigned_to: ['u-ana', 'u-bruno', EU] };
     expect(destinatarios(doisDonos, 'cobrar', 'u-x', membros).map((x) => x.user_id)).toEqual(['u-ana', EU]);
     expect(destinatarios(doisDonos, 'lembrar', EU, membros).map((x) => x.user_id)).toEqual([EU]);
+  });
+});
+
+describe('cobrança no grupo da equipe (D35)', () => {
+  const doBruno = card({ codigo: 'IT-031', title: 'Firewall', assigned_to: ['u-bruno'], due_date: prazo('2026-10-10') });
+  const m = (user_id: string, extra: Partial<MembroCobranca> = {}): MembroCobranca =>
+    ({ id: `m-${user_id}`, user_id, nome: user_id, ativo: true, recebe_cobranca: true, whatsapp: '5561999990000', ...extra });
+
+  it('citados: responsáveis ativos que não recebem pelo WhatsApp (sem adesão ou sem número); no Lembrar, ninguém', () => {
+    const membros = [m('u-ana'), m('u-bruno', { recebe_cobranca: false }), m('u-carla', { recebe_cobranca: false, whatsapp: null }), m('u-davi', { recebe_cobranca: false, ativo: false })];
+    const quatro = { ...doBruno, assigned_to: ['u-ana', 'u-bruno', 'u-carla', 'u-davi'] };
+    expect(citadosNoGrupo(quatro, 'cobrar', membros).map((x) => x.user_id)).toEqual(['u-bruno', 'u-carla']);
+    expect(citadosNoGrupo(quatro, 'lembrar', membros)).toEqual([]);
+  });
+
+  it('o texto cita os nomes e não pede resposta no grupo', () => {
+    expect(montarCobrancaNoGrupo({ nomes: ['Bruno'], card: doBruno, hoje: HOJE }))
+      .toBe('⏰ Bruno, a task "Firewall" (IT-031) está atrasada há 3 dias. Consegue atualizar o status no Kanban?');
+    expect(montarCobrancaNoGrupo({ nomes: ['Bruno', 'Carla'], card: doBruno, hoje: HOJE })).toMatch(/^⏰ Bruno e Carla, .* Conseguem atualizar/);
+  });
+
+  it('para onde vai: privado, grupo ou os dois', () => {
+    expect(destinoDaCobranca(['Ana'], [], null)).toBe('Ana');
+    expect(destinoDaCobranca([], ['Bruno'], 'TI FAFIN')).toBe('o grupo "TI FAFIN", citando Bruno');
+    expect(destinoDaCobranca(['Ana'], ['Bruno', 'Carla'], null)).toBe('Ana e o grupo da equipe, citando Bruno e Carla');
+  });
+
+  it('o botão Cobrar do Início: habilita com uma nota quando vai para o grupo; sem grupo, explica o motivo', () => {
+    const membros = new Map<string, MembroNoWhatsapp>([
+      ['u-ana', { whatsapp: true, recebe: true }], ['u-bruno', { whatsapp: true, recebe: false }], [EU, { whatsapp: false, recebe: false }],
+    ]);
+    const nomes: Record<string, string> = { 'u-ana': 'Ana Souza', 'u-bruno': 'Bruno Mendes' };
+    const base = { doUsuario: false, usuarioId: EU, membros, grupo: { nome: 'TI FAFIN' }, nome: (id: string) => nomes[id] ?? '' };
+    expect(situacaoDoCobrar({ ...base, donos: ['u-ana'] })).toEqual({});
+    expect(situacaoDoCobrar({ ...base, donos: ['u-bruno'] }))
+      .toEqual({ nota: 'Bruno não recebe cobrança pelo WhatsApp: a EVA cobra no grupo "TI FAFIN", citando o nome.' });
+    expect(situacaoDoCobrar({ ...base, donos: ['u-bruno'], grupo: null }))
+      .toEqual({ motivo: 'Nenhum responsável recebe cobrança pelo WhatsApp, e não há grupo da equipe escolhido (EVA → Configurações).' });
+    // Um recebe no privado e, sem grupo, o outro fica de fora (como antes): o botão segue habilitado.
+    expect(situacaoDoCobrar({ ...base, donos: ['u-ana', 'u-bruno'], grupo: null })).toEqual({});
+    // Fora da aba Membros (ou inativo): não dá para citar.
+    expect(situacaoDoCobrar({ ...base, donos: ['u-fora'] })).toEqual({ motivo: 'Nenhum responsável tem WhatsApp com adesão à cobrança (EVA → Membros).' });
+    // Lembrar é pessoal: sem adesão, desabilitado, mesmo com grupo.
+    expect(situacaoDoCobrar({ ...base, doUsuario: true, donos: [EU] })).toEqual({ motivo: 'Você não tem WhatsApp com adesão à cobrança (EVA → Membros).' });
   });
 });

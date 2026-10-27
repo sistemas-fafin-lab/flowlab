@@ -5,10 +5,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ehDiaUtil, hojeSP, type Dia } from '../../../src/modules/eva/domain/datas.js';
 import type { CardTI } from '../../../src/modules/eva/domain/demandas.js';
 import {
-  chaveDia, destinatarios, montarCobrancaManual, montarMensagemDiaria, pendenciasDoMembro, podeCobrar, podeReceber,
-  proximaJanelaDeCobranca, totalPendencias, type MembroCobranca, type ModoCobranca,
+  chaveDia, citadosNoGrupo, destinatarios, montarCobrancaManual, montarCobrancaNoGrupo, montarMensagemDiaria, pendenciasDoMembro, podeCobrar,
+  podeReceber, proximaJanelaDeCobranca, totalPendencias, type MembroCobranca, type ModoCobranca,
 } from '../../../src/modules/eva/domain/cobranca.js';
 import { CHAVE_GESTOR } from '../../../src/modules/eva/domain/papeis.js';
+import { nomeParaCitar } from '../../../src/modules/eva/domain/pessoas.js';
+import { ehChatDeGrupo } from '../../../src/modules/eva/domain/whatsapp.js';
 import { tem, type Usuario } from './autorizacao.js';
 import { lerTudo } from './dados.js';
 
@@ -16,12 +18,30 @@ export const CAMPOS_CARD ='id, codigo, title, priority, status, kanban_status, a
 
 type Pagina<T> = PromiseLike<{ data: T[] | null; error: { message: string } | null }>;
 
-export interface ConfigCobranca { whatsapp_ativo: boolean; cobranca_ativa: boolean; dias_parado: number }
+export interface ConfigCobranca {
+  whatsapp_ativo: boolean;
+  cobranca_ativa: boolean;
+  dias_parado: number;
+  /** Grupo da equipe (…@g.us), para quem não recebe pelo WhatsApp (D35); null = nenhum escolhido. */
+  grupo_id: string | null;
+  grupo_nome: string | null;
+}
 
 export async function lerConfigCobranca(db: SupabaseClient): Promise<ConfigCobranca> {
-  const { data, error } = await db.from('ti_agente_config').select('whatsapp_ativo, cobranca_ativa, dias_parado').eq('id', true).maybeSingle();
+  const { data, error } = await db
+    .from('ti_agente_config')
+    .select('whatsapp_ativo, cobranca_ativa, dias_parado, whatsapp_grupo_id, whatsapp_grupo_nome')
+    .eq('id', true)
+    .maybeSingle();
   if (error) throw new Error(error.message);
-  return { whatsapp_ativo: data?.whatsapp_ativo === true, cobranca_ativa: data?.cobranca_ativa === true, dias_parado: data?.dias_parado ?? 5 };
+  const grupo = data?.whatsapp_grupo_id as string | null | undefined;
+  return {
+    whatsapp_ativo: data?.whatsapp_ativo === true,
+    cobranca_ativa: data?.cobranca_ativa === true,
+    dias_parado: data?.dias_parado ?? 5,
+    grupo_id: ehChatDeGrupo(grupo) ? grupo : null,
+    grupo_nome: (data?.whatsapp_grupo_nome as string | null | undefined) ?? null,
+  };
 }
 
 /** Membros da EVA com o nome do perfil; quem foi desativado no FlowLab sai. */
@@ -129,17 +149,24 @@ export async function gerarCobrancasDoDia(
 // ── Cobrar / Lembrar (D22, RN16) ─────────────────────────────────────────────
 
 export type ResultadoCobrar =
-  /** `agendadaPara`: fora do horário de cobrança, o instante (ISO) em que ela sai; null = sai já. */
-  | { ok: true; modo: ModoCobranca; destinatarios: string[]; agendadaPara: string | null }
+  /**
+   * `destinatarios`: quem recebe no privado. `citadosNoGrupo`: como os demais foram citados no
+   * grupo (D35). `agendadaPara`: fora do horário de cobrança, o instante (ISO) em que sai; null = já.
+   */
+  | { ok: true; modo: ModoCobranca; destinatarios: string[]; citadosNoGrupo: string[]; grupoNome: string | null; agendadaPara: string | null }
   | { ok: false; status: 403 | 404 | 409 | 422; erro: string };
 
+/** A parte da cobrança que vai para o grupo da equipe (D35). */
+export interface CobrancaNoGrupo { id: string; nome: string | null; membros: MembroCobranca[]; citados: string[] }
+
 export type ChecagemCobranca =
-  | { ok: true; card: CardTI; modo: ModoCobranca; alvos: MembroCobranca[] }
+  | { ok: true; card: CardTI; modo: ModoCobranca; alvos: MembroCobranca[]; grupo: CobrancaNoGrupo | null }
   | { ok: false; status: 403 | 404 | 409 | 422; erro: string };
 
 /**
  * Tudo o que o Cobrar confere, sem gravar: permissão, WhatsApp ligado, card atrasado, janela de
- * 4 h e quem recebe. Os comandos pelo WhatsApp (D29) usam para mostrar o que vai sair antes do SIM.
+ * 4 h e quem recebe, no privado ou citado no grupo (D35). Os comandos pelo WhatsApp (D29) usam
+ * para mostrar o que vai sair antes do SIM.
  */
 export async function checarCobranca(
   db: SupabaseClient,
@@ -177,35 +204,42 @@ export async function checarCobranca(
   });
   if ('motivo' in r) return { ok: false, status: r.status, erro: r.motivo };
 
-  const alvos = destinatarios(c, r.modo, usuario.userId, membros ?? (await lerMembrosCobranca(db)));
-  if (alvos.length === 0) {
+  const equipe = membros ?? (await lerMembrosCobranca(db));
+  const alvos = destinatarios(c, r.modo, usuario.userId, equipe);
+  const citaveis = citadosNoGrupo(c, r.modo, equipe);
+  const grupo: CobrancaNoGrupo | null = cfg.grupo_id && citaveis.length
+    ? { id: cfg.grupo_id, nome: cfg.grupo_nome, membros: citaveis, citados: citaveis.map((m) => nomeParaCitar(m.nome, equipe.map((x) => x.nome))) }
+    : null;
+  if (alvos.length === 0 && !grupo) {
     return {
       ok: false,
       status: 422,
-      erro: r.modo === 'lembrar'
-        ? 'Você não tem WhatsApp cadastrado com adesão à cobrança (EVA → Membros).'
-        : 'Nenhum responsável do card tem WhatsApp cadastrado com adesão à cobrança (EVA → Membros).',
+      erro: r.modo === 'lembrar' ? 'Você não tem WhatsApp cadastrado com adesão à cobrança (EVA → Membros).'
+        : citaveis.length ? 'Nenhum responsável do card recebe cobrança pelo WhatsApp, e não há grupo da equipe escolhido para cobrar por lá (EVA → Configurações).'
+          : 'Nenhum responsável do card tem WhatsApp cadastrado com adesão à cobrança (EVA → Membros).',
     };
   }
-  return { ok: true, card: c, modo: r.modo, alvos };
+  return { ok: true, card: c, modo: r.modo, alvos, grupo };
 }
 
 export async function cobrarCard(db: SupabaseClient, usuario: Usuario, cardId: string, agora = new Date()): Promise<ResultadoCobrar> {
   const ch = await checarCobranca(db, usuario, cardId, agora);
   if ('erro' in ch) return ch;
-  const { card: c, modo, alvos } = ch;
+  const { card: c, modo, alvos, grupo } = ch;
   const hoje = hojeSP(agora);
   // Fora do horário de cobrança (dia útil, 7h às 20h), a cobrança fica agendada para a próxima janela.
   const janela = proximaJanelaDeCobranca(agora.getTime());
   const agendadaPara = janela === null ? null : new Date(janela).toISOString();
-  const { error: eIns } = await db.from('ti_agente_mensagens').insert(
-    alvos.map((m) => ({
-      membro_id: m.id, direcao: 'saida', tipo: 'cobranca_manual', status: 'pendente', card_ids: [c.id], enviada_por: usuario.userId,
-      texto: montarCobrancaManual({ nome: m.nome, card: c, hoje, modo }), proxima_tentativa_em: agendadaPara,
-    })),
-  );
+  const base = { direcao: 'saida', tipo: 'cobranca_manual', status: 'pendente', card_ids: [c.id], enviada_por: usuario.userId, proxima_tentativa_em: agendadaPara };
+  // No grupo, uma mensagem só, sem membro: o tipo é o mesmo, então a janela de 4 h vale para ela também.
+  const { error: eIns } = await db.from('ti_agente_mensagens').insert([
+    ...alvos.map((m) => ({ ...base, membro_id: m.id, chat_id_destino: null, texto: montarCobrancaManual({ nome: m.nome, card: c, hoje, modo }) })),
+    ...(grupo ? [{ ...base, membro_id: null, chat_id_destino: grupo.id, texto: montarCobrancaNoGrupo({ nomes: grupo.citados, card: c, hoje }) }] : []),
+  ]);
   if (eIns) throw new Error(eIns.message);
-  return { ok: true, modo, destinatarios: alvos.map((m) => m.nome), agendadaPara };
+  return {
+    ok: true, modo, destinatarios: alvos.map((m) => m.nome), citadosNoGrupo: grupo?.citados ?? [], grupoNome: grupo?.nome ?? null, agendadaPara,
+  };
 }
 
 // ── Enviar teste (RF19) ──────────────────────────────────────────────────────

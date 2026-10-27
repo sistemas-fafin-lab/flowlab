@@ -32,6 +32,23 @@ export function primeiroNome(nome: string): string {
   return nome.trim().split(/\s+/)[0] ?? '';
 }
 
+/** "Ana", "Ana e Bruno", "Ana, Bruno e Carla". */
+export function juntarNomes(nomes: string[]): string {
+  return nomes.length <= 1 ? nomes.join('') : `${nomes.slice(0, -1).join(', ')} e ${nomes[nomes.length - 1]}`;
+}
+
+/**
+ * Como citar alguém no grupo da equipe (D35): o primeiro nome, ou o nome inteiro quando outra
+ * pessoa da equipe tem o mesmo primeiro nome (no grupo, "Gabriel" sozinho seria ambíguo).
+ */
+export function nomeParaCitar(nome: string, equipe: string[]): string {
+  const primeiro = primeiroNome(nome);
+  const chave = normalizarNome(primeiro);
+  const xaras = new Set(equipe.filter((n) => normalizarNome(primeiroNome(n)) === chave).map(normalizarNome));
+  xaras.add(normalizarNome(nome));
+  return xaras.size > 1 || !primeiro ? nome.trim().replace(/\s+/g, ' ') : primeiro;
+}
+
 /** "@Gabriel  Carneiro" → "gabriel carneiro" (sem @, sem acento, minúsculas, espaços simples). */
 export function normalizarNome(nome: string): string {
   return nome
