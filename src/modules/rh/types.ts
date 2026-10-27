@@ -42,6 +42,32 @@ export interface Departamento {
   aprovadorScId: string | null;
   /** Colaboradores responsáveis pelo departamento (independe de onde estão). */
   responsavelIds: string[];
+  /** Responsáveis marcados "autoriza pagamentos" (apto ou não: ver SituacaoGestor). */
+  autorizaPagamentosIds: string[];
+}
+
+/**
+ * Situação de um responsável para autorizar pagamentos (departamentos_painel_pagamentos):
+ * só o 'apto' e marcado conta como gestor que autoriza.
+ */
+export type SituacaoGestor = 'apto' | 'desligado' | 'sem_login' | 'usuario_inativo' | 'sem_permissao';
+
+/** Pedidos de pagamento de um departamento esperando a autorização de alguém. */
+export interface PendenciaAutorizacao {
+  departamentoId: string;
+  /** user_profiles.id do autorizador. */
+  autorizadorId: string;
+  autorizador: string;
+  quantidade: number;
+  valor: number;
+}
+
+export interface PainelPagamentos {
+  /** Chave `departamentoId:colaboradorId` (chaveGestor). */
+  situacoes: Record<string, SituacaoGestor>;
+  /** user_profiles.id de cada responsável, pela mesma chave (para transferir pedidos). */
+  usuarios: Record<string, string | null>;
+  pendentes: PendenciaAutorizacao[];
 }
 
 // ─── Holerites (issue 05) ──────────────────────────────────────────────────────

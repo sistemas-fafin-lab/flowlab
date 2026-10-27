@@ -1,9 +1,18 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Building2, Check, Loader2, Power, UserMinus } from 'lucide-react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AlertTriangle, ArrowRightLeft, Building2, Check, Loader2, Power, UserMinus } from 'lucide-react';
 import DetailModal from '../../../components/DetailModal';
 import Select, { type SelectOption } from '../../../components/Select';
-import { bloqueioDesativarDepartamento, porNome, validarNomeDepartamento } from '../utils/departamentos';
-import type { Colaborador, Departamento } from '../types';
+import Switch from '../../../components/Switch';
+import { formatCurrency } from '../../../utils/paymentUtils';
+import {
+  autorizadoresAptos,
+  bloqueioDesativarDepartamento,
+  chaveGestor,
+  porNome,
+  ROTULO_SITUACAO_GESTOR,
+  validarNomeDepartamento,
+} from '../utils/departamentos';
+import type { Colaborador, Departamento, PainelPagamentos } from '../types';
 
 interface DepartamentoDetalheModalProps {
   departamento: Departamento;
@@ -15,6 +24,10 @@ interface DepartamentoDetalheModalProps {
   definirAprovador: (id: string, colaboradorId: string | null) => Promise<string | null>;
   adicionarResponsavel: (id: string, colaboradorId: string) => Promise<string | null>;
   removerResponsavel: (id: string, colaboradorId: string) => Promise<string | null>;
+  /** Situação dos gestores e pedidos esperando autorização; null sem o painel. */
+  painel: PainelPagamentos | null;
+  definirAutorizaPagamentos: (id: string, colaboradorId: string, autoriza: boolean) => Promise<string | null>;
+  transferirAutorizacoes: (id: string, deUserId: string, paraUserId: string) => Promise<string | null>;
   definirDepartamento: (colaboradorId: string, departamentoId: string | null) => Promise<string | null>;
 }
 
@@ -46,11 +59,19 @@ const DepartamentoDetalheModal: React.FC<DepartamentoDetalheModalProps> = ({
   definirAprovador,
   adicionarResponsavel,
   removerResponsavel,
+  painel,
+  definirAutorizaPagamentos,
+  transferirAutorizacoes,
   definirDepartamento,
 }) => {
   const [nome, setNome] = useState(departamento.nome);
   const [ocupado, setOcupado] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  // O erro fica no topo do modal: rola até ele, senão some quem mexeu lá embaixo (gestores, membros).
+  const erroRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (erro) erroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [erro]);
 
   useEffect(() => {
     setNome(departamento.nome);
@@ -111,13 +132,23 @@ const DepartamentoDetalheModal: React.FC<DepartamentoDetalheModalProps> = ({
     }),
   ];
   const opcoesResponsavel = ativos.filter((c) => !departamento.responsavelIds.includes(c.id)).map(opcaoColaborador);
+
+  // Gestores que de fato autorizam pagamentos (marcados e aptos) e os pedidos esperando alguém.
+  const aptos = painel ? autorizadoresAptos(departamento, painel.situacoes) : [];
+  const pendentes = (painel?.pendentes ?? []).filter((p) => p.departamentoId === departamento.id);
+  const nomeDoColaborador = new Map(colaboradores.map((c) => [c.id, c.nome]));
+  const opcoesTransferir = (autorizadorId: string): SelectOption[] =>
+    aptos
+      .map((id) => ({ id, userId: painel?.usuarios[chaveGestor(departamento.id, id)] ?? null }))
+      .filter((g): g is { id: string; userId: string } => !!g.userId && g.userId !== autorizadorId)
+      .map((g) => ({ value: g.userId, label: nomeDoColaborador.get(g.id) ?? 'Gestor' }));
   const opcoesMembro = ativos.filter((c) => c.departamentoId !== departamento.id).map(opcaoColaborador);
 
   return (
     <DetailModal title={departamento.nome} icon={<Building2 className="w-5 h-5 text-white" />} onClose={onClose}>
       <div className="space-y-6">
         {erro && (
-          <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">
+          <p ref={erroRef} role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">
             {erro}
           </p>
         )}
@@ -176,41 +207,100 @@ const DepartamentoDetalheModal: React.FC<DepartamentoDetalheModalProps> = ({
         </section>
 
         <section>
-          <h3 className={tituloClassName}>Responsáveis</h3>
+          <h3 className={tituloClassName}>Gestores</h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Respondem pelo departamento, estando nele ou não. Com "Visualizar Holerites da Equipe", veem os holerites de quem está nele.
+            Respondem pelo departamento, estando nele ou não. Com "Visualizar Holerites da Equipe", veem os holerites de
+            quem está nele. Com "Autoriza pagamentos" (e "Ser Autorizador de Pagamentos" no cargo), autorizam os pedidos
+            de pagamento de quem está nele.
           </p>
+          {painel && departamento.ativo && aptos.length === 0 && (
+            <p className="mb-2 flex items-start gap-2 text-xs text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl px-3 py-2">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              Nenhum gestor autoriza pagamentos: quem está neste departamento não consegue pedir pagamento.
+            </p>
+          )}
           <ul className="divide-y divide-gray-100 dark:divide-gray-700 mb-2">
-            {responsaveis.length === 0 && <li className="py-2 text-sm text-gray-400 dark:text-gray-500">Nenhum responsável.</li>}
-            {responsaveis.map((c) => (
-              <li key={c.id} className="py-2 flex items-center justify-between gap-3 text-sm">
-                <span className="text-gray-700 dark:text-gray-200">
-                  {c.nome}
-                  <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">{c.departamentoNome ?? 'Sem departamento'}</span>
-                </span>
-                <button
-                  type="button"
-                  onClick={() => executar(() => removerResponsavel(departamento.id, c.id))}
-                  disabled={ocupado}
-                  className={botaoLinkClassName}
-                >
-                  <UserMinus className="w-3.5 h-3.5" />
-                  Remover
-                </button>
-              </li>
-            ))}
+            {responsaveis.length === 0 && <li className="py-2 text-sm text-gray-400 dark:text-gray-500">Nenhum gestor.</li>}
+            {responsaveis.map((c) => {
+              const marcado = departamento.autorizaPagamentosIds.includes(c.id);
+              const situacao = painel?.situacoes[chaveGestor(departamento.id, c.id)];
+              return (
+                <li key={c.id} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
+                  <div className="min-w-0">
+                    <span className="text-gray-700 dark:text-gray-200">{c.nome}</span>
+                    <span className="ml-2 text-xs text-gray-400 dark:text-gray-500">{c.departamentoNome ?? 'Sem departamento'}</span>
+                    {marcado && situacao && situacao !== 'apto' && (
+                      <p className="text-xs text-amber-700 dark:text-amber-400">Marcado, mas não autoriza: {ROTULO_SITUACAO_GESTOR[situacao]}</p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <label className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                      <Switch
+                        checked={marcado}
+                        onChange={(autoriza) => executar(() => definirAutorizaPagamentos(departamento.id, c.id, autoriza))}
+                        disabled={ocupado}
+                        size="sm"
+                      />
+                      Autoriza pagamentos
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => executar(() => removerResponsavel(departamento.id, c.id))}
+                      disabled={ocupado}
+                      className={botaoLinkClassName}
+                    >
+                      <UserMinus className="w-3.5 h-3.5" />
+                      Remover
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
           <Select
             value={NENHUM}
             onChange={(valor) => valor && executar(() => adicionarResponsavel(departamento.id, valor))}
             options={opcoesResponsavel}
-            placeholder="Adicionar responsável..."
+            placeholder="Adicionar gestor..."
             controlClass={inputClassName}
-            ariaLabel="Adicionar responsável"
+            ariaLabel="Adicionar gestor"
             searchable
             disabled={ocupado}
           />
         </section>
+
+        {pendentes.length > 0 && (
+          <section>
+            <h3 className={tituloClassName}>Pedidos esperando autorização</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              Um gestor com pedidos esperando por ele não sai nem deixa de autorizar: transfira os pedidos para outro
+              gestor do departamento. Quem recebe é avisado por e-mail.
+            </p>
+            <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+              {pendentes.map((p) => {
+                const opcoes = opcoesTransferir(p.autorizadorId);
+                return (
+                  <li key={p.autorizadorId} className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-sm">
+                    <span className="text-gray-700 dark:text-gray-200">
+                      <ArrowRightLeft className="inline w-3.5 h-3.5 mr-1.5 text-gray-400" />
+                      {p.autorizador} · {p.quantidade} {p.quantidade === 1 ? 'pedido' : 'pedidos'} · {formatCurrency(p.valor)}
+                    </span>
+                    <Select
+                      value={NENHUM}
+                      onChange={(para) => para && executar(() => transferirAutorizacoes(departamento.id, p.autorizadorId, para))}
+                      options={opcoes}
+                      placeholder={opcoes.length > 0 ? 'Transferir para...' : 'Nenhum outro gestor apto'}
+                      controlClass={inputClassName}
+                      wrapperClass="sm:w-64"
+                      ariaLabel={`Transferir os pedidos de ${p.autorizador}`}
+                      disabled={ocupado || opcoes.length === 0}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        )}
 
         <section>
           <h3 className={tituloClassName}>Membros ({membros.length})</h3>

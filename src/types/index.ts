@@ -409,13 +409,6 @@ export interface PaymentRequestFormValues {
   attachments?: File[];
 }
 
-/** Uma opção de "Autorizado por": pessoa ativa cujo cargo tem canAuthorizePayments. */
-export interface PaymentAuthorizer {
-  id: string;
-  name: string;
-  department: string | null;
-}
-
 export interface PaymentDateValidation {
   valid: boolean;
   date?: Date;
