@@ -130,6 +130,86 @@ describe('titulo-atualizar-numero-nota', () => {
     expect(rpc).not.toHaveBeenCalled();
   });
 
+  describe('NF anterior cancelada', () => {
+    it('repassa a flag, o motivo e a data do cancelamento à RPC', async () => {
+      const rpc = prepararRpc('atualizado');
+
+      const r = await chamar({
+        idNota: 'nota-1',
+        numeroNota: '7500',
+        nfAnteriorCancelada: true,
+        motivoCancelamento: ' Convênio trocado ',
+        dataCancelamento: '2026-10-20',
+      });
+
+      expect(rpc).toHaveBeenCalledWith('fat_atualizar_numero_nota', {
+        p_id_nota: 'nota-1',
+        p_numero_nota: '7500',
+        p_somente_se_vazio: false,
+        p_nf_anterior_cancelada: true,
+        p_motivo_cancelamento: 'Convênio trocado',
+        p_data_cancelamento: '2026-10-20',
+      });
+      expect(r.status).toBe(200);
+      expect(r.corpo).toEqual({ success: true, resultado: 'atualizado' });
+    });
+
+    it('recusa da RPC (ex.: motivo vazio) volta como 400 com a mensagem do banco', async () => {
+      prepararRpc(null, 'Informe o motivo do cancelamento da NF anterior.');
+
+      const r = await chamar({ idNota: 'nota-1', numeroNota: '7500', nfAnteriorCancelada: true });
+
+      expect(r.status).toBe(400);
+      expect(r.corpo).toEqual({
+        success: false,
+        error: 'Informe o motivo do cancelamento da NF anterior.',
+      });
+    });
+
+    it('recusa data do cancelamento fora de AAAA-MM-DD com mensagem legível', async () => {
+      const rpc = prepararRpc('atualizado');
+
+      const r = await chamar({
+        idNota: 'nota-1',
+        numeroNota: '7500',
+        nfAnteriorCancelada: true,
+        motivoCancelamento: 'Convênio trocado',
+        dataCancelamento: '20/10/2026',
+      });
+
+      expect(r.status).toBe(400);
+      expect(r.corpo).toEqual({ success: false, error: 'Data do cancelamento inválida.' });
+      expect(rpc).not.toHaveBeenCalled();
+    });
+
+    it('recusa nfAnteriorCancelada que não seja booleano', async () => {
+      const rpc = prepararRpc('atualizado');
+
+      const r = await chamar({ idNota: 'nota-1', numeroNota: '7500', nfAnteriorCancelada: 'sim' });
+
+      expect(r.status).toBe(400);
+      expect(rpc).not.toHaveBeenCalled();
+    });
+
+    it('sem permissão, recusa sem registrar nada', async () => {
+      const rpc = prepararRpc('atualizado');
+      autorizarFaturamentoMock.mockResolvedValue({
+        status: 403,
+        payload: { success: false, error: 'Sem permissão para gerenciar contas a receber.' },
+      });
+
+      const r = await chamar({
+        idNota: 'nota-1',
+        numeroNota: '7500',
+        nfAnteriorCancelada: true,
+        motivoCancelamento: 'Convênio trocado',
+      });
+
+      expect(r.status).toBe(403);
+      expect(rpc).not.toHaveBeenCalled();
+    });
+  });
+
   it('sem permissão, devolve a falha da autorização sem chamar a RPC', async () => {
     const rpc = prepararRpc('atualizado');
     autorizarFaturamentoMock.mockResolvedValue({

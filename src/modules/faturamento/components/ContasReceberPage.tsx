@@ -551,7 +551,8 @@ const ContasReceberPage: React.FC = () => {
       <EditarTituloModal
         titulo={tituloEditar}
         onFechar={() => fecharLancamento(() => setTituloEditar(null))}
-        onSalvar={async (idNota, numeroNota) => anotarSalvo(await atualizarNumeroNota(idNota, numeroNota))}
+        onSalvar={async (idNota, numeroNota, cancelamento) =>
+          anotarSalvo(await atualizarNumeroNota(idNota, numeroNota, cancelamento))}
         buscarLancamentos={buscarLancamentos}
         buscarGuias={buscarGuias}
         onCorrigirLancamento={async (payload) => anotarSalvo(await corrigirLancamento(payload))}

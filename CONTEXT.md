@@ -18,6 +18,10 @@ _Avoid_: equipe, time, setor (o setor é o Faturamento inteiro)
 O ato da coordenação de congelar a Pontuação do setor de um mês; depois dele os números não mudam mais, a não ser que o mês seja reaberto.
 _Avoid_: fechamento do lote (é outra coisa: o lote fechado no apLIS)
 
+**NF cancelada**:
+A NF emitida para um título e depois cancelada no portal da prefeitura, fora do apLIS, com motivo e data. Fica no histórico do título (`fat_nfs_canceladas`), e o título segue valendo com a NF que a substituiu.
+_Avoid_: título cancelado (é o título com status `cancelada`, que deixa de ser cobrado), nota cancelada
+
 ### Atendimento
 
 **Gerador de Orçamento**:

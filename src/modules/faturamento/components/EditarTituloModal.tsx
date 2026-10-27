@@ -1,12 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { AlertTriangle, Loader2, Pencil, Trash2, X } from 'lucide-react';
+import DatePicker from '../../../components/DatePicker';
 import type {
+  CancelamentoNfAnterior,
   CorrecaoLancamentoPayload,
   LancamentosTitulo,
   TituloGuia,
   TituloReceber,
 } from '../types';
-import { formatCurrency, formatData } from '../utils/formato';
+import { formatCurrency, formatData, hojeIso } from '../utils/formato';
 import CorrecaoLancamentoForm from './CorrecaoLancamentoForm';
 
 // Modal de edição do título. Começou (issue 33) só com o número da nota; agora
@@ -14,11 +16,24 @@ import CorrecaoLancamentoForm from './CorrecaoLancamentoForm';
 // (.scratch/titulos-edicao-lancamentos). O valor total do título continua fora:
 // é o snapshot dos lotes do apLIS, nunca digitado. `titulo` presente é o que
 // abre o modal; `null` fecha, sem estado próprio de "aberto".
+//
+// Trocar um número já preenchido pede uma escolha: "NF anterior cancelada"
+// (motivo obrigatório; a NF anterior entra no histórico de NFs canceladas) ou
+// "Correção de digitação" (só troca). O primeiro preenchimento não pergunta
+// nada (.scratch/faturamento-nf-cancelada).
+
+type TipoTroca = 'cancelada' | 'digitacao';
+
+const CAMPO = 'mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 
 interface Props {
   titulo: TituloReceber | null;
   onFechar: () => void;
-  onSalvar: (idNota: string, numeroNota: string) => Promise<string | null>;
+  onSalvar: (
+    idNota: string,
+    numeroNota: string,
+    cancelamento?: CancelamentoNfAnterior,
+  ) => Promise<string | null>;
   buscarLancamentos: (notaId: string) => Promise<LancamentosTitulo>;
   buscarGuias: (loteId: string) => Promise<TituloGuia[]>;
   onCorrigirLancamento: (payload: CorrecaoLancamentoPayload) => Promise<string | null>;
@@ -44,6 +59,18 @@ const EditarTituloModal: React.FC<Props> = ({
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [numeroSalvo, setNumeroSalvo] = useState(false);
+  // Número gravado no título agora. O `titulo` recebido não é atualizado depois
+  // de salvar, e a escolha da troca compara com o que está no banco.
+  const [numeroAtual, setNumeroAtual] = useState('');
+  const [tipoTroca, setTipoTroca] = useState<TipoTroca | null>(null);
+  const [motivoCancelamento, setMotivoCancelamento] = useState('');
+  const [dataCancelamento, setDataCancelamento] = useState(hojeIso());
+
+  const limparTroca = () => {
+    setTipoTroca(null);
+    setMotivoCancelamento('');
+    setDataCancelamento(hojeIso());
+  };
 
   const [lancamentos, setLancamentos] = useState<LancamentosTitulo | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -82,6 +109,8 @@ const EditarTituloModal: React.FC<Props> = ({
   // fechar e reabrir sobre outro título sem desmontar o componente.
   useEffect(() => {
     setNumeroNota(titulo?.numeroNota ?? '');
+    setNumeroAtual(titulo?.numeroNota?.trim() ?? '');
+    limparTroca();
     setErro(null);
     setNumeroSalvo(false);
     setLancamentos(null);
@@ -112,6 +141,11 @@ const EditarTituloModal: React.FC<Props> = ({
     onFechar();
   };
 
+  // Trocar = o título já tinha número e o digitado é outro. Título cancelado
+  // nunca chega a gravar (a RPC recusa), então não pergunta nada.
+  const estaTrocando = (valor: string) =>
+    titulo?.status !== 'cancelada' && numeroAtual !== '' && valor !== '' && valor !== numeroAtual;
+
   const submeterNumero = async (evento: React.FormEvent) => {
     evento.preventDefault();
     if (!titulo) return;
@@ -120,14 +154,37 @@ const EditarTituloModal: React.FC<Props> = ({
       setErro('Informe o número da nota.');
       return;
     }
+    const trocando = estaTrocando(valor);
+    if (trocando && tipoTroca === null) {
+      setErro('Diga se a NF anterior foi cancelada ou se é correção de digitação.');
+      return;
+    }
+    const cancelada = trocando && tipoTroca === 'cancelada';
+    if (cancelada && !motivoCancelamento.trim()) {
+      setErro('Informe o motivo do cancelamento da NF anterior.');
+      return;
+    }
+    if (cancelada && !dataCancelamento) {
+      setErro('Informe a data do cancelamento.');
+      return;
+    }
     setErro(null);
     setNumeroSalvo(false);
     setSalvando(true);
-    const erroRetornado = await onSalvar(titulo.id, valor);
+    const erroRetornado = await onSalvar(
+      titulo.id,
+      valor,
+      cancelada ? { motivo: motivoCancelamento.trim(), dataCancelamento } : undefined,
+    );
     setSalvando(false);
     // Não fecha: o operador pode seguir corrigindo os lançamentos abaixo.
-    if (erroRetornado) setErro(erroRetornado);
-    else setNumeroSalvo(true);
+    if (erroRetornado) {
+      setErro(erroRetornado);
+      return;
+    }
+    setNumeroSalvo(true);
+    setNumeroAtual(valor);
+    limparTroca();
   };
 
   const salvarCorrecao = async (payload: CorrecaoLancamentoPayload): Promise<string | null> => {
@@ -171,6 +228,7 @@ const EditarTituloModal: React.FC<Props> = ({
   if (!titulo) return null;
 
   const cancelado = titulo.status === 'cancelada';
+  const trocandoNumero = estaTrocando(numeroNota.trim());
   const ocupado = editando !== null || excluindo !== null;
   const baixas = lancamentos?.baixas ?? [];
   const glosasSemBaixa = lancamentos?.glosasSemBaixa ?? [];
@@ -248,6 +306,55 @@ const EditarTituloModal: React.FC<Props> = ({
                 </button>
               </div>
             </label>
+            {trocandoNumero && (
+              <fieldset className="p-3 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-50/60 dark:bg-amber-900/10 space-y-3">
+                <legend className="px-1 text-xs font-medium text-amber-800 dark:text-amber-300">
+                  O título tinha a NF {numeroAtual}. O que aconteceu com ela?
+                </legend>
+                <div className="flex flex-wrap gap-4 text-sm text-gray-700 dark:text-gray-200">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="tipo-troca"
+                      checked={tipoTroca === 'cancelada'}
+                      onChange={() => setTipoTroca('cancelada')}
+                    />
+                    NF anterior cancelada
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="tipo-troca"
+                      checked={tipoTroca === 'digitacao'}
+                      onChange={() => setTipoTroca('digitacao')}
+                    />
+                    Correção de digitação
+                  </label>
+                </div>
+                {tipoTroca === 'cancelada' && (
+                  <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
+                    <label className="text-xs text-gray-500 dark:text-gray-400">
+                      Motivo do cancelamento *
+                      <textarea
+                        value={motivoCancelamento}
+                        onChange={(e) => setMotivoCancelamento(e.target.value)}
+                        rows={2}
+                        placeholder="Ex.: convênio trocado, valor bruto errado"
+                        className={CAMPO}
+                      />
+                    </label>
+                    <label className="text-xs text-gray-500 dark:text-gray-400">
+                      Data do cancelamento *
+                      <DatePicker
+                        value={dataCancelamento}
+                        onChange={setDataCancelamento}
+                        controlClass={CAMPO}
+                      />
+                    </label>
+                  </div>
+                )}
+              </fieldset>
+            )}
             {numeroSalvo && (
               <p className="text-xs text-emerald-600 dark:text-emerald-400">Número da nota salvo.</p>
             )}

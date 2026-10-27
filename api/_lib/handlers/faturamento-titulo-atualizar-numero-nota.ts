@@ -23,6 +23,17 @@
  *   somenteSeVazio boolean opcional (default false) — só grava se o título
  *               ainda não tem número; usado pelo "Atualizar do apLIS" para não
  *               sobrescrever um número digitado entre a prévia e a confirmação
+ *   nfAnteriorCancelada boolean opcional — a troca registra a NF anterior no
+ *               histórico de NFs canceladas (.scratch/faturamento-nf-cancelada);
+ *               sem ele, a troca é correção de digitação e nada é registrado
+ *   motivoCancelamento string  com nfAnteriorCancelada — obrigatório; a RPC
+ *               recusa vazio
+ *   dataCancelamento   string  com nfAnteriorCancelada — YYYY-MM-DD; vazio
+ *               vira a data de hoje na RPC
+ *
+ * Os campos do cancelamento só vão à RPC quando a flag está ligada: a chamada
+ * de sempre (edição comum e "Atualizar do apLIS") segue com os mesmos três
+ * parâmetros.
  *
  * Resposta 200: `{ success: true, resultado: 'atualizado' | 'ja-preenchido' }`.
  * "ja-preenchido" só ocorre com somenteSeVazio e não é falha: nada foi gravado
@@ -39,6 +50,9 @@ interface CorpoAtualizarNumeroNota {
   idNota?: unknown;
   numeroNota?: unknown;
   somenteSeVazio?: unknown;
+  nfAnteriorCancelada?: unknown;
+  motivoCancelamento?: unknown;
+  dataCancelamento?: unknown;
 }
 
 type ResultadoAtualizarNumeroNota = 'atualizado' | 'ja-preenchido';
@@ -75,12 +89,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       return;
     }
     const somenteSeVazio = corpo.somenteSeVazio === true;
+    if (corpo.nfAnteriorCancelada !== undefined && typeof corpo.nfAnteriorCancelada !== 'boolean') {
+      res.status(400).json({ success: false, error: 'nfAnteriorCancelada deve ser booleano.' });
+      return;
+    }
 
-    const { data, error } = await getSupabaseUserClient(token as string).rpc('fat_atualizar_numero_nota', {
+    const parametros: Record<string, unknown> = {
       p_id_nota: idNota,
       p_numero_nota: numeroNota,
       p_somente_se_vazio: somenteSeVazio,
-    });
+    };
+    if (corpo.nfAnteriorCancelada === true) {
+      const dataCancelamento = texto(corpo.dataCancelamento);
+      // Validada aqui: um texto que não é data voltaria da RPC como erro de
+      // tipo do Postgres, em inglês.
+      if (dataCancelamento && !/^\d{4}-\d{2}-\d{2}$/.test(dataCancelamento)) {
+        res.status(400).json({ success: false, error: 'Data do cancelamento inválida.' });
+        return;
+      }
+      parametros.p_nf_anterior_cancelada = true;
+      parametros.p_motivo_cancelamento = texto(corpo.motivoCancelamento);
+      parametros.p_data_cancelamento = dataCancelamento;
+    }
+
+    const { data, error } = await getSupabaseUserClient(token as string).rpc('fat_atualizar_numero_nota', parametros);
 
     if (error) {
       // A RPC recusa título cancelado, valor vazio e permissão insuficiente com

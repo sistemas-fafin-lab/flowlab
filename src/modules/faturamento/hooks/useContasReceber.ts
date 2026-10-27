@@ -6,6 +6,7 @@ import { GLOSAS_ZERADAS, somarGlosasDoTitulo } from '../../../../api/_lib/fatura
 import type {
   AlteracaoLancamento,
   BaixaInput,
+  CancelamentoNfAnterior,
   CorrecaoLancamentoPayload,
   GlosaAplisTitulo,
   GlosaLancada,
@@ -294,8 +295,13 @@ interface UseContasReceberResult {
   }) => Promise<string | null>;
   registrarBaixa: (dados: BaixaInput) => Promise<string | null>;
   cancelarTitulo: (notaId: string) => Promise<string | null>;
-  /** Issue 33: preenche/corrige o número da nota de um título já existente. */
-  atualizarNumeroNota: (notaId: string, numeroNota: string) => Promise<string | null>;
+  /** Issue 33: preenche/corrige o número da nota de um título já existente.
+   *  Com `cancelamento`, a NF anterior entra no histórico de NFs canceladas. */
+  atualizarNumeroNota: (
+    notaId: string,
+    numeroNota: string,
+    cancelamento?: CancelamentoNfAnterior,
+  ) => Promise<string | null>;
   /** Issue 46: remove o vínculo de um lote a um título já existente, com motivo
    *  obrigatório. Bloqueado pela RPC se o título já tem baixa registrada, está
    *  cancelado, ou o lote é o único do título. */
@@ -792,13 +798,23 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const atualizarNumeroNota = useCallback(async (
     notaId: string,
     numeroNota: string,
+    cancelamento?: CancelamentoNfAnterior,
   ): Promise<string | null> => {
     setError(null);
+    const body = {
+      idNota: notaId,
+      numeroNota,
+      ...(cancelamento && {
+        nfAnteriorCancelada: true,
+        motivoCancelamento: cancelamento.motivo,
+        dataCancelamento: cancelamento.dataCancelamento,
+      }),
+    };
     try {
       await chamarApi(
         '/api/faturamento/titulo-atualizar-numero-nota',
         'Não foi possível atualizar o número da nota.',
-        { method: 'POST', body: { idNota: notaId, numeroNota } },
+        { method: 'POST', body },
       );
       await refetch();
       return null;

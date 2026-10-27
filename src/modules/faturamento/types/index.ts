@@ -1286,6 +1286,15 @@ export interface LancamentosTitulo {
   glosasSemBaixa: GlosaLancada[];
 }
 
+/** Troca do número da nota com a NF anterior cancelada no portal da prefeitura
+ *  (.scratch/faturamento-nf-cancelada). Ausente = correção de digitação ou
+ *  primeiro preenchimento: nada entra no histórico de NFs canceladas. */
+export interface CancelamentoNfAnterior {
+  motivo: string;
+  /** YYYY-MM-DD. */
+  dataCancelamento: string;
+}
+
 /** Corpo de `fat_corrigir_lancamento`. `recebimentoId` null = grupo das glosas
  *  sem baixa do título (aí `baixa` nunca vem). */
 export interface CorrecaoLancamentoPayload {
