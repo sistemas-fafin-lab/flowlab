@@ -80,10 +80,26 @@ export interface FatoGuiasSemLote {
   convenios: ConvenioSemLote[];
 }
 
+/** Convênio com recebimento no mês: requisições pagas e quantas foram glosadas. */
+export interface ConvenioRecebido {
+  idFontePagadora: number;
+  nome: string;
+  /** Requisições com pagamento registrado no mês; 0 deixa o convênio fora da conta. */
+  recebidas: number;
+  /** Requisições com baixa no mês glosadas, pela definição de Glosas e Recursos. */
+  glosadas: number;
+}
+
+/** Convênios com recebimento registrado no apLIS no mês M. */
+export interface FatoZeroGlosa {
+  convenios: ConvenioRecebido[];
+}
+
 /** Fatos do mês, já lidos e achatados. Fato ausente: o critério não aparece. */
 export interface FatosPontuacao {
   meta?: FatoMeta;
   guiasSemLote?: FatoGuiasSemLote;
+  zeroGlosa?: FatoZeroGlosa;
   tarefas?: FatoTarefas;
 }
 
@@ -130,7 +146,13 @@ export interface DetalheGuiasSemLote {
   comPendencia: ConvenioSemLote[];
 }
 
-export type DetalheCriterio = DetalheMeta | DetalheTarefas | DetalheGuiasSemLote;
+export interface DetalheZeroGlosa {
+  tipo: 'zeroGlosa';
+  semGlosa: Omit<ConvenioRecebido, 'glosadas'>[];
+  comGlosa: ConvenioRecebido[];
+}
+
+export type DetalheCriterio = DetalheMeta | DetalheTarefas | DetalheGuiasSemLote | DetalheZeroGlosa;
 
 export interface CriterioPontuado extends Omit<DefinicaoCriterio, 'frente'> {
   pontosAtingidos: number;
@@ -211,9 +233,26 @@ function pontuarGuiasSemLote(def: DefinicaoCriterio, fato: FatoGuiasSemLote): Om
   };
 }
 
+/** 0,5 por convênio recebido no mês sem nenhuma requisição glosada. */
+function pontuarZeroGlosa(def: DefinicaoCriterio, fato: FatoZeroGlosa): Omit<CriterioPontuado, keyof DefinicaoCriterio> {
+  const recebidos = fato.convenios.filter((c) => c.recebidas > 0);
+  const semGlosa = recebidos
+    .filter((c) => c.glosadas === 0)
+    .map(({ idFontePagadora, nome, recebidas }) => ({ idFontePagadora, nome, recebidas }));
+  const comGlosa = recebidos.filter((c) => c.glosadas > 0);
+  return {
+    pontosAtingidos: umaCasa(semGlosa.length * def.pontosBase),
+    observacao: recebidos.length === 0
+      ? 'Nenhum convênio recebido no mês'
+      : `${semGlosa.length} de ${recebidos.length} ${recebidos.length === 1 ? 'convênio recebido' : 'convênios recebidos'} sem glosa`,
+    detalhe: { tipo: 'zeroGlosa', semGlosa, comGlosa },
+  };
+}
+
 /** Pontos e observação de um critério automático, ou null quando ainda não há fato para ele. */
 function pontuarAutomatico(def: DefinicaoCriterio, fatos: FatosPontuacao, membros: MembroFrente[]): Omit<CriterioPontuado, keyof DefinicaoCriterio> | null {
   if (def.chave === 'guiasSemLote' && fatos.guiasSemLote) return pontuarGuiasSemLote(def, fatos.guiasSemLote);
+  if (def.chave === 'zeroGlosa' && fatos.zeroGlosa) return pontuarZeroGlosa(def, fatos.zeroGlosa);
   if (def.chave === 'tarefasPendentes' && fatos.tarefas) return pontuarTarefas(def, fatos.tarefas, membros);
   if ((def.chave === 'metaMensal' || def.chave === 'metaSuperada') && fatos.meta) {
     const faixa = faixaDaMeta(fatos.meta);

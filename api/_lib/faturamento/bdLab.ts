@@ -34,7 +34,7 @@ import { cobrancasComTestes } from './cobrancasTestesAplis.js';
 import { STATUS_FOTO } from './recursoGlosa.js';
 import type { RequisicaoGlosaAplis } from './recursoGlosa.js';
 import type { LinhaFaturada } from './indicadoresFaturamento.js';
-import type { ConvenioSemLote } from './pontuacaoSetor.js';
+import type { ConvenioRecebido, ConvenioSemLote } from './pontuacaoSetor.js';
 import type {
   CobrancaAplis,
   LinhaCobranca,
@@ -3155,10 +3155,24 @@ export type GlosasRecursosDoPeriodoResultado =
   | { requisicoes: RequisicaoGlosaRecursoAplis[]; lotesRecurso: LoteRecursoAplis[]; dadoAte: string | null }
   | { erro: { status: number; mensagem: string } };
 
-// `fatloterecursoprocedimento` não tem índice em IdRequisicao (~4 mil linhas):
-// entra por tabela derivada agrupada, não por EXISTS correlacionado.
+// Último lote de recurso da requisição, em `lr`; pede `r` e o lote de faturamento
+// `l` no FROM. `fatloterecursoprocedimento` não tem índice em IdRequisicao (~4 mil
+// linhas): entra por tabela derivada agrupada, não por EXISTS correlacionado.
 // Lote de recurso criado antes do lote de faturamento atual é de um faturamento
 // anterior da requisição (refaturada, por exemplo, para outro convênio) e não conta.
+const SQL_JOIN_LOTE_RECURSO = `
+    LEFT JOIN (SELECT lrp.IdRequisicao, MAX(lrc.DtaCriacao) AS UltimoRecurso
+                 FROM fatloterecursoprocedimento lrp
+                 JOIN fatloterecurso lrc ON lrc.IdLoteRecurso = lrp.IdLoteRecurso
+                GROUP BY lrp.IdRequisicao) lr
+           ON lr.IdRequisicao = r.IdRequisicao
+          AND lr.UltimoRecurso >= DATE(l.DtaCriacao)`;
+
+// Requisição glosada para o módulo Glosas e Recursos: num status de glosa/recurso
+// ou num lote de recurso do faturamento atual. Única definição; a Pontuação do
+// setor (zero glosa) usa a mesma. Pede `SQL_JOIN_LOTE_RECURSO`.
+const SQL_REQUISICAO_GLOSADA = `(r.CodEventoFatur IN (${STATUS_FOTO.join(', ')}) OR lr.IdRequisicao IS NOT NULL)`;
+
 const SQL_REQUISICOES_GLOSA_RECURSO = `
   SELECT r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente,
          r.Lote, DATE_FORMAT(l.DtaCriacao, '%Y-%m') AS Competencia,
@@ -3167,13 +3181,7 @@ const SQL_REQUISICOES_GLOSA_RECURSO = `
          DATE_FORMAT(MAX(p.DtaRecebido), '%Y-%m-%d') AS DtaRecebido
     FROM requisicao r
     JOIN fatlote l ON l.IdLote = r.Lote
-    JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
-    LEFT JOIN (SELECT lrp.IdRequisicao, MAX(lrc.DtaCriacao) AS UltimoRecurso
-                 FROM fatloterecursoprocedimento lrp
-                 JOIN fatloterecurso lrc ON lrc.IdLoteRecurso = lrp.IdLoteRecurso
-                GROUP BY lrp.IdRequisicao) lr
-           ON lr.IdRequisicao = r.IdRequisicao
-          AND lr.UltimoRecurso >= DATE(l.DtaCriacao)
+    JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao${SQL_JOIN_LOTE_RECURSO}
     LEFT JOIN paciente pa ON pa.CodPaciente = r.CodPaciente
     LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = r.IdFontePagadora
    WHERE %WHERE%
@@ -3213,10 +3221,10 @@ export async function glosasRecursosDoPeriodo(
   const condicoes = [
     'l.DtaCriacao >= ?',
     'l.DtaCriacao < DATE_ADD(?, INTERVAL 1 MONTH)',
-    `(r.CodEventoFatur IN (${STATUS_FOTO.map(() => '?').join(', ')}) OR lr.IdRequisicao IS NOT NULL)`,
+    SQL_REQUISICAO_GLOSADA,
   ];
   const inicio = `${params.competencia}-01 00:00:00`;
-  const valores: ParametroSql[] = [inicio, inicio, ...STATUS_FOTO];
+  const valores: ParametroSql[] = [inicio, inicio];
   if (params.fontePagadoraId !== undefined) {
     condicoes.push('r.IdFontePagadora = ?');
     valores.push(params.fontePagadoraId);
@@ -3695,6 +3703,64 @@ export async function guiasSemLotePorConvenio(params: {
         idFontePagadora: numero(linha.IdFontePagadora),
         nome: texto(linha.Nome) ?? `Fonte ${numero(linha.IdFontePagadora)}`,
         pendentes: numero(linha.Pendentes),
+      })),
+    };
+  });
+}
+
+// ============================================================================
+// Zero glosa da Pontuação do setor (.scratch/faturamento-pontuacao/)
+// ============================================================================
+// Só lê e conta; a regra de pontos é de faturamento/pontuacaoSetor.ts. O
+// recebimento é o mesmo da lista de recebidos do mês (`listarRecebidosMes`:
+// `fatrequisicaostatus.DtaRecebido` no mês, pago com `VlrRecebido > 0`), e a
+// glosa, a de Glosas e Recursos (`SQL_REQUISICAO_GLOSADA`). A requisição com
+// baixa zerada no mês (glosa total) conta como glosada, mas sozinha não põe o
+// convênio na conta: ele não recebeu nada. A glosa é o status de hoje no backup,
+// como a pendência das guias sem lote; o Fechamento congela o número. As fontes
+// são as da meta, o mesmo recorte que o widget "Recebido no mês" faz no cliente.
+
+export type RecebidosComGlosaPorConvenioResultado =
+  | { convenios: ConvenioRecebido[] }
+  | { erro: { status: number; mensagem: string } };
+
+/** Convênios com baixa em [`desde`, `ateExclusivo`), por nome: requisições pagas
+ *  e glosadas. Fora Particular e Cortesia; `fontesConsideradas` é a lista da
+ *  meta, como em `guiasSemLotePorConvenio`; vazia não qualifica nenhuma fonte. */
+export async function recebidosComGlosaPorConvenio(params: {
+  /** 'YYYY-MM-DD'. */
+  desde: string;
+  /** 'YYYY-MM-DD'. */
+  ateExclusivo: string;
+  fontesConsideradas: number[];
+}): Promise<RecebidosComGlosaPorConvenioResultado> {
+  const fontes = params.fontesConsideradas;
+  const daFonte = fontes.length > 0 ? `r.IdFontePagadora IN (${fontes.map(() => '?').join(', ')})` : '1 = 0';
+  const sql = `
+    SELECT r.IdFontePagadora, COALESCE(fp.NomFantasia, fp.RazaoSocial) AS Nome,
+           SUM(CASE WHEN s.VlrRecebido > 0 THEN 1 ELSE 0 END) AS Recebidas,
+           SUM(CASE WHEN ${SQL_REQUISICAO_GLOSADA} THEN 1 ELSE 0 END) AS Glosadas
+      FROM fatrequisicaostatus s
+      JOIN requisicao r ON r.IdRequisicao = s.IdRequisicao
+      LEFT JOIN fatlote l ON l.IdLote = r.Lote${SQL_JOIN_LOTE_RECURSO}
+      LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = r.IdFontePagadora
+     WHERE s.DtaRecebido >= ? AND s.DtaRecebido < ?
+       AND r.IdFontePagadora NOT IN (${ID_FONTE_PAGADORA_PARTICULAR}, ${ID_FONTE_PAGADORA_CORTESIA})
+       AND ${daFonte}
+     GROUP BY r.IdFontePagadora, Nome
+     ORDER BY Nome`;
+
+  return comConexao('recebidosComGlosaPorConvenio', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      sql,
+      [`${params.desde} 00:00:00`, `${params.ateExclusivo} 00:00:00`, ...fontes],
+    );
+    return {
+      convenios: linhas.map((linha) => ({
+        idFontePagadora: numero(linha.IdFontePagadora),
+        nome: texto(linha.Nome) ?? `Fonte ${numero(linha.IdFontePagadora)}`,
+        recebidas: numero(linha.Recebidas),
+        glosadas: numero(linha.Glosadas),
       })),
     };
   });

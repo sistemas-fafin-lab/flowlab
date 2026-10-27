@@ -4,7 +4,7 @@
  * Pontuação do setor na página Faturamento → Indicadores
  * (.scratch/faturamento-pontuacao/spec.md): os critérios e o total de cada
  * Frente no mês, em prévia ao vivo: a meta mensal, as guias sem lote do mês
- * anterior e as tarefas pendentes dos membros ativos das Frentes. Os fatos vêm
+ * anterior, os convênios recebidos sem glosa e as tarefas pendentes dos membros ativos das Frentes. Os fatos vêm
  * de fatosPontuacao.ts; a regra é de faturamento/pontuacaoSetor.ts.
  *
  * Autorização: `Authorization: Bearer <access_token>` (canViewBilling).
@@ -16,7 +16,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { lerFatoGuiasSemLote, lerFatoMeta, lerFatoTarefas, lerMembros } from '../faturamento/fatosPontuacao.js';
+import { lerFatoGuiasSemLote, lerFatoMeta, lerFatoTarefas, lerFatoZeroGlosa, lerMembros } from '../faturamento/fatosPontuacao.js';
 import { mesValido } from '../faturamento/indicadoresFaturamento.js';
 import { pontuarMes } from '../faturamento/pontuacaoSetor.js';
 
@@ -52,9 +52,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(membros.erro.status).json({ success: false, error: membros.erro.mensagem });
       return;
     }
-    const [tarefas, guiasSemLote] = await Promise.all([
+    const [tarefas, guiasSemLote, zeroGlosa] = await Promise.all([
       lerFatoTarefas(membros, ano, numeroMes),
       lerFatoGuiasSemLote(ano, numeroMes),
+      lerFatoZeroGlosa(ano, numeroMes),
     ]);
     if ('erro' in tarefas) {
       res.status(tarefas.erro.status).json({ success: false, error: tarefas.erro.mensagem });
@@ -64,6 +65,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(guiasSemLote.erro.status).json({ success: false, error: guiasSemLote.erro.mensagem });
       return;
     }
+    if ('erro' in zeroGlosa) {
+      res.status(zeroGlosa.erro.status).json({ success: false, error: zeroGlosa.erro.mensagem });
+      return;
+    }
 
     // Dado financeiro: não deixa ficar em cache de navegador nem de proxy.
     res.setHeader('Cache-Control', 'no-store');
@@ -71,7 +76,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       success: true,
       // Prévia ao vivo; `dadoAte` é a tarefa mais recente do backup do apLIS.
       meta: { situacao: 'previa', dadoAte: tarefas.dadoAte },
-      pontuacao: pontuarMes({ mes, fatos: { meta, guiasSemLote, tarefas: tarefas.tarefas }, lancamentos: [], membros }),
+      pontuacao: pontuarMes({ mes, fatos: { meta, guiasSemLote, zeroGlosa, tarefas: tarefas.tarefas }, lancamentos: [], membros }),
     });
   } catch (err) {
     console.error('[faturamento/pontuacao] erro:', describeError(err));

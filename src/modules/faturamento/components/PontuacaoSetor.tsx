@@ -5,6 +5,7 @@ import type {
   DetalheGuiasSemLotePontuacao,
   DetalheMetaPontuacao,
   DetalheTarefasPontuacao,
+  DetalheZeroGlosaPontuacao,
   FrentePontuada,
   PontuacaoSetor as Pontuacao,
   PontuacaoSetorMeta,
@@ -99,6 +100,44 @@ const DetalheGuiasSemLote: React.FC<{ detalhe: DetalheGuiasSemLotePontuacao }> =
   </div>
 );
 
+const DetalheZeroGlosa: React.FC<{ detalhe: DetalheZeroGlosaPontuacao }> = ({ detalhe }) => (
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+    <div>
+      <p className="pb-1 font-medium text-gray-500 dark:text-gray-400">
+        Recebidos sem glosa ({formatQtd(detalhe.semGlosa.length)})
+      </p>
+      {detalhe.semGlosa.length > 0 ? (
+        <ul className="space-y-0.5">
+          {detalhe.semGlosa.map((c) => (
+            <li key={c.idFontePagadora} className="text-gray-900 dark:text-white">{c.nome}</li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-gray-500 dark:text-gray-400">Nenhum</p>
+      )}
+    </div>
+    <div>
+      <table className="w-full">
+        <thead>
+          <tr className="text-gray-500 dark:text-gray-400">
+            <th className="pb-1 text-left font-medium">Com glosa ({formatQtd(detalhe.comGlosa.length)})</th>
+            <th className="pb-1 text-right font-medium">Glosadas</th>
+          </tr>
+        </thead>
+        <tbody>
+          {detalhe.comGlosa.map((c) => (
+            <tr key={c.idFontePagadora}>
+              <td className="py-0.5 text-gray-900 dark:text-white">{c.nome}</td>
+              <td className="py-0.5 text-right tabular-nums font-medium text-red-600 dark:text-red-400">{formatQtd(c.glosadas)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {detalhe.comGlosa.length === 0 && <p className="text-gray-500 dark:text-gray-400">Nenhum</p>}
+    </div>
+  </div>
+);
+
 const DetalheMeta: React.FC<{ detalhe: DetalheMetaPontuacao }> = ({ detalhe }) => {
   return (
     <dl className="grid grid-cols-3 gap-3 text-xs">
@@ -127,6 +166,7 @@ const DetalheCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }
   if (!detalhe) return null;
   if (detalhe.tipo === 'tarefas') return <DetalheTarefas detalhe={detalhe} />;
   if (detalhe.tipo === 'guiasSemLote') return <DetalheGuiasSemLote detalhe={detalhe} />;
+  if (detalhe.tipo === 'zeroGlosa') return <DetalheZeroGlosa detalhe={detalhe} />;
   return <DetalheMeta detalhe={detalhe} />;
 };
 

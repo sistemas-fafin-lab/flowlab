@@ -1375,7 +1375,25 @@ export interface DetalheGuiasSemLotePontuacao {
   comPendencia: ConvenioSemLotePontuacao[];
 }
 
-export type DetalheCriterioPontuacao = DetalheMetaPontuacao | DetalheTarefasPontuacao | DetalheGuiasSemLotePontuacao;
+export interface ConvenioRecebidoPontuacao {
+  idFontePagadora: number;
+  nome: string;
+  recebidas: number;
+  glosadas: number;
+}
+
+/** Convênios com recebimento no mês, sem e com requisição glosada. */
+export interface DetalheZeroGlosaPontuacao {
+  tipo: 'zeroGlosa';
+  semGlosa: Omit<ConvenioRecebidoPontuacao, 'glosadas'>[];
+  comGlosa: ConvenioRecebidoPontuacao[];
+}
+
+export type DetalheCriterioPontuacao =
+  | DetalheMetaPontuacao
+  | DetalheTarefasPontuacao
+  | DetalheGuiasSemLotePontuacao
+  | DetalheZeroGlosaPontuacao;
 
 export interface CriterioPontuacao {
   chave: string;

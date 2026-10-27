@@ -3,9 +3,9 @@
 // Só lê e achata; a regra de pontos é de pontuacaoSetor.ts.
 
 import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
-import { guiasSemLotePorConvenio, tarefasPendentesNoFimDoMes } from './bdLab.js';
+import { guiasSemLotePorConvenio, recebidosComGlosaPorConvenio, tarefasPendentesNoFimDoMes } from './bdLab.js';
 import { listarFontesConsideradasMeta } from './fontesConsideradas.js';
-import type { FatoGuiasSemLote, FatoMeta, FatoTarefas, FrentePontuacao, MembroFrente } from './pontuacaoSetor.js';
+import type { FatoGuiasSemLote, FatoMeta, FatoTarefas, FatoZeroGlosa, FrentePontuacao, MembroFrente } from './pontuacaoSetor.js';
 
 export type FalhaFato = { erro: { status: number; mensagem: string } };
 
@@ -63,6 +63,19 @@ export async function lerFatoGuiasSemLote(ano: number, mes: number): Promise<Fat
   return guiasSemLotePorConvenio({
     desde: primeiroDia(anterior.ano, anterior.mes),
     ateExclusivo: primeiroDia(ano, mes),
+    fontesConsideradas,
+  });
+}
+
+/** Zero glosa: convênios com recebimento registrado no apLIS no mês M, com as
+ *  mesmas fontes consideradas das guias sem lote. */
+export async function lerFatoZeroGlosa(ano: number, mes: number): Promise<FatoZeroGlosa | FalhaFato> {
+  const seguinte = mes === 12 ? { ano: ano + 1, mes: 1 } : { ano, mes: mes + 1 };
+  // Cliente admin, como nas guias sem lote: a lista de operadoras não depende de quem pede.
+  const fontesConsideradas = await listarFontesConsideradasMeta(getSupabaseAdminClient());
+  return recebidosComGlosaPorConvenio({
+    desde: primeiroDia(ano, mes),
+    ateExclusivo: primeiroDia(seguinte.ano, seguinte.mes),
     fontesConsideradas,
   });
 }

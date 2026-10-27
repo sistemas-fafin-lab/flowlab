@@ -248,3 +248,71 @@ describe('pontuarMes — guias sem lote', () => {
     });
   });
 });
+
+describe('pontuarMes — zero glosa', () => {
+  it('dá 0,5 por convênio recebido sem glosa: 6 convênios dão 3', () => {
+    const convenios = Array.from({ length: 6 }, (_, i) => ({ idFontePagadora: i + 1, nome: `Convênio ${i + 1}`, recebidas: 10, glosadas: 0 }));
+    const resumo = pontuarMes(entrada({ zeroGlosa: { convenios } }));
+
+    expect(criterio(resumo, 'faturamento', 'zeroGlosa')).toMatchObject({
+      pontosAtingidos: 3,
+      tipo: 'automatico',
+      pontosBase: 0.5,
+      porConvenio: true,
+      observacao: '6 de 6 convênios recebidos sem glosa',
+    });
+  });
+
+  it('uma única requisição glosada tira o ponto do convênio', () => {
+    const resumo = pontuarMes(entrada({
+      zeroGlosa: {
+        convenios: [
+          { idFontePagadora: 5, nome: 'Bradesco Saúde', recebidas: 40, glosadas: 0 },
+          { idFontePagadora: 7, nome: 'Sul América', recebidas: 120, glosadas: 1 },
+        ],
+      },
+    }));
+
+    expect(criterio(resumo, 'faturamento', 'zeroGlosa')).toMatchObject({
+      pontosAtingidos: 0.5,
+      observacao: '1 de 2 convênios recebidos sem glosa',
+      detalhe: {
+        tipo: 'zeroGlosa',
+        semGlosa: [{ idFontePagadora: 5, nome: 'Bradesco Saúde', recebidas: 40 }],
+        comGlosa: [{ idFontePagadora: 7, nome: 'Sul América', recebidas: 120, glosadas: 1 }],
+      },
+    });
+  });
+
+  it('convênio sem recebimento no mês não aparece em nenhuma das listas', () => {
+    const resumo = pontuarMes(entrada({
+      zeroGlosa: {
+        convenios: [
+          { idFontePagadora: 5, nome: 'Bradesco Saúde', recebidas: 3, glosadas: 0 },
+          { idFontePagadora: 8, nome: 'Fusex', recebidas: 0, glosadas: 0 },
+          { idFontePagadora: 9, nome: 'E-Vida', recebidas: 0, glosadas: 2 },
+        ],
+      },
+    }));
+
+    expect(criterio(resumo, 'faturamento', 'zeroGlosa')).toMatchObject({
+      pontosAtingidos: 0.5,
+      observacao: '1 de 1 convênio recebido sem glosa',
+      detalhe: {
+        tipo: 'zeroGlosa',
+        semGlosa: [{ idFontePagadora: 5, nome: 'Bradesco Saúde', recebidas: 3 }],
+        comGlosa: [],
+      },
+    });
+  });
+
+  it('mês sem recebimento dá 0', () => {
+    const resumo = pontuarMes(entrada({ zeroGlosa: { convenios: [] } }));
+
+    expect(criterio(resumo, 'faturamento', 'zeroGlosa')).toMatchObject({
+      pontosAtingidos: 0,
+      observacao: 'Nenhum convênio recebido no mês',
+      detalhe: { tipo: 'zeroGlosa', semGlosa: [], comGlosa: [] },
+    });
+  });
+});
