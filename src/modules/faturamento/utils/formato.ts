@@ -148,21 +148,23 @@ export const responsaveisDoTitulo = (
 
 /**
  * Cor do card "Saldo" da aba Títulos, pelo sinal (o mesmo que
- * `formatSaldoComSinal` mostra): positivo verde, negativo vermelho, zerado azul.
+ * `formatSaldoComSinal` mostra). `saldo` é o que falta receber; o card mostra
+ * do ponto de vista do caixa: falta receber é negativo (vermelho), recebido a
+ * mais é positivo (verde), zerado azul.
  */
 export const faixaSaldo = (saldo: number): 'positivo' | 'zerado' | 'negativo' => {
-  if (saldo > 0) return 'positivo';
-  if (saldo < 0) return 'negativo';
+  if (saldo > 0) return 'negativo';
+  if (saldo < 0) return 'positivo';
   return 'zerado';
 };
 
 /**
- * Valor do card "Saldo" com o sinal na frente: "+" quando ainda há o que
- * receber, "-" quando recebeu a mais. Zero vai sem sinal.
+ * Valor do card "Saldo" com o sinal na frente: "-" quando ainda há o que
+ * receber, "+" quando recebeu a mais. Zero vai sem sinal.
  */
 export const formatSaldoComSinal = (saldo: number): string => {
   if (saldo === 0) return formatCurrency(0);
-  return `${saldo > 0 ? '+' : '-'} ${formatCurrency(Math.abs(saldo))}`;
+  return `${saldo > 0 ? '-' : '+'} ${formatCurrency(Math.abs(saldo))}`;
 };
 
 /**

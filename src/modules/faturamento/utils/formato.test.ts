@@ -12,17 +12,17 @@ import {
 } from './formato';
 
 describe('faixaSaldo', () => {
-  it('classifica pelo sinal do saldo', () => {
-    expect(faixaSaldo(0.01)).toBe('positivo');
+  it('o que falta receber é negativo; o recebido a mais é positivo', () => {
+    expect(faixaSaldo(0.01)).toBe('negativo');
     expect(faixaSaldo(0)).toBe('zerado');
-    expect(faixaSaldo(-0.01)).toBe('negativo');
+    expect(faixaSaldo(-0.01)).toBe('positivo');
   });
 });
 
 describe('formatSaldoComSinal', () => {
-  it('põe "+" no saldo a receber, "-" no recebido a mais e nada no zero', () => {
-    expect(formatSaldoComSinal(1234.5)).toBe(`+ ${formatCurrency(1234.5)}`);
-    expect(formatSaldoComSinal(-80)).toBe(`- ${formatCurrency(80)}`);
+  it('põe "-" no que falta receber, "+" no recebido a mais e nada no zero', () => {
+    expect(formatSaldoComSinal(1234.5)).toBe(`- ${formatCurrency(1234.5)}`);
+    expect(formatSaldoComSinal(-80)).toBe(`+ ${formatCurrency(80)}`);
     expect(formatSaldoComSinal(0)).toBe(formatCurrency(0));
   });
 });
