@@ -49,6 +49,7 @@ import faturamentoGlosasRecursosForaDeLote from '../_lib/handlers/faturamento-gl
 import faturamentoGlosasRecursosRecentes from '../_lib/handlers/faturamento-glosas-recursos-recentes.js';
 import faturamentoGlosasRecursosDashboard from '../_lib/handlers/faturamento-glosas-recursos-dashboard.js';
 import faturamentoIndicadores from '../_lib/handlers/faturamento-indicadores.js';
+import faturamentoPontuacao from '../_lib/handlers/faturamento-pontuacao.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
@@ -89,6 +90,7 @@ const ROTAS: Record<string, Handler> = {
   'glosas-recursos-recentes': faturamentoGlosasRecursosRecentes,
   'glosas-recursos-dashboard': faturamentoGlosasRecursosDashboard,
   indicadores: faturamentoIndicadores,
+  pontuacao: faturamentoPontuacao,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {

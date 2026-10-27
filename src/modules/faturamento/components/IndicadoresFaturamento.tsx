@@ -23,13 +23,15 @@ import {
 import DatePicker from '../../../components/DatePicker';
 import { useTheme } from '../../../hooks/useTheme';
 import { useIndicadoresFaturamento } from '../hooks/useIndicadoresFaturamento';
+import { usePontuacaoSetor } from '../hooks/usePontuacaoSetor';
 import type {
   CardIndicadorFaturamento,
   ItemRankingIndicadores,
   PeriodoIndicadoresFaturamento,
   RankingIndicadores,
 } from '../types';
-import { formatCurrency, formatData, formatPercentual, hojeIso, periodoMesPassado } from '../utils/formato';
+import { formatCurrency, formatData, formatDiaMesHora, formatPercentual, hojeIso, periodoMesPassado } from '../utils/formato';
+import PontuacaoSetor from './PontuacaoSetor';
 
 // ============================================================================
 // COMPONENTE: IndicadoresFaturamento
@@ -51,13 +53,6 @@ const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-300 dark:border-gray
 function mesAnterior(): string {
   const [ano, mes] = hojeIso().split('-').map(Number);
   return mes === 1 ? `${ano - 1}-12` : `${ano}-${String(mes - 1).padStart(2, '0')}`;
-}
-
-/** 'YYYY-MM-DD HH:MM' do banco → 'dd/mm hh:mm', sem converter fuso. */
-function formatDiaMesHora(valor: string): string {
-  const [data, hora = ''] = valor.split(' ');
-  const [, mes, dia] = data.split('-');
-  return `${dia}/${mes}${hora ? ` ${hora}` : ''}`;
 }
 
 const formatInteiro = (n: number): string => n.toLocaleString('pt-BR');
@@ -269,6 +264,9 @@ const IndicadoresFaturamento: React.FC = () => {
     [modo, mes, inicio, fim],
   );
   const { indicadores, meta, loading, error, refetch } = useIndicadoresFaturamento(periodo);
+  // A pontuação é mensal: no modo Período o bloco só mostra o aviso.
+  const mesPontuacao = modo === 'mes' ? mes : null;
+  const pontuacao = usePontuacaoSetor(mesPontuacao);
   const textos = TEXTOS_MODO[modo];
   const janelaAnterior = modo === 'periodo' ? meta?.janelas?.anterior : undefined;
 
@@ -307,11 +305,11 @@ const IndicadoresFaturamento: React.FC = () => {
           )}
           <Alternancia<MetricaRanking> rotulo="Rankings por" opcoes={OPCOES_METRICA} valor={metrica} onChange={setMetrica} />
           <button
-            onClick={() => void refetch(true)}
-            disabled={loading}
+            onClick={() => { void refetch(true); void pontuacao.refetch(); }}
+            disabled={loading || pontuacao.loading}
             className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50"
           >
-            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={16} className={loading || pontuacao.loading ? 'animate-spin' : ''} />
             Atualizar
           </button>
         </div>
@@ -425,6 +423,14 @@ const IndicadoresFaturamento: React.FC = () => {
           </div>
         </div>
       )}
+
+      <PontuacaoSetor
+        mes={mesPontuacao}
+        pontuacao={pontuacao.pontuacao}
+        meta={pontuacao.meta}
+        loading={pontuacao.loading}
+        error={pontuacao.error}
+      />
     </div>
   );
 };

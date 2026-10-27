@@ -45,6 +45,13 @@ export const formatCompetencia = (competencia: string | null | undefined): strin
   return ano && mes ? `${mes}/${ano}` : competencia;
 };
 
+/** 'YYYY-MM-DD HH:MM' do banco → 'dd/mm hh:mm', sem converter fuso. */
+export const formatDiaMesHora = (valor: string): string => {
+  const [data, hora = ''] = valor.split(' ');
+  const [, mes, dia] = data.split('-');
+  return `${dia}/${mes}${hora ? ` ${hora}` : ''}`;
+};
+
 export const paraIso = (data: Date): string =>
   `${data.getFullYear()}-${String(data.getMonth() + 1).padStart(2, '0')}-${String(data.getDate()).padStart(2, '0')}`;
 

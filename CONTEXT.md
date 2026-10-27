@@ -4,6 +4,20 @@ Sistema interno do laboratório: estoque, solicitações e cotações, faturamen
 
 ## Language
 
+### Faturamento
+
+**Pontuação do setor**:
+Os pontos do mês de cada Frente do Faturamento, pelas regras de `.scratch/faturamento-pontuacao/spec.md`: critérios automáticos (meta, guias sem lote, zero glosa, tarefas pendentes) somados aos lançados pela coordenação.
+_Avoid_: Lab Points, nota individual, pontuação da faturista
+
+**Frente**:
+Cada parte do setor de Faturamento que é pontuada à parte: Faturamento e Recurso de Glosa. Cada uma tem sua lista de membros (usuários do apLIS) e seus critérios.
+_Avoid_: equipe, time, setor (o setor é o Faturamento inteiro)
+
+**Fechamento da pontuação**:
+O ato da coordenação de congelar a Pontuação do setor de um mês; depois dele os números não mudam mais, a não ser que o mês seja reaberto.
+_Avoid_: fechamento do lote (é outra coisa: o lote fechado no apLIS)
+
 ### Atendimento
 
 **Gerador de Orçamento**:

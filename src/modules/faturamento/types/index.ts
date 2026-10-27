@@ -1340,3 +1340,50 @@ export interface IndicadoresFaturamentoMeta {
   /** Janela pedida e a anterior, com que os cards comparam. */
   janelas: { atual: JanelaIndicadoresFaturamento; anterior: JanelaIndicadoresFaturamento };
 }
+
+// ============================================================================
+// PONTUAÇÃO DO SETOR (.scratch/faturamento-pontuacao/)
+// ============================================================================
+
+export type FrentePontuacao = 'faturamento' | 'recursoGlosa';
+
+/** Meta × faturado (por emissão) × % atingido; meta e % nulos sem meta cadastrada. */
+export interface DetalheMetaPontuacao {
+  tipo: 'meta';
+  meta: number | null;
+  faturado: number;
+  percentual: number | null;
+}
+
+export type DetalheCriterioPontuacao = DetalheMetaPontuacao;
+
+export interface CriterioPontuacao {
+  chave: string;
+  rotulo: string;
+  tipo: 'automatico' | 'manual';
+  pontosBase: number;
+  /** Pontos base valem por convênio. */
+  porConvenio?: true;
+  pontosAtingidos: number;
+  observacao: string;
+  detalhe: DetalheCriterioPontuacao | null;
+}
+
+export interface FrentePontuada {
+  frente: FrentePontuacao;
+  rotulo: string;
+  criterios: CriterioPontuacao[];
+  total: number;
+}
+
+/** Contrato de GET /api/faturamento/pontuacao. */
+export interface PontuacaoSetor {
+  mes: string;
+  frentes: FrentePontuada[];
+}
+
+export interface PontuacaoSetorMeta {
+  situacao: 'previa';
+  /** Dado do apLIS mais recente usado, 'YYYY-MM-DD HH:MM'; null sem fato do apLIS. */
+  dadoAte: string | null;
+}
