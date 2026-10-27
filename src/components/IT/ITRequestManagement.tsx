@@ -14,16 +14,15 @@ import {
   Loader2,
   Calendar,
   UserCheck,
-  ChevronDown,
   Lightbulb,
   UploadCloud,
   FileText,
-  ImageIcon,
   Send,
   MessageSquare,
   Lock,
   UserPlus,
   AlertTriangle,
+  Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
@@ -31,12 +30,18 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNotification } from '../../hooks/useNotification';
 import { hasPermission } from '../../utils/permissions';
 import { supabase } from '../../lib/supabase';
+import { descartarAnexosIT, enviarAnexosIT } from '../../lib/itStorage';
 import Notification from '../Notification';
+import Select from '../Select';
 import KanbanPromoteModal from './KanbanPromoteModal';
 import SLABadge from './SLABadge';
+import ITRequestsDashboard from './ITRequestsDashboard';
+import ITResolucaoModal, { type ResultadoResolucao } from './ITResolucaoModal';
+import { AnexosPendentes, BotaoAnexar, ListaAnexos } from './ITAnexos';
 import { useNotificationCenter } from '../../hooks/useNotificationCenter';
-import { IT_REQUESTS_PATH, itRequestUrl } from '../../utils/itRequestLink';
+import { IT_REQUESTS_PATH } from '../../utils/itRequestLink';
 import type { ITRequestNavState, ITRequestTab } from '../../utils/itRequestLink';
+import { juntarAnexos, lerAnexos, nomearCapturasColadas, type AnexoIT } from '../../utils/itAnexos';
 import { formatCPF, normalizeCPF } from '../../utils/cpf';
 import { DepartmentLabels } from '../../types';
 import {
@@ -73,11 +78,32 @@ interface ITRequest {
   created_at: string;
   updated_at: string;
   last_status_email_at?: string | null;
+  resolution?: string | null;
+  resolved_at?: string | null;
   attachments?: { url: string; name: string; size: number }[];
   requester_name?: string;
   requester_email?: string;
   assignee_names?: string[];
 }
+
+/** Mensagem da conversa; 'resolution' é o texto gravado ao resolver o chamado. */
+interface ComentarioChamado {
+  id: string;
+  user_id: string;
+  content: string;
+  created_at: string;
+  kind: 'comment' | 'resolution';
+  attachments: AnexoIT[];
+  author_name?: string;
+}
+
+type LinhaComentario = Omit<ComentarioChamado, 'kind' | 'attachments' | 'author_name'> & {
+  kind?: string | null;
+  attachments?: unknown;
+  author?: { name: string } | null;
+};
+
+type LinhaChamado = ITRequest & { requester?: { name: string; email: string } | null };
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONSTANTS
@@ -90,15 +116,14 @@ const PRIORITY_CONFIG: Record<string, { label: string; badge: string; dot: strin
   critical: { label: 'Crítica', badge: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',           dot: 'bg-red-500',   pill: 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20',      pillActive: 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-200 ring-1 ring-red-300 dark:ring-red-700' },
 };
 
-// Cooldown anti-spam: no máximo 1 email de mudança de status a cada 5 min por chamado.
-const STATUS_EMAIL_COOLDOWN_MS = 5 * 60 * 1000;
-
 const STATUS_CONFIG: Record<string, { label: string; badge: string; icon: React.ComponentType<{ className?: string }> }> = {
   pending:     { label: 'Pendente',      badge: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',     icon: Clock },
   in_progress: { label: 'Em Andamento',  badge: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',         icon: Loader2 },
   resolved:    { label: 'Resolvido',     badge: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300', icon: CheckCircle2 },
   cancelled:   { label: 'Cancelado',     badge: 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400',         icon: XCircle },
 };
+
+const STATUS_OPTIONS = Object.entries(STATUS_CONFIG).map(([value, conf]) => ({ value, label: conf.label }));
 
 const TYPE_CONFIG: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; color: string; bg: string; ring: string }> = {
   suporte:        { label: 'Suporte',        icon: Wrench,    color: 'text-orange-600 dark:text-orange-400',    bg: 'bg-orange-100 dark:bg-orange-900/30',    ring: 'ring-orange-500' },
@@ -122,6 +147,25 @@ const TYPE_FILTER_ITEMS: [string, string][] = [
   ['consultoria', 'Consultoria'],
   ['novo_colaborador', 'Novo colaborador'],
 ];
+
+const SETOR_OPTIONS = [
+  ...Object.entries(DepartmentLabels).map(([value, label]) => ({ value, label })),
+  { value: 'OUTRO', label: 'Outro', separatorBefore: true },
+];
+
+// Vidro dos cartões, igual ao Hub de Aplicações
+const GLASS = 'bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl border border-white/50 dark:border-slate-700/50';
+
+const SEGMENTED = 'bg-slate-200/50 dark:bg-slate-800/50 backdrop-blur-md p-1 rounded-xl shadow-inner border border-white/20 dark:border-slate-700/30 flex gap-0.5';
+const segmentedItem = (ativo: boolean) =>
+  `px-3 py-1.5 text-xs font-semibold rounded-lg whitespace-nowrap transition-all duration-200 ${
+    ativo
+      ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm ring-1 ring-black/5 dark:ring-white/10'
+      : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
+  }`;
+
+const formatarDataHora = (iso: string) =>
+  new Date(iso).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // SUB-COMPONENTS
@@ -187,18 +231,18 @@ const NovoColaboradorFields: React.FC<{
         </div>
 
         <div>
-          <label className={labelClass}>Setor / departamento *</label>
-          <select
+          <label htmlFor="novo-colaborador-setor" className={labelClass}>Setor / departamento *</label>
+          <Select
+            id="novo-colaborador-setor"
             value={value.setor}
-            onChange={(e) => onChange('setor', e.target.value as NovoColaboradorForm['setor'])}
-            className={FIELD_CLASS}
-          >
-            <option value="">Selecione…</option>
-            {Object.entries(DepartmentLabels).map(([key, label]) => (
-              <option key={key} value={key}>{label}</option>
-            ))}
-            <option value="OUTRO">Outro</option>
-          </select>
+            onChange={(v) => onChange('setor', v as NovoColaboradorForm['setor'])}
+            options={SETOR_OPTIONS}
+            placeholder="Selecione…"
+            controlClass={FIELD_CLASS}
+            tone="vidro"
+            searchable
+            searchPlaceholder="Buscar setor…"
+          />
           <FieldError message={erros.setor} />
           {value.setor === 'OUTRO' && (
             <>
@@ -257,6 +301,31 @@ const NovoColaboradorFields: React.FC<{
   );
 };
 
+/** Cartão verde da resolução — na conversa e no topo dos detalhes. */
+const CartaoResolucao: React.FC<{
+  texto: string;
+  anexos?: AnexoIT[];
+  autor?: string;
+  quando?: string | null;
+}> = ({ texto, anexos = [], autor, quando }) => (
+  <div className="relative overflow-hidden rounded-2xl border border-emerald-200/80 dark:border-emerald-800/50 bg-gradient-to-br from-emerald-50/90 via-white/70 to-white/40 dark:from-emerald-900/25 dark:via-slate-900/40 dark:to-slate-900/20 p-4 sm:p-5 shadow-sm">
+    <div className="absolute -right-8 -top-8 w-28 h-28 rounded-full blur-2xl opacity-20 bg-emerald-500 pointer-events-none" />
+    <div className="relative flex flex-wrap items-center gap-x-2 gap-y-1 mb-2.5">
+      <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-md shadow-emerald-500/30">
+        <CheckCircle2 className="w-4 h-4 text-white" />
+      </div>
+      <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">Resolução</span>
+      {(autor || quando) && (
+        <span className="text-xs text-slate-500 dark:text-slate-400">
+          {[autor, quando ? formatarDataHora(quando) : null].filter(Boolean).join(' · ')}
+        </span>
+      )}
+    </div>
+    <p className="relative text-sm text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words leading-relaxed">{texto}</p>
+    <ListaAnexos anexos={anexos} className="relative mt-3" />
+  </div>
+);
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // COMPONENT
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -287,6 +356,9 @@ const ITRequestManagement: React.FC = () => {
   const [filterType, setFilterType] = useState<string>('all');
   const [selectedRequest, setSelectedRequest] = useState<ITRequest | null>(null);
   const [activeTab, setActiveTab] = useState<'details' | 'chat'>('details');
+  // Chamado com o modal "Resolver chamado" aberto
+  const [resolvendo, setResolvendo] = useState<ITRequest | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   // ─── Chamado a abrir automaticamente ────────────────────────────────────────
   // Vem do sino (state do react-router, com o código do chamado) ou do botão de
@@ -304,25 +376,32 @@ const ITRequestManagement: React.FC = () => {
   } | null>(null);
 
   // ─── Chat state ──────────────────────────────────────────────────────────────
-  const [comments, setComments] = useState<any[]>([]);
+  const [comments, setComments] = useState<ComentarioChamado[]>([]);
   const [commentText, setCommentText] = useState('');
+  const [anexosMensagem, setAnexosMensagem] = useState<File[]>([]);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [arrastandoNoChat, setArrastandoNoChat] = useState(false);
   const commentsEndRef = useRef<HTMLDivElement>(null);
 
-  // Reset tab whenever a new request is opened — 'details', exceto na abertura
-  // vinda de um deep-link com ?tab=chat (consumido uma única vez).
+  // Abriu outro chamado: aba 'details' (exceto deep-link com ?tab=chat, consumido
+  // uma única vez), rascunho limpo e a conversa recarregada — os detalhes também
+  // mostram a resolução com os anexos dela.
   useEffect(() => {
     if (!selectedRequest) return;
     setActiveTab(pendingTabRef.current ?? 'details');
     pendingTabRef.current = null;
+    setComments([]);
+    setCommentText('');
+    setAnexosMensagem([]);
+    fetchComments(selectedRequest.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRequest?.id]);
 
-  // Fetch comments when modal opens on chat tab or when switching to chat
+  // Ao voltar para a conversa, busca as mensagens novas
   useEffect(() => {
-    if (selectedRequest && activeTab === 'chat') {
-      fetchComments(selectedRequest.id);
-    }
-  }, [selectedRequest?.id, activeTab]);
+    if (selectedRequest && activeTab === 'chat') fetchComments(selectedRequest.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
 
   // Auto-scroll to newest message (only when chat tab is visible)
   useEffect(() => {
@@ -429,7 +508,7 @@ const ITRequestManagement: React.FC = () => {
         supabase.from('user_profiles').select('id, name'),
       ]);
       const usersMap = Object.fromEntries(
-        (usersResult.data || []).map((u: any) => [u.id, u.name as string])
+        (usersResult.data || []).map((u: { id: string; name: string }) => [u.id, u.name])
       );
 
       let query = supabase
@@ -446,7 +525,7 @@ const ITRequestManagement: React.FC = () => {
       const { data, error } = await query;
       if (error) throw error;
 
-      const formatted: ITRequest[] = (data || []).map((r: any) => ({
+      const formatted: ITRequest[] = ((data || []) as LinhaChamado[]).map((r) => ({
         ...r,
         requester_name: r.requester?.name,
         requester_email: r.requester?.email,
@@ -464,6 +543,7 @@ const ITRequestManagement: React.FC = () => {
 
   useEffect(() => {
     if (userId) fetchRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, isITManager]);
 
   // ─── Abertura automática de um chamado ──────────────────────────────────────
@@ -511,6 +591,12 @@ const ITRequestManagement: React.FC = () => {
       return matchesSearch && matchesStatus && matchesType;
     });
   }, [requests, searchQuery, filterStatus, filterType]);
+
+  // Clique num cartão do painel: filtra a lista e rola até ela
+  const filtrarPeloPainel = (status: string) => {
+    setFilterStatus(status);
+    listRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // ─── Create request ─────────────────────────────────────────────────────────
   const handleSubmit = async (e: React.FormEvent) => {
@@ -583,40 +669,70 @@ const ITRequestManagement: React.FC = () => {
   };
 
   // ─── Fetch comments ────────────────────────────────────────────────────────
-  const fetchComments = async (requestId: string) => {
+  async function fetchComments(requestId: string) {
     const { data } = await supabase
       .from('it_task_comments')
       .select('*, author:user_profiles!user_id(name)')
       .eq('task_id', requestId)
       .order('created_at', { ascending: true });
-    setComments((data || []).map((c: any) => ({ ...c, author_name: c.author?.name })));
+    setComments(
+      ((data || []) as LinhaComentario[]).map((c) => ({
+        id: c.id,
+        user_id: c.user_id,
+        content: c.content ?? '',
+        created_at: c.created_at,
+        kind: c.kind === 'resolution' ? 'resolution' : 'comment',
+        attachments: lerAnexos(c.attachments),
+        author_name: c.author?.name,
+      }))
+    );
+  }
+
+  // ─── Anexos da mensagem ────────────────────────────────────────────────────
+  const adicionarAnexosMensagem = (novos: File[]) => {
+    const { arquivos, erros } = juntarAnexos(anexosMensagem, novos);
+    setAnexosMensagem(arquivos);
+    if (erros.length) showError(erros[0]);
   };
 
   // ─── Submit comment ────────────────────────────────────────────────────────
   const handleCommentSubmit = async () => {
     const text = commentText.trim();
-    if (!text || !userId || !selectedRequest) return;
+    if ((!text && !anexosMensagem.length) || !userId || !selectedRequest) return;
     setIsSubmittingComment(true);
+    let enviados: AnexoIT[] = [];
     try {
+      enviados = await enviarAnexosIT(anexosMensagem, userId, selectedRequest.id);
       const { error } = await supabase.from('it_task_comments').insert({
         task_id: selectedRequest.id,
         user_id: userId,
         content: text,
+        attachments: enviados,
       });
-      if (!error) {
-        setCommentText('');
-        await fetchComments(selectedRequest.id);
-      }
+      if (error) throw error;
+      setCommentText('');
+      setAnexosMensagem([]);
+      await fetchComments(selectedRequest.id);
+    } catch (error) {
+      await descartarAnexosIT(enviados);
+      console.error('Erro ao enviar mensagem:', error);
+      showError(error instanceof Error ? error.message : 'Não foi possível enviar a mensagem.');
     } finally {
       setIsSubmittingComment(false);
     }
   };
 
   // ─── Status update (IT managers only) ───────────────────────────────────────
+  // "Resolvido" abre o modal de resolução (texto obrigatório + anexos); os demais
+  // status mudam direto e geram só a notificação in-app.
   const handleStatusChange = async (requestId: string, newStatus: string) => {
     if (!isITManager) return;
     const req = requests.find((r) => r.id === requestId);
-    const prevStatus = req?.status;
+    if (!req || newStatus === req.status) return;
+    if (newStatus === 'resolved') {
+      setResolvendo(req);
+      return;
+    }
     try {
       const { error } = await supabase
         .from('it_requests')
@@ -626,85 +742,46 @@ const ITRequestManagement: React.FC = () => {
       if (error) throw error;
       showSuccess('Status atualizado!');
 
-      // Notifica o solicitante a cada mudança de status (email + notificação in-app).
-      // O email respeita um cooldown de 5 min por chamado (anti-spam); a notificação
-      // in-app é sempre criada.
-      if (req && newStatus !== prevStatus) {
-        const statusLabel = STATUS_CONFIG[newStatus]?.label ?? newStatus;
-
-        // Busca o email do solicitante diretamente do Supabase para garantir
-        // que temos o dado mais atualizado, independente do estado local.
-        let requesterEmail = req.requester_email ?? null;
-        let requesterName = req.requester_name ?? null;
-        try {
-          const { data: requesterData } = await supabase
-            .from('user_profiles')
-            .select('email, name')
-            .eq('id', req.requested_by)
-            .single();
-          if (requesterData?.email) requesterEmail = requesterData.email;
-          if (requesterData?.name) requesterName = requesterData.name;
-        } catch {
-          // Fallback: usa o que já temos no estado local
-        }
-
-        const lastEmailAt = req.last_status_email_at ? new Date(req.last_status_email_at).getTime() : 0;
-        const withinCooldown = Date.now() - lastEmailAt < STATUS_EMAIL_COOLDOWN_MS;
-        // Email só é enviado quando o chamado é marcado como resolvido
-        const sendEmail = newStatus === 'resolved' && !!requesterEmail && !withinCooldown;
-
-        console.log('[ITRequestManagement/handleStatusChange] email debug:', {
-          requestId,
-          newStatus,
-          requesterEmail,
-          withinCooldown,
-          sendEmail,
-          last_status_email_at: req.last_status_email_at,
+      try {
+        await sendNotification({
+          userId: req.requested_by,
+          title: 'Status do chamado atualizado',
+          content: `O status do chamado ${req.codigo} mudou para ${STATUS_CONFIG[newStatus]?.label ?? newStatus}.`,
+          module: 'IT',
+          type: newStatus === 'cancelled' ? 'warning' : 'info',
+          link: IT_REQUESTS_PATH,
         });
-
-        try {
-          await sendNotification({
-            userId: req.requested_by,
-            title: newStatus === 'resolved' ? 'Chamado de TI resolvido' : 'Status do chamado atualizado',
-            content: newStatus === 'resolved'
-              ? `O chamado ${req.codigo} foi concluído e marcado como resolvido.`
-              : `O status do chamado ${req.codigo} mudou para ${statusLabel}.`,
-            module: 'IT',
-            type: newStatus === 'resolved' ? 'success' : newStatus === 'cancelled' ? 'warning' : 'info',
-            link: IT_REQUESTS_PATH,
-            sendEmail,
-            emailData: sendEmail
-              ? {
-                  to: requesterEmail!,
-                  templateSlug: 'it_ticket_resolved',
-                  variables: {
-                    user_name: requesterName || 'Usuário',
-                    ticket_code: req.codigo,
-                    ticket_title: req.title,
-                    status_label: statusLabel,
-                    action_url: itRequestUrl(req.id),
-                  },
-                }
-              : undefined,
-          });
-
-          // Registra o envio para o cooldown (otimista — evita reenvio em rajada)
-          if (sendEmail) {
-            await supabase
-              .from('it_requests')
-              .update({ last_status_email_at: new Date().toISOString() })
-              .eq('id', requestId);
-          }
-        } catch (notifyErr) {
-          console.error('Erro ao notificar solicitante sobre mudança de status:', notifyErr);
-        }
+      } catch (notifyErr) {
+        console.error('Erro ao notificar solicitante sobre mudança de status:', notifyErr);
       }
 
       await fetchRequests();
+      // Reaberto: o banco limpa a resolução; o modal aberto acompanha
+      setSelectedRequest((prev) =>
+        prev && prev.id === requestId
+          ? { ...prev, status: newStatus as ITRequest['status'], ...(prev.status === 'resolved' ? { resolution: null, resolved_at: null } : {}) }
+          : prev
+      );
     } catch (error) {
       console.error('Erro ao atualizar status:', error);
-      showError('Erro ao atualizar status.');
+      showError(error instanceof Error && error.message ? error.message : 'Erro ao atualizar status.');
     }
+  };
+
+  const handleResolvido = (resultado: ResultadoResolucao) => {
+    if (!resolvendo) return;
+    const { id, codigo } = resolvendo;
+    const patch: Partial<ITRequest> = {
+      status: 'resolved',
+      resolution: resultado.resolution,
+      resolved_at: resultado.resolved_at,
+      ...(resultado.last_status_email_at ? { last_status_email_at: resultado.last_status_email_at } : {}),
+    };
+    setRequests((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+    setSelectedRequest((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
+    if (selectedRequest?.id === id) fetchComments(id);
+    setResolvendo(null);
+    showSuccess(`Chamado ${codigo} resolvido!`);
   };
 
   // ─── Assign (IT managers only) ──────────────────────────────────────────────
@@ -742,12 +819,14 @@ const ITRequestManagement: React.FC = () => {
     );
   }
 
+  const temFiltro = !!searchQuery || filterStatus !== 'all' || filterType !== 'all';
+
   // ═══════════════════════════════════════════════════════════════════════════════
   // RENDER
   // ═══════════════════════════════════════════════════════════════════════════════
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-8">
       <Notification
         type={notification.type}
         title={notification.title}
@@ -757,33 +836,46 @@ const ITRequestManagement: React.FC = () => {
       />
 
       {/* ─── Header ──────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fade-in-up">
-        <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-            Solicitações de TI
-          </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {isITManager
-              ? 'Gerencie todos os chamados de suporte, desenvolvimento e consultoria'
-              : 'Acompanhe seus chamados de suporte, desenvolvimento e consultoria'}
-          </p>
+      <div className={`relative overflow-hidden ${GLASS} rounded-3xl p-6 sm:p-8 shadow-sm animate-fade-in-up`}>
+        <div className="absolute -right-16 -top-24 w-72 h-72 rounded-full blur-3xl opacity-20 bg-violet-500 pointer-events-none" />
+        <div className="absolute -left-24 -bottom-28 w-72 h-72 rounded-full blur-3xl opacity-10 bg-indigo-500 pointer-events-none" />
+        <div className="relative flex flex-col sm:flex-row sm:items-center sm:justify-between gap-5">
+          <div className="flex items-center gap-4">
+            <div className="relative flex-shrink-0">
+              <div className="absolute inset-0 bg-violet-500 rounded-3xl blur-xl opacity-40" />
+              <div className="relative w-14 h-14 bg-gradient-to-br from-violet-500 to-purple-600 rounded-3xl flex items-center justify-center shadow-2xl shadow-violet-500/30">
+                <Headphones className="w-7 h-7 text-white" />
+              </div>
+            </div>
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+                Solicitações de TI
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                {isITManager
+                  ? 'Gerencie todos os chamados de suporte, desenvolvimento e consultoria'
+                  : 'Acompanhe seus chamados de suporte, desenvolvimento e consultoria'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowForm(!showForm)}
+            className="self-start sm:self-auto flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-xl hover:from-violet-600 hover:to-purple-700 hover:-translate-y-0.5 transition-all duration-200 shadow-lg shadow-violet-500/25 font-semibold text-sm"
+          >
+            {showForm ? <X className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+            {showForm ? 'Fechar formulário' : 'Novo Chamado'}
+          </button>
         </div>
-        <button
-          onClick={() => setShowForm(!showForm)}
-          className="flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-violet-500 to-purple-600 text-white rounded-xl hover:from-violet-600 hover:to-purple-700 transition-all duration-200 shadow-lg shadow-violet-500/25 font-medium text-sm"
-        >
-          <Plus className="w-4 h-4" />
-          Novo Chamado
-        </button>
       </div>
 
       {/* ─── New Request Form ─────────────────────────────────────────── */}
       {showForm && (
-        <div className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl shadow-xl border border-gray-200/60 dark:border-gray-700/60 p-6 animate-scale-in">
+        <div className={`${GLASS} rounded-3xl shadow-xl p-6 animate-scale-in`}>
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Novo Chamado</h3>
+            <h3 className="text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">Novo Chamado</h3>
             <button
               onClick={() => setShowForm(false)}
+              aria-label="Fechar formulário"
               className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all"
             >
               <X className="w-5 h-5" />
@@ -914,13 +1006,13 @@ const ITRequestManagement: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Prioridade</label>
               <div className="flex gap-2 flex-wrap">
-                {(Object.entries(PRIORITY_CONFIG) as [string, typeof PRIORITY_CONFIG[keyof typeof PRIORITY_CONFIG]][]).map(([key, conf]) => {
+                {(Object.entries(PRIORITY_CONFIG) as [ITRequest['priority'], typeof PRIORITY_CONFIG[keyof typeof PRIORITY_CONFIG]][]).map(([key, conf]) => {
                   const isActive = formData.priority === key;
                   return (
                     <button
                       key={key}
                       type="button"
-                      onClick={() => setFormData((p) => ({ ...p, priority: key as any }))}
+                      onClick={() => setFormData((p) => ({ ...p, priority: key }))}
                       className={`inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-xl transition-all duration-200 ${
                         isActive ? conf.pillActive : conf.pill
                       }`}
@@ -1018,181 +1110,206 @@ const ITRequestManagement: React.FC = () => {
         </div>
       )}
 
-      {/* ─── Filters & Search ─────────────────────────────────────────── */}
-      <div className="flex flex-col lg:flex-row gap-3 animate-fade-in-up" style={{ animationDelay: '0.05s' }}>
-        {/* Search bar */}
-        <div className="relative flex-1 min-w-0">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 pointer-events-none" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por código, título ou solicitante…"
-            className="w-full pl-10 pr-10 py-2.5 text-sm bg-white/70 dark:bg-gray-800/70 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-xl focus:ring-2 focus:ring-violet-500 focus:border-transparent text-gray-800 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 transition-all"
-          />
-          {searchQuery && (
+      {/* ─── Dashboard ─────────────────────────────────────────────────── */}
+      <ITRequestsDashboard
+        chamados={requests}
+        isITManager={isITManager}
+        canViewSla={canViewSla}
+        tipos={TYPE_CONFIG}
+        filtroStatus={filterStatus}
+        onFiltrarStatus={filtrarPeloPainel}
+      />
+
+      {/* ─── Chamados: filtros + lista ─────────────────────────────────── */}
+      <section ref={listRef} aria-labelledby="lista-chamados-titulo" className="space-y-4 scroll-mt-6">
+        <div className="flex flex-wrap items-end justify-between gap-2 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
+          <div>
+            <h3 id="lista-chamados-titulo" className="text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">
+              Chamados
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 tabular-nums">
+              {filteredRequests.length === requests.length
+                ? `${requests.length} no total`
+                : `${filteredRequests.length} de ${requests.length}`}
+            </p>
+          </div>
+          {temFiltro && (
             <button
-              onClick={() => setSearchQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md transition-colors"
+              onClick={() => { setSearchQuery(''); setFilterStatus('all'); setFilterType('all'); }}
+              className="text-xs font-semibold text-violet-600 dark:text-violet-400 hover:text-violet-700 dark:hover:text-violet-300 transition-colors"
             >
-              <X className="w-3.5 h-3.5" />
+              Limpar filtros
             </button>
           )}
         </div>
 
-        {/* Segmented controls row */}
-        <div className="flex items-center gap-3 flex-wrap">
-          {/* Status — Segmented control */}
-          <div className="bg-gray-100 dark:bg-gray-800/80 p-1 rounded-xl flex gap-0.5 overflow-x-auto">
-            {STATUS_FILTER_ITEMS.map(([val, label]) => (
+        <div className={`flex flex-col xl:flex-row gap-3 p-2 rounded-2xl ${GLASS} shadow-sm animate-fade-in-up`} style={{ animationDelay: '0.12s' }}>
+          {/* Search bar */}
+          <div className="relative flex-1 min-w-0">
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por código, título ou solicitante…"
+              aria-label="Buscar chamados"
+              className="w-full h-full min-h-[40px] pl-10 pr-10 py-2 text-sm bg-white/70 dark:bg-slate-800/60 border border-slate-200/70 dark:border-slate-700/60 rounded-xl focus:outline-none focus:ring-4 focus:ring-violet-500/10 focus:border-violet-400 text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 transition-all"
+            />
+            {searchQuery && (
               <button
-                key={val}
-                onClick={() => setFilterStatus(val)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all duration-200 ${
-                  filterStatus === val
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
+                onClick={() => setSearchQuery('')}
+                aria-label="Limpar busca"
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-md transition-colors"
               >
-                {label}
+                <X className="w-3.5 h-3.5" />
               </button>
-            ))}
+            )}
           </div>
 
-          {/* Type — Segmented control */}
-          <div className="bg-gray-100 dark:bg-gray-800/80 p-1 rounded-xl flex gap-0.5">
-            {TYPE_FILTER_ITEMS.map(([val, label]) => (
-              <button
-                key={val}
-                onClick={() => setFilterType(val)}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-all duration-200 ${
-                  filterType === val
-                    ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                    : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="flex items-center gap-2 flex-wrap">
+            <div role="group" aria-label="Filtrar por status" className={`${SEGMENTED} overflow-x-auto`}>
+              {STATUS_FILTER_ITEMS.map(([val, label]) => (
+                <button key={val} onClick={() => setFilterStatus(val)} aria-pressed={filterStatus === val} className={segmentedItem(filterStatus === val)}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div role="group" aria-label="Filtrar por tipo" className={`${SEGMENTED} overflow-x-auto`}>
+              {TYPE_FILTER_ITEMS.map(([val, label]) => (
+                <button key={val} onClick={() => setFilterType(val)} aria-pressed={filterType === val} className={segmentedItem(filterType === val)}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
-
-          <span className="text-xs text-gray-400 dark:text-gray-500 tabular-nums whitespace-nowrap">
-            {filteredRequests.length} de {requests.length}
-          </span>
         </div>
-      </div>
 
-      {/* ─── Backlog Card List ────────────────────────────────────────── */}
-      <div className="flex flex-col gap-3 animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-        {filteredRequests.map((req) => {
-          const typeConf = TYPE_CONFIG[req.request_type];
-          const prioConf = PRIORITY_CONFIG[req.priority];
-          const statusConf = STATUS_CONFIG[req.status];
-          const StatusIcon = statusConf.icon;
-          const TypeIcon = typeConf.icon;
+        {/* ─── Backlog Card List ────────────────────────────────────────── */}
+        <div className="flex flex-col gap-3 animate-fade-in-up" style={{ animationDelay: '0.15s' }}>
+          {filteredRequests.map((req) => {
+            const typeConf = TYPE_CONFIG[req.request_type];
+            const prioConf = PRIORITY_CONFIG[req.priority];
+            const statusConf = STATUS_CONFIG[req.status];
+            const StatusIcon = statusConf.icon;
+            const TypeIcon = typeConf.icon;
 
-          return (
-            <div
-              key={req.id}
-              onClick={() => setSelectedRequest(req)}
-              className="group bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border border-gray-100 dark:border-gray-700 p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-md hover:border-violet-200 dark:hover:border-violet-800 transition-all duration-200 cursor-pointer"
-            >
-              {/* Left — Type icon + Info */}
-              <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                <div className={`w-10 h-10 rounded-xl ${typeConf.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
-                  <TypeIcon className={`w-5 h-5 ${typeConf.color}`} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-xs font-mono font-semibold text-violet-600 dark:text-violet-400">{req.codigo}</span>
-                    <span className="text-xs text-gray-300 dark:text-gray-600">•</span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500">{typeConf.label}</span>
+            return (
+              <div
+                key={req.id}
+                role="button"
+                tabIndex={0}
+                onClick={() => setSelectedRequest(req)}
+                onKeyDown={(e) => {
+                  if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    setSelectedRequest(req);
+                  }
+                }}
+                className={`group relative focus-within:z-20 ${GLASS} p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-xl hover:shadow-violet-500/5 hover:-translate-y-0.5 hover:border-violet-200/80 dark:hover:border-violet-700/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-all duration-200 cursor-pointer`}
+              >
+                {/* Left — Type icon + Info */}
+                <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                  <div className={`w-10 h-10 rounded-xl ${typeConf.bg} flex items-center justify-center flex-shrink-0 mt-0.5 ring-1 ring-black/5 dark:ring-white/5`}>
+                    <TypeIcon className={`w-5 h-5 ${typeConf.color}`} />
                   </div>
-                  <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 truncate">{req.title}</p>
-                  {req.description && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">{req.description}</p>
-                  )}
-                  {/* Requester info */}
-                  <div className="flex items-center gap-1.5 mt-1.5">
-                    <User className="w-3 h-3 text-gray-400 dark:text-gray-500" />
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      {isITManager ? (req.requester_name || '—') : 'Você'}
-                    </span>
-                    {(req.assignee_names?.length ?? 0) > 0 && (
-                      <>
-                        <span className="text-xs text-gray-300 dark:text-gray-600 mx-1">→</span>
-                        <UserCheck className="w-3 h-3 text-violet-500 dark:text-violet-400" />
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          {req.assignee_names!.length === 1
-                            ? req.assignee_names![0]
-                            : `${req.assignee_names![0]} +${req.assignee_names!.length - 1}`}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Right — Badges + Date + Actions */}
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 sm:flex-shrink-0">
-                {/* Priority badge */}
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg ${prioConf.badge}`}>
-                  <span className={`w-1.5 h-1.5 rounded-full ${prioConf.dot}`} />
-                  {prioConf.label}
-                </span>
-
-                {/* Status badge */}
-                <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg ${statusConf.badge}`}>
-                  <StatusIcon className="w-3.5 h-3.5" />
-                  {statusConf.label}
-                </span>
-
-                {/* SLA badge — controle interno da TI, escondido do solicitante */}
-                {canViewSla && (
-                  <SLABadge
-                    createdAt={req.created_at}
-                    priority={req.priority}
-                    status={req.status}
-                    kanbanStatus={req.kanban_status}
-                    kanbanHidden={req.kanban_hidden}
-                    variant="pill"
-                    size="list"
-                  />
-                )}
-
-                {/* Date */}
-                <span className="inline-flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500 tabular-nums whitespace-nowrap">
-                  <Calendar className="w-3 h-3" />
-                  {new Date(req.created_at).toLocaleDateString('pt-BR')}
-                </span>
-
-                {/* Manager actions */}
-                {isITManager && (
-                  <div className="flex items-center gap-2 sm:ml-1 sm:pl-3 sm:border-l sm:border-gray-200 sm:dark:border-gray-700">
-                    {!req.assigned_to?.includes(userId) && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleAssignToMe(req.id); }}
-                        className="px-3 py-1.5 text-xs font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all whitespace-nowrap"
-                      >
-                        Assumir
-                      </button>
-                    )}
-                    <div className="relative" onClick={(e) => e.stopPropagation()}>
-                      <select
-                        value={req.status}
-                        onChange={(e) => handleStatusChange(req.id, e.target.value)}
-                        className="appearance-none pl-3 pr-7 py-1.5 text-xs font-medium border border-gray-200 dark:border-gray-600 rounded-lg bg-white/80 dark:bg-gray-700/80 text-gray-700 dark:text-gray-300 cursor-pointer focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
-                      >
-                        <option value="pending">Pendente</option>
-                        <option value="in_progress">Em Andamento</option>
-                        <option value="resolved">Resolvido</option>
-                        <option value="cancelled">Cancelado</option>
-                      </select>
-                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-400 pointer-events-none" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <span className="text-xs font-mono font-semibold text-violet-600 dark:text-violet-400">{req.codigo}</span>
+                      <span className="text-xs text-slate-300 dark:text-slate-600">•</span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">{typeConf.label}</span>
                     </div>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{req.title}</p>
+                    {req.status === 'resolved' && req.resolution ? (
+                      <p className="flex items-center gap-1 text-xs text-emerald-700 dark:text-emerald-400 truncate mt-0.5">
+                        <CheckCircle2 className="w-3 h-3 flex-shrink-0" />
+                        <span className="truncate">{req.resolution}</span>
+                      </p>
+                    ) : (
+                      req.description && (
+                        <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{req.description}</p>
+                      )
+                    )}
+                    {/* Requester info */}
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <User className="w-3 h-3 text-slate-400 dark:text-slate-500" />
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {isITManager ? (req.requester_name || '—') : 'Você'}
+                      </span>
+                      {(req.assignee_names?.length ?? 0) > 0 && (
+                        <>
+                          <span className="text-xs text-slate-300 dark:text-slate-600 mx-1">→</span>
+                          <UserCheck className="w-3 h-3 text-violet-500 dark:text-violet-400" />
+                          <span className="text-xs text-slate-500 dark:text-slate-400">
+                            {req.assignee_names!.length === 1
+                              ? req.assignee_names![0]
+                              : `${req.assignee_names![0]} +${req.assignee_names!.length - 1}`}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
 
-                    {/* Kanban control */}
-                    <div className="relative" onClick={(e) => e.stopPropagation()}>
+                {/* Right — Badges + Date + Actions */}
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 sm:gap-3 sm:flex-shrink-0">
+                  {/* Priority badge */}
+                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg ${prioConf.badge}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${prioConf.dot}`} />
+                    {prioConf.label}
+                  </span>
+
+                  {/* Status badge (o seletor ao lado já mostra o status para a TI) */}
+                  {!isITManager && (
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg ${statusConf.badge}`}>
+                      <StatusIcon className="w-3.5 h-3.5" />
+                      {statusConf.label}
+                    </span>
+                  )}
+
+                  {/* SLA badge — controle interno da TI, escondido do solicitante */}
+                  {canViewSla && (
+                    <SLABadge
+                      createdAt={req.created_at}
+                      priority={req.priority}
+                      status={req.status}
+                      kanbanStatus={req.kanban_status}
+                      kanbanHidden={req.kanban_hidden}
+                      variant="pill"
+                      size="list"
+                    />
+                  )}
+
+                  {/* Date */}
+                  <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500 tabular-nums whitespace-nowrap">
+                    <Calendar className="w-3 h-3" />
+                    {new Date(req.created_at).toLocaleDateString('pt-BR')}
+                  </span>
+
+                  {/* Manager actions */}
+                  {isITManager && (
+                    <div
+                      className="flex items-center gap-2 sm:ml-1 sm:pl-3 sm:border-l sm:border-slate-200 sm:dark:border-slate-700"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      {!req.assigned_to?.includes(userId) && (
+                        <button
+                          onClick={() => handleAssignToMe(req.id)}
+                          className="px-3 py-1.5 text-xs font-semibold text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all whitespace-nowrap"
+                        >
+                          Assumir
+                        </button>
+                      )}
+                      <Select
+                        value={req.status}
+                        onChange={(v) => handleStatusChange(req.id, v)}
+                        options={STATUS_OPTIONS}
+                        ariaLabel={`Status do chamado ${req.codigo}`}
+                        tone="vidro"
+                        controlClass={`min-w-[8.75rem] pl-3 pr-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-all focus:outline-none focus:ring-2 focus:ring-violet-500/30 ${statusConf.badge} border-transparent hover:border-violet-300/70 dark:hover:border-violet-600/60`}
+                      />
+
+                      {/* Kanban control */}
                       <button
                         onClick={() => setKanbanModalReq({
                           id: req.id,
@@ -1203,7 +1320,7 @@ const ITRequestManagement: React.FC = () => {
                           kanban_status: req.kanban_status,
                           kanban_hidden: req.kanban_hidden,
                         })}
-                        className={`px-2.5 py-1.5 text-xs font-medium border rounded-lg transition-colors whitespace-nowrap ${
+                        className={`px-2.5 py-1.5 text-xs font-semibold border rounded-lg transition-colors whitespace-nowrap ${
                           req.kanban_hidden === false
                             ? 'text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/30 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-100 dark:hover:bg-emerald-900/50'
                             : 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/50'
@@ -1212,38 +1329,38 @@ const ITRequestManagement: React.FC = () => {
                         Kanban
                       </button>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
 
-        {/* Empty state */}
-        {filteredRequests.length === 0 && (
-          <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl border border-gray-100 dark:border-gray-700 rounded-2xl p-12 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-              <Headphones className="w-8 h-8 text-gray-400 dark:text-gray-500" />
+          {/* Empty state */}
+          {filteredRequests.length === 0 && (
+            <div className={`${GLASS} rounded-3xl p-12 text-center`}>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                <Headphones className="w-8 h-8 text-slate-400 dark:text-slate-500" />
+              </div>
+              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-1">
+                {requests.length === 0 ? 'Nenhum chamado encontrado' : 'Nenhum resultado para os filtros aplicados'}
+              </h3>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                {requests.length === 0
+                  ? 'Clique em "Novo Chamado" para abrir sua primeira solicitação de TI.'
+                  : 'Tente ajustar a busca ou os filtros acima.'}
+              </p>
+              {temFiltro && (
+                <button
+                  onClick={() => { setSearchQuery(''); setFilterStatus('all'); setFilterType('all'); }}
+                  className="mt-4 px-4 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all"
+                >
+                  Limpar filtros
+                </button>
+              )}
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1">
-              {requests.length === 0 ? 'Nenhum chamado encontrado' : 'Nenhum resultado para os filtros aplicados'}
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              {requests.length === 0
-                ? 'Clique em "Novo Chamado" para abrir sua primeira solicitação de TI.'
-                : 'Tente ajustar a busca ou os filtros acima.'}
-            </p>
-            {(searchQuery || filterStatus !== 'all' || filterType !== 'all') && (
-              <button
-                onClick={() => { setSearchQuery(''); setFilterStatus('all'); setFilterType('all'); }}
-                className="mt-4 px-4 py-2 text-sm font-medium text-violet-600 dark:text-violet-400 bg-violet-50 dark:bg-violet-900/30 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-900/50 transition-all"
-              >
-                Limpar filtros
-              </button>
-            )}
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      </section>
 
       {/* ─── Modal de Detalhamento do Chamado (Portal) ────────────────────────────── */}
       {ReactDOM.createPortal(
@@ -1254,13 +1371,16 @@ const ITRequestManagement: React.FC = () => {
             const modalStatusConf = STATUS_CONFIG[selectedRequest.status];
             const ModalStatusIcon = modalStatusConf.icon;
             const ModalTypeIcon   = modalTypeConf.icon;
+            const isClosed = selectedRequest.status === 'resolved' || selectedRequest.status === 'cancelled';
+            const ultimaResolucao = [...comments].reverse().find((c) => c.kind === 'resolution');
+            const qtdMensagens = comments.length;
             return (
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 onClick={() => setSelectedRequest(null)}
-                className="fixed inset-0 z-50 bg-black/20 dark:bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
+                className="fixed inset-0 z-50 bg-slate-900/20 dark:bg-black/40 backdrop-blur-sm flex items-center justify-center p-4"
               >
                 {/* Modal */}
                 <motion.div
@@ -1268,13 +1388,18 @@ const ITRequestManagement: React.FC = () => {
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.95, y: 20 }}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-full max-w-4xl h-[90vh] bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-white/50 dark:border-slate-700/50 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label={`Chamado ${selectedRequest.codigo}`}
+                  className="relative w-full max-w-4xl h-[90vh] bg-white/90 dark:bg-slate-900/90 backdrop-blur-2xl border border-white/50 dark:border-slate-700/50 rounded-3xl shadow-2xl flex flex-col overflow-hidden"
                 >
+                  <div className="absolute -right-20 -top-24 w-72 h-72 rounded-full blur-3xl opacity-[0.12] bg-violet-500 pointer-events-none" />
+
                   {/* ── Header ─────────────────────────────────────────────── */}
-                  <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50 flex-shrink-0">
+                  <div className="relative flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/40 dark:bg-slate-900/40 flex-shrink-0">
                     {/* Left: type icon + title stack */}
                     <div className="flex items-center gap-3 min-w-0">
-                      <div className={`w-10 h-10 rounded-xl ${modalTypeConf.bg} flex items-center justify-center flex-shrink-0`}>
+                      <div className={`w-11 h-11 rounded-2xl ${modalTypeConf.bg} flex items-center justify-center flex-shrink-0 ring-1 ring-black/5 dark:ring-white/5`}>
                         <ModalTypeIcon className={`w-5 h-5 ${modalTypeConf.color}`} />
                       </div>
                       <div className="min-w-0">
@@ -1306,23 +1431,38 @@ const ITRequestManagement: React.FC = () => {
                         <h3 className="text-base font-bold text-slate-900 dark:text-white mt-0.5 truncate">{selectedRequest.title}</h3>
                       </div>
                     </div>
-                    {/* Right: close */}
-                    <button
-                      onClick={() => setSelectedRequest(null)}
-                      className="p-2 ml-4 flex-shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
+                    {/* Right: resolver + close */}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {isITManager && !isClosed && (
+                        <button
+                          onClick={() => setResolvendo(selectedRequest)}
+                          aria-label="Resolver chamado"
+                          className="inline-flex items-center gap-1.5 px-2.5 sm:px-3.5 py-2 text-xs font-semibold text-white rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-lg shadow-emerald-500/25 transition-all"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span className="hidden sm:inline">Resolver</span>
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setSelectedRequest(null)}
+                        aria-label="Fechar"
+                        className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all"
+                      >
+                        <X className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
 
                   {/* ── Tab Switcher ────────────────────────────────────────── */}
-                  <div className="flex gap-8 px-6 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/30 dark:bg-slate-900/30 backdrop-blur-md flex-shrink-0">
+                  <div role="tablist" className="relative flex gap-8 px-6 border-b border-slate-200/50 dark:border-slate-800/50 bg-white/30 dark:bg-slate-900/30 backdrop-blur-md flex-shrink-0">
                     {([
                       { id: 'details', label: 'Detalhes Técnicos', icon: FileText },
                       { id: 'chat',    label: 'Conversa com TI',   icon: Headphones },
                     ] as const).map((tab) => (
                       <button
                         key={tab.id}
+                        role="tab"
+                        aria-selected={activeTab === tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`flex items-center gap-2 py-4 text-sm font-medium border-b-2 transition-all ${
                           activeTab === tab.id
@@ -1332,17 +1472,29 @@ const ITRequestManagement: React.FC = () => {
                       >
                         <tab.icon className="w-4 h-4" />
                         {tab.label}
+                        {tab.id === 'chat' && qtdMensagens > 0 && (
+                          <span className="min-w-[1.25rem] px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-violet-100 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 tabular-nums">
+                            {qtdMensagens}
+                          </span>
+                        )}
                       </button>
                     ))}
                   </div>
 
                   {/* ── Body ───────────────────────────────────────────────── */}
-                  {(() => {
-                    const isClosed = selectedRequest.status === 'resolved' || selectedRequest.status === 'cancelled';
-                    return (
-                  <div className="flex-1 overflow-y-auto custom-scrollbar">
+                  <div className="relative flex-1 overflow-y-auto custom-scrollbar">
                     {activeTab === 'details' ? (
                       <div className="p-6 space-y-6">
+                        {/* Resolução vigente (some quando o chamado é reaberto) */}
+                        {selectedRequest.status === 'resolved' && selectedRequest.resolution && (
+                          <CartaoResolucao
+                            texto={selectedRequest.resolution}
+                            anexos={ultimaResolucao?.attachments}
+                            autor={ultimaResolucao?.author_name}
+                            quando={selectedRequest.resolved_at ?? ultimaResolucao?.created_at}
+                          />
+                        )}
+
                         {/* Meta row */}
                         {/* 5ª célula (Prazo/SLA) só existe para a TI — sem ela a linha volta a 4 colunas */}
                         <div className={`grid grid-cols-2 gap-4 ${canViewSla ? 'sm:grid-cols-5' : 'sm:grid-cols-4'}`}>
@@ -1412,9 +1564,10 @@ const ITRequestManagement: React.FC = () => {
                                     href={att.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
+                                    aria-label={`Baixar ${att.name}`}
                                     className="p-1.5 text-slate-400 hover:text-violet-500 hover:bg-violet-50 dark:hover:bg-violet-900/20 rounded-lg transition-colors"
                                   >
-                                    <UploadCloud className="w-3.5 h-3.5 rotate-180" />
+                                    <Download className="w-3.5 h-3.5" />
                                   </a>
                                 </li>
                               ))}
@@ -1428,9 +1581,23 @@ const ITRequestManagement: React.FC = () => {
                         </div>
                       </div>
                     ) : (
-                      <div className="flex flex-col h-full">
+                      <div
+                        className={`flex flex-col h-full transition-colors ${arrastandoNoChat ? 'bg-violet-50/60 dark:bg-violet-500/5' : ''}`}
+                        onDragOver={(e) => {
+                          if (isClosed) return;
+                          e.preventDefault();
+                          setArrastandoNoChat(true);
+                        }}
+                        onDragLeave={() => setArrastandoNoChat(false)}
+                        onDrop={(e) => {
+                          if (isClosed) return;
+                          e.preventDefault();
+                          setArrastandoNoChat(false);
+                          adicionarAnexosMensagem(Array.from(e.dataTransfer.files));
+                        }}
+                      >
                         {/* Messages list */}
-                        <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-4 pb-6">
+                        <div className="flex-1 p-6 space-y-4 pb-6">
                           {comments.length === 0 ? (
                             <div className="flex flex-col items-center justify-center h-full gap-3 py-12">
                               <div className="w-14 h-14 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
@@ -1441,9 +1608,19 @@ const ITRequestManagement: React.FC = () => {
                             </div>
                           ) : (
                             comments.map((c) => {
+                              if (c.kind === 'resolution') {
+                                return (
+                                  <CartaoResolucao
+                                    key={c.id}
+                                    texto={c.content}
+                                    anexos={c.attachments}
+                                    autor={c.user_id === userId ? 'Você' : c.author_name}
+                                    quando={c.created_at}
+                                  />
+                                );
+                              }
                               const isOwn = c.user_id === userId;
                               const initials = (c.author_name || '?')[0].toUpperCase();
-                              const time = new Date(c.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
                               return (
                                 <div key={c.id} className={`flex gap-2.5 ${isOwn ? 'flex-row-reverse' : 'flex-row'}`}>
                                   {/* Avatar */}
@@ -1460,14 +1637,15 @@ const ITRequestManagement: React.FC = () => {
                                       <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                                         {isOwn ? 'Você' : (c.author_name || '—')}
                                       </span>
-                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">{time}</span>
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 tabular-nums">{formatarDataHora(c.created_at)}</span>
                                     </div>
-                                    <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
+                                    <div className={`px-4 py-3 rounded-2xl text-sm leading-relaxed break-words shadow-sm space-y-2 ${
                                       isOwn
-                                        ? 'bg-violet-500 text-white rounded-tr-md'
+                                        ? 'bg-gradient-to-br from-violet-500 to-purple-600 text-white rounded-tr-md shadow-violet-500/20'
                                         : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-tl-md'
                                     }`}>
-                                      {c.content}
+                                      {c.content && <p className="whitespace-pre-wrap">{c.content}</p>}
+                                      <ListaAnexos anexos={c.attachments} tom={isOwn ? 'invertido' : 'padrao'} />
                                     </div>
                                   </div>
                                 </div>
@@ -1479,14 +1657,10 @@ const ITRequestManagement: React.FC = () => {
                       </div>
                     )}
                   </div>
-                    );
-                  })()}
 
                   {/* ── Chat Footer (visible only on chat tab) ───────────────────── */}
-                  {activeTab === 'chat' && (() => {
-                    const isClosed = selectedRequest.status === 'resolved' || selectedRequest.status === 'cancelled';
-                    return (
-                    <div className="flex-shrink-0 px-4 py-3 border-t border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50">
+                  {activeTab === 'chat' && (
+                    <div className="relative flex-shrink-0 px-4 py-3 border-t border-slate-200/50 dark:border-slate-800/50 bg-white/50 dark:bg-slate-900/50">
                       {isClosed ? (
                         <div className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-slate-100/50 dark:bg-slate-800/50 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
                           <Lock className="w-4 h-4 text-slate-400" />
@@ -1495,35 +1669,51 @@ const ITRequestManagement: React.FC = () => {
                           </span>
                         </div>
                       ) : (
-                        <div className="flex items-end gap-2 bg-slate-100 dark:bg-slate-800 rounded-2xl px-4 py-2">
-                          <textarea
-                            value={commentText}
-                            onChange={(e) => setCommentText(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleCommentSubmit();
-                              }
-                            }}
-                            placeholder="Escreva uma mensagem… (Enter para enviar)"
-                            rows={1}
-                            className="flex-1 bg-transparent resize-none text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none py-1.5 max-h-32"
-                            style={{ fieldSizing: 'content' } as React.CSSProperties}
+                        <div className="space-y-2">
+                          <AnexosPendentes
+                            arquivos={anexosMensagem}
+                            onRemover={(i) => setAnexosMensagem((atuais) => atuais.filter((_, j) => j !== i))}
+                            disabled={isSubmittingComment}
                           />
-                          <button
-                            onClick={handleCommentSubmit}
-                            disabled={isSubmittingComment || !commentText.trim()}
-                            className="p-2 mb-0.5 bg-violet-500 hover:bg-violet-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl transition-all flex-shrink-0"
-                          >
-                            {isSubmittingComment
-                              ? <Loader2 className="w-4 h-4 animate-spin" />
-                              : <Send className="w-4 h-4" />}
-                          </button>
+                          <div className="flex items-end gap-1 bg-slate-100 dark:bg-slate-800 rounded-2xl pl-1.5 pr-2 py-1.5 border border-transparent focus-within:border-violet-300 dark:focus-within:border-violet-700 focus-within:ring-4 focus-within:ring-violet-500/10 transition-all">
+                            <BotaoAnexar onArquivos={adicionarAnexosMensagem} disabled={isSubmittingComment} />
+                            <textarea
+                              value={commentText}
+                              onChange={(e) => setCommentText(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                  e.preventDefault();
+                                  handleCommentSubmit();
+                                }
+                              }}
+                              onPaste={(e) => {
+                                const colados = nomearCapturasColadas(Array.from(e.clipboardData.files));
+                                if (colados.length) {
+                                  e.preventDefault();
+                                  adicionarAnexosMensagem(colados);
+                                }
+                              }}
+                              placeholder="Escreva uma mensagem… (Enter envia · cole prints com Ctrl+V)"
+                              aria-label="Mensagem"
+                              rows={1}
+                              className="flex-1 bg-transparent resize-none text-sm text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none py-2 max-h-32"
+                              style={{ fieldSizing: 'content' } as React.CSSProperties}
+                            />
+                            <button
+                              onClick={handleCommentSubmit}
+                              disabled={isSubmittingComment || (!commentText.trim() && !anexosMensagem.length)}
+                              aria-label="Enviar mensagem"
+                              className="p-2 mb-0.5 bg-gradient-to-br from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl shadow-md shadow-violet-500/25 transition-all flex-shrink-0"
+                            >
+                              {isSubmittingComment
+                                ? <Loader2 className="w-4 h-4 animate-spin" />
+                                : <Send className="w-4 h-4" />}
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
-                    );
-                  })()}
+                  )}
                 </motion.div>
               </motion.div>
             );
@@ -1531,6 +1721,12 @@ const ITRequestManagement: React.FC = () => {
         </AnimatePresence>,
         document.body
       )}
+
+      <ITResolucaoModal
+        chamado={resolvendo}
+        onClose={() => setResolvendo(null)}
+        onResolvido={handleResolvido}
+      />
 
       {kanbanModalReq && (
         <KanbanPromoteModal

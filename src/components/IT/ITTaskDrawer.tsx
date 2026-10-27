@@ -35,8 +35,13 @@ import {
 import type { ITRequest, KanbanColumn, ITProject, ITSprint } from './ITKanbanBoard';
 import { calcES } from './ITKanbanBoard';
 import SLABadge from './SLABadge';
+import ITResolucaoModal, { type ResultadoResolucao } from './ITResolucaoModal';
+import { AnexosPendentes, BotaoAnexar, ListaAnexos } from './ITAnexos';
 import { IT_NEW_REPLY_TITLE, IT_REQUESTS_PATH, itRequestUrl } from '../../utils/itRequestLink';
+import { juntarAnexos, lerAnexos, nomearCapturasColadas, type AnexoIT } from '../../utils/itAnexos';
+import { exigeResolucao } from '../../utils/itResolucao';
 import { supabase } from '../../lib/supabase';
+import { descartarAnexosIT, enviarAnexosIT } from '../../lib/itStorage';
 import { useAuth } from '../../hooks/useAuth';
 import { hasPermission } from '../../utils/permissions';
 import { useNotificationCenter } from '../../hooks/useNotificationCenter';
@@ -50,9 +55,18 @@ interface Comment {
   user_id: string;
   content: string;
   created_at: string;
+  /** 'resolution' = texto gravado ao resolver o chamado */
+  kind: 'comment' | 'resolution';
+  attachments: AnexoIT[];
   author_name?: string;
   author_avatar?: string;
 }
+
+type CommentRow = Omit<Comment, 'kind' | 'attachments' | 'author_name'> & {
+  kind?: string | null;
+  attachments?: unknown;
+  author?: { name: string } | null;
+};
 
 interface Attachment {
   id: string;
@@ -362,7 +376,11 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
   const [comments, setComments] = useState<Comment[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [commentText, setCommentText] = useState('');
+  const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const [commentError, setCommentError] = useState<string | null>(null);
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  // Chamado indo para "Resolvido" pede o texto de resolução (ITResolucaoModal)
+  const [isResolving, setIsResolving] = useState(false);
   const [users, setUsers] = useState<UserOption[]>([]);
   const [projects, setProjects] = useState<ITProject[]>([]);
   const [sprints, setSprints] = useState<ITSprint[]>([]);
@@ -411,7 +429,17 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
       .select('*, author:user_profiles!user_id(name)')
       .eq('task_id', task.id)
       .order('created_at', { ascending: true });
-    setComments((data || []).map((c: any) => ({ ...c, author_name: c.author?.name })));
+    setComments(
+      ((data || []) as CommentRow[]).map((c) => ({
+        id: c.id,
+        user_id: c.user_id,
+        content: c.content ?? '',
+        created_at: c.created_at,
+        kind: c.kind === 'resolution' ? 'resolution' : 'comment',
+        attachments: lerAnexos(c.attachments),
+        author_name: c.author?.name,
+      }))
+    );
   }, [task.id]);
 
   // ─── Fetch attachments ─────────────────────────────────────────────────────
@@ -518,19 +546,61 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
     }
   }, [task.id, task.status, task.requested_by, task.codigo, task.title, task.requester_name, task.last_status_email_at, onUpdate, sendNotification]);
 
+  // ─── Status: "Resolvido" num chamado passa pelo modal de resolução ─────────
+  const handleStatusSelect = (value: string) => {
+    if (value === 'resolved' && exigeResolucao(task)) {
+      setIsResolving(true);
+      return;
+    }
+    saveField('status', value);
+  };
+
+  const handleResolved = (resultado: ResultadoResolucao) => {
+    onUpdate({
+      id: task.id,
+      status: 'resolved',
+      resolution: resultado.resolution,
+      resolved_at: resultado.resolved_at,
+      ...(resultado.last_status_email_at ? { last_status_email_at: resultado.last_status_email_at } : {}),
+    });
+    setIsResolving(false);
+    fetchComments();
+  };
+
+  // ─── Anexos do comentário ──────────────────────────────────────────────────
+  const addCommentFiles = (novos: File[]) => {
+    const { arquivos, erros } = juntarAnexos(commentFiles, novos);
+    setCommentFiles(arquivos);
+    setCommentError(erros[0] ?? null);
+  };
+
   // ─── Submit comment ────────────────────────────────────────────────────────
   const handleCommentSubmit = async () => {
     const text = commentText.trim();
-    if (!text || !userId) return;
+    if ((!text && !commentFiles.length) || !userId) return;
     setIsSubmittingComment(true);
+    setCommentError(null);
+    let uploaded: AnexoIT[] = [];
     try {
+      try {
+        uploaded = await enviarAnexosIT(commentFiles, userId, task.id);
+      } catch (uploadErr) {
+        setCommentError(uploadErr instanceof Error ? uploadErr.message : 'Não foi possível enviar os anexos.');
+        return;
+      }
       const { error } = await supabase.from('it_task_comments').insert({
         task_id: task.id,
         user_id: userId,
         content: text,
+        attachments: uploaded,
       });
+      if (error) {
+        await descartarAnexosIT(uploaded);
+        setCommentError('Não foi possível enviar o comentário. Tente de novo.');
+      }
       if (!error) {
         setCommentText('');
+        setCommentFiles([]);
         await fetchComments();
 
         // Notifica o solicitante caso não seja ele próprio a enviar a mensagem
@@ -557,7 +627,9 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                     variables: {
                       user_name: requesterData.name || task.requester_name || 'Usuário',
                       ticket_code: task.codigo,
-                      ticket_message: text,
+                      ticket_message:
+                        text ||
+                        `${uploaded.length} ${uploaded.length === 1 ? 'anexo novo' : 'anexos novos'} no chamado.`,
                       action_url: itRequestUrl(task.id, 'chat'),
                     },
                   }
@@ -988,7 +1060,9 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                   )}
 
                   <div className="space-y-5">
-                    {comments.map((c, idx) => (
+                    {comments.map((c, idx) => {
+                      const isResolution = c.kind === 'resolution';
+                      return (
                       <motion.div
                         key={c.id}
                         initial={{ opacity: 0, x: -10 }}
@@ -997,10 +1071,18 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                         className="flex gap-3 relative"
                       >
                         {/* Avatar */}
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/20 ring-2 ring-white dark:ring-gray-900 z-10">
-                          <span className="text-[10px] font-bold text-white select-none">
-                            {(c.author_name || '?')[0].toUpperCase()}
-                          </span>
+                        <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-md ring-2 ring-white dark:ring-gray-900 z-10 ${
+                          isResolution
+                            ? 'bg-gradient-to-br from-emerald-500 to-green-600 shadow-emerald-500/30'
+                            : 'bg-gradient-to-br from-violet-500 to-purple-600 shadow-violet-500/20'
+                        }`}>
+                          {isResolution ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-white" />
+                          ) : (
+                            <span className="text-[10px] font-bold text-white select-none">
+                              {(c.author_name || '?')[0].toUpperCase()}
+                            </span>
+                          )}
                         </div>
 
                         {/* Content */}
@@ -1009,18 +1091,31 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                             <span className="text-xs font-semibold text-slate-900 dark:text-gray-200">
                               {c.author_name || '—'}
                             </span>
+                            {isResolution && (
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                                Resolução
+                              </span>
+                            )}
                             <span className="text-[10px] text-slate-400 dark:text-gray-500 tabular-nums">
                               {getRelativeTime(c.created_at)}
                             </span>
                           </div>
-                          <div className="bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl rounded-tl-none px-5 py-4 shadow-sm">
-                            <p className="text-sm text-slate-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap break-words">
-                              {c.content}
-                            </p>
+                          <div className={`rounded-2xl rounded-tl-none px-5 py-4 shadow-sm space-y-3 ${
+                            isResolution
+                              ? 'bg-gradient-to-br from-emerald-50/90 to-white/70 dark:from-emerald-900/25 dark:to-slate-800/60 border border-emerald-200/80 dark:border-emerald-800/50'
+                              : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700'
+                          }`}>
+                            {c.content && (
+                              <p className="text-sm text-slate-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap break-words">
+                                {c.content}
+                              </p>
+                            )}
+                            <ListaAnexos anexos={c.attachments} />
                           </div>
                         </div>
                       </motion.div>
-                    ))}
+                      );
+                    })}
 
                     {comments.length === 0 && (
                       <div className="flex flex-col items-center py-8 text-center">
@@ -1151,7 +1246,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                   <CustomDropdown
                     value={task.status}
                     options={STATUS_OPTIONS}
-                    onChange={(v) => saveField('status', v)}
+                    onChange={handleStatusSelect}
                     disabled={!isITManager}
                     renderTrigger={(selected) => {
                       if (!selected) return <span className="text-gray-400">Selecionar...</span>;
@@ -1490,7 +1585,17 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
         {/* ══════════════════════════════════════════════════════════════════
             STICKY FOOTER (Comment Input)
         ══════════════════════════════════════════════════════════════════ */}
-        <div className="flex-shrink-0 px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/80 backdrop-blur-md">
+        <div className="flex-shrink-0 px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/80 backdrop-blur-md space-y-2">
+          {(commentFiles.length > 0 || commentError) && (
+            <div className="pl-11 space-y-2">
+              <AnexosPendentes
+                arquivos={commentFiles}
+                onRemover={(i) => setCommentFiles((atuais) => atuais.filter((_, j) => j !== i))}
+                disabled={isSubmittingComment}
+              />
+              {commentError && <p className="text-xs text-red-600 dark:text-red-400">{commentError}</p>}
+            </div>
+          )}
           <div className="flex gap-3 items-end">
             {/* User avatar */}
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-md shadow-violet-500/20">
@@ -1500,7 +1605,8 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
             </div>
 
             {/* Input */}
-            <div className="flex-1 bg-gray-100 dark:bg-gray-800 border border-gray-200/80 dark:border-transparent focus-within:border-violet-400 dark:focus-within:border-violet-500 rounded-full px-4 py-2.5 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all">
+            <div className="flex-1 flex items-center gap-1 bg-gray-100 dark:bg-gray-800 border border-gray-200/80 dark:border-transparent focus-within:border-violet-400 dark:focus-within:border-violet-500 rounded-full pl-1.5 pr-4 py-1 focus-within:ring-2 focus-within:ring-violet-500/20 transition-all">
+              <BotaoAnexar onArquivos={addCommentFiles} disabled={isSubmittingComment} className="rounded-full" />
               <input
                 type="text"
                 value={commentText}
@@ -1511,18 +1617,27 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
                     handleCommentSubmit();
                   }
                 }}
-                placeholder="Escreva um comentário..."
-                className="w-full text-sm text-slate-800 dark:text-gray-100 bg-transparent focus:outline-none placeholder-slate-400 dark:placeholder-gray-500"
+                onPaste={(e) => {
+                  const colados = nomearCapturasColadas(Array.from(e.clipboardData.files));
+                  if (colados.length) {
+                    e.preventDefault();
+                    addCommentFiles(colados);
+                  }
+                }}
+                placeholder="Escreva um comentário... (cole prints com Ctrl+V)"
+                aria-label="Comentário"
+                className="w-full py-1.5 text-sm text-slate-800 dark:text-gray-100 bg-transparent focus:outline-none placeholder-slate-400 dark:placeholder-gray-500"
               />
             </div>
 
             {/* Send button */}
             <button
               onClick={handleCommentSubmit}
-              disabled={!commentText.trim() || isSubmittingComment}
+              disabled={(!commentText.trim() && !commentFiles.length) || isSubmittingComment}
+              aria-label="Enviar comentário"
               className={`
                 p-2.5 rounded-full transition-all flex-shrink-0 shadow-lg
-                ${commentText.trim()
+                ${commentText.trim() || commentFiles.length
                   ? 'bg-violet-500 hover:bg-violet-600 text-white shadow-violet-500/30'
                   : 'bg-gray-200 dark:bg-gray-700 text-gray-400 cursor-not-allowed shadow-none'
                 }
@@ -1537,6 +1652,12 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
           </div>
         </div>
       </motion.div>
+
+      <ITResolucaoModal
+        chamado={isResolving ? task : null}
+        onClose={() => setIsResolving(false)}
+        onResolvido={handleResolved}
+      />
     </>,
     document.body
   );

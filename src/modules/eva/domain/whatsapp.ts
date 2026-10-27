@@ -37,6 +37,9 @@ export const chatIdDoNumero = (digitos: string) => `${digitos.replace(/\D/g, '')
 /** Id de grupo do WhatsApp ("1203…@g.us"): o único destino fora da lista de membros (D29). */
 export const ehChatDeGrupo = (chatId: string | null | undefined): chatId is string => !!chatId && /^[\w.-]+@g\.us$/.test(chatId);
 
+/** 'grupo "TI FAFIN"'; sem o nome guardado, "grupo da equipe". */
+export const rotuloDoGrupo = (nome: string | null | undefined) => (nome ? `grupo "${nome}"` : 'grupo da equipe');
+
 // ── Envio e novas tentativas (§11.2, passo 5) ────────────────────────────────
 
 /** Atraso das novas tentativas, em minutos. Na 4ª falha, a mensagem fica "falhou". */
@@ -175,8 +178,11 @@ export function ultimoContato(
   const resposta = mensagens
     .filter((m) => m.direcao === 'entrada' && m.membro_user_id && responsaveis.includes(m.membro_user_id) && m.created_at > enviadaEm)
     .sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
-  const base = `Cobrada ${quandoFoi(enviadaEm, hoje)}`;
+  const noGrupo = !!ultima.chat_id_destino;
+  const base = `Cobrada ${noGrupo ? 'no grupo ' : ''}${quandoFoi(enviadaEm, hoje)}`;
   if (resposta) return { texto: `${base} · respondeu ${quandoFoi(resposta.created_at, hoje)}`, cobradaNaJanela, ultimaManualEm, semResposta: null };
+  // D35: a EVA não lê o grupo, e quem foi citado lá pode nem ter WhatsApp: não há "sem resposta".
+  if (noGrupo) return { texto: base, cobradaNaJanela, ultimaManualEm, semResposta: null };
   return {
     texto: `${base} · sem resposta`,
     cobradaNaJanela,

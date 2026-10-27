@@ -22,12 +22,12 @@ vi.mock('./grupo.js', async (original) => ({
 vi.mock('./ia/gerarEstruturado.js', () => ({ gerarEstruturado: vi.fn() }));
 vi.mock('./aviso.js', async (original) => ({
   ...(await original<typeof import('./aviso.js')>()),
-  checarAvisoPessoal: vi.fn(async () => ({ ok: true, membroId: 'm-bruno', userId: 'u-bruno', nome: 'Bruno Mendes' })),
-  enviarAvisoPessoal: vi.fn(async () => ({ ok: true, id: 'a1', para: 'Bruno Mendes', agendadaPara: null })),
+  checarAvisoPessoal: vi.fn(async () => ({ ok: true, membroId: 'm-bruno', userId: 'u-bruno', nome: 'Bruno Mendes', grupo: null })),
+  enviarAvisoPessoal: vi.fn(async () => ({ ok: true, id: 'a1', para: 'Bruno Mendes', noGrupo: false, grupoNome: null, agendadaPara: null })),
 }));
 
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
-import { enviarAvisoPessoal } from './aviso.js';
+import { checarAvisoPessoal, enviarAvisoPessoal } from './aviso.js';
 import { avisarQuemTem, lerContexto } from './dados.js';
 import { enfileirarNoGrupo, lerConfigGrupo } from './grupo.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
@@ -345,8 +345,8 @@ describe('processarRecebida: equipe', () => {
 
 describe('processarRecebida: gestor', () => {
   it('cobrar: mostra o que vai sair, espera o SIM e só então cobra', async () => {
-    (checarCobranca as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, card: C1, modo: 'cobrar', alvos: [{ id: 'm-bruno', user_id: 'u-bruno', nome: 'Bruno Mendes' }] });
-    (cobrarCard as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, modo: 'cobrar', destinatarios: ['Bruno Mendes'], agendadaPara: null });
+    (checarCobranca as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, card: C1, modo: 'cobrar', alvos: [{ id: 'm-bruno', user_id: 'u-bruno', nome: 'Bruno Mendes' }], grupo: null });
+    (cobrarCard as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, modo: 'cobrar', destinatarios: ['Bruno Mendes'], citadosNoGrupo: [], grupoNome: null, agendadaPara: null });
     ia({ intencao: 'cobrar', cobrar_codigos: ['it-045'] });
     const r1 = await mandar('cobra o IT-045');
     expect(r1.resposta).toContain('Vou cobrar pelo WhatsApp:\n• IT-045 Robô de pré-faturamento → Bruno');
@@ -360,6 +360,22 @@ describe('processarRecebida: gestor', () => {
     expect(cobrarCard).toHaveBeenCalledWith(banco.db, expect.objectContaining({ userId: 'u-ana' }), 'c1', AGORA);
     expect(estado.comandos[0].status).toBe('executado');
     expect(gerarMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('cobrar quem não recebe pelo WhatsApp (D35): a prévia e o SIM dizem que vai para o grupo, citando o nome', async () => {
+    const grupo = { id: '120363000000000001@g.us', nome: 'TI FAFIN', membros: [{ id: 'm-bruno', user_id: 'u-bruno', nome: 'Bruno Mendes' }], citados: ['Bruno'] };
+    (checarCobranca as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, card: C1, modo: 'cobrar', alvos: [], grupo });
+    (cobrarCard as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, modo: 'cobrar', destinatarios: [], citadosNoGrupo: ['Bruno'], grupoNome: 'TI FAFIN', agendadaPara: null });
+    ia({ intencao: 'cobrar', cobrar_codigos: ['IT-045'] });
+    const r1 = await mandar('cobra o IT-045');
+    expect(r1.resposta).toContain('• IT-045 Robô de pré-faturamento → o grupo "TI FAFIN", citando Bruno');
+    const r2 = await mandar('SIM');
+    expect(r2.resposta).toBe('Pronto: a cobrança sai em instantes.\n• IT-045 → o grupo "TI FAFIN", citando Bruno');
+
+    // Um responsável recebe no privado, o outro é citado no grupo.
+    (checarCobranca as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, card: C1, modo: 'cobrar', alvos: [{ id: 'm-ana', user_id: 'u-ana', nome: 'Ana Souza' }], grupo });
+    ia({ intencao: 'cobrar', cobrar_codigos: ['IT-045'] });
+    expect((await mandar('cobra o IT-045')).resposta).toContain('→ Ana e o grupo "TI FAFIN", citando Bruno');
   });
 
   it('cobrar a pessoa: os atrasados dela; quem não está atrasado fica de fora com o motivo', async () => {
@@ -498,8 +514,23 @@ describe('processarRecebida: gestor', () => {
     expect(enviarAvisoPessoal).not.toHaveBeenCalled();
     expect(estado.comandos).toMatchObject([{ tipo: 'avisar_pessoa', status: 'aguardando', dados: { destino: 'u-bruno' } }]);
     const r2 = await mandar('sim');
-    expect(enviarAvisoPessoal).toHaveBeenCalledWith(banco.db, expect.objectContaining({ userId: 'u-ana' }), 'u-bruno', '📢 Aviso de Ana:\nA reunião mudou para as 10h.', AGORA);
+    expect(enviarAvisoPessoal).toHaveBeenCalledWith(
+      banco.db, expect.objectContaining({ userId: 'u-ana' }), 'u-bruno', { de: 'Ana Souza', aviso: 'A reunião mudou para as 10h.' }, AGORA,
+    );
     expect(r2.resposta).toBe('Pronto: o aviso para Bruno sai em instantes.');
+  });
+
+  it('aviso para quem não tem WhatsApp (D35): vai para o grupo, com o nome citado no texto', async () => {
+    (checarAvisoPessoal as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
+      ok: true, membroId: 'm-bruno', userId: 'u-bruno', nome: 'Bruno Mendes', grupo: { id: '120363000000000001@g.us', nome: 'TI FAFIN', citado: 'Bruno' },
+    });
+    (enviarAvisoPessoal as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: true, id: 'a1', para: 'Bruno Mendes', noGrupo: true, grupoNome: 'TI FAFIN', agendadaPara: null });
+    ia({ intencao: 'avisar_pessoa', aviso_pessoa_id: 'u-bruno', aviso: 'A reunião mudou para as 10h.' });
+    const r1 = await mandar('avisa o Bruno que a reunião mudou para as 10h');
+    expect(r1.resposta).toBe(
+      `Bruno não tem WhatsApp na aba Membros. Vou mandar no grupo "TI FAFIN", citando o nome:\n\n📢 Aviso de Ana para Bruno:\nA reunião mudou para as 10h.\n\n${PEDIR_SIM}`,
+    );
+    expect((await mandar('sim')).resposta).toBe('Pronto: o aviso para Bruno (no grupo "TI FAFIN") sai em instantes.');
   });
 
   it('aviso para uma pessoa: só gestor; pessoa desconhecida, pergunta quem', async () => {
@@ -549,7 +580,7 @@ describe('processarRecebida: gestor', () => {
   });
 
   it('fora do horário (sábado): o pedido avisa quando a mensagem sai', async () => {
-    (checarCobranca as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, card: C1, modo: 'cobrar', alvos: [{ id: 'm-bruno', user_id: 'u-bruno', nome: 'Bruno Mendes' }] });
+    (checarCobranca as ReturnType<typeof vi.fn>).mockResolvedValue({ ok: true, card: C1, modo: 'cobrar', alvos: [{ id: 'm-bruno', user_id: 'u-bruno', nome: 'Bruno Mendes' }], grupo: null });
     ia({ intencao: 'cobrar', cobrar_codigos: ['IT-045'] });
     const r = await mandar('cobra o IT-045', new Date('2026-10-17T13:00:00Z'));
     expect(r.resposta).toContain('Fora do horário (dia útil, 7h às 20h): sai segunda (19/10) às 07:00.');

@@ -23,6 +23,7 @@ export interface PropsMensagemEva {
   onDescartar?: (p: PropostaEva) => void;
   onEnviarAviso?: (a: AvisoEva, texto: string) => void;
   onDescartarAviso?: (a: AvisoEva) => void;
+  grupoDoAviso?: (pessoaId: string) => { nome: string | null } | null;
   onOpenCard?: (codigo: string) => void;
   onSend: (texto: string) => void;
   podeCobrar?: boolean;
@@ -34,7 +35,7 @@ export interface PropsMensagemEva {
 
 /** Uma resposta da EVA (D34): o texto aparece como fala; cartões, blocos e botões entram depois. */
 export const MensagemEva: React.FC<PropsMensagemEva> = ({
-  m, ctx, thinking, podeAprovar, nome, onConfirmar, onDescartar, onEnviarAviso, onDescartarAviso, onOpenCard, onSend,
+  m, ctx, thinking, podeAprovar, nome, onConfirmar, onDescartar, onEnviarAviso, onDescartarAviso, grupoDoAviso, onOpenCard, onSend,
   podeCobrar, onCobrar, onNavegar, aoAvancar,
 }) => {
   const blocosTexto = useMemo(() => blocosDoTexto(m.text), [m.text]);
@@ -94,7 +95,13 @@ export const MensagemEva: React.FC<PropsMensagemEva> = ({
               <PropostaChatCard key={p.id} p={p} podeAprovar={podeAprovar} nome={nome} onConfirmar={() => onConfirmar?.(p)} onDescartar={() => onDescartar?.(p)} />
             ))}
             {m.avisos?.map((a) => (
-              <AvisoChatCard key={a.id} a={a} onEnviar={(texto) => onEnviarAviso?.(a, texto)} onDescartar={() => onDescartarAviso?.(a)} />
+              <AvisoChatCard
+                key={a.id}
+                a={a}
+                grupo={grupoDoAviso?.(a.pessoaId) ?? null}
+                onEnviar={(texto) => onEnviarAviso?.(a, texto)}
+                onDescartar={() => onDescartarAviso?.(a)}
+              />
             ))}
             {m.proximosPassos && m.proximosPassos.length > 0 && (
               <ProximosPassos

@@ -168,6 +168,9 @@ export interface AvisoEva {
   estado: 'aberto' | 'enviando' | 'enviado' | 'descartado';
   /** Fora do horário da EVA, quando ele sai (ISO). */
   agendadaPara?: string | null;
+  /** Enviado: foi para o grupo da equipe, citando a pessoa (D35), e o nome do grupo. */
+  noGrupo?: boolean;
+  grupoNome?: string | null;
   erro?: string;
 }
 
