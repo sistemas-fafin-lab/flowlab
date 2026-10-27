@@ -1431,8 +1431,18 @@ export interface PontuacaoSetor {
   frentes: FrentePontuada[];
 }
 
-export interface PontuacaoSetorMeta {
-  situacao: 'previa';
-  /** Dado do apLIS mais recente usado, 'YYYY-MM-DD HH:MM'; null sem fato do apLIS. */
-  dadoAte: string | null;
-}
+export type PontuacaoSetorMeta =
+  | {
+      situacao: 'previa';
+      /** Dado do apLIS mais recente usado, 'YYYY-MM-DD HH:MM'; null sem fato do apLIS. */
+      dadoAte: string | null;
+    }
+  | {
+      /** Fechamento da pontuação: os números congelados (issue 06). */
+      situacao: 'fechado';
+      /** "Dados até" usado no fechamento, 'YYYY-MM-DD HH:MM'. */
+      dadoAte: string;
+      fechadoPor: string | null;
+      /** ISO. */
+      fechadoEm: string;
+    };

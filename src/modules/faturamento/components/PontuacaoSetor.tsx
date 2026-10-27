@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight, Lock, Pencil, Unlock } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
-import { lancarPontuacao } from '../hooks/usePontuacaoSetor';
+import { fecharPontuacao, lancarPontuacao, reabrirPontuacao } from '../hooks/usePontuacaoSetor';
 import type {
   CriterioPontuacao,
   DetalheGuiasSemLotePontuacao,
@@ -24,7 +24,8 @@ import LancamentoPontuacaoModal from './LancamentoPontuacaoModal';
 // pontos vêm prontos do servidor (api/_lib/faturamento/pontuacaoSetor.ts).
 // Os dados são do pai (usePontuacaoSetor), para o "Atualizar" da página
 // recarregar os dois blocos. Quem gerencia Faturamento lança os critérios
-// manuais (issue 05) e o bloco pede ao pai para recarregar.
+// manuais (issue 05), fecha e reabre o mês (issue 06), e o bloco pede ao pai
+// para recarregar. Mês fechado mostra os números congelados e não aceita lançamento.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5';
@@ -35,6 +36,13 @@ const pontosBase = (c: CriterioPontuacao): string =>
   `${formatPontos(c.pontosBase)}${c.porConvenio ? ' por convênio' : ''}`;
 
 const formatQtd = (n: number): string => n.toLocaleString('pt-BR');
+
+/** ISO → 'dd/mm' no fuso da operação, para o selo "Fechado em". */
+const formatDiaMes = (iso: string): string =>
+  new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
+
+const BOTAO_GESTAO =
+  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50';
 
 const DetalheTarefas: React.FC<{ detalhe: DetalheTarefasPontuacao }> = ({ detalhe }) => {
   const linhas = [
@@ -287,20 +295,45 @@ interface Props {
   meta: PontuacaoSetorMeta | null;
   loading: boolean;
   error: string | null;
-  /** Depois de um lançamento: recarrega a pontuação. */
-  onLancado: () => void;
+  /** Depois de lançar, fechar ou reabrir: recarrega a pontuação. */
+  onAlterado: () => void;
 }
 
-const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error, onLancado }) => {
+const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error, onAlterado }) => {
   const { userProfile } = useAuth();
-  const podeLancar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
+  const podeGerenciar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
+  const fechado = meta?.situacao === 'fechado';
   const [emLancamento, setEmLancamento] = useState<{ frente: FrentePontuada; criterio: CriterioPontuacao } | null>(null);
+  const [alterandoFechamento, setAlterandoFechamento] = useState(false);
+  const [erroFechamento, setErroFechamento] = useState<string | null>(null);
+
+  // O aviso de uma recusa é do mês em que se tentou fechar ou reabrir.
+  useEffect(() => setErroFechamento(null), [mes]);
+
+  const alternarFechamento = async () => {
+    if (!mes) return;
+    const competencia = formatCompetencia(mes);
+    const pergunta = fechado
+      ? `Reabrir a pontuação de ${competencia}? Os números voltam a ser calculados ao vivo; os lançamentos continuam.`
+      : `Fechar a pontuação de ${competencia}? Os números são recalculados agora e ficam congelados, e os lançamentos não poderão mais ser alterados até reabrir.`;
+    if (!window.confirm(pergunta)) return;
+    setAlterandoFechamento(true);
+    setErroFechamento(null);
+    try {
+      await (fechado ? reabrirPontuacao(mes) : fecharPontuacao(mes));
+      onAlterado();
+    } catch (err) {
+      setErroFechamento(err instanceof Error ? err.message : 'Não foi possível alterar o fechamento.');
+    } finally {
+      setAlterandoFechamento(false);
+    }
+  };
 
   const salvarLancamento = async (pontos: number, observacao: string): Promise<string | null> => {
     if (!mes || !emLancamento) return 'Nenhum critério selecionado.';
     try {
       await lancarPontuacao({ mes, frente: emLancamento.frente.frente, chave: emLancamento.criterio.chave, pontos, observacao });
-      onLancado();
+      onAlterado();
       return null;
     } catch (err) {
       return err instanceof Error ? err.message : 'Não foi possível gravar o lançamento.';
@@ -338,7 +371,7 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
           <CardFrente
             key={f.frente}
             frente={f}
-            onLancar={podeLancar ? (criterio) => setEmLancamento({ frente: f, criterio }) : undefined}
+            onLancar={podeGerenciar && !fechado ? (criterio) => setEmLancamento({ frente: f, criterio }) : undefined}
           />
         ))}
       </div>
@@ -358,10 +391,35 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
             Prévia
           </span>
         )}
+        {mes && meta?.situacao === 'fechado' && (
+          <span
+            title={formatDataHora(meta.fechadoEm)}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300"
+          >
+            <Lock className="h-3 w-3" />
+            Fechado em {formatDiaMes(meta.fechadoEm)}{meta.fechadoPor ? ` por ${meta.fechadoPor}` : ''}
+          </span>
+        )}
         {mes && meta?.dadoAte && (
           <span className="text-xs text-gray-500 dark:text-gray-400">Dados até {formatDiaMesHora(meta.dadoAte)}</span>
         )}
+        {mes && meta && podeGerenciar && (
+          <button
+            onClick={() => void alternarFechamento()}
+            disabled={alterandoFechamento || loading}
+            className={`${BOTAO_GESTAO} sm:ml-auto`}
+          >
+            {fechado ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+            {fechado ? 'Reabrir' : 'Fechar pontuação'}
+          </button>
+        )}
       </div>
+      {erroFechamento && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 flex items-start gap-2 text-sm text-red-700 dark:text-red-300">
+          <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+          {erroFechamento}
+        </div>
+      )}
       {conteudo}
       {mes && emLancamento && (
         <LancamentoPontuacaoModal

@@ -7,6 +7,7 @@ import { guiasSemLotePorConvenio, recebidosComGlosaPorConvenio, tarefasPendentes
 import { listarFontesConsideradasMeta } from './fontesConsideradas.js';
 import type {
   ChaveCriterio,
+  EntradaPontuacao,
   FatoGuiasSemLote,
   FatoMeta,
   FatoTarefas,
@@ -14,6 +15,7 @@ import type {
   FrentePontuacao,
   LancamentoManual,
   MembroFrente,
+  ResumoPontuacao,
 } from './pontuacaoSetor.js';
 
 export type FalhaFato = { erro: { status: number; mensagem: string } };
@@ -104,9 +106,89 @@ export async function gravarLancamento(
     .from('fat_pontuacao_lancamentos')
     .upsert({ ano, mes, frente, chave, pontos, observacao }, { onConflict: 'ano,mes,frente,chave' });
   if (error) {
+    // PT409: o trigger recusou porque o mês está fechado; a mensagem já é para a tela.
+    if (error.code === 'PT409') return { erro: { status: 409, mensagem: error.message } };
     console.error('[faturamento/pontuacao] gravar lançamento:', error.message);
     return { erro: { status: 502, mensagem: `Não foi possível gravar o lançamento: ${error.message}` } };
   }
+  return null;
+}
+
+/** O que fica congelado no Fechamento: os pontos e tudo que entrou na conta. */
+export interface ResumoCongelado {
+  pontuacao: ResumoPontuacao;
+  fatos: EntradaPontuacao['fatos'];
+  membros: MembroFrente[];
+  lancamentos: LancamentoManual[];
+}
+
+export interface FechamentoEmVigor {
+  resumo: ResumoCongelado;
+  /** 'YYYY-MM-DD HH:MM', como o "dados até" da prévia. */
+  dadoAte: string;
+  fechadoPor: string | null;
+  fechadoEm: string;
+}
+
+/** Fechamento em vigor do mês (`fat_pontuacao_fechamentos`), ou null quando o mês está aberto. */
+export async function lerFechamento(token: string, ano: number, mes: number): Promise<FechamentoEmVigor | null | FalhaFato> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_pontuacao_fechamentos')
+    .select('resumo, dado_ate, fechado_por_nome, fechado_em')
+    .eq('ano', ano)
+    .eq('mes', mes)
+    .is('reaberto_em', null)
+    .maybeSingle();
+  if (error) {
+    console.error('[faturamento/pontuacao] fechamento:', error.message);
+    return { erro: { status: 502, mensagem: `Não foi possível consultar o fechamento do mês: ${error.message}` } };
+  }
+  if (!data) return null;
+  const linha = data as { resumo: ResumoCongelado; dado_ate: string; fechado_por_nome: string | null; fechado_em: string };
+  return {
+    resumo: linha.resumo,
+    // TIMESTAMP volta como 'YYYY-MM-DDTHH:MM:SS'.
+    dadoAte: linha.dado_ate.replace('T', ' ').slice(0, 16),
+    fechadoPor: linha.fechado_por_nome,
+    fechadoEm: linha.fechado_em,
+  };
+}
+
+/** Grava o Fechamento do mês. O trigger grava quem fechou a partir da sessão. */
+export async function gravarFechamento(
+  token: string,
+  ano: number,
+  mes: number,
+  resumo: ResumoCongelado,
+  dadoAte: string,
+): Promise<null | FalhaFato> {
+  const { error } = await getSupabaseUserClient(token)
+    .from('fat_pontuacao_fechamentos')
+    .insert({ ano, mes, resumo, dado_ate: dadoAte });
+  if (error) {
+    // 23505: o índice parcial de fechamentos em vigor; alguém fechou o mês antes.
+    if (error.code === '23505') return { erro: { status: 409, mensagem: 'A pontuação deste mês já está fechada.' } };
+    console.error('[faturamento/pontuacao] fechar:', error.message);
+    return { erro: { status: 502, mensagem: `Não foi possível fechar a pontuação: ${error.message}` } };
+  }
+  return null;
+}
+
+/** Tira o fechamento de vigor. O trigger grava quem reabriu e quando; os lançamentos ficam. */
+export async function reabrirFechamento(token: string, ano: number, mes: number): Promise<null | FalhaFato> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_pontuacao_fechamentos')
+    .update({ reaberto_em: new Date().toISOString() })
+    .eq('ano', ano)
+    .eq('mes', mes)
+    .is('reaberto_em', null)
+    .select('id');
+  if (error) {
+    if (error.code === 'PT409') return { erro: { status: 409, mensagem: error.message } };
+    console.error('[faturamento/pontuacao] reabrir:', error.message);
+    return { erro: { status: 502, mensagem: `Não foi possível reabrir a pontuação: ${error.message}` } };
+  }
+  if (!data || data.length === 0) return { erro: { status: 409, mensagem: 'A pontuação deste mês não está fechada.' } };
   return null;
 }
 

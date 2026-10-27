@@ -4,7 +4,8 @@ import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
 // Pontuação do setor (Faturamento → Indicadores): lê o resumo pronto de
 // /api/faturamento/pontuacao. A pontuação é mensal: com `mes` nulo (modo
-// Período) não chama a API. `lancarPontuacao` grava um critério manual.
+// Período) não chama a API. `lancarPontuacao` grava um critério manual;
+// `fecharPontuacao` e `reabrirPontuacao` fazem o Fechamento da pontuação.
 
 interface RespostaPontuacao {
   success?: boolean;
@@ -54,18 +55,33 @@ export function usePontuacaoSetor(mes: string | null) {
   return { pontuacao, meta, loading, error, refetch };
 }
 
-/** Lança ou altera um critério manual (canManageBilling). Lança com a mensagem da rota. */
-export async function lancarPontuacao(lancamento: LancamentoPontuacao): Promise<void> {
+/** POST de quem gerencia Faturamento. Lança com a mensagem da rota. */
+async function postarPontuacao(corpo: Record<string, unknown>, mensagemErro: string): Promise<void> {
   const token = await getTokenLegado();
   if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
   const res = await fetch('/api/faturamento/pontuacao', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(lancamento),
+    body: JSON.stringify(corpo),
   });
   const body = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
   if (!res.ok || !body.success) {
-    throw new Error(body.error || 'Não foi possível gravar o lançamento.');
+    throw new Error(body.error || mensagemErro);
   }
+}
+
+/** Lança ou altera um critério manual (canManageBilling). */
+export function lancarPontuacao(lancamento: LancamentoPontuacao): Promise<void> {
+  return postarPontuacao({ acao: 'lancar', ...lancamento }, 'Não foi possível gravar o lançamento.');
+}
+
+/** Congela o mês com a prévia recalculada no servidor (canManageBilling). */
+export function fecharPontuacao(mes: string): Promise<void> {
+  return postarPontuacao({ acao: 'fechar', mes }, 'Não foi possível fechar a pontuação.');
+}
+
+/** Volta o mês para a prévia ao vivo; os lançamentos continuam (canManageBilling). */
+export function reabrirPontuacao(mes: string): Promise<void> {
+  return postarPontuacao({ acao: 'reabrir', mes }, 'Não foi possível reabrir a pontuação.');
 }

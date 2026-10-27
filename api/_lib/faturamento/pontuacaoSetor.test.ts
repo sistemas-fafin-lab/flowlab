@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pontuarMes, validarLancamento } from './pontuacaoSetor.js';
+import { motivoParaNaoFechar, pontuarMes, validarLancamento } from './pontuacaoSetor.js';
 import type { EntradaPontuacao, FatosPontuacao } from './pontuacaoSetor.js';
 
 function entrada(fatos: FatosPontuacao = {}, overrides: Partial<EntradaPontuacao> = {}): EntradaPontuacao {
@@ -395,5 +395,29 @@ describe('validarLancamento', () => {
     for (const pontos of [-1, undefined, '3', Number.NaN]) {
       expect(validarLancamento({ ...valido, pontos })).toHaveProperty('erro');
     }
+  });
+});
+
+describe('motivoParaNaoFechar', () => {
+  it('backup já com o último dia do mês: pode fechar', () => {
+    expect(motivoParaNaoFechar('2026-09', '2026-09-30 08:12')).toBeNull();
+    expect(motivoParaNaoFechar('2026-09', '2026-10-26 23:59')).toBeNull();
+  });
+
+  it('backup ainda antes do último dia do mês: recusa com o "dados até"', () => {
+    expect(motivoParaNaoFechar('2026-09', '2026-09-29 23:59')).toBe(
+      'Os dados do apLIS vão só até 29/09/2026 23:59; o fechamento de 09/2026 precisa deles até 30/09/2026.',
+    );
+  });
+
+  it('fevereiro e dezembro usam o último dia certo', () => {
+    expect(motivoParaNaoFechar('2028-02', '2028-02-29 00:01')).toBeNull();
+    expect(motivoParaNaoFechar('2026-12', '2026-12-30 23:59')).not.toBeNull();
+  });
+
+  it('sem "dados até": recusa', () => {
+    expect(motivoParaNaoFechar('2026-09', null)).toBe(
+      'Não foi possível saber até quando vão os dados do apLIS; o fechamento de 09/2026 precisa deles até 30/09/2026.',
+    );
   });
 });

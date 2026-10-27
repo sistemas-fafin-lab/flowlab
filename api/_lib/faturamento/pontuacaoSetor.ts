@@ -326,3 +326,20 @@ export function validarLancamento(corpo: Record<string, unknown>): { lancamento:
   if (!texto) return { erro: 'A observação é obrigatória.' };
   return { lancamento: { frente: def.frente, chave: def.chave, pontos: umaCasa(pontos), observacao: texto } };
 }
+
+/**
+ * Fechamento da pontuação: o mês só fecha quando o "dados até" do backup do
+ * apLIS ('YYYY-MM-DD HH:MM') já chegou ao último dia dele, para não congelar
+ * dado incompleto. Devolve o motivo da recusa, ou null quando pode fechar.
+ */
+export function motivoParaNaoFechar(mes: string, dadoAte: string | null): string | null {
+  const [ano, numeroMes] = mes.split('-').map(Number);
+  const ultimoDia = String(new Date(Date.UTC(ano, numeroMes, 0)).getUTCDate()).padStart(2, '0');
+  const competencia = `${mes.slice(5, 7)}/${ano}`;
+  const precisa = `o fechamento de ${competencia} precisa deles até ${ultimoDia}/${competencia}.`;
+  if (!dadoAte) return `Não foi possível saber até quando vão os dados do apLIS; ${precisa}`;
+  if (dadoAte.slice(0, 10) >= `${mes}-${ultimoDia}`) return null;
+  const [data, hora] = dadoAte.split(' ');
+  const [a, m, d] = data.split('-');
+  return `Os dados do apLIS vão só até ${d}/${m}/${a}${hora ? ` ${hora}` : ''}; ${precisa}`;
+}

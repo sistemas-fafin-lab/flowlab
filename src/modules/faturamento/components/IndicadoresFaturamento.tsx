@@ -430,7 +430,7 @@ const IndicadoresFaturamento: React.FC = () => {
         meta={pontuacao.meta}
         loading={pontuacao.loading}
         error={pontuacao.error}
-        onLancado={() => void pontuacao.refetch()}
+        onAlterado={() => void pontuacao.refetch()}
       />
     </div>
   );
