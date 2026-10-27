@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertCircle, FileText, FileUp, Plus, Sparkles, X } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
@@ -13,12 +13,15 @@ import {
   validateCpfCnpj,
 } from '../../../utils/paymentUtils';
 import { FORMAS, paraISO, rotuloDiaCurto, TIPOS } from '../domain/filtrosPagamentos';
-import { usePaymentAuthorizers } from '../hooks/usePaymentAuthorizers';
+import { useContextoPagamento } from '../hooks/useContextoPagamento';
 import type { usePaymentRequest } from '../hooks/usePaymentRequest';
-import { CAMPO, ROTULO } from './estilos';
+import { useTravarRolagem } from '../hooks/useTravarRolagem';
+import { ALCA_MODAL, CABECALHO_MODAL, CAMPO, FUNDO_MODAL, PAINEL_MODAL, RODAPE_MODAL, ROTULO } from './estilos';
 
 // Formulário do pedido num modal, em vez de abrir no meio da página empurrando a lista.
 // O aviso dos dias de pagamento mora aqui, o único lugar em que ele importa.
+// No celular é uma folha que sobe do rodapé, com o título e os botões presos enquanto o
+// formulário rola.
 
 type Hook = ReturnType<typeof usePaymentRequest>;
 
@@ -40,8 +43,20 @@ const TIPOS_ARQUIVO = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'
 const TAMANHO_MAXIMO = 10 * 1024 * 1024;
 
 const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPaymentDate, avisos }) => {
+  useTravarRolagem();
   const { user, userProfile } = useAuth();
-  const { authorizers, loading: carregandoAutorizadores, error: erroAutorizadores } = usePaymentAuthorizers();
+  // Quem autoriza: os gestores aptos do departamento do RH de quem pede (decisão de 22/10).
+  const { contexto, loading: carregandoContexto, error: erroContexto } = useContextoPagamento();
+  const autorizadores = contexto?.autorizadores ?? [];
+  // Sem departamento no RH ou sem gestor apto, não dá para pedir (o banco também recusa).
+  const bloqueio =
+    !contexto || contexto.souAutorizador
+      ? null
+      : contexto.departamentoId === null
+        ? 'sem_departamento'
+        : autorizadores.length === 0
+          ? 'sem_gestor'
+          : null;
   const [enviando, setEnviando] = useState(false);
   const [dataSugerida, setDataSugerida] = useState(() => paraISO(getNextPaymentDate()));
   const [previas, setPrevias] = useState<(string | null)[]>([]);
@@ -64,6 +79,18 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
   });
 
   const alterar = (patch: Partial<PaymentRequestFormValues>) => setForm((atual) => ({ ...atual, ...patch }));
+
+  // Gestor apto do próprio departamento autoriza direto; com um gestor só, ele já vem escolhido.
+  useEffect(() => {
+    if (!contexto) return;
+    if (contexto.souAutorizador && user?.id) {
+      const eu = user.id;
+      setForm((atual) => ({ ...atual, autorizadoPorId: eu, autorizadoPor: userProfile?.name ?? '' }));
+    } else if (contexto.autorizadores.length === 1) {
+      const [unico] = contexto.autorizadores;
+      setForm((atual) => (atual.autorizadoPorId ? atual : { ...atual, autorizadoPorId: unico.id, autorizadoPor: unico.name }));
+    }
+  }, [contexto, user?.id, userProfile?.name]);
   const dataPagamento = typeof form.dataPagamento === 'string' ? form.dataPagamento : paraISO(form.dataPagamento);
 
   const escolherData = (data: string) => {
@@ -79,7 +106,7 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
   };
 
   const escolherAutorizador = (id: string) => {
-    const autorizador = authorizers.find((a) => a.id === id);
+    const autorizador = autorizadores.find((a) => a.id === id);
     alterar({ autorizadoPorId: autorizador?.id ?? '', autorizadoPor: autorizador?.name ?? '' });
   };
 
@@ -151,35 +178,45 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
   const arquivos = form.attachments || [];
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
+    <div className={FUNDO_MODAL}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-novo-pedido"
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl border border-gray-100 dark:border-gray-700 animate-scale-in my-8"
+        className={`${PAINEL_MODAL} sm:max-w-3xl sm:my-8`}
       >
-        <div className="flex items-center justify-between gap-4 px-6 py-5 border-b border-gray-100 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25">
-              <FileText className="w-5 h-5 text-white" />
+        <div className={CABECALHO_MODAL}>
+          <div className={ALCA_MODAL} />
+          <div className="flex items-center justify-between gap-4 px-4 sm:px-6 pt-1 pb-3 sm:py-5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
+              <h2 id="titulo-novo-pedido" className="text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">
+                Nova solicitação<span className="hidden sm:inline"> de pagamento</span>
+              </h2>
             </div>
-            <h2 id="titulo-novo-pedido" className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-              Nova solicitação de pagamento
-            </h2>
+            <button
+              type="button"
+              onClick={onFechar}
+              disabled={enviando}
+              aria-label="Fechar"
+              className="-mr-2 flex flex-shrink-0 items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={enviando}
-            aria-label="Fechar"
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         <form onSubmit={enviar}>
-          <div className="px-6 py-5 space-y-5">
+          <div className="px-4 sm:px-6 py-5 space-y-5">
+            {bloqueio && (
+              <p role="alert" className="px-4 py-3 rounded-xl text-sm bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
+                {bloqueio === 'sem_departamento'
+                  ? 'Você não está em nenhum departamento no RH, e o pedido de pagamento precisa do gestor do seu departamento. Peça ao RH para colocar você no seu departamento.'
+                  : `O departamento ${contexto?.departamento ?? ''} ainda não tem gestor que autorize pagamentos, então não dá para pedir pagamento agora. Fale com o RH.`}
+              </p>
+            )}
             <div className="flex items-start gap-3 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800">
               <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-300 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-blue-800 dark:text-blue-200">
@@ -231,7 +268,7 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
                   inputMode="numeric"
                   value={form.cpfCnpj}
                   onChange={(e) => alterar({ cpfCnpj: formatCpfCnpj(e.target.value) })}
-                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  placeholder="CPF ou CNPJ, só números"
                   className={CAMPO}
                 />
               </div>
@@ -242,6 +279,7 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
                   <input
                     id="pedido-valor"
                     type="number"
+                    inputMode="decimal"
                     value={form.valorTotal || ''}
                     onChange={(e) => alterar({ valorTotal: parseFloat(e.target.value) || 0 })}
                     required
@@ -311,37 +349,50 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
               </div>
               <div>
                 <label className={ROTULO}>Autorizado por *</label>
-                {/* Só aparece quem tem a permissão Ser Autorizador de Pagamentos; o trigger
+                {/* Só os gestores aptos do departamento do RH de quem pede; o trigger
                     payment_request_guard recusa qualquer outra pessoa. */}
-                <Select
-                  value={form.autorizadoPorId}
-                  onChange={escolherAutorizador}
-                  options={authorizers.map((a) => ({ value: a.id, label: a.name, description: a.department ?? undefined }))}
-                  placeholder={carregandoAutorizadores ? 'Carregando…' : 'Selecione quem autorizou'}
-                  disabled={carregandoAutorizadores || authorizers.length === 0}
-                  searchable
-                  searchPlaceholder="Buscar nome ou setor"
-                  emptyText="Ninguém com esse nome pode autorizar."
-                  controlClass={`${CAMPO} disabled:opacity-60 disabled:cursor-not-allowed`}
-                  ariaLabel="Autorizado por"
-                />
-                {erroAutorizadores ? (
-                  <p className="text-xs text-red-600 dark:text-red-400 mt-2">{erroAutorizadores}</p>
-                ) : !carregandoAutorizadores && authorizers.length === 0 ? (
-                  <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
-                    Ninguém pode autorizar pagamentos ainda. Peça a quem gerencia cargos para marcar "Ser Autorizador de
-                    Pagamentos" no cargo de quem autoriza.
+                {contexto?.souAutorizador ? (
+                  <p className="px-4 py-3 rounded-xl text-sm bg-violet-50 dark:bg-violet-900/30 border border-violet-200 dark:border-violet-800 text-violet-800 dark:text-violet-200">
+                    Você é gestor de <strong>{contexto.departamento}</strong> e autoriza pagamentos: o pedido já nasce
+                    autorizado e vai direto para a aprovação do Financeiro.
                   </p>
-                ) : form.autorizadoPorId && form.autorizadoPorId === user?.id ? (
-                  <p className="text-xs text-violet-700 dark:text-violet-300 mt-2">
-                    Você é o autorizador: o pedido já nasce autorizado e vai direto para a aprovação do Financeiro.
-                  </p>
-                ) : form.autorizadoPorId ? (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                    {form.autorizadoPor} recebe um e-mail para autorizar no Flow LAB; só depois o pedido vai para o Financeiro.
+                ) : bloqueio ? (
+                  <p className="px-4 py-3 rounded-xl text-sm bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
+                    {bloqueio === 'sem_departamento' ? (
+                      <>Você não está em nenhum departamento no RH. Peça ao RH para colocar você no seu departamento; até lá não dá para pedir pagamento.</>
+                    ) : (
+                      <>
+                        O departamento <strong>{contexto?.departamento}</strong> ainda não tem gestor que autorize pagamentos.
+                        Fale com o RH; até lá não dá para pedir pagamento.
+                      </>
+                    )}
                   </p>
                 ) : (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Solicitado por {form.solicitadoPor || 'você'}.</p>
+                  <>
+                    <Select
+                      value={form.autorizadoPorId}
+                      onChange={escolherAutorizador}
+                      options={autorizadores.map((a) => ({ value: a.id, label: a.name }))}
+                      placeholder={carregandoContexto ? 'Carregando…' : 'Selecione o gestor que autoriza'}
+                      disabled={carregandoContexto || !!erroContexto}
+                      searchable={autorizadores.length > 6}
+                      searchPlaceholder="Buscar nome"
+                      emptyText="Nenhum gestor com esse nome."
+                      controlClass={`${CAMPO} disabled:opacity-60 disabled:cursor-not-allowed`}
+                      ariaLabel="Autorizado por"
+                    />
+                    {erroContexto ? (
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-2">{erroContexto}</p>
+                    ) : form.autorizadoPorId ? (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        {form.autorizadoPor} recebe um e-mail para autorizar no Flow LAB; só depois o pedido vai para o Financeiro.
+                      </p>
+                    ) : contexto ? (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                        Gestores de {contexto.departamento} que autorizam pagamentos.
+                      </p>
+                    ) : null}
+                  </>
                 )}
               </div>
             </div>
@@ -395,19 +446,19 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40 rounded-b-2xl">
+          <div className={`${RODAPE_MODAL} flex sm:justify-end gap-3`}>
             <button
               type="button"
               onClick={onFechar}
               disabled={enviando}
-              className="px-5 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium disabled:opacity-50"
+              className="flex-1 sm:flex-none px-5 h-11 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-[0.98] transition-all duration-200 font-medium disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              disabled={enviando}
-              className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center font-medium shadow-md shadow-blue-500/25"
+              disabled={enviando || carregandoContexto || !!bloqueio || !!erroContexto}
+              className="flex-[2] sm:flex-none px-6 h-11 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-medium shadow-md shadow-blue-500/25"
             >
               {enviando ? (
                 <>

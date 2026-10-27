@@ -68,6 +68,21 @@ describe('quem é avisado em cada evento', () => {
   });
 });
 
+describe('transferência na aba Departamentos', () => {
+  it('avisa o novo autorizador, só a pedido de quem gerencia departamentos', () => {
+    const p = pedido({ autorizado_por: 'Bruno', autorizado_por_id: 'u-bruno' });
+    expect(modelos(planejarEnvios(p, 'transferido', 'u-rh', AGORA, true))).toEqual([
+      'autorizador:payment_authorization_transferred',
+    ]);
+    expect(planejarEnvios(p, 'transferido', 'u-rh', AGORA, false)).toMatchObject({ status: 403 });
+  });
+
+  it('não avisa pedido que não espera mais autorização ou transferido há muito tempo', () => {
+    expect(modelos(planejarEnvios(pedido({ status: 'pending' }), 'transferido', 'u-rh', AGORA, true))).toEqual([]);
+    expect(modelos(planejarEnvios(pedido({ updated_at: ONTEM }), 'transferido', 'u-rh', AGORA, true))).toEqual([]);
+  });
+});
+
 describe('a rota não serve para mandar e-mail à toa', () => {
   it('só quem fez o pedido avisa da criação, e só o autorizador avisa da decisão', () => {
     expect(planejarEnvios(pedido({}), 'criado', 'u-outro', AGORA)).toMatchObject({ status: 403 });

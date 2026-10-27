@@ -1,18 +1,36 @@
 import React, { useMemo, useState } from 'react';
-import { AlertTriangle, Building2, Loader2, Plus } from 'lucide-react';
+import { AlertTriangle, Building2, DollarSign, Loader2, Plus, Users } from 'lucide-react';
 import Select, { type SelectOption } from '../../../components/Select';
 import { SkeletonTableRow } from '../../../components/PageLoadingSkeleton';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { useColaboradores } from '../hooks/useColaboradores';
 import { useDepartamentos } from '../hooks/useDepartamentos';
-import { colaboradoresSemDepartamento, validarNomeDepartamento } from '../utils/departamentos';
+import {
+  autorizadoresAptos,
+  chaveGestor,
+  colaboradoresSemDepartamento,
+  departamentosSemAutorizador,
+  gestoresComDepartamentos,
+  ROTULO_SITUACAO_GESTOR,
+  validarNomeDepartamento,
+} from '../utils/departamentos';
 import DepartamentoDetalheModal from './DepartamentoDetalheModal';
 
 const inputClassName =
   'w-full px-3 py-2.5 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30';
 
-const DepartamentosPage: React.FC = () => {
+type Visao = 'departamentos' | 'gestores';
+
+interface Props {
+  /** Dentro da aba Departamentos de Usuários: sem o título da página (a aba já diz). */
+  embutido?: boolean;
+}
+
+// Departamentos do RH: quem está em cada um, os gestores (que respondem por ele e, marcados,
+// autorizam os pagamentos de quem está nele) e o aprovador de SC. A mesma tela abre em
+// RH › Departamentos e na aba Departamentos de Usuários.
+const DepartamentosPage: React.FC<Props> = ({ embutido = false }) => {
   const {
     colaboradores,
     loading: carregandoColaboradores,
@@ -21,6 +39,7 @@ const DepartamentosPage: React.FC = () => {
   } = useColaboradores();
   const {
     departamentos,
+    painel,
     loading: carregandoDepartamentos,
     error: erroDepartamentos,
     criar,
@@ -29,10 +48,13 @@ const DepartamentosPage: React.FC = () => {
     definirAprovador,
     adicionarResponsavel,
     removerResponsavel,
+    definirAutorizaPagamentos,
+    transferirAutorizacoes,
   } = useDepartamentos();
   const { userProfile } = useAuth();
   // Membros, pendência e aprovador vêm de colaboradores, cujo RLS pede canViewColaboradores.
   const semVerColaboradores = !hasPermission(userProfile?.permissions || [], 'canViewColaboradores');
+  const [visao, setVisao] = useState<Visao>('departamentos');
   const [novoNome, setNovoNome] = useState('');
   const [criando, setCriando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -50,6 +72,12 @@ const DepartamentosPage: React.FC = () => {
     return contagem;
   }, [colaboradores]);
   const semDepartamento = useMemo(() => colaboradoresSemDepartamento(colaboradores), [colaboradores]);
+  // Sem o painel (carregando ou sem permissão) não dá para saber quem é apto: nada de alarme.
+  const semAutorizador = useMemo(
+    () => (painel ? departamentosSemAutorizador(departamentos, painel.situacoes) : []),
+    [departamentos, painel],
+  );
+  const gestores = useMemo(() => gestoresComDepartamentos(departamentos, colaboradores), [departamentos, colaboradores]);
   const opcoesDepartamento: SelectOption[] = departamentos.filter((d) => d.ativo).map((d) => ({ value: d.id, label: d.nome }));
 
   const handleCriar = async () => {
@@ -77,14 +105,16 @@ const DepartamentosPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="animate-fade-in-up">
-        <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
-          Departamentos
-        </h2>
-        <p className="text-gray-500 dark:text-gray-400">
-          Quem está em cada departamento, quem responde por ele e quem aprova as Solicitações de Compra
-        </p>
-      </div>
+      {!embutido && (
+        <div className="animate-fade-in-up">
+          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+            Departamentos
+          </h2>
+          <p className="text-gray-500 dark:text-gray-400">
+            Quem está em cada departamento, os gestores (que autorizam os pagamentos) e quem aprova as Solicitações de Compra
+          </p>
+        </div>
+      )}
 
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 p-4 flex flex-col sm:flex-row gap-3">
         <input
@@ -110,13 +140,40 @@ const DepartamentosPage: React.FC = () => {
 
       {semVerColaboradores && (
         <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4 text-amber-800 dark:text-amber-300 text-sm">
-          Seu cargo não tem "Visualizar Colaboradores": os membros, os responsáveis e o aprovador não aparecem, e não dá para mudar o departamento de ninguém.
+          Seu cargo não tem "Visualizar Colaboradores": os membros, os gestores e o aprovador não aparecem, e não dá para mudar o departamento de ninguém.
         </div>
       )}
 
       {(erro || erroCarga) && (
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4 text-red-700 dark:text-red-300 text-sm">
           {erro || erroCarga}
+        </div>
+      )}
+
+      {!loading && semAutorizador.length > 0 && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-2xl p-4">
+          <div className="flex items-center gap-2 text-red-800 dark:text-red-300 font-medium text-sm mb-2">
+            <AlertTriangle className="w-4 h-4" />
+            {semAutorizador.length === 1
+              ? '1 departamento sem gestor que autorize pagamentos'
+              : `${semAutorizador.length} departamentos sem gestor que autorize pagamentos`}
+          </div>
+          <p className="text-xs text-red-700 dark:text-red-300 mb-3">
+            Quem está neles não consegue pedir pagamento. Abra o departamento, adicione o gestor e marque "Autoriza pagamentos".
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {semAutorizador.map((d) => (
+              <button
+                key={d.id}
+                type="button"
+                onClick={() => setSelecionadoId(d.id)}
+                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+              >
+                {d.nome}
+                {membrosAtivos.get(d.id) ? ` · ${membrosAtivos.get(d.id)} ${membrosAtivos.get(d.id) === 1 ? 'pessoa' : 'pessoas'}` : ''}
+              </button>
+            ))}
+          </div>
         </div>
       )}
 
@@ -146,64 +203,204 @@ const DepartamentosPage: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 dark:border-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-                <th className="px-4 py-3">Departamento</th>
-                <th className="px-4 py-3">Aprovador de SC</th>
-                <th className="px-4 py-3">Responsáveis</th>
-                <th className="px-4 py-3">Membros ativos</th>
-                <th className="px-4 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-              {loading && Array.from({ length: 5 }).map((_, i) => <SkeletonTableRow key={i} columns={5} />)}
+      <div role="tablist" aria-label="Visão" className="inline-flex p-1 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+        {([
+          ['departamentos', 'Por departamento', Building2],
+          ['gestores', 'Por gestor', Users],
+        ] as const).map(([valor, rotulo, Icone]) => (
+          <button
+            key={valor}
+            type="button"
+            role="tab"
+            aria-selected={visao === valor}
+            onClick={() => setVisao(valor)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              visao === valor
+                ? 'bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 shadow-sm'
+                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            <Icone className="w-4 h-4" />
+            {rotulo}
+          </button>
+        ))}
+      </div>
 
-              {!loading && departamentos.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
-                    <Building2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    Nenhum departamento cadastrado ainda.
-                  </td>
+      {visao === 'departamentos' ? (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  <th className="px-4 py-3">Departamento</th>
+                  <th className="px-4 py-3">Gestores</th>
+                  <th className="px-4 py-3">Aprovador de SC</th>
+                  <th className="px-4 py-3">Membros ativos</th>
+                  <th className="px-4 py-3">Status</th>
                 </tr>
-              )}
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {loading && Array.from({ length: 5 }).map((_, i) => <SkeletonTableRow key={i} columns={5} />)}
 
-              {!loading &&
-                departamentos.map((d) => (
-                  <tr
-                    key={d.id}
-                    onClick={() => setSelecionadoId(d.id)}
-                    className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors cursor-pointer"
-                  >
-                    <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{d.nome}</td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                      {d.aprovadorScId ? nomeDoColaborador.get(d.aprovadorScId) ?? '—' : (
-                        <span className="text-amber-600 dark:text-amber-400">Sem aprovador</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
-                      {d.responsavelIds.map((id) => nomeDoColaborador.get(id)).filter(Boolean).join(', ') || '—'}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{membrosAtivos.get(d.id) ?? 0}</td>
-                    <td className="px-4 py-3">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
-                          d.ativo
-                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
-                            : 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400'
-                        }`}
-                      >
-                        {d.ativo ? 'Ativo' : 'Inativo'}
-                      </span>
+                {!loading && departamentos.length === 0 && (
+                  <tr>
+                    <td colSpan={5} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
+                      <Building2 className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      Nenhum departamento cadastrado ainda.
                     </td>
                   </tr>
-                ))}
-            </tbody>
-          </table>
+                )}
+
+                {!loading &&
+                  departamentos.map((d) => {
+                    const aptos = painel ? autorizadoresAptos(d, painel.situacoes) : [];
+                    return (
+                      <tr
+                        key={d.id}
+                        onClick={() => setSelecionadoId(d.id)}
+                        className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors cursor-pointer align-top"
+                      >
+                        <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">{d.nome}</td>
+                        <td className="px-4 py-3">
+                          {d.responsavelIds.length === 0 ? (
+                            !(painel && d.ativo) && <span className="text-gray-400 dark:text-gray-500">—</span>
+                          ) : (
+                            <div className="flex flex-wrap gap-1.5">
+                              {d.responsavelIds.map((id) => {
+                                const autoriza = d.autorizaPagamentosIds.includes(id);
+                                const apto = aptos.includes(id);
+                                const situacao = painel?.situacoes[chaveGestor(d.id, id)];
+                                return (
+                                  <span
+                                    key={id}
+                                    title={
+                                      autoriza
+                                        ? apto
+                                          ? 'Autoriza pagamentos'
+                                          : `Marcado, mas não autoriza: ${situacao ? ROTULO_SITUACAO_GESTOR[situacao] : '—'}`
+                                        : 'Gestor (não autoriza pagamentos)'
+                                    }
+                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium ${
+                                      autoriza && apto
+                                        ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                        : autoriza
+                                          ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                                          : 'bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300'
+                                    }`}
+                                  >
+                                    {autoriza && <DollarSign className="w-3 h-3" />}
+                                    {nomeDoColaborador.get(id) ?? '—'}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {painel && d.ativo && aptos.length === 0 && (
+                            <span className="mt-1 block text-xs font-medium text-red-600 dark:text-red-400">
+                              Sem gestor que autorize pagamentos
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">
+                          {d.aprovadorScId ? nomeDoColaborador.get(d.aprovadorScId) ?? '—' : (
+                            <span className="text-amber-600 dark:text-amber-400">Sem aprovador</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{membrosAtivos.get(d.id) ?? 0}</td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                              d.ativo
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                : 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400'
+                            }`}
+                          >
+                            {d.ativo ? 'Ativo' : 'Inativo'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-gray-700 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  <th className="px-4 py-3">Gestor</th>
+                  <th className="px-4 py-3">Departamentos que controla</th>
+                  <th className="px-4 py-3">Situação para autorizar</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {loading && Array.from({ length: 4 }).map((_, i) => <SkeletonTableRow key={i} columns={3} />)}
+
+                {!loading && gestores.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="px-4 py-12 text-center text-gray-400 dark:text-gray-500">
+                      <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                      Nenhum gestor cadastrado ainda. Abra um departamento para adicionar.
+                    </td>
+                  </tr>
+                )}
+
+                {!loading &&
+                  gestores.map(({ colaborador, departamentos: deles }) => {
+                    // A situação é da pessoa (colaborador, login, cargo): igual em todos os departamentos.
+                    const situacao = deles.map((d) => painel?.situacoes[chaveGestor(d.id, colaborador.id)]).find(Boolean);
+                    return (
+                      <tr key={colaborador.id} className="align-top">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-gray-800 dark:text-gray-100">{colaborador.nome}</p>
+                          <p className="text-xs text-gray-400 dark:text-gray-500">{colaborador.departamentoNome ?? 'Sem departamento'}</p>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex flex-wrap gap-1.5">
+                            {deles.map((d) => (
+                              <button
+                                key={d.id}
+                                type="button"
+                                onClick={() => setSelecionadoId(d.id)}
+                                title={d.autorizaPagamentos ? 'Autoriza os pagamentos deste departamento' : 'Gestor, sem autorizar pagamentos'}
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium transition-colors ${
+                                  d.autorizaPagamentos
+                                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200'
+                                    : 'bg-gray-100 dark:bg-gray-700/60 text-gray-600 dark:text-gray-300 hover:bg-gray-200'
+                                } ${d.ativo ? '' : 'opacity-60'}`}
+                              >
+                                {d.autorizaPagamentos && <DollarSign className="w-3 h-3" />}
+                                {d.nome}
+                              </button>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          {situacao ? (
+                            <span
+                              className={`inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${
+                                situacao === 'apto'
+                                  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                  : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                              }`}
+                            >
+                              {ROTULO_SITUACAO_GESTOR[situacao]}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 dark:text-gray-500">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {selecionado && (
         <DepartamentoDetalheModal
@@ -216,6 +413,9 @@ const DepartamentosPage: React.FC = () => {
           definirAprovador={definirAprovador}
           adicionarResponsavel={adicionarResponsavel}
           removerResponsavel={removerResponsavel}
+          painel={painel}
+          definirAutorizaPagamentos={definirAutorizaPagamentos}
+          transferirAutorizacoes={transferirAutorizacoes}
           definirDepartamento={definirDepartamento}
         />
       )}

@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { bloqueioDesativarDepartamento, colaboradoresSemDepartamento, validarNomeDepartamento } from './departamentos';
+import {
+  autorizadoresAptos,
+  bloqueioDesativarDepartamento,
+  chaveGestor,
+  colaboradoresSemDepartamento,
+  departamentosSemAutorizador,
+  gestoresComDepartamentos,
+  validarNomeDepartamento,
+} from './departamentos';
+import type { SituacaoGestor } from '../types';
 
 const departamentos = [
   { id: 'd1', nome: 'Área técnica' },
@@ -51,5 +60,43 @@ describe('colaboradoresSemDepartamento', () => {
       { id: '4', nome: 'Carla', departamentoId: 'd1', status: 'ativo' as const },
     ];
     expect(colaboradoresSemDepartamento(colaboradores).map((c) => c.nome)).toEqual(['Ana Claudia', 'Vinicius']);
+  });
+});
+
+describe('gestores que autorizam pagamentos', () => {
+  const estoque = { id: 'd1', nome: 'Estoque', ativo: true, responsavelIds: ['ana', 'bruno', 'carla'], autorizaPagamentosIds: ['ana', 'bruno'] };
+  const ti = { id: 'd2', nome: 'TI', ativo: true, responsavelIds: ['ana'], autorizaPagamentosIds: [] };
+  const antigo = { id: 'd3', nome: 'Antigo', ativo: false, responsavelIds: [], autorizaPagamentosIds: [] };
+  const situacoes: Record<string, SituacaoGestor> = {
+    [chaveGestor('d1', 'ana')]: 'apto',
+    [chaveGestor('d1', 'bruno')]: 'sem_permissao',
+    [chaveGestor('d1', 'carla')]: 'apto',
+    [chaveGestor('d2', 'ana')]: 'apto',
+  };
+
+  it('só conta quem está marcado e apto', () => {
+    expect(autorizadoresAptos(estoque, situacoes)).toEqual(['ana']);
+    expect(autorizadoresAptos(ti, situacoes)).toEqual([]);
+  });
+
+  it('aponta os departamentos ativos sem gestor apto, ignorando os inativos', () => {
+    expect(departamentosSemAutorizador([estoque, ti, antigo], situacoes).map((d) => d.nome)).toEqual(['TI']);
+    expect(departamentosSemAutorizador([estoque], { ...situacoes, [chaveGestor('d1', 'ana')]: 'usuario_inativo' }).map((d) => d.nome)).toEqual([
+      'Estoque',
+    ]);
+  });
+
+  it('visão por gestor: cada responsável com os departamentos dele, por nome', () => {
+    const colaboradores = [
+      { id: 'carla', nome: 'Carla' },
+      { id: 'ana', nome: 'Ana' },
+      { id: 'bruno', nome: 'Bruno' },
+    ];
+    const visao = gestoresComDepartamentos([ti, estoque], colaboradores);
+    expect(visao.map((g) => g.colaborador.nome)).toEqual(['Ana', 'Bruno', 'Carla']);
+    expect(visao[0].departamentos).toEqual([
+      { id: 'd1', nome: 'Estoque', ativo: true, autorizaPagamentos: true },
+      { id: 'd2', nome: 'TI', ativo: true, autorizaPagamentos: false },
+    ]);
   });
 });

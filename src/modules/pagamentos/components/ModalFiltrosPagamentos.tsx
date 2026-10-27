@@ -2,14 +2,25 @@ import React, { useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { SlidersHorizontal, X } from 'lucide-react';
 import MultiSelect from '../../../components/MultiSelect';
+import Select from '../../../components/Select';
+import DatePicker from '../../../components/DatePicker';
 import Switch from '../../../components/Switch';
 import { PAYMENT_METHOD_LABELS, PAYMENT_TYPE_LABELS } from '../../../utils/paymentUtils';
-import { FORMAS, TIPOS, type FiltrosPagamentos, type OpcoesRecortes } from '../domain/filtrosPagamentos';
-import { CAMPO, ROTULO } from './estilos';
+import { FORMAS, TIPOS, type FiltrosPagamentos, type OpcoesRecortes, type OrdemPedidos, type PeriodoPagamento } from '../domain/filtrosPagamentos';
+import { useTravarRolagem } from '../hooks/useTravarRolagem';
+import { ALCA_MODAL, CABECALHO_MODAL, CAMPO, FUNDO_MODAL, PAINEL_MODAL, RODAPE_MODAL, ROTULO } from './estilos';
 
 // Os recortes que não cabem na barra. Aplica na hora (a lista é filtrada no navegador, sem ida
 // ao banco), e o botão do rodapé mostra quantos pedidos sobram. Vai num portal: dentro do
 // cartão animado da barra (transform), position: fixed ficaria preso ao cartão.
+// No celular sobe do rodapé e traz também a data de pagamento e a ordem, que lá não cabem
+// na barra.
+
+export interface Opcao<T extends string> {
+  value: T;
+  label: string;
+  description?: string;
+}
 
 const SEM_RECORTES: Partial<FiltrosPagamentos> = {
   setores: [],
@@ -27,10 +38,25 @@ interface Props {
   /** Só quem vê todos os setores escolhe setor. */
   mostrarSetor: boolean;
   quantidade: number;
+  /** Data de pagamento e ordem: as mesmas opções da barra (no celular, só aqui). */
+  periodos: Opcao<PeriodoPagamento>[];
+  ordens: Opcao<OrdemPedidos>[];
+  onEscolherPeriodo: (periodo: string) => void;
   onFechar: () => void;
 }
 
-const ModalFiltrosPagamentos: React.FC<Props> = ({ filtros, alterar, opcoes, mostrarSetor, quantidade, onFechar }) => {
+const ModalFiltrosPagamentos: React.FC<Props> = ({
+  filtros,
+  alterar,
+  opcoes,
+  mostrarSetor,
+  quantidade,
+  periodos,
+  ordens,
+  onEscolherPeriodo,
+  onFechar,
+}) => {
+  useTravarRolagem();
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onFechar();
@@ -40,10 +66,11 @@ const ModalFiltrosPagamentos: React.FC<Props> = ({ filtros, alterar, opcoes, mos
   }, [onFechar]);
 
   const campoMultiplo = `${CAMPO} min-h-[44px] !py-1.5`;
+  const periodoInvertido = filtros.periodo === 'periodo' && !!filtros.de && !!filtros.ate && filtros.de > filtros.ate;
 
   return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in"
+      className={FUNDO_MODAL}
       onMouseDown={(e) => {
         // Só o clique no fundo fecha: um arraste que começa no painel e termina fora, não.
         if (e.target === e.currentTarget) onFechar();
@@ -53,33 +80,83 @@ const ModalFiltrosPagamentos: React.FC<Props> = ({ filtros, alterar, opcoes, mos
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-filtros-pagamentos"
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-2xl border border-gray-100 dark:border-gray-700 animate-scale-in my-8"
+        className={`${PAINEL_MODAL} sm:max-w-2xl sm:my-auto`}
       >
-        <div className="flex items-start justify-between gap-4 px-6 py-5 border-b border-gray-100 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25">
-              <SlidersHorizontal className="w-5 h-5 text-white" />
+        <div className={CABECALHO_MODAL}>
+          <div className={ALCA_MODAL} />
+          <div className="flex items-start justify-between gap-4 px-4 sm:px-6 pt-2 pb-3 sm:py-5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="hidden sm:flex w-10 h-10 flex-shrink-0 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl items-center justify-center shadow-md shadow-blue-500/25">
+                <SlidersHorizontal className="w-5 h-5 text-white" />
+              </div>
+              <div className="min-w-0">
+                <h2 id="titulo-filtros-pagamentos" className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                  Filtros
+                </h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Vários valores no mesmo campo valem como “ou”; campos diferentes, como “e”.
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 id="titulo-filtros-pagamentos" className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-                Filtros
-              </h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Vários valores no mesmo campo valem como “ou”; campos diferentes, como “e”.
-              </p>
-            </div>
+            <button
+              type="button"
+              onClick={onFechar}
+              aria-label="Fechar"
+              className="-mr-2 flex flex-shrink-0 items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            aria-label="Fechar"
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-6 py-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-4 sm:px-6 py-5">
+          {/* Celular: a data e a ordem moram aqui (na barra só cabem a busca e este botão). */}
+          <div className="sm:hidden space-y-4 pb-4 border-b border-gray-100 dark:border-gray-700">
+            <div>
+              <label className={ROTULO}>Data de pagamento</label>
+              <Select value={filtros.periodo} onChange={onEscolherPeriodo} options={periodos} controlClass={CAMPO} ariaLabel="Data de pagamento" />
+            </div>
+            {filtros.periodo === 'periodo' && (
+              <div>
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    De
+                    <DatePicker
+                      value={filtros.de}
+                      onChange={(de) => alterar({ de })}
+                      allowClear
+                      placeholder="Sem início"
+                      controlClass={`mt-1 ${CAMPO}`}
+                      ariaLabel="Data de pagamento a partir de"
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                    Até
+                    <DatePicker
+                      value={filtros.ate}
+                      onChange={(ate) => alterar({ ate })}
+                      allowClear
+                      placeholder="Sem fim"
+                      controlClass={`mt-1 ${CAMPO}`}
+                      ariaLabel="Data de pagamento até"
+                    />
+                  </label>
+                </div>
+                {periodoInvertido && <p className="mt-2 text-xs text-red-600 dark:text-red-400">A data inicial está depois da final.</p>}
+              </div>
+            )}
+            <div>
+              <label className={ROTULO}>Ordem da lista</label>
+              <Select
+                value={filtros.ordem}
+                onChange={(v) => alterar({ ordem: v as OrdemPedidos })}
+                options={ordens}
+                controlClass={CAMPO}
+                ariaLabel="Ordem da lista"
+              />
+            </div>
+          </div>
+
           {mostrarSetor && (
             <div>
               <label className={ROTULO}>Setor</label>
@@ -156,18 +233,18 @@ const ModalFiltrosPagamentos: React.FC<Props> = ({ filtros, alterar, opcoes, mos
           </label>
         </div>
 
-        <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40 rounded-b-2xl">
+        <div className={`${RODAPE_MODAL} flex items-center justify-between gap-3`}>
           <button
             type="button"
             onClick={() => alterar(SEM_RECORTES)}
-            className="px-3 py-2 text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
+            className="flex-shrink-0 px-3 py-2 rounded-xl text-sm text-gray-500 dark:text-gray-400 hover:text-red-500 transition-colors"
           >
             Limpar estes filtros
           </button>
           <button
             type="button"
             onClick={onFechar}
-            className="px-5 py-2.5 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-indigo-600 transition-all"
+            className="flex-1 sm:flex-none px-5 h-11 rounded-xl text-sm font-semibold bg-gradient-to-r from-blue-500 to-indigo-500 text-white shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all"
           >
             Ver {quantidade} {quantidade === 1 ? 'pedido' : 'pedidos'}
           </button>

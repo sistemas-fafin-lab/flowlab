@@ -1,13 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import type { PaymentRequest } from '../../../types';
 import { formatCurrency } from '../../../utils/paymentUtils';
-import { agruparPorDataPagamento, rotuloDiaLongo } from '../domain/filtrosPagamentos';
+import { agruparPorDataPagamento, rotuloDiaCurto, rotuloDiaLongo } from '../domain/filtrosPagamentos';
 import CaixaSelecao from './CaixaSelecao';
 import PedidoCard, { type AcoesPedido } from './PedidoCard';
 
 // Lista de pedidos. Ordenada por data de pagamento, vira blocos por dia com o subtotal:
 // quem paga vê de cara o que sai na terça e o que sai na quinta. Para quem aprova, cada
 // bloco tem uma caixa que marca o dia inteiro (ações em lote).
+//
+// O título do dia fica preso no topo enquanto o bloco rola. No celular, abaixo do cabeçalho
+// fixo do Layout (h-[72px], lg:hidden); no desktop não há cabeçalho, então fica no topo.
+const TITULO_DO_DIA =
+  'sticky top-[80px] lg:top-3 z-20 flex items-center justify-between gap-3 px-3 sm:pl-5 sm:pr-4 py-2 rounded-xl bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-gray-200/70 dark:border-gray-700/70 shadow-sm';
 
 interface Props extends AcoesPedido {
   /** Já filtrados e ordenados. */
@@ -97,7 +102,7 @@ const ListaPedidos: React.FC<Props> = ({
     return (
       <div className="space-y-3">
         {selecao && todos.length > 0 && (
-          <div className="flex items-center gap-3 px-1 pt-1 sm:px-5">
+          <div className="flex items-center gap-3 px-4 pt-1 sm:px-5">
             <CaixaDoGrupo pedidos={todos} selecionados={selecao.selecionados} onMarcar={selecao.onMarcar} rotulo="Selecionar todos" />
             <span className="text-xs text-gray-500 dark:text-gray-400">
               Selecionar todos os {todos.length} que você pode aprovar ou pagar
@@ -113,32 +118,42 @@ const ListaPedidos: React.FC<Props> = ({
     <div className="space-y-3">
       {agruparPorDataPagamento(pedidos).map((grupo) => {
         const titulo = grupo.data ? rotuloDiaLongo(grupo.data) : 'Sem data de pagamento';
+        const tituloCurto = grupo.data ? rotuloDiaCurto(grupo.data) : 'Sem data';
+        const caixa = selecao ? selecionaveis(grupo.pedidos) : [];
         return (
-          <section key={grupo.data || 'sem-data'} className="space-y-3" aria-label={titulo}>
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 px-1 pt-2 sm:pl-5">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
-                {selecao && (
-                  <CaixaDoGrupo
-                    pedidos={selecionaveis(grupo.pedidos)}
-                    selecionados={selecao.selecionados}
-                    onMarcar={selecao.onMarcar}
-                    rotulo={`Selecionar os pedidos de ${titulo}`}
-                  />
+          <section key={grupo.data || 'sem-data'} className="space-y-3 pt-1" aria-label={titulo}>
+            <div className={TITULO_DO_DIA}>
+              <h3 className="flex min-w-0 items-center gap-2 text-sm font-semibold text-gray-700 dark:text-gray-200">
+                {caixa.length > 0 && selecao && (
+                  <span className="mr-1 flex">
+                    <CaixaDoGrupo
+                      pedidos={caixa}
+                      selecionados={selecao.selecionados}
+                      onMarcar={selecao.onMarcar}
+                      rotulo={`Selecionar os pedidos de ${titulo}`}
+                    />
+                  </span>
                 )}
-                {titulo}
+                <span className="truncate">
+                  <span className="sm:hidden capitalize">{tituloCurto}</span>
+                  <span className="hidden sm:inline">{titulo}</span>
+                </span>
                 {grupo.data === hoje && (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
+                  <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300">
                     Hoje
                   </span>
                 )}
                 {grupo.data && grupo.data < hoje && (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                  <span className="flex-shrink-0 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                     Data passada
                   </span>
                 )}
               </h3>
-              <span className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
-                {grupo.pedidos.length} {grupo.pedidos.length === 1 ? 'pedido' : 'pedidos'} · {formatCurrency(grupo.total)}
+              <span className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                <span className="hidden sm:inline">
+                  {grupo.pedidos.length} {grupo.pedidos.length === 1 ? 'pedido' : 'pedidos'} ·{' '}
+                </span>
+                <strong className="font-semibold text-gray-700 dark:text-gray-200">{formatCurrency(grupo.total)}</strong>
               </span>
             </div>
             {grupo.pedidos.map(card)}
