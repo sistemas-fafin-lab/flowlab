@@ -1900,11 +1900,13 @@ const EVENTOS_NAO_COBRAVEIS = [8, 64, 1023, 1037];
 
 const SQL_EVENTO_COBRAVEL = `(r.CodEvento IS NULL OR r.CodEvento NOT IN (${EVENTOS_NAO_COBRAVEIS.join(', ')}))`;
 
-// Contador do ícone de tarefas das três listas de Pendências: tarefas do apLIS
-// da requisição ainda não concluídas, de qualquer setor ou destinatário. Mesma
-// regra do modal (`listarTarefasRequisicao`): só `Concluido = 1` é concluída.
-// Usa o índice de `tarefa.IdRequisicao`.
-const SQL_QTD_TAREFAS_ABERTAS = `(SELECT COUNT(*) FROM tarefa t
+// Contadores do ícone de tarefas das três listas de Pendências: tarefas do apLIS
+// da requisição, de qualquer setor ou destinatário — todas e as ainda não
+// concluídas. Mesma regra do modal (`listarTarefasRequisicao`): só
+// `Concluido = 1` é concluída. Usa o índice de `tarefa.IdRequisicao`.
+const SQL_QTD_TAREFAS = `(SELECT COUNT(*) FROM tarefa t
+     WHERE t.IdRequisicao = r.IdRequisicao) AS QtdTarefas,
+   (SELECT COUNT(*) FROM tarefa t
      WHERE t.IdRequisicao = r.IdRequisicao AND (t.Concluido IS NULL OR t.Concluido <> 1)) AS QtdTarefasAbertas`;
 
 const cachePendencias = new Map<string, EntradaCache<ListarLotesPendentesResultado>>();
@@ -2140,6 +2142,7 @@ export interface RequisicaoPendencia {
   /** `requisicao.CodEvento` — status da requisição no fluxo do laboratório. */
   codEvento: number | null;
   eventoLabel: string | null;
+  qtdTarefas: number;
   qtdTarefasAbertas: number;
 }
 
@@ -2173,7 +2176,7 @@ const SQL_DETALHE_PENDENCIA = `
            WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL
            ORDER BY rps.DataEmissao DESC LIMIT 1) AS NFeNumero,
          r.CodEventoFatur, ef.DesEvento AS DesEventoFatur,
-         r.CodEvento, ev.DesEvento, ${SQL_QTD_TAREFAS_ABERTAS}
+         r.CodEvento, ev.DesEvento, ${SQL_QTD_TAREFAS}
     FROM requisicao r
     LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
     LEFT JOIN eventofatur ef ON ef.CodEvento = r.CodEventoFatur
@@ -2211,6 +2214,7 @@ export async function detalharLotePendencia(
       eventoFaturLabel: texto(linha.DesEventoFatur),
       codEvento: inteiroOuNulo(linha.CodEvento),
       eventoLabel: texto(linha.DesEvento),
+      qtdTarefas: numero(linha.QtdTarefas),
       qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
     }));
     return { requisicoes };
@@ -2258,6 +2262,7 @@ export interface RequisicaoParticularPendencia {
   /** Local de origem marcado como "não emite NF" (`idsClinicasSemNf`). Só vem
    *  `true` com `incluirSemNf`; sem ele essas requisições nem aparecem. */
   clinicaSemNf: boolean;
+  qtdTarefas: number;
   qtdTarefasAbertas: number;
 }
 
@@ -2343,6 +2348,7 @@ function normalizarParticularPendencia(
     idLote: inteiroOuNulo(linha.Lote),
     localOrigem: { id: idLocalOrigem, nome: texto(linha.NomLocalOrigem) },
     clinicaSemNf: idLocalOrigem !== null && idsClinicasSemNf.includes(idLocalOrigem),
+    qtdTarefas: numero(linha.QtdTarefas),
     qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
   };
 }
@@ -2408,7 +2414,7 @@ export async function listarParticularesPendentes(
               r.IdLocalOrigem, lo.NomFantasia AS NomLocalOrigem,
               COALESCE((SELECT SUM(frp.ValorLiquido) FROM fatrequisicaoprocedimento frp
                          WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor,
-              ${SQL_QTD_TAREFAS_ABERTAS}
+              ${SQL_QTD_TAREFAS}
          FROM requisicao r
          LEFT JOIN fatlote l ON l.IdLote = r.Lote
          LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
@@ -2473,6 +2479,7 @@ export interface RequisicaoSemLotePendencia {
   /** `requisicao.CodEvento` — status da requisição no fluxo do laboratório. */
   codEvento: number | null;
   eventoLabel: string | null;
+  qtdTarefas: number;
   qtdTarefasAbertas: number;
 }
 
@@ -2554,6 +2561,7 @@ function normalizarRequisicaoSemLote(linha: mysql.RowDataPacket): RequisicaoSemL
     },
     codEvento: inteiroOuNulo(linha.CodEvento),
     eventoLabel: texto(linha.DesEvento),
+    qtdTarefas: numero(linha.QtdTarefas),
     qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
   };
 }
@@ -2623,7 +2631,7 @@ export async function listarRequisicoesSemLote(
               r.CodEvento, ev.DesEvento,
               COALESCE((SELECT SUM(frp.ValorLiquido) FROM fatrequisicaoprocedimento frp
                          WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor,
-              ${SQL_QTD_TAREFAS_ABERTAS}
+              ${SQL_QTD_TAREFAS}
          FROM requisicao r
          LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
          LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = r.IdFontePagadora

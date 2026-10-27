@@ -425,6 +425,8 @@ export interface RequisicaoPendencia {
   /** Status da requisição no fluxo do laboratório (`requisicao.CodEvento`). */
   codEvento: number | null;
   eventoLabel: string | null;
+  /** Tarefas do apLIS da requisição, concluídas ou não. */
+  qtdTarefas: number;
   /** Tarefas do apLIS da requisição ainda não concluídas. */
   qtdTarefasAbertas: number;
 }
@@ -478,6 +480,8 @@ export interface RequisicaoParticularPendencia {
   /** Local de origem marcado como "não emite NF". Só vem `true` com
    *  `incluirSemNf`; sem ele essas requisições nem aparecem. */
   clinicaSemNf: boolean;
+  /** Tarefas do apLIS da requisição, concluídas ou não. */
+  qtdTarefas: number;
   /** Tarefas do apLIS da requisição ainda não concluídas. */
   qtdTarefasAbertas: number;
 }
@@ -539,6 +543,8 @@ export interface RequisicaoSemLotePendencia {
   /** Status da requisição no fluxo do laboratório (`requisicao.CodEvento`). */
   codEvento: number | null;
   eventoLabel: string | null;
+  /** Tarefas do apLIS da requisição, concluídas ou não. */
+  qtdTarefas: number;
   /** Tarefas do apLIS da requisição ainda não concluídas. */
   qtdTarefasAbertas: number;
 }

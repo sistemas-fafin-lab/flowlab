@@ -39,27 +39,41 @@ export const StatusRequisicao: React.FC<{ codEvento: number | null; label: strin
   );
 };
 
-/** Ícone de tarefas da linha: com contador quando há tarefa aberta, esmaecido sem nenhuma. */
-export const BotaoTarefas: React.FC<{ qtdAbertas: number; onClick: () => void }> = ({ qtdAbertas, onClick }) => (
-  <button
-    type="button"
-    onClick={onClick}
-    title={qtdAbertas > 0 ? `${qtdAbertas} tarefa${qtdAbertas === 1 ? '' : 's'} em aberto` : 'Ver tarefas da requisição'}
-    aria-label="Ver tarefas da requisição"
-    className={`relative inline-flex p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 ${
-      qtdAbertas > 0
-        ? 'text-gray-700 dark:text-gray-200'
-        : 'text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400'
-    }`}
-  >
-    <CreditCard className="w-4 h-4" />
-    {qtdAbertas > 0 && (
-      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-4 text-center tabular-nums">
-        {qtdAbertas > 99 ? '99+' : qtdAbertas}
-      </span>
-    )}
-  </button>
-);
+/** Ícone de tarefas da linha, em três estados: contador âmbar com tarefa aberta,
+ *  ponto verde quando todas foram concluídas, esmaecido sem nenhuma. */
+export const BotaoTarefas: React.FC<{ qtdTotal: number; qtdAbertas: number; onClick: () => void }> = ({
+  qtdTotal,
+  qtdAbertas,
+  onClick,
+}) => {
+  const titulo = qtdAbertas > 0
+    ? `${qtdAbertas} tarefa${qtdAbertas === 1 ? '' : 's'} em aberto de ${qtdTotal}`
+    : qtdTotal > 0
+      ? `${qtdTotal} tarefa${qtdTotal === 1 ? '' : 's'}, todas concluídas`
+      : 'Nenhuma tarefa nesta requisição';
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={titulo}
+      aria-label={`Ver tarefas da requisição — ${titulo}`}
+      className={`relative inline-flex p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 ${
+        qtdTotal > 0
+          ? 'text-gray-700 dark:text-gray-200'
+          : 'text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400'
+      }`}
+    >
+      <CreditCard className="w-4 h-4" />
+      {qtdAbertas > 0 ? (
+        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 px-1 rounded-full bg-amber-500 text-white text-[10px] font-semibold leading-4 text-center tabular-nums">
+          {qtdAbertas > 99 ? '99+' : qtdAbertas}
+        </span>
+      ) : qtdTotal > 0 && (
+        <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-white dark:ring-gray-800" />
+      )}
+    </button>
+  );
+};
 
 export interface RequisicaoDasTarefas {
   idRequisicao: number;
@@ -90,7 +104,7 @@ export const TarefasRequisicaoModal: React.FC<ModalProps> = ({ requisicao, onFec
   const abertas = tarefas.filter((t) => !t.concluida).length;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onFechar}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4" onClick={onFechar}>
       <div
         className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}

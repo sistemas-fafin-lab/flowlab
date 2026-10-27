@@ -169,6 +169,7 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
                     </td>
                     <td className="px-3 py-2 text-center">
                       <BotaoTarefas
+                        qtdTotal={req.qtdTarefas}
                         qtdAbertas={req.qtdTarefasAbertas}
                         onClick={() => setTarefasDe({ idRequisicao: req.idRequisicao, codRequisicao: req.codRequisicao })}
                       />

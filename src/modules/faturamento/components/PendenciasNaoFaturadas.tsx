@@ -1,25 +1,25 @@
-import React, { useCallback, useState } from 'react';
-import { AlertTriangle, ChevronDown, ChevronRight, RefreshCw } from 'lucide-react';
-import type { OperadoraResumo, RequisicaoPendencia } from '../types';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AlertTriangle, Eye, RefreshCw } from 'lucide-react';
+import type { OperadoraResumo } from '../types';
 import { STATUS_PENDENCIA, STLOT_LABELS } from '../types';
 import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
 import { useStatusFaturamento } from '../hooks/useStatusFaturamento';
 import StatusFaturamentoChips from './StatusFaturamentoChips';
-import { corStatusFaturamento } from '../utils/corStatusFaturamento';
 import { formatCurrency, formatData } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
-import { BotaoTarefas, StatusRequisicao, TarefasRequisicaoModal, type RequisicaoDasTarefas } from './TarefasRequisicao';
+import { TarefasRequisicaoModal, type RequisicaoDasTarefas } from './TarefasRequisicao';
+import LotePendentePainelLateral from './LotePendentePainelLateral';
 
 // Aba Contas a Receber → Pendências: lotes do apLIS sem NF/RPS vinculado, fora da
 // janela normal de fechamento (2 meses mais recentes). Regra completa e o achado
 // sobre "Recebidos sem RPS" em api/_lib/faturamento/bdLab.ts (listarLotesPendentes)
 // e docs/plans/faturamento/pendencias-nao-faturadas-design.md.
 //
-// Mesmo padrão de expansão de FaturasDashboard (lote → requisições sob demanda),
-// mas com filtros/paginação no estilo compacto de TitulosList, por viver dentro do
-// mesmo container da aba Contas a Receber.
+// As requisições de cada lote abrem num painel lateral (LotePendentePainelLateral),
+// mesmo padrão dos títulos; filtros/paginação no estilo compacto de TitulosList,
+// por viver dentro do mesmo container da aba Contas a Receber.
 
 const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 
@@ -53,45 +53,28 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
     setPagina(1);
   }, []);
 
-  const [expandido, setExpandido] = useState<number | null>(null);
-  const [requisicoes, setRequisicoes] = useState<Record<number, RequisicaoPendencia[]>>({});
-  const [carregandoDet, setCarregandoDet] = useState<number | null>(null);
-  const [erroDet, setErroDet] = useState<Record<number, string>>({});
+  const [idAberto, setIdAberto] = useState<number | null>(null);
+  const [recarga, setRecarga] = useState(0);
   const [tarefasDe, setTarefasDe] = useState<RequisicaoDasTarefas | null>(null);
   const fecharTarefas = useCallback(() => setTarefasDe(null), []);
+  const fecharPainel = useCallback(() => setIdAberto(null), []);
 
-  const carregarDetalhe = useCallback(async (idLote: number, force = false) => {
-    setCarregandoDet(idLote);
-    setErroDet((e) => ({ ...e, [idLote]: '' }));
-    try {
-      const itens = await buscarRequisicoes(idLote, force);
-      setRequisicoes((r) => ({ ...r, [idLote]: itens }));
-    } catch (err) {
-      setErroDet((e) => ({
-        ...e,
-        [idLote]: err instanceof Error ? err.message : 'Não foi possível carregar as requisições.',
-      }));
-    } finally {
-      setCarregandoDet((atual) => (atual === idLote ? null : atual));
-    }
-  }, [buscarRequisicoes]);
+  const loteAberto = idAberto !== null ? lotes.find((l) => l.idLote === idAberto) ?? null : null;
 
-  const alternarLote = useCallback((idLote: number) => {
-    if (expandido === idLote) {
-      setExpandido(null);
-      return;
-    }
-    setExpandido(idLote);
-    if (!requisicoes[idLote]) void carregarDetalhe(idLote);
-  }, [expandido, requisicoes, carregarDetalhe]);
+  // Painel fecha quando o recorte muda (filtro, página)...
+  useEffect(() => {
+    setIdAberto(null);
+  }, [desde, ate, operadoraId, status, codEventoFatur, pagina]);
+
+  // ...ou quando o lote sai da lista depois de um refetch.
+  useEffect(() => {
+    if (idAberto !== null && !loading && !lotes.some((l) => l.idLote === idAberto)) setIdAberto(null);
+  }, [idAberto, loading, lotes]);
 
   const atualizar = useCallback(async () => {
-    const aberto = expandido;
-    setRequisicoes({});
-    setErroDet({});
     await refetch(true);
-    if (aberto !== null) void carregarDetalhe(aberto, true);
-  }, [expandido, refetch, carregarDetalhe]);
+    setRecarga((n) => n + 1);
+  }, [refetch]);
 
   const qtdPaginas = meta?.qtdPaginas ?? 1;
   const registros = meta?.registros ?? 0;
@@ -214,15 +197,24 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {lotes.map((lote) => {
-                  const aberto = expandido === lote.idLote;
+                  const aberto = idAberto === lote.idLote;
                   return (
-                    <React.Fragment key={lote.idLote}>
                       <tr
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
-                        onClick={() => alternarLote(lote.idLote)}
+                        key={lote.idLote}
+                        className={`transition-colors ${
+                          aberto ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                        }`}
                       >
-                        <td className="px-3 py-2 text-gray-400">
-                          {aberto ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        <td className="pl-3 pr-0 py-2">
+                          <button
+                            type="button"
+                            onClick={() => setIdAberto(aberto ? null : lote.idLote)}
+                            className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            aria-label={`Ver requisições do lote ${lote.idLote}`}
+                            title="Ver requisições do lote"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                         </td>
                         <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100 whitespace-nowrap">
                           {lote.idLote}
@@ -250,88 +242,6 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
                           {formatCurrency(lote.valor)}
                         </td>
                       </tr>
-
-                      {aberto && (
-                        <tr className="bg-gray-50/70 dark:bg-gray-700/20">
-                          <td colSpan={8} className="px-6 py-3">
-                            {carregandoDet === lote.idLote ? (
-                              <p className="text-xs text-gray-400 flex items-center gap-2">
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                Carregando requisições...
-                              </p>
-                            ) : erroDet[lote.idLote] ? (
-                              <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-                                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                {erroDet[lote.idLote]}
-                              </p>
-                            ) : (requisicoes[lote.idLote]?.length ?? 0) === 0 ? (
-                              <p className="text-xs text-gray-400">
-                                Nenhuma requisição cobrada neste lote.
-                              </p>
-                            ) : (
-                              <table className="w-full text-xs">
-                                <thead>
-                                  <tr className="text-left text-gray-400">
-                                    <th className="py-1">Requisição</th>
-                                    <th className="py-1">Paciente</th>
-                                    <th className="py-1">Guia</th>
-                                    <th className="py-1">Solicitação</th>
-                                    <th className="py-1">Status faturamento</th>
-                                    <th className="py-1">NF / RPS</th>
-                                    <th className="py-1">Status da requisição</th>
-                                    <th className="py-1">Laudo liberado</th>
-                                    <th className="py-1 text-right">Valor</th>
-                                    <th className="py-1 w-10"><span className="sr-only">Tarefas</span></th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {requisicoes[lote.idLote]?.map((req) => (
-                                    <tr key={req.idRequisicao} className="text-gray-600 dark:text-gray-300">
-                                      <td className="py-1 font-mono">{req.codRequisicao ?? `#${req.idRequisicao}`}</td>
-                                      <td className="py-1 truncate max-w-[200px]">{req.paciente ?? '—'}</td>
-                                      <td className="py-1">{req.numGuiaConvenio ?? '—'}</td>
-                                      <td className="py-1 tabular-nums">{formatData(req.dtaSolicitacao)}</td>
-                                      <td className="py-1">
-                                        {req.eventoFaturLabel ? (
-                                          <span
-                                            className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${corStatusFaturamento(req.codEventoFatur, req.eventoFaturLabel)}`}
-                                          >
-                                            {req.eventoFaturLabel}
-                                          </span>
-                                        ) : '—'}
-                                      </td>
-                                      <td className="py-1">
-                                        {req.nfeNumero
-                                          ? (
-                                            <span
-                                              title="Requisição já tem NF/RPS individual, mesmo o lote não tendo — confira antes de cobrar de novo."
-                                              className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300"
-                                            >
-                                              {req.nfeNumero}{req.numeroRPS ? ` / ${req.numeroRPS}` : ''}
-                                            </span>
-                                          )
-                                          : '—'}
-                                      </td>
-                                      <td className="py-1">
-                                        <StatusRequisicao codEvento={req.codEvento} label={req.eventoLabel} compacto />
-                                      </td>
-                                      <td className="py-1 tabular-nums">{formatData(req.dtaFinalizacao)}</td>
-                                      <td className="py-1 text-right tabular-nums">{formatCurrency(req.valor)}</td>
-                                      <td className="py-1 text-center">
-                                        <BotaoTarefas
-                                          qtdAbertas={req.qtdTarefasAbertas}
-                                          onClick={() => setTarefasDe({ idRequisicao: req.idRequisicao, codRequisicao: req.codRequisicao })}
-                                        />
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -364,6 +274,18 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
             </button>
           </div>
         </div>
+      )}
+
+      {loteAberto && (
+        <LotePendentePainelLateral
+          key={loteAberto.idLote}
+          lote={loteAberto}
+          recarga={recarga}
+          camadaSobreposta={tarefasDe !== null}
+          onFechar={fecharPainel}
+          onAbrirTarefas={setTarefasDe}
+          buscarRequisicoes={buscarRequisicoes}
+        />
       )}
 
       <TarefasRequisicaoModal requisicao={tarefasDe} onFechar={fecharTarefas} />
