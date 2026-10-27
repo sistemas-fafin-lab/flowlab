@@ -274,25 +274,13 @@ const IndicadoresFaturamento: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
-            <BarChart3 className="h-7 w-7 text-blue-600" />
-            Indicadores de Faturamento
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            Lotes de faturamento criados {textos.no}, sem os cancelados
-            {janelaAnterior && (
-              <>; comparados com {formatData(janelaAnterior.inicio)} a {formatData(janelaAnterior.fim)}</>
-            )}
-          </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {meta?.dadoAte
-              ? <>Dados até {formatDiaMesHora(meta.dadoAte)} (o backup do apLIS atrasa cerca de 1 dia)</>
-              : 'Dados do backup do apLIS'}
-          </p>
-        </div>
-
+      {/* Título e filtros fixos no topo ao rolar: as margens negativas cobrem o
+          padding do <main> do Layout; no celular, para abaixo do cabeçalho de 72px. */}
+      <div className="sticky top-[72px] lg:top-0 z-30 -mx-3 sm:-mx-4 lg:-mx-5 xl:-mx-8 px-3 sm:px-4 lg:px-5 xl:px-8 py-3 bg-gray-50/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/70 dark:border-gray-700/70 flex flex-col lg:flex-row lg:items-end lg:justify-between gap-3">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <BarChart3 className="h-7 w-7 text-blue-600" />
+          Indicadores de Faturamento
+        </h1>
         <div className="flex flex-wrap items-end gap-3">
           <Alternancia<ModoPeriodo> rotulo="Período por" opcoes={OPCOES_MODO} valor={modo} onChange={setModo} />
           {modo === 'mes' ? (
@@ -327,6 +315,21 @@ const IndicadoresFaturamento: React.FC = () => {
             Atualizar
           </button>
         </div>
+      </div>
+
+      {/* Fora da barra fixa: rola com a página. */}
+      <div className="!mt-2">
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          Lotes de faturamento criados {textos.no}, sem os cancelados
+          {janelaAnterior && (
+            <>; comparados com {formatData(janelaAnterior.inicio)} a {formatData(janelaAnterior.fim)}</>
+          )}
+        </p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+          {meta?.dadoAte
+            ? <>Dados até {formatDiaMesHora(meta.dadoAte)} (o backup do apLIS atrasa cerca de 1 dia)</>
+            : 'Dados do backup do apLIS'}
+        </p>
       </div>
 
       {error ? (
