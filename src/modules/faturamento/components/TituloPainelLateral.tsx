@@ -13,6 +13,7 @@ import type {
   AlteracaoLancamento,
   DivergenciaAplis,
   GlosaAplisTitulo,
+  NfCancelada,
   TituloBaixa,
   TituloGuia,
   TituloLote,
@@ -52,6 +53,7 @@ interface Props {
   buscarBaixas: (notaId: string) => Promise<TituloBaixa[]>;
   buscarGlosasAplis: (lotesAplis: number[]) => Promise<GlosaAplisTitulo[]>;
   buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
+  buscarNfsCanceladas: (notaId: string) => Promise<NfCancelada[]>;
 }
 
 const SECAO = 'mb-1 text-xs font-medium text-gray-500 dark:text-gray-400';
@@ -80,11 +82,14 @@ const TituloPainelLateral: React.FC<Props> = ({
   buscarBaixas,
   buscarGlosasAplis,
   buscarAlteracoes,
+  buscarNfsCanceladas,
 }) => {
   const [baixas, setBaixas] = useState<TituloBaixa[] | null>(null);
   const [erroBaixas, setErroBaixas] = useState<string | null>(null);
   const [alteracoes, setAlteracoes] = useState<AlteracaoLancamento[]>([]);
   const [erroAlteracoes, setErroAlteracoes] = useState<string | null>(null);
+  const [nfsCanceladas, setNfsCanceladas] = useState<NfCancelada[]>([]);
+  const [erroNfsCanceladas, setErroNfsCanceladas] = useState<string | null>(null);
   const [glosas, setGlosas] = useState<GlosaAplisTitulo[]>([]);
   const [erroGlosas, setErroGlosas] = useState<string | null>(null);
   // DtaEnvio ao vivo dos lotes, chave = aplisId (issue 15). Null = ainda não
@@ -177,6 +182,23 @@ const TituloPainelLateral: React.FC<Props> = ({
     return () => { cancelado = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [titulo.statusAtualizadoEm]);
+
+  // NFs canceladas (.scratch/faturamento-nf-cancelada): relidas quando o número
+  // da nota muda — a troca com "NF anterior cancelada" pelo Editar, com o
+  // painel aberto, é o que acrescenta uma.
+  useEffect(() => {
+    setErroNfsCanceladas(null);
+    let cancelado = false;
+    void buscarNfsCanceladas(titulo.id)
+      .then((lista) => { if (!cancelado) setNfsCanceladas(lista); })
+      .catch((err) => {
+        if (!cancelado) {
+          setErroNfsCanceladas(err instanceof Error ? err.message : 'Não foi possível carregar as NFs canceladas.');
+        }
+      });
+    return () => { cancelado = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [titulo.numeroNota]);
 
   const abrirLote = async (loteId: string) => {
     if (loteAberto === loteId) {
@@ -470,6 +492,43 @@ const TituloPainelLateral: React.FC<Props> = ({
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* NFs anteriores canceladas no portal da prefeitura — só aparece
+              quando houve alguma (ou quando a busca falhou). */}
+          {(erroNfsCanceladas || nfsCanceladas.length > 0) && (
+            <div>
+              <p className={SECAO}>NFs canceladas</p>
+              {erroNfsCanceladas ? (
+                <p className={ERRO}>
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  {erroNfsCanceladas}
+                </p>
+              ) : (
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-left text-gray-400">
+                      <th className="py-1">NF</th>
+                      <th className="py-1">Cancelada em</th>
+                      <th className="py-1">Motivo</th>
+                      <th className="py-1">Por</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nfsCanceladas.map((nf) => (
+                      <tr key={nf.id} className="text-gray-600 dark:text-gray-300 align-top">
+                        <td className="py-1 pr-3 tabular-nums whitespace-nowrap line-through decoration-gray-400">
+                          {nf.numeroNota}
+                        </td>
+                        <td className="py-1 pr-3 whitespace-nowrap">{formatData(nf.dataCancelamento)}</td>
+                        <td className="py-1 pr-3">{nf.motivo}</td>
+                        <td className="py-1">{nf.registradoPorNome}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               )}

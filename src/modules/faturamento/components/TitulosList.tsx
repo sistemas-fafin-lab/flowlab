@@ -17,6 +17,7 @@ import type {
   DivergenciaAplis,
   FiltroGlosaTitulo,
   GlosaAplisTitulo,
+  NfCancelada,
   OperadoraResumo,
   TituloBaixa,
   TituloGuia,
@@ -137,6 +138,9 @@ interface Props {
   /** Correções de baixas/glosas do título (.scratch/titulos-edicao-lancamentos),
    *  buscadas junto com as baixas ao expandir a linha. */
   buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
+  /** NFs anteriores do título canceladas no portal da prefeitura
+   *  (.scratch/faturamento-nf-cancelada). */
+  buscarNfsCanceladas: (notaId: string) => Promise<NfCancelada[]>;
   /** Editar/Baixa aberto por cima do painel de detalhes: o Esc fecha só o modal. */
   camadaSobreposta: boolean;
 }
@@ -209,6 +213,7 @@ const TitulosList: React.FC<Props> = ({
   buscarBaixas,
   buscarGlosasAplis,
   buscarAlteracoes,
+  buscarNfsCanceladas,
   camadaSobreposta,
 }) => {
   // Título com o painel lateral de detalhes aberto (.scratch/titulos-painel-lateral).
@@ -795,6 +800,7 @@ const TitulosList: React.FC<Props> = ({
           buscarBaixas={buscarBaixas}
           buscarGlosasAplis={buscarGlosasAplis}
           buscarAlteracoes={buscarAlteracoes}
+          buscarNfsCanceladas={buscarNfsCanceladas}
         />
       )}
     </div>

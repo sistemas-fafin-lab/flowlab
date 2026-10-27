@@ -6,9 +6,9 @@
 
 **Status:** ready-for-agent
 
-- [ ] O detalhe do título, que alimenta o painel lateral, passa a trazer a lista de NFs canceladas dele.
-- [ ] A seção mostra número, data do cancelamento, motivo e responsável, com a mais recente primeiro.
-- [ ] A seção fica escondida quando a lista está vazia.
-- [ ] A leitura exige `canViewBilling` ou `canManageBilling`. Quem só vê o faturamento enxerga o histórico, mas não consegue registrar cancelamentos.
-- [ ] A seção funciona no tema claro e no escuro.
+- [x] O detalhe do título, que alimenta o painel lateral, passa a trazer a lista de NFs canceladas dele. (Leitura própria `buscarNfsCanceladas`, no padrão de `buscarAlteracoes`, relida quando o número da nota muda.)
+- [x] A seção mostra número, data do cancelamento, motivo e responsável, com a mais recente primeiro.
+- [x] A seção fica escondida quando a lista está vazia.
+- [x] A leitura exige `canViewBilling` ou `canManageBilling`. Quem só vê o faturamento enxerga o histórico, mas não consegue registrar cancelamentos.
+- [x] A seção funciona no tema claro e no escuro.
 - [ ] Conferência manual no app: o título trocado no ticket 01 mostra a seção, e um título sem histórico não mostra.

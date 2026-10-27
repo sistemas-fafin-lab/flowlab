@@ -13,6 +13,7 @@ import type {
   GlosaStatus,
   GlosasTitulo,
   LancamentosTitulo,
+  NfCancelada,
   OperadoraResumo,
   TituloBaixa,
   TituloGuia,
@@ -281,6 +282,9 @@ interface UseContasReceberResult {
   buscarLancamentos: (notaId: string) => Promise<LancamentosTitulo>;
   /** Histórico de correções de lançamentos do título, mais recente primeiro. */
   buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
+  /** NFs anteriores do título canceladas no portal da prefeitura, mais recente
+   *  primeiro (.scratch/faturamento-nf-cancelada). */
+  buscarNfsCanceladas: (notaId: string) => Promise<NfCancelada[]>;
   /** Corrige uma baixa (ou as glosas sem baixa) — ver utils/correcaoLancamento.ts. */
   corrigirLancamento: (payload: CorrecaoLancamentoPayload) => Promise<string | null>;
   /** Exclui uma baixa e as glosas dela, com motivo obrigatório. */
@@ -700,6 +704,25 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }));
   }, []);
 
+  // A RLS de fat_nfs_canceladas já restringe a leitura a canViewBilling ou
+  // canManageBilling.
+  const buscarNfsCanceladas = useCallback(async (notaId: string): Promise<NfCancelada[]> => {
+    const { data, error: erro } = await supabase
+      .from('fat_nfs_canceladas')
+      .select('id, numero_nota, data_cancelamento, motivo, registrado_por_nome')
+      .eq('nota_id', notaId)
+      .order('data_cancelamento', { ascending: false })
+      .order('registrado_em', { ascending: false });
+    if (erro) throw new Error(erro.message);
+    return (data ?? []).map((linha) => ({
+      id: linha.id as string,
+      numeroNota: linha.numero_nota as string,
+      dataCancelamento: linha.data_cancelamento as string,
+      motivo: linha.motivo as string,
+      registradoPorNome: linha.registrado_por_nome as string,
+    }));
+  }, []);
+
   const criarTitulo = useCallback(async (dados: {
     idsLote: number[];
     numeroNota: string;
@@ -956,6 +979,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     buscarGlosasAplis,
     buscarLancamentos,
     buscarAlteracoes,
+    buscarNfsCanceladas,
     corrigirLancamento,
     excluirBaixa,
     criarTitulo,

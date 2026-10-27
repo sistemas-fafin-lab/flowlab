@@ -155,7 +155,7 @@ const ContasReceberPage: React.FC = () => {
 
   const {
     titulos, operadoras, total, totais, loading, error, erroGlosasAplis, refetch, refetchOperadoras, buscarTitulo,
-    buscarGuias, buscarEnvioLotes, buscarBaixas, buscarGlosasAplis, buscarLancamentos, buscarAlteracoes, corrigirLancamento, excluirBaixa,
+    buscarGuias, buscarEnvioLotes, buscarBaixas, buscarGlosasAplis, buscarLancamentos, buscarAlteracoes, buscarNfsCanceladas, corrigirLancamento, excluirBaixa,
     criarTitulo, registrarBaixa, cancelarTitulo,
     atualizarNumeroNota, desvincularLote, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
   } = useContasReceber(parametros);
@@ -453,6 +453,7 @@ const ContasReceberPage: React.FC = () => {
           buscarBaixas={buscarBaixas}
           buscarGlosasAplis={buscarGlosasAplis}
           buscarAlteracoes={buscarAlteracoes}
+          buscarNfsCanceladas={buscarNfsCanceladas}
           camadaSobreposta={tituloBaixa !== null || tituloEditar !== null}
         />
       )}

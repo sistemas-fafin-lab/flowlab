@@ -1295,6 +1295,14 @@ export interface CancelamentoNfAnterior {
   dataCancelamento: string;
 }
 
+/** Uma NF anterior do título, cancelada no portal da prefeitura
+ *  (`fat_nfs_canceladas`). Não confundir com título cancelado. */
+export interface NfCancelada extends CancelamentoNfAnterior {
+  id: string;
+  numeroNota: string;
+  registradoPorNome: string;
+}
+
 /** Corpo de `fat_corrigir_lancamento`. `recebimentoId` null = grupo das glosas
  *  sem baixa do título (aí `baixa` nunca vem). */
 export interface CorrecaoLancamentoPayload {
