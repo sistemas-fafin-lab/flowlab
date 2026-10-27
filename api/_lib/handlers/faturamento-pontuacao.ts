@@ -3,7 +3,8 @@
  *
  * Pontuação do setor na página Faturamento → Indicadores
  * (.scratch/faturamento-pontuacao/spec.md): os critérios e o total de cada
- * Frente no mês, em prévia ao vivo. Os fatos vêm de fatosPontuacao.ts; a regra
+ * Frente no mês, em prévia ao vivo: a meta mensal e as tarefas pendentes dos
+ * membros ativos das Frentes. Os fatos vêm de fatosPontuacao.ts; a regra
  * é de faturamento/pontuacaoSetor.ts.
  *
  * Autorização: `Authorization: Bearer <access_token>` (canViewBilling).
@@ -15,7 +16,7 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { lerFatoMeta } from '../faturamento/fatosPontuacao.js';
+import { lerFatoMeta, lerFatoTarefas, lerMembros } from '../faturamento/fatosPontuacao.js';
 import { mesValido } from '../faturamento/indicadoresFaturamento.js';
 import { pontuarMes } from '../faturamento/pontuacaoSetor.js';
 
@@ -42,9 +43,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const [ano, numeroMes] = mes.split('-').map(Number);
-    const meta = await lerFatoMeta(token as string, ano, numeroMes);
+    const [meta, membros] = await Promise.all([lerFatoMeta(token as string, ano, numeroMes), lerMembros(token as string)]);
     if ('erro' in meta) {
       res.status(meta.erro.status).json({ success: false, error: meta.erro.mensagem });
+      return;
+    }
+    if ('erro' in membros) {
+      res.status(membros.erro.status).json({ success: false, error: membros.erro.mensagem });
+      return;
+    }
+    const tarefas = await lerFatoTarefas(membros, ano, numeroMes);
+    if ('erro' in tarefas) {
+      res.status(tarefas.erro.status).json({ success: false, error: tarefas.erro.mensagem });
       return;
     }
 
@@ -52,9 +62,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({
       success: true,
-      // Prévia ao vivo; `dadoAte` só existe quando entrar um fato do apLIS.
-      meta: { situacao: 'previa', dadoAte: null },
-      pontuacao: pontuarMes({ mes, fatos: { meta }, lancamentos: [], membros: [] }),
+      // Prévia ao vivo; `dadoAte` é a tarefa mais recente do backup do apLIS.
+      meta: { situacao: 'previa', dadoAte: tarefas.dadoAte },
+      pontuacao: pontuarMes({ mes, fatos: { meta, tarefas: tarefas.tarefas }, lancamentos: [], membros }),
     });
   } catch (err) {
     console.error('[faturamento/pontuacao] erro:', describeError(err));

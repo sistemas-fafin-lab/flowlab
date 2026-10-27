@@ -3,7 +3,8 @@
 // Só lê e achata; a regra de pontos é de pontuacaoSetor.ts.
 
 import { getSupabaseUserClient } from '../supabase.js';
-import type { FatoMeta } from './pontuacaoSetor.js';
+import { tarefasPendentesNoFimDoMes } from './bdLab.js';
+import type { FatoMeta, FatoTarefas, FrentePontuacao, MembroFrente } from './pontuacaoSetor.js';
 
 export type FalhaFato = { erro: { status: number; mensagem: string } };
 
@@ -30,4 +31,38 @@ export async function lerFatoMeta(token: string, ano: number, mes: number): Prom
     valorMeta: linhaMeta ? Number((linhaMeta as { valor_meta: number | string }).valor_meta) : null,
     faturado: Number((bruto as { faturado: number | string } | null)?.faturado ?? 0),
   };
+}
+
+/** Membros ativos das Frentes (`fat_pontuacao_membros`), por nome. */
+export async function lerMembros(token: string): Promise<MembroFrente[] | FalhaFato> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_pontuacao_membros')
+    .select('frente, id_usuario_aplis, nome')
+    .eq('ativo', true)
+    .order('nome');
+  if (error) {
+    console.error('[faturamento/pontuacao] membros:', error.message);
+    return { erro: { status: 502, mensagem: `Não foi possível consultar os membros das Frentes: ${error.message}` } };
+  }
+  return (data as { frente: FrentePontuacao; id_usuario_aplis: number; nome: string }[]).map((linha) => ({
+    frente: linha.frente,
+    idUsuarioAplis: linha.id_usuario_aplis,
+    nome: linha.nome,
+  }));
+}
+
+/** Tarefas do apLIS abertas às 23h59 do último dia do mês, só dos membros. */
+export async function lerFatoTarefas(
+  membros: MembroFrente[],
+  ano: number,
+  mes: number,
+): Promise<{ tarefas: FatoTarefas; dadoAte: string | null } | FalhaFato> {
+  const seguinte = mes === 12 ? { ano: ano + 1, mes: 1 } : { ano, mes: mes + 1 };
+  const resultado = await tarefasPendentesNoFimDoMes({
+    idsUsuarios: membros.map((m) => m.idUsuarioAplis),
+    ateExclusivo: `${seguinte.ano}-${String(seguinte.mes).padStart(2, '0')}-01`,
+  });
+  if ('erro' in resultado) return resultado;
+  const { porUsuario, doSetor, dadoAte } = resultado;
+  return { tarefas: { porUsuario, doSetor }, dadoAte };
 }

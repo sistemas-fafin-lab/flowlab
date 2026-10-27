@@ -60,9 +60,18 @@ export interface FatoMeta {
   faturado: number;
 }
 
+/** Tarefas do apLIS abertas às 23h59 do último dia do mês. */
+export interface FatoTarefas {
+  /** Pendências por usuário do apLIS; usuário ausente não tem nenhuma. */
+  porUsuario: Record<number, number>;
+  /** Endereçadas ao setor "GLOSA – FATURAMENTO", sem destinatário: contam nas duas Frentes. */
+  doSetor: number;
+}
+
 /** Fatos do mês, já lidos e achatados. Fato ausente: o critério não aparece. */
 export interface FatosPontuacao {
   meta?: FatoMeta;
+  tarefas?: FatoTarefas;
 }
 
 export interface LancamentoManual {
@@ -94,7 +103,15 @@ export interface DetalheMeta {
   percentual: number | null;
 }
 
-export type DetalheCriterio = DetalheMeta;
+export interface DetalheTarefas {
+  tipo: 'tarefas';
+  /** Membros da Frente, na ordem da lista, com as pendências de cada um. */
+  pessoas: { idUsuarioAplis: number; nome: string; pendencias: number }[];
+  /** Pendências do setor "GLOSA – FATURAMENTO". */
+  setor: number;
+}
+
+export type DetalheCriterio = DetalheMeta | DetalheTarefas;
 
 export interface CriterioPontuado extends Omit<DefinicaoCriterio, 'frente'> {
   pontosAtingidos: number;
@@ -145,8 +162,26 @@ const OBSERVACOES_META: Record<ReturnType<typeof faixaDaMeta>, { metaMensal: str
   superada: { metaMensal: 'Substituída pela meta superada', metaSuperada: 'Faturado a partir de 115% da meta' },
 };
 
+export const NOME_SETOR_TAREFAS = 'GLOSA – FATURAMENTO';
+
+/** Só ganha o ponto a Frente com todos os membros, e o setor, zerados. */
+function pontuarTarefas(def: DefinicaoCriterio, fato: FatoTarefas, membros: MembroFrente[]): Omit<CriterioPontuado, keyof DefinicaoCriterio> {
+  const pessoas = membros
+    .filter((m) => m.frente === def.frente)
+    .map(({ idUsuarioAplis, nome }) => ({ idUsuarioAplis, nome, pendencias: fato.porUsuario[idUsuarioAplis] ?? 0 }));
+  const quem = pessoas.filter((p) => p.pendencias > 0).map((p) => p.nome);
+  if (fato.doSetor > 0) quem.push(`setor ${NOME_SETOR_TAREFAS}`);
+  const total = fato.doSetor + pessoas.reduce((soma, p) => soma + p.pendencias, 0);
+  return {
+    pontosAtingidos: total === 0 ? def.pontosBase : 0,
+    observacao: total === 0 ? 'Nenhuma tarefa pendente' : `${total} ${total === 1 ? 'pendência' : 'pendências'}: ${quem.join(', ')}`,
+    detalhe: { tipo: 'tarefas', pessoas, setor: fato.doSetor },
+  };
+}
+
 /** Pontos e observação de um critério automático, ou null quando ainda não há fato para ele. */
-function pontuarAutomatico(def: DefinicaoCriterio, fatos: FatosPontuacao): Omit<CriterioPontuado, keyof DefinicaoCriterio> | null {
+function pontuarAutomatico(def: DefinicaoCriterio, fatos: FatosPontuacao, membros: MembroFrente[]): Omit<CriterioPontuado, keyof DefinicaoCriterio> | null {
+  if (def.chave === 'tarefasPendentes' && fatos.tarefas) return pontuarTarefas(def, fatos.tarefas, membros);
   if ((def.chave === 'metaMensal' || def.chave === 'metaSuperada') && fatos.meta) {
     const faixa = faixaDaMeta(fatos.meta);
     const ganha = def.chave === 'metaMensal' ? faixa === 'atingida' : faixa === 'superada';
@@ -160,14 +195,14 @@ function pontuarAutomatico(def: DefinicaoCriterio, fatos: FatosPontuacao): Omit<
 }
 
 /** Os critérios de cada Frente, na ordem da tabela de regras, e o total. */
-export function pontuarMes({ mes, fatos, lancamentos }: EntradaPontuacao): ResumoPontuacao {
+export function pontuarMes({ mes, fatos, lancamentos, membros }: EntradaPontuacao): ResumoPontuacao {
   const frentes = FRENTES.map(({ frente, rotulo }) => {
     const criterios: CriterioPontuado[] = [];
     for (const def of CRITERIOS.filter((c) => c.frente === frente)) {
       const { chave, rotulo: rotuloCriterio, tipo, pontosBase, porConvenio } = def;
       const base = { chave, rotulo: rotuloCriterio, tipo, pontosBase, ...(porConvenio ? { porConvenio } : {}) };
       if (def.tipo === 'automatico') {
-        const pontuado = pontuarAutomatico(def, fatos);
+        const pontuado = pontuarAutomatico(def, fatos, membros);
         if (pontuado) criterios.push({ ...base, ...pontuado });
         continue;
       }

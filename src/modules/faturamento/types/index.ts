@@ -1355,7 +1355,14 @@ export interface DetalheMetaPontuacao {
   percentual: number | null;
 }
 
-export type DetalheCriterioPontuacao = DetalheMetaPontuacao;
+/** Tarefas do apLIS abertas no fim do mês, por membro da Frente e do setor GLOSA – FATURAMENTO. */
+export interface DetalheTarefasPontuacao {
+  tipo: 'tarefas';
+  pessoas: { idUsuarioAplis: number; nome: string; pendencias: number }[];
+  setor: number;
+}
+
+export type DetalheCriterioPontuacao = DetalheMetaPontuacao | DetalheTarefasPontuacao;
 
 export interface CriterioPontuacao {
   chave: string;

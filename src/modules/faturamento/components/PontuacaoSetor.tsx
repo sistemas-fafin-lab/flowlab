@@ -1,6 +1,13 @@
 import React, { useState } from 'react';
 import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight } from 'lucide-react';
-import type { CriterioPontuacao, FrentePontuada, PontuacaoSetor as Pontuacao, PontuacaoSetorMeta } from '../types';
+import type {
+  CriterioPontuacao,
+  DetalheMetaPontuacao,
+  DetalheTarefasPontuacao,
+  FrentePontuada,
+  PontuacaoSetor as Pontuacao,
+  PontuacaoSetorMeta,
+} from '../types';
 import { formatCompetencia, formatCurrency, formatDiaMesHora, formatPercentual } from '../utils/formato';
 
 // ============================================================================
@@ -20,9 +27,40 @@ const formatPontos = (n: number): string => n.toLocaleString('pt-BR', { maximumF
 const pontosBase = (c: CriterioPontuacao): string =>
   `${formatPontos(c.pontosBase)}${c.porConvenio ? ' por convênio' : ''}`;
 
-const DetalheCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }) => {
-  const { detalhe } = criterio;
-  if (!detalhe) return null;
+const formatQtd = (n: number): string => n.toLocaleString('pt-BR');
+
+const DetalheTarefas: React.FC<{ detalhe: DetalheTarefasPontuacao }> = ({ detalhe }) => {
+  const linhas = [
+    ...detalhe.pessoas.map((p) => ({ chave: String(p.idUsuarioAplis), nome: p.nome, pendencias: p.pendencias })),
+    { chave: 'setor', nome: 'Setor GLOSA – FATURAMENTO', pendencias: detalhe.setor },
+  ];
+  return (
+    <table className="w-full text-xs">
+      <thead>
+        <tr className="text-gray-500 dark:text-gray-400">
+          <th className="pb-1 text-left font-medium">Tarefas abertas no fim do mês</th>
+          <th className="pb-1 text-right font-medium">Pendências</th>
+        </tr>
+      </thead>
+      <tbody>
+        {linhas.map((l) => (
+          <tr key={l.chave}>
+            <td className="py-0.5 text-gray-900 dark:text-white">{l.nome}</td>
+            <td
+              className={`py-0.5 text-right tabular-nums font-medium ${
+                l.pendencias > 0 ? 'text-red-600 dark:text-red-400' : 'text-gray-900 dark:text-white'
+              }`}
+            >
+              {formatQtd(l.pendencias)}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+};
+
+const DetalheMeta: React.FC<{ detalhe: DetalheMetaPontuacao }> = ({ detalhe }) => {
   return (
     <dl className="grid grid-cols-3 gap-3 text-xs">
       <div>
@@ -43,6 +81,12 @@ const DetalheCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }
       </div>
     </dl>
   );
+};
+
+const DetalheCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }) => {
+  const { detalhe } = criterio;
+  if (!detalhe) return null;
+  return detalhe.tipo === 'tarefas' ? <DetalheTarefas detalhe={detalhe} /> : <DetalheMeta detalhe={detalhe} />;
 };
 
 const LinhaCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }) => {

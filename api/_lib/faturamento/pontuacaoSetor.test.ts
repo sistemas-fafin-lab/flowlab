@@ -112,3 +112,87 @@ describe('pontuarMes — Frentes', () => {
     expect(resumo.frentes[0].total).toBe(10.3);
   });
 });
+
+const MEMBROS: EntradaPontuacao['membros'] = [
+  { frente: 'faturamento', idUsuarioAplis: 235, nome: 'Renata Queiroz Bento' },
+  { frente: 'faturamento', idUsuarioAplis: 202, nome: 'Rívia Freire Araujo Barretos Borba' },
+  { frente: 'faturamento', idUsuarioAplis: 256, nome: 'Cleber Kendel de Andrade' },
+  { frente: 'recursoGlosa', idUsuarioAplis: 224, nome: 'Raquel dos Santos Avelino' },
+  { frente: 'recursoGlosa', idUsuarioAplis: 173, nome: 'Maria Eduarda Fonseca Bomfim' },
+];
+
+describe('pontuarMes — tarefas pendentes', () => {
+  it('todos os membros zerados: 1 ponto em cada Frente', () => {
+    const resumo = pontuarMes(entrada(
+      { tarefas: { porUsuario: { 235: 0, 202: 0, 256: 0, 224: 0, 173: 0 }, doSetor: 0 } },
+      { membros: MEMBROS },
+    ));
+
+    expect(criterio(resumo, 'faturamento', 'tarefasPendentes')).toMatchObject({ pontosAtingidos: 1, tipo: 'automatico', pontosBase: 1 });
+    expect(criterio(resumo, 'recursoGlosa', 'tarefasPendentes').pontosAtingidos).toBe(1);
+  });
+
+  it('um membro com 1 pendência zera a Frente dele, não a outra', () => {
+    const resumo = pontuarMes(entrada(
+      { tarefas: { porUsuario: { 235: 0, 202: 1, 256: 0, 224: 0, 173: 0 }, doSetor: 0 } },
+      { membros: MEMBROS },
+    ));
+
+    expect(criterio(resumo, 'faturamento', 'tarefasPendentes')).toMatchObject({
+      pontosAtingidos: 0,
+      observacao: '1 pendência: Rívia Freire Araujo Barretos Borba',
+    });
+    expect(criterio(resumo, 'recursoGlosa', 'tarefasPendentes')).toMatchObject({
+      pontosAtingidos: 1,
+      observacao: 'Nenhuma tarefa pendente',
+    });
+  });
+
+  it('o detalhe lista as pendências por pessoa; a Raquel conta na Recurso de Glosa como qualquer membro', () => {
+    const resumo = pontuarMes(entrada(
+      { tarefas: { porUsuario: { 235: 116, 202: 9, 256: 0, 224: 149, 173: 0 }, doSetor: 0 } },
+      { membros: MEMBROS },
+    ));
+
+    expect(criterio(resumo, 'faturamento', 'tarefasPendentes').detalhe).toEqual({
+      tipo: 'tarefas',
+      pessoas: [
+        { idUsuarioAplis: 235, nome: 'Renata Queiroz Bento', pendencias: 116 },
+        { idUsuarioAplis: 202, nome: 'Rívia Freire Araujo Barretos Borba', pendencias: 9 },
+        { idUsuarioAplis: 256, nome: 'Cleber Kendel de Andrade', pendencias: 0 },
+      ],
+      setor: 0,
+    });
+    expect(criterio(resumo, 'recursoGlosa', 'tarefasPendentes')).toMatchObject({
+      pontosAtingidos: 0,
+      observacao: '149 pendências: Raquel dos Santos Avelino',
+    });
+  });
+
+  it('membro sem nenhuma tarefa no apLIS conta como zerado', () => {
+    const resumo = pontuarMes(entrada(
+      { tarefas: { porUsuario: { 224: 0 }, doSetor: 0 } },
+      { membros: MEMBROS },
+    ));
+
+    expect(criterio(resumo, 'recursoGlosa', 'tarefasPendentes')).toMatchObject({
+      pontosAtingidos: 1,
+      detalhe: { pessoas: [{ nome: 'Raquel dos Santos Avelino', pendencias: 0 }, { nome: 'Maria Eduarda Fonseca Bomfim', pendencias: 0 }] },
+    });
+  });
+
+  it('tarefa aberta do setor GLOSA – FATURAMENTO zera as duas Frentes', () => {
+    const resumo = pontuarMes(entrada(
+      { tarefas: { porUsuario: {}, doSetor: 2 } },
+      { membros: MEMBROS },
+    ));
+
+    for (const frente of ['faturamento', 'recursoGlosa'] as const) {
+      expect(criterio(resumo, frente, 'tarefasPendentes')).toMatchObject({
+        pontosAtingidos: 0,
+        observacao: '2 pendências: setor GLOSA – FATURAMENTO',
+        detalhe: { setor: 2 },
+      });
+    }
+  });
+});

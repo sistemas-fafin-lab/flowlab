@@ -319,8 +319,8 @@ const cacheDadoAte = new Map<string, { valor: string | null; ts: number }>();
 /** 'YYYY-MM-DD', ou 'YYYY-MM-DD HH:MM' com `comHora`. */
 async function dadoAte(
   conn: mysql.Connection,
-  tabela: 'fatlote' | 'requisicao' | 'fatloterecurso',
-  coluna: 'DtaCriacao' | 'DtaSolicitacao',
+  tabela: 'fatlote' | 'requisicao' | 'fatloterecurso' | 'tarefa',
+  coluna: 'DtaCriacao' | 'DtaSolicitacao' | 'DtaInclusao',
   comHora = false,
 ): Promise<string | null> {
   const chave = `${tabela}.${coluna}${comHora ? '.hora' : ''}`;
@@ -3584,5 +3584,60 @@ export async function listarLinhasFaturadas(params: {
   }).then((resultado) => {
     if (!('erro' in resultado)) doCache(cacheLinhasFaturadas, chave, resultado);
     return resultado;
+  });
+}
+
+// ============================================================================
+// Tarefas pendentes da Pontuação do setor (.scratch/faturamento-pontuacao/)
+// ============================================================================
+// Só lê e conta; a regra de pontos é de faturamento/pontuacaoSetor.ts.
+//
+// Conferido em 27/10/2026, tarefas recebidas em set/2026 e concluídas até 30/09:
+// Renata (235) 1.378 e 1.262, Rívia (202) 934 e 925, Cleber (256) 804 e 804.
+// Abertas no fim de set/2026: Renata 116, Rívia 9, Cleber 0, Raquel 149,
+// Maria Eduarda 422 e 42 do setor GLOSA - FATURAMENTO.
+
+export type TarefasPendentesResultado =
+  | { porUsuario: Record<number, number>; doSetor: number; dadoAte: string | null }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Tarefas abertas no fim do mês: incluídas antes de `ateExclusivo` (de qualquer
+ * mês) e não concluídas antes dele. Endereçadas a um dos `idsUsuarios` contam
+ * para ele; as do setor GLOSA - FATURAMENTO sem destinatário vão para `doSetor`.
+ * `Concluido` e `DtaConclusao` andam juntos no backup (nenhuma linha com um sem
+ * o outro em 27/10/2026); a consulta aceita os dois.
+ */
+export async function tarefasPendentesNoFimDoMes(params: {
+  idsUsuarios: number[];
+  /** 'YYYY-MM-DD' do primeiro dia do mês seguinte. */
+  ateExclusivo: string;
+}): Promise<TarefasPendentesResultado> {
+  const ids = [...new Set(params.idsUsuarios)];
+  // Sem membros: `1 = 0` em vez de um `IN ()` vazio, que o mysql2 não aceita.
+  const doMembro = ids.length > 0 ? `t.IdDestinatario IN (${ids.map(() => '?').join(', ')})` : '1 = 0';
+  const limite = `${params.ateExclusivo} 00:00:00`;
+  const sql = `
+    SELECT CASE WHEN ${doMembro} THEN t.IdDestinatario END AS IdUsuario,
+           COUNT(*) AS Qtd
+      FROM tarefa t
+     WHERE t.DtaInclusao < ?
+       AND (t.Concluido = 0 OR t.DtaConclusao IS NULL OR t.DtaConclusao >= ?)
+       AND (${doMembro} OR (t.CodSetor = ? AND t.IdDestinatario IS NULL))
+     GROUP BY IdUsuario`;
+
+  return comConexao('tarefasPendentesNoFimDoMes', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      sql,
+      [...ids, limite, limite, ...ids, SETOR_GLOSA_FATURAMENTO],
+    );
+    const porUsuario: Record<number, number> = {};
+    let doSetor = 0;
+    for (const linha of linhas) {
+      const id = inteiroOuNulo(linha.IdUsuario);
+      if (id === null) doSetor += numero(linha.Qtd);
+      else porUsuario[id] = numero(linha.Qtd);
+    }
+    return { porUsuario, doSetor, dadoAte: await dadoAte(conn, 'tarefa', 'DtaInclusao', true) };
   });
 }
