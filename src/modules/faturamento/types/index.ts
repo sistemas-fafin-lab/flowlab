@@ -1418,6 +1418,20 @@ export interface LancamentoPontuacao {
   observacao: string;
 }
 
+/** Membro de uma Frente na tela "Membros": o usuário do apLIS e se ainda conta. */
+export interface MembroPontuacao {
+  frente: FrentePontuacao;
+  idUsuarioAplis: number;
+  nome: string;
+  ativo: boolean;
+}
+
+/** Usuário ativo do apLIS devolvido pela busca da tela "Membros". */
+export interface UsuarioAplisPontuacao {
+  idUsuarioAplis: number;
+  nome: string;
+}
+
 export interface FrentePontuada {
   frente: FrentePontuacao;
   rotulo: string;

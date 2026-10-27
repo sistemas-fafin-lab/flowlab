@@ -1,11 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { LancamentoPontuacao, PontuacaoSetor, PontuacaoSetorMeta } from '../types';
+import type {
+  FrentePontuacao,
+  LancamentoPontuacao,
+  MembroPontuacao,
+  PontuacaoSetor,
+  PontuacaoSetorMeta,
+  UsuarioAplisPontuacao,
+} from '../types';
 import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
 // Pontuação do setor (Faturamento → Indicadores): lê o resumo pronto de
 // /api/faturamento/pontuacao. A pontuação é mensal: com `mes` nulo (modo
 // Período) não chama a API. `lancarPontuacao` grava um critério manual;
-// `fecharPontuacao` e `reabrirPontuacao` fazem o Fechamento da pontuação.
+// `fecharPontuacao` e `reabrirPontuacao` fazem o Fechamento da pontuação. As
+// funções de membros servem a tela "Membros" (issue 07).
 
 interface RespostaPontuacao {
   success?: boolean;
@@ -84,4 +92,34 @@ export function fecharPontuacao(mes: string): Promise<void> {
 /** Volta o mês para a prévia ao vivo; os lançamentos continuam (canManageBilling). */
 export function reabrirPontuacao(mes: string): Promise<void> {
   return postarPontuacao({ acao: 'reabrir', mes }, 'Não foi possível reabrir a pontuação.');
+}
+
+/** Membros das Frentes, com os desativados (canManageBilling). */
+export async function listarMembrosPontuacao(): Promise<MembroPontuacao[]> {
+  const body = await chamarLegadoApi<{ success?: boolean; error?: string; membros?: MembroPontuacao[] }>(
+    'pontuacao',
+    new URLSearchParams({ consulta: 'membros' }),
+    'Não foi possível carregar os membros das Frentes.',
+  );
+  return body.membros ?? [];
+}
+
+/** Usuários ativos do apLIS pelo nome (canManageBilling). */
+export async function buscarUsuariosAplis(busca: string): Promise<UsuarioAplisPontuacao[]> {
+  const body = await chamarLegadoApi<{ success?: boolean; error?: string; usuarios?: UsuarioAplisPontuacao[] }>(
+    'pontuacao',
+    new URLSearchParams({ consulta: 'usuariosAplis', busca }),
+    'Não foi possível buscar os usuários do apLIS.',
+  );
+  return body.usuarios ?? [];
+}
+
+/** Inclui, ou reativa, o usuário do apLIS na Frente (canManageBilling). */
+export function incluirMembroPontuacao(frente: FrentePontuacao, idUsuarioAplis: number): Promise<void> {
+  return postarPontuacao({ acao: 'incluirMembro', frente, idUsuarioAplis }, 'Não foi possível incluir o membro.');
+}
+
+/** Desativa o membro da Frente, sem apagar (canManageBilling). */
+export function desativarMembroPontuacao(frente: FrentePontuacao, idUsuarioAplis: number): Promise<void> {
+  return postarPontuacao({ acao: 'desativarMembro', frente, idUsuarioAplis }, 'Não foi possível desativar o membro.');
 }

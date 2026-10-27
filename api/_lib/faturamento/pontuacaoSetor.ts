@@ -328,6 +328,22 @@ export function validarLancamento(corpo: Record<string, unknown>): { lancamento:
 }
 
 /**
+ * Confere o corpo de incluir ou desativar um membro: uma das duas Frentes e o id
+ * do usuário do apLIS. O nome não vem do corpo; o handler o lê do apLIS.
+ */
+export function validarMembro(
+  corpo: Record<string, unknown>,
+): { membro: Pick<MembroFrente, 'frente' | 'idUsuarioAplis'> } | { erro: string } {
+  const { frente, idUsuarioAplis } = corpo;
+  const def = FRENTES.find((f) => f.frente === frente);
+  if (!def) return { erro: 'Frente inválida: use faturamento ou recursoGlosa.' };
+  if (typeof idUsuarioAplis !== 'number' || !Number.isInteger(idUsuarioAplis) || idUsuarioAplis <= 0) {
+    return { erro: 'Usuário do apLIS inválido.' };
+  }
+  return { membro: { frente: def.frente, idUsuarioAplis } };
+}
+
+/**
  * Fechamento da pontuação: o mês só fecha quando o "dados até" do backup do
  * apLIS ('YYYY-MM-DD HH:MM') já chegou ao último dia dele, para não congelar
  * dado incompleto. Devolve o motivo da recusa, ou null quando pode fechar.

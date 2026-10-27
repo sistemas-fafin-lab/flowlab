@@ -13,6 +13,10 @@
  *   mes       YYYY-MM, obrigatório — a pontuação é sempre mensal
  * Mês fechado (issue 06) devolve o resumo congelado, sem consultar o apLIS.
  *
+ * GET com `consulta` — a tela "Membros" (issue 07), só para canManageBilling:
+ *   consulta=membros                       os membros das Frentes, com os desativados
+ *   consulta=usuariosAplis&busca=<nome>    usuários ativos do apLIS pelo nome (≥ 2 letras)
+ *
  * POST — ações de quem gerencia Faturamento (canManageBilling). Body com `acao`:
  *   'lancar': { mes: 'YYYY-MM', frente, chave, pontos, observacao } —
  *     lança ou altera um critério manual (issue 05); lançar de novo substitui o
@@ -22,14 +26,23 @@
  *     409 quando o "dados até" do apLIS não chegou ao último dia do mês ou o mês
  *     já está fechado.
  *   'reabrir': { mes } — tira o fechamento de vigor; 409 se o mês não está fechado.
+ *   'incluirMembro': { frente, idUsuarioAplis } — inclui (ou reativa) o usuário
+ *     ativo do apLIS na Frente, com o nome lido do apLIS. 404 se o usuário não
+ *     existe ou está inativo; 409 se já é membro ativo da Frente.
+ *   'desativarMembro': { frente, idUsuarioAplis } — desativa sem apagar; 409 se
+ *     não é membro ativo. A prévia do mês aberto já reflete a mudança; meses
+ *     fechados guardam os membros daquele mês.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
+import { buscarUsuariosAplisAtivos, usuarioAplisAtivo } from '../faturamento/bdLab.js';
 import {
+  desativarMembro,
   gravarFechamento,
   gravarLancamento,
+  incluirMembro,
   lerFatoGuiasSemLote,
   lerFatoMeta,
   lerFatoTarefas,
@@ -37,11 +50,12 @@ import {
   lerFechamento,
   lerLancamentos,
   lerMembros,
+  lerTodosMembros,
   reabrirFechamento,
 } from '../faturamento/fatosPontuacao.js';
 import type { FalhaFato, ResumoCongelado } from '../faturamento/fatosPontuacao.js';
 import { mesValido } from '../faturamento/indicadoresFaturamento.js';
-import { motivoParaNaoFechar, pontuarMes, validarLancamento } from '../faturamento/pontuacaoSetor.js';
+import { motivoParaNaoFechar, pontuarMes, validarLancamento, validarMembro } from '../faturamento/pontuacaoSetor.js';
 
 /** 'YYYY-MM' já validado → [ano, mês]. */
 const anoMes = (mes: string): [number, number] => {
@@ -152,20 +166,113 @@ async function reabrir(token: string, mes: string, res: VercelResponse): Promise
   res.status(200).json({ success: true });
 }
 
-/** POST: as ações de quem gerencia Faturamento. */
-async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<void> {
+/** POST: inclui o usuário do apLIS na Frente, com o nome lido do apLIS, nunca do corpo. */
+async function incluir(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  const validado = validarMembro(corpo);
+  if ('erro' in validado) {
+    res.status(400).json({ success: false, error: validado.erro });
+    return;
+  }
+  const doAplis = await usuarioAplisAtivo(validado.membro.idUsuarioAplis);
+  if ('erro' in doAplis) {
+    responderFalha(res, doAplis);
+    return;
+  }
+  const { usuario } = doAplis;
+  if (!usuario) {
+    res.status(404).json({ success: false, error: 'Usuário do apLIS não encontrado entre os ativos.' });
+    return;
+  }
+
+  const falha = await incluirMembro(token, { ...validado.membro, nome: usuario.nome });
+  if (falha) {
+    responderFalha(res, falha);
+    return;
+  }
+  res.status(200).json({ success: true });
+}
+
+/** POST: desativa o membro da Frente; a linha fica para o histórico. */
+async function desativar(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  const validado = validarMembro(corpo);
+  if ('erro' in validado) {
+    res.status(400).json({ success: false, error: validado.erro });
+    return;
+  }
+  const falha = await desativarMembro(token, validado.membro);
+  if (falha) {
+    responderFalha(res, falha);
+    return;
+  }
+  res.status(200).json({ success: true });
+}
+
+/** Autoriza canManageBilling; devolve o token, ou null quando já respondeu a falha. */
+async function autorizarGestao(req: VercelRequest, res: VercelResponse): Promise<string | null> {
   const token = tokenDoHeader(req.headers.authorization);
   const erroAuth = await autorizarFaturamento(token, 'canManageBilling');
   if (erroAuth) {
     // A mensagem padrão de canManageBilling fala de contas a receber.
     const payload = erroAuth.status === 403
-      ? { success: false, error: 'Sem permissão para lançar, fechar ou reabrir a pontuação: exige gerenciar Faturamento.' }
+      ? { success: false, error: 'Sem permissão para gerenciar a pontuação: exige gerenciar Faturamento.' }
       : erroAuth.payload;
     res.status(erroAuth.status).json(payload);
+    return null;
+  }
+  return token as string;
+}
+
+/** GET com `consulta`: os dados da tela "Membros". */
+async function consultaDeMembros(req: VercelRequest, res: VercelResponse, consulta: string): Promise<void> {
+  const token = await autorizarGestao(req, res);
+  if (!token) return;
+  res.setHeader('Cache-Control', 'no-store');
+
+  if (consulta === 'membros') {
+    const membros = await lerTodosMembros(token);
+    if ('erro' in membros) {
+      responderFalha(res, membros);
+      return;
+    }
+    res.status(200).json({ success: true, membros });
     return;
   }
 
+  if (consulta === 'usuariosAplis') {
+    const bruto = req.query.busca;
+    const busca = (Array.isArray(bruto) ? bruto[0] : bruto)?.trim() ?? '';
+    if (busca.length < 2) {
+      res.status(400).json({ success: false, error: 'Digite ao menos 2 letras do nome.' });
+      return;
+    }
+    const resultado = await buscarUsuariosAplisAtivos(busca);
+    if ('erro' in resultado) {
+      responderFalha(res, resultado);
+      return;
+    }
+    res.status(200).json({ success: true, usuarios: resultado.usuarios });
+    return;
+  }
+
+  res.status(400).json({ success: false, error: 'Consulta inválida: use membros ou usuariosAplis.' });
+}
+
+/** POST: as ações de quem gerencia Faturamento. */
+async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const token = await autorizarGestao(req, res);
+  if (!token) return;
+
   const corpo = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+  // Os membros não são do mês: a lista vale para a prévia de todo mês aberto.
+  if (corpo.acao === 'incluirMembro') {
+    await incluir(token, corpo, res);
+    return;
+  }
+  if (corpo.acao === 'desativarMembro') {
+    await desativar(token, corpo, res);
+    return;
+  }
+
   const mes = typeof corpo.mes === 'string' ? corpo.mes.trim() : '';
   if (!mesValido(mes)) {
     res.status(400).json({ success: false, error: 'Parâmetro inválido: mes (YYYY-MM).' });
@@ -173,13 +280,13 @@ async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<vo
   }
 
   if (corpo.acao === 'lancar') {
-    await lancar(token as string, mes, corpo, res);
+    await lancar(token, mes, corpo, res);
   } else if (corpo.acao === 'fechar') {
-    await fechar(token as string, mes, res);
+    await fechar(token, mes, res);
   } else if (corpo.acao === 'reabrir') {
-    await reabrir(token as string, mes, res);
+    await reabrir(token, mes, res);
   } else {
-    res.status(400).json({ success: false, error: 'Ação inválida: use lancar, fechar ou reabrir.' });
+    res.status(400).json({ success: false, error: 'Ação inválida: use lancar, fechar, reabrir, incluirMembro ou desativarMembro.' });
   }
 }
 
@@ -193,6 +300,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   try {
     if (req.method === 'POST') {
       await acaoDeGestao(req, res);
+      return;
+    }
+
+    const consulta = req.query.consulta;
+    if (consulta !== undefined) {
+      await consultaDeMembros(req, res, (Array.isArray(consulta) ? consulta[0] : consulta) ?? '');
       return;
     }
 

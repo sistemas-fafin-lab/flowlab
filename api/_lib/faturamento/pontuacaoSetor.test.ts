@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { motivoParaNaoFechar, pontuarMes, validarLancamento } from './pontuacaoSetor.js';
+import { motivoParaNaoFechar, pontuarMes, validarLancamento, validarMembro } from './pontuacaoSetor.js';
 import type { EntradaPontuacao, FatosPontuacao } from './pontuacaoSetor.js';
 
 function entrada(fatos: FatosPontuacao = {}, overrides: Partial<EntradaPontuacao> = {}): EntradaPontuacao {
@@ -419,5 +419,29 @@ describe('motivoParaNaoFechar', () => {
     expect(motivoParaNaoFechar('2026-09', null)).toBe(
       'Não foi possível saber até quando vão os dados do apLIS; o fechamento de 09/2026 precisa deles até 30/09/2026.',
     );
+  });
+});
+
+describe('validarMembro', () => {
+  it('Frente e usuário do apLIS válidos voltam prontos para gravar', () => {
+    expect(validarMembro({ frente: 'recursoGlosa', idUsuarioAplis: 224 })).toEqual({
+      membro: { frente: 'recursoGlosa', idUsuarioAplis: 224 },
+    });
+  });
+
+  it('Frente que não existe é recusada', () => {
+    for (const frente of ['outra', undefined, 1]) {
+      expect(validarMembro({ frente, idUsuarioAplis: 224 })).toEqual({
+        erro: 'Frente inválida: use faturamento ou recursoGlosa.',
+      });
+    }
+  });
+
+  it('id do usuário do apLIS que não é inteiro positivo é recusado', () => {
+    for (const idUsuarioAplis of [0, -3, 2.5, '224', undefined, Number.NaN]) {
+      expect(validarMembro({ frente: 'faturamento', idUsuarioAplis })).toEqual({
+        erro: 'Usuário do apLIS inválido.',
+      });
+    }
   });
 });

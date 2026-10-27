@@ -3765,3 +3765,58 @@ export async function recebidosComGlosaPorConvenio(params: {
     };
   });
 }
+
+// ============================================================================
+// Usuários do apLIS para os membros das Frentes (.scratch/faturamento-pontuacao/,
+// issue 07)
+// ============================================================================
+// O membro é escolhido pelo usuário do apLIS, porque é por ele que as tarefas
+// são contadas. autusuario tem Senha, CPF, TokenGPT: daqui só sai o nome (e o id,
+// que é a chave). Só os ativos (`Inativo = 0`) entram.
+
+export interface UsuarioAplis {
+  idUsuarioAplis: number;
+  nome: string;
+}
+
+export type UsuariosAplisResultado =
+  | { usuarios: UsuarioAplis[] }
+  | { erro: { status: number; mensagem: string } };
+
+/** Teto de usuários devolvidos pela busca: é um autocomplete. */
+const MAX_USUARIOS_BUSCA = 20;
+
+const usuariosDasLinhas = (linhas: mysql.RowDataPacket[]): UsuarioAplis[] =>
+  linhas.map((linha) => ({
+    idUsuarioAplis: numero(linha.IdUsuario),
+    nome: texto(linha.NomUsuario) ?? `Usuário ${numero(linha.IdUsuario)}`,
+  }));
+
+/** Usuários ativos do apLIS cujo nome contém `busca` (sem acento e caixa), por nome. */
+export async function buscarUsuariosAplisAtivos(busca: string): Promise<UsuariosAplisResultado> {
+  const termo = escaparLike(busca.trim().slice(0, MAX_BUSCA));
+  return comConexao('buscarUsuariosAplisAtivos', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT u.IdUsuario, u.NomUsuario
+         FROM autusuario u
+        WHERE u.Inativo = 0 AND ${like('u.NomUsuario')}
+        ORDER BY u.NomUsuario
+        LIMIT ${MAX_USUARIOS_BUSCA}`,
+      [termo],
+    );
+    return { usuarios: usuariosDasLinhas(linhas) };
+  });
+}
+
+/** O usuário ativo do apLIS com esse id; null quando não existe ou está inativo. */
+export async function usuarioAplisAtivo(
+  idUsuarioAplis: number,
+): Promise<{ usuario: UsuarioAplis | null } | { erro: { status: number; mensagem: string } }> {
+  return comConexao('usuarioAplisAtivo', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      'SELECT u.IdUsuario, u.NomUsuario FROM autusuario u WHERE u.IdUsuario = ? AND u.Inativo = 0',
+      [idUsuarioAplis],
+    );
+    return { usuario: usuariosDasLinhas(linhas)[0] ?? null };
+  });
+}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight, Lock, Pencil, Unlock } from 'lucide-react';
+import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight, Lock, Pencil, Unlock, Users } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { fecharPontuacao, lancarPontuacao, reabrirPontuacao } from '../hooks/usePontuacaoSetor';
@@ -9,12 +9,14 @@ import type {
   DetalheMetaPontuacao,
   DetalheTarefasPontuacao,
   DetalheZeroGlosaPontuacao,
+  FrentePontuacao,
   FrentePontuada,
   PontuacaoSetor as Pontuacao,
   PontuacaoSetorMeta,
 } from '../types';
 import { formatCompetencia, formatCurrency, formatDataHora, formatDiaMesHora, formatPercentual } from '../utils/formato';
 import LancamentoPontuacaoModal from './LancamentoPontuacaoModal';
+import MembrosPontuacaoModal from './MembrosPontuacaoModal';
 
 // ============================================================================
 // COMPONENTE: PontuacaoSetor
@@ -24,8 +26,9 @@ import LancamentoPontuacaoModal from './LancamentoPontuacaoModal';
 // pontos vêm prontos do servidor (api/_lib/faturamento/pontuacaoSetor.ts).
 // Os dados são do pai (usePontuacaoSetor), para o "Atualizar" da página
 // recarregar os dois blocos. Quem gerencia Faturamento lança os critérios
-// manuais (issue 05), fecha e reabre o mês (issue 06), e o bloco pede ao pai
-// para recarregar. Mês fechado mostra os números congelados e não aceita lançamento.
+// manuais (issue 05), fecha e reabre o mês (issue 06), edita os membros das
+// Frentes (issue 07), e o bloco pede ao pai para recarregar. Mês fechado mostra
+// os números congelados e não aceita lançamento.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5';
@@ -40,6 +43,13 @@ const formatQtd = (n: number): string => n.toLocaleString('pt-BR');
 /** ISO → 'dd/mm' no fuso da operação, para o selo "Fechado em". */
 const formatDiaMes = (iso: string): string =>
   new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
+
+// Para a tela "Membros" abrir mesmo quando a pontuação do mês não carregou:
+// os membros só dependem do Supabase.
+const FRENTES_MEMBROS: { frente: FrentePontuacao; rotulo: string }[] = [
+  { frente: 'faturamento', rotulo: 'Faturamento' },
+  { frente: 'recursoGlosa', rotulo: 'Recurso de Glosa' },
+];
 
 const BOTAO_GESTAO =
   'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50';
@@ -295,7 +305,7 @@ interface Props {
   meta: PontuacaoSetorMeta | null;
   loading: boolean;
   error: string | null;
-  /** Depois de lançar, fechar ou reabrir: recarrega a pontuação. */
+  /** Depois de lançar, fechar, reabrir ou mudar os membros: recarrega a pontuação. */
   onAlterado: () => void;
 }
 
@@ -305,6 +315,7 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
   const fechado = meta?.situacao === 'fechado';
   const [emLancamento, setEmLancamento] = useState<{ frente: FrentePontuada; criterio: CriterioPontuacao } | null>(null);
   const [alterandoFechamento, setAlterandoFechamento] = useState(false);
+  const [editandoMembros, setEditandoMembros] = useState(false);
   const [erroFechamento, setErroFechamento] = useState<string | null>(null);
 
   // O aviso de uma recusa é do mês em que se tentou fechar ou reabrir.
@@ -403,15 +414,23 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
         {mes && meta?.dadoAte && (
           <span className="text-xs text-gray-500 dark:text-gray-400">Dados até {formatDiaMesHora(meta.dadoAte)}</span>
         )}
-        {mes && meta && podeGerenciar && (
-          <button
-            onClick={() => void alternarFechamento()}
-            disabled={alterandoFechamento || loading}
-            className={`${BOTAO_GESTAO} sm:ml-auto`}
-          >
-            {fechado ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-            {fechado ? 'Reabrir' : 'Fechar pontuação'}
-          </button>
+        {mes && podeGerenciar && (
+          <div className="flex items-center gap-2 sm:ml-auto">
+            <button onClick={() => setEditandoMembros(true)} className={BOTAO_GESTAO}>
+              <Users className="h-4 w-4" />
+              Membros
+            </button>
+            {meta && (
+              <button
+                onClick={() => void alternarFechamento()}
+                disabled={alterandoFechamento || loading}
+                className={BOTAO_GESTAO}
+              >
+                {fechado ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+                {fechado ? 'Reabrir' : 'Fechar pontuação'}
+              </button>
+            )}
+          </div>
         )}
       </div>
       {erroFechamento && (
@@ -429,6 +448,13 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
           pontosBase={pontosBase(emLancamento.criterio)}
           onFechar={() => setEmLancamento(null)}
           onSalvar={salvarLancamento}
+        />
+      )}
+      {editandoMembros && (
+        <MembrosPontuacaoModal
+          frentes={FRENTES_MEMBROS}
+          onFechar={() => setEditandoMembros(false)}
+          onAlterado={onAlterado}
         />
       )}
     </section>
