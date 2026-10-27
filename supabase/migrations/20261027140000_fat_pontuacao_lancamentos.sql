@@ -48,7 +48,7 @@ SET search_path = public
 AS $$
 BEGIN
   NEW.lancado_por = auth.uid();
-  NEW.lancado_por_nome = (SELECT up.name FROM public.user_profiles up WHERE up.id = auth.uid());
+  NEW.lancado_por_nome = (SELECT COALESCE(NULLIF(btrim(up.name), ''), up.email) FROM public.user_profiles up WHERE up.id = auth.uid());
   NEW.lancado_em = NOW();
   RETURN NEW;
 END;

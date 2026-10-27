@@ -38,7 +38,11 @@ async function lancar(req: VercelRequest, res: VercelResponse): Promise<void> {
   const token = tokenDoHeader(req.headers.authorization);
   const erroAuth = await autorizarFaturamento(token, 'canManageBilling');
   if (erroAuth) {
-    res.status(erroAuth.status).json(erroAuth.payload);
+    // A mensagem padrão de canManageBilling fala de contas a receber.
+    const payload = erroAuth.status === 403
+      ? { success: false, error: 'Sem permissão para lançar pontos: exige gerenciar Faturamento.' }
+      : erroAuth.payload;
+    res.status(erroAuth.status).json(payload);
     return;
   }
 

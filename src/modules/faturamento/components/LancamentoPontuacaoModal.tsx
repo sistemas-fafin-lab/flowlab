@@ -12,13 +12,13 @@ interface Props {
   mes: string;
   rotuloFrente: string;
   criterio: CriterioPontuacao;
+  /** "Pontos base" já formatado, como na tabela. */
+  pontosBase: string;
   onFechar: () => void;
   onSalvar: (pontos: number, observacao: string) => Promise<string | null>;
 }
 
-const formatPontos = (n: number): string => n.toLocaleString('pt-BR', { maximumFractionDigits: 1 });
-
-const LancamentoPontuacaoModal: React.FC<Props> = ({ mes, rotuloFrente, criterio, onFechar, onSalvar }) => {
+const LancamentoPontuacaoModal: React.FC<Props> = ({ mes, rotuloFrente, criterio, pontosBase, onFechar, onSalvar }) => {
   const lancado = !!criterio.lancamento;
   const [pontos, setPontos] = useState(lancado ? String(criterio.pontosAtingidos) : '');
   const [observacao, setObservacao] = useState(lancado ? criterio.observacao : '');
@@ -37,6 +37,11 @@ const LancamentoPontuacaoModal: React.FC<Props> = ({ mes, rotuloFrente, criterio
     const numero = Number(pontos.replace(',', '.'));
     if (pontos.trim() === '' || !Number.isFinite(numero) || numero < 0) {
       setErro('Informe os pontos (a partir de 0).');
+      return;
+    }
+    // O servidor guarda uma casa: avisa em vez de arredondar calado.
+    if (Math.round(numero * 10) / 10 !== numero) {
+      setErro('Use no máximo uma casa decimal.');
       return;
     }
     if (!observacao.trim()) {
@@ -88,7 +93,7 @@ const LancamentoPontuacaoModal: React.FC<Props> = ({ mes, rotuloFrente, criterio
               />
             </label>
             <div className="pb-2 text-xs text-gray-500 dark:text-gray-400">
-              Pontos base: <span className="font-medium text-gray-900 dark:text-white tabular-nums">{formatPontos(criterio.pontosBase)}</span>
+              Pontos base: <span className="font-medium text-gray-900 dark:text-white tabular-nums">{pontosBase}</span>
             </div>
           </div>
 

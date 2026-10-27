@@ -320,7 +320,7 @@ export function validarLancamento(corpo: Record<string, unknown>): { lancamento:
     return { erro: 'Critério inválido: só os critérios manuais da Frente aceitam lançamento.' };
   }
   if (typeof pontos !== 'number' || !Number.isFinite(pontos) || pontos < 0 || pontos > PONTOS_MAXIMOS) {
-    return { erro: 'Pontos inválidos: informe um número a partir de 0.' };
+    return { erro: 'Pontos inválidos: informe um número de 0 a 9999,9.' };
   }
   const texto = typeof observacao === 'string' ? observacao.trim() : '';
   if (!texto) return { erro: 'A observação é obrigatória.' };

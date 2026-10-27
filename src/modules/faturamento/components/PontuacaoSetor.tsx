@@ -297,7 +297,7 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
   const [emLancamento, setEmLancamento] = useState<{ frente: FrentePontuada; criterio: CriterioPontuacao } | null>(null);
 
   const salvarLancamento = async (pontos: number, observacao: string): Promise<string | null> => {
-    if (!mes || !emLancamento) return null;
+    if (!mes || !emLancamento) return 'Nenhum critério selecionado.';
     try {
       await lancarPontuacao({ mes, frente: emLancamento.frente.frente, chave: emLancamento.criterio.chave, pontos, observacao });
       onLancado();
@@ -368,6 +368,7 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
           mes={mes}
           rotuloFrente={emLancamento.frente.rotulo}
           criterio={emLancamento.criterio}
+          pontosBase={pontosBase(emLancamento.criterio)}
           onFechar={() => setEmLancamento(null)}
           onSalvar={salvarLancamento}
         />
