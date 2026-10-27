@@ -18,6 +18,7 @@ import type {
   FiltroGlosaTitulo,
   GlosaAplisTitulo,
   NfCancelada,
+  NfCanceladaSemTitulo,
   OperadoraResumo,
   TituloBaixa,
   TituloGuia,
@@ -88,6 +89,9 @@ interface Props {
   error: string | null;
   /** Falha ao ler as glosas do apLIS: aviso discreto, as três colunas em "—". */
   erroGlosasAplis: string | null;
+  /** NFs canceladas sem título que casaram com a busca: resultado próprio,
+   *  acima da tabela (.scratch/faturamento-nf-cancelada, issue 03). */
+  nfsCanceladasSemTitulo: NfCanceladaSemTitulo[];
   /** Conferência com o apLIS por `idNota` (só os divergentes); null enquanto
    *  não chegou ou se falhou — aí a linha sai sem selo. */
   divergencias: Map<string, DivergenciaAplis> | null;
@@ -166,6 +170,47 @@ const COR_FAIXA_SALDO: Record<ReturnType<typeof faixaSaldo> | 'neutro', { icone:
   },
 };
 
+/** NFs canceladas sem título achadas pela busca — não têm linha de título
+ *  para aparecer, então ficam num bloco próprio acima da tabela. */
+const NfsCanceladasSemTitulo: React.FC<{ nfs: NfCanceladaSemTitulo[] }> = ({ nfs }) => (
+  <div className="rounded-2xl border border-gray-100 dark:border-gray-700 px-4 py-3">
+    <p className="text-xs font-medium text-gray-700 dark:text-gray-200 mb-2">
+      NFs canceladas sem título
+      <span className="ml-1 font-normal text-gray-500 dark:text-gray-400">
+        — canceladas no portal da prefeitura e não ligadas a nenhum título
+      </span>
+    </p>
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="text-left text-gray-500 dark:text-gray-400">
+            <th className="py-1 pr-3">NF</th>
+            <th className="py-1 pr-3">Operadora</th>
+            <th className="py-1 pr-3 text-right">Valor</th>
+            <th className="py-1 pr-3">Emissão</th>
+            <th className="py-1 pr-3">Cancelada em</th>
+            <th className="py-1">Motivo</th>
+          </tr>
+        </thead>
+        <tbody>
+          {nfs.map((nf) => (
+            <tr key={nf.id} className="text-gray-600 dark:text-gray-300 align-top">
+              <td className="py-1 pr-3 tabular-nums whitespace-nowrap line-through decoration-gray-400">{nf.numeroNota}</td>
+              <td className="py-1 pr-3">{nf.operadoraNome ?? '—'}</td>
+              <td className="py-1 pr-3 text-right tabular-nums whitespace-nowrap">
+                {nf.valor === null ? '—' : formatCurrency(nf.valor)}
+              </td>
+              <td className="py-1 pr-3 whitespace-nowrap">{nf.dataEmissao ? formatData(nf.dataEmissao) : '—'}</td>
+              <td className="py-1 pr-3 whitespace-nowrap">{formatData(nf.dataCancelamento)}</td>
+              <td className="py-1">{nf.motivo}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
 /** Card de total do recorte, acima da tabela. */
 const CardTotal: React.FC<{
   icone: React.ReactNode;
@@ -194,6 +239,7 @@ const TitulosList: React.FC<Props> = ({
   loading,
   error,
   erroGlosasAplis,
+  nfsCanceladasSemTitulo,
   divergencias,
   erroConferencia,
   podeEditar,
@@ -545,6 +591,8 @@ const TitulosList: React.FC<Props> = ({
         />
       </div>
 
+      {!loading && nfsCanceladasSemTitulo.length > 0 && <NfsCanceladasSemTitulo nfs={nfsCanceladasSemTitulo} />}
+
       {/* ── Tabela ───────────────────────────────────────────────────────── */}
       {loading ? (
         <div className="flex justify-center py-16"><LoadingSpinner /></div>
@@ -643,6 +691,16 @@ const TitulosList: React.FC<Props> = ({
                             >
                               Aguardando nota
                             </span>
+                          )}
+                          {/* Achado pela busca com o número de uma NF cancelada dele. */}
+                          {titulo.nfsCanceladasBuscadas && (
+                            <div
+                              className="text-[10px] font-normal text-gray-500 dark:text-gray-400 whitespace-nowrap"
+                              title="O número buscado é de uma NF cancelada no portal da prefeitura, substituída pela NF atual deste título"
+                            >
+                              NF <span className="line-through">{titulo.nfsCanceladasBuscadas.join(', ')}</span> cancelada
+                              {' → '}atual {titulo.numeroNota || '—'}
+                            </div>
                           )}
                         </td>
                         {/* Código do lote já na linha, sem precisar abrir os detalhes. */}

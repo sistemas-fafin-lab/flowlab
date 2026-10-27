@@ -154,7 +154,7 @@ const ContasReceberPage: React.FC = () => {
   }), [filtros, idsDivergentesAplis]);
 
   const {
-    titulos, operadoras, total, totais, loading, error, erroGlosasAplis, refetch, refetchOperadoras, buscarTitulo,
+    titulos, operadoras, total, totais, loading, error, erroGlosasAplis, nfsCanceladasSemTitulo, refetch, refetchOperadoras, buscarTitulo,
     buscarGuias, buscarEnvioLotes, buscarBaixas, buscarGlosasAplis, buscarLancamentos, buscarAlteracoes, buscarNfsCanceladas, corrigirLancamento, excluirBaixa,
     criarTitulo, registrarBaixa, cancelarTitulo,
     atualizarNumeroNota, desvincularLote, marcarClinicaParceira, alternarNfAposPagamento, marcarConsideradaMeta,
@@ -434,6 +434,7 @@ const ContasReceberPage: React.FC = () => {
           loading={loading || (filtros.divergenteAplis && !conferencia.titulos && !conferencia.erro)}
           error={error}
           erroGlosasAplis={erroGlosasAplis}
+          nfsCanceladasSemTitulo={nfsCanceladasSemTitulo}
           divergencias={conferencia.porTitulo}
           erroConferencia={conferencia.erro}
           podeEditar={podeEditar}

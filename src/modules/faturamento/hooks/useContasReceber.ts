@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { diasDeAtraso } from '../utils/formato';
 import { padraoContem, valorCitadoPostgrest } from '../utils/buscaLike';
+import { nfsCanceladasDaBusca, type LinhaNfCanceladaBusca } from '../utils/nfCanceladaBusca';
 import { GLOSAS_ZERADAS, somarGlosasDoTitulo } from '../../../../api/_lib/faturamento/recursoGlosa.js';
 import type {
   AlteracaoLancamento,
@@ -14,6 +15,7 @@ import type {
   GlosasTitulo,
   LancamentosTitulo,
   NfCancelada,
+  NfCanceladaSemTitulo,
   OperadoraResumo,
   TituloBaixa,
   TituloGuia,
@@ -258,6 +260,9 @@ interface UseContasReceberResult {
   error: string | null;
   /** Falha ao ler as glosas do apLIS: a lista segue, com as três colunas em "—". */
   erroGlosasAplis: string | null;
+  /** NFs canceladas sem título que casaram com a busca — resultado próprio,
+   *  fora da paginação e do período (.scratch/faturamento-nf-cancelada, issue 03). */
+  nfsCanceladasSemTitulo: NfCanceladaSemTitulo[];
   refetch: () => Promise<void>;
   /** Recarrega o seletor de operadoras — chamado depois de sincronizar com o apLIS. */
   refetchOperadoras: () => Promise<void>;
@@ -329,6 +334,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [erroGlosasAplis, setErroGlosasAplis] = useState<string | null>(null);
+  const [nfsCanceladasSemTitulo, setNfsCanceladasSemTitulo] = useState<NfCanceladaSemTitulo[]>([]);
 
   // Desestruturado para que as deps do useCallback sejam primitivas — com o
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
@@ -346,6 +352,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     setLoading(true);
     setError(null);
     setErroGlosasAplis(null);
+    setNfsCanceladasSemTitulo([]);
 
     const porPagina = tamanho ?? TAMANHO_PADRAO;
     const inicio = ((pagina ?? 1) - 1) * porPagina;
@@ -365,6 +372,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       // Resolvidos antes de montar as consultas: a busca por código de lote
       // precisa de uma ida ao banco, e as duas consultas abaixo usam o mesmo recorte.
       let condicoesBusca: string | null = null;
+      let nfsCanceladas: ReturnType<typeof nfsCanceladasDaBusca> | null = null;
       if (busca?.trim()) {
         const termo = busca.trim();
         // `%` e `_` digitados são literais, não curinga — ver utils/buscaLike.ts
@@ -396,6 +404,21 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         const idsPorLote = [...new Set((lotesBatidos ?? []).map((l) => l.id_nota as string))];
         if (idsPorLote.length > 0) {
           condicoes.push(`id_nota.in.(${idsPorLote.join(',')})`);
+        }
+        // Número de uma NF cancelada (issue 03 de .scratch/faturamento-nf-cancelada):
+        // acha o título que a substituiu, e as sem título viram resultado próprio.
+        // A RLS de fat_nfs_canceladas já exige canViewBilling ou canManageBilling.
+        let consultaNfs = supabase
+          .from('fat_nfs_canceladas')
+          .select('id, nota_id, numero_nota, valor, data_emissao, data_cancelamento, motivo, operadoras(nome)')
+          .ilike('numero_nota', padrao)
+          .order('numero_nota');
+        if (operadoraId) consultaNfs = consultaNfs.eq('operadora_id', operadoraId);
+        // Falha aqui não derruba a busca pelo número atual, como na de lote acima.
+        const { data: nfsBatidas } = await consultaNfs;
+        nfsCanceladas = nfsCanceladasDaBusca((nfsBatidas ?? []) as unknown as LinhaNfCanceladaBusca[]);
+        if (nfsCanceladas.porTitulo.size > 0) {
+          condicoes.push(`id_nota.in.(${[...nfsCanceladas.porTitulo.keys()].join(',')})`);
         }
         condicoesBusca = condicoes.join(',');
       }
@@ -493,7 +516,16 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       ]);
       if (reqId !== buscaAtual.current) return;
       if (erro) throw new Error(erro.message);
-      const daPagina = (data as unknown as LinhaTitulo[] ?? []).map(normalizar);
+      const daPagina = (data as unknown as LinhaTitulo[] ?? []).map((linha) => {
+        const titulo = normalizar(linha);
+        // Sem selo quando o número atual também casa: com a busca parcial ("74"),
+        // a linha não foi achada por causa da NF cancelada.
+        const buscadas = nfsCanceladas?.porTitulo.get(titulo.id);
+        const casouAtual = Boolean(buscadas)
+          && titulo.numeroNota?.toLowerCase().includes((busca ?? '').trim().toLowerCase());
+        if (casouAtual) return titulo;
+        return buscadas ? { ...titulo, nfsCanceladasBuscadas: buscadas } : titulo;
+      });
 
       // Os lotes da página estão entre os do recorte: uma ida só ao apLIS.
       // Falha aqui não derruba a lista — só as três colunas de glosa ficam em "—".
@@ -511,6 +543,8 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       setTitulos(daPagina.map((t) => ({ ...t, glosasAplis: glosasDosLotes(idsAplis(t.lotes.map((l) => l.aplisId))) })));
       setTotal(count ?? 0);
       setTotais({ recebido: somas.recebido, saldo: somas.saldo, glosas: glosasDosLotes(somas.lotesPorTitulo.flat()) });
+      // Resultado próprio, fora da paginação: só na primeira página.
+      setNfsCanceladasSemTitulo((pagina ?? 1) === 1 ? nfsCanceladas?.semTitulo ?? [] : []);
     } catch (err) {
       if (reqId !== buscaAtual.current) return;
       setError(err instanceof Error ? err.message : 'Não foi possível carregar os títulos.');
@@ -970,6 +1004,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     loading,
     error,
     erroGlosasAplis,
+    nfsCanceladasSemTitulo,
     refetch,
     refetchOperadoras,
     buscarTitulo,

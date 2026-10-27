@@ -684,6 +684,9 @@ export interface TituloReceber {
   /** `notas.updated_at` — quando o status atual foi atingido (baixa/glosa que o recalculou). */
   statusAtualizadoEm: string;
   lotes: TituloLote[];
+  /** Números de NFs canceladas do título que casaram com a busca da lista
+   *  (.scratch/faturamento-nf-cancelada, issue 03). Ausente fora da busca. */
+  nfsCanceladasBuscadas?: string[];
 }
 
 export interface TitulosFiltros {
@@ -1301,6 +1304,17 @@ export interface NfCancelada extends CancelamentoNfAnterior {
   id: string;
   numeroNota: string;
   registradoPorNome: string;
+}
+
+/** NF cancelada sem título (importada da planilha sem candidato único), achada
+ *  pela busca da lista de títulos como resultado próprio. */
+export interface NfCanceladaSemTitulo extends CancelamentoNfAnterior {
+  id: string;
+  numeroNota: string;
+  operadoraNome: string | null;
+  valor: number | null;
+  /** YYYY-MM-DD. */
+  dataEmissao: string | null;
 }
 
 /** Corpo de `fat_corrigir_lancamento`. `recebimentoId` null = grupo das glosas
