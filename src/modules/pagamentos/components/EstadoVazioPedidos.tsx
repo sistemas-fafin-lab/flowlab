@@ -66,7 +66,7 @@ const EstadoVazioPedidos: React.FC<Props> = ({ aba, filtrando, semPedidos, onLim
   }
 
   return (
-    <div className={`${CARTAO} p-10 sm:p-12 text-center animate-fade-in-up`}>
+    <div className={`${CARTAO} px-6 py-10 sm:p-12 text-center animate-fade-in-up`}>
       <div className="w-16 h-16 bg-gradient-to-br from-blue-500/10 to-indigo-500/10 dark:from-blue-500/20 dark:to-indigo-500/20 rounded-2xl flex items-center justify-center mx-auto mb-4">
         {icone}
       </div>
