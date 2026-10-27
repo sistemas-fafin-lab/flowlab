@@ -1205,7 +1205,9 @@ const ITRequestManagement: React.FC = () => {
                     setSelectedRequest(req);
                   }
                 }}
-                className={`group relative focus-within:z-20 ${GLASS} p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 hover:shadow-xl hover:shadow-violet-500/5 hover:-translate-y-0.5 hover:border-violet-200/80 dark:hover:border-violet-700/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-all duration-200 cursor-pointer`}
+                // Hover sem transform: mover um elemento com backdrop-blur faz o Chrome
+                // recompor o desfoque durante a transição e deixa um rastro na borda.
+                className={`group relative focus-within:z-20 ${GLASS} p-4 rounded-2xl flex flex-col sm:flex-row sm:items-center gap-4 hover:bg-white/80 dark:hover:bg-slate-900/80 hover:shadow-lg hover:shadow-violet-500/5 hover:border-violet-200/80 dark:hover:border-violet-700/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 transition-[background-color,border-color,box-shadow] duration-200 cursor-pointer`}
               >
                 {/* Left — Type icon + Info */}
                 <div className="flex items-start gap-3.5 flex-1 min-w-0">
