@@ -1405,6 +1405,17 @@ export interface CriterioPontuacao {
   pontosAtingidos: number;
   observacao: string;
   detalhe: DetalheCriterioPontuacao | null;
+  /** Só nos critérios manuais: quem lançou e quando (ISO); null quando não lançado. */
+  lancamento?: { por: string | null; em: string } | null;
+}
+
+/** Contrato de POST /api/faturamento/pontuacao: lança ou altera um critério manual. */
+export interface LancamentoPontuacao {
+  mes: string;
+  frente: FrentePontuacao;
+  chave: string;
+  pontos: number;
+  observacao: string;
 }
 
 export interface FrentePontuada {

@@ -5,7 +5,16 @@
 import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
 import { guiasSemLotePorConvenio, recebidosComGlosaPorConvenio, tarefasPendentesNoFimDoMes } from './bdLab.js';
 import { listarFontesConsideradasMeta } from './fontesConsideradas.js';
-import type { FatoGuiasSemLote, FatoMeta, FatoTarefas, FatoZeroGlosa, FrentePontuacao, MembroFrente } from './pontuacaoSetor.js';
+import type {
+  ChaveCriterio,
+  FatoGuiasSemLote,
+  FatoMeta,
+  FatoTarefas,
+  FatoZeroGlosa,
+  FrentePontuacao,
+  LancamentoManual,
+  MembroFrente,
+} from './pontuacaoSetor.js';
 
 export type FalhaFato = { erro: { status: number; mensagem: string } };
 
@@ -50,6 +59,55 @@ export async function lerMembros(token: string): Promise<MembroFrente[] | FalhaF
     idUsuarioAplis: linha.id_usuario_aplis,
     nome: linha.nome,
   }));
+}
+
+interface LinhaLancamento {
+  frente: FrentePontuacao;
+  chave: ChaveCriterio;
+  pontos: number | string;
+  observacao: string;
+  lancado_por_nome: string | null;
+  lancado_em: string;
+}
+
+/** Lançamentos manuais do mês (`fat_pontuacao_lancamentos`), com quem lançou. */
+export async function lerLancamentos(token: string, ano: number, mes: number): Promise<LancamentoManual[] | FalhaFato> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_pontuacao_lancamentos')
+    .select('frente, chave, pontos, observacao, lancado_por_nome, lancado_em')
+    .eq('ano', ano)
+    .eq('mes', mes);
+  if (error) {
+    console.error('[faturamento/pontuacao] lançamentos:', error.message);
+    return { erro: { status: 502, mensagem: `Não foi possível consultar os lançamentos manuais: ${error.message}` } };
+  }
+  return (data as LinhaLancamento[]).map((linha) => ({
+    frente: linha.frente,
+    chave: linha.chave,
+    pontos: Number(linha.pontos),
+    observacao: linha.observacao,
+    autoria: { por: linha.lancado_por_nome, em: linha.lancado_em },
+  }));
+}
+
+/**
+ * Lança ou substitui o lançamento do mês, Frente e critério. Cliente do usuário:
+ * a RLS exige canManageBilling e o trigger grava quem lançou a partir da sessão.
+ */
+export async function gravarLancamento(
+  token: string,
+  ano: number,
+  mes: number,
+  { frente, chave, pontos, observacao }: LancamentoManual,
+): Promise<null | FalhaFato> {
+  const { error } = await getSupabaseUserClient(token)
+    .from('fat_pontuacao_lancamentos')
+    .upsert({ ano, mes, frente, chave, pontos, observacao }, { onConflict: 'ano,mes,frente,chave' });
+  if (error) {
+    console.error('[faturamento/pontuacao] gravar lançamento:', error.message);
+    return { erro: { status: 502, mensagem: `Não foi possível gravar o lançamento: ${error.message}` } };
+  }
+  return null;
 }
 
 const primeiroDia = (ano: number, mes: number): string => `${ano}-${String(mes).padStart(2, '0')}-01`;

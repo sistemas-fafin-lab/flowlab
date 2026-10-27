@@ -1,5 +1,8 @@
 import React, { useState } from 'react';
-import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight } from 'lucide-react';
+import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight, Pencil } from 'lucide-react';
+import { useAuth } from '../../../hooks/useAuth';
+import { hasPermission } from '../../../utils/permissions';
+import { lancarPontuacao } from '../hooks/usePontuacaoSetor';
 import type {
   CriterioPontuacao,
   DetalheGuiasSemLotePontuacao,
@@ -10,7 +13,8 @@ import type {
   PontuacaoSetor as Pontuacao,
   PontuacaoSetorMeta,
 } from '../types';
-import { formatCompetencia, formatCurrency, formatDiaMesHora, formatPercentual } from '../utils/formato';
+import { formatCompetencia, formatCurrency, formatDataHora, formatDiaMesHora, formatPercentual } from '../utils/formato';
+import LancamentoPontuacaoModal from './LancamentoPontuacaoModal';
 
 // ============================================================================
 // COMPONENTE: PontuacaoSetor
@@ -19,7 +23,8 @@ import { formatCompetencia, formatCurrency, formatDiaMesHora, formatPercentual }
 // destaque e a tabela de critérios no formato do "RESUMO" das planilhas. Os
 // pontos vêm prontos do servidor (api/_lib/faturamento/pontuacaoSetor.ts).
 // Os dados são do pai (usePontuacaoSetor), para o "Atualizar" da página
-// recarregar os dois blocos.
+// recarregar os dois blocos. Quem gerencia Faturamento lança os critérios
+// manuais (issue 05) e o bloco pede ao pai para recarregar.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5';
@@ -170,7 +175,36 @@ const DetalheCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }
   return <DetalheMeta detalhe={detalhe} />;
 };
 
-const LinhaCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }) => {
+const ObservacaoManual: React.FC<{ criterio: CriterioPontuacao; onLancar?: () => void }> = ({ criterio, onLancar }) => {
+  const { lancamento } = criterio;
+  return (
+    <div className="flex items-start justify-between gap-2">
+      <div>
+        {lancamento ? (
+          <>
+            <p className="text-gray-600 dark:text-gray-300 whitespace-pre-line">{criterio.observacao}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              {lancamento.por ? `${lancamento.por}, ` : ''}{formatDataHora(lancamento.em)}
+            </p>
+          </>
+        ) : (
+          <p className="italic text-gray-400 dark:text-gray-500">{criterio.observacao}</p>
+        )}
+      </div>
+      {onLancar && (
+        <button
+          onClick={onLancar}
+          className="shrink-0 inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+        >
+          <Pencil className="h-3.5 w-3.5" />
+          {lancamento ? 'Alterar' : 'Lançar'}
+        </button>
+      )}
+    </div>
+  );
+};
+
+const LinhaCriterio: React.FC<{ criterio: CriterioPontuacao; onLancar?: () => void }> = ({ criterio, onLancar }) => {
   const [aberto, setAberto] = useState(false);
   const temDetalhe = criterio.detalhe !== null;
   const Seta = aberto ? ChevronDown : ChevronRight;
@@ -193,7 +227,9 @@ const LinhaCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }) 
         </td>
         <td className="py-2 px-2 text-right tabular-nums text-gray-500 dark:text-gray-400 whitespace-nowrap">{pontosBase(criterio)}</td>
         <td className="py-2 px-2 text-right tabular-nums font-semibold text-gray-900 dark:text-white">{formatPontos(criterio.pontosAtingidos)}</td>
-        <td className="py-2 pl-2 text-gray-600 dark:text-gray-300">{criterio.observacao}</td>
+        <td className="py-2 pl-2 text-gray-600 dark:text-gray-300">
+          {criterio.tipo === 'manual' ? <ObservacaoManual criterio={criterio} onLancar={onLancar} /> : criterio.observacao}
+        </td>
       </tr>
       {aberto && temDetalhe && (
         <tr>
@@ -208,7 +244,7 @@ const LinhaCriterio: React.FC<{ criterio: CriterioPontuacao }> = ({ criterio }) 
   );
 };
 
-const CardFrente: React.FC<{ frente: FrentePontuada }> = ({ frente }) => (
+const CardFrente: React.FC<{ frente: FrentePontuada; onLancar?: (criterio: CriterioPontuacao) => void }> = ({ frente, onLancar }) => (
   <div className={CARD}>
     <div className="flex items-start justify-between gap-3 mb-3">
       <div>
@@ -232,7 +268,9 @@ const CardFrente: React.FC<{ frente: FrentePontuada }> = ({ frente }) => (
             </tr>
           </thead>
           <tbody>
-            {frente.criterios.map((c) => <LinhaCriterio key={c.chave} criterio={c} />)}
+            {frente.criterios.map((c) => (
+              <LinhaCriterio key={c.chave} criterio={c} onLancar={onLancar && c.tipo === 'manual' ? () => onLancar(c) : undefined} />
+            ))}
           </tbody>
         </table>
       </div>
@@ -249,9 +287,26 @@ interface Props {
   meta: PontuacaoSetorMeta | null;
   loading: boolean;
   error: string | null;
+  /** Depois de um lançamento: recarrega a pontuação. */
+  onLancado: () => void;
 }
 
-const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error }) => {
+const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error, onLancado }) => {
+  const { userProfile } = useAuth();
+  const podeLancar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
+  const [emLancamento, setEmLancamento] = useState<{ frente: FrentePontuada; criterio: CriterioPontuacao } | null>(null);
+
+  const salvarLancamento = async (pontos: number, observacao: string): Promise<string | null> => {
+    if (!mes || !emLancamento) return null;
+    try {
+      await lancarPontuacao({ mes, frente: emLancamento.frente.frente, chave: emLancamento.criterio.chave, pontos, observacao });
+      onLancado();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Não foi possível gravar o lançamento.';
+    }
+  };
+
   let conteudo: React.ReactNode;
   if (mes === null) {
     conteudo = (
@@ -279,7 +334,13 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error 
   } else {
     conteudo = (
       <div className={`grid grid-cols-1 xl:grid-cols-2 gap-4 transition-opacity ${loading ? 'opacity-60' : ''}`}>
-        {pontuacao.frentes.map((f) => <CardFrente key={f.frente} frente={f} />)}
+        {pontuacao.frentes.map((f) => (
+          <CardFrente
+            key={f.frente}
+            frente={f}
+            onLancar={podeLancar ? (criterio) => setEmLancamento({ frente: f, criterio }) : undefined}
+          />
+        ))}
       </div>
     );
   }
@@ -302,6 +363,15 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error 
         )}
       </div>
       {conteudo}
+      {mes && emLancamento && (
+        <LancamentoPontuacaoModal
+          mes={mes}
+          rotuloFrente={emLancamento.frente.rotulo}
+          criterio={emLancamento.criterio}
+          onFechar={() => setEmLancamento(null)}
+          onSalvar={salvarLancamento}
+        />
+      )}
     </section>
   );
 };

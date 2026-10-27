@@ -103,11 +103,18 @@ export interface FatosPontuacao {
   tarefas?: FatoTarefas;
 }
 
+/** Quem lançou ou alterou por último, e quando (ISO). */
+export interface AutoriaLancamento {
+  por: string | null;
+  em: string;
+}
+
 export interface LancamentoManual {
   frente: FrentePontuacao;
   chave: ChaveCriterio;
   pontos: number;
   observacao: string;
+  autoria?: AutoriaLancamento;
 }
 
 export interface MembroFrente {
@@ -158,6 +165,8 @@ export interface CriterioPontuado extends Omit<DefinicaoCriterio, 'frente'> {
   pontosAtingidos: number;
   observacao: string;
   detalhe: DetalheCriterio | null;
+  /** Só nos critérios manuais: quem lançou e quando; null quando não lançado. */
+  lancamento?: AutoriaLancamento | null;
 }
 
 export interface FrentePontuada {
@@ -278,13 +287,42 @@ export function pontuarMes({ mes, fatos, lancamentos, membros }: EntradaPontuaca
         if (pontuado) criterios.push({ ...base, ...pontuado });
         continue;
       }
+      // Manual sempre aparece: sem lançamento, "Não lançado" com 0, para a coordenação ver o que falta.
       const lancamento = lancamentos.find((l) => l.frente === frente && l.chave === def.chave);
-      if (lancamento) {
-        criterios.push({ ...base, pontosAtingidos: umaCasa(lancamento.pontos), observacao: lancamento.observacao, detalhe: null });
-      }
+      criterios.push(lancamento
+        ? {
+          ...base,
+          pontosAtingidos: umaCasa(lancamento.pontos),
+          observacao: lancamento.observacao,
+          detalhe: null,
+          lancamento: lancamento.autoria ?? null,
+        }
+        : { ...base, pontosAtingidos: 0, observacao: 'Não lançado', detalhe: null, lancamento: null });
     }
     const total = umaCasa(criterios.reduce((soma, c) => soma + c.pontosAtingidos, 0));
     return { frente, rotulo, criterios, total };
   });
   return { mes, frentes };
+}
+
+/** NUMERIC(5, 1) de fat_pontuacao_lancamentos. */
+const PONTOS_MAXIMOS = 9999.9;
+
+/**
+ * Confere o corpo de um lançamento manual antes de gravar: critério manual da
+ * Frente, pontos ≥ 0 com uma casa e observação não vazia. A RLS e os CHECKs da
+ * tabela repetem a regra; aqui é para o handler responder 400 com mensagem clara.
+ */
+export function validarLancamento(corpo: Record<string, unknown>): { lancamento: LancamentoManual } | { erro: string } {
+  const { frente, chave, pontos, observacao } = corpo;
+  const def = CRITERIOS.find((c) => c.frente === frente && c.chave === chave);
+  if (!def || def.tipo !== 'manual') {
+    return { erro: 'Critério inválido: só os critérios manuais da Frente aceitam lançamento.' };
+  }
+  if (typeof pontos !== 'number' || !Number.isFinite(pontos) || pontos < 0 || pontos > PONTOS_MAXIMOS) {
+    return { erro: 'Pontos inválidos: informe um número a partir de 0.' };
+  }
+  const texto = typeof observacao === 'string' ? observacao.trim() : '';
+  if (!texto) return { erro: 'A observação é obrigatória.' };
+  return { lancamento: { frente: def.frente, chave: def.chave, pontos: umaCasa(pontos), observacao: texto } };
 }

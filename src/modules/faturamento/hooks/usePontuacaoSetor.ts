@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { PontuacaoSetor, PontuacaoSetorMeta } from '../types';
-import { chamarLegadoApi } from './legado/api';
+import type { LancamentoPontuacao, PontuacaoSetor, PontuacaoSetorMeta } from '../types';
+import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
 // Pontuação do setor (Faturamento → Indicadores): lê o resumo pronto de
 // /api/faturamento/pontuacao. A pontuação é mensal: com `mes` nulo (modo
-// Período) não chama a API.
+// Período) não chama a API. `lancarPontuacao` grava um critério manual.
 
 interface RespostaPontuacao {
   success?: boolean;
@@ -52,4 +52,20 @@ export function usePontuacaoSetor(mes: string | null) {
   }, [refetch]);
 
   return { pontuacao, meta, loading, error, refetch };
+}
+
+/** Lança ou altera um critério manual (canManageBilling). Lança com a mensagem da rota. */
+export async function lancarPontuacao(lancamento: LancamentoPontuacao): Promise<void> {
+  const token = await getTokenLegado();
+  if (!token) throw new Error('Sessão expirada. Faça login novamente.');
+
+  const res = await fetch('/api/faturamento/pontuacao', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(lancamento),
+  });
+  const body = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string };
+  if (!res.ok || !body.success) {
+    throw new Error(body.error || 'Não foi possível gravar o lançamento.');
+  }
 }

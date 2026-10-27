@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { pontuarMes } from './pontuacaoSetor.js';
+import { pontuarMes, validarLancamento } from './pontuacaoSetor.js';
 import type { EntradaPontuacao, FatosPontuacao } from './pontuacaoSetor.js';
 
 function entrada(fatos: FatosPontuacao = {}, overrides: Partial<EntradaPontuacao> = {}): EntradaPontuacao {
@@ -88,12 +88,12 @@ describe('pontuarMes — meta mensal e meta superada', () => {
 });
 
 describe('pontuarMes — Frentes', () => {
-  it('as duas Frentes aparecem; critério sem fato nem lançamento fica de fora', () => {
+  it('as duas Frentes aparecem, na ordem da tabela; critério automático sem fato fica de fora, o manual não', () => {
     const resumo = pontuarMes(entrada({ meta: { valorMeta: 1_000_000, faturado: 1_000_000 } }));
 
     expect(resumo.frentes.map((f) => [f.rotulo, f.criterios.map((c) => c.chave)])).toEqual([
-      ['Faturamento', ['metaMensal', 'metaSuperada']],
-      ['Recurso de Glosa', []],
+      ['Faturamento', ['dominioPops', 'melhoriaSetor', 'metaMensal', 'metaSuperada']],
+      ['Recurso de Glosa', ['intrasetorial', 'dominioPops', 'melhoriaSetor', 'refaturamento', 'reversaoGlosa', 'destravarRecursos']],
     ]);
     expect(resumo.frentes[1].total).toBe(0);
   });
@@ -314,5 +314,86 @@ describe('pontuarMes — zero glosa', () => {
       observacao: 'Nenhum convênio recebido no mês',
       detalhe: { tipo: 'zeroGlosa', semGlosa: [], comGlosa: [] },
     });
+  });
+});
+
+describe('pontuarMes — lançamentos manuais', () => {
+  it('critério manual sem lançamento aparece como "não lançado", com 0', () => {
+    const resumo = pontuarMes(entrada());
+
+    for (const [frente, chave] of [
+      ['faturamento', 'dominioPops'],
+      ['faturamento', 'melhoriaSetor'],
+      ['recursoGlosa', 'intrasetorial'],
+      ['recursoGlosa', 'dominioPops'],
+      ['recursoGlosa', 'melhoriaSetor'],
+      ['recursoGlosa', 'refaturamento'],
+      ['recursoGlosa', 'reversaoGlosa'],
+      ['recursoGlosa', 'destravarRecursos'],
+    ]) {
+      expect(criterio(resumo, frente, chave)).toMatchObject({ tipo: 'manual', pontosAtingidos: 0, observacao: 'Não lançado', lancamento: null });
+    }
+  });
+
+  it('o ponto lançado entra no total da Frente, com a observação e quem lançou', () => {
+    const resumo = pontuarMes(entrada({}, {
+      lancamentos: [
+        { frente: 'recursoGlosa', chave: 'refaturamento', pontos: 3, observacao: 'refaturou 1 guia', autoria: { por: 'Raquel dos Santos Avelino', em: '2026-10-05T14:30:00Z' } },
+        { frente: 'recursoGlosa', chave: 'reversaoGlosa', pontos: 2, observacao: 'reverteu R$ 4.087,31' },
+      ],
+    }));
+
+    expect(criterio(resumo, 'recursoGlosa', 'refaturamento')).toMatchObject({
+      pontosBase: 5,
+      pontosAtingidos: 3,
+      observacao: 'refaturou 1 guia',
+      lancamento: { por: 'Raquel dos Santos Avelino', em: '2026-10-05T14:30:00Z' },
+    });
+    expect(resumo.frentes[1].total).toBe(5);
+    expect(resumo.frentes[0].total).toBe(0);
+  });
+
+  it('pontos com uma casa decimal: 0,1 × 3 lançamentos somam 0,3 exato', () => {
+    const resumo = pontuarMes(entrada({}, {
+      lancamentos: [
+        { frente: 'recursoGlosa', chave: 'intrasetorial', pontos: 0.1, observacao: 'a' },
+        { frente: 'recursoGlosa', chave: 'dominioPops', pontos: 0.1, observacao: 'b' },
+        { frente: 'recursoGlosa', chave: 'melhoriaSetor', pontos: 0.1, observacao: 'c' },
+      ],
+    }));
+
+    expect(resumo.frentes[1].total).toBe(0.3);
+  });
+});
+
+describe('validarLancamento', () => {
+  const valido = { frente: 'recursoGlosa', chave: 'refaturamento', pontos: 3, observacao: 'refaturou 1 guia' };
+
+  it('lançamento válido volta pronto para gravar, com a observação aparada', () => {
+    expect(validarLancamento({ ...valido, observacao: '  refaturou 1 guia ' })).toEqual({
+      lancamento: { frente: 'recursoGlosa', chave: 'refaturamento', pontos: 3, observacao: 'refaturou 1 guia' },
+    });
+  });
+
+  it('pontos ficam com uma casa decimal', () => {
+    expect(validarLancamento({ ...valido, pontos: 2.34 })).toMatchObject({ lancamento: { pontos: 2.3 } });
+  });
+
+  it('sem observação é recusado', () => {
+    for (const observacao of [undefined, '', '   ']) {
+      expect(validarLancamento({ ...valido, observacao })).toEqual({ erro: 'A observação é obrigatória.' });
+    }
+  });
+
+  it('chave de critério automático, ou de outra Frente, é recusada', () => {
+    expect(validarLancamento({ ...valido, frente: 'faturamento', chave: 'metaMensal' })).toHaveProperty('erro');
+    expect(validarLancamento({ ...valido, frente: 'faturamento', chave: 'refaturamento' })).toHaveProperty('erro');
+    expect(validarLancamento({ ...valido, frente: 'outra' })).toHaveProperty('erro');
+  });
+
+  it('pontos negativos, ausentes ou não numéricos são recusados', () => {
+    for (const pontos of [-1, undefined, '3', Number.NaN]) {
+      expect(validarLancamento({ ...valido, pontos })).toHaveProperty('erro');
+    }
   });
 });
