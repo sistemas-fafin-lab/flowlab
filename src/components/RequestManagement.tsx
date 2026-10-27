@@ -151,11 +151,17 @@ const RequestManagement: React.FC = () => {
       l => (l.department === reqDeptLabel || l.department === reqDept) && l.controlaConsumo && l.rastreavel,
     );
 
-    if (sectorLoc) {
-      // origem = local que hoje detém o saldo (default principal)
-      const rows = await fetchProductStock(item.productId);
-      const withStock = [...rows].filter(r => r.quantity > 0).sort((a, b) => b.quantity - a.quantity);
-      const originId = withStock[0]?.locationId ?? locations.find(l => l.isPrincipal)?.id;
+    // Origem = local do almoxarifado (Estoque/Depósito) com mais saldo; nunca um
+    // local setorial, senão a retirada sai do estoque de outro setor.
+    const rows = await fetchProductStock(item.productId);
+    const withStock = rows
+      .filter(r => r.quantity > 0 && centralLocationIds.includes(r.locationId))
+      .sort((a, b) => b.quantity - a.quantity);
+    const originId = withStock[0]?.locationId ?? locations.find(l => l.isPrincipal)?.id;
+
+    // O próprio almoxarifado pedindo (department 'Estoque') não transfere para si
+    // mesmo: origem e destino seriam o mesmo local e o saldo não mudaria.
+    if (sectorLoc && !centralLocationIds.includes(sectorLoc.id)) {
       await addMovement({
         ...base,
         type: 'transfer',
@@ -164,9 +170,8 @@ const RequestManagement: React.FC = () => {
         toLocationId: sectorLoc.id,
       });
     } else {
-      // baixa direta (comportamento atual). Sem from_location_id → o trigger debita
-      // o local com saldo (legado). O total cai na hora.
-      await addMovement({ ...base, type: 'out', reason: 'sale' });
+      // baixa direta: o total cai na hora.
+      await addMovement({ ...base, type: 'out', reason: 'sale', fromLocationId: originId });
     }
   };
 
