@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Plus } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
@@ -221,9 +222,12 @@ const PagamentosPage: React.FC = () => {
     return <PaymentRequestSkeleton />;
   }
 
+  const comSelecao = pedidosSelecionados.length > 0;
+
   return (
-    // Com seleção, a barra de lote flutua no rodapé: o respiro evita que ela cubra o último card.
-    <div className={`space-y-6 ${pedidosSelecionados.length > 0 ? 'pb-24' : ''}`}>
+    // O botão "Nova" (celular) e a barra de lote flutuam no rodapé: o respiro evita que
+    // cubram o último card.
+    <div className={`space-y-5 sm:space-y-6 ${comSelecao ? 'pb-40 sm:pb-24' : 'pb-24 sm:pb-0'}`}>
       <Notification
         type={notification.type}
         title={notification.title}
@@ -263,22 +267,38 @@ const PagamentosPage: React.FC = () => {
         onLimpar={() => setSelecionados(new Set())}
       />
 
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in-up">
-        <div>
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
+      <div className="flex items-center justify-between gap-4 animate-fade-in-up">
+        <div className="min-w-0">
+          <h2 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 dark:from-gray-100 dark:to-gray-300 bg-clip-text text-transparent">
             Solicitações de Pagamento
           </h2>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">Pedidos de pagamento, reembolso e adiantamento</p>
+          <p className="text-sm sm:text-base text-gray-500 dark:text-gray-400 mt-0.5 sm:mt-1">Pedidos de pagamento, reembolso e adiantamento</p>
         </div>
         <button
           type="button"
           onClick={() => setNovoAberto(true)}
-          className="px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 flex items-center justify-center shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 font-semibold"
+          className="hidden sm:flex flex-shrink-0 px-6 py-3 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 items-center justify-center shadow-lg shadow-blue-500/25 hover:shadow-xl hover:shadow-blue-500/30 font-semibold"
         >
           <Plus className="w-5 h-5 mr-2" />
           Nova solicitação
         </button>
       </div>
+
+      {/* Celular: "Nova solicitação" flutua no canto, ao alcance do polegar. Some com a
+          barra de lote, que ocupa o mesmo lugar. */}
+      {!comSelecao &&
+        !novoAberto &&
+        createPortal(
+          <button
+            type="button"
+            onClick={() => setNovoAberto(true)}
+            className="sm:hidden fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 inline-flex items-center gap-2 h-14 pl-4 pr-5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold shadow-xl shadow-blue-600/30 ring-1 ring-white/20 active:scale-95 transition-transform animate-fade-in-up"
+          >
+            <Plus className="w-5 h-5" />
+            Nova solicitação
+          </button>,
+          document.body,
+        )}
 
       {novoAberto && (
         <NovoPedidoModal

@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Eye, FileText, Image, X } from 'lucide-react';
+import { useTravarRolagem } from '../hooks/useTravarRolagem';
 
 export interface ImagemAberta {
   url: string;
@@ -13,6 +14,7 @@ interface Props {
 
 /** Anexo de imagem em tela cheia, com baixar e abrir em nova aba. Fecha no Esc ou clicando fora. */
 const VisualizadorImagem: React.FC<Props> = ({ imagem, onFechar }) => {
+  useTravarRolagem(!!imagem);
   useEffect(() => {
     if (!imagem) return;
     const aoTeclar = (e: KeyboardEvent) => {
@@ -26,7 +28,7 @@ const VisualizadorImagem: React.FC<Props> = ({ imagem, onFechar }) => {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in p-2 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm animate-fade-in p-2 sm:p-4 pt-[max(0.5rem,env(safe-area-inset-top))] pb-[max(0.5rem,env(safe-area-inset-bottom))]"
       onClick={onFechar}
     >
       <div className="relative w-full h-full max-w-7xl flex flex-col">

@@ -15,10 +15,13 @@ import {
 import { FORMAS, paraISO, rotuloDiaCurto, TIPOS } from '../domain/filtrosPagamentos';
 import { useContextoPagamento } from '../hooks/useContextoPagamento';
 import type { usePaymentRequest } from '../hooks/usePaymentRequest';
-import { CAMPO, ROTULO } from './estilos';
+import { useTravarRolagem } from '../hooks/useTravarRolagem';
+import { ALCA_MODAL, CABECALHO_MODAL, CAMPO, FUNDO_MODAL, PAINEL_MODAL, RODAPE_MODAL, ROTULO } from './estilos';
 
 // Formulário do pedido num modal, em vez de abrir no meio da página empurrando a lista.
 // O aviso dos dias de pagamento mora aqui, o único lugar em que ele importa.
+// No celular é uma folha que sobe do rodapé, com o título e os botões presos enquanto o
+// formulário rola.
 
 type Hook = ReturnType<typeof usePaymentRequest>;
 
@@ -40,6 +43,7 @@ const TIPOS_ARQUIVO = ['application/pdf', 'image/png', 'image/jpeg', 'image/jpg'
 const TAMANHO_MAXIMO = 10 * 1024 * 1024;
 
 const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPaymentDate, avisos }) => {
+  useTravarRolagem();
   const { user, userProfile } = useAuth();
   // Quem autoriza: os gestores aptos do departamento do RH de quem pede (decisão de 22/10).
   const { contexto, loading: carregandoContexto, error: erroContexto } = useContextoPagamento();
@@ -174,35 +178,38 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
   const arquivos = form.attachments || [];
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/50 backdrop-blur-sm p-4 overflow-y-auto animate-fade-in">
+    <div className={FUNDO_MODAL}>
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-novo-pedido"
-        className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-3xl border border-gray-100 dark:border-gray-700 animate-scale-in my-8"
+        className={`${PAINEL_MODAL} sm:max-w-3xl sm:my-8`}
       >
-        <div className="flex items-center justify-between gap-4 px-6 py-5 border-b border-gray-100 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25">
-              <FileText className="w-5 h-5 text-white" />
+        <div className={CABECALHO_MODAL}>
+          <div className={ALCA_MODAL} />
+          <div className="flex items-center justify-between gap-4 px-4 sm:px-6 pt-1 pb-3 sm:py-5">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 flex-shrink-0 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25">
+                <FileText className="w-5 h-5 text-white" />
+              </div>
+              <h2 id="titulo-novo-pedido" className="text-lg font-semibold text-gray-800 dark:text-gray-100 truncate">
+                Nova solicitação<span className="hidden sm:inline"> de pagamento</span>
+              </h2>
             </div>
-            <h2 id="titulo-novo-pedido" className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-              Nova solicitação de pagamento
-            </h2>
+            <button
+              type="button"
+              onClick={onFechar}
+              disabled={enviando}
+              aria-label="Fechar"
+              className="-mr-2 flex flex-shrink-0 items-center justify-center w-10 h-10 rounded-xl text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onFechar}
-            disabled={enviando}
-            aria-label="Fechar"
-            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors disabled:opacity-50"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
 
         <form onSubmit={enviar}>
-          <div className="px-6 py-5 space-y-5">
+          <div className="px-4 sm:px-6 py-5 space-y-5">
             {bloqueio && (
               <p role="alert" className="px-4 py-3 rounded-xl text-sm bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
                 {bloqueio === 'sem_departamento'
@@ -261,7 +268,7 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
                   inputMode="numeric"
                   value={form.cpfCnpj}
                   onChange={(e) => alterar({ cpfCnpj: formatCpfCnpj(e.target.value) })}
-                  placeholder="000.000.000-00 ou 00.000.000/0000-00"
+                  placeholder="CPF ou CNPJ, só números"
                   className={CAMPO}
                 />
               </div>
@@ -272,6 +279,7 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
                   <input
                     id="pedido-valor"
                     type="number"
+                    inputMode="decimal"
                     value={form.valorTotal || ''}
                     onChange={(e) => alterar({ valorTotal: parseFloat(e.target.value) || 0 })}
                     required
@@ -438,19 +446,19 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100 dark:border-gray-700 bg-gray-50/60 dark:bg-gray-900/40 rounded-b-2xl">
+          <div className={`${RODAPE_MODAL} flex sm:justify-end gap-3`}>
             <button
               type="button"
               onClick={onFechar}
               disabled={enviando}
-              className="px-5 py-2.5 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-200 font-medium disabled:opacity-50"
+              className="flex-1 sm:flex-none px-5 h-11 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-[0.98] transition-all duration-200 font-medium disabled:opacity-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={enviando || carregandoContexto || !!bloqueio || !!erroContexto}
-              className="px-6 py-2.5 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center font-medium shadow-md shadow-blue-500/25"
+              className="flex-[2] sm:flex-none px-6 h-11 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-medium shadow-md shadow-blue-500/25"
             >
               {enviando ? (
                 <>
