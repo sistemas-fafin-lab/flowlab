@@ -453,6 +453,7 @@ const ContasReceberPage: React.FC = () => {
           buscarBaixas={buscarBaixas}
           buscarGlosasAplis={buscarGlosasAplis}
           buscarAlteracoes={buscarAlteracoes}
+          camadaSobreposta={tituloBaixa !== null || tituloEditar !== null}
         />
       )}
 

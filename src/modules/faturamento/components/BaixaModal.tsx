@@ -94,10 +94,21 @@ const BaixaModal: React.FC<Props> = ({ titulo, onFechar, onRegistrar }) => {
     else onFechar();
   };
 
+  // Esc fecha o modal — e só ele, quando aberto por cima do painel de detalhes
+  // do título. O Esc de um Select/DatePicker aberto (defaultPrevented) é deles.
+  useEffect(() => {
+    if (!titulo) return;
+    const fecharNoEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented && !salvando) onFechar();
+    };
+    document.addEventListener('keydown', fecharNoEsc);
+    return () => document.removeEventListener('keydown', fecharNoEsc);
+  }, [titulo, salvando, onFechar]);
+
   if (!titulo) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
       <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 dark:border-gray-700">
           <div>

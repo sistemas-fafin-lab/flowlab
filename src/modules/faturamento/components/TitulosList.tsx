@@ -1,17 +1,15 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   Ban,
-  ChevronDown,
-  ChevronRight,
   DollarSign,
+  Eye,
   Pencil,
   Plus,
   RefreshCw,
   Search,
   Settings,
   Undo2,
-  Unlink,
   Wallet,
 } from 'lucide-react';
 import type {
@@ -22,13 +20,10 @@ import type {
   OperadoraResumo,
   TituloBaixa,
   TituloGuia,
-  TituloLote,
   TituloReceber,
   TituloStatus,
   TitulosViewFiltros,
 } from '../types';
-import ListaResumida from './ListaResumida';
-import { rotuloStatusAplis, STATUS_GLOSA_DASHBOARD } from '../utils/recursoGlosaVisual';
 import {
   faixaSaldo,
   formatCompetencia,
@@ -43,31 +38,18 @@ import {
   responsaveisDoTitulo,
 } from '../utils/formato';
 import type { TotaisTitulos } from '../hooks/useContasReceber';
-import { dataEnvioEfetiva } from '../utils/envioAoVivo';
-import { descreverAlteracao } from '../utils/correcaoLancamento';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
-import { COR_TIPO, seloDivergencia } from '../utils/conferenciaAplis';
+import { STATUS_CORES, STATUS_ROTULOS } from '../utils/tituloStatus';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
-import MotivoDesativacaoBox from './MotivoDesativacaoBox';
+import { Atraso, SeloAplis } from './TituloSelos';
+import TituloPainelLateral from './TituloPainelLateral';
 
-// Lista de títulos a receber, com linha expansível: título → lotes → guias.
-// As guias só são buscadas quando o operador abre o lote — são dezenas por lote e
-// só interessam na hora de conferir uma glosa.
+// Lista de títulos a receber. O olho de cada linha abre os detalhes (baixas,
+// glosas, alterações, lotes → guias) no painel lateral, TituloPainelLateral.
 
-const STATUS_ROTULOS: Record<TituloStatus, string> = {
-  aberta: 'Aberta',
-  parcialmente_recebida: 'Parcial',
-  recebida: 'Recebida',
-  liquidada: 'Liquidada',
-  glosada: 'Glosada',
-  cancelada: 'Cancelada',
-};
-
-// Agrupadas por significado financeiro, como o STATUS_CORES da aba Faturas:
-// pendente (azul/amarelo), dinheiro entrou (verde), encerrado (cinza/vermelho).
 const STATUS_OPCOES = [
   { value: '', label: 'Todos' },
   ...(Object.keys(STATUS_ROTULOS) as TituloStatus[]).map((status) => ({
@@ -94,15 +76,6 @@ const ATALHOS_PERIODO = [
   { rotulo: 'Mês passado', calcular: periodoMesPassado },
   { rotulo: 'Este trimestre', calcular: periodoEsteTrimestre },
 ] as const;
-
-const STATUS_CORES: Record<TituloStatus, string> = {
-  aberta: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-  parcialmente_recebida: 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300',
-  recebida: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-  liquidada: 'bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300',
-  glosada: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
-  cancelada: 'bg-gray-100 dark:bg-gray-900/30 text-gray-700 dark:text-gray-300',
-};
 
 interface Props {
   titulos: TituloReceber[];
@@ -164,27 +137,10 @@ interface Props {
   /** Correções de baixas/glosas do título (.scratch/titulos-edicao-lancamentos),
    *  buscadas junto com as baixas ao expandir a linha. */
   buscarAlteracoes: (notaId: string) => Promise<AlteracaoLancamento[]>;
+  /** Editar/Baixa aberto por cima do painel de detalhes: o Esc fecha só o modal. */
+  camadaSobreposta: boolean;
 }
 
-
-/** Badge de atraso. Só aparece quando há vencimento e o título ainda tem saldo. */
-const Atraso: React.FC<{ titulo: TituloReceber }> = ({ titulo }) => {
-  if (titulo.diasAtraso === null || titulo.valorSaldo <= 0) return null;
-  if (titulo.status === 'cancelada') return null;
-
-  if (titulo.diasAtraso > 0) {
-    return (
-      <span className="text-xs text-rose-600 dark:text-rose-400 whitespace-nowrap">
-        {titulo.diasAtraso}d em atraso
-      </span>
-    );
-  }
-  return (
-    <span className="text-xs text-gray-400 whitespace-nowrap">
-      vence em {Math.abs(titulo.diasAtraso)}d
-    </span>
-  );
-};
 
 // Neutro só enquanto carrega — sem saldo ainda, não há sinal para colorir.
 const COR_FAIXA_SALDO: Record<ReturnType<typeof faixaSaldo> | 'neutro', { icone: string; valor: string }> = {
@@ -226,21 +182,6 @@ const CardTotal: React.FC<{
   </div>
 );
 
-/** Selo do título divergente do apLIS; os dois valores no tooltip. */
-const SeloAplis: React.FC<{ divergencia: DivergenciaAplis }> = ({ divergencia }) => {
-  const selo = seloDivergencia(divergencia);
-  return (
-    <div className="mt-1">
-      <span
-        title={selo.detalhe}
-        className={`inline-flex px-1.5 py-0.5 rounded-full text-[10px] font-medium whitespace-nowrap ${COR_TIPO[divergencia.tipo]}`}
-      >
-        {selo.texto}
-      </span>
-    </div>
-  );
-};
-
 const TitulosList: React.FC<Props> = ({
   titulos,
   operadoras,
@@ -268,41 +209,11 @@ const TitulosList: React.FC<Props> = ({
   buscarBaixas,
   buscarGlosasAplis,
   buscarAlteracoes,
+  camadaSobreposta,
 }) => {
-  const [expandido, setExpandido] = useState<string | null>(null);
-  const [loteAberto, setLoteAberto] = useState<string | null>(null);
-  const [guias, setGuias] = useState<Record<string, TituloGuia[]>>({});
-  // Por lote, não um booleano só: abrir um segundo lote enquanto o primeiro
-  // carrega não pode piscar "Carregando guias…" no lote errado.
-  const [carregandoGuias, setCarregandoGuias] = useState<Record<string, boolean>>({});
-  const [erroGuias, setErroGuias] = useState<Record<string, string>>({});
-  // Issue 46: qual lote está com o painel de motivo aberto para desvincular —
-  // um só por vez, como `loteAberto` acima para guias.
-  const [loteParaDesvincular, setLoteParaDesvincular] = useState<{ tituloId: string; lote: TituloLote } | null>(null);
-  const [motivoDesvincular, setMotivoDesvincular] = useState('');
-  const [desvinculando, setDesvinculando] = useState(false);
-  const [erroDesvincular, setErroDesvincular] = useState<string | null>(null);
-  // Issue 39: baixas do título, por id do título — mesmo padrão de `guias` acima.
-  const [baixas, setBaixas] = useState<Record<string, TituloBaixa[]>>({});
-  // `statusAtualizadoEm` usado na última busca: registrar uma nova baixa com a
-  // linha já expandida avança esse campo (trigger de recálculo do título) sem
-  // recriar `expandido` — sem essa versão o cache por id nunca invalidaria e a
-  // tabela continuaria mostrando só a baixa anterior até fechar e reabrir.
-  const [baixasVersao, setBaixasVersao] = useState<Record<string, string>>({});
-  const [carregandoBaixas, setCarregandoBaixas] = useState<Record<string, boolean>>({});
-  const [erroBaixas, setErroBaixas] = useState<Record<string, string>>({});
-  // Correções de lançamentos: mesma chave e mesma versão das baixas — uma
-  // correção sempre recalcula o título e avança `statusAtualizadoEm`.
-  const [alteracoes, setAlteracoes] = useState<Record<string, AlteracaoLancamento[]>>({});
-  const [erroAlteracoes, setErroAlteracoes] = useState<Record<string, string>>({});
-  // Glosas do apLIS do título (foto de Glosas e Recursos), relidas a cada expansão.
-  const [glosasTitulo, setGlosasTitulo] = useState<Record<string, GlosaAplisTitulo[]>>({});
-  const [erroGlosas, setErroGlosas] = useState<Record<string, string>>({});
+  // Título com o painel lateral de detalhes aberto (.scratch/titulos-painel-lateral).
+  const [idAberto, setIdAberto] = useState<string | null>(null);
   const [busca, setBusca] = useState(filtros.busca);
-  // Por título: DtaEnvio ao vivo dos seus lotes, chave = aplisId (issue 15).
-  // Ausente = ainda não revalidado ou a consulta falhou — dataEnvioEfetiva cai
-  // pro snapshot nos dois casos, então não há necessidade de distinguir aqui.
-  const [enviosPorTitulo, setEnviosPorTitulo] = useState<Record<string, Record<string, string | null>>>({});
 
   // Issue 31: pra mostrar a regra de NF na própria linha do título, sem
   // precisar abrir o lote — a operadora do título já é o dado, só falta o mapa.
@@ -311,108 +222,23 @@ const TitulosList: React.FC<Props> = ({
     [operadoras],
   );
 
-  // Revalida o dataEnvio dos lotes do título assim que ele é expandido, direto
-  // no apLIS — o snapshot gravado na criação do título fica preso pra sempre
-  // quando o envio só aconteceu DEPOIS de o título existir (issue 15).
+  // Sempre da lista atual: baixa, edição e cancelamento chegam ao painel pelo refetch.
+  const tituloAberto = idAberto ? titulos.find((t) => t.id === idAberto) ?? null : null;
+
+  // Painel fecha quando o recorte muda (filtro, página, busca)...
   useEffect(() => {
-    if (!expandido) return;
-    const titulo = titulos.find((t) => t.id === expandido);
-    if (!titulo) return;
-    const idsAplis = [...new Set(
-      titulo.lotes.map((lote) => lote.aplisId).filter((id): id is string => Boolean(id)),
-    )];
-    if (idsAplis.length === 0) return;
+    setIdAberto(null);
+  }, [
+    filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, filtros.busca, filtros.ocultarParceiras,
+    filtros.somentePendentes, filtros.glosa, filtros.divergenteAplis, filtros.pagina, filtros.tamanho,
+  ]);
 
-    let cancelado = false;
-    void buscarEnvioLotes(idsAplis)
-      .then((mapa) => {
-        if (!cancelado) setEnviosPorTitulo((atual) => ({ ...atual, [expandido]: mapa }));
-      })
-      .catch(() => {
-        // Túnel fora do ar, lote não encontrado etc.: a tela cai pro snapshot
-        // via dataEnvioEfetiva (sem entrada em enviosPorTitulo), sem quebrar.
-      });
-    return () => { cancelado = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandido]);
-
-  // Glosas do apLIS do título: de onde vêm Glosado, Glosa recebida e Glosa acatada.
+  // ...ou quando o título sai da lista depois de um refetch.
   useEffect(() => {
-    if (!expandido) return;
-    const titulo = titulos.find((t) => t.id === expandido);
-    if (!titulo) return;
-    const notaId = expandido;
-    const lotesAplis = titulo.lotes.map((lote) => Number(lote.aplisId)).filter((id) => Number.isInteger(id) && id > 0);
+    if (idAberto && !loading && !titulos.some((t) => t.id === idAberto)) setIdAberto(null);
+  }, [idAberto, loading, titulos]);
 
-    setErroGlosas((atual) => ({ ...atual, [notaId]: '' }));
-    let cancelado = false;
-    void buscarGlosasAplis(lotesAplis)
-      .then((lista) => {
-        if (!cancelado) setGlosasTitulo((atual) => ({ ...atual, [notaId]: lista }));
-      })
-      .catch((err) => {
-        if (!cancelado) {
-          setErroGlosas((atual) => ({
-            ...atual,
-            [notaId]: err instanceof Error ? err.message : 'Não foi possível carregar as glosas do apLIS.',
-          }));
-        }
-      });
-    return () => { cancelado = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandido]);
-
-  // Issue 39: busca as baixas do título assim que ele é expandido, cacheadas
-  // por id — mas revalida se `statusAtualizadoEm` avançou desde a última busca
-  // (uma baixa registrada nesta sessão, com a linha ainda aberta).
-  useEffect(() => {
-    if (!expandido) return;
-    const titulo = titulos.find((t) => t.id === expandido);
-    if (!titulo) return;
-    if (baixas[expandido] && baixasVersao[expandido] === titulo.statusAtualizadoEm) return;
-    const notaId = expandido;
-    const versao = titulo.statusAtualizadoEm;
-
-    setCarregandoBaixas((atual) => ({ ...atual, [notaId]: true }));
-    setErroBaixas((atual) => ({ ...atual, [notaId]: '' }));
-    setErroAlteracoes((atual) => ({ ...atual, [notaId]: '' }));
-    let cancelado = false;
-    // Falha do histórico não derruba as baixas: cada um mostra o próprio erro.
-    void buscarAlteracoes(notaId)
-      .then((lista) => {
-        if (!cancelado) {
-          setAlteracoes((atual) => ({ ...atual, [notaId]: lista }));
-        }
-      })
-      .catch((err) => {
-        if (!cancelado) {
-          setErroAlteracoes((atual) => ({
-            ...atual,
-            [notaId]: err instanceof Error ? err.message : 'Não foi possível carregar as alterações.',
-          }));
-        }
-      });
-    void buscarBaixas(notaId)
-      .then((lista) => {
-        if (!cancelado) {
-          setBaixas((atual) => ({ ...atual, [notaId]: lista }));
-          setBaixasVersao((atual) => ({ ...atual, [notaId]: versao }));
-        }
-      })
-      .catch((err) => {
-        if (!cancelado) {
-          setErroBaixas((atual) => ({
-            ...atual,
-            [notaId]: err instanceof Error ? err.message : 'Não foi possível carregar as baixas.',
-          }));
-        }
-      })
-      .finally(() => {
-        if (!cancelado) setCarregandoBaixas((atual) => ({ ...atual, [notaId]: false }));
-      });
-    return () => { cancelado = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandido, titulos]);
+  const fecharPainel = useCallback(() => setIdAberto(null), []);
 
   // Debounce: cada tecla dispararia uma consulta paginada ao Supabase.
   useEffect(() => {
@@ -422,63 +248,6 @@ const TitulosList: React.FC<Props> = ({
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [busca]);
-
-  const abrirLote = async (loteId: string) => {
-    if (loteAberto === loteId) {
-      setLoteAberto(null);
-      return;
-    }
-    setLoteAberto(loteId);
-    if (guias[loteId]) return;
-
-    setCarregandoGuias((atual) => ({ ...atual, [loteId]: true }));
-    setErroGuias((atual) => ({ ...atual, [loteId]: '' }));
-    try {
-      const lista = await buscarGuias(loteId);
-      setGuias((atual) => ({ ...atual, [loteId]: lista }));
-    } catch (err) {
-      // Sem isto, uma falha de rede/RLS virava rejeição não tratada e o `else if`
-      // de baixo mostrava "nenhuma guia congelada" — a conclusão errada na hora
-      // de conferir uma glosa.
-      setErroGuias((atual) => ({
-        ...atual,
-        [loteId]: err instanceof Error ? err.message : 'Não foi possível carregar as guias.',
-      }));
-    } finally {
-      setCarregandoGuias((atual) => ({ ...atual, [loteId]: false }));
-    }
-  };
-
-  // Issue 46: abre o painel de motivo para desvincular um lote específico do
-  // título. Fecha qualquer outro painel aberto — só um por vez.
-  const abrirDesvincular = (tituloId: string, lote: TituloLote) => {
-    setErroDesvincular(null);
-    setMotivoDesvincular('');
-    setLoteParaDesvincular({ tituloId, lote });
-  };
-
-  const cancelarDesvincular = () => {
-    setLoteParaDesvincular(null);
-    setMotivoDesvincular('');
-    setErroDesvincular(null);
-  };
-
-  const confirmarDesvincular = async () => {
-    if (!loteParaDesvincular || !motivoDesvincular.trim()) return;
-    setDesvinculando(true);
-    const erro = await onDesvincularLote(
-      loteParaDesvincular.tituloId,
-      loteParaDesvincular.lote.id,
-      motivoDesvincular.trim(),
-    );
-    setDesvinculando(false);
-    if (erro) {
-      setErroDesvincular(erro);
-    } else {
-      setLoteParaDesvincular(null);
-      setMotivoDesvincular('');
-    }
-  };
 
   const faixaSaldoRecorte = loading ? 'neutro' : faixaSaldo(totais.saldo);
 
@@ -818,19 +587,28 @@ const TitulosList: React.FC<Props> = ({
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {titulos.map((titulo) => {
-                  const aberto = expandido === titulo.id;
+                  const aberto = idAberto === titulo.id;
                   const encerrado = titulo.status === 'cancelada' || titulo.valorSaldo <= 0;
                   const responsaveis = responsaveisDoTitulo(titulo.lotes);
                   const protocolos = protocolosDoTitulo(titulo.lotes);
                   const divergencia = divergencias?.get(titulo.id);
                   return (
-                    <React.Fragment key={titulo.id}>
                       <tr
-                        className="hover:bg-gray-50 dark:hover:bg-gray-700/30 cursor-pointer"
-                        onClick={() => setExpandido(aberto ? null : titulo.id)}
+                        key={titulo.id}
+                        className={`transition-colors ${
+                          aberto ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
+                        }`}
                       >
-                        <td className="px-3 py-2 text-gray-400">
-                          {aberto ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                        <td className="pl-3 pr-0 py-2">
+                          <button
+                            type="button"
+                            onClick={() => setIdAberto(aberto ? null : titulo.id)}
+                            className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            aria-label={`Ver detalhes do título ${titulo.numeroNota || 'sem número de nota'}`}
+                            title="Ver detalhes do título"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
                         </td>
                         <td className="px-3 py-2 font-medium text-gray-900 dark:text-gray-100">
                           {titulo.numeroNota || (
@@ -862,8 +640,7 @@ const TitulosList: React.FC<Props> = ({
                             </span>
                           )}
                         </td>
-                        {/* Código do lote já na linha, sem precisar expandir — o clique
-                            aqui ainda propaga pro <tr> e abre o dropdown normalmente. */}
+                        {/* Código do lote já na linha, sem precisar abrir os detalhes. */}
                         <td
                           className="px-3 py-2 text-gray-500 dark:text-gray-400 tabular-nums truncate max-w-[140px]"
                           title={titulo.lotes.map((lote) => lote.codigoLote).join(', ') || undefined}
@@ -933,7 +710,7 @@ const TitulosList: React.FC<Props> = ({
                           </div>
                         </td>
                         {podeEditar && (
-                          <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                          <td className="px-3 py-2">
                             <div className="flex items-center gap-1">
                               <button
                                 type="button"
@@ -966,309 +743,6 @@ const TitulosList: React.FC<Props> = ({
                           </td>
                         )}
                       </tr>
-
-                      {aberto && (
-                        <tr className="bg-gray-50/70 dark:bg-gray-700/20">
-                          <td colSpan={podeEditar ? 16 : 15} className="px-6 py-3">
-                            {titulo.observacoes && (
-                              <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
-                                {titulo.observacoes}
-                              </p>
-                            )}
-
-                            {/* Issue 39: histórico de baixas — cada lançamento de
-                                `recebimentos`, não só o total agregado da coluna Recebido. */}
-                            <div className="mb-3">
-                              <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                                Baixas registradas
-                              </p>
-                              {carregandoBaixas[titulo.id] && !baixas[titulo.id] ? (
-                                <p className="text-xs text-gray-400">Carregando baixas…</p>
-                              ) : erroBaixas[titulo.id] ? (
-                                <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-                                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                  {erroBaixas[titulo.id]}
-                                </p>
-                              ) : (baixas[titulo.id]?.length ?? 0) === 0 ? (
-                                <p className="text-xs text-gray-400">Nenhuma baixa registrada.</p>
-                              ) : (
-                                <table className="w-full text-xs">
-                                  <thead>
-                                    <tr className="text-left text-gray-400">
-                                      <th className="py-1">Data</th>
-                                      <th className="py-1 text-right">Valor</th>
-                                      <th className="py-1">Registrado por</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {baixas[titulo.id]?.map((baixa) => (
-                                      <tr key={baixa.id} className="text-gray-600 dark:text-gray-300">
-                                        <td className="py-1">{formatData(baixa.dataReceb)}</td>
-                                        <td className="py-1 text-right tabular-nums text-emerald-600 dark:text-emerald-400">
-                                          {formatCurrency(baixa.valorRecebido)}
-                                        </td>
-                                        <td className="py-1">{baixa.registradoPorNome ?? '—'}</td>
-                                      </tr>
-                                    ))}
-                                  </tbody>
-                                </table>
-                              )}
-                            </div>
-
-                            {/* Glosas do apLIS que compõem Glosado, Glosa recebida e
-                                Glosa acatada da linha, uma por requisição. */}
-                            {(erroGlosas[titulo.id] || (glosasTitulo[titulo.id]?.length ?? 0) > 0) && (
-                              <div className="mb-3">
-                                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                                  Glosas do apLIS
-                                </p>
-                                {erroGlosas[titulo.id] ? (
-                                  <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-                                    <AlertTriangle className="w-3.5 h-3.5" />
-                                    {erroGlosas[titulo.id]}
-                                  </p>
-                                ) : (
-                                  <table className="w-full max-w-4xl text-xs">
-                                    <thead>
-                                      <tr className="text-left text-gray-400">
-                                        <th className="py-1">Requisição</th>
-                                        <th className="py-1 pl-3">Motivo</th>
-                                        <th className="py-1 text-right">Glosado</th>
-                                        <th className="py-1 pl-3">Classificação</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {glosasTitulo[titulo.id]?.map((glosa) => (
-                                        <tr key={glosa.idRequisicao} className="text-gray-600 dark:text-gray-300 align-top">
-                                          <td className="py-1 pr-3">
-                                            <div className="tabular-nums whitespace-nowrap">
-                                              {glosa.codRequisicao ?? glosa.idRequisicao}
-                                              <span className="text-gray-400"> · lote {glosa.idLoteFaturamento}</span>
-                                            </div>
-                                            {(glosa.numGuia || glosa.paciente) && (
-                                              <div className="text-gray-400 truncate max-w-[16rem]">
-                                                {[glosa.numGuia && `guia ${glosa.numGuia}`, glosa.paciente].filter(Boolean).join(' · ')}
-                                              </div>
-                                            )}
-                                          </td>
-                                          <td className="py-1 pl-3 pr-3"><ListaResumida itens={glosa.motivos} /></td>
-                                          <td className="py-1 text-right tabular-nums text-amber-600 dark:text-amber-400 whitespace-nowrap">
-                                            {glosa.valorGlosado === null ? '—' : formatCurrency(glosa.valorGlosado)}
-                                          </td>
-                                          <td className="py-1 pl-3 whitespace-nowrap" title={rotuloStatusAplis(glosa.statusAplis)}>
-                                            {glosa.status ? (
-                                              <span className={`px-2 py-0.5 rounded-full ${STATUS_GLOSA_DASHBOARD[glosa.status].cor}`}>
-                                                {STATUS_GLOSA_DASHBOARD[glosa.status].label}
-                                              </span>
-                                            ) : (
-                                              <span className="text-gray-400">{rotuloStatusAplis(glosa.statusAplis)}</span>
-                                            )}
-                                            {glosa.glosaAcatada !== null && (
-                                              <span
-                                                className="ml-2 tabular-nums text-rose-600 dark:text-rose-400"
-                                                title="Glosa acatada: sai do saldo do título"
-                                              >
-                                                acatada {formatCurrency(glosa.glosaAcatada)}
-                                              </span>
-                                            )}
-                                          </td>
-                                        </tr>
-                                      ))}
-                                    </tbody>
-                                  </table>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Correções de baixas/glosas pelo "Editar título" — só
-                                aparece quando houve alguma (ou quando a busca falhou). */}
-                            {(erroAlteracoes[titulo.id] || (alteracoes[titulo.id]?.length ?? 0) > 0) && (
-                              <div className="mb-3">
-                                <p className="mb-1 text-xs font-medium text-gray-500 dark:text-gray-400">
-                                  Alterações
-                                </p>
-                                {erroAlteracoes[titulo.id] ? (
-                                  <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-                                    <AlertTriangle className="w-3.5 h-3.5" />
-                                    {erroAlteracoes[titulo.id]}
-                                  </p>
-                                ) : (
-                                  <table className="w-full max-w-3xl text-xs">
-                                    <thead>
-                                      <tr className="text-left text-gray-400">
-                                        <th className="py-1">Quando</th>
-                                        <th className="py-1">O quê</th>
-                                        <th className="py-1">De → para</th>
-                                        <th className="py-1">Motivo</th>
-                                        <th className="py-1">Por</th>
-                                      </tr>
-                                    </thead>
-                                    <tbody>
-                                      {alteracoes[titulo.id]?.map((alteracao) => {
-                                        const { oQue, de, para } = descreverAlteracao(alteracao);
-                                        return (
-                                          <tr key={alteracao.id} className="text-gray-600 dark:text-gray-300 align-top">
-                                            <td className="py-1 pr-3 whitespace-nowrap">{formatDataHora(alteracao.feitoEm)}</td>
-                                            <td className="py-1 pr-3 whitespace-nowrap">{oQue}</td>
-                                            <td className="py-1 pr-3 tabular-nums">{de} → {para}</td>
-                                            <td className="py-1 pr-3">{alteracao.motivo}</td>
-                                            <td className="py-1 whitespace-nowrap">{alteracao.feitoPorNome}</td>
-                                          </tr>
-                                        );
-                                      })}
-                                    </tbody>
-                                  </table>
-                                )}
-                              </div>
-                            )}
-
-                            <div className="space-y-1">
-                              {titulo.lotes.length === 0 ? (
-                                <p className="text-xs text-gray-400">Título sem lotes vinculados.</p>
-                              ) : (
-                                titulo.lotes.map((lote) => {
-                                  // Issue 46: bloqueio espelha as regras de fat_desvincular_lote
-                                  // (20260904100000_fat_desvincular_lote.sql) — cancelado, baixa já
-                                  // registrada ou único lote do título — só para desabilitar o botão
-                                  // de antemão. Se as duas regras divergirem (RPC mudar sem atualizar
-                                  // aqui), a RPC continua a autoridade: confirmarDesvincular exibe o
-                                  // erro dela via setErroDesvincular quando o servidor rejeita algo
-                                  // que o client achou permitido.
-                                  //
-                                  // "Baixa registrada" usa a lista de `baixas` (Issue 39), não
-                                  // `titulo.valorRecebido > 0` — uma baixa de glosa integral zera
-                                  // valorRecebido mas ainda é uma baixa registrada (mesma lacuna já
-                                  // corrigida na RPC). Enquanto a lista não carregou/falhou, trata
-                                  // como "tem baixa" (fail-safe) até confirmar que está vazia.
-                                  const baixasDoTitulo = baixas[titulo.id];
-                                  const bloqueioDesvinculo = titulo.status === 'cancelada'
-                                    ? 'Título cancelado não aceita edição de lotes.'
-                                    : baixasDoTitulo === undefined
-                                    ? 'Verificando baixas do título…'
-                                    : baixasDoTitulo.length > 0
-                                    ? 'Título já tem baixa registrada — não é possível alterar os lotes.'
-                                    : titulo.lotes.length <= 1
-                                    ? 'Não é possível remover o único lote do título.'
-                                    : null;
-                                  return (
-                                  <div key={lote.id} className="rounded-lg bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700">
-                                    <div
-                                      role="button"
-                                      tabIndex={0}
-                                      onClick={() => void abrirLote(lote.id)}
-                                      onKeyDown={(e) => {
-                                        // Ignora keydown que borbulhou do botão "Desvincular" aninhado
-                                        // (e.target !== e.currentTarget) — sem isto, Enter/Espaço nesse
-                                        // botão também disparava abrirLote() por cima da própria ação.
-                                        if (e.target !== e.currentTarget) return;
-                                        if (e.key === 'Enter' || e.key === ' ') {
-                                          e.preventDefault();
-                                          void abrirLote(lote.id);
-                                        }
-                                      }}
-                                      className="w-full flex items-center gap-3 px-3 py-2 text-left text-xs cursor-pointer"
-                                    >
-                                      {loteAberto === lote.id
-                                        ? <ChevronDown className="w-3.5 h-3.5 text-gray-400" />
-                                        : <ChevronRight className="w-3.5 h-3.5 text-gray-400" />}
-                                      <span className="font-medium text-gray-800 dark:text-gray-100">
-                                        Lote {lote.codigoLote}
-                                      </span>
-                                      {lote.protocolo && (
-                                        <span className="text-gray-400">protocolo {lote.protocolo}</span>
-                                      )}
-                                      {lote.statusLabel && (
-                                        <span className="text-gray-400">{lote.statusLabel}</span>
-                                      )}
-                                      <span className="text-gray-400">
-                                        envio {formatData(dataEnvioEfetiva(lote, enviosPorTitulo[titulo.id] ?? null))}
-                                      </span>
-                                      <span className="ml-auto text-gray-500 dark:text-gray-400 tabular-nums">
-                                        {lote.qtdRequisicoes} guias · {formatCurrency(lote.valorTotal)}
-                                      </span>
-                                      {podeEditar && (
-                                        <button
-                                          type="button"
-                                          onClick={(e) => { e.stopPropagation(); abrirDesvincular(titulo.id, lote); }}
-                                          disabled={Boolean(bloqueioDesvinculo)}
-                                          title={bloqueioDesvinculo ?? 'Desvincular lote'}
-                                          className="p-1 rounded text-gray-400 hover:text-rose-600 dark:hover:text-rose-400 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed"
-                                        >
-                                          <Unlink className="w-3.5 h-3.5" />
-                                        </button>
-                                      )}
-                                    </div>
-
-                                    {loteParaDesvincular?.tituloId === titulo.id && loteParaDesvincular.lote.id === lote.id && (
-                                      <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2">
-                                        <MotivoDesativacaoBox
-                                          pergunta={`Remover o lote ${lote.codigoLote} deste título? O valor total do título será recalculado.`}
-                                          motivo={motivoDesvincular}
-                                          onChangeMotivo={setMotivoDesvincular}
-                                          onCancelar={cancelarDesvincular}
-                                          onConfirmar={() => void confirmarDesvincular()}
-                                          confirmando={desvinculando}
-                                        />
-                                        {erroDesvincular && (
-                                          <p className="mt-1 text-xs text-red-600 dark:text-red-400">{erroDesvincular}</p>
-                                        )}
-                                      </div>
-                                    )}
-
-                                    {loteAberto === lote.id && (
-                                      <div className="border-t border-gray-100 dark:border-gray-700 px-3 py-2">
-                                        {carregandoGuias[lote.id] && !guias[lote.id] ? (
-                                          <p className="text-xs text-gray-400">Carregando guias…</p>
-                                        ) : erroGuias[lote.id] ? (
-                                          <p className="text-xs text-red-600 dark:text-red-400 flex items-center gap-1">
-                                            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                                            {erroGuias[lote.id]}
-                                          </p>
-                                        ) : (guias[lote.id]?.length ?? 0) === 0 ? (
-                                          <p className="text-xs text-gray-400">
-                                            Nenhuma guia congelada para este lote.
-                                          </p>
-                                        ) : (
-                                          <table className="w-full text-xs">
-                                            <thead>
-                                              <tr className="text-left text-gray-400">
-                                                <th className="py-1">Guia</th>
-                                                <th className="py-1">Requisição</th>
-                                                <th className="py-1">Paciente</th>
-                                                <th className="py-1">Procedimento</th>
-                                                <th className="py-1">Execução</th>
-                                                <th className="py-1 text-right">Valor</th>
-                                              </tr>
-                                            </thead>
-                                            <tbody>
-                                              {guias[lote.id]?.map((guia) => (
-                                                <tr key={guia.id} className="text-gray-600 dark:text-gray-300">
-                                                  <td className="py-1">{guia.numeroGuia}</td>
-                                                  <td className="py-1">
-                                                    {guia.codigoRequisicao ?? (
-                                                      <span className="text-gray-400 italic">indisponível</span>
-                                                    )}
-                                                  </td>
-                                                  <td className="py-1 truncate max-w-[180px]">{guia.pacienteNome ?? '—'}</td>
-                                                  <td className="py-1 truncate max-w-[220px]">{guia.procedimentoDescricao ?? '—'}</td>
-                                                  <td className="py-1 tabular-nums">{formatData(guia.dataExecucao)}</td>
-                                                  <td className="py-1 text-right tabular-nums">{formatCurrency(guia.valor)}</td>
-                                                </tr>
-                                              ))}
-                                            </tbody>
-                                          </table>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                  );
-                                })
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -1301,6 +775,27 @@ const TitulosList: React.FC<Props> = ({
             </button>
           </div>
         </div>
+      )}
+
+      {tituloAberto && (
+        <TituloPainelLateral
+          key={tituloAberto.id}
+          titulo={tituloAberto}
+          divergencia={divergencias?.get(tituloAberto.id)}
+          nfAposPagamento={Boolean(nfAposPagamentoPorOperadora.get(tituloAberto.operadoraId))}
+          podeEditar={podeEditar}
+          camadaSobreposta={camadaSobreposta}
+          onFechar={fecharPainel}
+          onBaixa={onBaixa}
+          onCancelar={onCancelar}
+          onEditar={onEditar}
+          onDesvincularLote={onDesvincularLote}
+          buscarGuias={buscarGuias}
+          buscarEnvioLotes={buscarEnvioLotes}
+          buscarBaixas={buscarBaixas}
+          buscarGlosasAplis={buscarGlosasAplis}
+          buscarAlteracoes={buscarAlteracoes}
+        />
       )}
     </div>
   );
