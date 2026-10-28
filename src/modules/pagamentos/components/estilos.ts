@@ -18,24 +18,28 @@ export const ROTULO = 'block text-sm font-medium text-gray-700 dark:text-gray-30
 
 /**
  * Fundo dos modais. No celular, o painel sobe do rodapé como uma folha; do sm em diante,
- * fica centralizado. O próprio fundo é quem rola: os menus do Select e do MultiSelect não
- * usam portal e seriam cortados por um painel com rolagem própria. O cabeçalho e o rodapé
- * do painel ficam presos com sticky.
+ * fica centralizado. O painel não passa da altura da tela e só o miolo (CORPO_MODAL) rola:
+ * cabeçalho e rodapé ficam fora da área que rola, e o conteúdo não passa por trás deles.
+ * Os menus do Select e do MultiSelect (sem portal) abrem para cima quando falta espaço no
+ * miolo (limitesDoContainer, em selectPainel.ts).
+ * Os avisos (Notification) ficam acima: portal com z-[70].
  */
 export const FUNDO_MODAL =
-  'fixed inset-0 z-50 flex flex-col overflow-y-auto overscroll-contain bg-black/50 backdrop-blur-sm animate-fade-in pt-[max(1.5rem,env(safe-area-inset-top))] sm:items-center sm:p-4';
+  'fixed inset-0 z-50 flex flex-col justify-end sm:items-center sm:justify-center bg-black/50 backdrop-blur-sm animate-fade-in pt-[max(1.5rem,env(safe-area-inset-top))] sm:p-6';
 
-/** Painel do modal (a largura máxima e a margem vertical do desktop vêm de cada modal). */
+/** Painel do modal (a largura máxima do desktop vem de cada modal). */
 export const PAINEL_MODAL =
-  'mt-auto w-full bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border border-gray-100 dark:border-gray-700 animate-slide-up sm:animate-scale-in';
+  'flex flex-col w-full max-h-full bg-white dark:bg-gray-800 rounded-t-3xl sm:rounded-2xl shadow-2xl border-t sm:border border-gray-100 dark:border-gray-700 animate-slide-up sm:animate-scale-in';
 
-/** Cabeçalho preso no topo do painel enquanto o fundo rola. */
-export const CABECALHO_MODAL =
-  'sticky top-0 z-10 bg-white/95 dark:bg-gray-800/95 backdrop-blur rounded-t-3xl sm:rounded-t-2xl border-b border-gray-100 dark:border-gray-700';
+/** Cabeçalho do painel: não rola. */
+export const CABECALHO_MODAL = 'flex-none border-b border-gray-100 dark:border-gray-700';
 
-/** Rodapé preso embaixo, com o respiro da barra do iPhone. */
+/** Miolo do painel: a única parte que rola. */
+export const CORPO_MODAL = 'min-h-0 flex-auto overflow-y-auto overscroll-contain';
+
+/** Rodapé do painel: não rola; com o respiro da barra do iPhone. */
 export const RODAPE_MODAL =
-  'sticky bottom-0 z-10 bg-gray-50/95 dark:bg-gray-900/95 backdrop-blur border-t border-gray-100 dark:border-gray-700 sm:rounded-b-2xl px-4 sm:px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-4';
+  'flex-none bg-gray-50 dark:bg-gray-900/60 border-t border-gray-100 dark:border-gray-700 sm:rounded-b-2xl px-4 sm:px-6 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:py-4';
 
 /** Alça da folha no celular (só visual). */
 export const ALCA_MODAL = 'sm:hidden mx-auto mt-2.5 mb-1 h-1.5 w-10 rounded-full bg-gray-300 dark:bg-gray-600';

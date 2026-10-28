@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-react';
 
 export type NotificationType = 'success' | 'error' | 'warning' | 'info';
@@ -60,9 +61,15 @@ const Notification: React.FC<NotificationProps> = ({
     }
   };
 
-  return (
-    <div className="fixed top-4 right-4 z-50 animate-slide-in-right">
-      <div className={`max-w-md w-full border rounded-xl shadow-lg p-4 backdrop-blur-sm ${getStyles()}`}>
+  // Portal no body, acima dos modais (z-50): o app tem isolation: isolate, e um aviso
+  // desenhado dentro dele ficava atrás de qualquer modal em portal, mesmo com z-index maior.
+  // No celular ocupa a largura da tela, abaixo do entalhe; do sm em diante, no canto.
+  return createPortal(
+    <div
+      role={type === 'error' || type === 'warning' ? 'alert' : 'status'}
+      className="fixed z-[70] top-[max(1rem,env(safe-area-inset-top))] inset-x-4 sm:inset-x-auto sm:right-4 sm:w-[28rem] animate-slide-in-right"
+    >
+      <div className={`w-full border rounded-xl shadow-lg p-4 backdrop-blur-sm ${getStyles()}`}>
         <div className="flex items-start">
           <div className="flex-shrink-0 animate-bounce-in">
             {getIcon()}
@@ -75,15 +82,18 @@ const Notification: React.FC<NotificationProps> = ({
           </div>
           <div className="ml-4 flex-shrink-0">
             <button
+              type="button"
               onClick={onClose}
-              className="inline-flex text-gray-400 hover:text-gray-600 focus:outline-none transition-colors hover:rotate-90 transform duration-200"
+              aria-label="Fechar aviso"
+              className="-m-2 inline-flex items-center justify-center p-2 text-gray-400 hover:text-gray-600 focus:outline-none transition-colors hover:rotate-90 transform duration-200"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 };
 

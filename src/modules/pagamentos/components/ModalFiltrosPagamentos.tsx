@@ -8,7 +8,7 @@ import Switch from '../../../components/Switch';
 import { PAYMENT_METHOD_LABELS, PAYMENT_TYPE_LABELS } from '../../../utils/paymentUtils';
 import { FORMAS, TIPOS, type FiltrosPagamentos, type OpcoesRecortes, type OrdemPedidos, type PeriodoPagamento } from '../domain/filtrosPagamentos';
 import { useTravarRolagem } from '../hooks/useTravarRolagem';
-import { ALCA_MODAL, CABECALHO_MODAL, CAMPO, FUNDO_MODAL, PAINEL_MODAL, RODAPE_MODAL, ROTULO } from './estilos';
+import { ALCA_MODAL, CABECALHO_MODAL, CAMPO, CORPO_MODAL, FUNDO_MODAL, PAINEL_MODAL, RODAPE_MODAL, ROTULO } from './estilos';
 
 // Os recortes que não cabem na barra. Aplica na hora (a lista é filtrada no navegador, sem ida
 // ao banco), e o botão do rodapé mostra quantos pedidos sobram. Vai num portal: dentro do
@@ -80,7 +80,7 @@ const ModalFiltrosPagamentos: React.FC<Props> = ({
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-filtros-pagamentos"
-        className={`${PAINEL_MODAL} sm:max-w-2xl sm:my-auto`}
+        className={`${PAINEL_MODAL} sm:max-w-2xl`}
       >
         <div className={CABECALHO_MODAL}>
           <div className={ALCA_MODAL} />
@@ -109,7 +109,7 @@ const ModalFiltrosPagamentos: React.FC<Props> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-4 sm:px-6 py-5">
+        <div className={`${CORPO_MODAL} grid grid-cols-1 sm:grid-cols-2 content-start gap-4 px-4 sm:px-6 py-5`}>
           {/* Celular: a data e a ordem moram aqui (na barra só cabem a busca e este botão). */}
           <div className="sm:hidden space-y-4 pb-4 border-b border-gray-100 dark:border-gray-700">
             <div>

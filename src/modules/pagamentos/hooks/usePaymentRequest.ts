@@ -14,6 +14,7 @@ import {
 } from '../../../utils/paymentUtils';
 import { useDataCache, DEFAULT_STALE_TIME } from '../../../hooks/useDataCache';
 import { notificarPagamento } from '../notificarPagamento';
+import { mensagemDoErro } from '../domain/mensagemDoErro';
 
 const CACHE_KEY = 'payment:requests';
 
@@ -233,10 +234,7 @@ export const usePaymentRequest = () => {
       };
     } catch (err) {
       console.error('Erro ao criar pedido:', err);
-      return {
-        success: false,
-        error: err instanceof Error ? err.message : 'Erro ao criar pedido de pagamento'
-      };
+      return { success: false, error: mensagemDoErro(err, 'Erro ao criar pedido de pagamento') };
     }
   };
 

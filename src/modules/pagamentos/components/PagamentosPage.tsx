@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Plus } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../../hooks/useAuth';
@@ -285,20 +284,18 @@ const PagamentosPage: React.FC = () => {
       </div>
 
       {/* Celular: "Nova solicitação" flutua no canto, ao alcance do polegar. Some com a
-          barra de lote, que ocupa o mesmo lugar. */}
-      {!comSelecao &&
-        !novoAberto &&
-        createPortal(
-          <button
-            type="button"
-            onClick={() => setNovoAberto(true)}
-            className="sm:hidden fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 inline-flex items-center gap-2 h-14 pl-4 pr-5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold shadow-xl shadow-blue-600/30 ring-1 ring-white/20 active:scale-95 transition-transform animate-fade-in-up"
-          >
-            <Plus className="w-5 h-5" />
-            Nova solicitação
-          </button>,
-          document.body,
-        )}
+          barra de lote, que ocupa o mesmo lugar. Sem portal: fica dentro do app, e as caixas
+          de confirmação (ConfirmDialog, InputDialog) e o visualizador de imagem passam por cima. */}
+      {!comSelecao && !novoAberto && (
+        <button
+          type="button"
+          onClick={() => setNovoAberto(true)}
+          className="sm:hidden fixed right-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-30 inline-flex items-center gap-2 h-14 pl-4 pr-5 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-500 text-white font-semibold shadow-xl shadow-blue-600/30 ring-1 ring-white/20 active:scale-95 transition-transform animate-fade-in-up"
+        >
+          <Plus className="w-5 h-5" />
+          Nova solicitação
+        </button>
+      )}
 
       {novoAberto && (
         <NovoPedidoModal

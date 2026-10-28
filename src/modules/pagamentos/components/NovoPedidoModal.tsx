@@ -16,12 +16,12 @@ import { FORMAS, paraISO, rotuloDiaCurto, TIPOS } from '../domain/filtrosPagamen
 import { useContextoPagamento } from '../hooks/useContextoPagamento';
 import type { usePaymentRequest } from '../hooks/usePaymentRequest';
 import { useTravarRolagem } from '../hooks/useTravarRolagem';
-import { ALCA_MODAL, CABECALHO_MODAL, CAMPO, FUNDO_MODAL, PAINEL_MODAL, RODAPE_MODAL, ROTULO } from './estilos';
+import { ALCA_MODAL, CABECALHO_MODAL, CAMPO, CORPO_MODAL, FUNDO_MODAL, PAINEL_MODAL, RODAPE_MODAL, ROTULO } from './estilos';
 
 // Formulário do pedido num modal, em vez de abrir no meio da página empurrando a lista.
 // O aviso dos dias de pagamento mora aqui, o único lugar em que ele importa.
-// No celular é uma folha que sobe do rodapé, com o título e os botões presos enquanto o
-// formulário rola.
+// No celular é uma folha que sobe do rodapé; em qualquer tela, o título e os botões ficam
+// fora da área que rola. O erro do envio aparece também logo acima dos botões, sempre à vista.
 
 type Hook = ReturnType<typeof usePaymentRequest>;
 
@@ -58,6 +58,7 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
           ? 'sem_gestor'
           : null;
   const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
   const [dataSugerida, setDataSugerida] = useState(() => paraISO(getNextPaymentDate()));
   const [previas, setPrevias] = useState<(string | null)[]>([]);
   const campoArquivo = useRef<HTMLInputElement>(null);
@@ -143,11 +144,20 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
 
   const enviar = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.fornecedor || !form.valorTotal || !dataPagamento || !form.autorizadoPorId) {
+    setErro(null);
+    const faltando = [
+      !form.fornecedor && 'fornecedor',
+      !form.valorTotal && 'valor total',
+      !dataPagamento && 'data de pagamento',
+      !form.autorizadoPorId && 'quem autoriza',
+    ].filter(Boolean);
+    if (faltando.length) {
+      setErro(`Falta preencher: ${faltando.join(', ')}.`);
       avisos.showError('Campos obrigatórios', 'Preencha todos os campos obrigatórios.');
       return;
     }
     if (form.cpfCnpj && !validateCpfCnpj(form.cpfCnpj)) {
+      setErro('CPF/CNPJ inválido: digite um CPF (11 dígitos) ou CNPJ (14 dígitos).');
       avisos.showError('CPF/CNPJ inválido', 'Digite um CPF (11 dígitos) ou CNPJ (14 dígitos) válido.');
       return;
     }
@@ -160,15 +170,18 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
         onFechar();
       } else if (resultado.suggestedDate) {
         setDataSugerida(paraISO(resultado.suggestedDate));
+        setErro(`${resultado.message} Sugestão: ${rotuloDiaCurto(paraISO(resultado.suggestedDate))}.`);
         avisos.showWarning(
           'Data de pagamento inválida',
           `${resultado.message} Sugestão: ${rotuloDiaCurto(paraISO(resultado.suggestedDate))}.`,
         );
       } else {
+        setErro(resultado.error || resultado.message || 'Não foi possível criar o pedido.');
         avisos.showError('Erro ao criar pedido', resultado.error || resultado.message);
       }
-    } catch (erro) {
-      console.error('Erro ao criar pedido:', erro);
+    } catch (falha) {
+      console.error('Erro ao criar pedido:', falha);
+      setErro('Ocorreu um erro ao criar o pedido. Tente novamente.');
       avisos.showError('Erro', 'Ocorreu um erro ao criar o pedido. Tente novamente.');
     } finally {
       setEnviando(false);
@@ -183,7 +196,7 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
         role="dialog"
         aria-modal="true"
         aria-labelledby="titulo-novo-pedido"
-        className={`${PAINEL_MODAL} sm:max-w-3xl sm:my-8`}
+        className={`${PAINEL_MODAL} sm:max-w-3xl`}
       >
         <div className={CABECALHO_MODAL}>
           <div className={ALCA_MODAL} />
@@ -208,8 +221,8 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
           </div>
         </div>
 
-        <form onSubmit={enviar}>
-          <div className="px-4 sm:px-6 py-5 space-y-5">
+        <form onSubmit={enviar} className="flex min-h-0 flex-auto flex-col">
+          <div className={`${CORPO_MODAL} px-4 sm:px-6 py-5 space-y-5`}>
             {bloqueio && (
               <p role="alert" className="px-4 py-3 rounded-xl text-sm bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
                 {bloqueio === 'sem_departamento'
@@ -446,32 +459,43 @@ const NovoPedidoModal: React.FC<Props> = ({ onFechar, createPedido, getNextPayme
             </div>
           </div>
 
-          <div className={`${RODAPE_MODAL} flex sm:justify-end gap-3`}>
-            <button
-              type="button"
-              onClick={onFechar}
-              disabled={enviando}
-              className="flex-1 sm:flex-none px-5 h-11 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-[0.98] transition-all duration-200 font-medium disabled:opacity-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={enviando || carregandoContexto || !!bloqueio || !!erroContexto}
-              className="flex-[2] sm:flex-none px-6 h-11 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-medium shadow-md shadow-blue-500/25"
-            >
-              {enviando ? (
-                <>
-                  <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
-                  Criando…
-                </>
-              ) : (
-                <>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Criar solicitação
-                </>
-              )}
-            </button>
+          <div className={RODAPE_MODAL}>
+            {erro && (
+              <p
+                role="alert"
+                className="mb-3 flex items-start gap-2 px-3 py-2 rounded-xl text-sm bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300"
+              >
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                {erro}
+              </p>
+            )}
+            <div className="flex sm:justify-end gap-3">
+              <button
+                type="button"
+                onClick={onFechar}
+                disabled={enviando}
+                className="flex-1 sm:flex-none px-5 h-11 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-xl hover:bg-gray-200 dark:hover:bg-gray-600 active:scale-[0.98] transition-all duration-200 font-medium disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={enviando || carregandoContexto || !!bloqueio || !!erroContexto}
+                className="flex-[2] sm:flex-none px-6 h-11 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 active:scale-[0.98] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center font-medium shadow-md shadow-blue-500/25"
+              >
+                {enviando ? (
+                  <>
+                    <span className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2" />
+                    Criando…
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 mr-2" />
+                    Criar solicitação
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </form>
       </div>
