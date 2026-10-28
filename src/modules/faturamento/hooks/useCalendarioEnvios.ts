@@ -36,6 +36,7 @@ export function useCalendarioEnvios(mes: string | null) {
         regras: body.regras ?? [],
         feriados: body.feriados ?? [],
         agendamentos: body.agendamentos ?? [],
+        atrasados: body.atrasados ?? [],
       });
     } catch (err) {
       if (reqId !== buscaAtual.current) return;
@@ -54,6 +55,44 @@ export function useCalendarioEnvios(mes: string | null) {
   return { calendario, loading, error, refetch };
 }
 
+/** Avisa o contador do menu de que o calendário mudou (marcou, desmarcou, reagendou…). */
+export const EVENTO_CALENDARIO_ALTERADO = 'calendario-envios:alterado';
+
+/**
+ * Total do bloco Atrasados, para o contador do menu (GET leve: não lê o backup).
+ * `ativo` falso (sem permissão de ver o Calendário) não consulta e devolve 0. Atualiza
+ * quando `recarregarEm` muda (a rota, no menu) e quando o Calendário avisa que mudou.
+ */
+export function useContadorAtrasados(ativo: boolean, recarregarEm: string): number {
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    if (!ativo) {
+      setTotal(0);
+      return;
+    }
+    let cancelado = false;
+    const buscar = () => {
+      chamarLegadoApi<{ success?: boolean; error?: string; atrasados?: number }>(
+        'calendario-envios',
+        new URLSearchParams({ contador: 'atrasados' }),
+        'Não foi possível contar os envios atrasados.',
+      )
+        .then((body) => { if (!cancelado) setTotal(body.atrasados ?? 0); })
+        // O contador é um aviso: se falhar, o menu só fica sem ele.
+        .catch((err) => console.warn('[calendario-envios] contador:', err));
+    };
+    buscar();
+    window.addEventListener(EVENTO_CALENDARIO_ALTERADO, buscar);
+    return () => {
+      cancelado = true;
+      window.removeEventListener(EVENTO_CALENDARIO_ALTERADO, buscar);
+    };
+  }, [ativo, recarregarEm]);
+
+  return total;
+}
+
 /** POST de quem gere o Calendário. Lança com a mensagem da rota. */
 async function postarCalendario(corpo: Record<string, unknown>, mensagemErro: string): Promise<AgendamentoEnvio> {
   const token = await getTokenLegado();
@@ -68,6 +107,7 @@ async function postarCalendario(corpo: Record<string, unknown>, mensagemErro: st
   if (!res.ok || !body.success || !body.agendamento) {
     throw new Error(body.error || mensagemErro);
   }
+  window.dispatchEvent(new Event(EVENTO_CALENDARIO_ALTERADO));
   return body.agendamento;
 }
 
@@ -84,4 +124,9 @@ export function desmarcarEnvio(id: string): Promise<AgendamentoEnvio> {
 /** Agendamento avulso da regra no dia, origem "manual" (canManageCalendarioEnvios). */
 export function criarAgendamentoAvulso(regraId: string, dataPrevista: string): Promise<AgendamentoEnvio> {
   return postarCalendario({ acao: 'criar', regraId, dataPrevista }, 'Não foi possível criar o agendamento.');
+}
+
+/** Move para outro dia útil; fica "editado" (canManageCalendarioEnvios). */
+export function reagendarAgendamento(id: string, dataPrevista: string): Promise<AgendamentoEnvio> {
+  return postarCalendario({ acao: 'reagendar', id, dataPrevista }, 'Não foi possível reagendar.');
 }

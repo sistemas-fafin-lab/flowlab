@@ -59,11 +59,13 @@ import { useAuth } from '../hooks/useAuth';
 import { hasPermission } from '../utils/permissions';
 import { GERADOR_ORCAMENTO_PATH } from '../modules/gerador-orcamento/constants';
 import { chavesQueAbremTela, primeiraTelaPermitida } from '../modules/faturamento/utils/permissoesTelas';
+import { useContadorAtrasados } from '../modules/faturamento/hooks/useCalendarioEnvios';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { useTheme } from '../hooks/useTheme';
 import { supabase } from '../lib/supabase';
 import { CollapsedFlyoutMenu } from './CollapsedFlyoutMenu';
+import { ContadorMenu } from './ContadorMenu';
 import { useBoardAccess } from '../modules/board/hooks/useBoardAccess';
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -94,6 +96,8 @@ interface NavigationItem {
   matchNested?: boolean;
   /** Pílula ao lado do nome do subitem (ex.: "EVA" no Início de TI). */
   badge?: string;
+  /** Contador vermelho ao lado do nome do subitem (ex.: envios atrasados); some quando zero. */
+  contador?: number;
   category?: string;
   subItems?: NavigationItem[];
 }
@@ -513,6 +517,9 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const entradaEva = canManageIT || canApproveAgenteTI ? '/it/eva' : '/it/eva/configuracoes';
   // Faturamento (ADR 0001): o item abre na primeira tela que o usuário pode ver.
   const entradaFaturamento = primeiraTelaPermitida(userPermissions);
+  // Contador do item "Calendário de envios": atualiza a cada troca de rota e quando o Calendário muda.
+  const podeVerCalendarioEnvios = chavesQueAbremTela('calendarioEnvios').some((p) => hasPermission(userPermissions, p));
+  const enviosAtrasados = useContadorAtrasados(podeVerCalendarioEnvios, location.pathname);
 
   // ─── Persist collapsed state ────────────────────────────────────────────────
   const toggleCollapsed = useCallback(() => {
@@ -646,7 +653,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
           { name: 'Contas a Receber', href: '/faturamento/recebimentos', icon: DollarSign, anyOf: chavesQueAbremTela('contasReceber') },
           { name: 'Glosas e Recursos', href: '/faturamento/glosas', icon: AlertCircle, anyOf: chavesQueAbremTela('glosas') },
           { name: 'Indicadores', href: '/faturamento/indicadores', icon: BarChart3, anyOf: chavesQueAbremTela('indicadores') },
-          { name: 'Calendário de envios', href: '/faturamento/calendario', icon: CalendarCheck, anyOf: chavesQueAbremTela('calendarioEnvios') },
+          { name: 'Calendário de envios', href: '/faturamento/calendario', icon: CalendarCheck, anyOf: chavesQueAbremTela('calendarioEnvios'), contador: enviosAtrasados },
         ],
       },
       {
@@ -760,7 +767,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ],
       },
     ],
-    [boardAccess, canManageIT, canApproveAgenteTI, canConfigureAgenteTI, entradaEva, entradaFaturamento]
+    [boardAccess, canManageIT, canApproveAgenteTI, canConfigureAgenteTI, entradaEva, entradaFaturamento, enviosAtrasados]
   );
 
   // ─── Navigation helpers ─────────────────────────────────────────────────────
@@ -944,6 +951,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                             {subItem.badge}
                           </span>
                         )}
+                        {!!subItem.contador && <ContadorMenu valor={subItem.contador} rotulo="atrasados" />}
                       </span>
                     </Link>
                   </motion.div>

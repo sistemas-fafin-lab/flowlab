@@ -81,3 +81,91 @@ export function janelaDaData(data: string, janelas: readonly JanelaEnvio[], feri
   const indice = janelas.findIndex((janela) => janelaContem(janela, data, feriados));
   return indice === -1 ? null : indice;
 }
+
+/** Último dia do mês de `data`. */
+export function fimDoMes(data: string): string {
+  return somarDias(`${somarDias(`${data.slice(0, 7)}-28`, 4).slice(0, 7)}-01`, -1);
+}
+
+/**
+ * Os dias em que a janela termina no mês de `data` (dias fixos terminam em cada dia),
+ * ou null para as janelas sem fim: "todos os dias" e "calendário do convênio".
+ */
+function finsDaJanela(janela: JanelaEnvio, data: string, feriados: readonly string[]): string[] | null {
+  switch (janela.tipo) {
+    case 'dias_corridos': {
+      const ate = `${data.slice(0, 7)}-${String(janela.ate).padStart(2, '0')}`;
+      const fim = fimDoMes(data);
+      return [ate < fim ? ate : fim];
+    }
+    case 'dias_uteis': {
+      const uteis = diasUteisDoMes(data, feriados);
+      return [uteis[Math.min(janela.ate, uteis.length) - 1]];
+    }
+    case 'dias_fixos':
+      return janela.dias.map((dia) => diaFixoAjustado(data, dia, feriados));
+    case 'ultimo_dia_util':
+      return [diasUteisDoMes(data, feriados).at(-1) as string];
+    case 'todos_os_dias':
+    case 'calendario_convenio':
+      return null;
+  }
+}
+
+/**
+ * O último dia para enviar o agendamento sem estourar a janela, ou null quando não há
+ * prazo. Dentro de uma janela, o fim dela; fora de todas, o fim da próxima janela do
+ * mês; depois de todas, o próprio dia previsto.
+ */
+function prazoDoAgendamento(dataPrevista: string, janelas: readonly JanelaEnvio[], feriados: readonly string[]): string | null {
+  const indice = janelaDaData(dataPrevista, janelas, feriados);
+  const candidatas = indice === null ? janelas : [janelas[indice]];
+  const fins: string[] = [];
+  for (const janela of candidatas) {
+    const daJanela = finsDaJanela(janela, dataPrevista, feriados);
+    if (!daJanela) return null;
+    fins.push(...daJanela.filter((fim) => fim >= dataPrevista));
+  }
+  return fins.length > 0 ? fins.reduce((a, b) => (a < b ? a : b)) : dataPrevista;
+}
+
+/**
+ * A data prevista ou a de envio cai fora de todas as janelas da regra no mês do
+ * agendamento. Regras com "todos os dias" ou "calendário do convênio" nunca caem.
+ */
+function foraDaJanelaDoMes(
+  { dataPrevista, dataEnvio }: { dataPrevista: string; dataEnvio: string | null },
+  janelas: readonly JanelaEnvio[],
+  feriados: readonly string[],
+): boolean {
+  if (janelas.some((janela) => finsDaJanela(janela, dataPrevista, feriados) === null)) return false;
+  const datas = dataEnvio ? [dataPrevista, dataEnvio] : [dataPrevista];
+  return datas.some((data) => data.slice(0, 7) !== dataPrevista.slice(0, 7) || janelaDaData(data, janelas, feriados) === null);
+}
+
+/** Status de um Agendamento de envio (regras de status da spec). */
+export type StatusAgendamento = 'pendente' | 'enviado' | 'atrasado' | 'fora_do_prazo';
+
+export interface ClassificacaoAgendamento {
+  status: StatusAgendamento;
+  /** Selo cinza, só informativo: a data prevista ou a de envio cai fora de todas as janelas no mês. */
+  foraDaJanela: boolean;
+}
+
+/**
+ * Classifica o agendamento em `hoje`. Os painéis, o bloco Atrasados e o contador do
+ * menu usam todos esta função; as telas não recalculam.
+ */
+export function classificarAgendamento(
+  agendamento: { dataPrevista: string; dataEnvio: string | null },
+  regra: { janelas: readonly JanelaEnvio[] },
+  feriados: readonly string[],
+  hoje: string,
+): ClassificacaoAgendamento {
+  const foraDaJanela = foraDaJanelaDoMes(agendamento, regra.janelas, feriados);
+  if (agendamento.dataEnvio) return { status: 'enviado', foraDaJanela };
+  const prazo = prazoDoAgendamento(agendamento.dataPrevista, regra.janelas, feriados);
+  if (prazo !== null && hoje > prazo) return { status: 'fora_do_prazo', foraDaJanela };
+  if (hoje > agendamento.dataPrevista) return { status: 'atrasado', foraDaJanela };
+  return { status: 'pendente', foraDaJanela };
+}

@@ -83,7 +83,7 @@ function paraAgendamento(linha: LinhaAgendamento): AgendamentoEnvio {
 }
 
 /** Todas as regras, ativas e desativadas: agendamentos antigos ainda apontam para as desativadas. */
-async function lerRegras(token: string): Promise<RegraEnvio[] | FalhaCalendario> {
+export async function lerRegras(token: string): Promise<RegraEnvio[] | FalhaCalendario> {
   const { data, error } = await getSupabaseUserClient(token)
     .from('fat_envio_regras')
     .select('id, convenio, membros, janelas, envios_sugeridos_mes, observacao, ativo')
@@ -114,6 +114,25 @@ export async function lerFeriados(token: string): Promise<FeriadoEnvio[] | Falha
     return falha(502, `Não foi possível consultar os feriados: ${error.message}`);
   }
   return data as FeriadoEnvio[];
+}
+
+/**
+ * Os agendamentos não enviados com data prevista antes de `hoje`, de qualquer mês: os
+ * candidatos ao bloco Atrasados e ao contador do menu (a classificação decide).
+ */
+export async function lerVencidos(token: string, hoje: string): Promise<AgendamentoEnvio[] | FalhaCalendario> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_envio_agendamentos')
+    .select(COLUNAS_AGENDAMENTO)
+    .is('data_envio', null)
+    .lt('data_prevista', hoje)
+    .order('data_prevista')
+    .order('criado_em');
+  if (error) {
+    console.error('[faturamento/calendario-envios] vencidos:', error.message);
+    return falha(502, `Não foi possível consultar os agendamentos atrasados: ${error.message}`);
+  }
+  return (data as LinhaAgendamento[]).map(paraAgendamento);
 }
 
 /**
@@ -174,6 +193,46 @@ export async function desmarcarEnviado(token: string, id: string): Promise<Agend
     return falha(502, `Não foi possível desmarcar o envio: ${error.message}`);
   }
   if (!data) return falha(409, 'Este agendamento não está marcado como enviado.');
+  return paraAgendamento(data as LinhaAgendamento);
+}
+
+/**
+ * Reagenda (move) o agendamento para `dataPrevista`, recalculando a janela; fora da
+ * janela é permitido, dia que não é útil, não. Fica "editado", para a sugestão não
+ * desfazer o ajuste. O histórico ("moveu") vem do trigger.
+ */
+export async function reagendar(token: string, id: string, dataPrevista: string): Promise<AgendamentoEnvio | FalhaCalendario> {
+  const supabase = getSupabaseUserClient(token);
+  const [{ data: atual, error: erroAtual }, feriados] = await Promise.all([
+    supabase.from('fat_envio_agendamentos').select('fat_envio_regras(janelas)').eq('id', id).maybeSingle(),
+    lerFeriados(token),
+  ]);
+  if (erroAtual) {
+    console.error('[faturamento/calendario-envios] reagendar:', erroAtual.message);
+    return falha(502, `Não foi possível consultar o agendamento: ${erroAtual.message}`);
+  }
+  if ('erro' in feriados) return feriados;
+  const linhaAtual = atual as unknown as { fat_envio_regras: Pick<LinhaRegra, 'janelas'> } | null;
+  if (!linhaAtual) return falha(404, 'Agendamento não encontrado.');
+
+  const datasFeriados = feriados.map((f) => f.data);
+  if (!ehDiaUtil(dataPrevista, datasFeriados)) return falha(400, 'A data escolhida não é dia útil.');
+
+  const { data, error } = await supabase
+    .from('fat_envio_agendamentos')
+    .update({
+      data_prevista: dataPrevista,
+      janela_indice: janelaDaData(dataPrevista, linhaAtual.fat_envio_regras.janelas, datasFeriados),
+      editado: true,
+    })
+    .eq('id', id)
+    .select(COLUNAS_AGENDAMENTO)
+    .maybeSingle();
+  if (error) {
+    console.error('[faturamento/calendario-envios] reagendar:', error.message);
+    return falha(502, `Não foi possível reagendar: ${error.message}`);
+  }
+  if (!data) return falha(404, 'Agendamento não encontrado.');
   return paraAgendamento(data as LinhaAgendamento);
 }
 

@@ -1,9 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   CalendarCheck,
+  CalendarClock,
   CalendarDays,
+  CalendarX,
   Check,
+  CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Loader2,
@@ -14,18 +18,21 @@ import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { desmarcarEnvio, useCalendarioEnvios } from '../hooks/useCalendarioEnvios';
-import type { AgendamentoEnvio, FeriadoEnvio, RegraEnvio } from '../types';
+import type { AgendamentoEnvio, FeriadoEnvio, RegraEnvio, StatusAgendamento } from '../types';
 import { formatData, formatDataHora } from '../utils/formato';
 import AgendamentoAvulsoModal from './AgendamentoAvulsoModal';
 import MarcarEnvioModal from './MarcarEnvioModal';
+import ReagendarEnvioModal from './ReagendarEnvioModal';
 
 // ============================================================================
 // COMPONENTE: CalendarioEnvios
 // Faturamento → Calendário de envios (.scratch/faturamento-calendario-envios/spec.md):
 // os painéis Hoje e Amanhã (o próximo dia útil, vindo do servidor) com os
 // Agendamentos de envio de cada dia, e a grade do mês de segunda a sexta com os
-// feriados destacados. Quem tem canManageCalendarioEnvios marca e desmarca o
-// envio (com a data) e cria agendamentos avulsos; os demais só veem.
+// feriados destacados, e o bloco Atrasados (de qualquer mês, até serem resolvidos).
+// O status de cada agendamento vem classificado do servidor; aqui só vira cor.
+// Quem tem canManageCalendarioEnvios marca e desmarca o envio (com a data),
+// reagenda os atrasados e cria agendamentos avulsos; os demais só veem.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700';
@@ -67,6 +74,50 @@ function semanasDoMes(mes: string): (string | null)[][] {
   return semanas;
 }
 
+/** Cor e nome de cada status: chip da grade, pílula dos painéis e legenda. */
+const ESTILO_STATUS: Record<StatusAgendamento, { nome: string; chip: string; pilula: string; amostra: string }> = {
+  pendente: {
+    nome: 'Pendente',
+    chip: 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800',
+    pilula: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
+    amostra: 'bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800',
+  },
+  enviado: {
+    nome: 'Enviado',
+    chip: 'bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800/60',
+    pilula: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
+    amostra: 'bg-green-100 border border-green-200 dark:bg-green-900/30 dark:border-green-800/60',
+  },
+  atrasado: {
+    nome: 'Atrasado',
+    chip: 'bg-yellow-100 text-yellow-900 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-700',
+    pilula: 'bg-yellow-100 text-yellow-900 dark:bg-yellow-900/40 dark:text-yellow-200',
+    amostra: 'bg-yellow-100 border border-yellow-300 dark:bg-yellow-900/30 dark:border-yellow-700',
+  },
+  fora_do_prazo: {
+    nome: 'Fora do prazo do convênio',
+    chip: 'bg-red-100 text-red-800 border border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
+    pilula: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+    amostra: 'bg-red-100 border border-red-300 dark:bg-red-900/30 dark:border-red-800',
+  },
+};
+
+const SeloForaDaJanela: React.FC = () => (
+  <span
+    title="A data prevista ou a de envio cai fora da janela da regra do convênio. Só informativo."
+    className="inline-flex items-center gap-1 px-1.5 py-px text-[10px] font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
+  >
+    <CalendarX className="w-3 h-3" />
+    fora da janela
+  </span>
+);
+
+/** Segunda a sexta fora dos feriados do calendário; o dia útil de verdade é do servidor. */
+const ehDiaUtilNaTela = (iso: string, feriados: Map<string, FeriadoEnvio>): boolean => {
+  const semana = dataUtc(iso).getUTCDay();
+  return semana !== 0 && semana !== 6 && !feriados.has(iso);
+};
+
 /** O que a tela mostra de um agendamento: o agendamento e o convênio da regra. */
 interface ItemAgendado {
   agendamento: AgendamentoEnvio;
@@ -76,6 +127,7 @@ interface ItemAgendado {
 type Acao =
   | { tipo: 'marcar'; item: ItemAgendado }
   | { tipo: 'desmarcar'; item: ItemAgendado }
+  | { tipo: 'reagendar'; item: ItemAgendado }
   | { tipo: 'avulso'; data: string };
 
 const nomeConvenio = (item: ItemAgendado): string => item.regra?.convenio ?? 'Convênio removido';
@@ -110,6 +162,7 @@ const LinhaPainel: React.FC<{
         <p className={`text-sm font-medium ${enviado ? 'text-gray-500 dark:text-gray-400 line-through decoration-gray-400/60' : 'text-gray-900 dark:text-gray-100'}`}>
           {nomeConvenio(item)}
         </p>
+        {agendamento.foraDaJanela && <div className="mt-0.5"><SeloForaDaJanela /></div>}
         {regra?.observacao && <p className="text-xs text-gray-500 dark:text-gray-400">{regra.observacao}</p>}
         {enviado && (
           <p className="text-xs text-green-700 dark:text-green-400">
@@ -167,6 +220,80 @@ const PainelDia: React.FC<{
   );
 };
 
+// ─── Bloco Atrasados ──────────────────────────────────────────────────────────
+
+/** Atrasados e fora do prazo de qualquer mês, na ordem do servidor (fora do prazo primeiro). */
+const PainelAtrasados: React.FC<{
+  itens: ItemAgendado[];
+  podeGerenciar: boolean;
+  onAcao: (acao: Acao) => void;
+}> = ({ itens, podeGerenciar, onAcao }) => {
+  const foraDoPrazo = itens.filter((i) => i.agendamento.status === 'fora_do_prazo').length;
+  return (
+    <section className={`${CARD} p-5 md:col-span-2 xl:col-span-1`} aria-label="Atrasados">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-yellow-500" />
+            Atrasados
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400">De qualquer mês, até serem resolvidos</p>
+        </div>
+        {itens.length > 0 && (
+          <span className="px-2.5 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300">
+            {itens.length}{foraDoPrazo > 0 && <> · {foraDoPrazo} fora do prazo</>}
+          </span>
+        )}
+      </div>
+      {itens.length === 0 ? (
+        <p className="mt-4 text-sm text-green-700 dark:text-green-400 flex items-center gap-2">
+          <CheckCircle2 className="h-4 w-4" />
+          Nenhum envio atrasado.
+        </p>
+      ) : (
+        <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-700 max-h-80 overflow-y-auto -mr-2 pr-2">
+          {itens.map((item) => {
+            const { agendamento } = item;
+            const estilo = ESTILO_STATUS[agendamento.status];
+            return (
+              <li key={agendamento.id} className="py-2.5 flex flex-wrap items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{nomeConvenio(item)}</p>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+                    <span className={`px-1.5 py-px text-[10px] font-semibold rounded-full ${estilo.pilula}`}>{estilo.nome}</span>
+                    <span className="text-xs text-gray-500 dark:text-gray-400">previsto para {formatData(agendamento.dataPrevista)}</span>
+                    {agendamento.foraDaJanela && <SeloForaDaJanela />}
+                  </div>
+                </div>
+                {podeGerenciar && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => onAcao({ tipo: 'marcar', item })}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-green-700 bg-green-50 hover:bg-green-100 dark:text-green-300 dark:bg-green-900/20 dark:hover:bg-green-900/40"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      Enviado
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onAcao({ tipo: 'reagendar', item })}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-lg text-blue-700 bg-blue-50 hover:bg-blue-100 dark:text-blue-300 dark:bg-blue-900/20 dark:hover:bg-blue-900/40"
+                    >
+                      <CalendarClock className="w-3.5 h-3.5" />
+                      Reagendar
+                    </button>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
+};
+
 // ─── Grade do mês ─────────────────────────────────────────────────────────────
 
 const ChipAgendamento: React.FC<{
@@ -174,21 +301,20 @@ const ChipAgendamento: React.FC<{
   podeGerenciar: boolean;
   onAcao: (acao: Acao) => void;
 }> = ({ item, podeGerenciar, onAcao }) => {
-  const enviado = item.agendamento.dataEnvio !== null;
+  const { status, foraDaJanela, dataEnvio } = item.agendamento;
+  const enviado = dataEnvio !== null;
   const dica = [
     nomeConvenio(item),
-    enviado ? `Enviado em ${formatData(item.agendamento.dataEnvio)}` : 'Pendente',
+    enviado ? `Enviado em ${formatData(dataEnvio)}` : ESTILO_STATUS[status].nome,
+    foraDaJanela && 'fora da janela da regra',
     item.regra?.observacao,
   ].filter(Boolean).join(' · ');
-  const classe = `w-full flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-left truncate ${
-    enviado
-      ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-      : 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800'
-  }`;
+  const classe = `w-full flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-left truncate ${ESTILO_STATUS[status].chip}`;
   const conteudo = (
     <>
       {enviado && <Check className="w-3 h-3 shrink-0" strokeWidth={3} />}
       <span className="truncate">{nomeConvenio(item)}</span>
+      {foraDaJanela && <CalendarX className="w-3 h-3 shrink-0 ml-auto text-gray-500 dark:text-gray-400" aria-label="fora da janela" />}
     </>
   );
   if (!podeGerenciar) return <div className={classe} title={dica}>{conteudo}</div>;
@@ -281,8 +407,9 @@ const CalendarioEnvios: React.FC = () => {
 
   const mesExibido = mes ?? calendario?.mes ?? null;
 
-  const { porDia, feriados } = useMemo(() => {
+  const { porDia, feriados, atrasados } = useMemo(() => {
     const regras = new Map((calendario?.regras ?? []).map((r) => [r.id, r]));
+    const atrasados = (calendario?.atrasados ?? []).map((agendamento) => ({ agendamento, regra: regras.get(agendamento.regraId) }));
     const mapa = new Map<string, ItemAgendado[]>();
     for (const agendamento of calendario?.agendamentos ?? []) {
       const lista = mapa.get(agendamento.dataPrevista) ?? [];
@@ -290,7 +417,7 @@ const CalendarioEnvios: React.FC = () => {
       mapa.set(agendamento.dataPrevista, lista);
     }
     for (const lista of mapa.values()) lista.sort((a, b) => nomeConvenio(a).localeCompare(nomeConvenio(b), 'pt-BR'));
-    return { porDia: mapa, feriados: new Map((calendario?.feriados ?? []).map((f) => [f.data, f])) };
+    return { porDia: mapa, feriados: new Map((calendario?.feriados ?? []).map((f) => [f.data, f])), atrasados };
   }, [calendario]);
 
   const concluir = () => {
@@ -351,14 +478,14 @@ const CalendarioEnvios: React.FC = () => {
         </div>
       ) : !calendario ? (
         <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {[0, 1].map((i) => <div key={i} className={`${CARD} h-48 animate-pulse`} />)}
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {[0, 1, 2].map((i) => <div key={i} className={`${CARD} h-48 animate-pulse ${i === 2 ? 'md:col-span-2 xl:col-span-1' : ''}`} />)}
           </div>
           <div className={`${CARD} h-96 animate-pulse`} />
         </div>
       ) : (
         <div className={`space-y-6 transition-opacity ${loading ? 'opacity-60' : ''}`}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <PainelDia
               titulo="Hoje"
               data={calendario.hoje}
@@ -375,6 +502,7 @@ const CalendarioEnvios: React.FC = () => {
               podeGerenciar={podeGerenciar}
               onAcao={setAcao}
             />
+            <PainelAtrasados itens={atrasados} podeGerenciar={podeGerenciar} onAcao={setAcao} />
           </div>
 
           {mesExibido && (
@@ -409,8 +537,13 @@ const CalendarioEnvios: React.FC = () => {
                 </div>
               </div>
               <div className="flex flex-wrap gap-4 mb-3 text-xs text-gray-500 dark:text-gray-400">
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800" />Pendente</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-100 dark:bg-green-900/30" />Enviado</span>
+                {(Object.keys(ESTILO_STATUS) as StatusAgendamento[]).map((status) => (
+                  <span key={status} className="flex items-center gap-1.5">
+                    <span className={`w-3 h-3 rounded ${ESTILO_STATUS[status].amostra}`} />
+                    {ESTILO_STATUS[status].nome}
+                  </span>
+                ))}
+                <span className="flex items-center gap-1.5"><CalendarX className="w-3.5 h-3.5" />Fora da janela da regra</span>
                 <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 dark:bg-amber-900/15 dark:border-amber-800/60" />Feriado</span>
               </div>
               <GradeMes
@@ -434,6 +567,16 @@ const CalendarioEnvios: React.FC = () => {
           hoje={calendario.hoje}
           onFechar={() => setAcao(null)}
           onMarcado={concluir}
+        />
+      )}
+      {calendario && acao?.tipo === 'reagendar' && (
+        <ReagendarEnvioModal
+          agendamentoId={acao.item.agendamento.id}
+          convenio={nomeConvenio(acao.item)}
+          dataPrevista={acao.item.agendamento.dataPrevista}
+          dataInicial={ehDiaUtilNaTela(calendario.hoje, feriados) ? calendario.hoje : calendario.amanha}
+          onFechar={() => setAcao(null)}
+          onReagendado={concluir}
         />
       )}
       {calendario && acao?.tipo === 'avulso' && (

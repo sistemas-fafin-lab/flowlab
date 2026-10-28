@@ -8,9 +8,13 @@
  *
  * GET — Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou
  * canViewCalendarioEnvios). Query params:
- *   mes   YYYY-MM, opcional — o mês da grade; sem ele, o mês de hoje
- * Devolve `hoje` (America/Sao_Paulo), `amanha`, `mes`, `regras`, `feriados` e os
- * `agendamentos` do mês mais os de hoje e amanhã.
+ *   mes       YYYY-MM, opcional — o mês da grade; sem ele, o mês de hoje
+ *   contador  'atrasados' — só `{ atrasados: n }`, para o contador do menu (leve:
+ *             não lê o mês nem o backup)
+ * Devolve `hoje` (America/Sao_Paulo), `amanha`, `mes`, `regras`, `feriados`, os
+ * `agendamentos` do mês mais os de hoje e amanhã, e os `atrasados` de qualquer mês
+ * (fora do prazo primeiro). Cada agendamento vem com `status` e `foraDaJanela` de
+ * classificarAgendamento; as telas não recalculam.
  *
  * POST — canManageCalendarioEnvios. Body com `acao`:
  *   'marcar':    { id, dataEnvio: 'YYYY-MM-DD' } — marca como enviado; marcar de novo
@@ -18,15 +22,27 @@
  *   'desmarcar': { id } — desfaz a marcação; 409 se não estava marcado.
  *   'criar':     { regraId, dataPrevista: 'YYYY-MM-DD' } — agendamento avulso (origem
  *                "manual"). Fora da janela da regra é permitido; dia não útil dá 400.
+ *   'reagendar': { id, dataPrevista: 'YYYY-MM-DD' } — move para um dia útil de hoje em
+ *                diante e marca como editado. Fora da janela é permitido; dia não útil
+ *                ou no passado dá 400.
  * Quem e quando, e o histórico, são gravados por trigger (20261028160000).
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { proximoDiaUtil } from '../faturamento/calendarioEnvios.js';
-import { criarAvulso, desmarcarEnviado, lerCalendario, lerFeriados, marcarEnviado } from '../faturamento/dadosCalendarioEnvios.js';
-import type { AgendamentoEnvio, FalhaCalendario } from '../faturamento/dadosCalendarioEnvios.js';
+import { classificarAgendamento, fimDoMes, proximoDiaUtil, type ClassificacaoAgendamento } from '../faturamento/calendarioEnvios.js';
+import {
+  criarAvulso,
+  desmarcarEnviado,
+  lerCalendario,
+  lerFeriados,
+  lerRegras,
+  lerVencidos,
+  marcarEnviado,
+  reagendar as reagendarAgendamento,
+} from '../faturamento/dadosCalendarioEnvios.js';
+import type { AgendamentoEnvio, FalhaCalendario, RegraEnvio } from '../faturamento/dadosCalendarioEnvios.js';
 import { mesValido } from '../faturamento/indicadoresFaturamento.js';
 
 const FORMATO_DATA_LOCAL = new Intl.DateTimeFormat('en-CA', {
@@ -51,22 +67,65 @@ function dataValida(valor: unknown): valor is string {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const idValido = (valor: unknown): valor is string => typeof valor === 'string' && UUID_RE.test(valor);
 
-/** Último dia do mês 'YYYY-MM'. */
-function fimDoMes(mes: string): string {
-  const [ano, numeroMes] = mes.split('-').map(Number);
-  // Dia 0 do mês seguinte (Date.UTC conta o mês a partir de 0) é o último deste.
-  return new Date(Date.UTC(ano, numeroMes, 0)).toISOString().slice(0, 10);
-}
-
 const responderFalha = (res: VercelResponse, { erro }: FalhaCalendario): void => {
   res.status(erro.status).json({ success: false, error: erro.mensagem });
 };
+
+type AgendamentoClassificado = AgendamentoEnvio & ClassificacaoAgendamento;
+
+/** Status e selo de cada agendamento, em `hoje`. A FK garante a regra; sem ela, só a data prevista conta. */
+function classificar(
+  agendamentos: AgendamentoEnvio[],
+  regras: RegraEnvio[],
+  feriados: string[],
+  hoje: string,
+): AgendamentoClassificado[] {
+  const porId = new Map(regras.map((regra) => [regra.id, regra]));
+  return agendamentos.map((agendamento) => ({
+    ...agendamento,
+    ...classificarAgendamento(agendamento, porId.get(agendamento.regraId) ?? { janelas: [] }, feriados, hoje),
+  }));
+}
+
+/** O bloco Atrasados: atrasados e fora do prazo de qualquer mês, fora do prazo primeiro, depois por data. */
+function atrasadosEmOrdem(classificados: AgendamentoClassificado[]): AgendamentoClassificado[] {
+  const atrasados = classificados.filter((a) => a.status === 'atrasado' || a.status === 'fora_do_prazo');
+  const peso = (a: AgendamentoClassificado) => (a.status === 'fora_do_prazo' ? 0 : 1);
+  // sort é estável: dentro do mesmo status fica a ordem de data prevista da consulta.
+  return atrasados.sort((a, b) => peso(a) - peso(b));
+}
+
+/** GET ?contador=atrasados: só o total do bloco Atrasados, para o menu. */
+async function contarAtrasados(token: string, res: VercelResponse): Promise<void> {
+  const hoje = hojeIsoLocal();
+  const [regras, feriados, vencidos] = await Promise.all([lerRegras(token), lerFeriados(token), lerVencidos(token, hoje)]);
+  if ('erro' in regras) {
+    responderFalha(res, regras);
+    return;
+  }
+  if ('erro' in feriados) {
+    responderFalha(res, feriados);
+    return;
+  }
+  if ('erro' in vencidos) {
+    responderFalha(res, vencidos);
+    return;
+  }
+  const classificados = classificar(vencidos, regras, feriados.map((f) => f.data), hoje);
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).json({ success: true, atrasados: atrasadosEmOrdem(classificados).length });
+}
 
 async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<void> {
   const token = tokenDoHeader(req.headers.authorization);
   const erroAuth = await autorizarFaturamento(token, ['calendarioEnvios']);
   if (erroAuth) {
     res.status(erroAuth.status).json(erroAuth.payload);
+    return;
+  }
+
+  if (req.query.contador === 'atrasados') {
+    await contarAtrasados(token as string, res);
     return;
   }
 
@@ -84,15 +143,32 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
     responderFalha(res, feriados);
     return;
   }
-  const amanha = proximoDiaUtil(hoje, feriados.map((f) => f.data));
-  const calendario = await lerCalendario(token as string, { inicio: `${mes}-01`, fim: fimDoMes(mes), dias: [hoje, amanha] });
+  const datasFeriados = feriados.map((f) => f.data);
+  const amanha = proximoDiaUtil(hoje, datasFeriados);
+  const [calendario, vencidos] = await Promise.all([
+    lerCalendario(token as string, { inicio: `${mes}-01`, fim: fimDoMes(`${mes}-01`), dias: [hoje, amanha] }),
+    lerVencidos(token as string, hoje),
+  ]);
   if ('erro' in calendario) {
     responderFalha(res, calendario);
     return;
   }
+  if ('erro' in vencidos) {
+    responderFalha(res, vencidos);
+    return;
+  }
 
   res.setHeader('Cache-Control', 'no-store');
-  res.status(200).json({ success: true, hoje, amanha, mes, feriados, ...calendario });
+  res.status(200).json({
+    success: true,
+    hoje,
+    amanha,
+    mes,
+    feriados,
+    regras: calendario.regras,
+    agendamentos: classificar(calendario.agendamentos, calendario.regras, datasFeriados, hoje),
+    atrasados: atrasadosEmOrdem(classificar(vencidos, calendario.regras, datasFeriados, hoje)),
+  });
 }
 
 /** Responde o agendamento gravado, ou a falha. */
@@ -135,10 +211,24 @@ async function criar(token: string, corpo: Record<string, unknown>, res: VercelR
   responderAgendamento(res, await criarAvulso(token, corpo.regraId, corpo.dataPrevista));
 }
 
+/** POST reagendar: move para um dia útil de hoje em diante (fora da janela é permitido). */
+async function reagendar(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  if (!idValido(corpo.id) || !dataValida(corpo.dataPrevista)) {
+    res.status(400).json({ success: false, error: 'Parâmetros inválidos: id e dataPrevista (YYYY-MM-DD).' });
+    return;
+  }
+  if (corpo.dataPrevista < hojeIsoLocal()) {
+    res.status(400).json({ success: false, error: 'A nova data não pode ser no passado.' });
+    return;
+  }
+  responderAgendamento(res, await reagendarAgendamento(token, corpo.id, corpo.dataPrevista));
+}
+
 const ACOES: Record<string, (token: string, corpo: Record<string, unknown>, res: VercelResponse) => Promise<void>> = {
   marcar,
   desmarcar,
   criar,
+  reagendar,
 };
 
 async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -152,7 +242,7 @@ async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<vo
   const corpo = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
   const acao = typeof corpo.acao === 'string' && Object.hasOwn(ACOES, corpo.acao) ? ACOES[corpo.acao] : undefined;
   if (!acao) {
-    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar ou criar.' });
+    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar, criar ou reagendar.' });
     return;
   }
   await acao(token as string, corpo, res);

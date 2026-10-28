@@ -2,6 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ContadorMenu } from './ContadorMenu';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 // Mirrors the NavigationItem interface defined in Layout.tsx.
@@ -10,6 +11,7 @@ interface NavigationItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   permission?: string;
+  contador?: number;
   category?: string;
   subItems?: NavigationItem[];
 }
@@ -124,6 +126,7 @@ export const CollapsedFlyoutMenu: React.FC<CollapsedFlyoutMenuProps> = ({
               >
                 <subItem.icon className="h-4 w-4 flex-shrink-0" />
                 <span className="truncate">{subItem.name}</span>
+                {!!subItem.contador && <ContadorMenu valor={subItem.contador} rotulo="atrasados" className="ml-auto" />}
               </Link>
             );
           })}

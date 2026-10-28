@@ -1564,6 +1564,9 @@ export interface RegraEnvio {
   ativo: boolean;
 }
 
+/** Espelha StatusAgendamento de api/_lib/faturamento/calendarioEnvios.ts. */
+export type StatusAgendamento = 'pendente' | 'enviado' | 'atrasado' | 'fora_do_prazo';
+
 export interface AgendamentoEnvio {
   id: string;
   regraId: string;
@@ -1579,6 +1582,10 @@ export interface AgendamentoEnvio {
   /** ISO. */
   marcadoEm: string | null;
   loteAplisConfirmado: number | null;
+  /** Classificado pelo servidor em `hoje`; a tela não recalcula. */
+  status: StatusAgendamento;
+  /** Selo cinza informativo: a data prevista ou a de envio cai fora das janelas da regra no mês. */
+  foraDaJanela: boolean;
 }
 
 export interface FeriadoEnvio {
@@ -1599,4 +1606,6 @@ export interface CalendarioEnvios {
   feriados: FeriadoEnvio[];
   /** Os do mês e os de hoje e amanhã. */
   agendamentos: AgendamentoEnvio[];
+  /** Atrasados e fora do prazo de qualquer mês, fora do prazo primeiro. */
+  atrasados: AgendamentoEnvio[];
 }
