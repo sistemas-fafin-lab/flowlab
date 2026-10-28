@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight, Lock, Pencil, Unlock, Users } from 'lucide-react';
+import { AlertCircle, Award, CalendarRange, ChevronDown, ChevronRight, Lock, Pencil, SlidersHorizontal, Unlock, Users } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { fecharPontuacao, lancarPontuacao, reabrirPontuacao } from '../hooks/usePontuacaoSetor';
@@ -17,6 +17,7 @@ import type {
 import { formatCompetencia, formatCurrency, formatDataHora, formatDiaMesHora, formatPercentual } from '../utils/formato';
 import LancamentoPontuacaoModal from './LancamentoPontuacaoModal';
 import MembrosPontuacaoModal from './MembrosPontuacaoModal';
+import PontosBaseModal from './PontosBaseModal';
 
 // ============================================================================
 // COMPONENTE: PontuacaoSetor
@@ -27,8 +28,8 @@ import MembrosPontuacaoModal from './MembrosPontuacaoModal';
 // Os dados são do pai (usePontuacaoSetor), para o "Atualizar" da página
 // recarregar os dois blocos. Quem gerencia Faturamento lança os critérios
 // manuais (issue 05), fecha e reabre o mês (issue 06), edita os membros das
-// Frentes (issue 07), e o bloco pede ao pai para recarregar. Mês fechado mostra
-// os números congelados e não aceita lançamento.
+// Frentes (issue 07) e ajusta os pontos base, e o bloco pede ao pai para
+// recarregar. Mês fechado mostra os números congelados e não aceita lançamento.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-5';
@@ -44,8 +45,8 @@ const formatQtd = (n: number): string => n.toLocaleString('pt-BR');
 const formatDiaMes = (iso: string): string =>
   new Date(iso).toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' });
 
-// Para a tela "Membros" abrir mesmo quando a pontuação do mês não carregou:
-// os membros só dependem do Supabase.
+// Para as telas "Membros" e "Pontos base" abrirem mesmo quando a pontuação do
+// mês não carregou: elas só dependem do Supabase.
 const FRENTES_MEMBROS: { frente: FrentePontuacao; rotulo: string }[] = [
   { frente: 'faturamento', rotulo: 'Faturamento' },
   { frente: 'recursoGlosa', rotulo: 'Recurso de Glosa' },
@@ -316,6 +317,7 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
   const [emLancamento, setEmLancamento] = useState<{ frente: FrentePontuada; criterio: CriterioPontuacao } | null>(null);
   const [alterandoFechamento, setAlterandoFechamento] = useState(false);
   const [editandoMembros, setEditandoMembros] = useState(false);
+  const [editandoPontosBase, setEditandoPontosBase] = useState(false);
   const [erroFechamento, setErroFechamento] = useState<string | null>(null);
 
   // O aviso de uma recusa é do mês em que se tentou fechar ou reabrir.
@@ -420,6 +422,10 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
               <Users className="h-4 w-4" />
               Membros
             </button>
+            <button onClick={() => setEditandoPontosBase(true)} className={BOTAO_GESTAO}>
+              <SlidersHorizontal className="h-4 w-4" />
+              Pontos base
+            </button>
             {meta && (
               <button
                 onClick={() => void alternarFechamento()}
@@ -454,6 +460,13 @@ const PontuacaoSetor: React.FC<Props> = ({ mes, pontuacao, meta, loading, error,
         <MembrosPontuacaoModal
           frentes={FRENTES_MEMBROS}
           onFechar={() => setEditandoMembros(false)}
+          onAlterado={onAlterado}
+        />
+      )}
+      {editandoPontosBase && (
+        <PontosBaseModal
+          frentes={FRENTES_MEMBROS}
+          onFechar={() => setEditandoPontosBase(false)}
           onAlterado={onAlterado}
         />
       )}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { motivoParaNaoFechar, pontuarMes, validarLancamento, validarMembro } from './pontuacaoSetor.js';
+import { motivoParaNaoFechar, pontuarMes, validarLancamento, validarMembro, validarPontosBase } from './pontuacaoSetor.js';
 import type { EntradaPontuacao, FatosPontuacao } from './pontuacaoSetor.js';
 
 function entrada(fatos: FatosPontuacao = {}, overrides: Partial<EntradaPontuacao> = {}): EntradaPontuacao {
@@ -443,5 +443,97 @@ describe('validarMembro', () => {
         erro: 'Usuário do apLIS inválido.',
       });
     }
+  });
+});
+
+describe('pontuarMes — pontos base ajustados', () => {
+  it('critério automático por convênio usa o ponto base ajustado', () => {
+    const resumo = pontuarMes(entrada(
+      {
+        zeroGlosa: {
+          convenios: [
+            { idFontePagadora: 1, nome: 'A', recebidas: 10, glosadas: 0 },
+            { idFontePagadora: 2, nome: 'B', recebidas: 5, glosadas: 0 },
+            { idFontePagadora: 3, nome: 'C', recebidas: 3, glosadas: 1 },
+          ],
+        },
+      },
+      { pontosBase: [{ frente: 'faturamento', chave: 'zeroGlosa', pontosBase: 1.5 }] },
+    ));
+
+    expect(criterio(resumo, 'faturamento', 'zeroGlosa')).toMatchObject({ pontosBase: 1.5, pontosAtingidos: 3 });
+  });
+
+  it('meta atingida vale o ponto base ajustado da "Meta mensal"', () => {
+    const resumo = pontuarMes(entrada(
+      { meta: { valorMeta: 1_000_000, faturado: 1_000_000 } },
+      { pontosBase: [{ frente: 'faturamento', chave: 'metaMensal', pontosBase: 7 }] },
+    ));
+
+    expect(criterio(resumo, 'faturamento', 'metaMensal')).toMatchObject({ pontosBase: 7, pontosAtingidos: 7 });
+    expect(criterio(resumo, 'faturamento', 'metaSuperada')).toMatchObject({ pontosBase: 10, pontosAtingidos: 0 });
+  });
+
+  it('o ajuste é da Frente: o mesmo critério na outra Frente fica no padrão', () => {
+    const resumo = pontuarMes(entrada(
+      { tarefas: { porUsuario: {}, doSetor: 0 } },
+      { pontosBase: [{ frente: 'recursoGlosa', chave: 'tarefasPendentes', pontosBase: 3 }] },
+    ));
+
+    expect(criterio(resumo, 'recursoGlosa', 'tarefasPendentes')).toMatchObject({ pontosBase: 3, pontosAtingidos: 3 });
+    expect(criterio(resumo, 'faturamento', 'tarefasPendentes')).toMatchObject({ pontosBase: 1, pontosAtingidos: 1 });
+  });
+
+  it('critério manual mostra o ponto base ajustado; os pontos continuam os lançados', () => {
+    const resumo = pontuarMes(entrada({}, {
+      pontosBase: [{ frente: 'recursoGlosa', chave: 'refaturamento', pontosBase: 8 }],
+      lancamentos: [{ frente: 'recursoGlosa', chave: 'refaturamento', pontos: 3, observacao: 'Refaturou 1 guia' }],
+    }));
+
+    expect(criterio(resumo, 'recursoGlosa', 'refaturamento')).toMatchObject({ pontosBase: 8, pontosAtingidos: 3 });
+  });
+});
+
+describe('validarPontosBase', () => {
+  it('aceita critérios manuais e automáticos', () => {
+    expect(validarPontosBase({
+      pontosBase: [
+        { frente: 'faturamento', chave: 'zeroGlosa', pontosBase: 0.3 },
+        { frente: 'recursoGlosa', chave: 'destravarRecursos', pontosBase: 0 },
+      ],
+    })).toEqual({
+      pontosBase: [
+        { frente: 'faturamento', chave: 'zeroGlosa', pontosBase: 0.3 },
+        { frente: 'recursoGlosa', chave: 'destravarRecursos', pontosBase: 0 },
+      ],
+    });
+  });
+
+  it('recusa lista vazia ou ausente', () => {
+    expect(validarPontosBase({})).toEqual({ erro: 'Informe ao menos um ponto base.' });
+    expect(validarPontosBase({ pontosBase: [] })).toEqual({ erro: 'Informe ao menos um ponto base.' });
+  });
+
+  it('recusa critério que não é da Frente', () => {
+    expect(validarPontosBase({ pontosBase: [{ frente: 'faturamento', chave: 'refaturamento', pontosBase: 1 }] }))
+      .toEqual({ erro: 'Critério inválido na lista de pontos base.' });
+  });
+
+  it('recusa negativo, texto e mais de uma casa', () => {
+    expect(validarPontosBase({ pontosBase: [{ frente: 'faturamento', chave: 'metaMensal', pontosBase: -1 }] }))
+      .toEqual({ erro: 'Pontos base inválidos em "Meta mensal": informe um número de 0 a 9999,9.' });
+    expect(validarPontosBase({ pontosBase: [{ frente: 'faturamento', chave: 'metaMensal', pontosBase: '5' }] }))
+      .toEqual({ erro: 'Pontos base inválidos em "Meta mensal": informe um número de 0 a 9999,9.' });
+    expect(validarPontosBase({ pontosBase: [{ frente: 'faturamento', chave: 'guiasSemLote', pontosBase: 0.05 }] }))
+      .toEqual({ erro: 'Pontos base de "Guias sem lote": use no máximo uma casa decimal.' });
+  });
+
+  it('recusa o mesmo critério duas vezes', () => {
+    expect(validarPontosBase({
+      pontosBase: [
+        { frente: 'faturamento', chave: 'metaMensal', pontosBase: 5 },
+        { frente: 'faturamento', chave: 'metaMensal', pontosBase: 6 },
+      ],
+    })).toEqual({ erro: '"Meta mensal" aparece mais de uma vez na lista.' });
   });
 });

@@ -3,6 +3,7 @@ import type {
   FrentePontuacao,
   LancamentoPontuacao,
   MembroPontuacao,
+  PontoBasePontuacao,
   PontuacaoSetor,
   PontuacaoSetorMeta,
   UsuarioAplisPontuacao,
@@ -13,7 +14,8 @@ import { chamarLegadoApi, getTokenLegado } from './legado/api';
 // /api/faturamento/pontuacao. A pontuação é mensal: com `mes` nulo (modo
 // Período) não chama a API. `lancarPontuacao` grava um critério manual;
 // `fecharPontuacao` e `reabrirPontuacao` fazem o Fechamento da pontuação. As
-// funções de membros servem a tela "Membros" (issue 07).
+// funções de membros servem a tela "Membros" (issue 07), e as de pontos base, a
+// tela "Pontos base".
 
 interface RespostaPontuacao {
   success?: boolean;
@@ -122,4 +124,21 @@ export function incluirMembroPontuacao(frente: FrentePontuacao, idUsuarioAplis: 
 /** Desativa o membro da Frente, sem apagar (canManageBilling). */
 export function desativarMembroPontuacao(frente: FrentePontuacao, idUsuarioAplis: number): Promise<void> {
   return postarPontuacao({ acao: 'desativarMembro', frente, idUsuarioAplis }, 'Não foi possível desativar o membro.');
+}
+
+/** Todos os critérios, com o padrão e o ponto base em vigor (canManageBilling). */
+export async function listarPontosBase(): Promise<PontoBasePontuacao[]> {
+  const body = await chamarLegadoApi<{ success?: boolean; error?: string; pontosBase?: PontoBasePontuacao[] }>(
+    'pontuacao',
+    new URLSearchParams({ consulta: 'pontosBase' }),
+    'Não foi possível carregar os pontos base.',
+  );
+  return body.pontosBase ?? [];
+}
+
+/** Grava os pontos base dos critérios listados; vale para os meses abertos (canManageBilling). */
+export function alterarPontosBase(
+  pontosBase: { frente: FrentePontuacao; chave: string; pontosBase: number }[],
+): Promise<void> {
+  return postarPontuacao({ acao: 'alterarPontosBase', pontosBase }, 'Não foi possível gravar os pontos base.');
 }

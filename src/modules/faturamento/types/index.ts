@@ -1498,6 +1498,21 @@ export interface UsuarioAplisPontuacao {
   nome: string;
 }
 
+/** Critério na tela "Pontos base": o padrão do código e o valor em vigor. */
+export interface PontoBasePontuacao {
+  frente: FrentePontuacao;
+  chave: string;
+  rotulo: string;
+  tipo: 'automatico' | 'manual';
+  /** Pontos base valem por convênio. */
+  porConvenio?: true;
+  padrao: number;
+  pontosBase: number;
+  /** Quem alterou por último e quando (ISO); null quando nunca foi alterado. */
+  alteradoPor: string | null;
+  alteradoEm: string | null;
+}
+
 export interface FrentePontuada {
   frente: FrentePontuacao;
   rotulo: string;

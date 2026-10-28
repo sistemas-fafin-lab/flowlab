@@ -15,6 +15,7 @@ import type {
   FrentePontuacao,
   LancamentoManual,
   MembroFrente,
+  PontoBaseAjustado,
   ResumoPontuacao,
 } from './pontuacaoSetor.js';
 
@@ -190,12 +191,57 @@ export async function gravarLancamento(
   return null;
 }
 
+/** Ponto base ajustado, com quem alterou por último. */
+export interface PontoBaseComAutoria extends PontoBaseAjustado {
+  alteradoPor: string | null;
+  alteradoEm: string;
+}
+
+/** Pontos base ajustados na tela (`fat_pontuacao_pontos_base`); critério ausente usa o padrão. */
+export async function lerPontosBase(token: string): Promise<PontoBaseComAutoria[] | FalhaFato> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_pontuacao_pontos_base')
+    .select('frente, chave, pontos_base, alterado_por_nome, alterado_em');
+  if (error) {
+    console.error('[faturamento/pontuacao] pontos base:', error.message);
+    return { erro: { status: 502, mensagem: `Não foi possível consultar os pontos base: ${error.message}` } };
+  }
+  return (data as { frente: FrentePontuacao; chave: ChaveCriterio; pontos_base: number | string; alterado_por_nome: string | null; alterado_em: string }[])
+    .map((linha) => ({
+      frente: linha.frente,
+      chave: linha.chave,
+      pontosBase: Number(linha.pontos_base),
+      alteradoPor: linha.alterado_por_nome,
+      alteradoEm: linha.alterado_em,
+    }));
+}
+
+/**
+ * Grava os pontos base (upsert por Frente e critério). Cliente do usuário: a RLS
+ * exige canManageBilling e o trigger grava quem alterou a partir da sessão.
+ */
+export async function gravarPontosBase(token: string, pontosBase: PontoBaseAjustado[]): Promise<null | FalhaFato> {
+  const { error } = await getSupabaseUserClient(token)
+    .from('fat_pontuacao_pontos_base')
+    .upsert(
+      pontosBase.map(({ frente, chave, pontosBase: valor }) => ({ frente, chave, pontos_base: valor })),
+      { onConflict: 'frente,chave' },
+    );
+  if (error) {
+    console.error('[faturamento/pontuacao] gravar pontos base:', error.message);
+    return { erro: { status: 502, mensagem: `Não foi possível gravar os pontos base: ${error.message}` } };
+  }
+  return null;
+}
+
 /** O que fica congelado no Fechamento: os pontos e tudo que entrou na conta. */
 export interface ResumoCongelado {
   pontuacao: ResumoPontuacao;
   fatos: EntradaPontuacao['fatos'];
   membros: MembroFrente[];
   lancamentos: LancamentoManual[];
+  /** Ajustes em vigor ao fechar; ausente nos fechamentos de antes dos pontos base editáveis. */
+  pontosBase?: PontoBaseAjustado[];
 }
 
 export interface FechamentoEmVigor {

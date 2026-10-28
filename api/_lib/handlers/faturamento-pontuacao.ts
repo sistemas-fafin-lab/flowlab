@@ -13,9 +13,10 @@
  *   mes       YYYY-MM, obrigatório — a pontuação é sempre mensal
  * Mês fechado (issue 06) devolve o resumo congelado, sem consultar o apLIS.
  *
- * GET com `consulta` — a tela "Membros" (issue 07), só para canManageBilling:
+ * GET com `consulta` — as telas "Membros" (issue 07) e "Pontos base", só para canManageBilling:
  *   consulta=membros                       os membros das Frentes, com os desativados
  *   consulta=usuariosAplis&busca=<nome>    usuários ativos do apLIS pelo nome (≥ 2 letras)
+ *   consulta=pontosBase                    todos os critérios, com o padrão e o valor em vigor
  *
  * POST — ações de quem gerencia Faturamento (canManageBilling). Body com `acao`:
  *   'lancar': { mes: 'YYYY-MM', frente, chave, pontos, observacao } —
@@ -32,6 +33,10 @@
  *   'desativarMembro': { frente, idUsuarioAplis } — desativa sem apagar; 409 se
  *     não é membro ativo. A prévia do mês aberto já reflete a mudança; meses
  *     fechados guardam os membros daquele mês.
+ *   'alterarPontosBase': { pontosBase: [{ frente, chave, pontosBase }] } —
+ *     grava os pontos base dos critérios listados. Vale para a prévia de todo
+ *     mês aberto; meses fechados guardam o que valia ao fechar. 400 com critério
+ *     inválido ou valor fora de 0 a 9999,9 (uma casa).
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -42,6 +47,7 @@ import {
   desativarMembro,
   gravarFechamento,
   gravarLancamento,
+  gravarPontosBase,
   incluirMembro,
   lerFatoGuiasSemLote,
   lerFatoMeta,
@@ -50,12 +56,20 @@ import {
   lerFechamento,
   lerLancamentos,
   lerMembros,
+  lerPontosBase,
   lerTodosMembros,
   reabrirFechamento,
 } from '../faturamento/fatosPontuacao.js';
 import type { FalhaFato, ResumoCongelado } from '../faturamento/fatosPontuacao.js';
 import { mesValido } from '../faturamento/indicadoresFaturamento.js';
-import { motivoParaNaoFechar, pontuarMes, validarLancamento, validarMembro } from '../faturamento/pontuacaoSetor.js';
+import {
+  CRITERIOS,
+  motivoParaNaoFechar,
+  pontuarMes,
+  validarLancamento,
+  validarMembro,
+  validarPontosBase,
+} from '../faturamento/pontuacaoSetor.js';
 
 /** 'YYYY-MM' já validado → [ano, mês]. */
 const anoMes = (mes: string): [number, number] => {
@@ -76,14 +90,17 @@ async function calcularPrevia(
   mes: string,
 ): Promise<{ resumo: ResumoCongelado; dadoAte: string | null } | FalhaFato> {
   const [ano, numeroMes] = anoMes(mes);
-  const [meta, membros, lancamentos] = await Promise.all([
+  const [meta, membros, lancamentos, ajustes] = await Promise.all([
     lerFatoMeta(token, ano, numeroMes),
     lerMembros(token),
     lerLancamentos(token, ano, numeroMes),
+    lerPontosBase(token),
   ]);
   if ('erro' in meta) return meta;
   if ('erro' in membros) return membros;
   if ('erro' in lancamentos) return lancamentos;
+  if ('erro' in ajustes) return ajustes;
+  const pontosBase = ajustes.map(({ frente, chave, pontosBase: valor }) => ({ frente, chave, pontosBase: valor }));
   const [tarefas, guiasSemLote, zeroGlosa] = await Promise.all([
     lerFatoTarefas(membros, ano, numeroMes),
     lerFatoGuiasSemLote(ano, numeroMes),
@@ -95,7 +112,7 @@ async function calcularPrevia(
 
   const fatos = { meta, guiasSemLote, zeroGlosa, tarefas: tarefas.tarefas };
   return {
-    resumo: { pontuacao: pontuarMes({ mes, fatos, lancamentos, membros }), fatos, membros, lancamentos },
+    resumo: { pontuacao: pontuarMes({ mes, fatos, lancamentos, membros, pontosBase }), fatos, membros, lancamentos, pontosBase },
     // `dadoAte` é a tarefa mais recente do backup do apLIS.
     dadoAte: tarefas.dadoAte,
   };
@@ -207,6 +224,21 @@ async function desativar(token: string, corpo: Record<string, unknown>, res: Ver
   res.status(200).json({ success: true });
 }
 
+/** POST: grava os pontos base; a prévia dos meses abertos já usa os valores novos. */
+async function alterarPontosBase(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  const validado = validarPontosBase(corpo);
+  if ('erro' in validado) {
+    res.status(400).json({ success: false, error: validado.erro });
+    return;
+  }
+  const falha = await gravarPontosBase(token, validado.pontosBase);
+  if (falha) {
+    responderFalha(res, falha);
+    return;
+  }
+  res.status(200).json({ success: true });
+}
+
 /** Autoriza canManageBilling; devolve o token, ou null quando já respondeu a falha. */
 async function autorizarGestao(req: VercelRequest, res: VercelResponse): Promise<string | null> {
   const token = tokenDoHeader(req.headers.authorization);
@@ -222,7 +254,7 @@ async function autorizarGestao(req: VercelRequest, res: VercelResponse): Promise
   return token as string;
 }
 
-/** GET com `consulta`: os dados da tela "Membros". */
+/** GET com `consulta`: os dados das telas "Membros" e "Pontos base". */
 async function consultaDeMembros(req: VercelRequest, res: VercelResponse, consulta: string): Promise<void> {
   const token = await autorizarGestao(req, res);
   if (!token) return;
@@ -235,6 +267,30 @@ async function consultaDeMembros(req: VercelRequest, res: VercelResponse, consul
       return;
     }
     res.status(200).json({ success: true, membros });
+    return;
+  }
+
+  if (consulta === 'pontosBase') {
+    const ajustes = await lerPontosBase(token);
+    if ('erro' in ajustes) {
+      responderFalha(res, ajustes);
+      return;
+    }
+    const pontosBase = CRITERIOS.map(({ frente, chave, rotulo, tipo, pontosBase: padrao, porConvenio }) => {
+      const ajuste = ajustes.find((a) => a.frente === frente && a.chave === chave);
+      return {
+        frente,
+        chave,
+        rotulo,
+        tipo,
+        ...(porConvenio ? { porConvenio } : {}),
+        padrao,
+        pontosBase: ajuste?.pontosBase ?? padrao,
+        alteradoPor: ajuste?.alteradoPor ?? null,
+        alteradoEm: ajuste?.alteradoEm ?? null,
+      };
+    });
+    res.status(200).json({ success: true, pontosBase });
     return;
   }
 
@@ -254,7 +310,7 @@ async function consultaDeMembros(req: VercelRequest, res: VercelResponse, consul
     return;
   }
 
-  res.status(400).json({ success: false, error: 'Consulta inválida: use membros ou usuariosAplis.' });
+  res.status(400).json({ success: false, error: 'Consulta inválida: use membros, usuariosAplis ou pontosBase.' });
 }
 
 /** POST: as ações de quem gerencia Faturamento. */
@@ -272,6 +328,11 @@ async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<vo
     await desativar(token, corpo, res);
     return;
   }
+  // Os pontos base também não são do mês: valem para todo mês aberto.
+  if (corpo.acao === 'alterarPontosBase') {
+    await alterarPontosBase(token, corpo, res);
+    return;
+  }
 
   const mes = typeof corpo.mes === 'string' ? corpo.mes.trim() : '';
   if (!mesValido(mes)) {
@@ -286,7 +347,7 @@ async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<vo
   } else if (corpo.acao === 'reabrir') {
     await reabrir(token, mes, res);
   } else {
-    res.status(400).json({ success: false, error: 'Ação inválida: use lancar, fechar, reabrir, incluirMembro ou desativarMembro.' });
+    res.status(400).json({ success: false, error: 'Ação inválida: use lancar, fechar, reabrir, incluirMembro, desativarMembro ou alterarPontosBase.' });
   }
 }
 

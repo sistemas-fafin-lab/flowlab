@@ -31,7 +31,11 @@ export interface DefinicaoCriterio {
   porConvenio?: true;
 }
 
-/** A tabela de regras da spec, na mesma ordem. Mudar um valor aqui é mudar a spec. */
+/**
+ * A tabela de regras da spec, na mesma ordem. Os pontos base daqui são o padrão:
+ * a coordenação pode ajustá-los na tela (`fat_pontuacao_pontos_base`), e o
+ * ajuste vale para os meses abertos.
+ */
 export const CRITERIOS: readonly DefinicaoCriterio[] = [
   { chave: 'guiasSemLote', frente: 'faturamento', rotulo: 'Guias sem lote', tipo: 'automatico', pontosBase: 0.1, porConvenio: true },
   { chave: 'tarefasPendentes', frente: 'faturamento', rotulo: 'Tarefas pendentes', tipo: 'automatico', pontosBase: 1 },
@@ -123,12 +127,21 @@ export interface MembroFrente {
   nome: string;
 }
 
+/** Ponto base ajustado na tela, no lugar do padrão de CRITERIOS. */
+export interface PontoBaseAjustado {
+  frente: FrentePontuacao;
+  chave: ChaveCriterio;
+  pontosBase: number;
+}
+
 export interface EntradaPontuacao {
   /** 'YYYY-MM'. */
   mes: string;
   fatos: FatosPontuacao;
   lancamentos: LancamentoManual[];
   membros: MembroFrente[];
+  /** Ajustes dos pontos base; critério sem ajuste fica com o padrão. */
+  pontosBase?: PontoBaseAjustado[];
 }
 
 export interface DetalheMeta {
@@ -275,11 +288,20 @@ function pontuarAutomatico(def: DefinicaoCriterio, fatos: FatosPontuacao, membro
   return null;
 }
 
+/** CRITERIOS com os pontos base ajustados no lugar do padrão. */
+export function criteriosComPontosBase(ajustes: PontoBaseAjustado[] = []): DefinicaoCriterio[] {
+  return CRITERIOS.map((def) => {
+    const ajuste = ajustes.find((a) => a.frente === def.frente && a.chave === def.chave);
+    return ajuste ? { ...def, pontosBase: ajuste.pontosBase } : def;
+  });
+}
+
 /** Os critérios de cada Frente, na ordem da tabela de regras, e o total. */
-export function pontuarMes({ mes, fatos, lancamentos, membros }: EntradaPontuacao): ResumoPontuacao {
+export function pontuarMes({ mes, fatos, lancamentos, membros, pontosBase }: EntradaPontuacao): ResumoPontuacao {
+  const definicoes = criteriosComPontosBase(pontosBase);
   const frentes = FRENTES.map(({ frente, rotulo }) => {
     const criterios: CriterioPontuado[] = [];
-    for (const def of CRITERIOS.filter((c) => c.frente === frente)) {
+    for (const def of definicoes.filter((c) => c.frente === frente)) {
       const { chave, rotulo: rotuloCriterio, tipo, pontosBase, porConvenio } = def;
       const base = { chave, rotulo: rotuloCriterio, tipo, pontosBase, ...(porConvenio ? { porConvenio } : {}) };
       if (def.tipo === 'automatico') {
@@ -325,6 +347,35 @@ export function validarLancamento(corpo: Record<string, unknown>): { lancamento:
   const texto = typeof observacao === 'string' ? observacao.trim() : '';
   if (!texto) return { erro: 'A observação é obrigatória.' };
   return { lancamento: { frente: def.frente, chave: def.chave, pontos: umaCasa(pontos), observacao: texto } };
+}
+
+/**
+ * Confere o corpo de "alterar pontos base": uma lista não vazia de critérios da
+ * Frente, cada um com pontos ≥ 0 e uma casa, sem repetir critério. Os CHECKs de
+ * `fat_pontuacao_pontos_base` repetem a regra.
+ */
+export function validarPontosBase(corpo: Record<string, unknown>): { pontosBase: PontoBaseAjustado[] } | { erro: string } {
+  const { pontosBase } = corpo;
+  if (!Array.isArray(pontosBase) || pontosBase.length === 0) {
+    return { erro: 'Informe ao menos um ponto base.' };
+  }
+  const validados: PontoBaseAjustado[] = [];
+  for (const item of pontosBase as Record<string, unknown>[]) {
+    const def = CRITERIOS.find((c) => c.frente === item?.frente && c.chave === item?.chave);
+    if (!def) return { erro: 'Critério inválido na lista de pontos base.' };
+    const valor = item.pontosBase;
+    if (typeof valor !== 'number' || !Number.isFinite(valor) || valor < 0 || valor > PONTOS_MAXIMOS) {
+      return { erro: `Pontos base inválidos em "${def.rotulo}": informe um número de 0 a 9999,9.` };
+    }
+    if (umaCasa(valor) !== valor) {
+      return { erro: `Pontos base de "${def.rotulo}": use no máximo uma casa decimal.` };
+    }
+    if (validados.some((v) => v.frente === def.frente && v.chave === def.chave)) {
+      return { erro: `"${def.rotulo}" aparece mais de uma vez na lista.` };
+    }
+    validados.push({ frente: def.frente, chave: def.chave, pontosBase: valor });
+  }
+  return { pontosBase: validados };
 }
 
 /**
