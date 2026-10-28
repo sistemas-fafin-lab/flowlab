@@ -9,7 +9,7 @@
  * de fatosPontuacao.ts; a regra é de faturamento/pontuacaoSetor.ts.
  *
  * GET — o resumo do mês. Autorização: `Authorization: Bearer <access_token>`
- * (canViewBilling). Query params:
+ * (canViewBilling ou a chave da tela). Query params:
  *   mes       YYYY-MM, obrigatório — a pontuação é sempre mensal
  * Mês fechado (issue 06) devolve o resumo congelado, sem consultar o apLIS.
  *
@@ -371,7 +371,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const token = tokenDoHeader(req.headers.authorization);
-    const erroAuth = await autorizarFaturamento(token);
+    const erroAuth = await autorizarFaturamento(token, ['indicadores']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

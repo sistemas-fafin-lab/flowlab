@@ -19,7 +19,7 @@
  * `meta.dadoAte` diz até quando. Sem cache. Falha na réplica → erro, nunca
  * lista vazia (seria lida como "tudo certo").
  *
- * Autorização: `Authorization: Bearer <access_token>` (canViewBilling). Os
+ * Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou a chave da tela). Os
  * títulos são lidos com o cliente do usuário, para respeitar o RLS.
  */
 
@@ -58,7 +58,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const token = tokenDoHeader(req.headers.authorization);
-    const erroAuth = await autorizarFaturamento(token);
+    const erroAuth = await autorizarFaturamento(token, ['contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

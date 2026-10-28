@@ -10,7 +10,7 @@
  * equivalência de valores em api/_lib/faturamento/bdLab.ts.
  *
  * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do operador
- * (exige canViewBilling) — como em api/analises-clinicas/get-documentos.ts.
+ * (exige canViewBilling ou a chave da tela) — como em api/analises-clinicas/get-documentos.ts.
  *
  * Query params:
  *   periodoIni, periodoFim  YYYY-MM-DD — obrigatórios, salvo quando vem idLote
@@ -129,7 +129,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization), ['faturas', 'contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

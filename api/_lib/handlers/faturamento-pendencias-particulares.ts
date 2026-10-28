@@ -7,7 +7,7 @@
  * api/_lib/faturamento/bdLab.ts (listarParticularesPendentes).
  *
  * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do operador
- * (exige canViewBilling), mesmo padrão de /api/faturamento/lotes.
+ * (exige canViewBilling ou a chave da tela), mesmo padrão de /api/faturamento/lotes.
  *
  * Query params (todos opcionais):
  *   desde         YYYY-MM-DD — sobre a data de solicitação
@@ -57,7 +57,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const token = tokenDoHeader(req.headers.authorization);
-    const erroAuth = await autorizarFaturamento(token);
+    const erroAuth = await autorizarFaturamento(token, ['contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

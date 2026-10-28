@@ -6,7 +6,7 @@
  * consulta em api/_lib/faturamento/bdLab.ts (buscarLocaisOrigem).
  *
  * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do operador
- * (exige canViewBilling ou canManageBilling). A escrita na lista de clínicas sem NF
+ * (exige canViewBilling, canManageBilling ou canViewContasReceber). A escrita na lista de clínicas sem NF
  * não passa por aqui: vai direto na tabela clinicas_sem_nf, com a RLS como gate.
  *
  * Query params:
@@ -32,7 +32,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization), ['contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

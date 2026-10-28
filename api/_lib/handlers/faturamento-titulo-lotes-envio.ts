@@ -18,7 +18,7 @@
  * tempo que isso.
  *
  * Autorização: `Authorization: Bearer <access_token>` da sessão do operador
- * (exige canViewBilling — mesma leitura de lote-detalhe).
+ * (exige canViewBilling ou a chave da tela — mesma leitura de lote-detalhe).
  *
  * Variáveis de ambiente: DB_HOST / DB_PORT / DB_USER / DB_PASSWORD / DB_NAME
  *   + SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY para validar a sessão.
@@ -42,7 +42,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization), ['contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

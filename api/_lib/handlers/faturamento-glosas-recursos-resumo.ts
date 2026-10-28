@@ -7,7 +7,7 @@
  * Indeferidos, deferido parcial e glosa acatada. Lê da foto do Supabase; a
  * classificação e as somas são de faturamento/recursoGlosa.ts.
  *
- * Autorização: `Authorization: Bearer <access_token>` (canViewBilling). Lido
+ * Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou a chave da tela). Lido
  * com o cliente do usuário, para respeitar a RLS.
  *
  * Query params:
@@ -96,7 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const token = tokenDoHeader(req.headers.authorization);
-    const erroAuth = await autorizarFaturamento(token);
+    const erroAuth = await autorizarFaturamento(token, ['glosas']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

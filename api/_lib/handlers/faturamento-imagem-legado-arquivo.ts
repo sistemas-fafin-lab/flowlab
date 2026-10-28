@@ -10,7 +10,7 @@
  * apLIS (../faturamento/s3Aplis.ts).
  *
  * Autorização: `Authorization: Bearer <access_token>` da sessão do operador
- * (exige canViewBilling) — igual às demais rotas de faturamento, então o browser não
+ * (exige canViewBilling ou a chave da tela) — igual às demais rotas de faturamento, então o browser não
  * pode usar isto direto num <img src>; o cliente busca via fetch() com o header e
  * monta um object URL.
  *
@@ -52,7 +52,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization), ['glosas']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

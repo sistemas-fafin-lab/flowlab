@@ -7,7 +7,7 @@
  * faturamento-envios-por-convenio).
  *
  * Autorização: header `Authorization: Bearer <access_token>` da sessão do operador
- * (exige canViewBilling) — mesma checagem de faturamento-lotes.ts.
+ * (exige canViewBilling ou a chave da tela) — mesma checagem de faturamento-lotes.ts.
  *
  * Query params:
  *   periodoIni, periodoFim  YYYY-MM-DD — obrigatórios
@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization), ['contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

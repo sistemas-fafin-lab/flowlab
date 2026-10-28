@@ -8,7 +8,7 @@
  * de faturamento/recursoGlosa.ts, com as edições do lápis valendo acima do apLIS —
  * as mesmas regras das colunas Glosado, Glosa recebida e Glosa acatada.
  *
- * Autorização: `Authorization: Bearer <access_token>` (canViewBilling). Lido
+ * Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou a chave da tela). Lido
  * com o cliente do usuário, para respeitar a RLS.
  *
  * Query params:
@@ -62,7 +62,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const token = tokenDoHeader(req.headers.authorization);
-    const erroAuth = await autorizarFaturamento(token);
+    const erroAuth = await autorizarFaturamento(token, ['contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

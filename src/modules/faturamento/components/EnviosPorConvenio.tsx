@@ -5,6 +5,8 @@ import { STATUS_ENVIADOS_PADRAO, STLOT_LABELS } from '../types';
 import { useEnviosPorConvenio } from '../hooks/useEnviosPorConvenio';
 import { formatCurrency, periodoEsteMes, periodoEsteTrimestre } from '../utils/formato';
 import { urlFaturasFiltradasPorConvenio } from '../utils/filtrosUrl';
+import { podeVerTela } from '../utils/permissoesTelas';
+import { useAuth } from '../../../hooks/useAuth';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
@@ -57,6 +59,9 @@ const EnviosPorConvenio: React.FC = () => {
 
   // Drill-down (issue 03): clicar num convênio leva a Faturas já filtrada por ele
   // (id exato, não busca aproximada) e pelo mesmo período selecionado aqui.
+  // Só para quem também vê Faturas (ADR 0001): sem ela a linha não é clicável.
+  const { userProfile } = useAuth();
+  const podeAbrirFaturas = podeVerTela(userProfile?.permissions || [], 'faturas');
   const navigate = useNavigate();
   const irParaFaturasDoConvenio = useCallback(
     (fontePagadoraId: number) => {
@@ -155,7 +160,7 @@ const EnviosPorConvenio: React.FC = () => {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {convenios.map((convenio) => {
-                  const clicavel = convenio.fontePagadoraId !== null;
+                  const clicavel = podeAbrirFaturas && convenio.fontePagadoraId !== null;
                   const irParaFaturas = () => irParaFaturasDoConvenio(convenio.fontePagadoraId as number);
                   return (
                     <tr

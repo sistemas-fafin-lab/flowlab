@@ -17,6 +17,12 @@ const CHAVES_POSTERIORES: Record<string, string> = {
   canManageDepartamentos: '20261020215000_rh_departamentos.sql',
   canViewControleCustos: '20261026150000_controle_custos_permissoes_proprias.sql',
   canManageControleCustos: '20261026150000_controle_custos_permissoes_proprias.sql',
+  canViewFaturas: '20261028150000_fat_permissoes_por_tela.sql',
+  canViewContasReceber: '20261028150000_fat_permissoes_por_tela.sql',
+  canViewGlosas: '20261028150000_fat_permissoes_por_tela.sql',
+  canViewIndicadores: '20261028150000_fat_permissoes_por_tela.sql',
+  canViewCalendarioEnvios: '20261028150000_fat_permissoes_por_tela.sql',
+  canManageCalendarioEnvios: '20261028150000_fat_permissoes_por_tela.sql',
 };
 
 /** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */

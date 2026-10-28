@@ -6,7 +6,7 @@
  * Regra completa em api/_lib/faturamento/bdLab.ts (listarLotesPendentes).
  *
  * Autorização: header `Authorization: Bearer <access_token>` da SESSÃO do operador
- * (exige canViewBilling), mesmo padrão de /api/faturamento/lotes.
+ * (exige canViewBilling ou a chave da tela), mesmo padrão de /api/faturamento/lotes.
  *
  * Query params (todos opcionais):
  *   desde         YYYY-MM-DD — limite inferior
@@ -56,7 +56,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization), ['contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

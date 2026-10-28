@@ -10,7 +10,7 @@
  *
  * POST porque o recorte da tela (todas as páginas) pode ter milhares de lotes.
  *
- * Autorização: `Authorization: Bearer <access_token>` (canViewBilling). Lido
+ * Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou a chave da tela). Lido
  * com o cliente do usuário, para respeitar a RLS.
  *
  * Body: { lotes: number[] }  — `lotes.aplis_id` dos lotes dos títulos
@@ -100,7 +100,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const token = tokenDoHeader(req.headers.authorization);
-    const erroAuth = await autorizarFaturamento(token);
+    const erroAuth = await autorizarFaturamento(token, ['contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

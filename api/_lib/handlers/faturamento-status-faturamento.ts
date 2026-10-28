@@ -11,7 +11,7 @@
  * requisições antigas que o têm gravado.
  *
  * Autorização: `Authorization: Bearer <access_token>` da sessão do operador
- * (exige canViewBilling).
+ * (exige canViewBilling ou a chave da tela).
  *
  * Query params:
  *   semCache  '1' ignora o cache em memória do servidor (TTL 3 min)
@@ -35,7 +35,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization), ['faturas', 'contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

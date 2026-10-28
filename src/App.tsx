@@ -24,7 +24,7 @@ import { MessagingProviderSettings } from './modules/messaging';
 import { PagamentosPage } from './modules/pagamentos';
 import RequestHub from './components/RequestHub';
 import { MaintenanceRequestManagement } from './components/MaintenanceRequest';
-import { FaturasDashboard, ContasReceberPage, GlosasRecursos, IndicadoresFaturamento } from './modules/faturamento';
+import { FaturasDashboard, ContasReceberPage, GlosasRecursos, IndicadoresFaturamento, chavesQueAbremTela } from './modules/faturamento';
 import ITHubDashboard from './components/IT/ITHubDashboard';
 import { useParams } from 'react-router-dom';
 import ITProjectDashboard from './components/IT/ITProjectDashboard';
@@ -256,11 +256,11 @@ const AuthenticatedApp: React.FC = () => {
           }
         />
 
-        {/* Faturamento Routes */}
+        {/* Faturamento Routes — canViewBilling ou a chave da tela (ADR 0001) */}
         <Route
           path="/faturamento/faturas"
           element={
-            <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
+            <ProtectedRoute anyOf={chavesQueAbremTela('faturas')} permissions={userPermissions}>
               <FaturasDashboard />
             </ProtectedRoute>
           }
@@ -268,7 +268,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/faturamento/recebimentos"
           element={
-            <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
+            <ProtectedRoute anyOf={chavesQueAbremTela('contasReceber')} permissions={userPermissions}>
               <ContasReceberPage />
             </ProtectedRoute>
           }
@@ -276,7 +276,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/faturamento/glosas"
           element={
-            <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
+            <ProtectedRoute anyOf={chavesQueAbremTela('glosas')} permissions={userPermissions}>
               <GlosasRecursos />
             </ProtectedRoute>
           }
@@ -284,7 +284,7 @@ const AuthenticatedApp: React.FC = () => {
         <Route
           path="/faturamento/indicadores"
           element={
-            <ProtectedRoute permission="canViewBilling" permissions={userPermissions}>
+            <ProtectedRoute anyOf={chavesQueAbremTela('indicadores')} permissions={userPermissions}>
               <IndicadoresFaturamento />
             </ProtectedRoute>
           }

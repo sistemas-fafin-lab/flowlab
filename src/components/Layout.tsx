@@ -57,6 +57,7 @@ import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission } from '../utils/permissions';
 import { GERADOR_ORCAMENTO_PATH } from '../modules/gerador-orcamento/constants';
+import { chavesQueAbremTela, primeiraTelaPermitida } from '../modules/faturamento/utils/permissoesTelas';
 import { ThemeToggle } from './ThemeToggle';
 import { NotificationBell } from './NotificationBell';
 import { useTheme } from '../hooks/useTheme';
@@ -509,6 +510,8 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   const canApproveAgenteTI = hasPermission(userPermissions, 'canApproveAgenteTI');
   const canConfigureAgenteTI = hasPermission(userPermissions, 'canConfigureAgenteTI');
   const entradaEva = canManageIT || canApproveAgenteTI ? '/it/eva' : '/it/eva/configuracoes';
+  // Faturamento (ADR 0001): o item abre na primeira tela que o usuário pode ver.
+  const entradaFaturamento = primeiraTelaPermitida(userPermissions);
 
   // ─── Persist collapsed state ────────────────────────────────────────────────
   const toggleCollapsed = useCallback(() => {
@@ -633,15 +636,15 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       },
       {
         name: 'Faturamento',
-        href: '/faturamento/faturas',
+        href: entradaFaturamento ?? '/faturamento/faturas',
         icon: Receipt,
-        permission: 'canViewBilling',
+        visible: entradaFaturamento !== null,
         category: 'OPERAÇÕES',
         subItems: [
-          { name: 'Faturas', href: '/faturamento/faturas', icon: FileText, permission: 'canViewBilling' },
-          { name: 'Contas a Receber', href: '/faturamento/recebimentos', icon: DollarSign, permission: 'canViewBilling' },
-          { name: 'Glosas e Recursos', href: '/faturamento/glosas', icon: AlertCircle, permission: 'canViewBilling' },
-          { name: 'Indicadores', href: '/faturamento/indicadores', icon: BarChart3, permission: 'canViewBilling' },
+          { name: 'Faturas', href: '/faturamento/faturas', icon: FileText, anyOf: chavesQueAbremTela('faturas') },
+          { name: 'Contas a Receber', href: '/faturamento/recebimentos', icon: DollarSign, anyOf: chavesQueAbremTela('contasReceber') },
+          { name: 'Glosas e Recursos', href: '/faturamento/glosas', icon: AlertCircle, anyOf: chavesQueAbremTela('glosas') },
+          { name: 'Indicadores', href: '/faturamento/indicadores', icon: BarChart3, anyOf: chavesQueAbremTela('indicadores') },
         ],
       },
       {
@@ -755,7 +758,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         ],
       },
     ],
-    [boardAccess, canManageIT, canApproveAgenteTI, canConfigureAgenteTI, entradaEva]
+    [boardAccess, canManageIT, canApproveAgenteTI, canConfigureAgenteTI, entradaEva, entradaFaturamento]
   );
 
   // ─── Navigation helpers ─────────────────────────────────────────────────────

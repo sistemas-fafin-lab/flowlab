@@ -9,7 +9,7 @@
  * linhas das duas janelas numa consulta só; a regra é de
  * faturamento/indicadoresFaturamento.ts.
  *
- * Autorização: `Authorization: Bearer <access_token>` (canViewBilling).
+ * Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou a chave da tela).
  *
  * Query params:
  *   modo      'mes' (padrão) | 'periodo'
@@ -53,7 +53,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const token = tokenDoHeader(req.headers.authorization);
-    const erroAuth = await autorizarFaturamento(token);
+    const erroAuth = await autorizarFaturamento(token, ['indicadores']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

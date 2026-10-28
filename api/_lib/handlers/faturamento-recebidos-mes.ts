@@ -11,7 +11,7 @@
  * filtro de operadora da tela é feito no cliente, que conhece o mapeamento
  * `operadoras.aplis_id` ↔ `IdFontePagadora`.
  *
- * Autorização: `Authorization: Bearer <access_token>` (canViewBilling).
+ * Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou a chave da tela).
  * Query: competencia=YYYY-MM (obrigatório); semCache=1 fura o cache de 3 min.
  */
 
@@ -34,7 +34,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
   }
 
   try {
-    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization));
+    const erroAuth = await autorizarFaturamento(tokenDoHeader(req.headers.authorization), ['contasReceber']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

@@ -192,6 +192,22 @@ describe('GET /api/faturamento/pendencias-particulares', () => {
     expect(listarParticularesPendentesMock).not.toHaveBeenCalled();
   });
 
+  describe('permissão por tela (ADR 0001): a rota serve Contas a Receber', () => {
+    it.each([['canViewBilling'], ['canManageBilling'], ['canViewContasReceber']])('%s basta', async (chave) => {
+      const res = await executar({ permissoes: [chave] });
+      expect(res.statusCode).toBe(200);
+    });
+
+    it.each([['canViewFaturas'], ['canViewGlosas'], ['canViewIndicadores'], ['canViewCalendarioEnvios']])(
+      'só %s devolve 403',
+      async (chave) => {
+        const res = await executar({ permissoes: [chave] });
+        expect(res.statusCode).toBe(403);
+        expect(listarParticularesPendentesMock).not.toHaveBeenCalled();
+      },
+    );
+  });
+
   it.each([
     ['desde fora do formato', { desde: '01/10/2026' }],
     ['tamanho acima do máximo', { tamanho: '500' }],

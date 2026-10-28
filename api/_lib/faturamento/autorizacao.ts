@@ -9,11 +9,14 @@
 // entre MÓDULOS de propósito (ver o comentário em uploadDocumentoRecepcao.ts), e essa
 // escolha fica preservada — nada aqui é importado por outro módulo. Dentro do módulo de
 // faturamento são dois handlers com a MESMA permissão, e duplicar a regra entre eles só
-// criaria a chance de os dois divergirem numa alteração futura. Os crons do módulo
+// criaria a chance de os dois divergirem numa alteração futura.
+// A regra "chave geral ou chave da tela" vem de src/modules/faturamento/utils/permissoesTelas.ts,
+// do mesmo módulo, para a API não divergir da rota e do menu. Os crons do módulo
 // (glosas-recursos-cron) usam `cronAutorizado`, cópia da do ti-agente.
 
 import type { VercelRequest } from '@vercel/node';
 import { getSupabaseAdminClient } from '../supabase.js';
+import { chavesQueAbremTela, type TelaFaturamento } from '../../../src/modules/faturamento/utils/permissoesTelas.js';
 
 export interface FalhaAutorizacao {
   status: number;
@@ -40,17 +43,31 @@ const MENSAGEM_SEM_PERMISSAO: Record<PermissaoFaturamento, string> = {
 };
 
 /**
+ * Leitura de uma rota consumida pelas telas listadas: `canViewBilling`, `canManageBilling`
+ * ou a chave de qualquer uma delas (ADR 0001, mesma regra da rota e do menu).
+ */
+function aceitasDasTelas(telas: TelaFaturamento[]): string[] {
+  return [...new Set([...ACEITAS.canViewBilling, ...telas.flatMap(chavesQueAbremTela)])];
+}
+
+/**
  * Devolve `null` quando o operador tem `permissao`; a falha a devolver, senão.
+ * `permissao` pode ser a lista das telas que consomem a rota (leitura); escrita
+ * continua pedindo a chave de gestão.
  *
- * Espelha a RLS instalada em 20260807120000: leitura aceita qualquer uma das duas
+ * Espelha a RLS instalada em 20260807120000 (e, por tela, 20261028150000 / fat_pode_ver_tela):
+ * leitura aceita qualquer uma das duas
  * permissões (quem registra baixa evidentemente pode ver o título), escrita exige
  * `canManageBilling`. Se as duas regras divergissem, a rota autorizaria uma
  * chamada que o banco recusaria depois — erro 500 no lugar de um 403 claro.
  */
 export async function autorizarFaturamento(
   token: string | null,
-  permissao: PermissaoFaturamento = 'canViewBilling',
+  permissao: PermissaoFaturamento | TelaFaturamento[] = 'canViewBilling',
 ): Promise<FalhaAutorizacao | null> {
+  const [aceitas, mensagem] = Array.isArray(permissao)
+    ? [aceitasDasTelas(permissao), MENSAGEM_SEM_PERMISSAO.canViewBilling]
+    : [ACEITAS[permissao], MENSAGEM_SEM_PERMISSAO[permissao]];
   if (!token) {
     return { status: 401, payload: { success: false, error: 'Token de autenticação ausente.' } };
   }
@@ -69,14 +86,14 @@ export async function autorizarFaturamento(
 
   const callerPermissions: string[] =
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
-  const authorized = ACEITAS[permissao].some((p) => callerPermissions.includes(p));
+  const authorized = aceitas.some((p) => callerPermissions.includes(p));
 
   if (!authorized) {
     return {
       status: 403,
       payload: {
         success: false,
-        error: MENSAGEM_SEM_PERMISSAO[permissao],
+        error: mensagem,
       },
     };
   }

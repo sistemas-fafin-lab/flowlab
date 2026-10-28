@@ -10,7 +10,7 @@
  * Fonte do apLIS: MySQL de backup, ~1 dia de atraso; `meta.dadoAte` diz até
  * quando. Falha na réplica → erro, sem gravar nada.
  *
- * Autorização: `Authorization: Bearer <access_token>` (canViewBilling). A foto
+ * Autorização: `Authorization: Bearer <access_token>` (canViewBilling ou a chave da tela). A foto
  * é espelho do apLIS, não edição do operador, então quem consulta pode
  * atualizar; grava com service_role.
  *
@@ -40,7 +40,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
 
   try {
     const token = tokenDoHeader(req.headers.authorization);
-    const erroAuth = await autorizarFaturamento(token);
+    const erroAuth = await autorizarFaturamento(token, ['glosas']);
     if (erroAuth) {
       res.status(erroAuth.status).json(erroAuth.payload);
       return;

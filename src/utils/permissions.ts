@@ -38,6 +38,15 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canConfigureRequestPeriods', label: 'Configurar Períodos', group: 'Administração' },
   { key: 'canViewBilling', label: 'Visualizar Faturamento', group: 'Administração' },
   { key: 'canManageBilling', label: 'Gerenciar Contas a Receber', group: 'Administração' },
+  // Uma chave de ver por tela do Faturamento (docs/adr/0001-permissoes-faturamento-por-tela.md).
+  // canViewBilling continua abrindo todas; estas dão acesso parcial.
+  { key: 'canViewFaturas', label: 'Ver Faturas', group: 'Faturamento' },
+  { key: 'canViewContasReceber', label: 'Ver Contas a Receber', group: 'Faturamento' },
+  { key: 'canViewGlosas', label: 'Ver Glosas e Recursos', group: 'Faturamento' },
+  { key: 'canViewIndicadores', label: 'Ver Indicadores do Faturamento', group: 'Faturamento' },
+  { key: 'canViewCalendarioEnvios', label: 'Ver Calendário de envios', group: 'Faturamento' },
+  // Independente de canManageBilling: gerir o Calendário não dá baixa nem edita título.
+  { key: 'canManageCalendarioEnvios', label: 'Gerenciar Calendário de envios', group: 'Faturamento' },
   { key: 'canManageRoles', label: 'Gerenciar Cargos', group: 'Administração' },
   { key: 'canManageEmailTemplates', label: 'Gerenciar Templates de E-mail', group: 'Administração' },
   { key: 'canViewAllNotifications', label: 'Ver Notificações de Todos', group: 'Administração' },
