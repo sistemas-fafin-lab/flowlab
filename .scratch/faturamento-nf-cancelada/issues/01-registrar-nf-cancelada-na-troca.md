@@ -4,7 +4,7 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** done (28/Out/2026): migration `20261027170000` aplicada em produção e roteiro SQL de verificação rodado lá (8 conferências OK, com ROLLBACK); falta a conferência manual no app
 
 - [x] Nova tabela de NFs canceladas, no molde das auditorias do Contas a Receber.
   - Append-only.

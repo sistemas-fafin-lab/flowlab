@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Registrar a NF anterior como cancelada ao trocar o número).
 
-**Status:** ready-for-agent
+**Status:** done (28/Out/2026; sem migration própria, lê a tabela da 01, já em produção); falta a conferência manual no app
 
 - [x] A busca da lista de títulos casa com o número atual e também com o número de uma NF cancelada, e devolve qual NF casou. (`utils/nfCanceladaBusca.ts`; os títulos achados entram no `or()` como `id_nota.in.(...)`.)
 - [x] A linha encontrada por uma NF cancelada indica que o número buscado foi cancelado e mostra o número atual. (Sem selo quando o número atual também casa com o termo.)

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Registrar a NF anterior como cancelada ao trocar o número).
 
-**Status:** ready-for-agent
+**Status:** done (28/Out/2026; sem migration própria, lê a tabela da 01, já em produção); falta a conferência manual no app
 
 - [x] O detalhe do título, que alimenta o painel lateral, passa a trazer a lista de NFs canceladas dele. (Leitura própria `buscarNfsCanceladas`, no padrão de `buscarAlteracoes`, relida quando o número da nota muda.)
 - [x] A seção mostra número, data do cancelamento, motivo e responsável, com a mais recente primeiro.

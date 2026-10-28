@@ -1,6 +1,6 @@
 # Faturamento: histórico de NF cancelada no título
 
-Status: ready-for-agent
+Status: done (4 issues concluídas, 28/Out/2026); falta a conferência manual no app das issues 01 a 03
 
 ## Problem Statement
 

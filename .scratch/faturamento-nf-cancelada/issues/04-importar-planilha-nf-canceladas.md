@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 (Registrar a NF anterior como cancelada ao trocar o número), porque precisa da tabela.
 
-**Status:** ready-for-agent
+**Status:** done (28/Out/2026): migration regerada contra o Supabase de produção (a primeira tinha os ids de operadora de outro projeto) e aplicada lá; as 11 NFs entraram, todas só com a operadora
 
 - [x] Antes de escrever a função de vínculo, conferir o que dá para reaproveitar do script do acerto de 20/10 (`fat_acerto_titulos_planilha_pelo_aplis`). (O acerto não tem casamento de título; reaproveitados `centavos` e o padrão `todas`/`sqlTexto`/transação + conferência.)
 - [x] O script em `supabase/scripts/` gera uma migration de dados única, no padrão desse acerto: transação única e conferência no fim. (`importar-nfs-canceladas-planilha.ts` → `20261027180000_fat_nfs_canceladas_planilha.sql`.)
