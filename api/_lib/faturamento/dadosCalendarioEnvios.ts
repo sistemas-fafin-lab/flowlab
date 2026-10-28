@@ -1,11 +1,19 @@
 // api/_lib/faturamento/dadosCalendarioEnvios.ts
 // Leitura e escrita do Calendário de envios no Supabase (.scratch/faturamento-calendario-envios/spec.md).
 // Só lê, grava e achata; a regra de dia útil e de janela é de calendarioEnvios.ts.
-// Sempre com o cliente do usuário: a RLS (20261028160000) decide quem lê e quem grava,
-// e os triggers gravam quem e quando, e o histórico, com o usuário da sessão.
+// Com o cliente do usuário: a RLS (20261028160000) decide quem lê e quem grava, e os
+// triggers gravam quem e quando, e o histórico, com o usuário da sessão. A exceção é a
+// confirmação automática (gravarConfirmacoes), que roda sem usuário.
 
-import { getSupabaseUserClient } from '../supabase.js';
-import { ehDiaUtil, fimDoMes, janelaDaData, type AgendamentoSugerido, type JanelaEnvio } from './calendarioEnvios.js';
+import { getSupabaseAdminClient, getSupabaseUserClient } from '../supabase.js';
+import {
+  ehDiaUtil,
+  fimDoMes,
+  janelaDaData,
+  type AgendamentoSugerido,
+  type ConfirmacaoAplis,
+  type JanelaEnvio,
+} from './calendarioEnvios.js';
 
 /** Falha a devolver ao navegador: status HTTP e mensagem. */
 export type FalhaCalendario = { erro: { status: number; mensagem: string } };
@@ -16,6 +24,8 @@ export interface RegraEnvio {
   membros: string | null;
   /** `fatinstituicao.IdInstituicao` das fontes pagadoras do apLIS do convênio. */
   fontesPagadoras: number[];
+  /** `fatconvenio.IdConvenio` dos convênios membros (agrupadores AMHPDF), dentro dessas fontes. */
+  conveniosAplis: number[];
   janelas: JanelaEnvio[];
   enviosSugeridosMes: number | null;
   observacao: string | null;
@@ -52,6 +62,7 @@ interface LinhaRegra {
   convenio: string;
   membros: string | null;
   fontes_pagadoras: number[];
+  convenios_aplis: number[];
   janelas: JanelaEnvio[];
   envios_sugeridos_mes: number | null;
   observacao: string | null;
@@ -83,7 +94,7 @@ interface LinhaAgendamento {
 }
 
 const COLUNAS_REGRA =
-  'id, convenio, membros, fontes_pagadoras, janelas, envios_sugeridos_mes, observacao, ativo, alterado_por_nome, alterado_em';
+  'id, convenio, membros, fontes_pagadoras, convenios_aplis, janelas, envios_sugeridos_mes, observacao, ativo, alterado_por_nome, alterado_em';
 
 const COLUNAS_FERIADO = 'id, data, descricao, abrangencia, alterado_por_nome, alterado_em';
 
@@ -98,6 +109,7 @@ function paraRegra(linha: LinhaRegra): RegraEnvio {
     convenio: linha.convenio,
     membros: linha.membros,
     fontesPagadoras: linha.fontes_pagadoras,
+    conveniosAplis: linha.convenios_aplis,
     janelas: linha.janelas,
     enviosSugeridosMes: linha.envios_sugeridos_mes,
     observacao: linha.observacao,
@@ -276,6 +288,30 @@ export async function aplicarSugestao(
     return falha(502, `Não foi possível gravar a sugestão: ${error.message}`);
   }
   return { criados: criar.length, removidos: remover.length };
+}
+
+/**
+ * Grava as confirmações do casamento com o backup (fat_envio_confirmar_aplis,
+ * 20261028190000) e devolve quantas mudaram. Com o cliente de serviço: a confirmação
+ * roda sem usuário, também quando quem abriu o mês só vê o Calendário, e o histórico
+ * ("confirmou_aplis" e, se marcou, "marcou") fica sem autor. Idempotente: agendamento
+ * que já tem lote, ou lote já gravado em outro, fica como está.
+ */
+export async function gravarConfirmacoes(confirmacoes: ConfirmacaoAplis[]): Promise<number | FalhaCalendario> {
+  if (confirmacoes.length === 0) return 0;
+  const { data, error } = await getSupabaseAdminClient().rpc('fat_envio_confirmar_aplis', {
+    p_confirmacoes: confirmacoes.map((c) => ({
+      agendamento_id: c.agendamentoId,
+      id_lote: c.idLote,
+      data_envio: c.dataEnvio,
+      marcar: c.marcar,
+    })),
+  });
+  if (error) {
+    console.error('[faturamento/calendario-envios] confirmar no apLIS:', error.message);
+    return falha(502, `Não foi possível gravar as confirmações do apLIS: ${error.message}`);
+  }
+  return (data as string[] | null)?.length ?? 0;
 }
 
 /**

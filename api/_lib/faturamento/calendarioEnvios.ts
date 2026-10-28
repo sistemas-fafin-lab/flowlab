@@ -408,3 +408,113 @@ export function gerarSugestaoDoMes(
   }
   return { criar, remover: [...remover] };
 }
+
+/** Um lote enviado do backup do apLIS: a fonte pagadora, os convênios das requisições e a `DtaEnvio`. */
+export interface LoteEnviado {
+  idLote: number;
+  /** `fatlote.IdFontePagadora`. */
+  fontePagadora: number;
+  /** `requisicao.IdConvenio` das requisições do lote: o membro de um agrupador (AMHPDF). */
+  convenios: number[];
+  dataEnvio: string;
+}
+
+/** Um Agendamento de envio, como o casamento o vê. */
+export interface AgendamentoParaCasar {
+  id: string;
+  regraId: string;
+  dataPrevista: string;
+  dataEnvio: string | null;
+  loteAplisConfirmado: number | null;
+}
+
+/** Um lote casado com um agendamento: `marcar` quando ninguém o tinha marcado; senão, só o selo. */
+export interface ConfirmacaoAplis {
+  agendamentoId: string;
+  idLote: number;
+  dataEnvio: string;
+  marcar: boolean;
+}
+
+/**
+ * O envio em `data` cabe no agendamento: no mesmo mês e dentro da janela da regra em
+ * que a data prevista cai. O agendamento posto fora de todas as janelas só aceita o
+ * próprio dia previsto e, se já foi marcado, o dia informado.
+ */
+function aceitaEnvio(
+  { dataPrevista, dataEnvio }: AgendamentoParaCasar,
+  janelas: readonly JanelaEnvio[],
+  data: string,
+  feriados: readonly string[],
+): boolean {
+  if (data === dataPrevista || data === dataEnvio) return true;
+  if (data.slice(0, 7) !== dataPrevista.slice(0, 7)) return false;
+  const indice = janelaDaData(dataPrevista, janelas, feriados);
+  return indice !== null && janelaContem(janelas[indice], data, feriados);
+}
+
+/** Uma Regra de envio, como o casamento a vê. */
+interface RegraParaCasar {
+  id: string;
+  janelas: readonly JanelaEnvio[];
+  fontesPagadoras: readonly number[];
+  conveniosAplis: readonly number[];
+}
+
+/**
+ * As regras que podem receber o lote, sempre da fonte pagadora dele. A de agrupador
+ * (com convênios membros) recebe os lotes dos membros; a regra só da fonte recebe o que
+ * nenhum agrupador cobre. Os ids de convênio são outra sequência que a de fonte, então
+ * o membro só vale dentro da fonte do agrupador.
+ */
+function regrasDoLote(lote: LoteEnviado, regras: readonly RegraParaCasar[]): Set<string> {
+  const daFonte = regras.filter((r) => r.fontesPagadoras.includes(lote.fontePagadora));
+  const doMembro = daFonte.filter((r) => r.conveniosAplis.some((c) => lote.convenios.includes(c)));
+  const candidatas = doMembro.length > 0 ? doMembro : daFonte.filter((r) => r.conveniosAplis.length === 0);
+  return new Set(candidatas.map((r) => r.id));
+}
+
+/**
+ * Casa os lotes enviados do backup do apLIS com os Agendamentos de envio (Casamento dos
+ * lotes da spec): cada lote vai para o agendamento ainda sem lote do convênio
+ * (regrasDoLote) mais próximo da `DtaEnvio`, desde que ela caia na janela dele
+ * (aceitaEnvio). Cada agendamento recebe no máximo um lote. O já marcado à mão só ganha
+ * o selo (`marcar` falso) e mantém a data informada.
+ *
+ * Os lotes que sobram são os "Envios não planejados". O lote já gravado num agendamento
+ * (rodada anterior) não confirma de novo nem entra na lista: rodar de novo não muda nada.
+ */
+export function casarLotes<L extends LoteEnviado>(
+  lotes: readonly L[],
+  agendamentos: readonly AgendamentoParaCasar[],
+  regras: readonly RegraParaCasar[],
+  feriados: readonly string[],
+): { confirmacoes: ConfirmacaoAplis[]; naoPlanejados: L[] } {
+  const janelasPorRegra = new Map(regras.map((r) => [r.id, r.janelas]));
+  const jaConfirmados = new Set(agendamentos.flatMap((a) => (a.loteAplisConfirmado === null ? [] : [a.loteAplisConfirmado])));
+  const livres = agendamentos.filter((a) => a.loteAplisConfirmado === null);
+  const confirmacoes: ConfirmacaoAplis[] = [];
+  const naoPlanejados: L[] = [];
+  // Na ordem do envio, para o resultado não depender da ordem da consulta.
+  const emOrdem = [...lotes].sort((a, b) => a.dataEnvio.localeCompare(b.dataEnvio) || a.idLote - b.idLote);
+  for (const lote of emOrdem) {
+    if (jaConfirmados.has(lote.idLote)) continue;
+    const regrasCandidatas = regrasDoLote(lote, regras);
+    // O marcado à mão conta pela data informada: é o dia em que o lote saiu.
+    const distancia = (a: AgendamentoParaCasar) => Math.abs(Date.parse(a.dataEnvio ?? a.dataPrevista) - Date.parse(lote.dataEnvio));
+    // No empate, o previsto mais cedo.
+    const alvo = livres
+      .filter((a) => regrasCandidatas.has(a.regraId) && aceitaEnvio(a, janelasPorRegra.get(a.regraId) ?? [], lote.dataEnvio, feriados))
+      .reduce<AgendamentoParaCasar | undefined>(
+        (melhor, a) => (!melhor || distancia(a) < distancia(melhor) || (distancia(a) === distancia(melhor) && a.dataPrevista < melhor.dataPrevista) ? a : melhor),
+        undefined,
+      );
+    if (!alvo) {
+      naoPlanejados.push(lote);
+      continue;
+    }
+    livres.splice(livres.indexOf(alvo), 1);
+    confirmacoes.push({ agendamentoId: alvo.id, idLote: lote.idLote, dataEnvio: lote.dataEnvio, marcar: alvo.dataEnvio === null });
+  }
+  return { confirmacoes, naoPlanejados };
+}

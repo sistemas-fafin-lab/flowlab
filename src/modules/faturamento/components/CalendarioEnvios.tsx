@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
+  BadgeCheck,
   CalendarCheck,
   CalendarClock,
   CalendarDays,
@@ -11,6 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  PackageSearch,
   Plus,
   RefreshCw,
   Repeat,
@@ -21,10 +23,18 @@ import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { desmarcarEnvio, gerarSugestao, removerAgendamento, simularSugestao, useCalendarioEnvios } from '../hooks/useCalendarioEnvios';
-import type { AgendamentoEnvio, FeriadoEnvio, RegraEnvio, ResultadoSugestaoEnvios, StatusAgendamento } from '../types';
+import type {
+  AgendamentoEnvio,
+  EnvioNaoPlanejado,
+  FeriadoEnvio,
+  RegraEnvio,
+  ResultadoSugestaoEnvios,
+  StatusAgendamento,
+} from '../types';
 import { formatData, formatDataHora } from '../utils/formato';
 import AgendamentoAvulsoModal from './AgendamentoAvulsoModal';
 import { ESTILO_STATUS } from './estiloStatusEnvio';
+import SeloConfirmadoAplis from './SeloConfirmadoAplis';
 import SeloForaDaJanela from './SeloForaDaJanela';
 import DetalheAgendamentoModal from './DetalheAgendamentoModal';
 import FeriadosModal from './FeriadosModal';
@@ -47,6 +57,10 @@ import RegrasEnvioModal from './RegrasEnvioModal';
 // sugestão de <mês seguinte>" e o aviso de mês não planejado; depois de salvar uma
 // regra, a oferta de regerar. Gerar sempre confirma antes, com quantos agendamentos
 // serão criados e removidos (só os sugeridos pendentes e não editados são refeitos).
+// Ao abrir o mês, o servidor casa os lotes do backup do apLIS (D+1) com os
+// agendamentos: os casados ganham o selo "confirmado no apLIS" (e, se ninguém tinha
+// marcado, já vêm enviados); os lotes que sobram vão para "Envios não planejados".
+// Se o backup falha, o calendário aparece sem as confirmações novas, com um aviso.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700';
@@ -147,7 +161,12 @@ const LinhaPainel: React.FC<{
         >
           {nomeConvenio(item)}
         </button>
-        {agendamento.foraDaJanela && <div className="mt-0.5"><SeloForaDaJanela /></div>}
+        {(agendamento.foraDaJanela || agendamento.loteAplisConfirmado !== null) && (
+          <div className="mt-0.5 flex flex-wrap gap-1">
+            {agendamento.loteAplisConfirmado !== null && <SeloConfirmadoAplis lote={agendamento.loteAplisConfirmado} />}
+            {agendamento.foraDaJanela && <SeloForaDaJanela />}
+          </div>
+        )}
         {regra?.observacao && <p className="text-xs text-gray-500 dark:text-gray-400">{regra.observacao}</p>}
         {enviado && (
           <p className="text-xs text-green-700 dark:text-green-400">
@@ -292,11 +311,12 @@ const ChipAgendamento: React.FC<{
   item: ItemAgendado;
   onAcao: (acao: Acao) => void;
 }> = ({ item, onAcao }) => {
-  const { status, foraDaJanela, dataEnvio } = item.agendamento;
+  const { status, foraDaJanela, dataEnvio, loteAplisConfirmado } = item.agendamento;
   const enviado = dataEnvio !== null;
   const dica = [
     nomeConvenio(item),
     enviado ? `Enviado em ${formatData(dataEnvio)}` : ESTILO_STATUS[status].nome,
+    loteAplisConfirmado !== null && `confirmado no apLIS (lote ${loteAplisConfirmado})`,
     foraDaJanela && 'fora da janela da regra',
     item.regra?.observacao,
   ].filter(Boolean).join(' · ') + (item.regra?.membros ? `\nMembros: ${item.regra.membros}` : '');
@@ -309,7 +329,12 @@ const ChipAgendamento: React.FC<{
     >
       {enviado && <Check className="w-3 h-3 shrink-0" strokeWidth={3} />}
       <span className="truncate">{nomeConvenio(item)}</span>
-      {foraDaJanela && <CalendarX className="w-3 h-3 shrink-0 ml-auto text-gray-500 dark:text-gray-400" aria-label="fora da janela" />}
+      <span className="ml-auto flex items-center gap-0.5 shrink-0">
+        {loteAplisConfirmado !== null && (
+          <BadgeCheck className="w-3 h-3 text-emerald-600 dark:text-emerald-400" aria-label="confirmado no apLIS" />
+        )}
+        {foraDaJanela && <CalendarX className="w-3 h-3 text-gray-500 dark:text-gray-400" aria-label="fora da janela" />}
+      </span>
     </button>
   );
 };
@@ -415,6 +440,37 @@ const ListaQualquerDia: React.FC<{
                 <Plus className="w-4 h-4" />
               </button>
             )}
+          </li>
+        ))}
+      </ul>
+    )}
+  </aside>
+);
+
+// ─── Lista "Envios não planejados" ────────────────────────────────────────────
+
+/** Lotes do backup enviados no mês que não casaram com nenhum agendamento. Só informativa. */
+const ListaNaoPlanejados: React.FC<{ envios: EnvioNaoPlanejado[] }> = ({ envios }) => (
+  <aside className={`${CARD} p-5 self-start`} aria-label="Envios não planejados">
+    <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+      <PackageSearch className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+      Envios não planejados
+      {envios.length > 0 && (
+        <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200">{envios.length}</span>
+      )}
+    </h2>
+    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Lotes enviados no apLIS neste mês sem agendamento que case.</p>
+    {envios.length === 0 ? (
+      <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">Nenhum.</p>
+    ) : (
+      <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-700 max-h-96 overflow-y-auto -mr-2 pr-2">
+        {envios.map((envio) => (
+          <li key={envio.idLote} className="py-2">
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{envio.nomeFontePagadora ?? 'Fonte sem nome'}</p>
+            {envio.nomesConvenios && envio.nomesConvenios !== envio.nomeFontePagadora && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 truncate" title={envio.nomesConvenios}>{envio.nomesConvenios}</p>
+            )}
+            <p className="text-xs text-gray-400 dark:text-gray-500">Lote {envio.idLote} · enviado em {formatData(envio.dataEnvio)}</p>
           </li>
         ))}
       </ul>
@@ -694,6 +750,12 @@ const CalendarioEnvios: React.FC = () => {
         </div>
       ) : (
         <div className={`space-y-6 transition-opacity ${loading ? 'opacity-60' : ''}`}>
+          {calendario.confirmacaoAplis.aviso && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3 text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2" role="status">
+              <AlertTriangle className="h-4 w-4 shrink-0" />
+              {calendario.confirmacaoAplis.aviso}
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             <PainelDia
               titulo="Hoje"
@@ -753,6 +815,7 @@ const CalendarioEnvios: React.FC = () => {
                       {ESTILO_STATUS[status].nome}
                     </span>
                   ))}
+                  <span className="flex items-center gap-1.5"><BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />Confirmado no apLIS</span>
                   <span className="flex items-center gap-1.5"><CalendarX className="w-3.5 h-3.5" />Fora da janela da regra</span>
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 dark:bg-amber-900/15 dark:border-amber-800/60" />Feriado</span>
                 </div>
@@ -765,12 +828,15 @@ const CalendarioEnvios: React.FC = () => {
                   onAcao={setAcao}
                 />
               </section>
-              <ListaQualquerDia
-                regras={qualquerDia}
-                diaSugerido={diaUtilSugerido}
-                podeGerenciar={podeGerenciar}
-                onAcao={setAcao}
-              />
+              <div className="space-y-4 self-start">
+                <ListaQualquerDia
+                  regras={qualquerDia}
+                  diaSugerido={diaUtilSugerido}
+                  podeGerenciar={podeGerenciar}
+                  onAcao={setAcao}
+                />
+                <ListaNaoPlanejados envios={calendario.confirmacaoAplis.naoPlanejados} />
+              </div>
             </div>
           )}
         </div>

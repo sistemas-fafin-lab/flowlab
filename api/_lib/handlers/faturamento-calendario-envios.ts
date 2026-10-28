@@ -21,6 +21,14 @@
  * pendentes e não editados o mês corrente ainda tem (o que regerar pode refazer). Cada agendamento vem com `status` e `foraDaJanela` de
  * classificarAgendamento; as telas não recalculam.
  *
+ * Confirmação automática (D+1): antes de ler, o GET do mês (até o corrente) lê no
+ * backup do apLIS os lotes enviados nele e os casa com os agendamentos (casarLotes):
+ * o que ninguém marcou passa a enviado com a data do lote; o marcado à mão só ganha o
+ * lote (selo "confirmado no apLIS"). Grava de forma idempotente. Devolve
+ * `confirmacaoAplis: { naoPlanejados, aviso }`: os lotes que não casaram (calculados na
+ * hora, não gravados) e, se o backup ou a gravação falhou, o aviso; o calendário vem
+ * do mesmo jeito, só sem as confirmações novas.
+ *
  * POST — canManageCalendarioEnvios. Body com `acao`:
  *   'marcar':    { id, dataEnvio: 'YYYY-MM-DD' } — marca como enviado; marcar de novo
  *                troca a data. Data de envio no futuro dá 400.
@@ -54,7 +62,9 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
+import { listarLotesEnviadosDoMes } from '../faturamento/bdLab.js';
 import {
+  casarLotes,
   classificarAgendamento,
   fimDoMes,
   gerarSugestaoDoMes,
@@ -69,6 +79,7 @@ import {
   aplicarSugestao,
   criarAvulso,
   desmarcarEnviado,
+  gravarConfirmacoes,
   lerAgendamentosDoMes,
   lerCalendario,
   lerFeriados,
@@ -150,6 +161,53 @@ function atrasadosEmOrdem(classificados: AgendamentoClassificado[]): Agendamento
   return atrasados.sort((a, b) => peso(a) - peso(b));
 }
 
+/** Um lote do backup que não casou com nenhum agendamento: a lista "Envios não planejados". */
+interface EnvioNaoPlanejado {
+  idLote: number;
+  nomeFontePagadora: string | null;
+  nomesConvenios: string | null;
+  dataEnvio: string;
+}
+
+const AVISO_CONFIRMACAO = 'A confirmação automática pelo backup do apLIS falhou: o calendário aparece sem as confirmações novas.';
+
+/**
+ * A confirmação automática do mês `mes`: casa os lotes enviados do backup com os
+ * agendamentos e grava as confirmações. Nunca derruba o GET: qualquer falha vira o
+ * aviso. Mês futuro não tem lote, nem consulta o backup.
+ */
+async function confirmarNoAplis(
+  token: string,
+  mes: string,
+  hoje: string,
+  feriados: string[],
+): Promise<{ naoPlanejados: EnvioNaoPlanejado[]; aviso: string | null }> {
+  if (mes > hoje.slice(0, 7)) return { naoPlanejados: [], aviso: null };
+  try {
+    const [lotes, regras, agendamentos] = await Promise.all([
+      listarLotesEnviadosDoMes(mes),
+      lerRegras(token),
+      lerAgendamentosDoMes(token, mes),
+    ]);
+    if ('erro' in lotes || 'erro' in regras || 'erro' in agendamentos) return { naoPlanejados: [], aviso: AVISO_CONFIRMACAO };
+
+    const { confirmacoes, naoPlanejados } = casarLotes(lotes.lotes, agendamentos, regras, feriados);
+    const gravadas = await gravarConfirmacoes(confirmacoes);
+    return {
+      naoPlanejados: naoPlanejados.map(({ idLote, nomeFontePagadora, nomesConvenios, dataEnvio }) => ({
+        idLote,
+        nomeFontePagadora,
+        nomesConvenios,
+        dataEnvio,
+      })),
+      aviso: typeof gravadas === 'number' ? null : AVISO_CONFIRMACAO,
+    };
+  } catch (err) {
+    console.error('[faturamento/calendario-envios] confirmação no apLIS:', describeError(err));
+    return { naoPlanejados: [], aviso: AVISO_CONFIRMACAO };
+  }
+}
+
 /** GET ?contador=atrasados: só o total do bloco Atrasados, para o menu. */
 async function contarAtrasados(token: string, res: VercelResponse): Promise<void> {
   const hoje = hojeIsoLocal();
@@ -223,6 +281,8 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
   const amanha = proximoDiaUtil(hoje, datasFeriados);
   const mesAtual = hoje.slice(0, 7);
   const seguinte = mesSeguinte(mesAtual);
+  // Antes de ler o mês, para ele já vir com as confirmações gravadas.
+  const confirmacaoAplis = await confirmarNoAplis(token as string, mes, hoje, datasFeriados);
   const [calendario, vencidos, situacao] = await Promise.all([
     lerCalendario(token as string, { inicio: `${mes}-01`, fim: fimDoMes(`${mes}-01`), dias: [hoje, amanha] }),
     lerVencidos(token as string, hoje),
@@ -258,6 +318,7 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
       mesSeguintePlanejado: situacao.get(seguinte)?.planejado ?? false,
       sugeridosPendentesMesAtual: situacao.get(mesAtual)?.sugeridosPendentes ?? 0,
     },
+    confirmacaoAplis,
   });
 }
 

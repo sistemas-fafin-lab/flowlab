@@ -33,6 +33,7 @@ import mysql from 'mysql2/promise';
 import { cobrancasComTestes } from './cobrancasTestesAplis.js';
 import { STATUS_FOTO } from './recursoGlosa.js';
 import type { RequisicaoGlosaAplis } from './recursoGlosa.js';
+import type { LoteEnviado } from './calendarioEnvios.js';
 import type { LinhaFaturada } from './indicadoresFaturamento.js';
 import type { ConvenioRecebido, ConvenioSemLote } from './pontuacaoSetor.js';
 import type {
@@ -1675,6 +1676,60 @@ export async function listarEnviosPorConvenio(
   }).then((resultado) => {
     if (!('erro' in resultado)) doCache(cacheEnviosPorConvenio, chave, resultado);
     return resultado;
+  });
+}
+
+// ============================================================================
+// LOTES ENVIADOS NO MÊS — confirmação automática do Calendário de envios (issue 07)
+// ============================================================================
+
+/** Um lote enviado no mês, para casar com os Agendamentos de envio (casarLotes), com os nomes para a tela. */
+export interface LoteEnviadoAplis extends LoteEnviado {
+  nomeFontePagadora: string | null;
+  /** Nomes dos convênios do lote, para a lista "Envios não planejados". */
+  nomesConvenios: string | null;
+}
+
+export type ListarLotesEnviadosResultado =
+  | { lotes: LoteEnviadoAplis[] }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Lotes com `DtaEnvio` no mês `mes` ('YYYY-MM') e status "enviados" da aba Envios
+ * (STATUS_ENVIADOS_PADRAO), fora as fontes Particular. Lote sem `DtaEnvio` (comum no
+ * apLIS mesmo faturado) não entra: não há data para casar. Sem cache: o mês aberto
+ * deve ver o backup de hoje. Algumas centenas de lotes por mês; as subconsultas por
+ * lote usam o índice de `requisicao.Lote`.
+ */
+export async function listarLotesEnviadosDoMes(mes: string): Promise<ListarLotesEnviadosResultado> {
+  return comConexao('listarLotesEnviadosDoMes', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT l.IdLote, l.IdFontePagadora, fp.NomFantasia,
+              DATE_FORMAT(l.DtaEnvio, '%Y-%m-%d') AS DtaEnvio,
+              (SELECT GROUP_CONCAT(DISTINCT r.IdConvenio) FROM requisicao r WHERE r.Lote = l.IdLote) AS Convenios,
+              (SELECT GROUP_CONCAT(DISTINCT c.NomConvenio ORDER BY c.NomConvenio SEPARATOR ', ')
+                 FROM requisicao r JOIN fatconvenio c ON c.IdConvenio = r.IdConvenio
+                WHERE r.Lote = l.IdLote) AS NomesConvenios
+         FROM fatlote l
+         JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora
+        WHERE l.Status IN (${STATUS_ENVIADOS_PADRAO.map(() => '?').join(', ')})
+          AND fp.Particular = 0
+          AND l.DtaEnvio >= ?
+          AND l.DtaEnvio < DATE_ADD(?, INTERVAL 1 MONTH)
+        ORDER BY l.DtaEnvio, l.IdLote`,
+      [...STATUS_ENVIADOS_PADRAO, `${mes}-01 00:00:00`, `${mes}-01 00:00:00`],
+    );
+    return {
+      lotes: linhas.map((linha) => ({
+        idLote: numero(linha.IdLote),
+        fontePagadora: numero(linha.IdFontePagadora),
+        nomeFontePagadora: texto(linha.NomFantasia),
+        convenios: (texto(linha.Convenios) ?? '').split(',').filter(Boolean).map(Number),
+        nomesConvenios: texto(linha.NomesConvenios),
+        // O WHERE garante a DtaEnvio.
+        dataEnvio: dataIso(linha.DtaEnvio) as string,
+      })),
+    };
   });
 }
 

@@ -53,6 +53,7 @@ export function useCalendarioEnvios(mes: string | null) {
           mesSeguintePlanejado: true,
           sugeridosPendentesMesAtual: 0,
         },
+        confirmacaoAplis: body.confirmacaoAplis ?? { naoPlanejados: [], aviso: null },
       });
     } catch (err) {
       if (reqId !== buscaAtual.current) return;

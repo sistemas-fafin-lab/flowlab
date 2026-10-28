@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  casarLotes,
   classificarAgendamento,
   ehDiaUtil,
   gerarSugestaoDoMes,
@@ -8,7 +9,7 @@ import {
   regrasDeQualquerDia,
   validarJanelas,
 } from './calendarioEnvios.js';
-import type { AgendamentoDoMes, JanelaEnvio } from './calendarioEnvios.js';
+import type { AgendamentoDoMes, AgendamentoParaCasar, JanelaEnvio, LoteEnviado } from './calendarioEnvios.js';
 
 // Datas de referência (2026): 30/10 é sexta, 31/10 sábado, 02/11 segunda (Finados), 20/11 sexta (Consciência Negra).
 const FERIADOS = ['2026-11-02', '2026-11-15', '2026-11-20', '2026-11-30'];
@@ -465,6 +466,150 @@ describe('gerarSugestaoDoMes', () => {
         [sugerido('s1', 'GEAP', '2026-11-03')],
       );
       expect(criar).toEqual([{ regraId: 'AMPLA', dataPrevista: '2026-11-03', janelaIndice: 0 }]);
+    });
+  });
+});
+
+describe('casarLotes', () => {
+  // AMIL (fonte 1007) envia de 1 a 15; FUSEX (1204) nos dias 3 e 16.
+  const AMIL = { id: 'AMIL', janelas: [{ tipo: 'dias_corridos', de: 1, ate: 15 }] as JanelaEnvio[], fontesPagadoras: [1007], conveniosAplis: [] };
+  const FUSEX = { id: 'FUSEX', janelas: [{ tipo: 'dias_fixos', dias: [3, 16] }] as JanelaEnvio[], fontesPagadoras: [1204], conveniosAplis: [] };
+  const pendente = (id: string, regraId: string, dataPrevista: string): AgendamentoParaCasar => ({
+    id, regraId, dataPrevista, dataEnvio: null, loteAplisConfirmado: null,
+  });
+  const lote = (idLote: number, fontePagadora: number, dataEnvio: string, convenios: number[] = []): LoteEnviado => ({
+    idLote, fontePagadora, convenios, dataEnvio,
+  });
+
+  it('o lote casa com o agendamento pendente do convênio mais próximo da data de envio e o marca com ela', () => {
+    const { confirmacoes, naoPlanejados } = casarLotes(
+      [lote(7001, 1007, '2026-11-10')],
+      [pendente('a', 'AMIL', '2026-11-04'), pendente('b', 'AMIL', '2026-11-12'), pendente('f', 'FUSEX', '2026-11-10')],
+      [AMIL, FUSEX],
+      FERIADOS,
+    );
+    expect(confirmacoes).toEqual([{ agendamentoId: 'b', idLote: 7001, dataEnvio: '2026-11-10', marcar: true }]);
+    expect(naoPlanejados).toEqual([]);
+  });
+
+  it('lote fora da janela do agendamento, ou de outro mês, vai para os envios não planejados', () => {
+    const atrasado = lote(7002, 1007, '2026-11-17');
+    const doMesSeguinte = lote(7003, 1007, '2026-12-01');
+    const { confirmacoes, naoPlanejados } = casarLotes(
+      [atrasado, doMesSeguinte],
+      [pendente('a', 'AMIL', '2026-11-13')],
+      [AMIL],
+      FERIADOS,
+    );
+    expect(confirmacoes).toEqual([]);
+    expect(naoPlanejados).toEqual([atrasado, doMesSeguinte]);
+  });
+
+  it('cada agendamento recebe no máximo um lote: o segundo do mesmo dia vai para os não planejados', () => {
+    const segundo = lote(7005, 1007, '2026-11-10');
+    const { confirmacoes, naoPlanejados } = casarLotes(
+      [lote(7004, 1007, '2026-11-10'), segundo],
+      [pendente('a', 'AMIL', '2026-11-10')],
+      [AMIL],
+      FERIADOS,
+    );
+    expect(confirmacoes).toEqual([{ agendamentoId: 'a', idLote: 7004, dataEnvio: '2026-11-10', marcar: true }]);
+    expect(naoPlanejados).toEqual([segundo]);
+  });
+
+  it('o segundo lote vai para o próximo agendamento pendente mais próximo, se houver', () => {
+    const { confirmacoes } = casarLotes(
+      [lote(7004, 1007, '2026-11-10'), lote(7005, 1007, '2026-11-10')],
+      [pendente('a', 'AMIL', '2026-11-10'), pendente('b', 'AMIL', '2026-11-05')],
+      [AMIL],
+      FERIADOS,
+    );
+    expect(confirmacoes.map((c) => [c.agendamentoId, c.idLote])).toEqual([['a', 7004], ['b', 7005]]);
+  });
+
+  it('rodar de novo não muda nada: o lote já confirmado não confirma de novo nem vira não planejado', () => {
+    const outro = lote(7005, 1007, '2026-11-10');
+    const { confirmacoes, naoPlanejados } = casarLotes(
+      [lote(7004, 1007, '2026-11-10'), outro],
+      [{ id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-10', dataEnvio: '2026-11-10', loteAplisConfirmado: 7004 }],
+      [AMIL],
+      FERIADOS,
+    );
+    expect(confirmacoes).toEqual([]);
+    expect(naoPlanejados).toEqual([outro]);
+  });
+
+  it('agendamento já marcado à mão só ganha o selo: a data informada pela faturista prevalece', () => {
+    const { confirmacoes } = casarLotes(
+      [lote(7006, 1007, '2026-11-11')],
+      [{ id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-10', dataEnvio: '2026-11-10', loteAplisConfirmado: null }],
+      [AMIL],
+      FERIADOS,
+    );
+    expect(confirmacoes).toEqual([{ agendamentoId: 'a', idLote: 7006, dataEnvio: '2026-11-11', marcar: false }]);
+  });
+
+  it('o marcado à mão conta pela data de envio informada: o lote daquele dia é dele, não do pendente ao lado', () => {
+    const { confirmacoes } = casarLotes(
+      [lote(7007, 1007, '2026-11-05')],
+      [
+        { id: 'a', regraId: 'AMIL', dataPrevista: '2026-11-03', dataEnvio: '2026-11-05', loteAplisConfirmado: null },
+        pendente('b', 'AMIL', '2026-11-06'),
+      ],
+      [AMIL],
+      FERIADOS,
+    );
+    expect(confirmacoes).toEqual([{ agendamentoId: 'a', idLote: 7007, dataEnvio: '2026-11-05', marcar: false }]);
+  });
+
+  describe('agrupador AMHPDF', () => {
+    // No apLIS, os membros do AMHPDF são convênios (requisicao.IdConvenio) da fonte AMHP-DF (1025).
+    const TODOS = [{ tipo: 'todos_os_dias' }] as JanelaEnvio[];
+    const AMHP = { id: 'AMHP', janelas: TODOS, fontesPagadoras: [1025], conveniosAplis: [] };
+    const ONLINE = { id: 'ONLINE', janelas: TODOS, fontesPagadoras: [1025], conveniosAplis: [1042, 1003] }; // SERPRO, BACEN
+    const FISICA = { id: 'FISICA', janelas: TODOS, fontesPagadoras: [1025], conveniosAplis: [1043] }; // PROASA
+
+    it('o lote casa pelo convênio membro, não com qualquer agrupador da mesma fonte', () => {
+      const { confirmacoes } = casarLotes(
+        [lote(7100, 1025, '2026-11-10', [1043])],
+        [pendente('amhp', 'AMHP', '2026-11-10'), pendente('online', 'ONLINE', '2026-11-10'), pendente('fisica', 'FISICA', '2026-11-12')],
+        [AMHP, ONLINE, FISICA],
+        FERIADOS,
+      );
+      expect(confirmacoes.map((c) => c.agendamentoId)).toEqual(['fisica']);
+    });
+
+    it('o lote de convênio que nenhum agrupador cobre fica com a regra da fonte inteira', () => {
+      const { confirmacoes } = casarLotes(
+        [lote(7101, 1025, '2026-11-10', [1082])], // REAL GRANDEZA
+        [pendente('amhp', 'AMHP', '2026-11-13'), pendente('online', 'ONLINE', '2026-11-10')],
+        [AMHP, ONLINE, FISICA],
+        FERIADOS,
+      );
+      expect(confirmacoes.map((c) => c.agendamentoId)).toEqual(['amhp']);
+    });
+
+    it('o convênio membro só vale na fonte do agrupador: o mesmo id em outra fonte não é membro', () => {
+      const EVIDA = { id: 'EVIDA', janelas: TODOS, fontesPagadoras: [1049], conveniosAplis: [] };
+      const { confirmacoes } = casarLotes(
+        [lote(7103, 1049, '2026-11-10', [1043])],
+        [pendente('evida', 'EVIDA', '2026-11-10'), pendente('fisica', 'FISICA', '2026-11-10')],
+        [EVIDA, FISICA],
+        FERIADOS,
+      );
+      expect(confirmacoes.map((c) => c.agendamentoId)).toEqual(['evida']);
+    });
+
+    it('o lote do membro sem agendamento pendente do agrupador vai para os não planejados', () => {
+      const membro = lote(7102, 1025, '2026-11-10', [1042]);
+      const { confirmacoes, naoPlanejados } = casarLotes(
+        [membro],
+        [pendente('amhp', 'AMHP', '2026-11-10')],
+        [AMHP, ONLINE, FISICA],
+        FERIADOS,
+      );
+      expect(confirmacoes).toEqual([]);
+      expect(naoPlanejados).toEqual([membro]);
     });
   });
 });

@@ -1560,6 +1560,8 @@ export interface RegraEnvio {
   membros: string | null;
   /** `fatinstituicao.IdInstituicao` das fontes pagadoras do apLIS do convênio. */
   fontesPagadoras: number[];
+  /** `fatconvenio.IdConvenio` dos convênios membros (agrupadores AMHPDF): a confirmação automática casa por eles. */
+  conveniosAplis: number[];
   janelas: JanelaEnvio[];
   /** Só nas regras de "todos os dias": quantos envios a sugestão espalha no mês. */
   enviosSugeridosMes: number | null;
@@ -1571,7 +1573,7 @@ export interface RegraEnvio {
 }
 
 /** O que o cadastro de Regras de envio grava (POST salvarRegra); `id` nulo cria. */
-export type DadosRegraEnvio = Omit<RegraEnvio, 'id' | 'alteradoPorNome' | 'alteradoEm'> & { id: string | null };
+export type DadosRegraEnvio = Omit<RegraEnvio, 'id' | 'conveniosAplis' | 'alteradoPorNome' | 'alteradoEm'> & { id: string | null };
 
 /** Espelha StatusAgendamento de api/_lib/faturamento/calendarioEnvios.ts. */
 export type StatusAgendamento = 'pendente' | 'enviado' | 'atrasado' | 'fora_do_prazo';
@@ -1590,6 +1592,7 @@ export interface AgendamentoEnvio {
   marcadoPorNome: string | null;
   /** ISO. */
   marcadoEm: string | null;
+  /** Lote do backup do apLIS que confirmou o envio: o selo "confirmado no apLIS". */
   loteAplisConfirmado: number | null;
   /** Classificado pelo servidor em `hoje`; a tela não recalcula. */
   status: StatusAgendamento;
@@ -1628,6 +1631,25 @@ export interface CalendarioEnvios {
   /** Atrasados e fora do prazo de qualquer mês, fora do prazo primeiro. */
   atrasados: AgendamentoEnvio[];
   sugestao: SituacaoSugestaoEnvios;
+  confirmacaoAplis: ConfirmacaoAplisEnvios;
+}
+
+/** Um lote do backup do apLIS enviado no mês que não casou com nenhum agendamento. */
+export interface EnvioNaoPlanejado {
+  idLote: number;
+  nomeFontePagadora: string | null;
+  /** Os convênios das requisições do lote (o membro, nos lotes do AMHP-DF). */
+  nomesConvenios: string | null;
+  /** 'YYYY-MM-DD'. */
+  dataEnvio: string;
+}
+
+/** A confirmação automática do mês pelo backup do apLIS (D+1). */
+export interface ConfirmacaoAplisEnvios {
+  /** Calculados na hora; não ficam gravados. */
+  naoPlanejados: EnvioNaoPlanejado[];
+  /** Quando o backup ou a gravação falhou: o calendário vem sem as confirmações novas. */
+  aviso: string | null;
 }
 
 /** A sugestão do mês seguinte e a regeração do corrente (GET /api/faturamento/calendario-envios). */
