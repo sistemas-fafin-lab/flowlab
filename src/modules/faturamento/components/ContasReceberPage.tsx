@@ -7,11 +7,13 @@ import { useContasReceber } from '../hooks/useContasReceber';
 import { useConferenciaAplis } from '../hooks/useConferenciaAplis';
 import { periodoEsteMes } from '../utils/formato';
 import { idsDivergentesNoPeriodo } from '../utils/conferenciaAplis';
+import { podeVerTela } from '../utils/permissoesTelas';
 import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
 import type {
   DashboardReceberFiltros, FiltroGlosaTitulo, RefechamentoAplicado, SubAbaPendencias, TituloReceber, TituloStatus,
 } from '../types';
 import ContasReceberDashboard from './ContasReceberDashboard';
+import EnviosHojeAmanha from './EnviosHojeAmanha';
 import TitulosList from './TitulosList';
 import EnviosPorConvenio from './EnviosPorConvenio';
 import PendenciasNaoFaturadas from './PendenciasNaoFaturadas';
@@ -68,6 +70,8 @@ const ContasReceberPage: React.FC = () => {
   // Gate de escrita. A leitura já foi barrada pela rota (canViewBilling) e pela
   // RLS; aqui é só a diferença entre ver e poder mexer.
   const podeEditar = hasPermission(userProfile?.permissions || [], 'canManageBilling');
+  // Os painéis Hoje e Amanhã do Calendário de envios, no topo do Dashboard.
+  const podeVerCalendarioEnvios = podeVerTela(userProfile?.permissions || [], 'calendarioEnvios');
 
   const [aba, setAba] = useState<Aba>('dashboard');
   const [subAbaPendencias, setSubAbaPendencias] = useState<SubAbaPendencias>('lotes');
@@ -398,6 +402,8 @@ const ContasReceberPage: React.FC = () => {
           </button>
         ))}
       </div>
+
+      {aba === 'dashboard' && podeVerCalendarioEnvios && <EnviosHojeAmanha />}
 
       {aba === 'dashboard' && (
         <ContasReceberDashboard
