@@ -24,7 +24,7 @@ import { MessagingProviderSettings } from './modules/messaging';
 import { PagamentosPage } from './modules/pagamentos';
 import RequestHub from './components/RequestHub';
 import { MaintenanceRequestManagement } from './components/MaintenanceRequest';
-import { FaturasDashboard, ContasReceberPage, GlosasRecursos, IndicadoresFaturamento, chavesQueAbremTela } from './modules/faturamento';
+import { FaturasDashboard, ContasReceberPage, GlosasRecursos, IndicadoresFaturamento, CalendarioEnvios, chavesQueAbremTela } from './modules/faturamento';
 import ITHubDashboard from './components/IT/ITHubDashboard';
 import { useParams } from 'react-router-dom';
 import ITProjectDashboard from './components/IT/ITProjectDashboard';
@@ -286,6 +286,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute anyOf={chavesQueAbremTela('indicadores')} permissions={userPermissions}>
               <IndicadoresFaturamento />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/faturamento/calendario"
+          element={
+            <ProtectedRoute anyOf={chavesQueAbremTela('calendarioEnvios')} permissions={userPermissions}>
+              <CalendarioEnvios />
             </ProtectedRoute>
           }
         />

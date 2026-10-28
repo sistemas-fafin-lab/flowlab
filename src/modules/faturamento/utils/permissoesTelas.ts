@@ -20,6 +20,7 @@ export const TELAS_FATURAMENTO: { tela: TelaFaturamento; href: string }[] = [
   { tela: 'contasReceber', href: '/faturamento/recebimentos' },
   { tela: 'glosas', href: '/faturamento/glosas' },
   { tela: 'indicadores', href: '/faturamento/indicadores' },
+  { tela: 'calendarioEnvios', href: '/faturamento/calendario' },
 ];
 
 /** A chave geral e a chave da tela; qualquer uma das duas abre a tela. */

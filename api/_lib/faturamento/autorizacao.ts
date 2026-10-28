@@ -27,19 +27,23 @@ export interface FalhaAutorizacao {
  * Permissão exigida pela rota. `canManageBilling` é o nível de escrita.
  * `canViewControleCustos` serve as rotas do Controle de Custos, que desde 20261026150000
  * têm chaves próprias (gerenciar implica ver), fora das do Faturamento.
+ * `canManageCalendarioEnvios` é a escrita do Calendário de envios, independente de
+ * `canManageBilling` (ADR 0001; RLS de 20261028160000).
  */
-export type PermissaoFaturamento = 'canViewBilling' | 'canManageBilling' | 'canViewControleCustos';
+export type PermissaoFaturamento = 'canViewBilling' | 'canManageBilling' | 'canViewControleCustos' | 'canManageCalendarioEnvios';
 
 const ACEITAS: Record<PermissaoFaturamento, string[]> = {
   canViewBilling: ['canViewBilling', 'canManageBilling'],
   canManageBilling: ['canManageBilling'],
   canViewControleCustos: ['canViewControleCustos', 'canManageControleCustos'],
+  canManageCalendarioEnvios: ['canManageCalendarioEnvios'],
 };
 
 const MENSAGEM_SEM_PERMISSAO: Record<PermissaoFaturamento, string> = {
   canViewBilling: 'Sem permissão para consultar faturamento.',
   canManageBilling: 'Sem permissão para gerenciar contas a receber.',
   canViewControleCustos: 'Sem permissão para acessar o Controle de Custos.',
+  canManageCalendarioEnvios: 'Sem permissão para gerenciar o Calendário de envios.',
 };
 
 /**

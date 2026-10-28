@@ -1541,3 +1541,62 @@ export type PontuacaoSetorMeta =
       /** ISO. */
       fechadoEm: string;
     };
+
+// ─── Calendário de envios (.scratch/faturamento-calendario-envios/) ────────────
+
+/** Janela da Regra de envio; espelha JanelaEnvio de api/_lib/faturamento/calendarioEnvios.ts. */
+export type JanelaEnvio =
+  | { tipo: 'dias_corridos'; de: number; ate: number }
+  | { tipo: 'dias_uteis'; de: number; ate: number }
+  | { tipo: 'dias_fixos'; dias: number[] }
+  | { tipo: 'ultimo_dia_util' }
+  | { tipo: 'todos_os_dias' }
+  | { tipo: 'calendario_convenio' };
+
+export interface RegraEnvio {
+  id: string;
+  convenio: string;
+  /** Convênios cobertos pelos agrupadores (AMHPDF); null nos demais. */
+  membros: string | null;
+  janelas: JanelaEnvio[];
+  enviosSugeridosMes: number | null;
+  observacao: string | null;
+  ativo: boolean;
+}
+
+export interface AgendamentoEnvio {
+  id: string;
+  regraId: string;
+  /** 'YYYY-MM-DD'. */
+  dataPrevista: string;
+  /** Índice em RegraEnvio.janelas; null fora de todas as janelas. */
+  janelaIndice: number | null;
+  origem: 'sugestao' | 'manual';
+  editado: boolean;
+  /** 'YYYY-MM-DD'; null enquanto não foi enviado. */
+  dataEnvio: string | null;
+  marcadoPorNome: string | null;
+  /** ISO. */
+  marcadoEm: string | null;
+  loteAplisConfirmado: number | null;
+}
+
+export interface FeriadoEnvio {
+  data: string;
+  descricao: string;
+  abrangencia: 'nacional' | 'DF';
+}
+
+/** Contrato de GET /api/faturamento/calendario-envios. */
+export interface CalendarioEnvios {
+  /** 'YYYY-MM-DD' em America/Sao_Paulo. */
+  hoje: string;
+  /** O próximo dia útil depois de hoje. */
+  amanha: string;
+  /** 'YYYY-MM' da grade. */
+  mes: string;
+  regras: RegraEnvio[];
+  feriados: FeriadoEnvio[];
+  /** Os do mês e os de hoje e amanhã. */
+  agendamentos: AgendamentoEnvio[];
+}
