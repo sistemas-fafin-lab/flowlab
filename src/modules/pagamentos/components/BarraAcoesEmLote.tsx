@@ -1,5 +1,4 @@
 import React from 'react';
-import { createPortal } from 'react-dom';
 import { Check, DollarSign, X } from 'lucide-react';
 import type { PaymentRequest } from '../../../types';
 import { formatCurrency } from '../../../utils/paymentUtils';
@@ -10,6 +9,7 @@ import { totalDe } from '../domain/filtrosPagamentos';
 // cabe (aprovar os pendentes, pagar os aprovados) e diz quantos são.
 // No celular ocupa a largura toda, com o resumo em cima e os botões largos embaixo, acima
 // da barra do iPhone; do sm em diante é uma pílula centralizada numa linha só.
+// Sem portal: dentro do app, a confirmação da ação em lote (ConfirmDialog) passa por cima dela.
 
 interface Props {
   selecionados: PaymentRequest[];
@@ -26,7 +26,7 @@ const BarraAcoesEmLote: React.FC<Props> = ({ selecionados, onAprovar, onPagar, o
   const pendentes = selecionados.filter((p) => p.status === 'pending');
   const aprovados = selecionados.filter((p) => p.status === 'approved');
 
-  return createPortal(
+  return (
     // Centralizada com flex, não com translate: a animação termina em transform: none e
     // anulava o -translate-x-1/2 (a barra ficava com a borda esquerda no meio da tela).
     <div className="fixed inset-x-3 sm:inset-x-4 bottom-[max(0.75rem,env(safe-area-inset-bottom))] sm:bottom-4 z-40 flex justify-center pointer-events-none">
@@ -70,8 +70,7 @@ const BarraAcoesEmLote: React.FC<Props> = ({ selecionados, onAprovar, onPagar, o
           </div>
         )}
       </div>
-    </div>,
-    document.body,
+    </div>
   );
 };
 
