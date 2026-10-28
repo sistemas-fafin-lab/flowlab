@@ -177,3 +177,63 @@ export function classificarAgendamento(
 export function regrasDeQualquerDia<R extends { janelas: readonly JanelaEnvio[]; ativo: boolean }>(regras: readonly R[]): R[] {
   return regras.filter((regra) => regra.ativo && regra.janelas.some((janela) => janela.tipo === 'todos_os_dias'));
 }
+
+const TIPOS_JANELA: readonly JanelaEnvio['tipo'][] = [
+  'dias_corridos',
+  'dias_uteis',
+  'dias_fixos',
+  'ultimo_dia_util',
+  'todos_os_dias',
+  'calendario_convenio',
+];
+
+/** Um mês tem no máximo 31 dias e 23 dias úteis. */
+const MAXIMO_DIA_CORRIDO = 31;
+export const MAXIMO_DIA_UTIL = 23;
+
+const diaEntre = (valor: unknown, maximo: number): valor is number =>
+  Number.isInteger(valor) && (valor as number) >= 1 && (valor as number) <= maximo;
+
+/** Uma janela vinda do cadastro, só com os campos do tipo dela. */
+function validarJanela(bruta: unknown): { janela: JanelaEnvio } | { erro: string } {
+  const janela = (bruta && typeof bruta === 'object' ? bruta : {}) as Record<string, unknown>;
+  const tipo = janela.tipo as JanelaEnvio['tipo'];
+  if (!TIPOS_JANELA.includes(tipo)) return { erro: 'tipo de janela inválido.' };
+  switch (tipo) {
+    case 'dias_corridos':
+    case 'dias_uteis': {
+      const maximo = tipo === 'dias_uteis' ? MAXIMO_DIA_UTIL : MAXIMO_DIA_CORRIDO;
+      const { de, ate } = janela;
+      if (!diaEntre(de, maximo) || !diaEntre(ate, maximo)) {
+        return { erro: `${tipo === 'dias_uteis' ? 'dias úteis' : 'dias corridos'} vão de 1 a ${maximo}.` };
+      }
+      if (de > ate) return { erro: `o início (${de}) passa do fim (${ate}).` };
+      return { janela: { tipo, de, ate } };
+    }
+    case 'dias_fixos': {
+      const dias = janela.dias;
+      if (!Array.isArray(dias) || dias.length === 0) return { erro: 'informe ao menos um dia.' };
+      if (!dias.every((dia) => diaEntre(dia, MAXIMO_DIA_CORRIDO))) {
+        return { erro: `dias fixos vão de 1 a ${MAXIMO_DIA_CORRIDO}.` };
+      }
+      return { janela: { tipo, dias: [...new Set(dias as number[])].sort((a, b) => a - b) } };
+    }
+    default:
+      return { janela: { tipo } };
+  }
+}
+
+/**
+ * As janelas de uma Regra de envio vindas do cadastro: ao menos uma, cada uma só com
+ * os campos do tipo dela. A mensagem de erro diz qual janela está errada.
+ */
+export function validarJanelas(brutas: unknown): { janelas: JanelaEnvio[] } | { erro: string } {
+  if (!Array.isArray(brutas) || brutas.length === 0) return { erro: 'Informe ao menos uma janela.' };
+  const janelas: JanelaEnvio[] = [];
+  for (const [i, bruta] of brutas.entries()) {
+    const lida = validarJanela(bruta);
+    if ('erro' in lida) return { erro: `Janela ${i + 1}: ${lida.erro}` };
+    janelas.push(lida.janela);
+  }
+  return { janelas };
+}

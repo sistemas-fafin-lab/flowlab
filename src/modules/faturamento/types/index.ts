@@ -1558,11 +1558,20 @@ export interface RegraEnvio {
   convenio: string;
   /** Convênios cobertos pelos agrupadores (AMHPDF); null nos demais. */
   membros: string | null;
+  /** `fatinstituicao.IdInstituicao` das fontes pagadoras do apLIS do convênio. */
+  fontesPagadoras: number[];
   janelas: JanelaEnvio[];
+  /** Só nas regras de "todos os dias": quantos envios a sugestão espalha no mês. */
   enviosSugeridosMes: number | null;
   observacao: string | null;
   ativo: boolean;
+  alteradoPorNome: string | null;
+  /** ISO. */
+  alteradoEm: string;
 }
+
+/** O que o cadastro de Regras de envio grava (POST salvarRegra); `id` nulo cria. */
+export type DadosRegraEnvio = Omit<RegraEnvio, 'id' | 'alteradoPorNome' | 'alteradoEm'> & { id: string | null };
 
 /** Espelha StatusAgendamento de api/_lib/faturamento/calendarioEnvios.ts. */
 export type StatusAgendamento = 'pendente' | 'enviado' | 'atrasado' | 'fora_do_prazo';
@@ -1589,10 +1598,18 @@ export interface AgendamentoEnvio {
 }
 
 export interface FeriadoEnvio {
+  id: string;
   data: string;
   descricao: string;
   abrangencia: 'nacional' | 'DF';
+  /** Null nos feriados da carga inicial. */
+  alteradoPorNome: string | null;
+  /** ISO; null nos feriados da carga inicial. */
+  alteradoEm: string | null;
 }
+
+/** O que o cadastro de feriados grava (POST salvarFeriado); `id` nulo cria. */
+export type DadosFeriadoEnvio = Pick<FeriadoEnvio, 'data' | 'descricao' | 'abrangencia'> & { id: string | null };
 
 /** Contrato de GET /api/faturamento/calendario-envios. */
 export interface CalendarioEnvios {

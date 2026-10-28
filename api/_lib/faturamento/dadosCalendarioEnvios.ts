@@ -14,10 +14,14 @@ export interface RegraEnvio {
   id: string;
   convenio: string;
   membros: string | null;
+  /** `fatinstituicao.IdInstituicao` das fontes pagadoras do apLIS do convênio. */
+  fontesPagadoras: number[];
   janelas: JanelaEnvio[];
   enviosSugeridosMes: number | null;
   observacao: string | null;
   ativo: boolean;
+  alteradoPorNome: string | null;
+  alteradoEm: string;
 }
 
 export interface AgendamentoEnvio {
@@ -34,19 +38,35 @@ export interface AgendamentoEnvio {
 }
 
 export interface FeriadoEnvio {
+  id: string;
   data: string;
   descricao: string;
   abrangencia: 'nacional' | 'DF';
+  /** Null nos feriados da carga inicial. */
+  alteradoPorNome: string | null;
+  alteradoEm: string | null;
 }
 
 interface LinhaRegra {
   id: string;
   convenio: string;
   membros: string | null;
+  fontes_pagadoras: number[];
   janelas: JanelaEnvio[];
   envios_sugeridos_mes: number | null;
   observacao: string | null;
   ativo: boolean;
+  alterado_por_nome: string | null;
+  alterado_em: string;
+}
+
+interface LinhaFeriado {
+  id: string;
+  data: string;
+  descricao: string;
+  abrangencia: 'nacional' | 'DF';
+  alterado_por_nome: string | null;
+  alterado_em: string | null;
 }
 
 interface LinhaAgendamento {
@@ -62,10 +82,41 @@ interface LinhaAgendamento {
   lote_aplis_confirmado: number | null;
 }
 
+const COLUNAS_REGRA =
+  'id, convenio, membros, fontes_pagadoras, janelas, envios_sugeridos_mes, observacao, ativo, alterado_por_nome, alterado_em';
+
+const COLUNAS_FERIADO = 'id, data, descricao, abrangencia, alterado_por_nome, alterado_em';
+
 const COLUNAS_AGENDAMENTO =
   'id, regra_id, data_prevista, janela_indice, origem, editado, data_envio, marcado_por_nome, marcado_em, lote_aplis_confirmado';
 
 const falha = (status: number, mensagem: string): FalhaCalendario => ({ erro: { status, mensagem } });
+
+function paraRegra(linha: LinhaRegra): RegraEnvio {
+  return {
+    id: linha.id,
+    convenio: linha.convenio,
+    membros: linha.membros,
+    fontesPagadoras: linha.fontes_pagadoras,
+    janelas: linha.janelas,
+    enviosSugeridosMes: linha.envios_sugeridos_mes,
+    observacao: linha.observacao,
+    ativo: linha.ativo,
+    alteradoPorNome: linha.alterado_por_nome,
+    alteradoEm: linha.alterado_em,
+  };
+}
+
+function paraFeriado(linha: LinhaFeriado): FeriadoEnvio {
+  return {
+    id: linha.id,
+    data: linha.data,
+    descricao: linha.descricao,
+    abrangencia: linha.abrangencia,
+    alteradoPorNome: linha.alterado_por_nome,
+    alteradoEm: linha.alterado_em,
+  };
+}
 
 function paraAgendamento(linha: LinhaAgendamento): AgendamentoEnvio {
   return {
@@ -86,34 +137,26 @@ function paraAgendamento(linha: LinhaAgendamento): AgendamentoEnvio {
 export async function lerRegras(token: string): Promise<RegraEnvio[] | FalhaCalendario> {
   const { data, error } = await getSupabaseUserClient(token)
     .from('fat_envio_regras')
-    .select('id, convenio, membros, janelas, envios_sugeridos_mes, observacao, ativo')
+    .select(COLUNAS_REGRA)
     .order('convenio');
   if (error) {
     console.error('[faturamento/calendario-envios] regras:', error.message);
     return falha(502, `Não foi possível consultar as regras de envio: ${error.message}`);
   }
-  return (data as LinhaRegra[]).map((linha) => ({
-    id: linha.id,
-    convenio: linha.convenio,
-    membros: linha.membros,
-    janelas: linha.janelas,
-    enviosSugeridosMes: linha.envios_sugeridos_mes,
-    observacao: linha.observacao,
-    ativo: linha.ativo,
-  }));
+  return (data as LinhaRegra[]).map(paraRegra);
 }
 
 /** Todos os feriados cadastrados: são poucos por ano, e o próximo dia útil pode cair no mês seguinte. */
 export async function lerFeriados(token: string): Promise<FeriadoEnvio[] | FalhaCalendario> {
   const { data, error } = await getSupabaseUserClient(token)
     .from('fat_feriados')
-    .select('data, descricao, abrangencia')
+    .select(COLUNAS_FERIADO)
     .order('data');
   if (error) {
     console.error('[faturamento/calendario-envios] feriados:', error.message);
     return falha(502, `Não foi possível consultar os feriados: ${error.message}`);
   }
-  return data as FeriadoEnvio[];
+  return (data as LinhaFeriado[]).map(paraFeriado);
 }
 
 /**
@@ -336,4 +379,85 @@ export async function lerHistorico(token: string, id: string): Promise<EventoHis
     porNome: linha.por_nome,
     em: linha.em,
   }));
+}
+
+/** Os campos de uma Regra de envio que o cadastro grava; quem e quando vêm do trigger. */
+export interface DadosRegraEnvio {
+  convenio: string;
+  membros: string | null;
+  fontesPagadoras: number[];
+  janelas: JanelaEnvio[];
+  enviosSugeridosMes: number | null;
+  observacao: string | null;
+  ativo: boolean;
+}
+
+/**
+ * Cria a regra (`id` nulo) ou a altera. Desativar é gravar `ativo: false`: a regra
+ * nunca é apagada, porque os agendamentos antigos apontam para ela. 409 se já existe
+ * regra com o mesmo convênio.
+ */
+export async function salvarRegra(
+  token: string,
+  id: string | null,
+  dados: DadosRegraEnvio,
+): Promise<RegraEnvio | FalhaCalendario> {
+  const linha = {
+    convenio: dados.convenio,
+    membros: dados.membros,
+    fontes_pagadoras: dados.fontesPagadoras,
+    janelas: dados.janelas,
+    envios_sugeridos_mes: dados.enviosSugeridosMes,
+    observacao: dados.observacao,
+    ativo: dados.ativo,
+  };
+  const tabela = getSupabaseUserClient(token).from('fat_envio_regras');
+  const { data, error } = await (id ? tabela.update(linha).eq('id', id) : tabela.insert(linha))
+    .select(COLUNAS_REGRA)
+    .maybeSingle();
+  if (error) {
+    if (error.code === '23505') return falha(409, `Já existe uma regra de envio para ${dados.convenio}.`);
+    console.error('[faturamento/calendario-envios] salvar regra:', error.message);
+    return falha(502, `Não foi possível gravar a regra de envio: ${error.message}`);
+  }
+  if (!data) return falha(404, 'Regra de envio não encontrada.');
+  return paraRegra(data as LinhaRegra);
+}
+
+/** Os campos de um feriado que o cadastro grava; quem e quando vêm do trigger. */
+export type DadosFeriado = Pick<FeriadoEnvio, 'data' | 'descricao' | 'abrangencia'>;
+
+/** Cria o feriado (`id` nulo) ou o altera. 409 se já existe feriado na data. */
+export async function salvarFeriado(
+  token: string,
+  id: string | null,
+  dados: DadosFeriado,
+): Promise<FeriadoEnvio | FalhaCalendario> {
+  const tabela = getSupabaseUserClient(token).from('fat_feriados');
+  const { data, error } = await (id ? tabela.update(dados).eq('id', id) : tabela.insert(dados))
+    .select(COLUNAS_FERIADO)
+    .maybeSingle();
+  if (error) {
+    if (error.code === '23505') return falha(409, 'Já existe um feriado nesta data.');
+    console.error('[faturamento/calendario-envios] salvar feriado:', error.message);
+    return falha(502, `Não foi possível gravar o feriado: ${error.message}`);
+  }
+  if (!data) return falha(404, 'Feriado não encontrado.');
+  return paraFeriado(data as LinhaFeriado);
+}
+
+/** Remove o feriado. Devolve o feriado como estava. */
+export async function removerFeriado(token: string, id: string): Promise<FeriadoEnvio | FalhaCalendario> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_feriados')
+    .delete()
+    .eq('id', id)
+    .select(COLUNAS_FERIADO)
+    .maybeSingle();
+  if (error) {
+    console.error('[faturamento/calendario-envios] remover feriado:', error.message);
+    return falha(502, `Não foi possível remover o feriado: ${error.message}`);
+  }
+  if (!data) return falha(404, 'Feriado não encontrado.');
+  return paraFeriado(data as LinhaFeriado);
 }

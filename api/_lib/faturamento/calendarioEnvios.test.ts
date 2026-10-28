@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classificarAgendamento, ehDiaUtil, janelaDaData, proximoDiaUtil, regrasDeQualquerDia } from './calendarioEnvios.js';
+import { classificarAgendamento, ehDiaUtil, janelaDaData, proximoDiaUtil, regrasDeQualquerDia, validarJanelas } from './calendarioEnvios.js';
 import type { JanelaEnvio } from './calendarioEnvios.js';
 
 // Datas de referência (2026): 30/10 é sexta, 31/10 sábado, 02/11 segunda (Finados), 20/11 sexta (Consciência Negra).
@@ -189,5 +189,68 @@ describe('regrasDeQualquerDia', () => {
       regra('pmdf', [{ tipo: 'todos_os_dias' }]),
     ];
     expect(regrasDeQualquerDia(regras).map((r) => r.id)).toEqual(['bradesco', 'pmdf']);
+  });
+});
+
+describe('validarJanelas', () => {
+  it('aceita cada tipo de janela e devolve só os campos dela', () => {
+    const janelas = [
+      { tipo: 'dias_corridos', de: 1, ate: 15, extra: 'x' },
+      { tipo: 'dias_uteis', de: 1, ate: 5 },
+      { tipo: 'dias_fixos', dias: [16, 3] },
+      { tipo: 'ultimo_dia_util' },
+      { tipo: 'todos_os_dias' },
+      { tipo: 'calendario_convenio', de: 2 },
+    ];
+    expect(validarJanelas(janelas)).toEqual({
+      janelas: [
+        { tipo: 'dias_corridos', de: 1, ate: 15 },
+        { tipo: 'dias_uteis', de: 1, ate: 5 },
+        { tipo: 'dias_fixos', dias: [3, 16] },
+        { tipo: 'ultimo_dia_util' },
+        { tipo: 'todos_os_dias' },
+        { tipo: 'calendario_convenio' },
+      ],
+    });
+  });
+
+  it('exige ao menos uma janela', () => {
+    expect(validarJanelas([])).toHaveProperty('erro');
+    expect(validarJanelas(undefined)).toHaveProperty('erro');
+    expect(validarJanelas({ tipo: 'todos_os_dias' })).toHaveProperty('erro');
+  });
+
+  it('recusa faixa com início depois do fim', () => {
+    expect(validarJanelas([{ tipo: 'dias_corridos', de: 16, ate: 15 }])).toEqual({ erro: 'Janela 1: o início (16) passa do fim (15).' });
+    expect(validarJanelas([{ tipo: 'dias_uteis', de: 3, ate: 3 }])).toEqual({ janelas: [{ tipo: 'dias_uteis', de: 3, ate: 3 }] });
+  });
+
+  it('dias corridos e dias fixos vão de 1 a 31; dias úteis, de 1 a 23', () => {
+    expect(validarJanelas([{ tipo: 'dias_corridos', de: 1, ate: 31 }])).not.toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_corridos', de: 0, ate: 10 }])).toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_corridos', de: 1, ate: 32 }])).toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_uteis', de: 1, ate: 23 }])).not.toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_uteis', de: 1, ate: 24 }])).toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_fixos', dias: [1, 31] }])).not.toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_fixos', dias: [32] }])).toHaveProperty('erro');
+  });
+
+  it('recusa número fracionado, texto ou ausente', () => {
+    expect(validarJanelas([{ tipo: 'dias_corridos', de: 1.5, ate: 10 }])).toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_uteis', de: '1', ate: 5 }])).toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_corridos', de: 1 }])).toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_fixos', dias: [3, 'x'] }])).toHaveProperty('erro');
+  });
+
+  it('dias fixos precisam de ao menos um dia, sem repetir', () => {
+    expect(validarJanelas([{ tipo: 'dias_fixos', dias: [] }])).toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_fixos' }])).toHaveProperty('erro');
+    expect(validarJanelas([{ tipo: 'dias_fixos', dias: [3, 16, 3] }])).toEqual({ janelas: [{ tipo: 'dias_fixos', dias: [3, 16] }] });
+  });
+
+  it('diz qual janela está errada', () => {
+    const janelas = [{ tipo: 'dias_uteis', de: 1, ate: 2 }, { tipo: 'dias_uteis', de: 15, ate: 30 }];
+    expect(validarJanelas(janelas)).toEqual({ erro: 'Janela 2: dias úteis vão de 1 a 23.' });
+    expect(validarJanelas([{ tipo: 'semanal' }])).toEqual({ erro: 'Janela 1: tipo de janela inválido.' });
   });
 });

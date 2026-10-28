@@ -29,7 +29,16 @@
  *                diante e marca como editado. Fora da janela é permitido; dia não útil
  *                ou no passado dá 400.
  *   'remover':   { id } — apaga o agendamento; o histórico ("removeu") fica.
- * Quem e quando, e o histórico, são gravados por trigger (20261028160000).
+ *   'salvarRegra': { id?, convenio, membros, fontesPagadoras: number[], janelas,
+ *                enviosSugeridosMes, observacao, ativo } — cria (sem id) ou altera a
+ *                Regra de envio. Janelas validadas por validarJanelas; "envios
+ *                sugeridos no mês" só vale com janela de "todos os dias". Desativar é
+ *                ativo: false (a regra nunca é apagada). Convênio repetido dá 409.
+ *   'salvarFeriado': { id?, data, descricao, abrangencia: 'nacional' | 'DF' } — cria
+ *                ou altera o feriado; data repetida dá 409.
+ *   'removerFeriado': { id } — apaga o feriado.
+ * Quem e quando, e o histórico, são gravados por trigger (20261028160000 e, nos
+ * feriados, 20261028170000).
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -39,7 +48,9 @@ import {
   classificarAgendamento,
   fimDoMes,
   proximoDiaUtil,
+  MAXIMO_DIA_UTIL,
   regrasDeQualquerDia,
+  validarJanelas,
   type ClassificacaoAgendamento,
 } from '../faturamento/calendarioEnvios.js';
 import {
@@ -53,8 +64,17 @@ import {
   marcarEnviado,
   reagendar as reagendarAgendamento,
   removerAgendamento,
+  removerFeriado as removerFeriadoCadastrado,
+  salvarFeriado as salvarFeriadoCadastrado,
+  salvarRegra as salvarRegraCadastrada,
 } from '../faturamento/dadosCalendarioEnvios.js';
-import type { AgendamentoEnvio, FalhaCalendario, RegraEnvio } from '../faturamento/dadosCalendarioEnvios.js';
+import type {
+  AgendamentoEnvio,
+  DadosFeriado,
+  DadosRegraEnvio,
+  FalhaCalendario,
+  RegraEnvio,
+} from '../faturamento/dadosCalendarioEnvios.js';
 import { mesValido } from '../faturamento/indicadoresFaturamento.js';
 
 const FORMATO_DATA_LOCAL = new Intl.DateTimeFormat('en-CA', {
@@ -205,14 +225,15 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
   });
 }
 
-/** Responde o agendamento gravado, ou a falha. */
-function responderAgendamento(res: VercelResponse, resultado: AgendamentoEnvio | FalhaCalendario): void {
+/** Responde o que foi gravado sob `chave`, ou a falha. */
+function responderGravado<T extends object>(res: VercelResponse, chave: string, resultado: T | FalhaCalendario): void {
   if ('erro' in resultado) {
     responderFalha(res, resultado);
     return;
   }
-  res.status(200).json({ success: true, agendamento: resultado });
+  res.status(200).json({ success: true, [chave]: resultado });
 }
+
 
 /** POST marcar: data de envio de hoje para trás; marcar de novo troca a data. */
 async function marcar(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
@@ -224,7 +245,7 @@ async function marcar(token: string, corpo: Record<string, unknown>, res: Vercel
     res.status(400).json({ success: false, error: 'A data do envio não pode ser no futuro.' });
     return;
   }
-  responderAgendamento(res, await marcarEnviado(token, corpo.id, corpo.dataEnvio));
+  responderGravado(res, 'agendamento', await marcarEnviado(token, corpo.id, corpo.dataEnvio));
 }
 
 /** POST desmarcar: volta a pendente; a marcação fica no histórico. */
@@ -233,7 +254,7 @@ async function desmarcar(token: string, corpo: Record<string, unknown>, res: Ver
     res.status(400).json({ success: false, error: 'Parâmetro inválido: id.' });
     return;
   }
-  responderAgendamento(res, await desmarcarEnviado(token, corpo.id));
+  responderGravado(res, 'agendamento', await desmarcarEnviado(token, corpo.id));
 }
 
 /** POST criar: agendamento avulso da regra no dia. */
@@ -242,7 +263,7 @@ async function criar(token: string, corpo: Record<string, unknown>, res: VercelR
     res.status(400).json({ success: false, error: 'Parâmetros inválidos: regraId e dataPrevista (YYYY-MM-DD).' });
     return;
   }
-  responderAgendamento(res, await criarAvulso(token, corpo.regraId, corpo.dataPrevista));
+  responderGravado(res, 'agendamento', await criarAvulso(token, corpo.regraId, corpo.dataPrevista));
 }
 
 /** POST reagendar: move para um dia útil de hoje em diante (fora da janela é permitido). */
@@ -255,7 +276,7 @@ async function reagendar(token: string, corpo: Record<string, unknown>, res: Ver
     res.status(400).json({ success: false, error: 'A nova data não pode ser no passado.' });
     return;
   }
-  responderAgendamento(res, await reagendarAgendamento(token, corpo.id, corpo.dataPrevista));
+  responderGravado(res, 'agendamento', await reagendarAgendamento(token, corpo.id, corpo.dataPrevista));
 }
 
 /** POST remover: apaga o agendamento; o histórico fica. */
@@ -264,7 +285,93 @@ async function remover(token: string, corpo: Record<string, unknown>, res: Verce
     res.status(400).json({ success: false, error: 'Parâmetro inválido: id.' });
     return;
   }
-  responderAgendamento(res, await removerAgendamento(token, corpo.id));
+  responderGravado(res, 'agendamento', await removerAgendamento(token, corpo.id));
+}
+
+/** Texto aparado, ou null quando vazio ou ausente. */
+const textoOpcional = (valor: unknown): string | null =>
+  typeof valor === 'string' && valor.trim() ? valor.trim() : null;
+
+/** `id` ausente ou nulo: criar; um uuid: alterar. undefined quando inválido. */
+function idOpcional(valor: unknown): string | null | undefined {
+  if (valor === undefined || valor === null) return null;
+  return idValido(valor) ? valor : undefined;
+}
+
+/** A Regra de envio vinda do cadastro, ou a mensagem do que está errado. */
+function lerRegra(corpo: Record<string, unknown>): { dados: DadosRegraEnvio } | { erro: string } {
+  const convenio = textoOpcional(corpo.convenio);
+  if (!convenio) return { erro: 'Informe o convênio.' };
+
+  const lidas = validarJanelas(corpo.janelas);
+  if ('erro' in lidas) return lidas;
+
+  const fontes = corpo.fontesPagadoras ?? [];
+  if (!Array.isArray(fontes) || !fontes.every((f) => Number.isInteger(f) && f > 0)) {
+    return { erro: 'Fontes pagadoras inválidas: use os códigos do apLIS.' };
+  }
+
+  // "Envios sugeridos no mês" só vale com janela de "todos os dias"; nas outras, some.
+  const todosOsDias = lidas.janelas.some((janela) => janela.tipo === 'todos_os_dias');
+  const envios = corpo.enviosSugeridosMes ?? null;
+  if (todosOsDias && envios !== null && !(Number.isInteger(envios) && (envios as number) >= 1 && (envios as number) <= MAXIMO_DIA_UTIL)) {
+    return { erro: `Envios sugeridos no mês: um número de 1 a ${MAXIMO_DIA_UTIL}, ou vazio.` };
+  }
+
+  if (corpo.ativo !== undefined && typeof corpo.ativo !== 'boolean') return { erro: 'Parâmetro inválido: ativo.' };
+
+  return {
+    dados: {
+      convenio,
+      membros: textoOpcional(corpo.membros),
+      fontesPagadoras: [...new Set(fontes as number[])],
+      janelas: lidas.janelas,
+      enviosSugeridosMes: todosOsDias ? (envios as number | null) : null,
+      observacao: textoOpcional(corpo.observacao),
+      ativo: corpo.ativo !== false,
+    },
+  };
+}
+
+/** POST salvarRegra: cria ou altera a Regra de envio; desativar é ativo: false. */
+async function salvarRegra(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  const id = idOpcional(corpo.id);
+  if (id === undefined) {
+    res.status(400).json({ success: false, error: 'Parâmetro inválido: id.' });
+    return;
+  }
+  const lida = lerRegra(corpo);
+  if ('erro' in lida) {
+    res.status(400).json({ success: false, error: lida.erro });
+    return;
+  }
+  responderGravado(res, 'regra', await salvarRegraCadastrada(token, id, lida.dados));
+}
+
+const ABRANGENCIAS: readonly DadosFeriado['abrangencia'][] = ['nacional', 'DF'];
+
+/** POST salvarFeriado: cria ou altera o feriado. */
+async function salvarFeriado(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  const id = idOpcional(corpo.id);
+  const descricao = textoOpcional(corpo.descricao);
+  const abrangencia = corpo.abrangencia as DadosFeriado['abrangencia'];
+  if (id === undefined || !dataValida(corpo.data) || !descricao || !ABRANGENCIAS.includes(abrangencia)) {
+    res.status(400).json({
+      success: false,
+      error: 'Parâmetros inválidos: data (YYYY-MM-DD), descrição e abrangência (nacional ou DF).',
+    });
+    return;
+  }
+  responderGravado(res, 'feriado', await salvarFeriadoCadastrado(token, id, { data: corpo.data, descricao, abrangencia }));
+}
+
+/** POST removerFeriado: apaga o feriado. */
+async function removerFeriado(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  if (!idValido(corpo.id)) {
+    res.status(400).json({ success: false, error: 'Parâmetro inválido: id.' });
+    return;
+  }
+  responderGravado(res, 'feriado', await removerFeriadoCadastrado(token, corpo.id));
 }
 
 const ACOES: Record<string, (token: string, corpo: Record<string, unknown>, res: VercelResponse) => Promise<void>> = {
@@ -273,6 +380,9 @@ const ACOES: Record<string, (token: string, corpo: Record<string, unknown>, res:
   criar,
   reagendar,
   remover,
+  salvarRegra,
+  salvarFeriado,
+  removerFeriado,
 };
 
 async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -286,7 +396,7 @@ async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<vo
   const corpo = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
   const acao = typeof corpo.acao === 'string' && Object.hasOwn(ACOES, corpo.acao) ? ACOES[corpo.acao] : undefined;
   if (!acao) {
-    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar, criar, reagendar ou remover.' });
+    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar, criar, reagendar, remover, salvarRegra, salvarFeriado ou removerFeriado.' });
     return;
   }
   await acao(token as string, corpo, res);

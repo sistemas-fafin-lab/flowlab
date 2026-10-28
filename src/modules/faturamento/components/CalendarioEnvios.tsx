@@ -14,6 +14,7 @@ import {
   Plus,
   RefreshCw,
   Repeat,
+  Settings2,
 } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useAuth } from '../../../hooks/useAuth';
@@ -25,8 +26,10 @@ import AgendamentoAvulsoModal from './AgendamentoAvulsoModal';
 import { ESTILO_STATUS } from './estiloStatusEnvio';
 import SeloForaDaJanela from './SeloForaDaJanela';
 import DetalheAgendamentoModal from './DetalheAgendamentoModal';
+import FeriadosModal from './FeriadosModal';
 import MarcarEnvioModal from './MarcarEnvioModal';
 import ReagendarEnvioModal from './ReagendarEnvioModal';
+import RegrasEnvioModal from './RegrasEnvioModal';
 
 // ============================================================================
 // COMPONENTE: CalendarioEnvios
@@ -37,12 +40,14 @@ import ReagendarEnvioModal from './ReagendarEnvioModal';
 // lista lateral "Pode enviar qualquer dia". O status de cada agendamento vem
 // classificado do servidor; aqui só vira cor. Clicar num agendamento abre o detalhe
 // (observação, membros, quem marcou, histórico). Quem tem canManageCalendarioEnvios
-// marca e desmarca o envio (com a data), move, remove e cria agendamentos avulsos;
-// os demais só veem. Fora da janela da regra nunca é bloqueado, só ganha o selo.
+// marca e desmarca o envio (com a data), move, remove e cria agendamentos avulsos,
+// e mantém as Regras de envio e os feriados; os demais só veem. Fora da janela da
+// regra nunca é bloqueado, só ganha o selo.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700';
 const DIAS_SEMANA = ['Seg', 'Ter', 'Qua', 'Qui', 'Sex'];
+const BOTAO_CADASTRO = 'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 bg-white hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700';
 
 const NOME_MES = new Intl.DateTimeFormat('pt-BR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const NOME_DIA = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', timeZone: 'UTC' });
@@ -422,6 +427,7 @@ const CalendarioEnvios: React.FC = () => {
   const [desmarcando, setDesmarcando] = useState(false);
   const [removendo, setRemovendo] = useState(false);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
+  const [modalCadastro, setModalCadastro] = useState<'regras' | 'feriados' | null>(null);
 
   const mesExibido = mes ?? calendario?.mes ?? null;
 
@@ -487,14 +493,34 @@ const CalendarioEnvios: React.FC = () => {
             Os convênios a enviar em cada dia útil. Marque o envio assim que o lote sair.
           </p>
         </div>
-        <button
-          onClick={() => void refetch()}
-          disabled={loading}
-          className="self-start sm:self-auto inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-xl shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Atualizar
-        </button>
+        <div className="self-start sm:self-auto flex flex-wrap items-center gap-2">
+          {podeGerenciar && calendario && (
+            <>
+              <button
+                onClick={() => setModalCadastro('regras')}
+                className={BOTAO_CADASTRO}
+              >
+                <Settings2 size={16} />
+                Regras de envio
+              </button>
+              <button
+                onClick={() => setModalCadastro('feriados')}
+                className={BOTAO_CADASTRO}
+              >
+                <CalendarX size={16} />
+                Feriados
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => void refetch()}
+            disabled={loading}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-500 to-blue-600 text-white font-medium rounded-xl shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            Atualizar
+          </button>
+        </div>
       </div>
 
       {erroAcao && (
@@ -644,6 +670,17 @@ const CalendarioEnvios: React.FC = () => {
           regraInicial={acao.regraId}
           onFechar={() => setAcao(null)}
           onCriado={concluir}
+        />
+      )}
+      {calendario && modalCadastro === 'regras' && (
+        <RegrasEnvioModal regras={calendario.regras} onFechar={() => setModalCadastro(null)} onAlterado={() => void refetch()} />
+      )}
+      {calendario && modalCadastro === 'feriados' && (
+        <FeriadosModal
+          feriados={calendario.feriados}
+          hoje={calendario.hoje}
+          onFechar={() => setModalCadastro(null)}
+          onAlterado={() => void refetch()}
         />
       )}
       <ConfirmDialog

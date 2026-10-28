@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgendamentoEnvio, CalendarioEnvios, EventoHistoricoAgendamento } from '../types';
+import type {
+  AgendamentoEnvio,
+  CalendarioEnvios,
+  DadosFeriadoEnvio,
+  DadosRegraEnvio,
+  EventoHistoricoAgendamento,
+  FeriadoEnvio,
+  RegraEnvio,
+} from '../types';
 import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
 // Calendário de envios (Faturamento → Calendário de envios): lê o mês pronto de
@@ -94,8 +102,8 @@ export function useContadorAtrasados(ativo: boolean, recarregarEm: string): numb
   return total;
 }
 
-/** POST de quem gere o Calendário. Lança com a mensagem da rota. */
-async function postarCalendario(corpo: Record<string, unknown>, mensagemErro: string): Promise<AgendamentoEnvio> {
+/** POST de quem gere o Calendário; devolve o que a rota gravou sob `chave`. Lança com a mensagem da rota. */
+async function postarCalendario<T>(corpo: Record<string, unknown>, mensagemErro: string, chave = 'agendamento'): Promise<T> {
   const token = await getTokenLegado();
   if (!token) throw new Error('Sessão expirada. Faça login novamente.');
 
@@ -104,37 +112,52 @@ async function postarCalendario(corpo: Record<string, unknown>, mensagemErro: st
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(corpo),
   });
-  const body = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string; agendamento?: AgendamentoEnvio };
-  if (!res.ok || !body.success || !body.agendamento) {
+  const body = (await res.json().catch(() => ({}))) as { success?: boolean; error?: string } & Record<string, unknown>;
+  if (!res.ok || !body.success || !body[chave]) {
     throw new Error(body.error || mensagemErro);
   }
   window.dispatchEvent(new Event(EVENTO_CALENDARIO_ALTERADO));
-  return body.agendamento;
+  return body[chave] as T;
 }
 
 /** Marca como enviado na data informada; marcar de novo troca a data (canManageCalendarioEnvios). */
 export function marcarEnvio(id: string, dataEnvio: string): Promise<AgendamentoEnvio> {
-  return postarCalendario({ acao: 'marcar', id, dataEnvio }, 'Não foi possível marcar o envio.');
+  return postarCalendario<AgendamentoEnvio>({ acao: 'marcar', id, dataEnvio }, 'Não foi possível marcar o envio.');
 }
 
 /** Desfaz a marcação (canManageCalendarioEnvios). */
 export function desmarcarEnvio(id: string): Promise<AgendamentoEnvio> {
-  return postarCalendario({ acao: 'desmarcar', id }, 'Não foi possível desmarcar o envio.');
+  return postarCalendario<AgendamentoEnvio>({ acao: 'desmarcar', id }, 'Não foi possível desmarcar o envio.');
 }
 
 /** Agendamento avulso da regra no dia, origem "manual" (canManageCalendarioEnvios). */
 export function criarAgendamentoAvulso(regraId: string, dataPrevista: string): Promise<AgendamentoEnvio> {
-  return postarCalendario({ acao: 'criar', regraId, dataPrevista }, 'Não foi possível criar o agendamento.');
+  return postarCalendario<AgendamentoEnvio>({ acao: 'criar', regraId, dataPrevista }, 'Não foi possível criar o agendamento.');
 }
 
 /** Move para outro dia útil; fica "editado" (canManageCalendarioEnvios). */
 export function reagendarAgendamento(id: string, dataPrevista: string): Promise<AgendamentoEnvio> {
-  return postarCalendario({ acao: 'reagendar', id, dataPrevista }, 'Não foi possível reagendar.');
+  return postarCalendario<AgendamentoEnvio>({ acao: 'reagendar', id, dataPrevista }, 'Não foi possível reagendar.');
 }
 
 /** Remove o agendamento; o histórico fica (canManageCalendarioEnvios). */
 export function removerAgendamento(id: string): Promise<AgendamentoEnvio> {
-  return postarCalendario({ acao: 'remover', id }, 'Não foi possível remover o agendamento.');
+  return postarCalendario<AgendamentoEnvio>({ acao: 'remover', id }, 'Não foi possível remover o agendamento.');
+}
+
+/** Cria (id nulo) ou altera a Regra de envio; desativar é ativo: false (canManageCalendarioEnvios). */
+export function salvarRegraEnvio({ id, ...dados }: DadosRegraEnvio): Promise<RegraEnvio> {
+  return postarCalendario<RegraEnvio>({ acao: 'salvarRegra', id, ...dados }, 'Não foi possível gravar a regra de envio.', 'regra');
+}
+
+/** Cria (id nulo) ou altera o feriado (canManageCalendarioEnvios). */
+export function salvarFeriado({ id, ...dados }: DadosFeriadoEnvio): Promise<FeriadoEnvio> {
+  return postarCalendario<FeriadoEnvio>({ acao: 'salvarFeriado', id, ...dados }, 'Não foi possível gravar o feriado.', 'feriado');
+}
+
+/** Remove o feriado (canManageCalendarioEnvios). */
+export function removerFeriado(id: string): Promise<FeriadoEnvio> {
+  return postarCalendario<FeriadoEnvio>({ acao: 'removerFeriado', id }, 'Não foi possível remover o feriado.', 'feriado');
 }
 
 const MENSAGEM_ERRO_HISTORICO = 'Não foi possível carregar o histórico.';
