@@ -7,6 +7,7 @@ import type {
   EventoHistoricoAgendamento,
   FeriadoEnvio,
   RegraEnvio,
+  ResultadoSugestaoEnvios,
 } from '../types';
 import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
@@ -46,6 +47,12 @@ export function useCalendarioEnvios(mes: string | null) {
         feriados: body.feriados ?? [],
         agendamentos: body.agendamentos ?? [],
         atrasados: body.atrasados ?? [],
+        sugestao: body.sugestao ?? {
+          mesSeguinte: '',
+          liberada: false,
+          mesSeguintePlanejado: true,
+          sugeridosPendentesMesAtual: 0,
+        },
       });
     } catch (err) {
       if (reqId !== buscaAtual.current) return;
@@ -158,6 +165,30 @@ export function salvarFeriado({ id, ...dados }: DadosFeriadoEnvio): Promise<Feri
 /** Remove o feriado (canManageCalendarioEnvios). */
 export function removerFeriado(id: string): Promise<FeriadoEnvio> {
   return postarCalendario<FeriadoEnvio>({ acao: 'removerFeriado', id }, 'Não foi possível remover o feriado.', 'feriado');
+}
+
+/**
+ * Conta o que a sugestão do mês (o seguinte, a partir do dia 15, ou o corrente) criaria
+ * e removeria, sem gravar: a confirmação mostra (canManageCalendarioEnvios).
+ */
+export function simularSugestao(mes: string): Promise<ResultadoSugestaoEnvios> {
+  return postarCalendario<ResultadoSugestaoEnvios>(
+    { acao: 'gerarSugestao', mes, simular: true },
+    'Não foi possível gerar a sugestão.',
+    'sugestao',
+  );
+}
+
+/**
+ * Grava a sugestão confirmada: só refaz os sugeridos pendentes e não editados. A rota
+ * confere as contagens da simulação; se o calendário mudou, recusa (canManageCalendarioEnvios).
+ */
+export function gerarSugestao({ mes, criados, removidos }: ResultadoSugestaoEnvios): Promise<ResultadoSugestaoEnvios> {
+  return postarCalendario<ResultadoSugestaoEnvios>(
+    { acao: 'gerarSugestao', mes, criados, removidos },
+    'Não foi possível gerar a sugestão.',
+    'sugestao',
+  );
 }
 
 const MENSAGEM_ERRO_HISTORICO = 'Não foi possível carregar o histórico.';

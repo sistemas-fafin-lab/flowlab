@@ -55,7 +55,7 @@ function descreverEvento({ acao, antes, depois }: EventoHistoricoAgendamento): s
     case 'confirmou_aplis':
       return depois?.lote_aplis_confirmado != null ? `lote ${String(depois.lote_aplis_confirmado)}` : null;
     case 'removeu':
-      return `previsto para ${dataDoCampo(antes, 'data_prevista') ?? '—'}`;
+      return `previsto para ${dataDoCampo(antes, 'data_prevista') ?? '—'}${depois?.pela_sugestao ? ', ao regerar a sugestão' : ''}`;
   }
 }
 

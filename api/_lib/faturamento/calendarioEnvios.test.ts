@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { classificarAgendamento, ehDiaUtil, janelaDaData, proximoDiaUtil, regrasDeQualquerDia, validarJanelas } from './calendarioEnvios.js';
-import type { JanelaEnvio } from './calendarioEnvios.js';
+import {
+  classificarAgendamento,
+  ehDiaUtil,
+  gerarSugestaoDoMes,
+  janelaDaData,
+  proximoDiaUtil,
+  regrasDeQualquerDia,
+  validarJanelas,
+} from './calendarioEnvios.js';
+import type { AgendamentoDoMes, JanelaEnvio } from './calendarioEnvios.js';
 
 // Datas de referência (2026): 30/10 é sexta, 31/10 sábado, 02/11 segunda (Finados), 20/11 sexta (Consciência Negra).
 const FERIADOS = ['2026-11-02', '2026-11-15', '2026-11-20', '2026-11-30'];
@@ -252,5 +260,211 @@ describe('validarJanelas', () => {
     const janelas = [{ tipo: 'dias_uteis', de: 1, ate: 2 }, { tipo: 'dias_uteis', de: 15, ate: 30 }];
     expect(validarJanelas(janelas)).toEqual({ erro: 'Janela 2: dias úteis vão de 1 a 23.' });
     expect(validarJanelas([{ tipo: 'semanal' }])).toEqual({ erro: 'Janela 1: tipo de janela inválido.' });
+  });
+});
+
+// Novembro/2026 com os FERIADOS acima: dias úteis 03–06, 09–13, 16–19 e 23–27 (18 dias).
+describe('gerarSugestaoDoMes', () => {
+  const regra = (id: string, janelas: JanelaEnvio[], enviosSugeridosMes: number | null = null) => ({
+    id,
+    janelas,
+    enviosSugeridosMes,
+    ativo: true,
+  });
+
+  /** As datas criadas para cada regra, em ordem. */
+  const datasPorRegra = (criar: { regraId: string; dataPrevista: string }[]) => {
+    const mapa: Record<string, string[]> = {};
+    for (const { regraId, dataPrevista } of criar) (mapa[regraId] ??= []).push(dataPrevista);
+    for (const datas of Object.values(mapa)) datas.sort();
+    return mapa;
+  };
+
+  it('faixa de dias corridos num mês vazio vai para o primeiro dia útil da faixa', () => {
+    const { criar, remover } = gerarSugestaoDoMes('2026-11', [regra('AMIL', [{ tipo: 'dias_corridos', de: 1, ate: 15 }])], FERIADOS, []);
+    expect(criar).toEqual([{ regraId: 'AMIL', dataPrevista: '2026-11-03', janelaIndice: 0 }]);
+    expect(remover).toEqual([]);
+  });
+
+  /** Agendamento que já está no mês (de outra regra, por padrão manual). */
+  const existente = (id: string, regraId: string, dataPrevista: string, extra: Partial<AgendamentoDoMes> = {}): AgendamentoDoMes => ({
+    id,
+    regraId,
+    dataPrevista,
+    origem: 'manual',
+    editado: false,
+    dataEnvio: null,
+    ...extra,
+  });
+
+  it('dias úteis pulam o feriado no meio da faixa e o dia mais carregado', () => {
+    // 13º dia útil = 19; o 14º é 23, porque 20 é feriado. O dia 19 já tem um envio.
+    const { criar } = gerarSugestaoDoMes(
+      '2026-11',
+      [regra('TRE', [{ tipo: 'dias_uteis', de: 13, ate: 14 }])],
+      FERIADOS,
+      [existente('x', 'OUTRA', '2026-11-19')],
+    );
+    expect(criar).toEqual([{ regraId: 'TRE', dataPrevista: '2026-11-23', janelaIndice: 0 }]);
+  });
+
+  it('dia fixo no sábado vai para o próximo dia útil, um agendamento por dia', () => {
+    // FUSEX "dia 03 e 16": em out/2026 o dia 03 é sábado → segunda 05.
+    const { criar } = gerarSugestaoDoMes('2026-10', [regra('FUSEX', [{ tipo: 'dias_fixos', dias: [3, 16] }])], FERIADOS, []);
+    expect(criar).toEqual([
+      { regraId: 'FUSEX', dataPrevista: '2026-10-05', janelaIndice: 0 },
+      { regraId: 'FUSEX', dataPrevista: '2026-10-16', janelaIndice: 0 },
+    ]);
+  });
+
+  it('último dia útil cai antes do feriado do fim do mês, mesmo carregado', () => {
+    // 30/11 é feriado: o último dia útil é 27, que já tem dois envios.
+    const { criar } = gerarSugestaoDoMes(
+      '2026-11',
+      [regra('CBMDF', [{ tipo: 'ultimo_dia_util' }])],
+      FERIADOS,
+      [existente('x', 'OUTRA', '2026-11-27'), existente('y', 'OUTRA', '2026-11-27')],
+    );
+    expect(criar).toEqual([{ regraId: 'CBMDF', dataPrevista: '2026-11-27', janelaIndice: 0 }]);
+  });
+
+  it('no empate de carga fica o dia mais cedo', () => {
+    const { criar } = gerarSugestaoDoMes(
+      '2026-11',
+      [regra('AMPLA', [{ tipo: 'dias_corridos', de: 1, ate: 10 }]), regra('GEAP', [{ tipo: 'dias_corridos', de: 1, ate: 10 }])],
+      FERIADOS,
+      [],
+    );
+    expect(datasPorRegra(criar)).toEqual({ AMPLA: ['2026-11-03'], GEAP: ['2026-11-04'] });
+  });
+
+  it('dias fixos primeiro, depois as faixas das mais estreitas para as mais largas', () => {
+    // Na ordem recebida, AMIL ficaria com o 03 e BRB com o 04, junto do FUSEX.
+    const { criar } = gerarSugestaoDoMes(
+      '2026-11',
+      [
+        regra('AMIL', [{ tipo: 'dias_corridos', de: 1, ate: 15 }]),
+        regra('BRB', [{ tipo: 'dias_uteis', de: 1, ate: 2 }]),
+        regra('FUSEX', [{ tipo: 'dias_fixos', dias: [4] }]),
+      ],
+      FERIADOS,
+      [],
+    );
+    expect(datasPorRegra(criar)).toEqual({ FUSEX: ['2026-11-04'], BRB: ['2026-11-03'], AMIL: ['2026-11-05'] });
+  });
+
+  it('"todos os dias" com N envios: um em cada um dos N trechos seguidos, no dia mais vazio', () => {
+    // 18 dias úteis em 4 trechos: 03–06, 09–13, 16–19, 23–27. O dia 03 já tem um envio.
+    const { criar } = gerarSugestaoDoMes(
+      '2026-11',
+      [regra('BRADESCO', [{ tipo: 'todos_os_dias' }], 4)],
+      FERIADOS,
+      [existente('x', 'OUTRA', '2026-11-03')],
+    );
+    expect(datasPorRegra(criar)).toEqual({ BRADESCO: ['2026-11-04', '2026-11-09', '2026-11-16', '2026-11-23'] });
+    expect(criar.every((c) => c.janelaIndice === 0)).toBe(true);
+  });
+
+  it('"todos os dias" vai depois das faixas, para os dias que sobraram', () => {
+    const { criar } = gerarSugestaoDoMes(
+      '2026-11',
+      [regra('BRADESCO', [{ tipo: 'todos_os_dias' }], 1), regra('AMPLA', [{ tipo: 'dias_corridos', de: 1, ate: 3 }])],
+      FERIADOS,
+      [],
+    );
+    expect(datasPorRegra(criar)).toEqual({ AMPLA: ['2026-11-03'], BRADESCO: ['2026-11-04'] });
+  });
+
+  it('"todos os dias" sem N, "calendário do convênio" e regra desativada não geram nada', () => {
+    const { criar } = gerarSugestaoDoMes(
+      '2026-11',
+      [
+        regra('PMDF', [{ tipo: 'todos_os_dias' }]),
+        regra('TST', [{ tipo: 'calendario_convenio' }]),
+        { ...regra('AMIL', [{ tipo: 'dias_corridos', de: 1, ate: 15 }]), ativo: false },
+      ],
+      FERIADOS,
+      [],
+    );
+    expect(criar).toEqual([]);
+  });
+
+  it('faixa sem dia útil no mês vai para o próximo dia útil, fora da janela', () => {
+    // 21 e 22/11/2026 são sábado e domingo.
+    const { criar } = gerarSugestaoDoMes('2026-11', [regra('STJ', [{ tipo: 'dias_corridos', de: 21, ate: 22 }])], FERIADOS, []);
+    expect(criar).toEqual([{ regraId: 'STJ', dataPrevista: '2026-11-23', janelaIndice: null }]);
+  });
+
+  describe('regerar', () => {
+    const AMIL = regra('AMIL', [{ tipo: 'dias_corridos', de: 1, ate: 15 }]);
+    const TRT = regra('TRT', [
+      { tipo: 'dias_uteis', de: 1, ate: 2 },
+      { tipo: 'dias_uteis', de: 15, ate: 16 },
+    ]);
+    const sugerido = (id: string, regraId: string, dataPrevista: string, extra: Partial<AgendamentoDoMes> = {}) =>
+      existente(id, regraId, dataPrevista, { origem: 'sugestao', ...extra });
+
+    it('gerar de novo sem mudança não cria nem remove nada', () => {
+      const primeira = gerarSugestaoDoMes('2026-11', [AMIL, TRT], FERIADOS, []);
+      const existentes = primeira.criar.map((c, i) => sugerido(`s${i}`, c.regraId, c.dataPrevista));
+      expect(gerarSugestaoDoMes('2026-11', [AMIL, TRT], FERIADOS, existentes)).toEqual({ criar: [], remover: [] });
+    });
+
+    it('refaz o sugerido pendente e não editado que mudou de lugar', () => {
+      // AMIL passou a ser 10 ao 15: o sugerido do dia 03 sai e entra um no dia 10.
+      const AMIL_NOVA = regra('AMIL', [{ tipo: 'dias_corridos', de: 10, ate: 15 }]);
+      expect(gerarSugestaoDoMes('2026-11', [AMIL_NOVA], FERIADOS, [sugerido('s1', 'AMIL', '2026-11-03')])).toEqual({
+        criar: [{ regraId: 'AMIL', dataPrevista: '2026-11-10', janelaIndice: 0 }],
+        remover: ['s1'],
+      });
+    });
+
+    it('a regra desativada perde os sugeridos pendentes', () => {
+      const desativada = { ...AMIL, ativo: false };
+      expect(gerarSugestaoDoMes('2026-11', [desativada], FERIADOS, [sugerido('s1', 'AMIL', '2026-11-03')]).remover).toEqual(['s1']);
+    });
+
+    it('preserva o manual na janela, o editado e o enviado, e não gera outro para a janela deles', () => {
+      const existentes = [
+        existente('m1', 'AMIL', '2026-11-12'), // manual dentro da janela de AMIL
+        sugerido('e1', 'TRT', '2026-11-04', { editado: true }), // TRT 1º–2º, movido à mão
+        sugerido('v1', 'TRT', '2026-11-24', { dataEnvio: '2026-11-24' }), // TRT 15º–16º, já enviado
+      ];
+      expect(gerarSugestaoDoMes('2026-11', [AMIL, TRT], FERIADOS, existentes)).toEqual({ criar: [], remover: [] });
+    });
+
+    it('o sugerido movido para fora da janela continua valendo pela janela mais próxima', () => {
+      // TRT 15º–16º (24 e 25) movido para 27, fora das janelas: só a 1ª janela é gerada.
+      const existentes = [sugerido('e1', 'TRT', '2026-11-27', { editado: true })];
+      expect(gerarSugestaoDoMes('2026-11', [TRT], FERIADOS, existentes)).toEqual({
+        criar: [{ regraId: 'TRT', dataPrevista: '2026-11-03', janelaIndice: 0 }],
+        remover: [],
+      });
+    });
+
+    it('o avulso manual fora da janela é um envio extra e não ocupa a janela', () => {
+      const existentes = [existente('m1', 'AMIL', '2026-11-20')];
+      expect(gerarSugestaoDoMes('2026-11', [AMIL], FERIADOS, existentes).criar).toEqual([
+        { regraId: 'AMIL', dataPrevista: '2026-11-03', janelaIndice: 0 },
+      ]);
+    });
+
+    it('"todos os dias": o manual ocupa o trecho em que caiu', () => {
+      // Trechos de 2: 03–13 e 16–27. O manual no dia 05 ocupa o primeiro.
+      const BRADESCO = regra('BRADESCO', [{ tipo: 'todos_os_dias' }], 2);
+      const { criar } = gerarSugestaoDoMes('2026-11', [BRADESCO], FERIADOS, [existente('m1', 'BRADESCO', '2026-11-05')]);
+      expect(datasPorRegra(criar)).toEqual({ BRADESCO: ['2026-11-16'] });
+    });
+
+    it('os sugeridos que saem não contam na carga dos dias', () => {
+      // O sugerido de AMPLA no dia 03 vai ser refeito: o dia 03 não conta como ocupado.
+      const { criar } = gerarSugestaoDoMes(
+        '2026-11',
+        [regra('AMPLA', [{ tipo: 'dias_corridos', de: 1, ate: 10 }])],
+        FERIADOS,
+        [sugerido('s1', 'GEAP', '2026-11-03')],
+      );
+      expect(criar).toEqual([{ regraId: 'AMPLA', dataPrevista: '2026-11-03', janelaIndice: 0 }]);
+    });
   });
 });

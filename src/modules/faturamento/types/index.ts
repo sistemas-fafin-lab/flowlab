@@ -1627,6 +1627,26 @@ export interface CalendarioEnvios {
   agendamentos: AgendamentoEnvio[];
   /** Atrasados e fora do prazo de qualquer mês, fora do prazo primeiro. */
   atrasados: AgendamentoEnvio[];
+  sugestao: SituacaoSugestaoEnvios;
+}
+
+/** A sugestão do mês seguinte e a regeração do corrente (GET /api/faturamento/calendario-envios). */
+export interface SituacaoSugestaoEnvios {
+  /** 'YYYY-MM'. */
+  mesSeguinte: string;
+  /** A partir do dia 15 do mês corrente, a sugestão do mês seguinte pode ser gerada. */
+  liberada: boolean;
+  /** O mês seguinte já tem agendamentos da sugestão. */
+  mesSeguintePlanejado: boolean;
+  /** Sugeridos pendentes e não editados do mês corrente: o que regerá-lo pode refazer. */
+  sugeridosPendentesMesAtual: number;
+}
+
+/** O que POST gerarSugestao gravou (ou, ao simular, gravaria). */
+export interface ResultadoSugestaoEnvios {
+  mes: string;
+  criados: number;
+  removidos: number;
 }
 
 /** Espelha AcaoHistorico de api/_lib/faturamento/dadosCalendarioEnvios.ts. */
@@ -1635,7 +1655,7 @@ export type AcaoHistoricoAgendamento = 'criou' | 'moveu' | 'marcou' | 'desmarcou
 /** Uma linha do histórico de um Agendamento de envio (GET ?historico=<id>). */
 export interface EventoHistoricoAgendamento {
   acao: AcaoHistoricoAgendamento;
-  /** Só os campos que mudaram (data_prevista, data_envio, origem, lote_aplis_confirmado). */
+  /** Só os campos que mudaram (data_prevista, data_envio, origem, lote_aplis_confirmado); no "removeu" da sugestão, depois = { pela_sugestao: true }. */
   antes: Record<string, unknown> | null;
   depois: Record<string, unknown> | null;
   /** Null na confirmação automática, que roda sem usuário. */

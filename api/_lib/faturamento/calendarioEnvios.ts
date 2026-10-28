@@ -237,3 +237,174 @@ export function validarJanelas(brutas: unknown): { janelas: JanelaEnvio[] } | { 
   }
   return { janelas };
 }
+
+/** Um Agendamento de envio do mês, como a sugestão o vê. */
+export interface AgendamentoDoMes {
+  id: string;
+  regraId: string;
+  dataPrevista: string;
+  origem: 'sugestao' | 'manual';
+  editado: boolean;
+  dataEnvio: string | null;
+}
+
+/** Um agendamento que a sugestão cria (origem "sugestão"). */
+export interface AgendamentoSugerido {
+  regraId: string;
+  dataPrevista: string;
+  janelaIndice: number | null;
+}
+
+/**
+ * Uma vaga da sugestão: um agendamento a pôr num dos `dias`, no de menor carga. As
+ * vagas são postas por fase (1: dias fixos e último dia útil; 2: faixas; 3: "todos os
+ * dias") e, dentro da fase, das mais estreitas para as mais largas.
+ */
+interface Vaga {
+  regraId: string;
+  /** Null na faixa sem dia útil no mês, posta no dia útil seguinte a ela. */
+  janelaIndice: number | null;
+  fase: 1 | 2 | 3;
+  dias: string[];
+}
+
+/** As vagas de uma janela no mês. */
+function vagasDaJanela(
+  { id: regraId, enviosSugeridosMes }: { id: string; enviosSugeridosMes: number | null },
+  janela: JanelaEnvio,
+  janelaIndice: number,
+  uteis: string[],
+  feriados: readonly string[],
+): Vaga[] {
+  // Faixa sem dia útil no mês (só fim de semana e feriado, ou além do último dia útil):
+  // o primeiro dia útil depois dela, ou o último dia útil do mês.
+  const faixa = (dias: string[], ultimoDia: number): Vaga[] => {
+    if (dias.length > 0) return [{ regraId, janelaIndice, fase: 2, dias }];
+    const seguinte = uteis.find((dia) => Number(dia.slice(8, 10)) > ultimoDia) ?? (uteis.at(-1) as string);
+    return [{ regraId, janelaIndice: null, fase: 2, dias: [seguinte] }];
+  };
+  switch (janela.tipo) {
+    case 'dias_corridos':
+      return faixa(uteis.filter((dia) => Number(dia.slice(8, 10)) >= janela.de && Number(dia.slice(8, 10)) <= janela.ate), janela.ate);
+    case 'dias_uteis':
+      return faixa(uteis.slice(janela.de - 1, janela.ate), 31);
+    case 'dias_fixos': {
+      // O dia 31 num mês de 30 é o último dia; se o próximo dia útil sai do mês, fica o último dia útil.
+      const fim = fimDoMes(uteis[0]);
+      const datas = janela.dias.map((dia) => {
+        const ajustado = diaFixoAjustado(uteis[0], Math.min(dia, Number(fim.slice(8, 10))), feriados);
+        return ajustado <= fim ? ajustado : (uteis.at(-1) as string);
+      });
+      return [...new Set(datas)].map((dia) => ({ regraId, janelaIndice, fase: 1, dias: [dia] }));
+    }
+    case 'ultimo_dia_util':
+      return [{ regraId, janelaIndice, fase: 1, dias: [uteis.at(-1) as string] }];
+    case 'todos_os_dias': {
+      // N trechos seguidos de dias úteis, do tamanho mais parecido possível.
+      const trechos = Math.min(enviosSugeridosMes ?? 0, uteis.length);
+      return Array.from({ length: trechos }, (_, i) => ({
+        regraId,
+        janelaIndice,
+        fase: 3 as const,
+        dias: uteis.slice(Math.floor((i * uteis.length) / trechos), Math.floor(((i + 1) * uteis.length) / trechos)),
+      }));
+    }
+    case 'calendario_convenio':
+      return [];
+  }
+}
+
+/** Distância em dias de `data` até o dia mais próximo da vaga. */
+function distancia(vaga: Vaga, data: string): number {
+  const alvo = Date.parse(data);
+  return Math.min(...vaga.dias.map((dia) => Math.abs(Date.parse(dia) - alvo)));
+}
+
+/** O sugerido pendente e não editado: é o único que a sugestão refaz. */
+const ehRefeito = (a: AgendamentoDoMes): boolean => a.origem === 'sugestao' && !a.editado && a.dataEnvio === null;
+
+/**
+ * Tira de `vagas` as que os agendamentos que ficam já ocupam. Na janela, ocupa a vaga
+ * daquela janela que contém o dia (num trecho de "todos os dias", o trecho em que caiu);
+ * se ela já foi ocupada, é um envio extra. Fora de todas as janelas, o sugerido movido
+ * à mão ocupa a vaga livre mais próxima da regra, e o manual é um envio extra.
+ */
+function ocuparVagas(
+  vagas: Vaga[],
+  mantidos: readonly AgendamentoDoMes[],
+  janelasPorRegra: Map<string, readonly JanelaEnvio[]>,
+  feriados: readonly string[],
+): Vaga[] {
+  const livres = [...vagas];
+  const ocupar = (vaga: Vaga | undefined) => {
+    if (vaga) livres.splice(livres.indexOf(vaga), 1);
+  };
+  const foraDaJanela: AgendamentoDoMes[] = [];
+  for (const agendamento of mantidos) {
+    const janelas = janelasPorRegra.get(agendamento.regraId);
+    if (!janelas) continue;
+    const indice = janelaDaData(agendamento.dataPrevista, janelas, feriados);
+    if (indice === null) {
+      if (agendamento.origem === 'sugestao') foraDaJanela.push(agendamento);
+      continue;
+    }
+    ocupar(livres.find((v) => v.regraId === agendamento.regraId && v.janelaIndice === indice && v.dias.includes(agendamento.dataPrevista)));
+  }
+  // Depois dos que estão na janela, para não tomarem a vaga deles.
+  for (const agendamento of foraDaJanela) {
+    const daRegra = livres.filter((v) => v.regraId === agendamento.regraId);
+    // No empate, a vaga que vem antes na ordem das janelas.
+    ocupar(daRegra.reduce<Vaga | undefined>(
+      (melhor, v) => (!melhor || distancia(v, agendamento.dataPrevista) < distancia(melhor, agendamento.dataPrevista) ? v : melhor),
+      undefined,
+    ));
+  }
+  return livres;
+}
+
+/**
+ * A sugestão do mês `mes` ('YYYY-MM'), pelas Regras da sugestão da spec: os
+ * agendamentos a criar e os ids a remover, a partir das regras (só as ativas geram),
+ * dos feriados e dos agendamentos que o mês já tem.
+ *
+ * - Só os sugeridos pendentes e não editados são refeitos; manuais, editados e
+ *   enviados ficam, contam na carga e ocupam a janela deles (ocuparVagas).
+ * - Cada vaga vai para o dia de menor carga e, no empate, o mais cedo. A carga é a de
+ *   todos os convênios: o que fica mais o que a sugestão já pôs.
+ * - O sugerido refeito que cairia no mesmo dia continua: gerar de novo sem mudança não
+ *   cria nem remove nada.
+ */
+export function gerarSugestaoDoMes(
+  mes: string,
+  regras: readonly { id: string; janelas: readonly JanelaEnvio[]; enviosSugeridosMes: number | null; ativo: boolean }[],
+  feriados: readonly string[],
+  existentes: readonly AgendamentoDoMes[],
+): { criar: AgendamentoSugerido[]; remover: string[] } {
+  const uteis = diasUteisDoMes(`${mes}-01`, feriados);
+  const ativas = regras.filter((regra) => regra.ativo);
+  const doMes = existentes.filter((a) => a.dataPrevista.slice(0, 7) === mes);
+  const mantidos = doMes.filter((a) => !ehRefeito(a));
+  const refeitos = doMes.filter(ehRefeito);
+
+  const vagas = ocuparVagas(
+    ativas.flatMap((regra) => regra.janelas.flatMap((janela, i) => vagasDaJanela(regra, janela, i, uteis, feriados))),
+    mantidos,
+    new Map(ativas.map((regra) => [regra.id, regra.janelas])),
+    feriados,
+  )
+    // sort é estável: no empate fica a ordem das regras recebidas.
+    .sort((a, b) => a.fase - b.fase || a.dias.length - b.dias.length);
+
+  const carga = new Map<string, number>();
+  for (const { dataPrevista } of mantidos) carga.set(dataPrevista, (carga.get(dataPrevista) ?? 0) + 1);
+  const criar: AgendamentoSugerido[] = [];
+  const remover = new Set(refeitos.map((a) => a.id));
+  for (const vaga of vagas) {
+    const dia = vaga.dias.reduce((melhor, d) => ((carga.get(d) ?? 0) < (carga.get(melhor) ?? 0) ? d : melhor));
+    carga.set(dia, (carga.get(dia) ?? 0) + 1);
+    const igual = refeitos.find((a) => remover.has(a.id) && a.regraId === vaga.regraId && a.dataPrevista === dia);
+    if (igual) remover.delete(igual.id);
+    else criar.push({ regraId: vaga.regraId, dataPrevista: dia, janelaIndice: vaga.janelaIndice });
+  }
+  return { criar, remover: [...remover] };
+}

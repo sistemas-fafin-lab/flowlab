@@ -15,12 +15,13 @@ import {
   RefreshCw,
   Repeat,
   Settings2,
+  Sparkles,
 } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
-import { desmarcarEnvio, removerAgendamento, useCalendarioEnvios } from '../hooks/useCalendarioEnvios';
-import type { AgendamentoEnvio, FeriadoEnvio, RegraEnvio, StatusAgendamento } from '../types';
+import { desmarcarEnvio, gerarSugestao, removerAgendamento, simularSugestao, useCalendarioEnvios } from '../hooks/useCalendarioEnvios';
+import type { AgendamentoEnvio, FeriadoEnvio, RegraEnvio, ResultadoSugestaoEnvios, StatusAgendamento } from '../types';
 import { formatData, formatDataHora } from '../utils/formato';
 import AgendamentoAvulsoModal from './AgendamentoAvulsoModal';
 import { ESTILO_STATUS } from './estiloStatusEnvio';
@@ -42,7 +43,10 @@ import RegrasEnvioModal from './RegrasEnvioModal';
 // (observação, membros, quem marcou, histórico). Quem tem canManageCalendarioEnvios
 // marca e desmarca o envio (com a data), move, remove e cria agendamentos avulsos,
 // e mantém as Regras de envio e os feriados; os demais só veem. Fora da janela da
-// regra nunca é bloqueado, só ganha o selo.
+// regra nunca é bloqueado, só ganha o selo. A partir do dia 15, o botão "Gerar
+// sugestão de <mês seguinte>" e o aviso de mês não planejado; depois de salvar uma
+// regra, a oferta de regerar. Gerar sempre confirma antes, com quantos agendamentos
+// serão criados e removidos (só os sugeridos pendentes e não editados são refeitos).
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700';
@@ -67,6 +71,8 @@ const nomeMes = (mes: string): string => {
   const nome = NOME_MES.format(dataUtc(`${mes}-01`));
   return nome.charAt(0).toUpperCase() + nome.slice(1);
 };
+/** Só o nome do mês, em minúsculas ("dezembro"), para os botões. */
+const nomeCurtoMes = (mes: string): string => nomeMes(mes).split(' ')[0].toLowerCase();
 
 /**
  * Semanas do mês só de segunda a sexta: cada semana tem 5 dias, e os que caem
@@ -416,6 +422,37 @@ const ListaQualquerDia: React.FC<{
   </aside>
 );
 
+// ─── Sugestão do mês ──────────────────────────────────────────────────────────
+
+const FAIXA = 'rounded-2xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3';
+const BOTAO_FAIXA = 'inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-xl disabled:opacity-50';
+
+/** Botão que pede a sugestão de `mes`; gira enquanto ela é calculada. */
+const BotaoSugestao: React.FC<{
+  mes: string;
+  rotulo: string;
+  gerando: string | null;
+  classe: string;
+  onGerar: (mes: string) => void;
+}> = ({ mes, rotulo, gerando, classe, onGerar }) => (
+  <button type="button" onClick={() => onGerar(mes)} disabled={gerando !== null} className={`${BOTAO_FAIXA} ${classe}`}>
+    {gerando === mes ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+    {rotulo}
+  </button>
+);
+
+/** O que a confirmação diz antes de gravar a sugestão. */
+function mensagemSugestao({ criados, removidos }: ResultadoSugestaoEnvios): React.ReactNode {
+  if (criados === 0 && removidos === 0) return 'A sugestão já está em dia com as regras: nada a criar ou remover.';
+  const plural = (n: number, palavra: string) => `${n} ${palavra}${n === 1 ? '' : 's'}`;
+  return (
+    <>
+      Serão criados {plural(criados, 'agendamento')} e removidos {plural(removidos, 'agendamento')} sugerido{removidos === 1 ? '' : 's'}.
+      Os agendamentos manuais, editados ou já enviados ficam como estão.
+    </>
+  );
+}
+
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 const CalendarioEnvios: React.FC = () => {
@@ -428,6 +465,12 @@ const CalendarioEnvios: React.FC = () => {
   const [removendo, setRemovendo] = useState(false);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
   const [modalCadastro, setModalCadastro] = useState<'regras' | 'feriados' | null>(null);
+  /** Uma regra foi salva: oferece regerar quando o cadastro fecha. */
+  const [regraAlterada, setRegraAlterada] = useState(false);
+  /** O mês cuja sugestão está sendo calculada ou gravada. */
+  const [gerandoSugestao, setGerandoSugestao] = useState<string | null>(null);
+  /** A simulação à espera de confirmação. */
+  const [sugestaoSimulada, setSugestaoSimulada] = useState<ResultadoSugestaoEnvios | null>(null);
 
   const mesExibido = mes ?? calendario?.mes ?? null;
 
@@ -478,6 +521,47 @@ const CalendarioEnvios: React.FC = () => {
     }
   };
 
+  /** Simula a sugestão de `mesAlvo` e abre a confirmação com o que será criado e removido. */
+  const pedirSugestao = async (mesAlvo: string) => {
+    setGerandoSugestao(mesAlvo);
+    setErroAcao(null);
+    try {
+      setSugestaoSimulada(await simularSugestao(mesAlvo));
+    } catch (err) {
+      setErroAcao(err instanceof Error ? err.message : 'Não foi possível gerar a sugestão.');
+    } finally {
+      setGerandoSugestao(null);
+    }
+  };
+
+  /** Grava a sugestão confirmada e mostra o mês gerado. */
+  const confirmarSugestao = async (simulada: ResultadoSugestaoEnvios) => {
+    const mesAlvo = simulada.mes;
+    setSugestaoSimulada(null);
+    if (simulada.criados === 0 && simulada.removidos === 0) {
+      setRegraAlterada(false);
+      return;
+    }
+    setGerandoSugestao(mesAlvo);
+    setErroAcao(null);
+    try {
+      await gerarSugestao(simulada);
+      setRegraAlterada(false);
+      if (mesAlvo === mesExibido) void refetch();
+      else setMes(mesAlvo);
+    } catch (err) {
+      setErroAcao(err instanceof Error ? err.message : 'Não foi possível gerar a sugestão.');
+    } finally {
+      setGerandoSugestao(null);
+    }
+  };
+
+  const sugestao = calendario?.sugestao;
+  const mesAtual = calendario?.hoje.slice(0, 7) ?? '';
+  // Depois de salvar uma regra: o mês seguinte (se já liberado) e o corrente, se ele ainda tem o que refazer.
+  const ofertaSeguinte = regraAlterada && !!sugestao?.liberada;
+  const ofertaAtual = regraAlterada && (sugestao?.sugeridosPendentesMesAtual ?? 0) > 0;
+
   /** Hoje, se for dia útil, senão o próximo: o dia sugerido para reagendar e agendar. */
   const diaUtilSugerido = calendario ? (ehDiaUtilNaTela(calendario.hoje, feriados) ? calendario.hoje : calendario.amanha) : '';
 
@@ -494,6 +578,16 @@ const CalendarioEnvios: React.FC = () => {
           </p>
         </div>
         <div className="self-start sm:self-auto flex flex-wrap items-center gap-2">
+          {/* Enquanto o mês seguinte não foi planejado, o botão fica no aviso. */}
+          {podeGerenciar && calendario?.sugestao.liberada && calendario.sugestao.mesSeguintePlanejado && (
+            <BotaoSugestao
+              mes={calendario.sugestao.mesSeguinte}
+              rotulo={`Gerar sugestão de ${nomeCurtoMes(calendario.sugestao.mesSeguinte)}`}
+              gerando={gerandoSugestao}
+              classe="px-4 py-2.5 text-blue-700 border border-blue-200 bg-blue-50 hover:bg-blue-100 dark:text-blue-300 dark:border-blue-800 dark:bg-blue-900/20 dark:hover:bg-blue-900/40"
+              onGerar={(m) => void pedirSugestao(m)}
+            />
+          )}
           {podeGerenciar && calendario && (
             <>
               <button
@@ -527,6 +621,59 @@ const CalendarioEnvios: React.FC = () => {
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-3 text-sm text-red-700 dark:text-red-300 flex items-center gap-2">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {erroAcao}
+        </div>
+      )}
+
+      {sugestao?.liberada && !sugestao.mesSeguintePlanejado && (
+        <div className={`${FAIXA} bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800`} role="status">
+          <p className="text-sm text-amber-800 dark:text-amber-200 flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            <span><strong>{nomeMes(sugestao.mesSeguinte)}</strong> ainda não foi planejado.</span>
+          </p>
+          {podeGerenciar && (
+            <BotaoSugestao
+              mes={sugestao.mesSeguinte}
+              rotulo={`Gerar sugestão de ${nomeCurtoMes(sugestao.mesSeguinte)}`}
+              gerando={gerandoSugestao}
+              classe="self-start sm:self-auto text-white bg-amber-600 hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600"
+              onGerar={(m) => void pedirSugestao(m)}
+            />
+          )}
+        </div>
+      )}
+
+      {podeGerenciar && modalCadastro !== 'regras' && (ofertaSeguinte || ofertaAtual) && sugestao && (
+        <div className={`${FAIXA} bg-blue-50 border-blue-200 dark:bg-blue-900/20 dark:border-blue-800`} role="status">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            Regra de envio alterada. Regerar a sugestão aplica a mudança aos agendamentos sugeridos ainda pendentes e não editados.
+          </p>
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {ofertaSeguinte && (
+              <BotaoSugestao
+                mes={sugestao.mesSeguinte}
+                rotulo={`Regerar ${nomeCurtoMes(sugestao.mesSeguinte)}`}
+                gerando={gerandoSugestao}
+                classe="text-white bg-blue-600 hover:bg-blue-700"
+                onGerar={(m) => void pedirSugestao(m)}
+              />
+            )}
+            {ofertaAtual && (
+              <BotaoSugestao
+                mes={mesAtual}
+                rotulo={`Regerar ${nomeCurtoMes(mesAtual)}`}
+                gerando={gerandoSugestao}
+                classe="text-blue-700 border border-blue-300 bg-white hover:bg-blue-50 dark:text-blue-200 dark:border-blue-700 dark:bg-gray-800 dark:hover:bg-gray-700"
+                onGerar={(m) => void pedirSugestao(m)}
+              />
+            )}
+            <button
+              type="button"
+              onClick={() => setRegraAlterada(false)}
+              className={`${BOTAO_FAIXA} text-blue-700 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-900/40`}
+            >
+              Agora não
+            </button>
+          </div>
         </div>
       )}
 
@@ -673,7 +820,14 @@ const CalendarioEnvios: React.FC = () => {
         />
       )}
       {calendario && modalCadastro === 'regras' && (
-        <RegrasEnvioModal regras={calendario.regras} onFechar={() => setModalCadastro(null)} onAlterado={() => void refetch()} />
+        <RegrasEnvioModal
+          regras={calendario.regras}
+          onFechar={() => setModalCadastro(null)}
+          onAlterado={() => {
+            setRegraAlterada(true);
+            void refetch();
+          }}
+        />
       )}
       {calendario && modalCadastro === 'feriados' && (
         <FeriadosModal
@@ -683,6 +837,15 @@ const CalendarioEnvios: React.FC = () => {
           onAlterado={() => void refetch()}
         />
       )}
+      <ConfirmDialog
+        isOpen={sugestaoSimulada !== null}
+        title={sugestaoSimulada ? `Gerar sugestão de ${nomeMes(sugestaoSimulada.mes).toLowerCase()}` : ''}
+        message={sugestaoSimulada && mensagemSugestao(sugestaoSimulada)}
+        confirmText={sugestaoSimulada && (sugestaoSimulada.criados > 0 || sugestaoSimulada.removidos > 0) ? 'Gerar' : 'OK'}
+        onConfirm={() => { if (sugestaoSimulada) void confirmarSugestao(sugestaoSimulada); }}
+        onCancel={() => setSugestaoSimulada(null)}
+        type="info"
+      />
       <ConfirmDialog
         isOpen={acao?.tipo === 'desmarcar'}
         title="Desmarcar envio"

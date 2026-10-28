@@ -5,7 +5,7 @@
 // e os triggers gravam quem e quando, e o histórico, com o usuário da sessão.
 
 import { getSupabaseUserClient } from '../supabase.js';
-import { ehDiaUtil, janelaDaData, type JanelaEnvio } from './calendarioEnvios.js';
+import { ehDiaUtil, fimDoMes, janelaDaData, type AgendamentoSugerido, type JanelaEnvio } from './calendarioEnvios.js';
 
 /** Falha a devolver ao navegador: status HTTP e mensagem. */
 export type FalhaCalendario = { erro: { status: number; mensagem: string } };
@@ -201,6 +201,81 @@ export async function lerCalendario(
     return falha(502, `Não foi possível consultar os agendamentos: ${agendamentos.error.message}`);
   }
   return { regras, agendamentos: (agendamentos.data as LinhaAgendamento[]).map(paraAgendamento) };
+}
+
+/** Os agendamentos do mês `mes` ('YYYY-MM'): a entrada da sugestão. */
+export async function lerAgendamentosDoMes(token: string, mes: string): Promise<AgendamentoEnvio[] | FalhaCalendario> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_envio_agendamentos')
+    .select(COLUNAS_AGENDAMENTO)
+    .gte('data_prevista', `${mes}-01`)
+    .lte('data_prevista', fimDoMes(`${mes}-01`))
+    .order('data_prevista')
+    .order('criado_em');
+  if (error) {
+    console.error('[faturamento/calendario-envios] agendamentos do mês:', error.message);
+    return falha(502, `Não foi possível consultar os agendamentos do mês: ${error.message}`);
+  }
+  return (data as LinhaAgendamento[]).map(paraAgendamento);
+}
+
+/**
+ * Situação da sugestão em cada mês: `planejado` quando o mês já tem algum agendamento
+ * vindo da sugestão (mesmo que editado depois), e `sugeridosPendentes`, quantos
+ * sugeridos ainda pendentes e não editados ele tem (o que regerar pode refazer).
+ */
+export async function situacaoDaSugestao(
+  token: string,
+  meses: string[],
+): Promise<Map<string, { planejado: boolean; sugeridosPendentes: number }> | FalhaCalendario> {
+  const supabase = getSupabaseUserClient(token);
+  const sugeridos = (mes: string) =>
+    supabase
+      .from('fat_envio_agendamentos')
+      .select('id', { count: 'exact', head: true })
+      .eq('origem', 'sugestao')
+      .gte('data_prevista', `${mes}-01`)
+      .lte('data_prevista', fimDoMes(`${mes}-01`));
+  const respostas = await Promise.all(
+    meses.map((mes) => Promise.all([sugeridos(mes), sugeridos(mes).eq('editado', false).is('data_envio', null)])),
+  );
+  const situacao = new Map<string, { planejado: boolean; sugeridosPendentes: number }>();
+  for (const [i, [todos, pendentes]] of respostas.entries()) {
+    const error = todos.error ?? pendentes.error;
+    if (error) {
+      console.error('[faturamento/calendario-envios] situação da sugestão:', error.message);
+      return falha(502, `Não foi possível consultar a sugestão do mês: ${error.message}`);
+    }
+    situacao.set(meses[i], { planejado: (todos.count ?? 0) > 0, sugeridosPendentes: pendentes.count ?? 0 });
+  }
+  return situacao;
+}
+
+/**
+ * Grava a sugestão de `mes` numa transação (fat_envio_aplicar_sugestao, 20261028180000):
+ * remove os sugeridos refeitos e cria os novos, com origem "sugestão". O histórico
+ * ("criou", e "removeu" marcado como da sugestão) vem do trigger. 409 se o mês não tem
+ * mais exatamente os agendamentos `existentes` da conta (outra geração, ou alguém mexeu).
+ */
+export async function aplicarSugestao(
+  token: string,
+  mes: string,
+  existentes: string[],
+  criar: AgendamentoSugerido[],
+  remover: string[],
+): Promise<{ criados: number; removidos: number } | FalhaCalendario> {
+  const { error } = await getSupabaseUserClient(token).rpc('fat_envio_aplicar_sugestao', {
+    p_mes: mes,
+    p_existentes: existentes,
+    p_criar: criar.map((c) => ({ regra_id: c.regraId, data_prevista: c.dataPrevista, janela_indice: c.janelaIndice })),
+    p_remover: remover,
+  });
+  if (error) {
+    if (error.code === '40001') return falha(409, 'O calendário mudou enquanto a sugestão era gerada. Gere de novo.');
+    console.error('[faturamento/calendario-envios] aplicar sugestão:', error.message);
+    return falha(502, `Não foi possível gravar a sugestão: ${error.message}`);
+  }
+  return { criados: criar.length, removidos: remover.length };
 }
 
 /**

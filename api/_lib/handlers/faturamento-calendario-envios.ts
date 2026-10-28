@@ -16,7 +16,9 @@
  * Devolve `hoje` (America/Sao_Paulo), `amanha`, `mes`, `regras`, `feriados`, os
  * `agendamentos` do mês mais os de hoje e amanhã, e os `atrasados` de qualquer mês
  * (fora do prazo primeiro), e `podeEnviarQualquerDia` (ids das regras ativas de "todos
- * os dias", a lista lateral). Cada agendamento vem com `status` e `foraDaJanela` de
+ * os dias", a lista lateral), e `sugestao`: o mês seguinte, se gerar a sugestão dele já
+ * está liberado (a partir do dia 15), se ele já foi planejado, e quantos sugeridos
+ * pendentes e não editados o mês corrente ainda tem (o que regerar pode refazer). Cada agendamento vem com `status` e `foraDaJanela` de
  * classificarAgendamento; as telas não recalculam.
  *
  * POST — canManageCalendarioEnvios. Body com `acao`:
@@ -37,6 +39,14 @@
  *   'salvarFeriado': { id?, data, descricao, abrangencia: 'nacional' | 'DF' } — cria
  *                ou altera o feriado; data repetida dá 409.
  *   'removerFeriado': { id } — apaga o feriado.
+ *   'gerarSugestao': { mes: 'YYYY-MM', simular?: boolean } — a sugestão do mês pelas
+ *                Regras de envio (gerarSugestaoDoMes): o mês seguinte a partir do dia 15,
+ *                ou o mês corrente (regerar depois de mudar uma regra); outro mês dá 400.
+ *                Só refaz os sugeridos pendentes e não editados. Devolve `sugestao:
+ *                { mes, criados, removidos }`; com `simular`, só conta, sem gravar.
+ *                Ao gravar, `criados` e `removidos` (os da simulação que a tela
+ *                confirmou) são conferidos: se a conta mudou, ou o mês mudou durante a
+ *                gravação, 409.
  * Quem e quando, e o histórico, são gravados por trigger (20261028160000 e, nos
  * feriados, 20261028170000).
  */
@@ -47,15 +57,19 @@ import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.
 import {
   classificarAgendamento,
   fimDoMes,
+  gerarSugestaoDoMes,
   proximoDiaUtil,
+  somarDias,
   MAXIMO_DIA_UTIL,
   regrasDeQualquerDia,
   validarJanelas,
   type ClassificacaoAgendamento,
 } from '../faturamento/calendarioEnvios.js';
 import {
+  aplicarSugestao,
   criarAvulso,
   desmarcarEnviado,
+  lerAgendamentosDoMes,
   lerCalendario,
   lerFeriados,
   lerHistorico,
@@ -67,6 +81,7 @@ import {
   removerFeriado as removerFeriadoCadastrado,
   salvarFeriado as salvarFeriadoCadastrado,
   salvarRegra as salvarRegraCadastrada,
+  situacaoDaSugestao,
 } from '../faturamento/dadosCalendarioEnvios.js';
 import type {
   AgendamentoEnvio,
@@ -95,6 +110,14 @@ function dataValida(valor: unknown): valor is string {
     && /^\d{4}-\d{2}-\d{2}$/.test(valor)
     && new Date(`${valor}T00:00:00Z`).toISOString().slice(0, 10) === valor;
 }
+
+/** O mês seguinte a 'YYYY-MM'. */
+const mesSeguinte = (mes: string): string => somarDias(fimDoMes(`${mes}-01`), 1).slice(0, 7);
+
+/** A partir deste dia do mês corrente, a sugestão do mês seguinte fica liberada. */
+const DIA_LIBERA_SUGESTAO = 15;
+
+const sugestaoLiberada = (hoje: string): boolean => Number(hoje.slice(8, 10)) >= DIA_LIBERA_SUGESTAO;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const idValido = (valor: unknown): valor is string => typeof valor === 'string' && UUID_RE.test(valor);
@@ -198,9 +221,12 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
   }
   const datasFeriados = feriados.map((f) => f.data);
   const amanha = proximoDiaUtil(hoje, datasFeriados);
-  const [calendario, vencidos] = await Promise.all([
+  const mesAtual = hoje.slice(0, 7);
+  const seguinte = mesSeguinte(mesAtual);
+  const [calendario, vencidos, situacao] = await Promise.all([
     lerCalendario(token as string, { inicio: `${mes}-01`, fim: fimDoMes(`${mes}-01`), dias: [hoje, amanha] }),
     lerVencidos(token as string, hoje),
+    situacaoDaSugestao(token as string, [mesAtual, seguinte]),
   ]);
   if ('erro' in calendario) {
     responderFalha(res, calendario);
@@ -208,6 +234,10 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
   }
   if ('erro' in vencidos) {
     responderFalha(res, vencidos);
+    return;
+  }
+  if ('erro' in situacao) {
+    responderFalha(res, situacao);
     return;
   }
 
@@ -222,6 +252,12 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
     podeEnviarQualquerDia: regrasDeQualquerDia(calendario.regras).map((regra) => regra.id),
     agendamentos: classificar(calendario.agendamentos, calendario.regras, datasFeriados, hoje),
     atrasados: atrasadosEmOrdem(classificar(vencidos, calendario.regras, datasFeriados, hoje)),
+    sugestao: {
+      mesSeguinte: seguinte,
+      liberada: sugestaoLiberada(hoje),
+      mesSeguintePlanejado: situacao.get(seguinte)?.planejado ?? false,
+      sugeridosPendentesMesAtual: situacao.get(mesAtual)?.sugeridosPendentes ?? 0,
+    },
   });
 }
 
@@ -374,6 +410,57 @@ async function removerFeriado(token: string, corpo: Record<string, unknown>, res
   responderGravado(res, 'feriado', await removerFeriadoCadastrado(token, corpo.id));
 }
 
+/**
+ * POST gerarSugestao: a sugestão do mês seguinte (a partir do dia 15) ou do corrente.
+ * Com `simular`, só conta o que seria criado e removido, para a confirmação.
+ */
+async function gerarSugestao(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  const mes = typeof corpo.mes === 'string' ? corpo.mes : '';
+  const contagem = (valor: unknown) => Number.isInteger(valor) && (valor as number) >= 0;
+  if (!mesValido(mes) || (corpo.simular !== undefined && typeof corpo.simular !== 'boolean')
+    || (!corpo.simular && (!contagem(corpo.criados) || !contagem(corpo.removidos)))) {
+    res.status(400).json({
+      success: false,
+      error: 'Parâmetros inválidos: mes (YYYY-MM), e simular ou as contagens confirmadas (criados e removidos).',
+    });
+    return;
+  }
+  const hoje = hojeIsoLocal();
+  const mesAtual = hoje.slice(0, 7);
+  if (mes !== mesAtual && !(mes === mesSeguinte(mesAtual) && sugestaoLiberada(hoje))) {
+    res.status(400).json({
+      success: false,
+      error: `A sugestão só pode ser gerada para o mês corrente ou, a partir do dia ${DIA_LIBERA_SUGESTAO}, para o mês seguinte.`,
+    });
+    return;
+  }
+
+  const [regras, feriados, existentes] = await Promise.all([lerRegras(token), lerFeriados(token), lerAgendamentosDoMes(token, mes)]);
+  if ('erro' in regras) {
+    responderFalha(res, regras);
+    return;
+  }
+  if ('erro' in feriados) {
+    responderFalha(res, feriados);
+    return;
+  }
+  if ('erro' in existentes) {
+    responderFalha(res, existentes);
+    return;
+  }
+  const { criar, remover } = gerarSugestaoDoMes(mes, regras, feriados.map((f) => f.data), existentes);
+  if (corpo.simular) {
+    res.status(200).json({ success: true, sugestao: { mes, criados: criar.length, removidos: remover.length } });
+    return;
+  }
+  if (criar.length !== corpo.criados || remover.length !== corpo.removidos) {
+    res.status(409).json({ success: false, error: 'O calendário mudou desde a confirmação. Gere a sugestão de novo.' });
+    return;
+  }
+  const gravada = await aplicarSugestao(token, mes, existentes.map((a) => a.id), criar, remover);
+  responderGravado(res, 'sugestao', 'erro' in gravada ? gravada : { mes, ...gravada });
+}
+
 const ACOES: Record<string, (token: string, corpo: Record<string, unknown>, res: VercelResponse) => Promise<void>> = {
   marcar,
   desmarcar,
@@ -383,6 +470,7 @@ const ACOES: Record<string, (token: string, corpo: Record<string, unknown>, res:
   salvarRegra,
   salvarFeriado,
   removerFeriado,
+  gerarSugestao,
 };
 
 async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -396,7 +484,7 @@ async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<vo
   const corpo = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
   const acao = typeof corpo.acao === 'string' && Object.hasOwn(ACOES, corpo.acao) ? ACOES[corpo.acao] : undefined;
   if (!acao) {
-    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar, criar, reagendar, remover, salvarRegra, salvarFeriado ou removerFeriado.' });
+    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar, criar, reagendar, remover, salvarRegra, salvarFeriado, removerFeriado ou gerarSugestao.' });
     return;
   }
   await acao(token as string, corpo, res);
