@@ -278,3 +278,62 @@ export async function criarAvulso(
   }
   return paraAgendamento(data as LinhaAgendamento);
 }
+
+/**
+ * Remove o agendamento. O histórico ("removeu", com a data prevista e a de envio)
+ * vem do trigger e continua ligado ao id. Devolve o agendamento como estava.
+ */
+export async function removerAgendamento(token: string, id: string): Promise<AgendamentoEnvio | FalhaCalendario> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_envio_agendamentos')
+    .delete()
+    .eq('id', id)
+    .select(COLUNAS_AGENDAMENTO)
+    .maybeSingle();
+  if (error) {
+    console.error('[faturamento/calendario-envios] remover:', error.message);
+    return falha(502, `Não foi possível remover o agendamento: ${error.message}`);
+  }
+  if (!data) return falha(404, 'Agendamento não encontrado.');
+  return paraAgendamento(data as LinhaAgendamento);
+}
+
+export type AcaoHistorico = 'criou' | 'moveu' | 'marcou' | 'desmarcou' | 'confirmou_aplis' | 'removeu';
+
+/** Uma linha do histórico de um agendamento: antes e depois só com os campos que mudaram. */
+export interface EventoHistoricoAgendamento {
+  acao: AcaoHistorico;
+  antes: Record<string, unknown> | null;
+  depois: Record<string, unknown> | null;
+  /** Null na confirmação automática, que roda sem usuário. */
+  porNome: string | null;
+  em: string;
+}
+
+interface LinhaHistorico {
+  acao: AcaoHistorico;
+  antes: Record<string, unknown> | null;
+  depois: Record<string, unknown> | null;
+  por_nome: string | null;
+  em: string;
+}
+
+/** O histórico do agendamento, do mais antigo ao mais recente. */
+export async function lerHistorico(token: string, id: string): Promise<EventoHistoricoAgendamento[] | FalhaCalendario> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_envio_agendamento_historico')
+    .select('acao, antes, depois, por_nome, em')
+    .eq('agendamento_id', id)
+    .order('em');
+  if (error) {
+    console.error('[faturamento/calendario-envios] histórico:', error.message);
+    return falha(502, `Não foi possível consultar o histórico: ${error.message}`);
+  }
+  return (data as LinhaHistorico[]).map((linha) => ({
+    acao: linha.acao,
+    antes: linha.antes,
+    depois: linha.depois,
+    porNome: linha.por_nome,
+    em: linha.em,
+  }));
+}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { classificarAgendamento, ehDiaUtil, janelaDaData, proximoDiaUtil } from './calendarioEnvios.js';
+import { classificarAgendamento, ehDiaUtil, janelaDaData, proximoDiaUtil, regrasDeQualquerDia } from './calendarioEnvios.js';
+import type { JanelaEnvio } from './calendarioEnvios.js';
 
 // Datas de referência (2026): 30/10 é sexta, 31/10 sábado, 02/11 segunda (Finados), 20/11 sexta (Consciência Negra).
 const FERIADOS = ['2026-11-02', '2026-11-15', '2026-11-20', '2026-11-30'];
@@ -173,5 +174,20 @@ describe('classificarAgendamento', () => {
     const agendamento = { dataPrevista: '2026-11-18', dataEnvio: '2026-12-02' };
     expect(classificarAgendamento(agendamento, { janelas: [{ tipo: 'todos_os_dias' }] }, FERIADOS, '2026-12-02').foraDaJanela).toBe(false);
     expect(classificarAgendamento(agendamento, { janelas: [{ tipo: 'calendario_convenio' }] }, FERIADOS, '2026-12-02').foraDaJanela).toBe(false);
+  });
+});
+
+describe('regrasDeQualquerDia', () => {
+  const regra = (id: string, janelas: JanelaEnvio[], ativo = true) => ({ id, janelas, ativo });
+
+  it('lista as regras ativas de "todos os dias" e deixa de fora as desativadas e as de janela com dias', () => {
+    const regras = [
+      regra('bradesco', [{ tipo: 'todos_os_dias' }]),
+      regra('amil', [{ tipo: 'dias_corridos', de: 1, ate: 15 }]),
+      regra('plan', [{ tipo: 'calendario_convenio' }]),
+      regra('sis', [{ tipo: 'todos_os_dias' }], false),
+      regra('pmdf', [{ tipo: 'todos_os_dias' }]),
+    ];
+    expect(regrasDeQualquerDia(regras).map((r) => r.id)).toEqual(['bradesco', 'pmdf']);
   });
 });

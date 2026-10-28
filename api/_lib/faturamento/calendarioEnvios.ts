@@ -169,3 +169,11 @@ export function classificarAgendamento(
   if (hoje > agendamento.dataPrevista) return { status: 'atrasado', foraDaJanela };
   return { status: 'pendente', foraDaJanela };
 }
+
+/**
+ * A lista "Pode enviar qualquer dia": as regras ativas com janela de "todos os dias",
+ * que a equipe agenda no dia que escolher. Mantém a ordem recebida.
+ */
+export function regrasDeQualquerDia<R extends { janelas: readonly JanelaEnvio[]; ativo: boolean }>(regras: readonly R[]): R[] {
+  return regras.filter((regra) => regra.ativo && regra.janelas.some((janela) => janela.tipo === 'todos_os_dias'));
+}

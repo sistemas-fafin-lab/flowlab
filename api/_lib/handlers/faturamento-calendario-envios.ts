@@ -11,9 +11,12 @@
  *   mes       YYYY-MM, opcional — o mês da grade; sem ele, o mês de hoje
  *   contador  'atrasados' — só `{ atrasados: n }`, para o contador do menu (leve:
  *             não lê o mês nem o backup)
+ *   historico <id do agendamento> — só `{ historico: [...] }`, do mais antigo ao mais
+ *             recente (o detalhe do agendamento)
  * Devolve `hoje` (America/Sao_Paulo), `amanha`, `mes`, `regras`, `feriados`, os
  * `agendamentos` do mês mais os de hoje e amanhã, e os `atrasados` de qualquer mês
- * (fora do prazo primeiro). Cada agendamento vem com `status` e `foraDaJanela` de
+ * (fora do prazo primeiro), e `podeEnviarQualquerDia` (ids das regras ativas de "todos
+ * os dias", a lista lateral). Cada agendamento vem com `status` e `foraDaJanela` de
  * classificarAgendamento; as telas não recalculam.
  *
  * POST — canManageCalendarioEnvios. Body com `acao`:
@@ -25,22 +28,31 @@
  *   'reagendar': { id, dataPrevista: 'YYYY-MM-DD' } — move para um dia útil de hoje em
  *                diante e marca como editado. Fora da janela é permitido; dia não útil
  *                ou no passado dá 400.
+ *   'remover':   { id } — apaga o agendamento; o histórico ("removeu") fica.
  * Quem e quando, e o histórico, são gravados por trigger (20261028160000).
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { classificarAgendamento, fimDoMes, proximoDiaUtil, type ClassificacaoAgendamento } from '../faturamento/calendarioEnvios.js';
+import {
+  classificarAgendamento,
+  fimDoMes,
+  proximoDiaUtil,
+  regrasDeQualquerDia,
+  type ClassificacaoAgendamento,
+} from '../faturamento/calendarioEnvios.js';
 import {
   criarAvulso,
   desmarcarEnviado,
   lerCalendario,
   lerFeriados,
+  lerHistorico,
   lerRegras,
   lerVencidos,
   marcarEnviado,
   reagendar as reagendarAgendamento,
+  removerAgendamento,
 } from '../faturamento/dadosCalendarioEnvios.js';
 import type { AgendamentoEnvio, FalhaCalendario, RegraEnvio } from '../faturamento/dadosCalendarioEnvios.js';
 import { mesValido } from '../faturamento/indicadoresFaturamento.js';
@@ -116,6 +128,22 @@ async function contarAtrasados(token: string, res: VercelResponse): Promise<void
   res.status(200).json({ success: true, atrasados: atrasadosEmOrdem(classificados).length });
 }
 
+/** GET ?historico=<id>: o histórico do agendamento, para o detalhe. */
+async function consultarHistorico(token: string, bruto: string | string[], res: VercelResponse): Promise<void> {
+  const id = Array.isArray(bruto) ? bruto[0] : bruto;
+  if (!idValido(id)) {
+    res.status(400).json({ success: false, error: 'Parâmetro inválido: historico (id do agendamento).' });
+    return;
+  }
+  const historico = await lerHistorico(token, id);
+  if ('erro' in historico) {
+    responderFalha(res, historico);
+    return;
+  }
+  res.setHeader('Cache-Control', 'no-store');
+  res.status(200).json({ success: true, historico });
+}
+
 async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<void> {
   const token = tokenDoHeader(req.headers.authorization);
   const erroAuth = await autorizarFaturamento(token, ['calendarioEnvios']);
@@ -126,6 +154,11 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
 
   if (req.query.contador === 'atrasados') {
     await contarAtrasados(token as string, res);
+    return;
+  }
+
+  if (req.query.historico !== undefined) {
+    await consultarHistorico(token as string, req.query.historico, res);
     return;
   }
 
@@ -166,6 +199,7 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
     mes,
     feriados,
     regras: calendario.regras,
+    podeEnviarQualquerDia: regrasDeQualquerDia(calendario.regras).map((regra) => regra.id),
     agendamentos: classificar(calendario.agendamentos, calendario.regras, datasFeriados, hoje),
     atrasados: atrasadosEmOrdem(classificar(vencidos, calendario.regras, datasFeriados, hoje)),
   });
@@ -224,11 +258,21 @@ async function reagendar(token: string, corpo: Record<string, unknown>, res: Ver
   responderAgendamento(res, await reagendarAgendamento(token, corpo.id, corpo.dataPrevista));
 }
 
+/** POST remover: apaga o agendamento; o histórico fica. */
+async function remover(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  if (!idValido(corpo.id)) {
+    res.status(400).json({ success: false, error: 'Parâmetro inválido: id.' });
+    return;
+  }
+  responderAgendamento(res, await removerAgendamento(token, corpo.id));
+}
+
 const ACOES: Record<string, (token: string, corpo: Record<string, unknown>, res: VercelResponse) => Promise<void>> = {
   marcar,
   desmarcar,
   criar,
   reagendar,
+  remover,
 };
 
 async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -242,7 +286,7 @@ async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<vo
   const corpo = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
   const acao = typeof corpo.acao === 'string' && Object.hasOwn(ACOES, corpo.acao) ? ACOES[corpo.acao] : undefined;
   if (!acao) {
-    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar, criar ou reagendar.' });
+    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar, criar, reagendar ou remover.' });
     return;
   }
   await acao(token as string, corpo, res);

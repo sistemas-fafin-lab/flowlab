@@ -1603,9 +1603,26 @@ export interface CalendarioEnvios {
   /** 'YYYY-MM' da grade. */
   mes: string;
   regras: RegraEnvio[];
+  /** Ids das regras ativas de "todos os dias": a lista lateral "Pode enviar qualquer dia". */
+  podeEnviarQualquerDia: string[];
   feriados: FeriadoEnvio[];
   /** Os do mês e os de hoje e amanhã. */
   agendamentos: AgendamentoEnvio[];
   /** Atrasados e fora do prazo de qualquer mês, fora do prazo primeiro. */
   atrasados: AgendamentoEnvio[];
+}
+
+/** Espelha AcaoHistorico de api/_lib/faturamento/dadosCalendarioEnvios.ts. */
+export type AcaoHistoricoAgendamento = 'criou' | 'moveu' | 'marcou' | 'desmarcou' | 'confirmou_aplis' | 'removeu';
+
+/** Uma linha do histórico de um Agendamento de envio (GET ?historico=<id>). */
+export interface EventoHistoricoAgendamento {
+  acao: AcaoHistoricoAgendamento;
+  /** Só os campos que mudaram (data_prevista, data_envio, origem, lote_aplis_confirmado). */
+  antes: Record<string, unknown> | null;
+  depois: Record<string, unknown> | null;
+  /** Null na confirmação automática, que roda sem usuário. */
+  porNome: string | null;
+  /** ISO. */
+  em: string;
 }

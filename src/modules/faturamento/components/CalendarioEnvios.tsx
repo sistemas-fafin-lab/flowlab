@@ -13,14 +13,18 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Repeat,
 } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
-import { desmarcarEnvio, useCalendarioEnvios } from '../hooks/useCalendarioEnvios';
+import { desmarcarEnvio, removerAgendamento, useCalendarioEnvios } from '../hooks/useCalendarioEnvios';
 import type { AgendamentoEnvio, FeriadoEnvio, RegraEnvio, StatusAgendamento } from '../types';
 import { formatData, formatDataHora } from '../utils/formato';
 import AgendamentoAvulsoModal from './AgendamentoAvulsoModal';
+import { ESTILO_STATUS } from './estiloStatusEnvio';
+import SeloForaDaJanela from './SeloForaDaJanela';
+import DetalheAgendamentoModal from './DetalheAgendamentoModal';
 import MarcarEnvioModal from './MarcarEnvioModal';
 import ReagendarEnvioModal from './ReagendarEnvioModal';
 
@@ -29,10 +33,12 @@ import ReagendarEnvioModal from './ReagendarEnvioModal';
 // Faturamento → Calendário de envios (.scratch/faturamento-calendario-envios/spec.md):
 // os painéis Hoje e Amanhã (o próximo dia útil, vindo do servidor) com os
 // Agendamentos de envio de cada dia, e a grade do mês de segunda a sexta com os
-// feriados destacados, e o bloco Atrasados (de qualquer mês, até serem resolvidos).
-// O status de cada agendamento vem classificado do servidor; aqui só vira cor.
-// Quem tem canManageCalendarioEnvios marca e desmarca o envio (com a data),
-// reagenda os atrasados e cria agendamentos avulsos; os demais só veem.
+// feriados destacados, o bloco Atrasados (de qualquer mês, até serem resolvidos) e a
+// lista lateral "Pode enviar qualquer dia". O status de cada agendamento vem
+// classificado do servidor; aqui só vira cor. Clicar num agendamento abre o detalhe
+// (observação, membros, quem marcou, histórico). Quem tem canManageCalendarioEnvios
+// marca e desmarca o envio (com a data), move, remove e cria agendamentos avulsos;
+// os demais só veem. Fora da janela da regra nunca é bloqueado, só ganha o selo.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700';
@@ -74,44 +80,6 @@ function semanasDoMes(mes: string): (string | null)[][] {
   return semanas;
 }
 
-/** Cor e nome de cada status: chip da grade, pílula dos painéis e legenda. */
-const ESTILO_STATUS: Record<StatusAgendamento, { nome: string; chip: string; pilula: string; amostra: string }> = {
-  pendente: {
-    nome: 'Pendente',
-    chip: 'bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-800',
-    pilula: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-    amostra: 'bg-blue-50 border border-blue-200 dark:bg-blue-900/20 dark:border-blue-800',
-  },
-  enviado: {
-    nome: 'Enviado',
-    chip: 'bg-green-100 text-green-800 border border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800/60',
-    pilula: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-    amostra: 'bg-green-100 border border-green-200 dark:bg-green-900/30 dark:border-green-800/60',
-  },
-  atrasado: {
-    nome: 'Atrasado',
-    chip: 'bg-yellow-100 text-yellow-900 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-200 dark:border-yellow-700',
-    pilula: 'bg-yellow-100 text-yellow-900 dark:bg-yellow-900/40 dark:text-yellow-200',
-    amostra: 'bg-yellow-100 border border-yellow-300 dark:bg-yellow-900/30 dark:border-yellow-700',
-  },
-  fora_do_prazo: {
-    nome: 'Fora do prazo do convênio',
-    chip: 'bg-red-100 text-red-800 border border-red-300 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800',
-    pilula: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-    amostra: 'bg-red-100 border border-red-300 dark:bg-red-900/30 dark:border-red-800',
-  },
-};
-
-const SeloForaDaJanela: React.FC = () => (
-  <span
-    title="A data prevista ou a de envio cai fora da janela da regra do convênio. Só informativo."
-    className="inline-flex items-center gap-1 px-1.5 py-px text-[10px] font-medium rounded-full bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300"
-  >
-    <CalendarX className="w-3 h-3" />
-    fora da janela
-  </span>
-);
-
 /** Segunda a sexta fora dos feriados do calendário; o dia útil de verdade é do servidor. */
 const ehDiaUtilNaTela = (iso: string, feriados: Map<string, FeriadoEnvio>): boolean => {
   const semana = dataUtc(iso).getUTCDay();
@@ -125,10 +93,12 @@ interface ItemAgendado {
 }
 
 type Acao =
+  | { tipo: 'detalhe'; item: ItemAgendado }
   | { tipo: 'marcar'; item: ItemAgendado }
   | { tipo: 'desmarcar'; item: ItemAgendado }
   | { tipo: 'reagendar'; item: ItemAgendado }
-  | { tipo: 'avulso'; data: string };
+  | { tipo: 'remover'; item: ItemAgendado }
+  | { tipo: 'avulso'; data: string; regraId?: string };
 
 const nomeConvenio = (item: ItemAgendado): string => item.regra?.convenio ?? 'Convênio removido';
 
@@ -159,9 +129,13 @@ const LinhaPainel: React.FC<{
         {enviado && <Check className="w-3.5 h-3.5" strokeWidth={3} />}
       </button>
       <div className="min-w-0">
-        <p className={`text-sm font-medium ${enviado ? 'text-gray-500 dark:text-gray-400 line-through decoration-gray-400/60' : 'text-gray-900 dark:text-gray-100'}`}>
+        <button
+          type="button"
+          onClick={() => onAcao({ tipo: 'detalhe', item })}
+          className={`text-sm font-medium text-left hover:underline ${enviado ? 'text-gray-500 dark:text-gray-400 line-through decoration-gray-400/60' : 'text-gray-900 dark:text-gray-100'}`}
+        >
           {nomeConvenio(item)}
-        </p>
+        </button>
         {agendamento.foraDaJanela && <div className="mt-0.5"><SeloForaDaJanela /></div>}
         {regra?.observacao && <p className="text-xs text-gray-500 dark:text-gray-400">{regra.observacao}</p>}
         {enviado && (
@@ -258,7 +232,13 @@ const PainelAtrasados: React.FC<{
             return (
               <li key={agendamento.id} className="py-2.5 flex flex-wrap items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{nomeConvenio(item)}</p>
+                  <button
+                    type="button"
+                    onClick={() => onAcao({ tipo: 'detalhe', item })}
+                    className="text-sm font-medium text-left text-gray-900 dark:text-gray-100 hover:underline"
+                  >
+                    {nomeConvenio(item)}
+                  </button>
                   <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
                     <span className={`px-1.5 py-px text-[10px] font-semibold rounded-full ${estilo.pilula}`}>{estilo.nome}</span>
                     <span className="text-xs text-gray-500 dark:text-gray-400">previsto para {formatData(agendamento.dataPrevista)}</span>
@@ -296,11 +276,11 @@ const PainelAtrasados: React.FC<{
 
 // ─── Grade do mês ─────────────────────────────────────────────────────────────
 
+/** Chip da grade: o tooltip traz a observação e os membros; o clique abre o detalhe. */
 const ChipAgendamento: React.FC<{
   item: ItemAgendado;
-  podeGerenciar: boolean;
   onAcao: (acao: Acao) => void;
-}> = ({ item, podeGerenciar, onAcao }) => {
+}> = ({ item, onAcao }) => {
   const { status, foraDaJanela, dataEnvio } = item.agendamento;
   const enviado = dataEnvio !== null;
   const dica = [
@@ -308,24 +288,17 @@ const ChipAgendamento: React.FC<{
     enviado ? `Enviado em ${formatData(dataEnvio)}` : ESTILO_STATUS[status].nome,
     foraDaJanela && 'fora da janela da regra',
     item.regra?.observacao,
-  ].filter(Boolean).join(' · ');
-  const classe = `w-full flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-left truncate ${ESTILO_STATUS[status].chip}`;
-  const conteudo = (
-    <>
-      {enviado && <Check className="w-3 h-3 shrink-0" strokeWidth={3} />}
-      <span className="truncate">{nomeConvenio(item)}</span>
-      {foraDaJanela && <CalendarX className="w-3 h-3 shrink-0 ml-auto text-gray-500 dark:text-gray-400" aria-label="fora da janela" />}
-    </>
-  );
-  if (!podeGerenciar) return <div className={classe} title={dica}>{conteudo}</div>;
+  ].filter(Boolean).join(' · ') + (item.regra?.membros ? `\nMembros: ${item.regra.membros}` : '');
   return (
     <button
       type="button"
       title={dica}
-      onClick={() => onAcao({ tipo: enviado ? 'desmarcar' : 'marcar', item })}
-      className={`${classe} hover:ring-2 hover:ring-blue-400/40`}
+      onClick={() => onAcao({ tipo: 'detalhe', item })}
+      className={`w-full flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-left truncate hover:ring-2 hover:ring-blue-400/40 ${ESTILO_STATUS[status].chip}`}
     >
-      {conteudo}
+      {enviado && <Check className="w-3 h-3 shrink-0" strokeWidth={3} />}
+      <span className="truncate">{nomeConvenio(item)}</span>
+      {foraDaJanela && <CalendarX className="w-3 h-3 shrink-0 ml-auto text-gray-500 dark:text-gray-400" aria-label="fora da janela" />}
     </button>
   );
 };
@@ -382,7 +355,7 @@ const GradeMes: React.FC<{
                     <p className="text-[11px] leading-tight font-medium text-amber-700 dark:text-amber-300">{feriado.descricao}</p>
                   )}
                   {itens.map((item) => (
-                    <ChipAgendamento key={item.agendamento.id} item={item} podeGerenciar={podeGerenciar} onAcao={onAcao} />
+                    <ChipAgendamento key={item.agendamento.id} item={item} onAcao={onAcao} />
                   ))}
                 </div>
               );
@@ -394,6 +367,50 @@ const GradeMes: React.FC<{
   </div>
 );
 
+// ─── Lista "Pode enviar qualquer dia" ─────────────────────────────────────────
+
+/** As regras ativas de "todos os dias" (ids vindos do servidor); agendar abre o avulso com o convênio escolhido. */
+const ListaQualquerDia: React.FC<{
+  regras: RegraEnvio[];
+  diaSugerido: string;
+  podeGerenciar: boolean;
+  onAcao: (acao: Acao) => void;
+}> = ({ regras, diaSugerido, podeGerenciar, onAcao }) => (
+  <aside className={`${CARD} p-5 self-start`} aria-label="Pode enviar qualquer dia">
+    <h2 className="text-base font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+      <Repeat className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+      Pode enviar qualquer dia
+    </h2>
+    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Convênios de "todos os dias": agende no dia que preferir.</p>
+    {regras.length === 0 ? (
+      <p className="mt-3 text-sm text-gray-400 dark:text-gray-500">Nenhum convênio.</p>
+    ) : (
+      <ul className="mt-2 divide-y divide-gray-100 dark:divide-gray-700">
+        {regras.map((regra) => (
+          <li key={regra.id} className="py-2 flex items-start justify-between gap-2">
+            <div className="min-w-0" title={regra.membros ? `Membros: ${regra.membros}` : undefined}>
+              <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{regra.convenio}</p>
+              {regra.observacao && <p className="text-xs text-gray-500 dark:text-gray-400">{regra.observacao}</p>}
+              {regra.membros && <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{regra.membros}</p>}
+            </div>
+            {podeGerenciar && (
+              <button
+                type="button"
+                onClick={() => onAcao({ tipo: 'avulso', data: diaSugerido, regraId: regra.id })}
+                aria-label={`Agendar ${regra.convenio}`}
+                title="Agendar"
+                className="shrink-0 p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-900/30"
+              >
+                <Plus className="w-4 h-4" />
+              </button>
+            )}
+          </li>
+        ))}
+      </ul>
+    )}
+  </aside>
+);
+
 // ─── Página ───────────────────────────────────────────────────────────────────
 
 const CalendarioEnvios: React.FC = () => {
@@ -403,11 +420,12 @@ const CalendarioEnvios: React.FC = () => {
   const { calendario, loading, error, refetch } = useCalendarioEnvios(mes);
   const [acao, setAcao] = useState<Acao | null>(null);
   const [desmarcando, setDesmarcando] = useState(false);
+  const [removendo, setRemovendo] = useState(false);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
 
   const mesExibido = mes ?? calendario?.mes ?? null;
 
-  const { porDia, feriados, atrasados } = useMemo(() => {
+  const { porDia, feriados, atrasados, qualquerDia } = useMemo(() => {
     const regras = new Map((calendario?.regras ?? []).map((r) => [r.id, r]));
     const atrasados = (calendario?.atrasados ?? []).map((agendamento) => ({ agendamento, regra: regras.get(agendamento.regraId) }));
     const mapa = new Map<string, ItemAgendado[]>();
@@ -417,7 +435,8 @@ const CalendarioEnvios: React.FC = () => {
       mapa.set(agendamento.dataPrevista, lista);
     }
     for (const lista of mapa.values()) lista.sort((a, b) => nomeConvenio(a).localeCompare(nomeConvenio(b), 'pt-BR'));
-    return { porDia: mapa, feriados: new Map((calendario?.feriados ?? []).map((f) => [f.data, f])), atrasados };
+    const qualquerDia = (calendario?.podeEnviarQualquerDia ?? []).flatMap((id) => regras.get(id) ?? []);
+    return { porDia: mapa, feriados: new Map((calendario?.feriados ?? []).map((f) => [f.data, f])), atrasados, qualquerDia };
   }, [calendario]);
 
   const concluir = () => {
@@ -438,6 +457,23 @@ const CalendarioEnvios: React.FC = () => {
       setDesmarcando(false);
     }
   };
+
+  const confirmarRemover = async (item: ItemAgendado) => {
+    setRemovendo(true);
+    setErroAcao(null);
+    try {
+      await removerAgendamento(item.agendamento.id);
+      concluir();
+    } catch (err) {
+      setErroAcao(err instanceof Error ? err.message : 'Não foi possível remover o agendamento.');
+      setAcao(null);
+    } finally {
+      setRemovendo(false);
+    }
+  };
+
+  /** Hoje, se for dia útil, senão o próximo: o dia sugerido para reagendar e agendar. */
+  const diaUtilSugerido = calendario ? (ehDiaUtilNaTela(calendario.hoje, feriados) ? calendario.hoje : calendario.amanha) : '';
 
   return (
     <div className="space-y-6">
@@ -506,59 +542,79 @@ const CalendarioEnvios: React.FC = () => {
           </div>
 
           {mesExibido && (
-            <section className={`${CARD} p-5`} aria-label="Calendário do mês">
-              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-                <div className="flex items-center gap-2">
-                  <CalendarDays className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{nomeMes(mesExibido)}</h2>
-                  {loading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_18rem] gap-4">
+              <section className={`${CARD} p-5 min-w-0`} aria-label="Calendário do mês">
+                <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                  <div className="flex items-center gap-2">
+                    <CalendarDays className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{nomeMes(mesExibido)}</h2>
+                    {loading && <Loader2 className="h-4 w-4 animate-spin text-gray-400" />}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setMes(somarMeses(mesExibido, -1))}
+                      aria-label="Mês anterior"
+                      className="p-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => setMes(calendario.hoje.slice(0, 7))}
+                      className="px-3 py-1.5 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
+                    >
+                      Mês atual
+                    </button>
+                    <button
+                      onClick={() => setMes(somarMeses(mesExibido, 1))}
+                      aria-label="Próximo mês"
+                      className="p-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1">
-                  <button
-                    onClick={() => setMes(somarMeses(mesExibido, -1))}
-                    aria-label="Mês anterior"
-                    className="p-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <ChevronLeft className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => setMes(calendario.hoje.slice(0, 7))}
-                    className="px-3 py-1.5 rounded-xl text-sm font-medium text-gray-700 border border-gray-200 hover:bg-gray-50 dark:text-gray-200 dark:border-gray-600 dark:hover:bg-gray-700"
-                  >
-                    Mês atual
-                  </button>
-                  <button
-                    onClick={() => setMes(somarMeses(mesExibido, 1))}
-                    aria-label="Próximo mês"
-                    className="p-2 rounded-xl text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"
-                  >
-                    <ChevronRight className="h-5 w-5" />
-                  </button>
+                <div className="flex flex-wrap gap-4 mb-3 text-xs text-gray-500 dark:text-gray-400">
+                  {(Object.keys(ESTILO_STATUS) as StatusAgendamento[]).map((status) => (
+                    <span key={status} className="flex items-center gap-1.5">
+                      <span className={`w-3 h-3 rounded ${ESTILO_STATUS[status].amostra}`} />
+                      {ESTILO_STATUS[status].nome}
+                    </span>
+                  ))}
+                  <span className="flex items-center gap-1.5"><CalendarX className="w-3.5 h-3.5" />Fora da janela da regra</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 dark:bg-amber-900/15 dark:border-amber-800/60" />Feriado</span>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-4 mb-3 text-xs text-gray-500 dark:text-gray-400">
-                {(Object.keys(ESTILO_STATUS) as StatusAgendamento[]).map((status) => (
-                  <span key={status} className="flex items-center gap-1.5">
-                    <span className={`w-3 h-3 rounded ${ESTILO_STATUS[status].amostra}`} />
-                    {ESTILO_STATUS[status].nome}
-                  </span>
-                ))}
-                <span className="flex items-center gap-1.5"><CalendarX className="w-3.5 h-3.5" />Fora da janela da regra</span>
-                <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 dark:bg-amber-900/15 dark:border-amber-800/60" />Feriado</span>
-              </div>
-              <GradeMes
-                mes={mesExibido}
-                hoje={calendario.hoje}
-                porDia={porDia}
-                feriados={feriados}
+                <GradeMes
+                  mes={mesExibido}
+                  hoje={calendario.hoje}
+                  porDia={porDia}
+                  feriados={feriados}
+                  podeGerenciar={podeGerenciar}
+                  onAcao={setAcao}
+                />
+              </section>
+              <ListaQualquerDia
+                regras={qualquerDia}
+                diaSugerido={diaUtilSugerido}
                 podeGerenciar={podeGerenciar}
                 onAcao={setAcao}
               />
-            </section>
+            </div>
           )}
         </div>
       )}
 
+      {acao?.tipo === 'detalhe' && (
+        <DetalheAgendamentoModal
+          agendamento={acao.item.agendamento}
+          regra={acao.item.regra}
+          podeGerenciar={podeGerenciar}
+          onFechar={() => setAcao(null)}
+          onMarcar={() => setAcao({ tipo: 'marcar', item: acao.item })}
+          onDesmarcar={() => setAcao({ tipo: 'desmarcar', item: acao.item })}
+          onMover={() => setAcao({ tipo: 'reagendar', item: acao.item })}
+          onRemover={() => setAcao({ tipo: 'remover', item: acao.item })}
+        />
+      )}
       {calendario && acao?.tipo === 'marcar' && (
         <MarcarEnvioModal
           agendamentoId={acao.item.agendamento.id}
@@ -574,7 +630,9 @@ const CalendarioEnvios: React.FC = () => {
           agendamentoId={acao.item.agendamento.id}
           convenio={nomeConvenio(acao.item)}
           dataPrevista={acao.item.agendamento.dataPrevista}
-          dataInicial={ehDiaUtilNaTela(calendario.hoje, feriados) ? calendario.hoje : calendario.amanha}
+          dataInicial={
+            acao.item.agendamento.dataPrevista >= calendario.hoje ? acao.item.agendamento.dataPrevista : diaUtilSugerido
+          }
           onFechar={() => setAcao(null)}
           onReagendado={concluir}
         />
@@ -583,6 +641,7 @@ const CalendarioEnvios: React.FC = () => {
         <AgendamentoAvulsoModal
           regras={calendario.regras}
           dataInicial={acao.data}
+          regraInicial={acao.regraId}
           onFechar={() => setAcao(null)}
           onCriado={concluir}
         />
@@ -601,6 +660,23 @@ const CalendarioEnvios: React.FC = () => {
         onConfirm={() => { if (acao?.tipo === 'desmarcar' && !desmarcando) void confirmarDesmarcar(acao.item); }}
         onCancel={() => setAcao(null)}
         type="warning"
+      />
+      <ConfirmDialog
+        isOpen={acao?.tipo === 'remover'}
+        title="Remover agendamento"
+        message={
+          acao?.tipo === 'remover' && (
+            <>
+              {nomeConvenio(acao.item)} sai do dia {formatData(acao.item.agendamento.dataPrevista)}
+              {acao.item.agendamento.dataEnvio && <>, junto com a marcação de envio de {formatData(acao.item.agendamento.dataEnvio)}</>}.
+              A remoção fica no histórico.
+            </>
+          )
+        }
+        confirmText={removendo ? 'Removendo…' : 'Remover'}
+        onConfirm={() => { if (acao?.tipo === 'remover' && !removendo) void confirmarRemover(acao.item); }}
+        onCancel={() => setAcao(null)}
+        type="danger"
       />
     </div>
   );

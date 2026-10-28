@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { AgendamentoEnvio, CalendarioEnvios } from '../types';
+import type { AgendamentoEnvio, CalendarioEnvios, EventoHistoricoAgendamento } from '../types';
 import { chamarLegadoApi, getTokenLegado } from './legado/api';
 
 // Calendário de envios (Faturamento → Calendário de envios): lê o mês pronto de
@@ -34,6 +34,7 @@ export function useCalendarioEnvios(mes: string | null) {
         amanha: body.amanha ?? '',
         mes: body.mes ?? '',
         regras: body.regras ?? [],
+        podeEnviarQualquerDia: body.podeEnviarQualquerDia ?? [],
         feriados: body.feriados ?? [],
         agendamentos: body.agendamentos ?? [],
         atrasados: body.atrasados ?? [],
@@ -129,4 +130,33 @@ export function criarAgendamentoAvulso(regraId: string, dataPrevista: string): P
 /** Move para outro dia útil; fica "editado" (canManageCalendarioEnvios). */
 export function reagendarAgendamento(id: string, dataPrevista: string): Promise<AgendamentoEnvio> {
   return postarCalendario({ acao: 'reagendar', id, dataPrevista }, 'Não foi possível reagendar.');
+}
+
+/** Remove o agendamento; o histórico fica (canManageCalendarioEnvios). */
+export function removerAgendamento(id: string): Promise<AgendamentoEnvio> {
+  return postarCalendario({ acao: 'remover', id }, 'Não foi possível remover o agendamento.');
+}
+
+const MENSAGEM_ERRO_HISTORICO = 'Não foi possível carregar o histórico.';
+
+/** Histórico do agendamento, do mais antigo ao mais recente (detalhe do agendamento). */
+export function useHistoricoAgendamento(id: string) {
+  const [historico, setHistorico] = useState<EventoHistoricoAgendamento[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    setHistorico(null);
+    setError(null);
+    chamarLegadoApi<{ success?: boolean; error?: string; historico?: EventoHistoricoAgendamento[] }>(
+      'calendario-envios',
+      new URLSearchParams({ historico: id }),
+      MENSAGEM_ERRO_HISTORICO,
+    )
+      .then((body) => { if (!cancelado) setHistorico(body.historico ?? []); })
+      .catch((err) => { if (!cancelado) setError(err instanceof Error ? err.message : MENSAGEM_ERRO_HISTORICO); });
+    return () => { cancelado = true; };
+  }, [id]);
+
+  return { historico, error };
 }

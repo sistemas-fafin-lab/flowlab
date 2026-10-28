@@ -6,7 +6,7 @@ import { criarAgendamentoAvulso } from '../hooks/useCalendarioEnvios';
 import type { RegraEnvio } from '../types';
 
 // Agendamento avulso no Calendário de envios (ex.: "Bradesco hoje também"): um
-// convênio ativo num dia útil. Fora da janela da regra é permitido; o servidor
+// convênio ativo num dia útil. Pode haver mais de um do mesmo convênio no mês ou dia. Fora da janela da regra é permitido; o servidor
 // recusa dia que não é útil. Gate canManageCalendarioEnvios no pai.
 
 const CAMPO =
@@ -16,12 +16,14 @@ interface Props {
   regras: RegraEnvio[];
   /** Dia sugerido: o dia da grade em que a faturista clicou. */
   dataInicial: string;
+  /** Convênio já escolhido: a regra clicada na lista "Pode enviar qualquer dia". */
+  regraInicial?: string;
   onFechar: () => void;
   onCriado: () => void;
 }
 
-const AgendamentoAvulsoModal: React.FC<Props> = ({ regras, dataInicial, onFechar, onCriado }) => {
-  const [regraId, setRegraId] = useState('');
+const AgendamentoAvulsoModal: React.FC<Props> = ({ regras, dataInicial, regraInicial, onFechar, onCriado }) => {
+  const [regraId, setRegraId] = useState(regraInicial ?? '');
   const [data, setData] = useState(dataInicial);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
