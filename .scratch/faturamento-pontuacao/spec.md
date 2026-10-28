@@ -1,6 +1,6 @@
 # Faturamento: Pontuação do setor (Indicadores)
 
-Status: ready-for-agent
+Status: done (7 issues concluídas e pontos base editáveis, 28/Out/2026); falta a conferência na tela das issues 01, 04 e 06
 
 ## Problem Statement
 
