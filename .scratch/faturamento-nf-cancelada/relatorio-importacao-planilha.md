@@ -25,24 +25,24 @@ os títulos importados da planilha levaram a data do lote, não a da NF).
   - NF s/ nº de 03/02/2026, R$ 48,37, lote(s) 4964 (`95c48fe9-9ab6-538b-bc2a-e3008ff0d935`) — emitido antes da NF
 - **NF 7496 — SIS, R$ 6.941,85, emitida em 04/03/2026** — nenhum título de SIS SENADO emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: SIS SENADO (pelo apLIS); lote(s) 5124 no texto da NF.
   Títulos com lote da NF, fora da regra:
-  - NF s/ nº de 02/03/2026, R$ 6.941,85, lote(s) 5124 (`2e7cbc31-7039-5dbf-99be-94d7bdf98ac7`) — de FASCAL, emitido antes da NF
+  - NF 7633 de 02/03/2026, R$ 6.891,66, lote(s) 5124 (`2e7cbc31-7039-5dbf-99be-94d7bdf98ac7`) — de FASCAL, emitido antes da NF
 - **NF 7495 — SIS, R$ 96,24, emitida em 05/03/2026** — nenhum título de SIS SENADO emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: SIS SENADO (pelo apLIS); lote(s) 4967 no texto da NF.
 - **NF 7498 — SIS, R$ 5.348,65, emitida em 05/03/2026** — nenhum título de SIS SENADO emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: SIS SENADO (pelo apLIS); lote(s) 4729 no texto da NF.
   Títulos com lote da NF, fora da regra:
-  - NF s/ nº de 02/01/2026, R$ 5.348,65, lote(s) 4729 (`6d677709-d5c6-56d9-8e99-d80bae8a102f`) — de FASCAL, emitido antes da NF
+  - NF 7635 de 02/01/2026, R$ 5.248,26, lote(s) 4729 (`6d677709-d5c6-56d9-8e99-d80bae8a102f`) — de FASCAL, emitido antes da NF
 - **NF 7504 — PLAN ASSISTE, R$ 37.956,81, emitida em 09/03/2026** — nenhum título de LAB PLANASSISTE emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: LAB PLANASSISTE (pelo apLIS; o nome da planilha apontaria outra operadora); NF no apLIS sem lote no texto.
 - **NF 7831 — GEAP, R$ 10.535,86, emitida em 16/04/2026** — nenhum título de GEAP Autogestão em Saúde emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: GEAP Autogestão em Saúde (pelo nome); NF fora do apLIS.
 - **NF 7914 — TJDFT, R$ 18.852,91, emitida em 23/04/2026** — nenhum título de TJDFT emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: TJDFT (pelo apLIS); lote(s) 5033, 5204, 5212, 5201 no texto da NF.
   Títulos com lote da NF, fora da regra:
-  - NF s/ nº de 13/03/2026, R$ 1.364,42, lote(s) 5033 (`b8c8b31e-3dff-5191-b2d0-b0ea9d46e43e`) — emitido antes da NF
-  - NF s/ nº de 13/03/2026, R$ 92,08, lote(s) 5201 (`7149edb5-e889-5791-a339-7e1505a4c9b0`) — emitido antes da NF
   - NF s/ nº de 14/03/2026, R$ 9.626,08, lote(s) 5212 (`2868eafc-6b64-5046-a6c5-9316aa3b7219`) — emitido antes da NF
+  - NF s/ nº de 13/03/2026, R$ 92,08, lote(s) 5201 (`7149edb5-e889-5791-a339-7e1505a4c9b0`) — emitido antes da NF
+  - NF s/ nº de 13/03/2026, R$ 1.364,42, lote(s) 5033 (`b8c8b31e-3dff-5191-b2d0-b0ea9d46e43e`) — emitido antes da NF
   - NF 8859 de 14/03/2026, R$ 8.808,09, lote(s) 5204 (`369f93c1-8dbc-5828-a5aa-5919afcaef10`) — emitido antes da NF
 - **NF 7996 — TRT, R$ 940,98, emitida em 07/05/2026** — nenhum título de TRT emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: TRT (pelo nome); NF fora do apLIS.
 - **NF 7787 — STF MED, R$ 6.867,86, emitida em 11/05/2026** — nenhum título de STF emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: STF (pelo CNPJ do tomador); lote(s) 4941, 5023, 4939 no texto da NF.
   Títulos com lote da NF, fora da regra:
-  - NF s/ nº de 02/02/2026, R$ 3.648,97, lote(s) 4939 (`74a52d2a-7b5d-5123-b5c5-73dc09a32f79`) — emitido antes da NF
   - NF s/ nº de 04/02/2026, R$ 935,80, lote(s) 4941 (`2ea7d537-38ab-58dc-b192-182c39b10eca`) — emitido antes da NF
+  - NF s/ nº de 02/02/2026, R$ 3.648,97, lote(s) 4939 (`74a52d2a-7b5d-5123-b5c5-73dc09a32f79`) — emitido antes da NF
   - NF s/ nº de 18/02/2026, R$ 2.283,38, lote(s) 5023 (`eef13560-6da3-59de-89ae-ce9811be94e1`) — emitido antes da NF
 - **NF 7793 — BRADESCO, R$ 20.954,24, emitida em 15/04/2026** — nenhum título de BRADESCO SAUDE S/A 421715 emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: BRADESCO SAUDE S/A 421715 (pelo apLIS); NF no apLIS sem lote no texto.
 - **NF 7990 — BRADESCO OPERADORA, R$ 6.582,79, emitida em 05/05/2026** — nenhum título de BRADESCO SAUDE S/A 421715 emitido até 30 dias depois com lote em comum ou o mesmo valor. Operadora: BRADESCO SAUDE S/A 421715 (pelo CNPJ do tomador); NF no apLIS sem lote no texto.
