@@ -1872,10 +1872,13 @@ export interface PendenciasMeta {
   qtdPaginas: number;
   registros: number;
   /** Soma do valor de TODOS os lotes que casam o filtro, não só a página atual —
-   *  é o número que o widget-resumo do Dashboard mostra. */
+   *  é o número que o widget-resumo do Dashboard mostra. Só requisições
+   *  faturáveis entram (ver `EVENTOS_NAO_COBRAVEIS`). */
   valorTotal: number;
   /** Fim de M-1 — data de corte da regra, calculada no MySQL a partir de CURDATE(). */
   cutoff: string;
+  /** Requisições não faturáveis dentro desses lotes, fora de `valorTotal`. */
+  naoFaturaveis: NaoFaturaveisResumo;
 }
 
 export interface ListarLotesPendentesParams {
@@ -1940,20 +1943,69 @@ async function limiteEAteEfetivoHoje(
   return { limite, ateEfetivo };
 }
 
-// `requisicao.CodEvento` em estado final não cobrável — a requisição nunca vai
-// gerar NF nem entrar em lote, então sai de Particulares e de Sem lote (lista e
-// total). Códigos conferidos em `evento` no banco real (19/10/2026):
+// `requisicao.CodEvento` que não pode ser faturado — a requisição não gera NF,
+// então sai das três listas de Pendências (lotes, Particulares e Sem lote: lista
+// e total) e vai para o resumo `naoFaturaveis`. Códigos conferidos em `evento` no
+// banco real (19/10/2026):
 //   8    Exame Cancelado
 //   64   Amostra DEVOLVIDA
+//   1015 Amostra Aguardando Retirada pelo Paciente
+//   1020 Aguardando DEVOLUÇÃO / RETIRADA
 //   1023 Material Encaminhado p/ Descarte Definitivo
 //   1037 Amostra Encaminhada p/ Descarte/Sem Contato com Paciente
-// 1020 (Aguardando devolução/retirada) e 1034 (Aguardando descarte) ficam FORA de
-// propósito: são estados de espera que ainda podem ser revertidos. Comparado só
-// com `CodEvento` (não `StatusExame`, que é uma faixa larga e também cobre
-// eventos faturáveis como "Exame adicional"/"FAT. EXTERNO").
-const EVENTOS_NAO_COBRAVEIS = [8, 64, 1023, 1037];
+// 1015 e 1020 entraram a pedido do financeiro (29/10/2026): mesmo sendo estados de
+// espera, a amostra devolvida/retirada não é cobrada. 1034 (Aguardando descarte)
+// continua fora. Comparado só com `CodEvento` (não `StatusExame`, que é uma faixa
+// larga e também cobre eventos faturáveis como "Exame adicional"/"FAT. EXTERNO").
+// "DEVOLVIDO" do Status Faturamento (`eventofatur` 26) NÃO entra: é guia devolvida
+// pelo convênio, que ainda pode ser corrigida e reenviada.
+const EVENTOS_NAO_COBRAVEIS = [8, 64, 1015, 1020, 1023, 1037];
 
-const SQL_EVENTO_COBRAVEL = `(r.CodEvento IS NULL OR r.CodEvento NOT IN (${EVENTOS_NAO_COBRAVEIS.join(', ')}))`;
+function sqlEventoCobravel(alias: string): string {
+  return `(${alias}.CodEvento IS NULL OR ${alias}.CodEvento NOT IN (${EVENTOS_NAO_COBRAVEIS.join(', ')}))`;
+}
+
+const SQL_EVENTO_COBRAVEL = sqlEventoCobravel('r');
+
+const SQL_EVENTO_NAO_COBRAVEL = `r.CodEvento IN (${EVENTOS_NAO_COBRAVEIS.join(', ')})`;
+
+// Lote cujas requisições são TODAS não faturáveis não é pendência — só aparece no
+// resumo `naoFaturaveis`. Lote sem requisição nenhuma continua (é o comportamento
+// de antes; não é o caso que o corte quer pegar).
+const SQL_LOTE_COM_REQUISICAO_COBRAVEL = `(EXISTS (SELECT 1 FROM requisicao rc
+     WHERE rc.Lote = l.IdLote AND ${sqlEventoCobravel('rc')}
+       AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = rc.IdRequisicao))
+   OR NOT EXISTS (SELECT 1 FROM requisicao rc
+     WHERE rc.Lote = l.IdLote
+       AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = rc.IdRequisicao)))`;
+
+/** Requisições que ficaram FORA do total de uma lista de Pendências por estarem
+ *  num status não faturável (`EVENTOS_NAO_COBRAVEIS`) — a "observação" do widget
+ *  do Dashboard. Mesmo recorte (período, operadora, etc.) da lista. */
+export interface NaoFaturaveisResumo {
+  qtdRequisicoes: number;
+  valor: number;
+  /** Por `requisicao.CodEvento`, maior valor primeiro. */
+  porEvento: { codigo: number; label: string; qtd: number; valor: number }[];
+}
+
+/** Monta o resumo a partir de linhas `CodEvento, DesEvento, Qtd, Valor`. */
+function resumoNaoFaturaveis(linhas: mysql.RowDataPacket[]): NaoFaturaveisResumo {
+  const porEvento = linhas.map((linha) => {
+    const codigo = numero(linha.CodEvento);
+    return {
+      codigo,
+      label: texto(linha.DesEvento) ?? `Evento ${codigo}`,
+      qtd: numero(linha.Qtd),
+      valor: numero(linha.Valor),
+    };
+  });
+  return {
+    qtdRequisicoes: porEvento.reduce((s, e) => s + e.qtd, 0),
+    valor: porEvento.reduce((s, e) => s + e.valor, 0),
+    porEvento,
+  };
+}
 
 // Contadores do ícone de tarefas das três listas de Pendências: tarefas do apLIS
 // da requisição, de qualquer setor ou destinatário — todas e as ainda não
@@ -2114,19 +2166,23 @@ export async function listarLotesPendentes(
         valores.push(...params.fontesConsideradas);
       }
     }
-    const where = condicoes.join(' AND ');
+    // Recorte sem o corte de lote 100% não faturável: é o universo do resumo
+    // `naoFaturaveis`, que precisa contar justamente esses lotes também.
+    const whereRecorte = condicoes.join(' AND ');
+    const where = `${whereRecorte} AND ${SQL_LOTE_COM_REQUISICAO_COBRAVEL}`;
 
     // O total (sem LIMIT — o widget-resumo do Dashboard precisa da pendência
     // inteira, não só da página exibida na tabela) soma por LEFT JOIN + GROUP BY
     // num único passe, em vez de uma subconsulta correlacionada reexecutada por
     // lote: com milhares de lotes pendentes essa é a diferença entre uma consulta
-    // e milhares delas a cada carregamento do Dashboard.
+    // e milhares delas a cada carregamento do Dashboard. A requisição não
+    // faturável fica fora do JOIN, então não soma no valor do lote.
     const [contagem] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT COUNT(*) AS n, COALESCE(SUM(t.ValorLote), 0) AS ValorTotal
          FROM (
            SELECT l.IdLote, COALESCE(SUM(frp.ValorLiquido), 0) AS ValorLote
              FROM fatlote l
-             LEFT JOIN requisicao r ON r.Lote = l.IdLote
+             LEFT JOIN requisicao r ON r.Lote = l.IdLote AND ${SQL_EVENTO_COBRAVEL}
              LEFT JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
             WHERE ${where}
             GROUP BY l.IdLote
@@ -2136,6 +2192,19 @@ export async function listarLotesPendentes(
     const registros = numero(contagem[0]?.n);
     const valorTotal = numero(contagem[0]?.ValorTotal);
 
+    const [linhasNaoFaturaveis] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT r.CodEvento, ev.DesEvento,
+              COUNT(DISTINCT r.IdRequisicao) AS Qtd, COALESCE(SUM(frp.ValorLiquido), 0) AS Valor
+         FROM fatlote l
+         JOIN requisicao r ON r.Lote = l.IdLote AND ${SQL_EVENTO_NAO_COBRAVEL}
+         JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+         LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
+        WHERE ${whereRecorte}
+        GROUP BY r.CodEvento, ev.DesEvento
+        ORDER BY Valor DESC`,
+      valores,
+    );
+
     const limite = Math.trunc(tamanho);
     const deslocamento = Math.trunc((pagina - 1) * tamanho);
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
@@ -2143,12 +2212,12 @@ export async function listarLotesPendentes(
               DATE_FORMAT(l.DtaCriacao, '%Y-%m-%d') AS DtaCriacao,
               fp.NomFantasia, fp.RazaoSocial,
               (SELECT COUNT(*) FROM requisicao r
-                WHERE r.Lote = l.IdLote
+                WHERE r.Lote = l.IdLote AND ${SQL_EVENTO_COBRAVEL}
                   AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)) AS QtdRequisicoes,
               (SELECT COALESCE(SUM(frp.ValorLiquido), 0)
                  FROM requisicao r
                  JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
-                WHERE r.Lote = l.IdLote) AS Valor,
+                WHERE r.Lote = l.IdLote AND ${SQL_EVENTO_COBRAVEL}) AS Valor,
               ${SQL_RESUMO_EVENTO_FATUR} AS StatusFaturamentoResumoBruto
          FROM fatlote l
          LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora
@@ -2167,6 +2236,7 @@ export async function listarLotesPendentes(
         registros,
         valorTotal,
         cutoff,
+        naoFaturaveis: resumoNaoFaturaveis(linhasNaoFaturaveis),
       },
     };
   }).then((resultado) => {
@@ -2348,6 +2418,8 @@ export interface ParticularesPendentesMeta {
   /** Hoje — limite superior da janela, calculado no MySQL a partir de CURDATE().
    *  A réplica do apLIS atrasa ~1 dia, então os dados vão de fato até D-1. */
   limite: string;
+  /** Requisições não faturáveis no mesmo recorte, fora de `valorTotal`. */
+  naoFaturaveis: NaoFaturaveisResumo;
 }
 
 export type ListarParticularesPendentesResultado =
@@ -2374,11 +2446,13 @@ function chaveParticularesPendentes(params: ListarParticularesPendentesParams): 
 // a requisição já ter um RPS/NFe individual lançado fora do fluxo de lote —
 // `rps.DataCancelamento IS NULL` porque um RPS cancelado não é "já cobrado".
 //
-// Não há exigência de laudo liberado (issue 19), só o corte dos estados finais
-// não cobráveis (`EVENTOS_NAO_COBRAVEIS`).
-const SQL_PARTICULARES_PENDENTES_WHERE = `
+// Não há exigência de laudo liberado (issue 19), só o corte dos status
+// não faturáveis (`EVENTOS_NAO_COBRAVEIS`), aplicado em `listarParticularesPendentes`.
+//
+// Dividida em base + corte de status para o resumo `naoFaturaveis` contar as
+// requisições não faturáveis com o MESMO recorte da lista.
+const SQL_PARTICULARES_BASE_WHERE = `
   r.IdFontePagadora = ${ID_FONTE_PAGADORA_PARTICULAR}
-  AND ${SQL_EVENTO_COBRAVEL}
   AND (r.Lote IS NULL OR (l.IdRPS IS NULL AND l.Status IN (${STATUS_PENDENCIA.join(', ')})))
   AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)
   AND NOT EXISTS (
@@ -2424,7 +2498,7 @@ export async function listarParticularesPendentes(
     const { limite: limiteJanela, ateEfetivo } = await limiteEAteEfetivoHoje(conn, params.ate);
 
     const condicoes = [
-      SQL_PARTICULARES_PENDENTES_WHERE,
+      SQL_PARTICULARES_BASE_WHERE,
       'r.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 DAY)',
     ];
     const valores: ParametroSql[] = [ateEfetivo];
@@ -2440,7 +2514,8 @@ export async function listarParticularesPendentes(
       );
       valores.push(...idsClinicasSemNf);
     }
-    const where = condicoes.join(' AND ');
+    const whereRecorte = condicoes.join(' AND ');
+    const where = `${whereRecorte} AND ${SQL_EVENTO_COBRAVEL}`;
 
     // Mesma troca de subconsulta correlacionada por LEFT JOIN + GROUP BY de
     // listarLotesPendentes acima, e pelo mesmo motivo: o total ignora LIMIT.
@@ -2458,6 +2533,19 @@ export async function listarParticularesPendentes(
     );
     const registros = numero(contagem[0]?.n);
     const valorTotal = numero(contagem[0]?.ValorTotal);
+
+    const [linhasNaoFaturaveis] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT r.CodEvento, ev.DesEvento,
+              COUNT(DISTINCT r.IdRequisicao) AS Qtd, COALESCE(SUM(frp.ValorLiquido), 0) AS Valor
+         FROM requisicao r
+         LEFT JOIN fatlote l ON l.IdLote = r.Lote
+         JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+         LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
+        WHERE ${whereRecorte} AND ${SQL_EVENTO_NAO_COBRAVEL}
+        GROUP BY r.CodEvento, ev.DesEvento
+        ORDER BY Valor DESC`,
+      valores,
+    );
 
     const limite = Math.trunc(tamanho);
     const deslocamento = Math.trunc((pagina - 1) * tamanho);
@@ -2490,6 +2578,7 @@ export async function listarParticularesPendentes(
         registros,
         valorTotal,
         limite: limiteJanela,
+        naoFaturaveis: resumoNaoFaturaveis(linhasNaoFaturaveis),
       },
     };
   }).then((resultado) => {

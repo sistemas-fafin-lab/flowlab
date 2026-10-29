@@ -454,6 +454,18 @@ export interface PendenciasMeta {
   valorTotal: number;
   /** Fim de M-1 — data de corte da regra, calculada no servidor a partir de "hoje". */
   cutoff: string;
+  /** Requisições não faturáveis dentro desses lotes, fora de `valorTotal`. */
+  naoFaturaveis: NaoFaturaveisResumo;
+}
+
+/** Requisições que ficaram fora do total de uma lista de Pendências por estarem
+ *  num status que não pode ser faturado (cancelada, devolvida, aguardando
+ *  devolução/retirada, descarte) — a "observação" dos widgets do Dashboard. */
+export interface NaoFaturaveisResumo {
+  qtdRequisicoes: number;
+  valor: number;
+  /** Por status da requisição (`requisicao.CodEvento`), maior valor primeiro. */
+  porEvento: { codigo: number; label: string; qtd: number; valor: number }[];
 }
 
 // ============================================================================
@@ -522,6 +534,8 @@ export interface ParticularesPendentesMeta {
   /** Hoje — limite superior da janela, calculado no servidor. Os dados vão de
    *  fato até D-1, porque a réplica do apLIS atrasa ~1 dia. */
   limite: string;
+  /** Requisições não faturáveis no mesmo recorte, fora de `valorTotal`. */
+  naoFaturaveis: NaoFaturaveisResumo;
 }
 
 // ============================================================================

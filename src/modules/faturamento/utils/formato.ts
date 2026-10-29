@@ -94,6 +94,15 @@ export const periodoMesPassado = (): PeriodoRange => {
   };
 };
 
+/** 'YYYY-MM' → 1º e último dia daquele mês, em ISO. */
+export const periodoDoMes = (competencia: string): PeriodoRange => {
+  const [ano, mes] = competencia.split('-').map(Number);
+  return {
+    desde: paraIso(new Date(ano, mes - 1, 1)),
+    ate: paraIso(new Date(ano, mes, 0)),
+  };
+};
+
 export const periodoEsteTrimestre = (): PeriodoRange => {
   const hoje = new Date();
   const inicioTrimestre = Math.floor(hoje.getMonth() / 3) * 3;

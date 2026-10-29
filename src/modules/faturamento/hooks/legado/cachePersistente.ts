@@ -16,7 +16,8 @@ const PREFIXO = 'flowlab:faturamento:legado:';
 //   3 — `codigoDemonstrativo` em GlosaRequisicaoLegado (Histórico de Glosas).
 //   4 — `valorGlosado` em GlosaRequisicaoLegado.
 //   5 — `localOrigem`/`clinicaSemNf` em RequisicaoParticularPendencia.
-const VERSAO = 5;
+//   6 — `naoFaturaveis` nas metas de Pendências (lotes e Particulares).
+const VERSAO = 6;
 
 interface Envelope<T> { dia: string; versao?: number; valor: T; }
 

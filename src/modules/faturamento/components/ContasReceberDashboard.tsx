@@ -48,13 +48,14 @@ import { useMetaMensal } from '../hooks/useMetaMensal';
 import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
 import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
 import { useRecebimentosMes } from '../hooks/useRecebimentosMes';
-import { formatCompetencia, formatCurrency, hojeIso } from '../utils/formato';
+import { formatCompetencia, formatCurrency, hojeIso, periodoDoMes } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import FiltrosReceber from './FiltrosReceber';
 import AgingDetalheModal from './AgingDetalheModal';
 import MetaMensalModal from './MetaMensalModal';
 import RecebimentosMesModal from './RecebimentosMesModal';
 import HistoricoMetasModal from './HistoricoMetasModal';
+import ObservacaoNaoFaturaveis from './ObservacaoNaoFaturaveis';
 import type { AgingBucket, AgingSelecao, DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
@@ -73,7 +74,7 @@ const GRID_ROW_HEIGHT = 50;
 // v9 (v6–v8): alturas dos widgets "meta-mensal" e "recebimentos-mes" (v6/v7) ajustadas ao conteúdo. Mesmo motivo do bump da v4/v5: sem
 // subir a versão, quem já tinha um layout salvo receberia a chave nova
 // autoposicionada num tamanho mínimo, em vez do tamanho pensado no DEFAULT_LAYOUTS.
-const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v9';
+const LAYOUT_STORAGE_KEY = 'flowLab_contas_receber_layout_v10';
 const LAYOUTS_ANTIGOS = [
   'flowLab_contas_receber_layout_v1',
   'flowLab_contas_receber_layout_v2',
@@ -83,6 +84,7 @@ const LAYOUTS_ANTIGOS = [
   'flowLab_contas_receber_layout_v6',
   'flowLab_contas_receber_layout_v7',
   'flowLab_contas_receber_layout_v8',
+  'flowLab_contas_receber_layout_v9',
 ];
 
 // Aging por operadora: categórica, não sequencial — aqui cada cor identifica uma
@@ -127,52 +129,52 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
   lg: [
     { i: 'kpis-valor', x: 0, y: 0, w: 12, h: 3, minW: 4, minH: 2 },
     { i: 'kpis-prazo', x: 0, y: 3, w: 12, h: 3, minW: 4, minH: 2 },
-    { i: 'kpis-pendencias', x: 0, y: 6, w: 12, h: 3, minW: 4, minH: 2 },
-    { i: 'meta-mensal', x: 0, y: 9, w: 12, h: 3, minW: 4, minH: 3 },
-    { i: 'recebimentos-mes', x: 0, y: 12, w: 12, h: 4, minW: 4, minH: 4 },
-    { i: 'aging', x: 0, y: 16, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'saldo-operadoras', x: 6, y: 16, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'previsao', x: 0, y: 23, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'serie', x: 0, y: 31, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'motivos-glosa', x: 0, y: 39, w: 12, h: 8, minW: 3, minH: 4 },
+    { i: 'kpis-pendencias', x: 0, y: 6, w: 12, h: 4, minW: 4, minH: 3 },
+    { i: 'meta-mensal', x: 0, y: 10, w: 12, h: 3, minW: 4, minH: 3 },
+    { i: 'recebimentos-mes', x: 0, y: 13, w: 12, h: 4, minW: 4, minH: 4 },
+    { i: 'aging', x: 0, y: 17, w: 6, h: 7, minW: 3, minH: 4 },
+    { i: 'saldo-operadoras', x: 6, y: 17, w: 6, h: 7, minW: 3, minH: 4 },
+    { i: 'previsao', x: 0, y: 24, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'serie', x: 0, y: 32, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'motivos-glosa', x: 0, y: 40, w: 12, h: 8, minW: 3, minH: 4 },
   ],
   md: [
     { i: 'kpis-valor', x: 0, y: 0, w: 10, h: 3 },
     { i: 'kpis-prazo', x: 0, y: 3, w: 10, h: 3 },
-    { i: 'kpis-pendencias', x: 0, y: 6, w: 10, h: 3 },
-    { i: 'meta-mensal', x: 0, y: 9, w: 10, h: 3 },
-    { i: 'recebimentos-mes', x: 0, y: 12, w: 10, h: 4 },
-    { i: 'aging', x: 0, y: 16, w: 5, h: 7 },
-    { i: 'saldo-operadoras', x: 5, y: 16, w: 5, h: 7 },
-    { i: 'previsao', x: 0, y: 23, w: 10, h: 8 },
-    { i: 'serie', x: 0, y: 31, w: 10, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 39, w: 10, h: 8 },
+    { i: 'kpis-pendencias', x: 0, y: 6, w: 10, h: 4 },
+    { i: 'meta-mensal', x: 0, y: 10, w: 10, h: 3 },
+    { i: 'recebimentos-mes', x: 0, y: 13, w: 10, h: 4 },
+    { i: 'aging', x: 0, y: 17, w: 5, h: 7 },
+    { i: 'saldo-operadoras', x: 5, y: 17, w: 5, h: 7 },
+    { i: 'previsao', x: 0, y: 24, w: 10, h: 8 },
+    { i: 'serie', x: 0, y: 32, w: 10, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 40, w: 10, h: 8 },
   ],
   sm: [
     // 2 colunas: os quatro cards de valor viram duas linhas.
     { i: 'kpis-valor', x: 0, y: 0, w: 6, h: 5 },
     { i: 'kpis-prazo', x: 0, y: 5, w: 6, h: 3 },
-    { i: 'kpis-pendencias', x: 0, y: 8, w: 6, h: 3 },
-    { i: 'meta-mensal', x: 0, y: 11, w: 6, h: 6 },
-    { i: 'recebimentos-mes', x: 0, y: 17, w: 6, h: 6 },
-    { i: 'aging', x: 0, y: 23, w: 6, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 30, w: 6, h: 7 },
-    { i: 'previsao', x: 0, y: 37, w: 6, h: 8 },
-    { i: 'serie', x: 0, y: 45, w: 6, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 53, w: 6, h: 8 },
+    { i: 'kpis-pendencias', x: 0, y: 8, w: 6, h: 4 },
+    { i: 'meta-mensal', x: 0, y: 12, w: 6, h: 6 },
+    { i: 'recebimentos-mes', x: 0, y: 18, w: 6, h: 6 },
+    { i: 'aging', x: 0, y: 24, w: 6, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 31, w: 6, h: 7 },
+    { i: 'previsao', x: 0, y: 38, w: 6, h: 8 },
+    { i: 'serie', x: 0, y: 46, w: 6, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 54, w: 6, h: 8 },
   ],
   xs: [
     // Empilhado: quatro linhas de card, três, e duas, respectivamente.
     { i: 'kpis-valor', x: 0, y: 0, w: 2, h: 8 },
     { i: 'kpis-prazo', x: 0, y: 8, w: 2, h: 6 },
-    { i: 'kpis-pendencias', x: 0, y: 14, w: 2, h: 4 },
-    { i: 'meta-mensal', x: 0, y: 18, w: 2, h: 9 },
-    { i: 'recebimentos-mes', x: 0, y: 27, w: 2, h: 7 },
-    { i: 'aging', x: 0, y: 34, w: 2, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 41, w: 2, h: 7 },
-    { i: 'previsao', x: 0, y: 48, w: 2, h: 8 },
-    { i: 'serie', x: 0, y: 56, w: 2, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 64, w: 2, h: 8 },
+    { i: 'kpis-pendencias', x: 0, y: 14, w: 2, h: 5 },
+    { i: 'meta-mensal', x: 0, y: 19, w: 2, h: 9 },
+    { i: 'recebimentos-mes', x: 0, y: 28, w: 2, h: 7 },
+    { i: 'aging', x: 0, y: 35, w: 2, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 42, w: 2, h: 7 },
+    { i: 'previsao', x: 0, y: 49, w: 2, h: 8 },
+    { i: 'serie', x: 0, y: 57, w: 2, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 65, w: 2, h: 8 },
   ],
 };
 
@@ -192,12 +194,14 @@ const Kpi: React.FC<{
   label: string;
   valor: React.ReactNode;
   sub?: string;
+  /** Linha extra sob o `sub` (ex.: observação das requisições não faturáveis). */
+  extra?: React.ReactNode;
   cor: string;
   atraso?: number;
   /** Quando presente, o card vira um atalho de navegação (ex.: widget-resumo →
    *  aba Pendências) em vez de só exibir o número. */
   onClick?: () => void;
-}> = ({ icon, label, valor, sub, cor, atraso = 0, onClick }) => {
+}> = ({ icon, label, valor, sub, extra, cor, atraso = 0, onClick }) => {
   const clicavel = Boolean(onClick);
   return (
     // h-full: o card preenche a fatia que o widget lhe dá, então redimensionar o
@@ -228,6 +232,7 @@ const Kpi: React.FC<{
             {valor}
           </p>
           {sub && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{sub}</p>}
+          {extra}
         </div>
         <div className={`p-2 sm:p-3 rounded-xl sm:rounded-2xl shadow-lg flex-shrink-0 bg-gradient-to-br ${cor}`}>
           <span className="text-white">{icon}</span>
@@ -336,20 +341,27 @@ const ContasReceberDashboard: React.FC<Props> = ({
   const recebimentosMes = useRecebimentosMes(mesRecebimento, operadorasRecebimento);
   const { isDark } = useTheme();
 
-  // Widgets-resumo das issues 07/08: mesmas rotas e cache da aba Pendências (sem
-  // filtro de período/operadora, para o número bater com o que a aba mostra por
-  // padrão), pedindo 1 item só — aqui interessa `meta.registros`/`valorTotal`,
-  // não a lista.
+  // Widgets-resumo das issues 07/08: mesmas rotas e cache da aba Pendências,
+  // pedindo 1 item só — aqui interessa `meta.registros`/`valorTotal`/
+  // `naoFaturaveis`, não a lista. Sem filtro de operadora, para o número bater
+  // com o que a aba mostra por padrão. Período: seletor de mês próprio (vazio =
+  // todos, até M-1 / até D-1) — sobre a criação do lote e a solicitação da
+  // requisição particular, respectivamente; o servidor nunca passa dos limites.
+  const [mesPendencias, setMesPendencias] = useState('');
+  const periodoPendencias = useMemo(
+    () => (mesPendencias ? periodoDoMes(mesPendencias) : { desde: undefined, ate: undefined }),
+    [mesPendencias],
+  );
   const {
     meta: metaPendenciasLotes,
     loading: loadingPendenciasLotes,
     error: erroPendenciasLotes,
-  } = usePendenciasNaoFaturadas({ pagina: 1, tamanho: 1 });
+  } = usePendenciasNaoFaturadas({ pagina: 1, tamanho: 1, ...periodoPendencias });
   const {
     meta: metaPendenciasParticulares,
     loading: loadingPendenciasParticulares,
     error: erroPendenciasParticulares,
-  } = usePendenciasParticulares({ pagina: 1, tamanho: 1 });
+  } = usePendenciasParticulares({ pagina: 1, tamanho: 1, ...periodoPendencias });
 
   // ─── Layout dos widgets ─────────────────────────────────────────────────────
   // Travado por padrão: quem abre a tela quer ler os números, não rearranjá-los,
@@ -638,11 +650,36 @@ const ContasReceberDashboard: React.FC<Props> = ({
 
         {/* ── Pendências ───────────────────────────────────────────────────────
             Resumo das duas listas da aba Pendências (issues 07/08): clicar leva
-            direto pra lista, já na sub-aba certa. */}
+            direto pra lista, já na sub-aba certa. Requisições canceladas,
+            devolvidas ou aguardando retirada ficam fora do total e aparecem na
+            observação de cada card. */}
         <div key="kpis-pendencias" className="group">
-          <div className={`h-full ${VIDRO} rounded-3xl overflow-y-auto p-3 sm:p-4`}>
+          <div className={`h-full flex flex-col ${VIDRO} rounded-3xl overflow-y-auto p-3 sm:p-4`}>
             <Alca />
-            <div className="min-h-full grid grid-cols-1 sm:grid-cols-2 gap-3 [grid-auto-rows:1fr]">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2 pr-8 flex-shrink-0">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+                Pendências de faturamento — {mesPendencias ? formatCompetencia(mesPendencias) : 'todo o período'}
+              </h3>
+              <div className="flex items-center gap-2">
+                <input
+                  type="month"
+                  value={mesPendencias}
+                  onChange={(e) => setMesPendencias(e.target.value)}
+                  aria-label="Mês das pendências"
+                  className="px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-xs text-gray-900 dark:text-gray-100"
+                />
+                {mesPendencias && (
+                  <button
+                    type="button"
+                    onClick={() => setMesPendencias('')}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 dark:border-gray-600 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  >
+                    Todo o período
+                  </button>
+                )}
+              </div>
+            </div>
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 [grid-auto-rows:1fr]">
               <Kpi
                 icon={<FileWarning className="w-4 h-4 sm:w-5 sm:h-5" />}
                 label="Requisições não faturadas (até M-1)"
@@ -657,6 +694,11 @@ const ContasReceberDashboard: React.FC<Props> = ({
                   loadingPendenciasLotes || erroPendenciasLotes
                     ? '—'
                     : formatCurrency(metaPendenciasLotes?.valorTotal ?? 0)
+                }
+                extra={
+                  !loadingPendenciasLotes && !erroPendenciasLotes && (
+                    <ObservacaoNaoFaturaveis resumo={metaPendenciasLotes?.naoFaturaveis} />
+                  )
                 }
                 cor="from-amber-500 to-amber-600"
                 atraso={0}
@@ -676,6 +718,11 @@ const ContasReceberDashboard: React.FC<Props> = ({
                   loadingPendenciasParticulares || erroPendenciasParticulares
                     ? '—'
                     : formatCurrency(metaPendenciasParticulares?.valorTotal ?? 0)
+                }
+                extra={
+                  !loadingPendenciasParticulares && !erroPendenciasParticulares && (
+                    <ObservacaoNaoFaturaveis resumo={metaPendenciasParticulares?.naoFaturaveis} />
+                  )
                 }
                 cor="from-orange-500 to-orange-600"
                 atraso={1}
