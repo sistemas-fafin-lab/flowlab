@@ -151,6 +151,7 @@ CREATE POLICY "fat_views_salvas_delete_own" ON public.fat_views_salvas
 -- Troca só o IF NOT do começo, sem recopiar o corpo: lê a definição em vigor e
 -- substitui o trecho exato. Já trocado (migration reaplicada), segue; nem o antigo
 -- nem o novo (corpo alterado à mão), a migration falha em vez de deixar a tela sem dados.
+-- Aceita o corpo com \r\n (funções criadas pelo SQL Editor a partir de arquivo do Windows).
 
 DO $$
 DECLARE
@@ -167,6 +168,9 @@ BEGIN
   LOOP
     v_def := pg_get_functiondef(r.funcao::regprocedure);
     v_novo := replace(v_def, v_antigo, format('IF NOT public.fat_pode_ver_tela(%s) THEN', r.chaves));
+    IF v_novo = v_def THEN
+      v_novo := replace(v_def, replace(v_antigo, E'\n', E'\r\n'), format('IF NOT public.fat_pode_ver_tela(%s) THEN', r.chaves));
+    END IF;
     IF v_novo = v_def THEN
       IF position('fat_pode_ver_tela(' IN v_def) = 0 THEN
         RAISE EXCEPTION '%: guard de permissão não reconhecido', r.funcao;
