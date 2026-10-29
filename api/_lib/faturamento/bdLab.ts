@@ -1751,7 +1751,13 @@ export async function listarLotesEnviadosDoMes(mes: string): Promise<ListarLotes
 // Fonte pagadora pela REQUISIÇÃO (`requisicao.IdFontePagadora`), não pelo lote:
 // assim particular/sem lote também aparece, e o cliente decide pela whitelist.
 // Nas requisições com lote, as duas batem (3 divergências em 2026 inteiro).
-// Agregado por (fonte, lote) — sem nome de paciente, nada de PII sai daqui.
+// Agregado por (fonte, lote, competência) — sem nome de paciente, nada de PII
+// sai daqui.
+//
+// Competência (pedido do financeiro, 29/10/2026): o recebido continua no mês em
+// que o dinheiro entrou, mas cada linha diz a que mês ela se refere — um lote de
+// setembro pago em outubro conta em outubro, marcado como "referente a 09". É o
+// mês de criação do lote; requisição sem lote usa o mês da solicitação.
 
 export interface RecebidoLoteMes {
   /** `fatinstituicao.IdInstituicao` — casa com `operadoras.aplis_id`. */
@@ -1763,6 +1769,9 @@ export interface RecebidoLoteMes {
   valorRecebido: number;
   /** YYYY-MM-DD da baixa mais recente entre as requisições do grupo. */
   ultimoRecebimento: string | null;
+  /** YYYY-MM a que o recebimento se refere: criação do lote, ou solicitação da
+   *  requisição quando ela não tem lote. */
+  competencia: string | null;
 }
 
 export interface ListarRecebidosMesParams {
@@ -1788,16 +1797,18 @@ export async function listarRecebidosMes(params: ListarRecebidosMesParams): Prom
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
       `SELECT r.IdFontePagadora, fp.NomFantasia,
               NULLIF(r.Lote, 0) AS IdLote,
+              DATE_FORMAT(COALESCE(l.DtaCriacao, r.DtaSolicitacao), '%Y-%m') AS Competencia,
               COUNT(*) AS QtdRequisicoes,
               SUM(s.VlrRecebido) AS ValorRecebido,
               DATE_FORMAT(MAX(s.DtaRecebido), '%Y-%m-%d') AS UltimoRecebimento
          FROM fatrequisicaostatus s
          JOIN requisicao r ON r.IdRequisicao = s.IdRequisicao
+         LEFT JOIN fatlote l ON l.IdLote = NULLIF(r.Lote, 0)
          LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = r.IdFontePagadora
         WHERE s.DtaRecebido >= ?
           AND s.DtaRecebido < DATE_ADD(?, INTERVAL 1 DAY)
           AND s.VlrRecebido > 0
-        GROUP BY r.IdFontePagadora, fp.NomFantasia, NULLIF(r.Lote, 0)
+        GROUP BY r.IdFontePagadora, fp.NomFantasia, NULLIF(r.Lote, 0), Competencia
         ORDER BY ValorRecebido DESC`,
       [`${params.desde} 00:00:00`, `${params.ate} 00:00:00`],
     );
@@ -1810,6 +1821,7 @@ export async function listarRecebidosMes(params: ListarRecebidosMesParams): Prom
         qtdRequisicoes: numero(linha.QtdRequisicoes),
         valorRecebido: numero(linha.ValorRecebido),
         ultimoRecebimento: texto(linha.UltimoRecebimento),
+        competencia: texto(linha.Competencia),
       })),
     };
   }).then((resultado) => {

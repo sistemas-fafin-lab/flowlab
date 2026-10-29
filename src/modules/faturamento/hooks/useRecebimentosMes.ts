@@ -13,6 +13,10 @@ import { useLegadoListagem } from './legado/useLegadoListagem';
 //
 // O servidor devolve todas as fontes pagadoras; o recorte pela whitelist da
 // meta e pelo filtro de operadora acontece aqui, por `operadoras.aplis_id`.
+//
+// Cada linha traz a competência a que o recebimento se refere (mês de criação
+// do lote; solicitação, sem lote): o valor continua no mês em que entrou, mas o
+// widget mostra quanto dele é de lotes de meses anteriores.
 
 export interface RecebidoLoteMes {
   fontePagadoraId: number | null;
@@ -21,11 +25,20 @@ export interface RecebidoLoteMes {
   qtdRequisicoes: number;
   valorRecebido: number;
   ultimoRecebimento: string | null;
+  /** YYYY-MM a que o recebimento se refere. */
+  competencia: string | null;
 }
 
 /** Linha já recortada e com o nome da operadora do FlowLab. */
 export interface RecebidoLote extends RecebidoLoteMes {
   operadoraNome: string;
+}
+
+export interface RecebidoPorCompetencia {
+  /** YYYY-MM; null quando o apLIS não tem a data. */
+  competencia: string | null;
+  valor: number;
+  qtdRequisicoes: number;
 }
 
 export interface RecebidoPorOperadora {
@@ -55,6 +68,8 @@ interface UseRecebimentosMesResult {
   total: number;
   qtdRequisicoes: number;
   porOperadora: RecebidoPorOperadora[];
+  /** Competência mais recente primeiro. */
+  porCompetencia: RecebidoPorCompetencia[];
   loading: boolean;
   error: string | null;
 }
@@ -93,6 +108,7 @@ export function useRecebimentosMes(competencia: string, operadoras: OperadoraRes
 
     const lotes: RecebidoLote[] = [];
     const porOperadora = new Map<string, RecebidoPorOperadora>();
+    const porCompetencia = new Map<string | null, RecebidoPorCompetencia>();
     let total = 0;
     let qtdRequisicoes = 0;
 
@@ -109,6 +125,12 @@ export function useRecebimentosMes(competencia: string, operadoras: OperadoraRes
       atual.valor += item.valorRecebido;
       atual.qtdRequisicoes += item.qtdRequisicoes;
       porOperadora.set(chave, atual);
+
+      const comp = porCompetencia.get(item.competencia)
+        ?? { competencia: item.competencia, valor: 0, qtdRequisicoes: 0 };
+      comp.valor += item.valorRecebido;
+      comp.qtdRequisicoes += item.qtdRequisicoes;
+      porCompetencia.set(item.competencia, comp);
     }
 
     return {
@@ -117,6 +139,8 @@ export function useRecebimentosMes(competencia: string, operadoras: OperadoraRes
       total: Math.round(total * 100) / 100,
       qtdRequisicoes,
       porOperadora: [...porOperadora.values()].sort((a, b) => b.valor - a.valor),
+      porCompetencia: [...porCompetencia.values()].sort((a, b) =>
+        (b.competencia ?? '').localeCompare(a.competencia ?? '')),
     };
   }, [itens, operadoras]);
 

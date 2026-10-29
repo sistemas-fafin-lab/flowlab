@@ -9,19 +9,24 @@ import type { RecebidoLote } from '../hooks/useRecebimentosMes';
 // linha "sem lote" da operadora). Recebe as linhas já carregadas pelo widget
 // (useRecebimentosMes) em vez de consultar de novo — o número do card e a
 // lista saem, assim, sempre da mesma leitura.
+//
+// Competência: mês a que o recebimento se refere (criação do lote; solicitação,
+// sem lote). O recebido fica no mês em que entrou — a coluna só diz de quando
+// ele é, e uma operadora sem lote pode ter uma linha por competência.
 
 // Filtros por coluna, todos locais: a lista já veio inteira do widget, então
 // filtrar é só recortar em memória — e o total do rodapé acompanha o recorte.
 interface Filtros {
   operadora: string;
   lote: string;
+  competencia: string;
   reqMin: string;
   dataDe: string;
   dataAte: string;
   valorMin: string;
 }
 
-const FILTROS_VAZIOS: Filtros = { operadora: '', lote: '', reqMin: '', dataDe: '', dataAte: '', valorMin: '' };
+const FILTROS_VAZIOS: Filtros = { operadora: '', lote: '', competencia: '', reqMin: '', dataDe: '', dataAte: '', valorMin: '' };
 
 const INPUT =
   'w-full px-2 py-1 rounded-md border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-xs font-normal text-gray-900 dark:text-gray-100';
@@ -62,7 +67,7 @@ const RecebimentosMesModal: React.FC<Props> = ({
   // recebido no mês novo) deixam de fazer sentido; lote/mínimos continuam.
   const mudarMes = (nova: string) => {
     if (!nova || nova === competencia) return;
-    setFiltros((atual) => ({ ...atual, operadora: '', dataDe: '', dataAte: '' }));
+    setFiltros((atual) => ({ ...atual, operadora: '', competencia: '', dataDe: '', dataAte: '' }));
     onMudarCompetencia(nova);
   };
   const alterar = (campo: keyof Filtros) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -71,6 +76,11 @@ const RecebimentosMesModal: React.FC<Props> = ({
 
   const operadorasDisponiveis = useMemo(
     () => [...new Set(lotes.map((l) => l.operadoraNome))].sort((a, b) => a.localeCompare(b, 'pt-BR')),
+    [lotes],
+  );
+
+  const competenciasDisponiveis = useMemo(
+    () => [...new Set(lotes.map((l) => l.competencia ?? ''))].sort((a, b) => b.localeCompare(a)),
     [lotes],
   );
 
@@ -84,6 +94,7 @@ const RecebimentosMesModal: React.FC<Props> = ({
         const rotulo = l.idLote === null ? 'sem lote' : String(l.idLote);
         if (!rotulo.includes(termoLote)) return false;
       }
+      if (filtros.competencia && (l.competencia ?? '-') !== filtros.competencia) return false;
       if (l.qtdRequisicoes < reqMin) return false;
       // ISO YYYY-MM-DD compara certo como string.
       if (filtros.dataDe && (!l.ultimoRecebimento || l.ultimoRecebimento < filtros.dataDe)) return false;
@@ -184,6 +195,7 @@ const RecebimentosMesModal: React.FC<Props> = ({
                 <tr className="text-left text-xs text-gray-500 dark:text-gray-400 border-b border-gray-100 dark:border-slate-700">
                   <th className="py-2 pr-2">Operadora</th>
                   <th className="py-2 px-2">Lote</th>
+                  <th className="py-2 px-2">Competência</th>
                   <th className="py-2 px-2 text-right">Requisições</th>
                   <th className="py-2 px-2">Último recebimento</th>
                   <th className="py-2 pl-2 text-right">Valor recebido</th>
@@ -197,6 +209,16 @@ const RecebimentosMesModal: React.FC<Props> = ({
                   </th>
                   <th className="py-2 px-2 w-28">
                     <input value={filtros.lote} onChange={alterar('lote')} placeholder="Lote" className={INPUT} aria-label="Filtrar por lote" />
+                  </th>
+                  <th className="py-2 px-2 w-28">
+                    <select value={filtros.competencia} onChange={alterar('competencia')} className={INPUT} aria-label="Filtrar por competência">
+                      <option value="">Todas</option>
+                      {competenciasDisponiveis.map((c) => (
+                        <option key={c || '-'} value={c || '-'}>
+                          {c ? formatCompetencia(c) : 'Sem data'}{c === competencia ? ' (do mês)' : ''}
+                        </option>
+                      ))}
+                    </select>
                   </th>
                   <th className="py-2 px-2 w-24">
                     <input type="number" min={0} value={filtros.reqMin} onChange={alterar('reqMin')} placeholder="Mín." className={`${INPUT} text-right`} aria-label="Mínimo de requisições" />
@@ -213,7 +235,7 @@ const RecebimentosMesModal: React.FC<Props> = ({
                 </tr>
                 {/* Total no topo, dentro do cabeçalho fixo: fica visível ao rolar a lista. */}
                 <tr className="border-b border-gray-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 font-semibold text-gray-900 dark:text-gray-100">
-                  <td className="py-2 pr-2" colSpan={2}>
+                  <td className="py-2 pr-2" colSpan={3}>
                     {temFiltro ? `Total filtrado (${filtrados.length} de ${lotes.length} linhas)` : 'Total'}
                     {temFiltro && (
                       <button
@@ -233,19 +255,27 @@ const RecebimentosMesModal: React.FC<Props> = ({
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {filtrados.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                    <td colSpan={6} className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
                       Nenhum lote com esses filtros.
                     </td>
                   </tr>
                 )}
                 {filtrados.map((lote) => (
                   <tr
-                    key={`${lote.fontePagadoraId}-${lote.idLote ?? 'sem'}`}
+                    key={`${lote.fontePagadoraId}-${lote.idLote ?? 'sem'}-${lote.competencia ?? ''}`}
                     className="text-gray-700 dark:text-gray-200"
                   >
                     <td className="py-2 pr-2 truncate max-w-[240px]">{lote.operadoraNome}</td>
                     <td className="py-2 px-2 tabular-nums">
                       {lote.idLote ?? <span className="text-gray-400 dark:text-gray-500">sem lote</span>}
+                    </td>
+                    <td className="py-2 px-2 tabular-nums">
+                      {formatCompetencia(lote.competencia)}
+                      {lote.competencia !== competencia && lote.competencia && (
+                        <span className="ml-1 rounded bg-amber-50 dark:bg-amber-900/30 px-1 text-[10px] font-medium text-amber-700 dark:text-amber-300">
+                          anterior
+                        </span>
+                      )}
                     </td>
                     <td className="py-2 px-2 text-right tabular-nums">{lote.qtdRequisicoes}</td>
                     <td className="py-2 px-2 tabular-nums">{formatData(lote.ultimoRecebimento)}</td>

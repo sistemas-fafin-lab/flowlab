@@ -102,6 +102,10 @@ const COR_SALDO = '#3b82f6'; // blue-500
 // altura fixa dele (h4 no desktop); o resto fica no modal "Ver lotes".
 const MAX_OPERADORAS_RECEBIDO = 5;
 
+// Competências listadas no card "Referente a" (as mais recentes); as mais
+// antigas somam numa linha "Anteriores", que costuma ser cauda pequena.
+const MAX_COMPETENCIAS_RECEBIDO = 4;
+
 const ROTULOS_AGING: Record<AgingBucket, string> = {
   a_vencer: 'A vencer',
   d1_30: '1–30 dias',
@@ -339,6 +343,23 @@ const ContasReceberDashboard: React.FC<Props> = ({
     [operadoras, filtros.operadoraIds],
   );
   const recebimentosMes = useRecebimentosMes(mesRecebimento, operadorasRecebimento);
+  const recebimentosPorCompetencia = useMemo(() => {
+    const lista = recebimentosMes.porCompetencia;
+    const linhas = lista.slice(0, MAX_COMPETENCIAS_RECEBIDO).map((c) => ({
+      rotulo: c.competencia ? formatCompetencia(c.competencia) : 'Sem data',
+      doMes: c.competencia === mesRecebimento,
+      valor: c.valor,
+    }));
+    const resto = lista.slice(MAX_COMPETENCIAS_RECEBIDO);
+    if (resto.length > 0) {
+      linhas.push({
+        rotulo: 'Anteriores',
+        doMes: false,
+        valor: Math.round(resto.reduce((soma, c) => soma + c.valor, 0) * 100) / 100,
+      });
+    }
+    return linhas;
+  }, [recebimentosMes.porCompetencia, mesRecebimento]);
   const { isDark } = useTheme();
 
   // Widgets-resumo das issues 07/08: mesmas rotas e cache da aba Pendências,
@@ -872,7 +893,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 {recebimentosMes.error}
               </p>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-white/60 dark:border-slate-700/50 px-4 py-3">
                   <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
                     <Wallet className="w-3.5 h-3.5" /> Recebido
@@ -884,6 +905,32 @@ const ContasReceberDashboard: React.FC<Props> = ({
                     {recebimentosMes.qtdRequisicoes} requisiç{recebimentosMes.qtdRequisicoes === 1 ? 'ão' : 'ões'} ·{' '}
                     {recebimentosMes.lotes.length} lote{recebimentosMes.lotes.length === 1 ? '' : 's'}
                   </p>
+                </div>
+                {/* Referente a: o valor fica no mês em que entrou, mas aqui se vê
+                    de que mês (criação do lote) ele é — ex.: lote de setembro
+                    pago em outubro. */}
+                <div className="rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-white/60 dark:border-slate-700/50 px-4 py-3">
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
+                    Referente a
+                    <span className="normal-case tracking-normal font-normal text-slate-400 dark:text-slate-500"> · mês do lote</span>
+                  </p>
+                  {recebimentosMes.porCompetencia.length === 0 ? (
+                    <p className="text-sm text-slate-500 dark:text-slate-400">—</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {recebimentosPorCompetencia.map((c) => (
+                        <li key={c.rotulo} className="flex items-center gap-2 text-sm">
+                          <span className="flex-1 min-w-0 truncate text-slate-700 dark:text-slate-200">
+                            {c.rotulo}
+                            {c.doMes && <span className="text-xs text-slate-400 dark:text-slate-500"> (do mês)</span>}
+                          </span>
+                          <span className="text-right font-medium tabular-nums text-slate-900 dark:text-slate-100">
+                            {formatCurrency(c.valor)}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
                 <div className="md:col-span-2 rounded-2xl bg-white/70 dark:bg-slate-800/50 border border-white/60 dark:border-slate-700/50 px-4 py-3">
                   <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1.5">
