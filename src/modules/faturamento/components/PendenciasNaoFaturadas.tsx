@@ -11,6 +11,7 @@ import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
 import { TarefasRequisicaoModal, type RequisicaoDasTarefas } from './TarefasRequisicao';
 import LotePendentePainelLateral from './LotePendentePainelLateral';
+import ObservacaoNaoFaturaveis from './ObservacaoNaoFaturaveis';
 
 // Aba Contas a Receber → Pendências: lotes do apLIS sem NF/RPS vinculado, fora da
 // janela normal de fechamento (2 meses mais recentes). Regra completa e o achado
@@ -154,10 +155,15 @@ const PendenciasNaoFaturadas: React.FC<Props> = ({ operadoras }) => {
       </div>
 
       {meta?.cutoff && (
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          Mostrando lotes sem nota fiscal/RPS criados até {formatData(meta.cutoff)} — o mês mais
-          recente ainda está no fluxo normal de fechamento e não entra aqui.
-        </p>
+        <div>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Mostrando lotes sem nota fiscal/RPS criados até {formatData(meta.cutoff)} — o mês mais
+            recente ainda está no fluxo normal de fechamento e não entra aqui. Requisições com
+            exame cancelado, amostra devolvida, aguardando devolução/retirada ou material
+            descartado não contam no valor nem na quantidade do lote.
+          </p>
+          {!loading && !error && <ObservacaoNaoFaturaveis resumo={meta.naoFaturaveis} />}
+        </div>
       )}
 
       {error && (

@@ -6,6 +6,7 @@ import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import DatePicker from '../../../components/DatePicker';
 import Switch from '../../../components/Switch';
 import ClinicasSemNfModal from './ClinicasSemNfModal';
+import ObservacaoNaoFaturaveis from './ObservacaoNaoFaturaveis';
 import { BotaoTarefas, StatusRequisicao, TarefasRequisicaoModal, type RequisicaoDasTarefas } from './TarefasRequisicao';
 
 // Aba Contas a Receber → Pendências → Particulares: requisições da fonte
@@ -113,16 +114,19 @@ const PendenciasParticulares: React.FC<Props> = ({ podeEditar }) => {
         </button>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400">
-        Requisições particulares sem nota fiscal/RPS emitida
-        {meta?.limite ? <>, solicitadas até {formatData(meta.limite)}</> : null} — dados até ontem
-        (D-1), porque o apLIS chega com cerca de um dia de atraso. Inclui as que nunca chegaram a
-        entrar num lote do apLIS e deixa de fora exame cancelado, amostra devolvida e material
-        descartado.{' '}
-        {incluirSemNf
-          ? 'As requisições de clínicas sem NF estão incluídas na lista e no total.'
-          : 'As requisições de clínicas sem NF ficam de fora da lista e do total.'}
-      </p>
+      <div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          Requisições particulares sem nota fiscal/RPS emitida
+          {meta?.limite ? <>, solicitadas até {formatData(meta.limite)}</> : null} — dados até ontem
+          (D-1), porque o apLIS chega com cerca de um dia de atraso. Inclui as que nunca chegaram a
+          entrar num lote do apLIS e deixa de fora exame cancelado, amostra devolvida, aguardando
+          devolução/retirada e material descartado.{' '}
+          {incluirSemNf
+            ? 'As requisições de clínicas sem NF estão incluídas na lista e no total.'
+            : 'As requisições de clínicas sem NF ficam de fora da lista e do total.'}
+        </p>
+        {!loading && !error && <ObservacaoNaoFaturaveis resumo={meta?.naoFaturaveis} />}
+      </div>
 
       {error && (
         <div className="p-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
