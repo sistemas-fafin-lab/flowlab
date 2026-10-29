@@ -20,7 +20,7 @@
 DO $$
 BEGIN
   IF to_regprocedure('public.fat_pode_ver_tela(text[])') IS NULL THEN
-    RAISE EXCEPTION 'Função public.fat_pode_ver_tela(text[]) não existe. Aplique 20261028150000_fat_permissoes_por_tela.sql antes desta migration.';
+    RAISE EXCEPTION 'Função public.fat_pode_ver_tela(text[]) não existe. Aplique 20261028150100_fat_permissoes_por_tela.sql antes desta migration.';
   END IF;
 END $$;
 

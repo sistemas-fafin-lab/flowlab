@@ -2,7 +2,7 @@
 // `canViewBilling` continua abrindo todas as telas; cada tela também abre com a sua chave.
 // A mesma regra vale na rota, no menu e na API (api/_lib/faturamento/autorizacao.ts),
 // por isso o arquivo não importa nada do navegador. A API e a RLS (fat_pode_ver_tela,
-// 20261028150000) aceitam também canManageBilling, como já aceitavam antes.
+// 20261028150100) aceitam também canManageBilling, como já aceitavam antes.
 
 export type TelaFaturamento = 'faturas' | 'contasReceber' | 'glosas' | 'indicadores' | 'calendarioEnvios';
 

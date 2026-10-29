@@ -42,7 +42,6 @@ O banco nasceu de um dump de produção. O histórico (`supabase_migrations.sche
 
 Em 29/10/2026 o schema `public` foi comparado objeto a objeto com produção (tabelas, colunas, funções, policies, triggers, índices e constraints) e igualado. Diferenças que ficaram de propósito:
 
-- **Calendário de envios e permissões por tela do Faturamento** (`20261028150000` a `20261028190000`): já aplicados no teste, ainda não em produção.
 - **`payment_request_guard` e `payment_request_autorizadores`**: o teste tem a versão do repositório (`20261027150000`, autorizador é o gestor do departamento). Produção está com a versão antiga (`20261020120000`), apesar de registrar a `20261027150000` como aplicada. Precisa ser conferido em produção.
 - **UNIQUE `qa_ihq_solicitacoes_cod_requisicao_ihq_key`**: não existe no teste, porque os dados de teste têm códigos repetidos (97 linhas, 22 códigos).
 - **Cargas de dados de produção não aplicadas**: `20261027150100_departamentos_gestores_carga` (usa colaboradores que não existem no teste; os departamentos do teste ficam sem gestor) e as correções de títulos, lotes e NFs com IDs de produção (`20261020120100`, `20261020150100`, `20261027180000`).
@@ -61,7 +60,7 @@ Aplique com `psql`, numa transação, e registre no histórico:
 3. Ensaie terminando com `ROLLBACK`. Só depois rode com `COMMIT`.
 4. Registre: `INSERT INTO supabase_migrations.schema_migrations (version, name) VALUES ('<versão>', '<nome>') ON CONFLICT (version) DO NOTHING;`
 
-Algumas funções do teste foram criadas pelo SQL Editor com quebras de linha `\r\n`. Uma migration que procura um trecho exato do corpo de uma função (`replace` em `pg_get_functiondef`) precisa aceitar `\n` e `\r\n`, como em `20261028150000_fat_permissoes_por_tela.sql`.
+Algumas funções do teste foram criadas pelo SQL Editor com quebras de linha `\r\n`. Uma migration que procura um trecho exato do corpo de uma função (`replace` em `pg_get_functiondef`) precisa aceitar `\n` e `\r\n`, como em `20261028150100_fat_permissoes_por_tela.sql`.
 
 ## Usuários de teste
 

@@ -59,7 +59,7 @@ function aceitasDasTelas(telas: TelaFaturamento[]): string[] {
  * `permissao` pode ser a lista das telas que consomem a rota (leitura); escrita
  * continua pedindo a chave de gestão.
  *
- * Espelha a RLS instalada em 20260807120000 (e, por tela, 20261028150000 / fat_pode_ver_tela):
+ * Espelha a RLS instalada em 20260807120000 (e, por tela, 20261028150100 / fat_pode_ver_tela):
  * leitura aceita qualquer uma das duas
  * permissões (quem registra baixa evidentemente pode ver o título), escrita exige
  * `canManageBilling`. Se as duas regras divergissem, a rota autorizaria uma
