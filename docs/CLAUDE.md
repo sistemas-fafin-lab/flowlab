@@ -18,7 +18,8 @@ Flow LAB is a comprehensive enterprise inventory and request management system b
 
 ### Database
 - Database migrations are in `supabase/migrations/` with format `YYYYMMDDHHMMSS_description.sql`
-- Run migrations via Supabase dashboard or CLI: `supabase db push`
+- Run migrations via Supabase dashboard or CLI: `supabase db push` (production, the CLI-linked project)
+- Test database ("FlowLab - test"): access via transaction pooler, schema state and how to apply migrations there (not `db push`) in `docs/guides/BANCO_DE_TESTE.md`
 
 ### Environment Setup
 - Copy `.env.example` to `.env` and configure Supabase credentials
