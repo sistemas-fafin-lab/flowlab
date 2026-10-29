@@ -2635,8 +2635,21 @@ export interface RequisicaoSemLotePendencia {
   /** `requisicao.CodEvento` — status da requisição no fluxo do laboratório. */
   codEvento: number | null;
   eventoLabel: string | null;
+  /** Clínica: Local de Origem da requisição (`requisicao.IdLocalOrigem` →
+   *  `fatinstituicao.NomFantasia`) — onde a guia está parada, para o setor
+   *  cobrar a unidade certa. `IdUnidade` não serve: é 1 em quase tudo. */
+  localOrigem: { id: number | null; nome: string | null };
   qtdTarefas: number;
   qtdTarefasAbertas: number;
+}
+
+/** Uma clínica com guias sem lote no recorte (opções do filtro "Clínica"). */
+export interface ClinicaSemLoteResumo {
+  /** null = requisição sem local de origem. */
+  id: number | null;
+  nome: string | null;
+  qtd: number;
+  valor: number;
 }
 
 export interface ListarRequisicoesSemLoteParams {
@@ -2646,6 +2659,8 @@ export interface ListarRequisicoesSemLoteParams {
    *  encurtar a janela (mesma regra de `limiteEAteEfetivoHoje`). */
   ate?: string;
   operadoraId?: number;
+  /** `requisicao.IdLocalOrigem`; 0 = requisições sem local de origem. */
+  localOrigemId?: number;
   pagina?: number;
   tamanho?: number;
   ignorarCache?: boolean;
@@ -2666,6 +2681,9 @@ export interface RequisicoesSemLoteMeta {
   /** Hoje — limite superior da janela, calculado no MySQL a partir de CURDATE().
    *  A réplica do apLIS atrasa ~1 dia, então os dados vão de fato até D-1. */
   limite: string;
+  /** Clínicas com guias no recorte SEM o filtro de clínica (para o filtro não
+   *  perder as outras opções ao escolher uma), mais guias primeiro. */
+  clinicas: ClinicaSemLoteResumo[];
 }
 
 export type ListarRequisicoesSemLoteResultado =
@@ -2675,7 +2693,7 @@ export type ListarRequisicoesSemLoteResultado =
 const cacheRequisicoesSemLote = new Map<string, EntradaCache<ListarRequisicoesSemLoteResultado>>();
 
 function chaveRequisicoesSemLote(params: ListarRequisicoesSemLoteParams): string {
-  return `requisicoesSemLote|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
+  return `requisicoesSemLote|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.localOrigemId ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
 }
 
 // `NOT EXISTS` de RPS/NFe individual: mesmo cuidado de
@@ -2717,6 +2735,7 @@ function normalizarRequisicaoSemLote(linha: mysql.RowDataPacket): RequisicaoSemL
     },
     codEvento: inteiroOuNulo(linha.CodEvento),
     eventoLabel: texto(linha.DesEvento),
+    localOrigem: { id: inteiroOuNulo(linha.IdLocalOrigem), nome: texto(linha.NomLocalOrigem) },
     qtdTarefas: numero(linha.QtdTarefas),
     qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
   };
@@ -2759,6 +2778,15 @@ export async function listarRequisicoesSemLote(
         valores.push(...params.fontesConsideradas);
       }
     }
+    // Recorte sem o filtro de clínica: universo das opções do filtro.
+    const whereRecorte = condicoes.join(' AND ');
+    const valoresRecorte = [...valores];
+    if (params.localOrigemId === 0) {
+      condicoes.push('NULLIF(r.IdLocalOrigem, 0) IS NULL');
+    } else if (params.localOrigemId !== undefined) {
+      condicoes.push('r.IdLocalOrigem = ?');
+      valores.push(params.localOrigemId);
+    }
     const where = condicoes.join(' AND ');
 
     // Mesma troca de subconsulta correlacionada por LEFT JOIN + GROUP BY de
@@ -2777,6 +2805,22 @@ export async function listarRequisicoesSemLote(
     const registros = numero(contagem[0]?.n);
     const valorTotal = numero(contagem[0]?.ValorTotal);
 
+    const [linhasClinicas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT t.IdLocalOrigem, lo.NomFantasia, COUNT(*) AS Qtd, COALESCE(SUM(t.ValorReq), 0) AS Valor
+         FROM (
+           SELECT r.IdRequisicao, NULLIF(r.IdLocalOrigem, 0) AS IdLocalOrigem,
+                  COALESCE(SUM(frp.ValorLiquido), 0) AS ValorReq
+             FROM requisicao r
+             LEFT JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+            WHERE ${whereRecorte}
+            GROUP BY r.IdRequisicao, NULLIF(r.IdLocalOrigem, 0)
+         ) t
+         LEFT JOIN fatinstituicao lo ON lo.IdInstituicao = t.IdLocalOrigem
+        GROUP BY t.IdLocalOrigem, lo.NomFantasia
+        ORDER BY Qtd DESC, lo.NomFantasia ASC`,
+      valoresRecorte,
+    );
+
     const limite = Math.trunc(tamanho);
     const deslocamento = Math.trunc((pagina - 1) * tamanho);
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
@@ -2785,6 +2829,7 @@ export async function listarRequisicoesSemLote(
               DATE_FORMAT(r.DtaFinalizacao, '%Y-%m-%d') AS DtaFinalizacao,
               p.NomPaciente, r.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
               r.CodEvento, ev.DesEvento,
+              NULLIF(r.IdLocalOrigem, 0) AS IdLocalOrigem, lo.NomFantasia AS NomLocalOrigem,
               COALESCE((SELECT SUM(frp.ValorLiquido) FROM fatrequisicaoprocedimento frp
                          WHERE frp.IdRequisicao = r.IdRequisicao), 0) AS Valor,
               ${SQL_QTD_TAREFAS}
@@ -2792,6 +2837,7 @@ export async function listarRequisicoesSemLote(
          LEFT JOIN paciente p ON p.CodPaciente = r.CodPaciente
          LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = r.IdFontePagadora
          LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
+         LEFT JOIN fatinstituicao lo ON lo.IdInstituicao = r.IdLocalOrigem
         WHERE ${where}
         ORDER BY r.DtaSolicitacao ASC, r.IdRequisicao ASC
         LIMIT ${limite} OFFSET ${deslocamento}`,
@@ -2807,6 +2853,12 @@ export async function listarRequisicoesSemLote(
         registros,
         valorTotal,
         limite: limiteJanela,
+        clinicas: linhasClinicas.map((linha) => ({
+          id: inteiroOuNulo(linha.IdLocalOrigem),
+          nome: texto(linha.NomFantasia),
+          qtd: numero(linha.Qtd),
+          valor: numero(linha.Valor),
+        })),
       },
     };
   }).then((resultado) => {

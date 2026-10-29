@@ -41,12 +41,14 @@ export function useRequisicoesSemLote(
     filtros,
     rota: 'pendencias-sem-lote',
     cache: cacheSessao,
-    chaveCache: (f) => `${f.desde ?? ''}|${f.ate ?? ''}|${f.operadoraId ?? ''}|${f.pagina ?? 1}|${f.tamanho ?? 50}`,
+    chaveCache: (f) =>
+      `${f.desde ?? ''}|${f.ate ?? ''}|${f.operadoraId ?? ''}|${f.localOrigemId ?? ''}|${f.pagina ?? 1}|${f.tamanho ?? 50}`,
     montarParams: (f, force) => {
       const params = new URLSearchParams();
       if (f.desde) params.set('desde', f.desde);
       if (f.ate) params.set('ate', f.ate);
       if (f.operadoraId) params.set('operadoraId', String(f.operadoraId));
+      if (f.localOrigemId !== undefined) params.set('localOrigemId', String(f.localOrigemId));
       if (f.pagina) params.set('pagina', String(f.pagina));
       if (f.tamanho) params.set('tamanho', String(f.tamanho));
       if (force) params.set('semCache', '1');

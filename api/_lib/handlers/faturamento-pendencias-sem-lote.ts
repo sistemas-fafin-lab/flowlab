@@ -14,6 +14,7 @@
  *   desde         YYYY-MM-DD — sobre a data de solicitação
  *   ate           YYYY-MM-DD — nunca ultrapassa hoje
  *   operadoraId   fatinstituicao.IdInstituicao
+ *   localOrigemId requisicao.IdLocalOrigem (clínica); 0 = sem local de origem
  *   pagina        default 1
  *   tamanho       1..200, default 50
  *
@@ -65,11 +66,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const desde = primeiro(q.desde)?.trim() || undefined;
     const ate = primeiro(q.ate)?.trim() || undefined;
     const operadoraId = inteiroNaFaixa(primeiro(q.operadoraId), 1, Number.MAX_SAFE_INTEGER);
+    // 0 = requisições sem local de origem.
+    const localOrigemId = inteiroNaFaixa(primeiro(q.localOrigemId), 0, Number.MAX_SAFE_INTEGER);
     const pagina = inteiroNaFaixa(primeiro(q.pagina), 1, Number.MAX_SAFE_INTEGER);
     const tamanho = inteiroNaFaixa(primeiro(q.tamanho), 1, MAX_TAMANHO);
 
     const invalidos = [
       operadoraId === null ? 'operadoraId' : null,
+      localOrigemId === null ? 'localOrigemId' : null,
       pagina === null ? 'pagina' : null,
       tamanho === null ? `tamanho (1..${MAX_TAMANHO})` : null,
       desde !== undefined && !DATA_ISO_RE.test(desde) ? 'desde' : null,
@@ -89,6 +93,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       desde,
       ate,
       operadoraId: operadoraId ?? undefined,
+      localOrigemId: localOrigemId ?? undefined,
       pagina,
       tamanho: tamanho ?? TAMANHO_PADRAO,
       ignorarCache: primeiro(q.semCache) === '1',

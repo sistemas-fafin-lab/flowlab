@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import type { OperadoraResumo } from '../types';
 import { useRequisicoesSemLote } from '../hooks/useRequisicoesSemLote';
@@ -17,6 +17,10 @@ import { BotaoTarefas, StatusRequisicao, TarefasRequisicaoModal, type Requisicao
 // Mesmo esqueleto de PendenciasParticulares (requisição já é a unidade da
 // lista, sem expansão), mas com filtro de fonte pagadora — diferente do
 // particular, esta lista cobre várias operadoras de convênio.
+//
+// Filtro "Clínica" (Local de Origem): para o setor cobrar a unidade onde a guia
+// está parada. As opções vêm do próprio servidor (`meta.clinicas`): só clínicas
+// com guia no recorte, com quantas guias cada uma tem.
 
 const CAMPO = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 
@@ -37,6 +41,7 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
   const [desde, setDesde] = useState(inicioMesIso);
   const [ate, setAte] = useState(hojeIso);
   const [operadoraId, setOperadoraId] = useState('');
+  const [localOrigemId, setLocalOrigemId] = useState('');
   const [pagina, setPagina] = useState(1);
   const [tarefasDe, setTarefasDe] = useState<RequisicaoDasTarefas | null>(null);
   const fecharTarefas = useCallback(() => setTarefasDe(null), []);
@@ -45,6 +50,7 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
     desde: desde || undefined,
     ate: ate || undefined,
     operadoraId: operadoraId ? Number(operadoraId) : undefined,
+    localOrigemId: localOrigemId ? Number(localOrigemId) : undefined,
     pagina,
     tamanho: TAMANHO_PADRAO,
   });
@@ -56,6 +62,13 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
 
   const qtdPaginas = meta?.qtdPaginas ?? 1;
   const registros = meta?.registros ?? 0;
+
+  // Guarda as opções da última resposta: durante o carregamento `meta` some, e
+  // o Select ficaria sem o rótulo da clínica escolhida.
+  const [clinicas, setClinicas] = useState(meta?.clinicas ?? []);
+  useEffect(() => {
+    if (meta?.clinicas) setClinicas(meta.clinicas);
+  }, [meta]);
 
   return (
     <div className="space-y-4">
@@ -92,6 +105,25 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
             ]}
             controlClass={CAMPO}
             wrapperClass="max-w-[220px]"
+          />
+        </label>
+        <label className="text-xs text-gray-500 dark:text-gray-400">
+          Clínica
+          <Select
+            value={localOrigemId}
+            onChange={(v) => mudarFiltro(() => setLocalOrigemId(v))}
+            searchable
+            searchPlaceholder="Buscar clínica"
+            options={[
+              { value: '', label: 'Todas' },
+              ...clinicas.map((c) => ({
+                value: String(c.id ?? 0),
+                label: c.nome ?? (c.id === null ? 'Sem local de origem' : `Local ${c.id}`),
+                description: `${c.qtd} guia${c.qtd === 1 ? '' : 's'} · ${formatCurrency(c.valor)}`,
+              })),
+            ]}
+            controlClass={CAMPO}
+            wrapperClass="w-[260px]"
           />
         </label>
         <button
@@ -134,6 +166,7 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
                   <th className="px-3 py-2">Requisição</th>
                   <th className="px-3 py-2">Paciente</th>
                   <th className="px-3 py-2">Fonte pagadora</th>
+                  <th className="px-3 py-2">Clínica</th>
                   <th className="px-3 py-2">Solicitação</th>
                   <th className="px-3 py-2">Status da requisição</th>
                   <th className="px-3 py-2">Laudo liberado</th>
@@ -154,6 +187,9 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
                       <span title={req.fontePagadora.razaoSocial ?? undefined}>
                         {req.fontePagadora.nome ?? 'Não identificada'}
                       </span>
+                    </td>
+                    <td className="px-3 py-2 text-gray-600 dark:text-gray-300 truncate max-w-[220px]">
+                      <span title={req.localOrigem.nome ?? undefined}>{req.localOrigem.nome ?? '—'}</span>
                     </td>
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
                       {formatData(req.dtaSolicitacao)}

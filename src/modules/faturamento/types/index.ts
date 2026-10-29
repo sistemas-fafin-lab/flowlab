@@ -557,10 +557,21 @@ export interface RequisicaoSemLotePendencia {
   /** Status da requisição no fluxo do laboratório (`requisicao.CodEvento`). */
   codEvento: number | null;
   eventoLabel: string | null;
+  /** Clínica: Local de Origem da requisição — onde a guia está parada. */
+  localOrigem: { id: number | null; nome: string | null };
   /** Tarefas do apLIS da requisição, concluídas ou não. */
   qtdTarefas: number;
   /** Tarefas do apLIS da requisição ainda não concluídas. */
   qtdTarefasAbertas: number;
+}
+
+/** Clínica com guias sem lote no recorte — opção do filtro "Clínica". */
+export interface ClinicaSemLoteResumo {
+  /** null = requisição sem local de origem. */
+  id: number | null;
+  nome: string | null;
+  qtd: number;
+  valor: number;
 }
 
 export interface RequisicoesSemLoteFiltros {
@@ -568,6 +579,8 @@ export interface RequisicoesSemLoteFiltros {
   desde?: string;
   ate?: string;
   operadoraId?: number;
+  /** Local de origem (clínica); 0 = requisições sem local de origem. */
+  localOrigemId?: number;
   pagina?: number;
   tamanho?: number;
 }
@@ -582,6 +595,8 @@ export interface RequisicoesSemLoteMeta {
   /** Hoje — limite superior da janela, calculado no servidor. Os dados vão de
    *  fato até D-1, porque a réplica do apLIS atrasa ~1 dia. */
   limite: string;
+  /** Clínicas com guias no recorte, ignorando o filtro de clínica — mais guias primeiro. */
+  clinicas: ClinicaSemLoteResumo[];
 }
 
 /** Sub-aba da aba "Pendências", compartilhada entre ContasReceberPage (dono do

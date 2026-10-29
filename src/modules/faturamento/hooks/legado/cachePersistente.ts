@@ -18,7 +18,8 @@ const PREFIXO = 'flowlab:faturamento:legado:';
 //   5 — `localOrigem`/`clinicaSemNf` em RequisicaoParticularPendencia.
 //   6 — `naoFaturaveis` nas metas de Pendências (lotes e Particulares).
 //   7 — `competencia` em RecebidoLoteMes (widget Recebido no mês).
-const VERSAO = 7;
+//   8 — `localOrigem` e `meta.clinicas` em Pendências → Sem lote.
+const VERSAO = 8;
 
 interface Envelope<T> { dia: string; versao?: number; valor: T; }
 
