@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import type { OperadoraResumo } from '../types';
 import { useRequisicoesSemLote } from '../hooks/useRequisicoesSemLote';
-import { formatCurrency, formatData, hojeIso, inicioMesIso } from '../utils/formato';
+import { formatCurrency, formatData, formatDataHoraAplis, hojeIso, inicioMesIso } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
@@ -170,6 +170,7 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
                   <th className="px-3 py-2">Solicitação</th>
                   <th className="px-3 py-2">Status da requisição</th>
                   <th className="px-3 py-2">Laudo liberado</th>
+                  <th className="px-3 py-2">Recebido no faturamento</th>
                   <th className="px-3 py-2 text-right">Valor</th>
                   <th className="px-3 py-2 w-10"><span className="sr-only">Tarefas</span></th>
                 </tr>
@@ -199,6 +200,9 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
                     </td>
                     <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
                       {formatData(req.dtaFinalizacao)}
+                    </td>
+                    <td className="px-3 py-2 text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
+                      {formatDataHoraAplis(req.recebidoFaturamento)}
                     </td>
                     <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">
                       {formatCurrency(req.valor)}

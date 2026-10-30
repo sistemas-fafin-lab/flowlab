@@ -2019,6 +2019,13 @@ function resumoNaoFaturaveis(linhas: mysql.RowDataPacket[]): NaoFaturaveisResumo
   };
 }
 
+// Tipos de tarefa (`tarefatipo`) que registram a chegada da guia ao setor:
+// 37 "Recebido no Faturamento" e 44 "Recebido no Faturamento sem protocolo",
+// conferidos no banco em 30/10/2026. A tarefa é criada no ato do recebimento
+// (`DtaInclusao`); a conclusão vem depois e não marca a chegada. Algumas
+// requisições têm mais de uma — vale a primeira.
+const TIPOS_TAREFA_RECEBIDO_FATURAMENTO = [37, 44];
+
 // Contadores do ícone de tarefas das três listas de Pendências: tarefas do apLIS
 // da requisição, de qualquer setor ou destinatário — todas e as ainda não
 // concluídas. Mesma regra do modal (`listarTarefasRequisicao`): só
@@ -2026,7 +2033,10 @@ function resumoNaoFaturaveis(linhas: mysql.RowDataPacket[]): NaoFaturaveisResumo
 const SQL_QTD_TAREFAS = `(SELECT COUNT(*) FROM tarefa t
      WHERE t.IdRequisicao = r.IdRequisicao) AS QtdTarefas,
    (SELECT COUNT(*) FROM tarefa t
-     WHERE t.IdRequisicao = r.IdRequisicao AND (t.Concluido IS NULL OR t.Concluido <> 1)) AS QtdTarefasAbertas`;
+     WHERE t.IdRequisicao = r.IdRequisicao AND (t.Concluido IS NULL OR t.Concluido <> 1)) AS QtdTarefasAbertas,
+   (SELECT DATE_FORMAT(MIN(t.DtaInclusao), '%Y-%m-%d %H:%i') FROM tarefa t
+     WHERE t.IdRequisicao = r.IdRequisicao
+       AND t.CodTarefaTipo IN (${TIPOS_TAREFA_RECEBIDO_FATURAMENTO.join(', ')})) AS DtaRecebidoFaturamento`;
 
 const cachePendencias = new Map<string, EntradaCache<ListarLotesPendentesResultado>>();
 
@@ -2281,6 +2291,8 @@ export interface RequisicaoPendencia {
   eventoLabel: string | null;
   qtdTarefas: number;
   qtdTarefasAbertas: number;
+  /** 'YYYY-MM-DD HH:MM' da primeira tarefa "Recebido no Faturamento"; nulo sem ela. */
+  recebidoFaturamento: string | null;
 }
 
 export type DetalharLotePendenciaResultado =
@@ -2353,6 +2365,7 @@ export async function detalharLotePendencia(
       eventoLabel: texto(linha.DesEvento),
       qtdTarefas: numero(linha.QtdTarefas),
       qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
+      recebidoFaturamento: texto(linha.DtaRecebidoFaturamento),
     }));
     return { requisicoes };
   }).then((resultado) => {
@@ -2401,6 +2414,8 @@ export interface RequisicaoParticularPendencia {
   clinicaSemNf: boolean;
   qtdTarefas: number;
   qtdTarefasAbertas: number;
+  /** 'YYYY-MM-DD HH:MM' da primeira tarefa "Recebido no Faturamento"; nulo sem ela. */
+  recebidoFaturamento: string | null;
 }
 
 export interface ListarParticularesPendentesParams {
@@ -2491,6 +2506,7 @@ function normalizarParticularPendencia(
     clinicaSemNf: idLocalOrigem !== null && idsClinicasSemNf.includes(idLocalOrigem),
     qtdTarefas: numero(linha.QtdTarefas),
     qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
+    recebidoFaturamento: texto(linha.DtaRecebidoFaturamento),
   };
 }
 
@@ -2641,6 +2657,8 @@ export interface RequisicaoSemLotePendencia {
   localOrigem: { id: number | null; nome: string | null };
   qtdTarefas: number;
   qtdTarefasAbertas: number;
+  /** 'YYYY-MM-DD HH:MM' da primeira tarefa "Recebido no Faturamento"; nulo sem ela. */
+  recebidoFaturamento: string | null;
 }
 
 /** Uma clínica com guias sem lote no recorte (opções do filtro "Clínica"). */
@@ -2738,6 +2756,7 @@ function normalizarRequisicaoSemLote(linha: mysql.RowDataPacket): RequisicaoSemL
     localOrigem: { id: inteiroOuNulo(linha.IdLocalOrigem), nome: texto(linha.NomLocalOrigem) },
     qtdTarefas: numero(linha.QtdTarefas),
     qtdTarefasAbertas: numero(linha.QtdTarefasAbertas),
+    recebidoFaturamento: texto(linha.DtaRecebidoFaturamento),
   };
 }
 

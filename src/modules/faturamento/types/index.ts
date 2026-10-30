@@ -429,6 +429,8 @@ export interface RequisicaoPendencia {
   qtdTarefas: number;
   /** Tarefas do apLIS da requisição ainda não concluídas. */
   qtdTarefasAbertas: number;
+  /** 'YYYY-MM-DD HH:MM' da primeira tarefa "Recebido no Faturamento"; nulo sem ela. */
+  recebidoFaturamento: string | null;
 }
 
 export interface PendenciasFiltros {
@@ -496,6 +498,8 @@ export interface RequisicaoParticularPendencia {
   qtdTarefas: number;
   /** Tarefas do apLIS da requisição ainda não concluídas. */
   qtdTarefasAbertas: number;
+  /** 'YYYY-MM-DD HH:MM' da primeira tarefa "Recebido no Faturamento"; nulo sem ela. */
+  recebidoFaturamento: string | null;
 }
 
 export interface ParticularesPendentesFiltros {
@@ -563,6 +567,8 @@ export interface RequisicaoSemLotePendencia {
   qtdTarefas: number;
   /** Tarefas do apLIS da requisição ainda não concluídas. */
   qtdTarefasAbertas: number;
+  /** 'YYYY-MM-DD HH:MM' da primeira tarefa "Recebido no Faturamento"; nulo sem ela. */
+  recebidoFaturamento: string | null;
 }
 
 /** Clínica com guias sem lote no recorte — opção do filtro "Clínica". */

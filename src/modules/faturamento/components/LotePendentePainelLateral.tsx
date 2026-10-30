@@ -4,7 +4,7 @@ import type { LotePendencia, RequisicaoPendencia } from '../types';
 import StatusFaturamentoChips from './StatusFaturamentoChips';
 import { BotaoTarefas, StatusRequisicao, type RequisicaoDasTarefas } from './TarefasRequisicao';
 import { corStatusFaturamento } from '../utils/corStatusFaturamento';
-import { formatCurrency, formatData } from '../utils/formato';
+import { formatCurrency, formatData, formatDataHoraAplis } from '../utils/formato';
 
 // Requisições de um lote sem NF/RPS num painel lateral — mesmo padrão do
 // TituloPainelLateral, substituindo a antiga linha expansível de
@@ -147,6 +147,7 @@ const LotePendentePainelLateral: React.FC<Props> = ({
                   <th className="py-1 pr-2">Status</th>
                   <th className="py-1 pr-2">NF/RPS</th>
                   <th className="py-1 pr-2" title="Data de liberação do laudo">Laudo</th>
+                  <th className="py-1 pr-2" title="Data em que a guia foi recebida no faturamento">Recebido</th>
                   <th className="py-1 text-right">Valor</th>
                   <th className="py-1 pl-2 w-10"><span className="sr-only">Tarefas</span></th>
                 </tr>
@@ -189,6 +190,9 @@ const LotePendentePainelLateral: React.FC<Props> = ({
                         : '—'}
                     </td>
                     <td className="py-1.5 pr-2 tabular-nums whitespace-nowrap">{formatData(req.dtaFinalizacao)}</td>
+                    <td className="py-1.5 pr-2 tabular-nums whitespace-nowrap" title={formatDataHoraAplis(req.recebidoFaturamento)}>
+                      {formatData(req.recebidoFaturamento?.slice(0, 10))}
+                    </td>
                     <td className="py-1.5 text-right tabular-nums whitespace-nowrap">{formatCurrency(req.valor)}</td>
                     <td className="py-1.5 pl-2 text-center">
                       <BotaoTarefas
