@@ -7,9 +7,13 @@ interface VinculoUsuarioSectionProps {
   colaborador: Colaborador;
   onVincular: (colaboradorId: string, userProfileId: string) => Promise<string | null>;
   onDesvincular: (colaboradorId: string) => Promise<string | null>;
+  /** canManageColaboradores: sem ela a seção só mostra o vínculo atual. */
+  podeEditar: boolean;
+  /** Alguma seção da ficha está em edição. */
+  bloqueada: boolean;
 }
 
-const VinculoUsuarioSection: React.FC<VinculoUsuarioSectionProps> = ({ colaborador, onVincular, onDesvincular }) => {
+const VinculoUsuarioSection: React.FC<VinculoUsuarioSectionProps> = ({ colaborador, onVincular, onDesvincular, podeEditar, bloqueada }) => {
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState('');
@@ -74,16 +78,20 @@ const VinculoUsuarioSection: React.FC<VinculoUsuarioSectionProps> = ({ colaborad
               </div>
             </div>
           </div>
+          {podeEditar && (
           <button
             type="button"
             onClick={handleDesvincular}
-            disabled={salvando}
+            disabled={salvando || bloqueada}
             className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-red-600 dark:text-red-300 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
           >
             <UserX className="w-3.5 h-3.5" />
             {salvando ? 'Desvinculando...' : 'Desvincular'}
           </button>
+          )}
         </div>
+      ) : !podeEditar ? (
+        <p className="text-sm text-gray-400 dark:text-gray-500">Sem usuário vinculado.</p>
       ) : (
         <div className="space-y-2">
           <div className="relative">
@@ -144,7 +152,7 @@ const VinculoUsuarioSection: React.FC<VinculoUsuarioSectionProps> = ({ colaborad
           <button
             type="button"
             onClick={handleVincular}
-            disabled={!selecionado || salvando}
+            disabled={!selecionado || salvando || bloqueada}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Link2 className="w-4 h-4" />

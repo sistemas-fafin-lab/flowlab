@@ -27,7 +27,10 @@ const ColaboradoresPage: React.FC = () => {
   } = useColaboradores();
   const { departamentos } = useDepartamentos();
   const { userProfile } = useAuth();
-  const podeMudarDepartamento = hasPermission(userProfile?.permissions || [], 'canManageDepartamentos');
+  const permissoes = userProfile?.permissions || [];
+  const podeMudarDepartamento = hasPermission(permissoes, 'canManageDepartamentos');
+  const podeGerenciar = hasPermission(permissoes, 'canManageColaboradores');
+  const podeVerRecibos = hasPermission(permissoes, 'canManageHolerites') || hasPermission(permissoes, 'canViewAllHolerites');
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<'todos' | ColaboradorStatus>('todos');
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
@@ -161,7 +164,9 @@ const ColaboradoresPage: React.FC = () => {
           colaborador={colaboradorSelecionado}
           colaboradores={colaboradores}
           departamentos={departamentos}
+          podeGerenciar={podeGerenciar}
           podeMudarDepartamento={podeMudarDepartamento}
+          podeVerRecibos={podeVerRecibos}
           onClose={() => setSelecionadoId(null)}
           atualizarCadastro={atualizarCadastro}
           vincularUsuario={vincularUsuario}

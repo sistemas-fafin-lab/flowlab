@@ -15,6 +15,7 @@ const CHAVES_POSTERIORES: Record<string, string> = {
   canUseGeradorOrcamento: '20261020180000_gerador_orcamento_atendente.sql',
   canViewGeradorOrcamentoCustos: '20261020190000_gerador_orcamento_custos.sql',
   canManageDepartamentos: '20261020215000_rh_departamentos.sql',
+  canManageColaboradores: '20261030120000_rh_ficha_colaborador.sql',
   canViewControleCustos: '20261026150000_controle_custos_permissoes_proprias.sql',
   canManageControleCustos: '20261026150000_controle_custos_permissoes_proprias.sql',
   canViewFaturas: '20261028150100_fat_permissoes_por_tela.sql',

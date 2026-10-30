@@ -1,12 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import Select, { type SelectOption } from '../../../../components/Select';
 import type { AtualizarCadastroInput, Colaborador, Departamento } from '../../types';
+import { dataDeHojeISO, formatDataBR, validarDataNaoFutura } from '../../utils/colaboradorFormato';
+import SecaoFicha, { CampoLeitura, inputClassName, labelClassName } from './SecaoFicha';
 
 interface EditarCadastroSectionProps {
   colaborador: Colaborador;
   departamentos: Departamento[];
+  /** canManageColaboradores: sem ela a seção é só leitura. */
+  podeEditar: boolean;
   /** canManageDepartamentos: sem ela o departamento aparece, mas não muda. */
   podeMudarDepartamento: boolean;
+  editando: boolean;
+  bloqueada: boolean;
+  onEditandoChange: (editando: boolean) => void;
   onSalvar: (id: string, dados: AtualizarCadastroInput) => Promise<string | null>;
 }
 
@@ -20,8 +27,6 @@ interface FormState {
   departamentoId: string;
 }
 
-const DATA_REGEX = /^\d{4}-\d{2}-\d{2}$/;
-
 const criarFormState = (colaborador: Colaborador): FormState => ({
   cargo: colaborador.cargo ?? '',
   dataAdmissao: colaborador.dataAdmissao ?? '',
@@ -29,48 +34,32 @@ const criarFormState = (colaborador: Colaborador): FormState => ({
   departamentoId: colaborador.departamentoId ?? SEM_DEPARTAMENTO,
 });
 
-const dataDeHoje = (): string => {
-  const hoje = new Date();
-  const ano = hoje.getFullYear();
-  const mes = String(hoje.getMonth() + 1).padStart(2, '0');
-  const dia = String(hoje.getDate()).padStart(2, '0');
-  return `${ano}-${mes}-${dia}`;
+const STATUS_BADGE: Record<Colaborador['status'], { label: string; className: string }> = {
+  ativo: { label: 'Ativo', className: 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' },
+  desligado: { label: 'Desligado', className: 'bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400' },
 };
-
-const validarDataAdmissao = (valor: string): string | null => {
-  if (!valor) return null;
-  if (!DATA_REGEX.test(valor)) return 'Data de admissão inválida.';
-
-  const data = new Date(`${valor}T00:00:00`);
-  if (Number.isNaN(data.getTime())) return 'Data de admissão inválida.';
-
-  if (valor > dataDeHoje()) return 'Data de admissão não pode ser uma data futura.';
-
-  return null;
-};
-
-const inputClassName =
-  'w-full border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30 rounded-xl px-3 py-2';
-
-const labelClassName = 'block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1';
 
 const EditarCadastroSection: React.FC<EditarCadastroSectionProps> = ({
   colaborador,
   departamentos,
+  podeEditar,
   podeMudarDepartamento,
+  editando,
+  bloqueada,
+  onEditandoChange,
   onSalvar,
 }) => {
   const [form, setForm] = useState<FormState>(() => criarFormState(colaborador));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
-  const [sucesso, setSucesso] = useState(false);
+  const [sucesso, setSucesso] = useState<string | null>(null);
 
   useEffect(() => {
     setForm(criarFormState(colaborador));
     setErro(null);
-    setSucesso(false);
-    // Reinicializa o formulário apenas ao trocar de colaborador, não a cada
-    // re-render do pai (para não atrapalhar uma edição em andamento).
+    setSucesso(null);
+    // Reinicializa apenas ao trocar de colaborador, não a cada re-render do pai
+    // (para não atrapalhar uma edição em andamento).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [colaborador.id]);
 
@@ -79,7 +68,6 @@ const EditarCadastroSection: React.FC<EditarCadastroSectionProps> = ({
     (e: React.ChangeEvent<HTMLInputElement>): void => {
       const valor = e.target.value;
       setForm((atual) => ({ ...atual, [campo]: valor }));
-      setSucesso(false);
     };
 
   // Inativos ficam fora da escolha, mas o atual continua aparecendo.
@@ -90,17 +78,28 @@ const EditarCadastroSection: React.FC<EditarCadastroSectionProps> = ({
       .map((d, index) => ({ value: d.id, label: d.ativo ? d.nome : `${d.nome} (inativo)`, separatorBefore: index === 0 })),
   ];
 
+  const editar = () => {
+    setForm(criarFormState(colaborador));
+    setErro(null);
+    setSucesso(null);
+    onEditandoChange(true);
+  };
+
+  const cancelar = () => {
+    setForm(criarFormState(colaborador));
+    setErro(null);
+    onEditandoChange(false);
+  };
+
   const handleSalvar = async (): Promise<void> => {
-    const erroValidacao = validarDataAdmissao(form.dataAdmissao);
+    const erroValidacao = validarDataNaoFutura(form.dataAdmissao || null, 'Data de admissão');
     if (erroValidacao) {
       setErro(erroValidacao);
-      setSucesso(false);
       return;
     }
 
     setSalvando(true);
     setErro(null);
-    setSucesso(false);
 
     const dados: AtualizarCadastroInput = {
       cargo: form.cargo.trim() || null,
@@ -117,94 +116,100 @@ const EditarCadastroSection: React.FC<EditarCadastroSectionProps> = ({
     setSalvando(false);
     if (resultado) {
       setErro(resultado);
-    } else {
-      setSucesso(true);
+      return;
     }
+    setSucesso(`Dados cadastrais de ${colaborador.nome} atualizados.`);
+    onEditandoChange(false);
   };
 
-  return (
-    <section>
-      <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-        Dados cadastrais
-      </h3>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className={labelClassName} htmlFor="editar-cadastro-cargo">
-            Cargo
-          </label>
-          <input
-            id="editar-cadastro-cargo"
-            type="text"
-            value={form.cargo}
-            onChange={atualizarCampo('cargo')}
-            placeholder="Ex.: Analista de Faturamento"
-            className={inputClassName}
-          />
-        </div>
-
-        <div>
-          <label className={labelClassName} htmlFor="editar-cadastro-data-admissao">
-            Data de admissão
-          </label>
-          <input
-            id="editar-cadastro-data-admissao"
-            type="date"
-            value={form.dataAdmissao}
-            onChange={atualizarCampo('dataAdmissao')}
-            max={dataDeHoje()}
-            className={inputClassName}
-          />
-        </div>
-
-        <div>
-          <label className={labelClassName} htmlFor="editar-cadastro-matricula">
-            Matrícula
-          </label>
-          <input
-            id="editar-cadastro-matricula"
-            type="text"
-            value={form.matricula}
-            onChange={atualizarCampo('matricula')}
-            placeholder="Ex.: 00123"
-            className={inputClassName}
-          />
-        </div>
-
-        <div>
-          <label className={labelClassName} htmlFor="editar-cadastro-departamento">
-            Departamento
-          </label>
-          <Select
-            id="editar-cadastro-departamento"
-            value={form.departamentoId}
-            onChange={(valor) => {
-              setForm((atual) => ({ ...atual, departamentoId: valor }));
-              setSucesso(false);
-            }}
-            options={opcoesDepartamento}
-            controlClass={inputClassName}
-            disabled={!podeMudarDepartamento}
-          />
-        </div>
-      </div>
-
-      {erro && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{erro}</p>}
-      {sucesso && !erro && (
-        <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">Cadastro atualizado com sucesso.</p>
+  const status = STATUS_BADGE[colaborador.status];
+  const camposSomenteLeitura = (
+    <>
+      <CampoLeitura
+        rotulo="Status"
+        valor={<span className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${status.className}`}>{status.label}</span>}
+      />
+      {colaborador.dataDesligamento && (
+        <CampoLeitura rotulo="Data de desligamento" valor={formatDataBR(colaborador.dataDesligamento)} />
       )}
+      <CampoLeitura rotulo="E-mail" valor={colaborador.email} bloqueado={editando} />
+    </>
+  );
 
-      <div className="mt-4 flex justify-end">
-        <button
-          type="button"
-          onClick={handleSalvar}
-          disabled={salvando}
-          className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
-        >
-          {salvando ? 'Salvando...' : 'Salvar'}
-        </button>
-      </div>
-    </section>
+  return (
+    <SecaoFicha
+      titulo="Dados cadastrais"
+      podeEditar={podeEditar}
+      editando={editando}
+      bloqueada={bloqueada}
+      salvando={salvando}
+      erro={erro}
+      sucesso={sucesso}
+      onEditar={editar}
+      onCancelar={cancelar}
+      onSalvar={handleSalvar}
+    >
+      {editando ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label className={labelClassName} htmlFor="editar-cadastro-matricula">Matrícula</label>
+            <input
+              id="editar-cadastro-matricula"
+              type="text"
+              value={form.matricula}
+              onChange={atualizarCampo('matricula')}
+              placeholder="Ex.: 00123"
+              disabled={salvando}
+              className={inputClassName}
+            />
+          </div>
+          <div>
+            <label className={labelClassName} htmlFor="editar-cadastro-cargo">Cargo</label>
+            <input
+              id="editar-cadastro-cargo"
+              type="text"
+              value={form.cargo}
+              onChange={atualizarCampo('cargo')}
+              placeholder="Ex.: Analista de Faturamento"
+              disabled={salvando}
+              className={inputClassName}
+            />
+          </div>
+          <div>
+            <label className={labelClassName} htmlFor="editar-cadastro-departamento">Departamento</label>
+            <Select
+              id="editar-cadastro-departamento"
+              value={form.departamentoId}
+              onChange={(valor) => setForm((atual) => ({ ...atual, departamentoId: valor }))}
+              options={opcoesDepartamento}
+              controlClass={inputClassName}
+              disabled={!podeMudarDepartamento || salvando}
+            />
+          </div>
+          <div>
+            <label className={labelClassName} htmlFor="editar-cadastro-data-admissao">Data de admissão</label>
+            <input
+              id="editar-cadastro-data-admissao"
+              type="date"
+              value={form.dataAdmissao}
+              onChange={atualizarCampo('dataAdmissao')}
+              max={dataDeHojeISO()}
+              disabled={salvando}
+              className={inputClassName}
+            />
+          </div>
+          {camposSomenteLeitura}
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <CampoLeitura rotulo="Matrícula" valor={colaborador.matricula} />
+          <CampoLeitura rotulo="Cargo" valor={colaborador.cargo} />
+          <CampoLeitura rotulo="Departamento" valor={colaborador.departamentoNome} />
+          <CampoLeitura rotulo="Data de admissão" valor={formatDataBR(colaborador.dataAdmissao)} />
+          {camposSomenteLeitura}
+        </div>
+      )}
+    </SecaoFicha>
   );
 };
 

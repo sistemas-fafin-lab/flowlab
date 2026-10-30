@@ -32,6 +32,30 @@ export interface AtualizarCadastroInput {
   departamentoId?: string | null;
 }
 
+// ─── Dados pessoais (rh-ficha-colaborador) ─────────────────────────────────────
+
+export type Nacionalidade = 'brasileira' | 'brasileira_naturalizada' | 'estrangeira';
+export type UF =
+  | 'AC' | 'AL' | 'AP' | 'AM' | 'BA' | 'CE' | 'DF' | 'ES' | 'GO' | 'MA' | 'MT' | 'MS' | 'MG' | 'PA'
+  | 'PB' | 'PR' | 'PE' | 'PI' | 'RJ' | 'RN' | 'RS' | 'RO' | 'RR' | 'SC' | 'SP' | 'SE' | 'TO';
+export type CorRaca = 'branca' | 'preta' | 'parda' | 'amarela' | 'indigena' | 'nao_declarar';
+export type Genero = 'masculino' | 'feminino' | 'nao_declarar';
+export type EstadoCivil = 'solteiro' | 'casado' | 'uniao_estavel' | 'divorciado' | 'separado' | 'viuvo';
+
+/** Uma linha de `colaborador_dados_pessoais` (1:1 com colaboradores). Todos os campos são opcionais. */
+export interface DadosPessoais {
+  nacionalidade: Nacionalidade | null;
+  ufNascimento: UF | null;
+  cidadeNascimento: string | null;
+  corRaca: CorRaca | null;
+  genero: Genero | null;
+  estadoCivil: EstadoCivil | null;
+  /** "YYYY-MM-DD" */
+  dataNascimento: string | null;
+  nomeMae: string | null;
+  nomePai: string | null;
+}
+
 // ─── Departamentos ─────────────────────────────────────────────────────────────
 
 export interface Departamento {

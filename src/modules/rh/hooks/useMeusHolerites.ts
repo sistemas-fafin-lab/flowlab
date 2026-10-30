@@ -8,6 +8,8 @@ export interface MeuHolerite {
   /** "YYYY-MM-DD" */
   competencia: string;
   arquivoPath: string;
+  /** Quando o RH enviou (created_at). */
+  disponibilizadoEm: string;
 }
 
 interface UseMeusHoleritesResult {
@@ -17,7 +19,7 @@ interface UseMeusHoleritesResult {
   temColaboradorVinculado: boolean;
   holerites: MeuHolerite[];
   refetch: () => Promise<void>;
-  baixar: (arquivoPath: string) => Promise<string | null>;
+  baixar: (arquivoPath: string, download?: boolean) => Promise<string | null>;
 }
 
 /** Autoatendimento (issue 05) — lista só os próprios holerites, via RLS (colaboradores.user_profile_id = auth.uid()). */
@@ -49,13 +51,18 @@ export function useMeusHolerites(): UseMeusHoleritesResult {
 
       const { data, error: erroHolerites } = await supabase
         .from('colaborador_holerites')
-        .select('id, competencia, arquivo_path')
+        .select('id, competencia, arquivo_path, created_at')
         .eq('colaborador_id', colaborador.id)
         .order('competencia', { ascending: false });
       if (erroHolerites) throw erroHolerites;
 
       setHolerites(
-        (data ?? []).map((row) => ({ id: row.id, competencia: row.competencia, arquivoPath: row.arquivo_path })),
+        (data ?? []).map((row) => ({
+          id: row.id,
+          competencia: row.competencia,
+          arquivoPath: row.arquivo_path,
+          disponibilizadoEm: row.created_at,
+        })),
       );
     } catch (err) {
       console.error('Erro ao carregar meus holerites:', err);

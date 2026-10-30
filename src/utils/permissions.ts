@@ -100,7 +100,11 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   { key: 'canManageBoard', label: 'Gerenciar Board do Próprio Cargo', group: 'Board' },
   { key: 'canManageAllBoards', label: 'Gerenciar Todos os Boards', group: 'Board' },
   // ── RH ──────────────────────────────────────────────────────────────────────
+  // canViewColaboradores é somente leitura da ficha; escrever (cadastro, dados
+  // pessoais, vínculo de usuário, gestor) pede canManageColaboradores
+  // (openspec/changes/rh-ficha-colaborador).
   { key: 'canViewColaboradores', label: 'Visualizar Colaboradores', group: 'RH' },
+  { key: 'canManageColaboradores', label: 'Gerenciar Colaboradores', group: 'RH' },
   // canManageHolerites é separada de canViewColaboradores de propósito (issue 05):
   // RH pode querer restringir quem sobe/gerencia holerite independente de quem só
   // visualiza/edita o cadastro de colaboradores.

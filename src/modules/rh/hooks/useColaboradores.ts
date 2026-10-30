@@ -18,7 +18,6 @@ interface ColaboradorRow {
   created_at: string;
   updated_at: string;
   user_profiles: { name: string; email: string } | null;
-  gestor: { id: string; nome: string } | null;
   departamento_ref: { nome: string } | null;
 }
 
@@ -39,8 +38,22 @@ const mapColaborador = (row: ColaboradorRow): Colaborador => ({
   createdAt: row.created_at,
   updatedAt: row.updated_at,
   usuarioVinculado: row.user_profiles ? { nome: row.user_profiles.name, email: row.user_profiles.email } : null,
-  gestor: row.gestor ? { id: row.gestor.id, nome: row.gestor.nome } : null,
+  gestor: null,
 });
+
+/**
+ * Preenche `gestor` a partir da própria lista (gestor_id aponta para outro
+ * colaborador já carregado). O embed `colaboradores!gestor_id` do PostgREST
+ * resolvia a auto-referência no sentido inverso (devolvia os subordinados num
+ * array), e a ficha mostrava "Sem gestor" para quem tinha gestor.
+ */
+const resolverGestores = (colaboradores: Colaborador[]): Colaborador[] => {
+  const porId = new Map(colaboradores.map((c) => [c.id, c]));
+  return colaboradores.map((c) => {
+    const gestor = c.gestorId ? porId.get(c.gestorId) : undefined;
+    return { ...c, gestor: gestor ? { id: gestor.id, nome: gestor.nome } : null };
+  });
+};
 
 interface UseColaboradoresResult {
   colaboradores: Colaborador[];
@@ -72,15 +85,14 @@ export function useColaboradores(): UseColaboradoresResult {
     try {
       const { data, error: fetchError } = await supabase
         .from('colaboradores')
-        // PostgREST não resolve auto-referência (colaboradores -> colaboradores) pelo
-        // nome da constraint — só pelo nome da coluna da FK (gestor_id) como hint.
-        .select('*, user_profiles(name, email), gestor:colaboradores!gestor_id(id, nome), departamento_ref:departamentos!departamento_id(nome)')
+        // Gestor sai de resolverGestores (auto-referência), não de embed.
+        .select('*, user_profiles(name, email), departamento_ref:departamentos!departamento_id(nome)')
         .order('nome', { ascending: true });
 
       if (fetchError) throw fetchError;
       if (requestIdRef.current !== requestId) return;
 
-      setColaboradores((data as ColaboradorRow[] | null ?? []).map(mapColaborador));
+      setColaboradores(resolverGestores((data as ColaboradorRow[] | null ?? []).map(mapColaborador)));
     } catch (err) {
       if (requestIdRef.current !== requestId) return;
       console.error('Erro ao carregar colaboradores:', err);
@@ -166,7 +178,7 @@ export function useColaboradores(): UseColaboradoresResult {
       // Mensagens do trigger colaboradores_validar_departamento já vêm em português.
       if (erro) throw new Error(erro.message);
       // O RLS de colaboradores (canViewColaboradores) filtra o UPDATE sem erro: 0 linhas.
-      if (!data?.length) throw new Error('Sem permissão para editar este colaborador (Visualizar Colaboradores).');
+      if (!data?.length) throw new Error('Sem permissão para editar este colaborador (Gerenciar Colaboradores).');
       await fetchColaboradores();
       return null;
     } catch (err) {

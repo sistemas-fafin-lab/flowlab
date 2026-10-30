@@ -7,13 +7,26 @@ interface GestorSectionProps {
   colaborador: Colaborador;
   colaboradores: Colaborador[];
   onDefinirGestor: (colaboradorId: string, gestorId: string | null) => Promise<string | null>;
+  /** canManageColaboradores: sem ela não há "Alterar". */
+  podeEditar: boolean;
+  editando: boolean;
+  /** Outra seção da ficha está em edição. */
+  bloqueada: boolean;
+  onEditandoChange: (editando: boolean) => void;
 }
 
 // Sentinela para "sem gestor" — nunca colide com um uuid real.
 const SEM_GESTOR = '';
 
-const GestorSection: React.FC<GestorSectionProps> = ({ colaborador, colaboradores, onDefinirGestor }) => {
-  const [editando, setEditando] = useState(false);
+const GestorSection: React.FC<GestorSectionProps> = ({
+  colaborador,
+  colaboradores,
+  onDefinirGestor,
+  podeEditar,
+  editando,
+  bloqueada,
+  onEditandoChange,
+}) => {
   const [selecionado, setSelecionado] = useState<string>(colaborador.gestorId ?? SEM_GESTOR);
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -60,11 +73,11 @@ const GestorSection: React.FC<GestorSectionProps> = ({ colaborador, colaboradore
   const abrirEdicao = () => {
     setSelecionado(colaborador.gestorId ?? SEM_GESTOR);
     setErro(null);
-    setEditando(true);
+    onEditandoChange(true);
   };
 
   const cancelar = () => {
-    setEditando(false);
+    onEditandoChange(false);
     setErro(null);
   };
 
@@ -78,7 +91,7 @@ const GestorSection: React.FC<GestorSectionProps> = ({ colaborador, colaboradore
       setErro(resultado);
       return;
     }
-    setEditando(false);
+    onEditandoChange(false);
   };
 
   return (
@@ -95,14 +108,18 @@ const GestorSection: React.FC<GestorSectionProps> = ({ colaborador, colaboradore
               <span className="text-gray-400 dark:text-gray-500">Sem gestor definido</span>
             )}
           </div>
-          <button
-            type="button"
-            onClick={abrirEdicao}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition-colors"
-          >
-            <Pencil className="w-3.5 h-3.5" />
-            Alterar
-          </button>
+          {podeEditar && (
+            <button
+              type="button"
+              onClick={abrirEdicao}
+              disabled={bloqueada}
+              title={bloqueada ? 'Conclua a edição em andamento antes' : undefined}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              <Pencil className="w-3.5 h-3.5" />
+              Alterar
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-3">
@@ -115,6 +132,7 @@ const GestorSection: React.FC<GestorSectionProps> = ({ colaborador, colaboradore
             ariaLabel="Gestor do colaborador"
             disabled={salvando}
           />
+          <p className="text-xs text-gray-400 dark:text-gray-500">Colaboradores desligados e subordinados não aparecem na lista.</p>
 
           {erro && <p className="text-sm text-red-600 dark:text-red-400">{erro}</p>}
 
