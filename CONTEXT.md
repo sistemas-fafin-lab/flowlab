@@ -22,6 +22,18 @@ _Avoid_: fechamento do lote (é outra coisa: o lote fechado no apLIS)
 A NF emitida para um título e depois cancelada no portal da prefeitura, fora do apLIS, com motivo e data. Fica no histórico do título (`fat_nfs_canceladas`), e o título segue valendo com a NF que a substituiu.
 _Avoid_: título cancelado (é o título com status `cancelada`, que deixa de ser cobrado), nota cancelada
 
+**Calendário de envios**:
+A tela do Faturamento com os Agendamentos de envio do mês, os painéis Hoje/Amanhã e os atrasados, pelas regras de `.scratch/faturamento-calendario-envios/spec.md`.
+_Avoid_: agenda de faturamento, calendário do Google
+
+**Regra de envio**:
+A janela em que um convênio aceita o envio dos lotes (ex.: "1 ao 15", "1º ao 5º dia útil", "todos os dias"). Um convênio pode ter mais de uma janela. Não bloqueia nada; só orienta a sugestão e os avisos.
+_Avoid_: regra de prazo (é a do recurso de glosa), data de faturamento
+
+**Agendamento de envio**:
+Um convênio numa data prevista do Calendário de envios, pendente ou enviado (com a data do envio e quem marcou); atrasado quando a data passou, fora do prazo quando a janela da Regra de envio acabou.
+_Avoid_: envio (é o lote enviado no apLIS), tarefa
+
 ### Atendimento
 
 **Gerador de Orçamento**:

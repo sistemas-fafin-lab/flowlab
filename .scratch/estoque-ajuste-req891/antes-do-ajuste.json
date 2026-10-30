@@ -1,0 +1,99 @@
+{
+  "products": [
+    {
+      "id": "b4650b8a-4f16-472d-a102-1c35fcc8ed1a",
+      "name": "Kit Gyno Prep Meio Líquido Caixa C/200un",
+      "quantity": 12,
+      "unit_price": 1130
+    },
+    {
+      "id": "7f24e562-6f57-460d-8fc0-12443d46f146",
+      "name": "Lamina Ponta Fosca Cx C/50un",
+      "quantity": 234,
+      "unit_price": 7.85
+    },
+    {
+      "id": "62ed42c8-b76b-4ff1-b591-8d093a14a22e",
+      "name": "Especulo Tamanho M Caixa C/180 un Kolplast",
+      "quantity": 6,
+      "unit_price": 399.6
+    },
+    {
+      "id": "9d2173cc-3786-4ab1-94d2-4bd45a468890",
+      "name": "Frasco Convencional P/ Lâmina ",
+      "quantity": 1,
+      "unit_price": 0.5
+    },
+    {
+      "id": "1667f63b-a7b1-49e4-b89d-f21a9a8e8985",
+      "name": "Bloco De Citologia",
+      "quantity": 19,
+      "unit_price": 17.6
+    }
+  ],
+  "product_stock": [
+    {
+      "product_id": "9d2173cc-3786-4ab1-94d2-4bd45a468890",
+      "location_id": "3e8bf93a-2e62-4ad9-93de-39898b561391",
+      "quantity": 1,
+      "updated_at": "2026-10-27T11:56:30.948737+00:00",
+      "min_stock": 0
+    },
+    {
+      "product_id": "b4650b8a-4f16-472d-a102-1c35fcc8ed1a",
+      "location_id": "3e8bf93a-2e62-4ad9-93de-39898b561391",
+      "quantity": 12,
+      "updated_at": "2026-10-27T11:56:31.609892+00:00",
+      "min_stock": 0
+    },
+    {
+      "product_id": "7f24e562-6f57-460d-8fc0-12443d46f146",
+      "location_id": "bf40a2df-96d6-4239-91e2-22de2788cac3",
+      "quantity": 195,
+      "updated_at": "2026-10-27T11:56:30.167707+00:00",
+      "min_stock": 0
+    },
+    {
+      "product_id": "b4650b8a-4f16-472d-a102-1c35fcc8ed1a",
+      "location_id": "6568fcae-22a5-4dcc-b436-f5af330a680b",
+      "quantity": 0,
+      "updated_at": "2026-10-16T18:06:54.210887+00:00",
+      "min_stock": 0
+    },
+    {
+      "product_id": "7f24e562-6f57-460d-8fc0-12443d46f146",
+      "location_id": "3e8bf93a-2e62-4ad9-93de-39898b561391",
+      "quantity": 39,
+      "updated_at": "2026-10-27T11:56:30.167707+00:00",
+      "min_stock": 0
+    },
+    {
+      "product_id": "62ed42c8-b76b-4ff1-b591-8d093a14a22e",
+      "location_id": "6568fcae-22a5-4dcc-b436-f5af330a680b",
+      "quantity": 0,
+      "updated_at": "2026-07-21T12:21:43.644641+00:00",
+      "min_stock": 0
+    },
+    {
+      "product_id": "9d2173cc-3786-4ab1-94d2-4bd45a468890",
+      "location_id": "6568fcae-22a5-4dcc-b436-f5af330a680b",
+      "quantity": 0,
+      "updated_at": "2026-08-13T11:37:34.544887+00:00",
+      "min_stock": 0
+    },
+    {
+      "product_id": "1667f63b-a7b1-49e4-b89d-f21a9a8e8985",
+      "location_id": "3e8bf93a-2e62-4ad9-93de-39898b561391",
+      "quantity": 19,
+      "updated_at": "2026-10-27T11:56:34.172417+00:00",
+      "min_stock": 0
+    },
+    {
+      "product_id": "62ed42c8-b76b-4ff1-b591-8d093a14a22e",
+      "location_id": "3e8bf93a-2e62-4ad9-93de-39898b561391",
+      "quantity": 6,
+      "updated_at": "2026-10-27T11:56:32.735425+00:00",
+      "min_stock": 0
+    }
+  ]
+}

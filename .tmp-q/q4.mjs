@@ -1,0 +1,11 @@
+import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
+const env = Object.fromEntries(fs.readFileSync('.env.prod.local','utf8').split('\n').filter(l=>l.includes('=')&&!l.startsWith('#')).map(l=>{const i=l.indexOf('=');return [l.slice(0,i).trim(), l.slice(i+1).trim().replace(/^["']|["']$/g,'')]}));
+const sb = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY);
+const { data } = await sb.from('requests').select('id,type,status,department,requested_by,request_date,received_by').in('id',['REQ891','REQ884','REQ879']);
+for (const r of data) console.log(JSON.stringify(r));
+const { data: mv } = await sb.from('stock_movements').select('created_at,product_name,quantity,from_location_id,to_location_id,request_id').eq('type','transfer').not('request_id','is',null).order('created_at',{ascending:false}).limit(500);
+const same = mv.filter(m=>m.from_location_id===m.to_location_id);
+console.log('transfers de solicitação:', mv.length, '| origem == destino:', same.length);
+const byReq = {}; for (const m of same) (byReq[m.request_id] ??= []).push(`${m.product_name.trim()} x${m.quantity}`);
+for (const [k,v] of Object.entries(byReq)) console.log(k, v.join('; '));

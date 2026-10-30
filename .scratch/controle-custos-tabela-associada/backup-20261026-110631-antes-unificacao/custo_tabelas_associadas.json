@@ -1,0 +1,785 @@
+[
+ {
+  "id": "000db389-4631-4a7f-9208-abe7386cdd18",
+  "fonte_pagadora": "BRB SAÚDE",
+  "nome": "BRB",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "003320a8-2ed9-4fa0-8c8c-59e878d58238",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "CAMED",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "03a9b31a-9e7d-4cc5-9d6d-94eb474c2671",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "SERPRO - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "0a701f6d-5186-46cd-b4c4-7e67aec8016f",
+  "fonte_pagadora": "GEAP Autogestão em Saúde",
+  "nome": "GEAP - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "0bd42f97-380e-4e63-b59f-bbf0a3fc77c7",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "CONAB",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "0c5f7daf-2f9f-4ab1-b883-7a3b288182d0",
+  "fonte_pagadora": "SAUDE CAIXA",
+  "nome": "SAÚDE CAIXA - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "0d157ea5-2b7b-4944-adbd-66b6a3d3ffac",
+  "fonte_pagadora": "MATER CLINICA",
+  "nome": "PARTICULAR",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "0f330e91-7e8b-4786-a9c5-5ed6ec3a9c2e",
+  "fonte_pagadora": "Particular",
+  "nome": "Particular",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "137cfc6f-e77f-485e-94e2-6eb4e3358c9f",
+  "fonte_pagadora": "SUL AMERICA COMPANHIA DE SEGURO SAÚDE",
+  "nome": "SULAMERICA",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "14a748da-1208-4191-8890-35311b9543a1",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "PETROBRAS PETRÓLEO",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "15030d2a-1ee2-4632-a749-73bb238ca5d7",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "UNAFISCO-SINDIFISCO",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "158f5447-a20b-42fa-bf99-bd6a8dde5ebb",
+  "fonte_pagadora": "Particular",
+  "nome": "part",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "1b157221-3577-4500-9578-3b717b72d78a",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "EMBRATEL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "1bf85d21-d058-4a68-8a6d-af6b0dc55aa5",
+  "fonte_pagadora": "PMDF",
+  "nome": "Particular",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "1c1bcd0f-ca6f-4b0e-8a1f-b09fe5a361cb",
+  "fonte_pagadora": "CBMDF",
+  "nome": "CBMDF",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "1d84833f-c41d-41ec-8abe-28712d5cee5d",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "TRF-PRO SOCIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "1f51afcc-0122-49f2-9fd8-866b31551b82",
+  "fonte_pagadora": "ASSEFAZ",
+  "nome": "ASSEFAZ",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "1faaf7ee-bc4b-4885-ae5b-62d988d84c5a",
+  "fonte_pagadora": "Particular",
+  "nome": "PARTICULAR",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "218914d2-eadd-4a24-a928-bb86dee86c2d",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "STF",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "2576eff1-6499-40e9-a413-d91494d85c9e",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "LIFE EMPRESARIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "27d59c29-ffa6-4048-8009-cd8ac59172d3",
+  "fonte_pagadora": "FASCAL",
+  "nome": "FASCAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "2a03f63a-3ab2-492c-96bc-8f9fcd996181",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "BACEN",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "2c3655c0-40f0-4e41-8616-313cb3f29989",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "SERPRO",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "2da1b47a-40c3-4dd3-aa4e-0b6681744d2d",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "PROASA - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "350f1d6c-ba47-48e4-8ff1-828e80d6d709",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "PROASA",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "35ecaf2a-6595-48fd-93a0-c8f99a54bb54",
+  "fonte_pagadora": "POLÍCIA FEDERAL",
+  "nome": "POLICIA FEDERAL - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "39be5875-034d-42e6-a11b-6383e800c753",
+  "fonte_pagadora": "GEAP Autogestão em Saúde",
+  "nome": "GEAP",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "3d82ceee-f13d-4c36-a043-fa5166442420",
+  "fonte_pagadora": "POSTAL SAÚDE",
+  "nome": "POSTAL SAUDE - MEDICINA LABOATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "3e1cafb8-3e6e-42b6-8123-9c102ed65b81",
+  "fonte_pagadora": "PMDF",
+  "nome": "PMDF - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "40e024bc-3ce9-485e-8257-c1dcd2ccc7d3",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "BACEN - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "421ce8f2-174d-42fd-b692-a8dd165b8b03",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "AFFEGO - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "4285c8ad-97ac-4941-863f-5c5b849d040c",
+  "fonte_pagadora": "PMDF",
+  "nome": "PMDF",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "46bc8050-9293-46f7-a0a9-1504c63becd3",
+  "fonte_pagadora": "NEXUS",
+  "nome": "NEXUS",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "49bf3565-5d93-4f6c-bff5-0ff80861a203",
+  "fonte_pagadora": "TJDFT",
+  "nome": "TJDFT-PRO SAUDE - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "54259338-0ac8-465d-8300-9c9adc47bd73",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "FAPES",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "5e535c8b-4b38-4957-8b41-780aaceb74d6",
+  "fonte_pagadora": "SELECT",
+  "nome": "SELECT",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "5f7abf36-0be1-48e8-9cb7-7e02aa8ee29e",
+  "fonte_pagadora": "SIS SENADO",
+  "nome": "SIS SENADO",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "5f879c26-6a8b-49cf-a804-8946432c6a1c",
+  "fonte_pagadora": "CASSI",
+  "nome": "CASSI",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "5fb9ed41-64cd-4972-91cf-5b3f392790c0",
+  "fonte_pagadora": "Particular",
+  "nome": "PART",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "66a8fa92-55bb-4579-a5bd-0822a893345f",
+  "fonte_pagadora": "TJDFT",
+  "nome": "TJDFT-PRO SAUDE",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "68b03908-364f-4191-94f9-16de7090f24a",
+  "fonte_pagadora": "090 SULAMERICA",
+  "nome": "SULAMERICA-090",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "6a0a2a26-b1e8-43d3-a1b2-1f6cd092b88c",
+  "fonte_pagadora": "INAS GDF",
+  "nome": "GDF SAUDE  - Medicina Laboratorial",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "6b46c6da-2fb4-4919-b61a-0e9b4be77627",
+  "fonte_pagadora": "ABAC",
+  "nome": "ABAC",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "6d39e182-e544-4323-86c7-5ff71b685110",
+  "fonte_pagadora": "AMPLA SAÚDE",
+  "nome": "Ampla Saúde - Medicina Laboratorial",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "6d4ed68f-07b7-4667-9578-b1bed08d345e",
+  "fonte_pagadora": "TRT",
+  "nome": "TRT SAUDE",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "737ba7db-55a2-4d5a-8e21-74cffd655481",
+  "fonte_pagadora": "FUSEX",
+  "nome": "FUSEX",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "7a202549-e8ce-4be0-a102-fea7c2101e57",
+  "fonte_pagadora": "POLÍCIA FEDERAL",
+  "nome": "PF SAÚDE",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "7b08e553-fe7e-491d-8023-d0c168373490",
+  "fonte_pagadora": "CLINICA GINORTE",
+  "nome": "PARTICULAR",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "7c888761-19c8-4414-a613-c99552475130",
+  "fonte_pagadora": "TRT",
+  "nome": "TRT SAUDE - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "84a09910-694a-41ec-ba38-0ef13a6097c5",
+  "fonte_pagadora": "TST",
+  "nome": "TST SAUDE - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "8d1d20ee-020c-4eb5-b803-bb9fa939b3d5",
+  "fonte_pagadora": "SAUDE CAIXA",
+  "nome": "SCAIXA-01",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "8fdf2cc2-5e51-41e4-8bb0-620cd72c907e",
+  "fonte_pagadora": "STJ",
+  "nome": "STJ-PRO SER",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "939dfaa7-5d6b-4992-89f3-c97bf3e42d94",
+  "fonte_pagadora": "BRADESCO SAUDE S/A 421715",
+  "nome": "BRADESCO",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "9760a32f-507e-4c8f-aca2-40860ffaf708",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "REAL GRANDEZA",
+  "vencimento": "2026-10-16",
+  "ativa": true,
+  "created_at": "2026-10-23T13:02:40.701102+00:00",
+  "updated_at": "2026-10-23T13:02:40.701102+00:00"
+ },
+ {
+  "id": "97d17e40-02bb-4dff-aacd-31907ee2ee39",
+  "fonte_pagadora": "CÂMARA DOS DEPUTADOS",
+  "nome": "CÂMARA DOS DEPUTADOS",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "9c6cd839-2394-4f75-bde8-5efdaabdacac",
+  "fonte_pagadora": "AMPLA SAÚDE",
+  "nome": "Ampla Saúde",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "a279cddc-9022-49c6-8c43-1d4f2c42ad92",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "NOTRE DAME",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "ab1f9a04-e824-42a7-9133-6ed942562f0f",
+  "fonte_pagadora": "TST",
+  "nome": "TST SAUDE",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "ae933018-1c66-4c25-8ec6-165eb7eed1f2",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "NOTRE DAME - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "b0028552-b691-47ed-b784-7715c4801f0d",
+  "fonte_pagadora": "STF",
+  "nome": "STF",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "b0f1654c-f2af-4360-9485-2bc36fa6c454",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "CODEVASF-CASEC",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "b1e80c0c-6c20-4293-be87-d17bee8b7960",
+  "fonte_pagadora": "Medigest Centro de Medicina Digestiva",
+  "nome": "PARTICULAR",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "b2e35151-6570-48d1-bca3-b8bcf21b6c18",
+  "fonte_pagadora": "CASSI-PER",
+  "nome": "CASSI-PER",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "b3dd1a6a-ea16-4346-9fc7-71b6cb441b7c",
+  "fonte_pagadora": "Medigest Centro de Medicina Digestiva",
+  "nome": "SAÚDE CAIXA",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "b60396aa-d0ae-48e6-91b8-0b85d93b329b",
+  "fonte_pagadora": "INAS GDF",
+  "nome": "GDF-SAÚDE",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "bb766503-01fd-465c-ae87-21b2ab0c2d09",
+  "fonte_pagadora": "E-VIDA",
+  "nome": "E-VIDA",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "bcad3a20-60dc-4a54-a357-715a4b8412c5",
+  "fonte_pagadora": "POSTAL SAÚDE",
+  "nome": "POSTAL SAUDE",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "be6a12e9-e276-4d93-96d3-2184f1ffe504",
+  "fonte_pagadora": "FASCAL",
+  "nome": "FASCAL - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "c013e490-0344-4523-b0d1-7f8b39c9fe61",
+  "fonte_pagadora": "STF",
+  "nome": "STF - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "c2d3c970-01c7-46e4-b680-2125743334be",
+  "fonte_pagadora": "LAB PLANASSISTE",
+  "nome": "MPF-PLANASSISTE",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "c57301f5-04a0-4d70-94c0-d79e79790f87",
+  "fonte_pagadora": "CENTRO DE DIAGNOSTICO POR IMAGEM DO GAMA LTDA - ME",
+  "nome": "PARTICULAR",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "caeb9724-352e-4a6e-a38f-98d069a87dcc",
+  "fonte_pagadora": "BRADESCO SAUDE  - 005711",
+  "nome": "BRADESCO",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "cbfeca96-4cde-4beb-a04f-f4b1c52b1493",
+  "fonte_pagadora": "Medigest Centro de Medicina Digestiva",
+  "nome": "ASSEFAZ",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "ce972cce-3dfc-4ecb-9987-dc7a7437d738",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "STM-PLAS/JMU",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "d0221cf7-d190-4d35-8d55-cb9d94246b1d",
+  "fonte_pagadora": "AMIL",
+  "nome": "AMIL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "d54265bd-3d3b-43ea-91f1-6f09718a2df0",
+  "fonte_pagadora": "ASSEFAZ",
+  "nome": "ASSEFAZ - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "d7304a0e-b9ee-4d4e-a590-770ce5c96356",
+  "fonte_pagadora": "LAB PLANASSISTE",
+  "nome": "MPF - Medicina Laboratorial",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "dd6ac192-aed5-4d4c-9224-f1a5fa2c9a1b",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "OMINT",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "e114115d-7adc-4c98-b6ed-4a98c64e2b4f",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "CARE PLUS",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "e17865d6-21e6-4325-96ad-9198245ed741",
+  "fonte_pagadora": "TRE-SAÚDE",
+  "nome": "TRE SAÚDE",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "e25fa224-50bc-420a-b3ca-77116f85123b",
+  "fonte_pagadora": "STJ",
+  "nome": "STJ-PRO SER-MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "e4211841-a94b-45c8-b4c1-60e647d171cf",
+  "fonte_pagadora": "Particular",
+  "nome": "",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "eaeebe29-867a-4c2b-9bda-325e8b2ab4fe",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "AFFEGO",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "f70ea598-66a1-4611-8dd4-54b83e80cbe4",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "CARE PLUS - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "f88dc9ba-f709-45bb-a9ed-9f5517715e42",
+  "fonte_pagadora": "AMHP-DF",
+  "nome": "CASEMBRAPA",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "f8fcf6dc-cbef-4cef-8440-273424e76124",
+  "fonte_pagadora": "SIS SENADO",
+  "nome": "SIS SENADO - MEDICINA LABORATORIAL",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ },
+ {
+  "id": "fc98b7d1-0f06-4419-b8a5-5e11ca7b34c4",
+  "fonte_pagadora": "CÂMARA DOS DEPUTADOS",
+  "nome": "CÂMARA DOS DEPUTADOS - Medicina Laboratorial",
+  "vencimento": null,
+  "ativa": true,
+  "created_at": "2026-10-22T15:41:06.206112+00:00",
+  "updated_at": "2026-10-22T15:41:06.206112+00:00"
+ }
+]

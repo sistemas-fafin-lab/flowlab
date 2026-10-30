@@ -1,0 +1,67 @@
+[
+ {
+  "payor_id": "30cf5b95-c121-493d-aaf6-1bbabecd1316",
+  "exame_id": "4dc6cf38-4731-4dd6-b739-3559f5b1314d",
+  "created_at": "2026-10-14T12:57:45.69518+00:00"
+ },
+ {
+  "payor_id": "30cf5b95-c121-493d-aaf6-1bbabecd1316",
+  "exame_id": "9ef49c1d-4384-47d6-9c43-5ac47ac72255",
+  "created_at": "2026-10-14T13:04:41.530805+00:00"
+ },
+ {
+  "payor_id": "4ea4489d-5ec1-4bab-96fb-1195f9116057",
+  "exame_id": "9823eaff-be4d-4a97-8e70-4f43006aa884",
+  "created_at": "2026-09-14T17:18:22.214304+00:00"
+ },
+ {
+  "payor_id": "81873817-22f5-4274-a792-51a0defb3ff2",
+  "exame_id": "f8ddce53-d8a8-42df-a2a6-587339f1cb99",
+  "created_at": "2026-10-01T19:18:14.336551+00:00"
+ },
+ {
+  "payor_id": "afa569e8-49dd-4bad-bf60-92743ab844a1",
+  "exame_id": "9e2d99c0-2d5c-4976-9c59-d911e73a9219",
+  "created_at": "2026-09-22T14:10:11.743105+00:00"
+ },
+ {
+  "payor_id": "c1ba6c9e-45ec-41d6-84c5-d6dc934bd700",
+  "exame_id": "56dcb00e-0ee0-4648-a64e-c2388dab2298",
+  "created_at": "2026-10-01T15:26:23.205335+00:00"
+ },
+ {
+  "payor_id": "c1ba6c9e-45ec-41d6-84c5-d6dc934bd700",
+  "exame_id": "f8ddce53-d8a8-42df-a2a6-587339f1cb99",
+  "created_at": "2026-10-01T15:28:35.571377+00:00"
+ },
+ {
+  "payor_id": "c398f885-8d25-4971-a922-2cee8d8728cc",
+  "exame_id": "8f314556-1dc9-4b32-b5d7-52547fe57fd9",
+  "created_at": "2026-09-14T17:14:53.667921+00:00"
+ },
+ {
+  "payor_id": "cffa1967-4fc8-4bdf-af87-182de09c51f4",
+  "exame_id": "00eddc8a-9efd-45fc-9044-6e83d26755d1",
+  "created_at": "2026-09-14T17:18:50.56031+00:00"
+ },
+ {
+  "payor_id": "db7da788-1c3c-4024-bfa3-f4e29061884f",
+  "exame_id": "2b0c5dac-9611-4295-9686-06fa9567c20e",
+  "created_at": "2026-09-14T17:18:32.062552+00:00"
+ },
+ {
+  "payor_id": "e147a0e2-ed34-48d0-90d2-acbe2e9fed92",
+  "exame_id": "c0ade7e2-f18a-474c-a17f-afae2cb1031f",
+  "created_at": "2026-09-15T20:17:15.788223+00:00"
+ },
+ {
+  "payor_id": "e473193a-1665-48fe-8a24-1371d7df3cf5",
+  "exame_id": "139e904a-77c4-47f0-9b48-2541bf64fe26",
+  "created_at": "2026-09-14T17:17:18.832251+00:00"
+ },
+ {
+  "payor_id": "e473193a-1665-48fe-8a24-1371d7df3cf5",
+  "exame_id": "a4b54d37-b1ce-4820-9b5d-c5f5222ead24",
+  "created_at": "2026-09-14T17:17:28.024555+00:00"
+ }
+]
