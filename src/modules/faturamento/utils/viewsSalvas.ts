@@ -6,6 +6,7 @@
 // cada linha antes de devolvê-la, então nenhum consumidor recebe filtro com
 // campo faltando ou valor fora do union.
 
+import { STLOT_LABELS } from '../types';
 import type {
   DashboardReceberFiltros,
   FiltroGlosaTitulo,
@@ -73,6 +74,11 @@ function filtroGlosaOu(valor: unknown, fallback: FiltroGlosaTitulo): FiltroGlosa
     : fallback;
 }
 
+/** Código STLOT do catálogo; qualquer outra coisa vira "sem recorte". */
+function statusLoteOu(valor: unknown): number | '' {
+  return typeof valor === 'number' && valor in STLOT_LABELS ? valor : '';
+}
+
 function statusGlosaOu(
   valor: unknown,
   fallback: GlosasViewFiltros['status'],
@@ -123,6 +129,8 @@ export function sanitizarFiltrosTitulos(
     glosa: filtroGlosaOu(obj.glosa, ''),
     // Mesma regra do `glosa`: view sem o campo é anterior ao filtro.
     divergenteAplis: boolOu(obj.divergenteAplis, false),
+    // Mesma regra do `glosa`: view sem o campo é anterior ao filtro.
+    statusLote: statusLoteOu(obj.statusLote),
   };
 }
 

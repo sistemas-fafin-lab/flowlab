@@ -81,6 +81,12 @@ export const STLOT_LABELS: Record<number, string> = {
   6: 'Exportado TOTVS',
   7: 'Recebido - parcial',
   8: 'Prejuízo',
+  9: 'Glosado',
+  10: 'Devolvido',
+  11: 'Cobrado',
+  12: 'NFe Emitida',
+  13: 'Aguardando Laudo',
+  14: 'Aguardando Data para Envio',
 };
 
 export interface LoteFaturamento {
@@ -745,6 +751,11 @@ export interface TitulosFiltros {
    *  null = a conferência ainda não chegou ou falhou: a lista fica vazia em vez
    *  de mostrar títulos que talvez não divirjam. */
   idsDivergentesAplis?: string[] | null;
+  /** Filtro "Status do lote (apLIS)": código STLOT; vazio = sem recorte. */
+  statusLote?: number | '';
+  /** Ids no apLIS dos lotes no `statusLote`, lidos da rota titulos-lotes-status-aplis.
+   *  null = ainda não chegou ou falhou: a lista fica vazia, como em `idsDivergentesAplis`. */
+  idsLotesStatusAplis?: number[] | null;
   pagina?: number;
   tamanho?: number;
 }
@@ -768,6 +779,7 @@ export interface TitulosViewFiltros {
   somentePendentes: boolean;
   glosa: FiltroGlosaTitulo;
   divergenteAplis: boolean;
+  statusLote: number | '';
 }
 
 /** Glosa lançada junto de uma baixa, no formato que `fat_registrar_baixa` espera

@@ -208,6 +208,10 @@ const SELECT_TITULO = `id_nota, numero_nota, operadora_id, data_emissao, data_ve
   operadoras(nome),
   nota_lote(lotes(id_lote, aplis_id, codigo_lote, status, data_envio, protocolo, valor_total, qtd_requisicoes, responsavel_fechamento))`;
 
+// Vínculo extra com os lotes, só para o filtro "Status do lote (apLIS)".
+const ALIAS_STATUS_LOTE = 'filtro_status_lote';
+const EMBED_STATUS_LOTE = `${ALIAS_STATUS_LOTE}:nota_lote!inner(lotes!inner(aplis_id))`;
+
 const num = (bruto: number | string | null | undefined): number => {
   const n = Number(bruto ?? 0);
   return Number.isFinite(n) ? n : 0;
@@ -340,7 +344,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
   const {
     desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
-    divergenteAplis, idsDivergentesAplis, pagina, tamanho,
+    divergenteAplis, idsDivergentesAplis, statusLote, idsLotesStatusAplis, pagina, tamanho,
   } = filtros;
 
   // Descarta respostas de buscas antigas: trocar de página/filtro rápido pode
@@ -360,7 +364,9 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     // Filtro "Divergente do apLIS" sem divergente a mostrar (ou sem a
     // conferência, que a tela avisa à parte): nem vai ao banco — `in.()`
     // vazio e "ignorar o filtro" seriam as duas respostas erradas.
-    if (divergenteAplis && (!idsDivergentesAplis || idsDivergentesAplis.length === 0)) {
+    // O mesmo para o filtro "Status do lote (apLIS)".
+    const semLotesNoStatus = Boolean(statusLote) && (!idsLotesStatusAplis || idsLotesStatusAplis.length === 0);
+    if ((divergenteAplis && (!idsDivergentesAplis || idsDivergentesAplis.length === 0)) || semLotesNoStatus) {
       setTitulos([]);
       setTotal(0);
       setTotais(TOTAIS_ZERADOS);
@@ -432,11 +438,13 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         ? operadoras.filter((o) => o.isClinicaParceira).map((o) => o.id)
         : [];
 
+      const filtrarStatusLote = Boolean(statusLote);
+
       /** `notas` com todos os filtros da tela, sem ordem nem paginação. */
       const filtrada = (colunas: string, opcoes?: { count: 'exact' }) => {
         let query = supabase
           .from('notas')
-          .select(`${colunas}${glosa ? ', glosas(id_glosa)' : ''}`, opcoes)
+          .select(`${colunas}${glosa ? ', glosas(id_glosa)' : ''}${filtrarStatusLote ? `, ${EMBED_STATUS_LOTE}` : ''}`, opcoes)
           // Referência do período é a EMISSÃO (revisão de 2026-09-24 sobre a
           // issue 40, que tinha escolhido vencimento): filtrar por vencimento
           // fazia um título emitido em agosto sumir do período de agosto. A
@@ -455,6 +463,13 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         // Os ids vêm da conferência (rota própria, MySQL do apLIS) — recorte no
         // servidor para contagem e paginação continuarem certas.
         if (divergenteAplis && idsDivergentesAplis) query = query.in('id_nota', idsDivergentesAplis);
+        // Filtro "Status do lote (apLIS)": um segundo vínculo com os lotes, com
+        // apelido e `!inner`, só para o recorte — o `nota_lote` do select segue
+        // trazendo todos os lotes do título. Ids do apLIS (curtos), não ids de
+        // título: no pior caso são centenas e a URL do GET continua pequena.
+        if (filtrarStatusLote && idsLotesStatusAplis) {
+          query = query.in(`${ALIAS_STATUS_LOTE}.lotes.aplis_id`, idsLotesStatusAplis.map(String));
+        }
         // Filtro "Glosa": o embed `glosas(id_glosa)` só entra no select quando o
         // filtro está ativo, e o recorte é feito no servidor (is null / not is null
         // sobre o embed), então contagem e paginação continuam certas.
@@ -556,7 +571,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
     }
   }, [
     desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
-    divergenteAplis, idsDivergentesAplis, pagina, tamanho, operadoras,
+    divergenteAplis, idsDivergentesAplis, statusLote, idsLotesStatusAplis, pagina, tamanho, operadoras,
   ]);
 
   useEffect(() => {

@@ -42,6 +42,7 @@ import {
 import type { TotaisTitulos } from '../hooks/useContasReceber';
 import { sanitizarFiltrosTitulos } from '../utils/viewsSalvas';
 import { STATUS_CORES, STATUS_ROTULOS } from '../utils/tituloStatus';
+import { STLOT_LABELS } from '../types';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { ViewsSalvasMenu } from './ViewsSalvasMenu';
 import Select from '../../../components/Select';
@@ -51,6 +52,12 @@ import TituloPainelLateral from './TituloPainelLateral';
 
 // Lista de títulos a receber. O olho de cada linha abre os detalhes (baixas,
 // glosas, alterações, lotes → guias) no painel lateral, TituloPainelLateral.
+
+// Status do LOTE no apLIS (tabela STLOT), não o do título.
+const STATUS_LOTE_OPCOES = [
+  { value: '', label: 'Todos' },
+  ...Object.entries(STLOT_LABELS).map(([codigo, rotulo]) => ({ value: codigo, label: rotulo })),
+];
 
 const STATUS_OPCOES = [
   { value: '', label: 'Todos' },
@@ -97,6 +104,8 @@ interface Props {
   divergencias: Map<string, DivergenciaAplis> | null;
   /** Falha da conferência: aviso discreto, a lista segue normal. */
   erroConferencia: string | null;
+  /** Falha ao ler o status dos lotes no apLIS, com o filtro "Status do lote" ligado. */
+  erroStatusLote: string | null;
   podeEditar: boolean;
   filtros: {
     desde: string;
@@ -113,6 +122,8 @@ interface Props {
     glosa: FiltroGlosaTitulo;
     /** Só os títulos que divergem do apLIS (ids da conferência). */
     divergenteAplis: boolean;
+    /** Só os títulos com algum lote neste status STLOT no apLIS; vazio = todos. */
+    statusLote: number | '';
     pagina: number;
     tamanho: number;
   };
@@ -242,6 +253,7 @@ const TitulosList: React.FC<Props> = ({
   nfsCanceladasSemTitulo,
   divergencias,
   erroConferencia,
+  erroStatusLote,
   podeEditar,
   filtros,
   onFiltrar,
@@ -281,7 +293,7 @@ const TitulosList: React.FC<Props> = ({
     setIdAberto(null);
   }, [
     filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, filtros.busca, filtros.ocultarParceiras,
-    filtros.somentePendentes, filtros.glosa, filtros.divergenteAplis, filtros.pagina, filtros.tamanho,
+    filtros.somentePendentes, filtros.glosa, filtros.divergenteAplis, filtros.statusLote, filtros.pagina, filtros.tamanho,
   ]);
 
   // ...ou quando o título sai da lista depois de um refetch.
@@ -324,10 +336,12 @@ const TitulosList: React.FC<Props> = ({
       somentePendentes: filtros.somentePendentes,
       glosa: filtros.glosa,
       divergenteAplis: filtros.divergenteAplis,
+      statusLote: filtros.statusLote,
     }),
     [
       filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca,
       filtros.ocultarParceiras, filtros.somentePendentes, filtros.glosa, filtros.divergenteAplis,
+      filtros.statusLote,
     ],
   );
 
@@ -391,6 +405,18 @@ const TitulosList: React.FC<Props> = ({
               // atalho "Somente pendentes" pra não conflitarem (issue 38).
               onChange={(v) => onFiltrar({ status: v as TituloStatus | '', somentePendentes: false, pagina: 1 })}
               options={STATUS_OPCOES}
+              controlClass={CAMPO}
+            />
+          </label>
+          <label
+            className="text-xs text-gray-500 dark:text-gray-400"
+            title="Títulos com algum lote neste status no apLIS (dados até ontem)"
+          >
+            Status do lote (apLIS)
+            <Select
+              value={filtros.statusLote === '' ? '' : String(filtros.statusLote)}
+              onChange={(v) => onFiltrar({ statusLote: v ? Number(v) : '', pagina: 1 })}
+              options={STATUS_LOTE_OPCOES}
               controlClass={CAMPO}
             />
           </label>
@@ -596,6 +622,11 @@ const TitulosList: React.FC<Props> = ({
       {/* ── Tabela ───────────────────────────────────────────────────────── */}
       {loading ? (
         <div className="flex justify-center py-16"><LoadingSpinner /></div>
+      ) : titulos.length === 0 && filtros.statusLote !== '' && erroStatusLote ? (
+        <div className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
+          Não foi possível consultar o status dos lotes no apLIS ({erroStatusLote}).
+          Escolha "Todos" em "Status do lote (apLIS)" para ver a lista ou tente "Atualizar".
+        </div>
       ) : titulos.length === 0 && filtros.divergenteAplis && erroConferencia ? (
         // Vazia por falta da conferência, não por falta de título: ampliar o
         // período (a dica de baixo) não resolveria.
@@ -609,7 +640,8 @@ const TitulosList: React.FC<Props> = ({
           {filtros.status
             ? ` com status "${STATUS_ROTULOS[filtros.status]}"`
             : filtros.somentePendentes && ' com o atalho "Somente pendentes" ativado'}
-          {filtros.divergenteAplis && ' divergente do apLIS'}.
+          {filtros.divergenteAplis && ' divergente do apLIS'}
+          {filtros.statusLote !== '' && ` com lote "${STLOT_LABELS[filtros.statusLote]}" no apLIS`}.
           {' '}Amplie o período de emissão acima — trocar o Status não muda
           a lista se o período já não cobrir nenhum título.
           {podeEditar && ' Use "Novo título" para agrupar lotes do apLIS numa cobrança.'}

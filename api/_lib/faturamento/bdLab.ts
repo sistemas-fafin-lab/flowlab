@@ -56,7 +56,8 @@ export const MAX_LOTES_TITULO = 50;
 export const MAX_BUSCA = 100;
 
 // Tabela de código STLOT ("Status de Lote") do apLIS, lida de tabelacodigoitem.
-// `fatlote.Status` guarda só o número.
+// `fatlote.Status` guarda só o número. Os códigos 9 a 14 foram criados no apLIS
+// em outubro de 2026 (conferido em 30/10/2026); a lista precisa acompanhar a tabela.
 export const STLOT_LABELS: Record<number, string> = {
   1: 'Em Processamento',
   2: 'Conciliação',
@@ -66,6 +67,12 @@ export const STLOT_LABELS: Record<number, string> = {
   6: 'Exportado TOTVS',
   7: 'Recebido - parcial',
   8: 'Prejuízo',
+  9: 'Glosado',
+  10: 'Devolvido',
+  11: 'Cobrado',
+  12: 'NFe Emitida',
+  13: 'Aguardando Laudo',
+  14: 'Aguardando Data para Envio',
 };
 
 export interface LoteFaturamento {
@@ -1077,6 +1084,34 @@ export async function recebidosDosLotes(idsLote: number[]): Promise<RecebidosDos
       }
     }
     return { porLote, dadoAte: await dadoAte(conn, 'requisicao', 'DtaSolicitacao') };
+  });
+}
+
+export type LotesNoStatusResultado =
+  | { idsLote: number[]; dadoAte: string | null }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Dos lotes informados, os que estão hoje no status STLOT pedido — filtro
+ * "Status do lote (apLIS)" da aba Títulos. Lote que não existe no MySQL fica de
+ * fora. Blocos de 1.000 lotes, como `recebidosDosLotes`. Sem cache.
+ */
+export async function lotesNoStatus(idsLote: number[], status: number): Promise<LotesNoStatusResultado> {
+  const ids = [...new Set(idsLote.map((n) => Math.trunc(n)))];
+  if (ids.length === 0) return { idsLote: [], dadoAte: null };
+
+  return comConexao('lotesNoStatus', async (conn) => {
+    const encontrados: number[] = [];
+    for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
+      const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
+      const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT IdLote FROM fatlote
+          WHERE Status = ? AND IdLote IN (${bloco.map(() => '?').join(', ')})`,
+        [status, ...bloco],
+      );
+      for (const linha of linhas) encontrados.push(numero(linha.IdLote));
+    }
+    return { idsLote: encontrados, dadoAte: await dadoAte(conn, 'requisicao', 'DtaSolicitacao') };
   });
 }
 

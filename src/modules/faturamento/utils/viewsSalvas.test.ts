@@ -24,6 +24,7 @@ const BASE_TITULOS: TitulosViewFiltros = {
   somentePendentes: true,
   glosa: '',
   divergenteAplis: false,
+  statusLote: '',
 };
 
 describe('sanitizarFiltrosPainel', () => {
@@ -103,6 +104,7 @@ describe('sanitizarFiltrosTitulos', () => {
       somentePendentes: false,
       glosa: 'sem',
       divergenteAplis: true,
+      statusLote: 14,
     };
     expect(sanitizarFiltrosTitulos(view, BASE_TITULOS)).toEqual(view);
   });
@@ -115,6 +117,13 @@ describe('sanitizarFiltrosTitulos', () => {
     expect(
       sanitizarFiltrosTitulos({ desde: '2025-07-01' }, { ...BASE_TITULOS, ocultarParceiras: true }),
     ).toEqual({ ...BASE_TITULOS, desde: '2025-07-01', ocultarParceiras: true });
+  });
+
+  it('statusLote fora do catálogo STLOT, ou de view antiga sem o campo, fica sem recorte', () => {
+    expect(sanitizarFiltrosTitulos({ statusLote: 99 }, BASE_TITULOS)).toEqual(BASE_TITULOS);
+    expect(sanitizarFiltrosTitulos({ statusLote: '14' }, BASE_TITULOS)).toEqual(BASE_TITULOS);
+    expect(sanitizarFiltrosTitulos({}, { ...BASE_TITULOS, statusLote: 4 })).toEqual(BASE_TITULOS);
+    expect(sanitizarFiltrosTitulos({ statusLote: 12 }, BASE_TITULOS)).toEqual({ ...BASE_TITULOS, statusLote: 12 });
   });
 
   it('ocultarParceiras fora do tipo boolean cai na base', () => {

@@ -80,3 +80,37 @@ export async function titulosParaConferir(supabase: SupabaseClient): Promise<Tit
   }
   return titulos;
 }
+
+/**
+ * Ids no apLIS dos lotes dos títulos emitidos no período (`desde`/`ate`,
+ * YYYY-MM-DD, inclusivos) — o universo do filtro "Status do lote (apLIS)" da
+ * aba Títulos. Lote sem `aplis_id` (criado fora do apLIS) fica de fora.
+ */
+export async function lotesAplisDosTitulos(
+  supabase: SupabaseClient,
+  desde: string,
+  ate: string,
+): Promise<number[]> {
+  const ids = new Set<number>();
+  for (let offset = 0; ; offset += PAGINA_NOTAS) {
+    const { data, error } = await supabase
+      .from('notas')
+      .select('id_nota, nota_lote(lotes(aplis_id))')
+      .gte('data_emissao', desde)
+      .lte('data_emissao', ate)
+      .order('id_nota', { ascending: true })
+      .range(offset, offset + PAGINA_NOTAS - 1);
+    if (error) throw new ErroSupabase(`notas: ${error.message}`);
+    const pagina = (data ?? []) as unknown as {
+      nota_lote: { lotes: { aplis_id: string | null } | null }[] | null;
+    }[];
+    for (const nota of pagina) {
+      for (const { lotes } of nota.nota_lote ?? []) {
+        const id = Number(lotes?.aplis_id ?? NaN);
+        if (Number.isInteger(id) && id > 0) ids.add(id);
+      }
+    }
+    if (pagina.length < PAGINA_NOTAS) break;
+  }
+  return [...ids];
+}
