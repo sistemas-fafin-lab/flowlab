@@ -56,6 +56,33 @@ export interface DadosPessoais {
   nomePai: string | null;
 }
 
+// ─── Documentos assinados (rh-documentos-assinados) ───────────────────────────
+
+export type TipoDocumento =
+  | 'contrato_trabalho'
+  | 'termo_confidencialidade_lgpd'
+  | 'acordo_compensacao_horas'
+  | 'termo_responsabilidade_equipamentos'
+  | 'adesao_plano_odontologico'
+  | 'autorizacao_uso_imagem'
+  | 'aditivo_contratual'
+  | 'termo_rescisao'
+  | 'outro';
+
+/** Uma linha de `colaborador_documentos`: PDF já assinado, enviado pelo RH. */
+export interface DocumentoAssinado {
+  id: string;
+  colaboradorId: string;
+  tipo: TipoDocumento;
+  /** Nome livre, só quando `tipo = 'outro'`. */
+  nomeOutro: string | null;
+  /** "YYYY-MM-DD" */
+  dataAssinatura: string;
+  arquivoPath: string;
+  nomeArquivo: string;
+  createdAt: string;
+}
+
 // ─── Departamentos ─────────────────────────────────────────────────────────────
 
 export interface Departamento {

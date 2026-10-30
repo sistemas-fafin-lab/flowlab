@@ -8,6 +8,7 @@ import DadosPessoaisSection from './sections/DadosPessoaisSection';
 import VinculoUsuarioSection from './sections/VinculoUsuarioSection';
 import GestorSection from './sections/GestorSection';
 import RecibosPagamentoLista from './recibos/RecibosPagamentoLista';
+import DocumentosAssinadosCard from './documentos/DocumentosAssinadosCard';
 import { useRecibosColaborador } from '../hooks/useRecibosColaborador';
 import type { AtualizarCadastroInput, Colaborador, Departamento } from '../types';
 
@@ -18,7 +19,7 @@ interface ColaboradorDetalheModalProps {
   /** canManageColaboradores: sem ela a ficha é só leitura. */
   podeGerenciar: boolean;
   podeMudarDepartamento: boolean;
-  /** canManageHolerites ou canViewAllHolerites: mostra a aba Documentos. */
+  /** canManageHolerites ou canViewAllHolerites: mostra os recibos na aba Documentos. */
   podeVerRecibos: boolean;
   onClose: () => void;
   atualizarCadastro: (id: string, dados: AtualizarCadastroInput) => Promise<string | null>;
@@ -61,7 +62,7 @@ const RecibosAba: React.FC<{ colaboradorId: string }> = ({ colaboradorId }) => {
 /**
  * Ficha do colaborador (protótipo: modal variação A + card variação B).
  * Coluna esquerda com o card de resumo; direita com as abas Dados pessoais
- * (quatro seções empilhadas) e Documentos (recibos).
+ * (quatro seções empilhadas) e Documentos (documentos assinados e recibos).
  */
 const ColaboradorDetalheModal: React.FC<ColaboradorDetalheModalProps> = ({
   colaborador,
@@ -104,7 +105,7 @@ const ColaboradorDetalheModal: React.FC<ColaboradorDetalheModalProps> = ({
 
   const abas: { id: Aba; label: string }[] = [
     { id: 'dados', label: 'Dados pessoais' },
-    ...(podeVerRecibos ? [{ id: 'documentos' as const, label: 'Documentos' }] : []),
+    { id: 'documentos', label: 'Documentos' },
   ];
 
   // Portal no body: algum ancestral do layout tem transform (animação de
@@ -149,29 +150,27 @@ const ColaboradorDetalheModal: React.FC<ColaboradorDetalheModalProps> = ({
           </aside>
 
           <div className="flex flex-col md:overflow-y-auto">
-            {abas.length > 1 && (
-              <div className="px-4 sm:px-6 pt-4">
-                <div className="inline-flex p-1 rounded-xl bg-gray-100 dark:bg-slate-800" role="tablist">
-                  {abas.map((a) => (
-                    <button
-                      key={a.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={aba === a.id}
-                      onClick={() => setAba(a.id)}
-                      disabled={emEdicao && aba !== a.id}
-                      className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-                        aba === a.id
-                          ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
-                          : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
-                      }`}
-                    >
-                      {a.label}
-                    </button>
-                  ))}
-                </div>
+            <div className="px-4 sm:px-6 pt-4">
+              <div className="inline-flex p-1 rounded-xl bg-gray-100 dark:bg-slate-800" role="tablist">
+                {abas.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={aba === a.id}
+                    onClick={() => setAba(a.id)}
+                    disabled={emEdicao && aba !== a.id}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      aba === a.id
+                        ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    {a.label}
+                  </button>
+                ))}
               </div>
-            )}
+            </div>
 
             <div className="p-4 sm:p-6">
               {aba === 'dados' ? (
@@ -201,7 +200,15 @@ const ColaboradorDetalheModal: React.FC<ColaboradorDetalheModalProps> = ({
                   />
                 </div>
               ) : (
-                <RecibosAba colaboradorId={colaborador.id} />
+                <div className="space-y-8 divide-y divide-gray-100 dark:divide-slate-700/50 [&>*:not(:first-child)]:pt-8">
+                  <DocumentosAssinadosCard
+                    colaboradorId={colaborador.id}
+                    colaboradorNome={colaborador.nome}
+                    visao="rh"
+                    podeGerenciar={podeGerenciar}
+                  />
+                  {podeVerRecibos && <RecibosAba colaboradorId={colaborador.id} />}
+                </div>
               )}
             </div>
           </div>

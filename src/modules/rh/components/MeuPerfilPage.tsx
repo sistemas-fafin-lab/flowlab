@@ -4,6 +4,7 @@ import { Lock, UserX, X } from 'lucide-react';
 import ColaboradorResumoCard from './ColaboradorResumoCard';
 import DadosPessoaisSection from './sections/DadosPessoaisSection';
 import RecibosPagamentoLista from './recibos/RecibosPagamentoLista';
+import DocumentosAssinadosCard from './documentos/DocumentosAssinadosCard';
 import { useMeuColaborador } from '../hooks/useMeuColaborador';
 import { useRecibosColaborador } from '../hooks/useRecibosColaborador';
 import type { Colaborador } from '../types';
@@ -51,8 +52,8 @@ const TodosRecibosModal: React.FC<{ onClose: () => void; children: React.ReactNo
   );
 };
 
-const DocumentosAba: React.FC<{ colaboradorId: string }> = ({ colaboradorId }) => {
-  const { recibos, loading, error, refetch, gerarLink } = useRecibosColaborador(colaboradorId);
+const DocumentosAba: React.FC<{ colaborador: Colaborador }> = ({ colaborador }) => {
+  const { recibos, loading, error, refetch, gerarLink } = useRecibosColaborador(colaborador.id);
   const [verTodos, setVerTodos] = useState(false);
   const recentes = useMemo(
     () => [...recibos].sort((a, b) => b.competencia.localeCompare(a.competencia)).slice(0, RECIBOS_NO_RESUMO),
@@ -61,6 +62,13 @@ const DocumentosAba: React.FC<{ colaboradorId: string }> = ({ colaboradorId }) =
 
   return (
     <div className="space-y-4">
+      <DocumentosAssinadosCard
+        colaboradorId={colaborador.id}
+        colaboradorNome={colaborador.nome}
+        visao="colaborador"
+        className={`${cardClass} p-4 sm:p-5`}
+      />
+
       <section className={`${cardClass} p-4 sm:p-5`}>
         <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">Recibos de pagamento</h3>
         {loading ? (
@@ -142,14 +150,14 @@ const PerfilConteudo: React.FC<{ colaborador: Colaborador }> = ({ colaborador })
             />
           </div>
         ) : (
-          <DocumentosAba colaboradorId={colaborador.id} />
+          <DocumentosAba colaborador={colaborador} />
         )}
       </div>
     </div>
   );
 };
 
-/** Meu perfil (rh-meu-perfil): autoatendimento do colaborador — card, dados pessoais (leitura) e recibos. */
+/** Meu perfil (rh-meu-perfil): autoatendimento do colaborador — card, dados pessoais (leitura), documentos assinados e recibos. */
 const MeuPerfilPage: React.FC = () => {
   const { colaborador, loading, error, semVinculo, refetch } = useMeuColaborador();
 
