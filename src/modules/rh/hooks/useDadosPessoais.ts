@@ -36,6 +36,8 @@ interface UseDadosPessoaisResult {
   error: string | null;
   /** Upsert em colaborador_dados_pessoais (RLS: canManageColaboradores). Retorna mensagem de erro, ou null se ok. */
   salvar: (dados: DadosPessoais) => Promise<string | null>;
+  /** Recarrega do banco (ex.: depois que o RH aprova uma solicitação de alteração). */
+  refetch: () => Promise<void>;
 }
 
 export function useDadosPessoais(colaboradorId: string): UseDadosPessoaisResult {
@@ -100,5 +102,5 @@ export function useDadosPessoais(colaboradorId: string): UseDadosPessoaisResult 
     }
   }, [colaboradorId]);
 
-  return { dados, loading, error, salvar };
+  return { dados, loading, error, salvar, refetch: carregar };
 }

@@ -7,6 +7,7 @@ import RecibosPagamentoLista from './recibos/RecibosPagamentoLista';
 import DocumentosAssinadosCard from './documentos/DocumentosAssinadosCard';
 import { useMeuColaborador } from '../hooks/useMeuColaborador';
 import { useRecibosColaborador } from '../hooks/useRecibosColaborador';
+import { useSolicitacaoAlteracao } from '../hooks/useSolicitacaoAlteracao';
 import type { Colaborador } from '../types';
 
 type Aba = 'dados' | 'documentos';
@@ -110,6 +111,8 @@ const DocumentosAba: React.FC<{ colaborador: Colaborador }> = ({ colaborador }) 
 
 const PerfilConteudo: React.FC<{ colaborador: Colaborador }> = ({ colaborador }) => {
   const [aba, setAba] = useState<Aba>('dados');
+  const [editando, setEditando] = useState(false);
+  const solicitacao = useSolicitacaoAlteracao(colaborador.id);
   const abas: { id: Aba; label: string }[] = [
     { id: 'dados', label: 'Dados pessoais' },
     { id: 'documentos', label: 'Documentos' },
@@ -128,13 +131,17 @@ const PerfilConteudo: React.FC<{ colaborador: Colaborador }> = ({ colaborador })
               role="tab"
               aria-selected={aba === a.id}
               onClick={() => setAba(a.id)}
-              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              disabled={editando && aba !== a.id}
+              className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
                 aba === a.id
                   ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
                   : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
               }`}
             >
               {a.label}
+              {a.id === 'dados' && solicitacao.pendente && (
+                <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-amber-500 align-middle" aria-label="Alteração em análise" />
+              )}
             </button>
           ))}
         </div>
@@ -143,10 +150,12 @@ const PerfilConteudo: React.FC<{ colaborador: Colaborador }> = ({ colaborador })
           <div className={`${cardClass} p-4 sm:p-6`}>
             <DadosPessoaisSection
               colaborador={colaborador}
-              podeEditar={false}
-              editando={false}
+              modo="colaborador"
+              podeEditar
+              editando={editando}
               bloqueada={false}
-              onEditandoChange={() => undefined}
+              onEditandoChange={setEditando}
+              solicitacao={solicitacao}
             />
           </div>
         ) : (

@@ -10,6 +10,7 @@ import GestorSection from './sections/GestorSection';
 import RecibosPagamentoLista from './recibos/RecibosPagamentoLista';
 import DocumentosAssinadosCard from './documentos/DocumentosAssinadosCard';
 import { useRecibosColaborador } from '../hooks/useRecibosColaborador';
+import { useSolicitacaoAlteracao } from '../hooks/useSolicitacaoAlteracao';
 import type { AtualizarCadastroInput, Colaborador, Departamento } from '../types';
 
 interface ColaboradorDetalheModalProps {
@@ -80,6 +81,7 @@ const ColaboradorDetalheModal: React.FC<ColaboradorDetalheModalProps> = ({
   const [aba, setAba] = useState<Aba>('dados');
   const [secaoEmEdicao, setSecaoEmEdicao] = useState<SecaoEditavel | null>(null);
   const emEdicao = secaoEmEdicao !== null;
+  const solicitacao = useSolicitacaoAlteracao(colaborador.id);
 
   // ESC e clique fora não fecham com edição em andamento: o usuário cancela antes.
   useEffect(() => {
@@ -167,6 +169,9 @@ const ColaboradorDetalheModal: React.FC<ColaboradorDetalheModalProps> = ({
                     }`}
                   >
                     {a.label}
+                    {a.id === 'dados' && solicitacao.pendente && (
+                      <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-amber-500 align-middle" aria-label="Solicitação de alteração pendente" />
+                    )}
                   </button>
                 ))}
               </div>
@@ -183,7 +188,12 @@ const ColaboradorDetalheModal: React.FC<ColaboradorDetalheModalProps> = ({
                     onSalvar={atualizarCadastro}
                     {...controleEdicao('cadastrais')}
                   />
-                  <DadosPessoaisSection colaborador={colaborador} podeEditar={podeGerenciar} {...controleEdicao('pessoais')} />
+                  <DadosPessoaisSection
+                    colaborador={colaborador}
+                    podeEditar={podeGerenciar}
+                    solicitacao={solicitacao}
+                    {...controleEdicao('pessoais')}
+                  />
                   <VinculoUsuarioSection
                     colaborador={colaborador}
                     onVincular={vincularUsuario}

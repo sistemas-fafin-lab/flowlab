@@ -14,6 +14,20 @@ interface SecaoFichaProps {
   onEditar: () => void;
   onCancelar: () => void;
   onSalvar: () => void;
+  /** Dica do Editar desabilitado (padrão: outra seção em edição). */
+  dicaBloqueio?: string;
+  /** Texto abaixo do título durante a edição. */
+  subtituloEdicao?: string;
+  /** Rótulos do botão de salvar (padrão: "Salvar alterações" / "Salvando..."). */
+  rotuloSalvar?: string;
+  rotuloSalvando?: string;
+  salvarDesabilitado?: boolean;
+  /** Texto à esquerda do rodapé de edição (ex.: contagem de campos alterados). */
+  infoRodape?: React.ReactNode;
+  /** Rodapé fixo no fim da área rolável durante a edição. */
+  rodapeFixo?: boolean;
+  /** Ação ao lado da mensagem de erro (ex.: "Tentar novamente"). */
+  acaoErro?: React.ReactNode;
   children: React.ReactNode;
 }
 
@@ -29,10 +43,18 @@ const SecaoFicha: React.FC<SecaoFichaProps> = ({
   onEditar,
   onCancelar,
   onSalvar,
+  dicaBloqueio = 'Conclua a edição em andamento antes',
+  subtituloEdicao,
+  rotuloSalvar = 'Salvar alterações',
+  rotuloSalvando = 'Salvando...',
+  salvarDesabilitado = false,
+  infoRodape,
+  rodapeFixo = false,
+  acaoErro,
   children,
 }) => (
   <section className={editando ? 'rounded-2xl ring-2 ring-blue-500/40 p-4 -m-4' : undefined}>
-    <div className="flex items-center justify-between gap-3 mb-3">
+    <div className={`flex items-center justify-between gap-3 ${editando && subtituloEdicao ? 'mb-1' : 'mb-3'}`}>
       <div className="flex items-center gap-2">
         <h3 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">{titulo}</h3>
         {editando && (
@@ -46,7 +68,7 @@ const SecaoFicha: React.FC<SecaoFichaProps> = ({
           type="button"
           onClick={onEditar}
           disabled={bloqueada}
-          title={bloqueada ? 'Conclua a edição em andamento antes' : undefined}
+          title={bloqueada ? dicaBloqueio : undefined}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           <Pencil className="w-3.5 h-3.5" />
@@ -54,14 +76,25 @@ const SecaoFicha: React.FC<SecaoFichaProps> = ({
         </button>
       )}
     </div>
+    {editando && subtituloEdicao && <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">{subtituloEdicao}</p>}
 
     {children}
 
-    {erro && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{erro}</p>}
+    {erro && (
+      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-red-600 dark:text-red-400">
+        <span>{erro}</span>
+        {acaoErro}
+      </div>
+    )}
     {sucesso && !erro && !editando && <p className="mt-3 text-sm text-emerald-600 dark:text-emerald-400">{sucesso}</p>}
 
     {editando && (
-      <div className="mt-4 flex justify-end gap-2">
+      <div
+        className={`mt-4 flex items-center justify-end gap-2 ${
+          rodapeFixo ? 'sticky bottom-0 -mx-4 -mb-4 px-4 py-3 rounded-b-2xl bg-white/95 dark:bg-gray-800/95 backdrop-blur border-t border-gray-100 dark:border-gray-700' : ''
+        }`}
+      >
+        {infoRodape && <span className="mr-auto text-xs text-gray-500 dark:text-gray-400">{infoRodape}</span>}
         <button
           type="button"
           onClick={onCancelar}
@@ -74,11 +107,11 @@ const SecaoFicha: React.FC<SecaoFichaProps> = ({
         <button
           type="button"
           onClick={onSalvar}
-          disabled={salvando}
+          disabled={salvando || salvarDesabilitado}
           className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
         >
           {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-          {salvando ? 'Salvando...' : 'Salvar alterações'}
+          {salvando ? rotuloSalvando : rotuloSalvar}
         </button>
       </div>
     )}
@@ -100,10 +133,12 @@ interface CampoLeituraProps {
   /** Campo que nunca é editável na ficha (nome, CPF, e-mail). */
   bloqueado?: boolean;
   dica?: string;
+  /** Conteúdo extra abaixo do valor (ex.: "Em análise: ..."). */
+  rodape?: React.ReactNode;
 }
 
 /** Valor em modo leitura; vazio vira "—". */
-export const CampoLeitura: React.FC<CampoLeituraProps> = ({ rotulo, valor, bloqueado, dica }) => (
+export const CampoLeitura: React.FC<CampoLeituraProps> = ({ rotulo, valor, bloqueado, dica, rodape }) => (
   <div>
     <div className={`${labelClassName} flex items-center gap-1`}>
       {rotulo}
@@ -117,5 +152,6 @@ export const CampoLeitura: React.FC<CampoLeituraProps> = ({ rotulo, valor, bloqu
       {valor === null || valor === undefined || valor === '' ? <span className="font-normal text-gray-400 dark:text-gray-500">—</span> : valor}
     </div>
     {dica && <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">{dica}</p>}
+    {rodape}
   </div>
 );
