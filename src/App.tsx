@@ -50,7 +50,7 @@ import {
   CorrelacaoRiscosOcorrenciasPage,
 } from './modules/qualidade';
 import { BoardPage } from './modules/board';
-import { ColaboradoresPage, DepartamentosPage, HoleritesPage } from './modules/rh';
+import { ColaboradoresPage, DepartamentosPage, HoleritesPage, MeuPerfilPage } from './modules/rh';
 import { FinopsDashboardPage, DespesasPage, MesAMesPage, OrcamentoPage } from './modules/gastos-ti';
 import { GeradorOrcamentoPage, GERADOR_ORCAMENTO_PATH } from './modules/gerador-orcamento';
 import { EvaHomePage, EvaSugestoesPage, EvaReunioesPage, EvaMembrosPage, EvaPermissoesPage, EvaConfiguracoesPage } from './modules/eva';
@@ -511,10 +511,18 @@ const AuthenticatedApp: React.FC = () => {
             </ProtectedRoute>
           }
         />
-        {/* Sem ProtectedRoute de propósito (issue 05): visível a todo usuário
-            autenticado — o conteúdo (gestão vs. autoatendimento) é decidido
-            dentro do próprio componente, conforme canManageHolerites. */}
-        <Route path="/rh/holerites" element={<HoleritesPage />} />
+        {/* Gestão/consulta de holerites; o autoatendimento do colaborador fica
+            em /meu-perfil (rh-meu-perfil). */}
+        <Route
+          path="/rh/holerites"
+          element={
+            <ProtectedRoute anyOf={['canManageHolerites', 'canViewAllHolerites', 'canViewHoleritesEquipe']} permissions={userPermissions}>
+              <HoleritesPage />
+            </ProtectedRoute>
+          }
+        />
+        {/* Meu perfil: qualquer usuário autenticado (o conteúdo é o próprio colaborador). */}
+        <Route path="/meu-perfil" element={<MeuPerfilPage />} />
         {/* Atendimento */}
         <Route
           path={GERADOR_ORCAMENTO_PATH}

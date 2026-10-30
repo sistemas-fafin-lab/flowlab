@@ -1,7 +1,7 @@
 // src/modules/rh/holeritesStorage.ts
 // Ponto único do nome do bucket privado de holerites e do helper de signed URL
-// — usado tanto pela listagem RH (useHoleritesEnviados) quanto pelo
-// autoatendimento (useMeusHolerites) e pelo upload (EnviarHoleritesSection),
+// — usado tanto pela listagem RH (useHoleritesEnviados) quanto pelos
+// recibos da ficha e do Meu perfil (useRecibosColaborador) e pelo upload (EnviarHoleritesSection),
 // pra não espalhar a mesma string mágica em três arquivos.
 
 import { supabase } from '../../lib/supabase';

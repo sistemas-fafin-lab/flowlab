@@ -19,6 +19,8 @@ interface RecibosPagamentoListaProps {
   visao: 'rh' | 'colaborador';
   /** Signed URL do arquivo; `download` força o download. */
   gerarLink: (arquivoPath: string, download?: boolean) => Promise<string | null>;
+  /** Sem busca e filtro de ano (resumo dos mais recentes no Meu perfil). */
+  semFiltros?: boolean;
 }
 
 const TEXTOS = {
@@ -36,7 +38,7 @@ const controlClass =
   'px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-sm text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500/30';
 
 /** Recibos de pagamento agrupados por ano, com busca por mês/ano e filtro de ano. */
-const RecibosPagamentoLista: React.FC<RecibosPagamentoListaProps> = ({ recibos, visao, gerarLink }) => {
+const RecibosPagamentoLista: React.FC<RecibosPagamentoListaProps> = ({ recibos, visao, gerarLink, semFiltros = false }) => {
   const [busca, setBusca] = useState('');
   const [ano, setAno] = useState<number | null>(null);
   const [abrindo, setAbrindo] = useState<string | null>(null);
@@ -75,6 +77,7 @@ const RecibosPagamentoLista: React.FC<RecibosPagamentoListaProps> = ({ recibos, 
 
   return (
     <div className="space-y-4">
+      {!semFiltros && (
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -99,6 +102,7 @@ const RecibosPagamentoLista: React.FC<RecibosPagamentoListaProps> = ({ recibos, 
           ))}
         </select>
       </div>
+      )}
 
       {erroLink && <p className="text-sm text-red-600 dark:text-red-400">{erroLink}</p>}
 

@@ -717,23 +717,19 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       },
       {
         name: 'RH',
-        // href aponta para /rh/holerites (não /rh/colaboradores): é a única
-        // sub-aba acessível a TODO usuário autenticado (issue 05) — clicar no
-        // rótulo do item pai não pode cair numa tela de "Acesso Negado" para
-        // quem não tem canViewColaboradores. Sem permission/anyOf no item pai de
-        // propósito: canAccessItem() esconderia a aba inteira (Holerites
-        // incluso) para quem não tem nenhuma das duas permissions — o gate fica
-        // só nos subItems.
-        href: '/rh/holerites',
+        // Só para quem tem alguma chave de RH: o autoatendimento do colaborador
+        // (holerites) saiu daqui para o Meu perfil, no card do rodapé (rh-meu-perfil).
+        href: '/rh/colaboradores',
         icon: UserCog,
+        anyOf: [
+          'canViewColaboradores', 'canManageColaboradores', 'canManageDepartamentos',
+          'canManageHolerites', 'canViewAllHolerites', 'canViewHoleritesEquipe',
+        ],
         category: 'ADMINISTRAÇÃO',
         subItems: [
           { name: 'Colaboradores', href: '/rh/colaboradores', icon: UserCog, permission: 'canViewColaboradores' },
           { name: 'Departamentos', href: '/rh/departamentos', icon: Building2, permission: 'canManageDepartamentos' },
-          // Sem gate de permissão de propósito (issue 05): visível a todo usuário
-          // autenticado — o conteúdo da página muda conforme canManageHolerites
-          // (gestão vs. autoatendimento), não o acesso à aba.
-          { name: 'Holerites', href: '/rh/holerites', icon: FileText },
+          { name: 'Holerites', href: '/rh/holerites', icon: FileText, anyOf: ['canManageHolerites', 'canViewAllHolerites', 'canViewHoleritesEquipe'] },
         ],
       },
       {
@@ -1043,17 +1039,27 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Mobile User Footer */}
             <div className="border-t border-gray-200/80 dark:border-gray-700/80 p-3 bg-gradient-to-r from-gray-50 to-slate-50 dark:from-gray-800 dark:to-gray-800">
               <div className="flex items-center gap-3 p-2 rounded-xl">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/25">
-                  <Shield className="w-5 h-5 text-white" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
-                    {userProfile?.name || user?.email}
-                  </p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    {userProfile?.roleName || 'Sem cargo'}
-                  </p>
-                </div>
+                <Link
+                  to="/meu-perfil"
+                  onClick={() => setSidebarOpen(false)}
+                  title="Meu perfil"
+                  className={`flex items-center gap-3 flex-1 min-w-0 -m-1 p-1 rounded-xl transition-colors ${
+                    location.pathname === '/meu-perfil' ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-white dark:hover:bg-gray-700/60'
+                  }`}
+                >
+                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/25">
+                    <Shield className="w-5 h-5 text-white" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate">
+                      {userProfile?.name || user?.email}
+                    </p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {userProfile?.roleName || 'Sem cargo'}
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Meu perfil</p>
+                  </div>
+                </Link>
                 <button
                   onClick={handleSignOut}
                   className="p-2 rounded-xl text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all"
@@ -1141,10 +1147,16 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.15 }}
                 >
-                  <SidebarTooltip label={userProfile?.name || user?.email || 'Usuário'} show={true}>
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25">
+                  <SidebarTooltip label="Meu perfil" show={true}>
+                    <Link
+                      to="/meu-perfil"
+                      aria-label="Meu perfil"
+                      className={`w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center shadow-md shadow-blue-500/25 transition-shadow hover:ring-2 hover:ring-blue-400/60 ${
+                        location.pathname === '/meu-perfil' ? 'ring-2 ring-blue-400' : ''
+                      }`}
+                    >
                       <Shield className="w-5 h-5 text-white" />
-                    </div>
+                    </Link>
                   </SidebarTooltip>
                   <SidebarTooltip label="Notificações" show={true}>
                     <NotificationBell className="w-10 h-10" />
@@ -1172,20 +1184,29 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
                   transition={{ duration: 0.15 }}
                 >
                   <div className="flex items-center flex-wrap gap-2 lg:gap-1.5 xl:gap-2 p-2 lg:p-1.5 xl:p-2.5 rounded-xl bg-white dark:bg-gray-800 shadow-sm dark:shadow-gray-900/50">
-                    <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/25">
-                      <Shield className="w-5 h-5 text-white" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate" title={userProfile?.name || user?.email}>
-                        {userProfile?.name || user?.email}
-                      </p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {userProfile?.roleName || 'Sem cargo'}
-                      </p>
-                      {userProfile?.department && (
-                        <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">{userProfile.department}</p>
-                      )}
-                    </div>
+                    <Link
+                      to="/meu-perfil"
+                      title="Meu perfil"
+                      className={`flex items-center gap-2 lg:gap-1.5 xl:gap-2 flex-1 min-w-0 -m-1 p-1 rounded-xl transition-colors ${
+                        location.pathname === '/meu-perfil' ? 'bg-blue-50 dark:bg-blue-900/20' : 'hover:bg-gray-50 dark:hover:bg-gray-700/60'
+                      }`}
+                    >
+                      <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md shadow-blue-500/25">
+                        <Shield className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-100 truncate" title={userProfile?.name || user?.email}>
+                          {userProfile?.name || user?.email}
+                        </p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {userProfile?.roleName || 'Sem cargo'}
+                        </p>
+                        {userProfile?.department && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">{userProfile.department}</p>
+                        )}
+                        <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Meu perfil</p>
+                      </div>
+                    </Link>
                     <NotificationBell />
                     <button
                       onClick={handleSignOut}

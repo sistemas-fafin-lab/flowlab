@@ -8,7 +8,15 @@ interface ColaboradorResumoCardProps {
   colaborador: Colaborador;
   /** Classes extras do contêiner (ex.: sticky no Meu perfil). */
   className?: string;
+  /** Largura abaixo da qual o card começa recolhido: `md` (modal do RH) ou `min-[940px]` (Meu perfil). */
+  recolherAte?: 'md' | 'min-[940px]';
 }
+
+// Classes literais (o Tailwind não enxerga classes montadas por interpolação).
+const RECOLHIMENTO = {
+  md: { botao: 'md:hidden', corpo: 'md:block' },
+  'min-[940px]': { botao: 'min-[940px]:hidden', corpo: 'min-[940px]:block' },
+} as const;
 
 interface LinhaProps {
   icone: React.ReactNode;
@@ -33,9 +41,10 @@ const vazio = <span className="font-normal text-gray-400 dark:text-gray-500">—
  * centro de custo e sem atalho de holerite). Componente puro — usado na ficha
  * do RH e no Meu perfil.
  */
-const ColaboradorResumoCard: React.FC<ColaboradorResumoCardProps> = ({ colaborador, className = '' }) => {
+const ColaboradorResumoCard: React.FC<ColaboradorResumoCardProps> = ({ colaborador, className = '', recolherAte = 'md' }) => {
   // Em tela estreita o card começa recolhido (só cabeçalho).
   const [expandido, setExpandido] = useState(false);
+  const recolhimento = RECOLHIMENTO[recolherAte];
 
   return (
     <div className={`rounded-2xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm ${className}`}>
@@ -52,13 +61,13 @@ const ColaboradorResumoCard: React.FC<ColaboradorResumoCardProps> = ({ colaborad
           onClick={() => setExpandido((v) => !v)}
           aria-expanded={expandido}
           aria-label={expandido ? 'Ocultar resumo' : 'Ver resumo completo'}
-          className="md:hidden p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          className={`${recolhimento.botao} p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors`}
         >
           <ChevronDown className={`w-4 h-4 transition-transform ${expandido ? 'rotate-180' : ''}`} />
         </button>
       </div>
 
-      <div className={`${expandido ? 'block' : 'hidden'} md:block px-4 pb-3 border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/60`}>
+      <div className={`${expandido ? 'block' : 'hidden'} ${recolhimento.corpo} px-4 pb-3 border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700/60`}>
         <Linha icone={<Building2 className="w-4 h-4" />} rotulo="Departamento">
           {colaborador.departamentoNome || vazio}
         </Linha>
