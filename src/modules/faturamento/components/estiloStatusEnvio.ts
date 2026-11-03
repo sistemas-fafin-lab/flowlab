@@ -29,3 +29,9 @@ export const ESTILO_STATUS: Record<StatusAgendamento, { nome: string; chip: stri
     amostra: 'bg-red-100 border border-red-300 dark:bg-red-900/30 dark:border-red-800',
   },
 };
+
+/** Atividades (treinamento, reunião…): fora dos status, em violeta para não se confundir com envio. */
+export const ESTILO_ATIVIDADE = {
+  chip: 'bg-violet-50 text-violet-800 border border-dashed border-violet-300 dark:bg-violet-900/20 dark:text-violet-300 dark:border-violet-700',
+  amostra: 'bg-violet-50 border border-dashed border-violet-300 dark:bg-violet-900/20 dark:border-violet-700',
+};

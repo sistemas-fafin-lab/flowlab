@@ -39,6 +39,7 @@ const calendario = (parcial: Partial<CalendarioEnvios>): CalendarioEnvios => ({
   podeEnviarQualquerDia: [],
   feriados: [],
   agendamentos: [],
+  atividades: [],
   atrasados: [],
   sugestao: { mesSeguinte: '2026-11', liberada: true, mesSeguintePlanejado: true, sugeridosPendentesMesAtual: 0 },
   confirmacaoAplis: { naoPlanejados: [], aviso: null },
@@ -46,6 +47,18 @@ const calendario = (parcial: Partial<CalendarioEnvios>): CalendarioEnvios => ({
 });
 
 describe('organizarCalendario', () => {
+  it('agrupa as atividades por dia, na ordem do servidor', () => {
+    const atividade = (id: string, data: string, horario: string | null) => ({
+      id, data, titulo: id, horario, descricao: null, criadoPorNome: null, alteradoPorNome: null, alteradoEm: '2026-10-01T00:00:00Z',
+    });
+    const { atividadesPorDia } = organizarCalendario(calendario({
+      atividades: [atividade('t1', '2026-10-28', null), atividade('t2', '2026-10-28', '14:00'), atividade('t3', '2026-10-29', '09:00')],
+    }));
+
+    expect(atividadesPorDia.get('2026-10-28')?.map((a) => a.id)).toEqual(['t1', 't2']);
+    expect(atividadesPorDia.get('2026-10-29')?.map((a) => a.id)).toEqual(['t3']);
+  });
+
   it('agrupa os agendamentos por dia previsto, em ordem alfabética do convênio', () => {
     const { porDia } = organizarCalendario(calendario({
       regras: [regra('r1', 'Unimed'), regra('r2', 'Amil'), regra('r3', 'Bradesco')],

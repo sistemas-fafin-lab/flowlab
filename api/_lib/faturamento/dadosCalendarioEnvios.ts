@@ -57,6 +57,19 @@ export interface FeriadoEnvio {
   alteradoEm: string | null;
 }
 
+/** Atividade (treinamento, reunião…): lembrete num dia, sem status e fora da sugestão. */
+export interface AtividadeCalendario {
+  id: string;
+  data: string;
+  titulo: string;
+  /** 'HH:MM'; null é o dia todo. */
+  horario: string | null;
+  descricao: string | null;
+  criadoPorNome: string | null;
+  alteradoPorNome: string | null;
+  alteradoEm: string;
+}
+
 interface LinhaRegra {
   id: string;
   convenio: string;
@@ -98,6 +111,19 @@ const COLUNAS_REGRA =
 
 const COLUNAS_FERIADO = 'id, data, descricao, abrangencia, alterado_por_nome, alterado_em';
 
+const COLUNAS_ATIVIDADE = 'id, data, titulo, horario, descricao, criado_por_nome, alterado_por_nome, alterado_em';
+
+interface LinhaAtividade {
+  id: string;
+  data: string;
+  titulo: string;
+  horario: string | null;
+  descricao: string | null;
+  criado_por_nome: string | null;
+  alterado_por_nome: string | null;
+  alterado_em: string;
+}
+
 const COLUNAS_AGENDAMENTO =
   'id, regra_id, data_prevista, janela_indice, origem, editado, data_envio, marcado_por_nome, marcado_em, lote_aplis_confirmado';
 
@@ -125,6 +151,20 @@ function paraFeriado(linha: LinhaFeriado): FeriadoEnvio {
     data: linha.data,
     descricao: linha.descricao,
     abrangencia: linha.abrangencia,
+    alteradoPorNome: linha.alterado_por_nome,
+    alteradoEm: linha.alterado_em,
+  };
+}
+
+function paraAtividade(linha: LinhaAtividade): AtividadeCalendario {
+  return {
+    id: linha.id,
+    data: linha.data,
+    titulo: linha.titulo,
+    // O Postgres devolve TIME como 'HH:MM:SS'.
+    horario: linha.horario ? linha.horario.slice(0, 5) : null,
+    descricao: linha.descricao,
+    criadoPorNome: linha.criado_por_nome,
     alteradoPorNome: linha.alterado_por_nome,
     alteradoEm: linha.alterado_em,
   };
@@ -191,28 +231,44 @@ export async function lerVencidos(token: string, hoje: string): Promise<Agendame
 }
 
 /**
- * Regras e os agendamentos do mês (`inicio` a `fim`) mais os dos dias avulsos pedidos
- * (hoje e o próximo dia útil, que podem cair em outro mês).
+ * Regras, e os agendamentos e as atividades do mês (`inicio` a `fim`) mais os dos dias
+ * avulsos pedidos (hoje e o próximo dia útil, que podem cair em outro mês).
  */
 export async function lerCalendario(
   token: string,
   { inicio, fim, dias }: { inicio: string; fim: string; dias: string[] },
-): Promise<{ regras: RegraEnvio[]; agendamentos: AgendamentoEnvio[] } | FalhaCalendario> {
-  const [regras, agendamentos] = await Promise.all([
+): Promise<{ regras: RegraEnvio[]; agendamentos: AgendamentoEnvio[]; atividades: AtividadeCalendario[] } | FalhaCalendario> {
+  const supabase = getSupabaseUserClient(token);
+  const [regras, agendamentos, atividades] = await Promise.all([
     lerRegras(token),
-    getSupabaseUserClient(token)
+    supabase
       .from('fat_envio_agendamentos')
       .select(COLUNAS_AGENDAMENTO)
       .or(`and(data_prevista.gte.${inicio},data_prevista.lte.${fim}),data_prevista.in.(${dias.join(',')})`)
       .order('data_prevista')
       .order('criado_em'),
+    supabase
+      .from('fat_calendario_atividades')
+      .select(COLUNAS_ATIVIDADE)
+      .or(`and(data.gte.${inicio},data.lte.${fim}),data.in.(${dias.join(',')})`)
+      .order('data')
+      .order('horario', { nullsFirst: true })
+      .order('titulo'),
   ]);
   if ('erro' in regras) return regras;
   if (agendamentos.error) {
     console.error('[faturamento/calendario-envios] agendamentos:', agendamentos.error.message);
     return falha(502, `Não foi possível consultar os agendamentos: ${agendamentos.error.message}`);
   }
-  return { regras, agendamentos: (agendamentos.data as LinhaAgendamento[]).map(paraAgendamento) };
+  if (atividades.error) {
+    console.error('[faturamento/calendario-envios] atividades:', atividades.error.message);
+    return falha(502, `Não foi possível consultar as atividades: ${atividades.error.message}`);
+  }
+  return {
+    regras,
+    agendamentos: (agendamentos.data as LinhaAgendamento[]).map(paraAgendamento),
+    atividades: (atividades.data as LinhaAtividade[]).map(paraAtividade),
+  };
 }
 
 /** Os agendamentos do mês `mes` ('YYYY-MM'): a entrada da sugestão. */
@@ -571,4 +627,41 @@ export async function removerFeriado(token: string, id: string): Promise<Feriado
   }
   if (!data) return falha(404, 'Feriado não encontrado.');
   return paraFeriado(data as LinhaFeriado);
+}
+
+/** Os campos de uma atividade que o cadastro grava; quem e quando vêm do trigger. */
+export type DadosAtividade = Pick<AtividadeCalendario, 'data' | 'titulo' | 'horario' | 'descricao'>;
+
+/** Cria a atividade (`id` nulo) ou a altera. */
+export async function salvarAtividade(
+  token: string,
+  id: string | null,
+  dados: DadosAtividade,
+): Promise<AtividadeCalendario | FalhaCalendario> {
+  const tabela = getSupabaseUserClient(token).from('fat_calendario_atividades');
+  const { data, error } = await (id ? tabela.update(dados).eq('id', id) : tabela.insert(dados))
+    .select(COLUNAS_ATIVIDADE)
+    .maybeSingle();
+  if (error) {
+    console.error('[faturamento/calendario-envios] salvar atividade:', error.message);
+    return falha(502, `Não foi possível gravar a atividade: ${error.message}`);
+  }
+  if (!data) return falha(404, 'Atividade não encontrada.');
+  return paraAtividade(data as LinhaAtividade);
+}
+
+/** Remove a atividade. Devolve a atividade como estava. */
+export async function removerAtividade(token: string, id: string): Promise<AtividadeCalendario | FalhaCalendario> {
+  const { data, error } = await getSupabaseUserClient(token)
+    .from('fat_calendario_atividades')
+    .delete()
+    .eq('id', id)
+    .select(COLUNAS_ATIVIDADE)
+    .maybeSingle();
+  if (error) {
+    console.error('[faturamento/calendario-envios] remover atividade:', error.message);
+    return falha(502, `Não foi possível remover a atividade: ${error.message}`);
+  }
+  if (!data) return falha(404, 'Atividade não encontrada.');
+  return paraAtividade(data as LinhaAtividade);
 }
