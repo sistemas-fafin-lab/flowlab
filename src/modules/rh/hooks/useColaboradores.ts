@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
+import { definirDepartamentoDoColaborador } from '../departamentoDoRh';
 import type { AtualizarCadastroInput, Colaborador } from '../types';
 
 interface ColaboradorRow {
@@ -124,10 +125,11 @@ export function useColaboradores(): UseColaboradoresResult {
           cargo: dados.cargo ?? null,
           data_admissao: dados.dataAdmissao ?? null,
           matricula: dados.matricula ?? null,
-          ...(dados.departamentoId !== undefined ? { departamento_id: dados.departamentoId } : {}),
         })
         .eq('id', id);
       if (erro) throw new Error(erro.message);
+      // Pela RPC: os pedidos de pagamento aguardando seguem para o gestor do departamento novo.
+      if (dados.departamentoId !== undefined) await definirDepartamentoDoColaborador(id, dados.departamentoId);
       await fetchColaboradores();
       return null;
     } catch (err) {
@@ -170,15 +172,8 @@ export function useColaboradores(): UseColaboradoresResult {
 
   const definirDepartamento = useCallback(async (colaboradorId: string, departamentoId: string | null): Promise<string | null> => {
     try {
-      const { data, error: erro } = await supabase
-        .from('colaboradores')
-        .update({ departamento_id: departamentoId })
-        .eq('id', colaboradorId)
-        .select('id');
-      // Mensagens do trigger colaboradores_validar_departamento já vêm em português.
-      if (erro) throw new Error(erro.message);
-      // O RLS de colaboradores (canViewColaboradores) filtra o UPDATE sem erro: 0 linhas.
-      if (!data?.length) throw new Error('Sem permissão para editar este colaborador (Gerenciar Colaboradores).');
+      // Pela RPC: os pedidos de pagamento aguardando seguem para o gestor do departamento novo.
+      await definirDepartamentoDoColaborador(colaboradorId, departamentoId);
       await fetchColaboradores();
       return null;
     } catch (err) {

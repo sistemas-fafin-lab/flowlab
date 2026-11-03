@@ -91,15 +91,16 @@ export const caminhoDoPedido = (id: string, aba: Envio['aba']): string =>
 
 /**
  * O que avisar e a quem, conferindo que o pedido está no estado que o evento diz.
- * `gereDepartamentos`: quem chama tem canManageDepartamentos (só vale para "transferido",
- * a transferência feita na aba Departamentos).
+ * `podeTransferir`: quem chama pode mover pedidos de autorizador (só vale para "transferido":
+ * a transferência da aba Departamentos ou a troca de departamento de quem pediu, no RH ou
+ * na tela de Usuários).
  */
 export function planejarEnvios(
   pedido: PedidoPagamentoRow,
   evento: EventoPagamento,
   chamadorId: string,
   agora: Date,
-  gereDepartamentos = false,
+  podeTransferir = false,
 ): Plano {
   const codigo = pedido.codigo_compacto || pedido.codigo;
   const valor = formatarValor(pedido.valor_total);
@@ -115,8 +116,8 @@ export function planejarEnvios(
   };
 
   if (evento === 'transferido') {
-    if (!gereDepartamentos) {
-      return { envios: [], status: 403, erro: 'Só quem gerencia departamentos avisa sobre transferência.' };
+    if (!podeTransferir) {
+      return { envios: [], status: 403, erro: 'Só quem gerencia departamentos, colaboradores ou cargos avisa sobre transferência.' };
     }
     if (pedido.status !== 'awaiting_authorization' || !recente(pedido.updated_at, agora)) return { envios: [] };
     return {
