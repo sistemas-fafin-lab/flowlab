@@ -1995,18 +1995,25 @@ async function limiteEAteEfetivoHoje(
 // e total) e vai para o resumo `naoFaturaveis`. Códigos conferidos em `evento` no
 // banco real (19/10/2026):
 //   8    Exame Cancelado
+//   58   Aguarda resolução de não conformidade
 //   64   Amostra DEVOLVIDA
 //   1015 Amostra Aguardando Retirada pelo Paciente
 //   1020 Aguardando DEVOLUÇÃO / RETIRADA
 //   1023 Material Encaminhado p/ Descarte Definitivo
 //   1037 Amostra Encaminhada p/ Descarte/Sem Contato com Paciente
+//   1040 Requisição para pagamento no particular ("Requsição", com o erro de
+//        digitação, no `evento`) — guia aberta num convênio mas que o paciente
+//        paga no particular: não vai para lote do convênio (03/11/2026, 307 de
+//        310 sem lote no banco).
 // 1015 e 1020 entraram a pedido do financeiro (29/10/2026): mesmo sendo estados de
-// espera, a amostra devolvida/retirada não é cobrada. 1034 (Aguardando descarte)
+// espera, a amostra devolvida/retirada não é cobrada. 58 e 1040 entraram também a
+// pedido do financeiro (03/11/2026); o 58 é espera, então a requisição volta para
+// as Pendências sozinha quando a não conformidade é resolvida e o evento muda. 1034 (Aguardando descarte)
 // continua fora. Comparado só com `CodEvento` (não `StatusExame`, que é uma faixa
 // larga e também cobre eventos faturáveis como "Exame adicional"/"FAT. EXTERNO").
 // "DEVOLVIDO" do Status Faturamento (`eventofatur` 26) NÃO entra: é guia devolvida
 // pelo convênio, que ainda pode ser corrigida e reenviada.
-const EVENTOS_NAO_COBRAVEIS = [8, 64, 1015, 1020, 1023, 1037];
+const EVENTOS_NAO_COBRAVEIS = [8, 58, 64, 1015, 1020, 1023, 1037, 1040];
 
 function sqlEventoCobravel(alias: string): string {
   return `(${alias}.CodEvento IS NULL OR ${alias}.CodEvento NOT IN (${EVENTOS_NAO_COBRAVEIS.join(', ')}))`;
