@@ -103,9 +103,11 @@ async function lerPedido(supabase: SupabaseClient, paths: string[]) {
     console.error('[atendimento/gerador-orcamento-pedido-medico] resposta sem lista de exames:', texto.slice(0, 500));
     throw new FalhaLeitura(502, 'A IA não devolveu uma lista de exames. Tente com uma foto mais nítida.');
   }
-  return exames.map(({ nomeNoPedido, item }) => ({
+  return exames.map(({ nomeNoPedido, item, relacionados, tipo }) => ({
     nomeNoPedido,
     item: item ? { tuss: item.tuss, nome: item.nome } : null,
+    relacionados,
+    tipo,
   }));
 }
 

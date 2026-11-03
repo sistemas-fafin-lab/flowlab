@@ -127,5 +127,10 @@ export async function analisarPedidoMedico(arquivos: File[]): Promise<ExameLidoN
     if (res.status === 504 && !body.error) throw new Error('A análise demorou demais. Tente de novo.');
     throw new Error(body.error || FALHA_ANALISE);
   }
-  return body.exames;
+  // Servidor de antes da mudança (deploy em andamento) não manda relacionados nem tipo.
+  return body.exames.map((exame) => ({
+    ...exame,
+    relacionados: Array.isArray(exame.relacionados) ? exame.relacionados : [],
+    tipo: exame.tipo ?? null,
+  }));
 }

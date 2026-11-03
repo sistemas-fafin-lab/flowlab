@@ -6,7 +6,9 @@ import {
   MAX_ARQUIVOS_PEDIDO,
   MAX_MB_POR_ARQUIVO,
   problemaNosArquivosDoPedido,
+  fraseDoNaoEncontrado,
   resolverLeituraDoPedido,
+  type ExameNaoEncontrado,
   type LeituraDoPedido,
 } from '../domain/pedidoMedico';
 import type { ItemGeradorOrcamento } from '../types';
@@ -15,6 +17,43 @@ import { formatCurrency } from '../../../utils/paymentUtils';
 const formatarTamanho = (bytes: number) =>
   bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 
+/** Relacionados visíveis antes do "ver mais". */
+const RELACIONADOS_VISIVEIS = 3;
+
+/** Aviso de um exame não encontrado: só texto, nada daqui vai ao carrinho. */
+const AvisoNaoEncontrado: React.FC<{ exame: ExameNaoEncontrado }> = ({ exame }) => {
+  const [expandido, setExpandido] = useState(false);
+  const { relacionados } = exame;
+  const ocultos = relacionados.length - RELACIONADOS_VISIVEIS;
+  const visiveis = expandido || ocultos <= 0 ? relacionados : relacionados.slice(0, RELACIONADOS_VISIVEIS);
+
+  return (
+    <li className="px-3 py-2.5">
+      <p className="text-sm text-gray-800 dark:text-gray-100">{fraseDoNaoEncontrado(exame)}</p>
+      {relacionados.length > 0 && (
+        <>
+          <ul className="mt-1.5 space-y-0.5 pl-4 list-disc marker:text-amber-500">
+            {visiveis.map((nome) => (
+              <li key={nome} className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                {nome}
+              </li>
+            ))}
+          </ul>
+          {ocultos > 0 && (
+            <button
+              type="button"
+              onClick={() => setExpandido((atual) => !atual)}
+              className="mt-1 text-xs font-medium text-amber-700 hover:text-amber-800 dark:text-amber-300 dark:hover:text-amber-200"
+            >
+              {expandido ? 'ver menos' : `ver mais (+${ocultos})`}
+            </button>
+          )}
+        </>
+      )}
+    </li>
+  );
+};
+
 const BOTAO_PRIMARIO =
   'inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none';
 const BOTAO_SECUNDARIO =
@@ -22,8 +61,9 @@ const BOTAO_SECUNDARIO =
 
 /**
  * Leitura do pedido médico por IA: o atendente escolhe as fotos/PDFs, a IA lê os
- * exames e a janela mostra os reconhecidos (marcados para entrar no carrinho) e os
- * sem correspondência (para buscar à mão). Nada entra no carrinho sem a revisão.
+ * exames e a janela mostra primeiro os não encontrados na tabela (aviso só de texto,
+ * com os exames relacionados que o laboratório realiza, para buscar à mão) e depois
+ * os reconhecidos (marcados para entrar no carrinho). Nada entra no carrinho sem a revisão.
  * Montada só enquanto aberta: fechar descarta arquivos e resultado.
  */
 const LeituraPedidoMedicoModal: React.FC<{
@@ -202,6 +242,28 @@ const LeituraPedidoMedicoModal: React.FC<{
             </>
           ) : (
             <>
+              {leitura.semCorrespondencia.length > 0 && (
+                <section className="rounded-xl border border-amber-200 bg-amber-50/60 dark:border-amber-800/60 dark:bg-amber-900/10">
+                  <div className="flex items-start gap-2 px-3 pt-3">
+                    <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0 text-amber-600 dark:text-amber-400" />
+                    <div>
+                      <h3 className="text-sm font-semibold text-amber-800 dark:text-amber-200">
+                        Não encontrados na tabela ({leitura.semCorrespondencia.length})
+                      </h3>
+                      <p className="text-xs text-amber-800/80 dark:text-amber-200/80">
+                        Estes exames do pedido não foram identificados na tabela. Confira o pedido e busque
+                        manualmente antes de enviar o orçamento.
+                      </p>
+                    </div>
+                  </div>
+                  <ul className="mt-2 divide-y divide-amber-200/70 border-t border-amber-200/70 dark:divide-amber-800/40 dark:border-amber-800/40">
+                    {leitura.semCorrespondencia.map((exame, i) => (
+                      <AvisoNaoEncontrado key={`${exame.nomeNoPedido}-${i}`} exame={exame} />
+                    ))}
+                  </ul>
+                </section>
+              )}
+
               <section>
                 <h3 className="text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2">
                   Reconhecidos ({leitura.reconhecidos.length})
@@ -238,26 +300,6 @@ const LeituraPedidoMedicoModal: React.FC<{
                 )}
               </section>
 
-              {leitura.semCorrespondencia.length > 0 && (
-                <section>
-                  <h3 className="text-sm font-semibold text-amber-700 dark:text-amber-300 mb-1">
-                    Sem correspondência ({leitura.semCorrespondencia.length})
-                  </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                    Lidos no pedido, mas sem exame na lista. Busque à mão se precisar.
-                  </p>
-                  <ul className="flex flex-wrap gap-1.5">
-                    {leitura.semCorrespondencia.map((nome, i) => (
-                      <li
-                        key={`${nome}-${i}`}
-                        className="px-2.5 py-1 text-xs font-medium rounded-full bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-200 dark:border-amber-800/60"
-                      >
-                        {nome}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              )}
             </>
           )}
         </div>

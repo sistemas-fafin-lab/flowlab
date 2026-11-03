@@ -143,7 +143,7 @@ describe('POST /api/atendimento/gerador-orcamento-pedido-medico', () => {
   it('devolve os exames lidos casados com a lista de preços e apaga os arquivos', async () => {
     buildOrcamentoParticularMock.mockResolvedValue(LISTA);
     geminiMock.mockResolvedValue(
-      '```json\n{"exams":[{"name":"Hemograma","matched":"Hemograma Completo"},{"name":"glicemia jejum","matched":null},{"name":"Vitamina D","matched":null}]}\n```',
+      '```json\n{"exams":[{"name":"Hemograma","matched":"Hemograma Completo"},{"name":"glicemia jejum","matched":"Glicemia de Jejum"},{"name":"Vitamina D","matched":null,"relacionados":["Hemograma Completo","Vitamina D3"],"tipo":"variante"}]}\n```',
     );
 
     const { res, apagados } = await executar();
@@ -152,9 +152,15 @@ describe('POST /api/atendimento/gerador-orcamento-pedido-medico', () => {
     expect(res.body).toEqual({
       success: true,
       exames: [
-        { nomeNoPedido: 'Hemograma', item: { tuss: '40304361', nome: 'Hemograma Completo' } },
-        { nomeNoPedido: 'glicemia jejum', item: { tuss: '40302040', nome: 'Glicemia de Jejum' } },
-        { nomeNoPedido: 'Vitamina D', item: null },
+        { nomeNoPedido: 'Hemograma', item: { tuss: '40304361', nome: 'Hemograma Completo' }, relacionados: [], tipo: null },
+        {
+          nomeNoPedido: 'glicemia jejum',
+          item: { tuss: '40302040', nome: 'Glicemia de Jejum' },
+          relacionados: [],
+          tipo: null,
+        },
+        // Relacionado fora da lista de preços é descartado.
+        { nomeNoPedido: 'Vitamina D', item: null, relacionados: ['Hemograma Completo'], tipo: 'variante' },
       ],
     });
     expect(res.headers['Cache-Control']).toBe('no-store');
