@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, StickyNote } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { desmarcarEnvio } from '../hooks/useCalendarioEnvios';
-import type { FeriadoEnvio } from '../types';
+import type { AtividadeCalendario, FeriadoEnvio } from '../types';
 import { formatData, formatDataHora } from '../utils/formato';
 import { nomeConvenio, type ItemAgendado } from '../utils/painelEnvios';
-import { ESTILO_STATUS } from './estiloStatusEnvio';
+import { ESTILO_ATIVIDADE, ESTILO_STATUS } from './estiloStatusEnvio';
 import SeloConfirmadoAplis from './SeloConfirmadoAplis';
 import SeloForaDaJanela from './SeloForaDaJanela';
 
 // Painel de um dia (Hoje ou Amanhã) do Calendário de envios e a confirmação de
 // desmarcar o envio. Usados pela página do Calendário e, compactos, no topo do
 // Dashboard de Contas a Receber. Quem tem canManageCalendarioEnvios (gate no pai)
-// marca e desmarca pela caixa; o nome do convênio abre o detalhe.
+// marca e desmarca pela caixa; o nome do convênio abre o detalhe. As atividades do
+// dia (treinamento, reunião…) vêm abaixo, só como lembrete: sem caixa e fora da
+// contagem de enviados.
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700';
 const NOME_DIA = new Intl.DateTimeFormat('pt-BR', { weekday: 'long', day: '2-digit', month: '2-digit', timeZone: 'UTC' });
@@ -77,16 +79,52 @@ const LinhaPainel: React.FC<{
   );
 };
 
+/** As atividades do dia, abaixo dos envios; o clique abre a atividade. */
+const AtividadesDoDia: React.FC<{
+  atividades: AtividadeCalendario[];
+  compacto: boolean;
+  onAtividade?: (atividade: AtividadeCalendario) => void;
+}> = ({ atividades, compacto, onAtividade }) => (
+  <div className={`${compacto ? 'mt-2 pt-2' : 'mt-3 pt-3'} border-t border-gray-100 dark:border-gray-700`}>
+    <h3 className="text-xs font-medium uppercase text-violet-700 dark:text-violet-300 flex items-center gap-1.5">
+      <StickyNote className="w-3.5 h-3.5" />
+      Atividades
+    </h3>
+    <ul className="mt-1 space-y-1">
+      {atividades.map((atividade) => (
+        <li key={atividade.id}>
+          <button
+            type="button"
+            onClick={() => onAtividade?.(atividade)}
+            disabled={!onAtividade}
+            title={atividade.descricao ?? undefined}
+            className={`w-full flex items-baseline gap-2 px-2 py-1 rounded-lg text-sm text-left ${ESTILO_ATIVIDADE.chip} ${onAtividade ? 'hover:ring-2 hover:ring-violet-400/40' : 'cursor-default'}`}
+          >
+            <span className="text-xs font-semibold tabular-nums shrink-0">{atividade.horario ?? 'Dia todo'}</span>
+            <span className="truncate">{atividade.titulo}</span>
+          </button>
+          {!compacto && atividade.descricao && (
+            <p className="px-2 mt-0.5 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{atividade.descricao}</p>
+          )}
+        </li>
+      ))}
+    </ul>
+  </div>
+);
+
 /** Compacto (Dashboard de Contas a Receber): menos espaço, sem observação e sem quem marcou (ficam no detalhe). */
 export const PainelDia: React.FC<{
   titulo: string;
   data: string;
   itens: ItemAgendado[];
+  atividades?: AtividadeCalendario[];
   feriado: FeriadoEnvio | undefined;
   podeGerenciar: boolean;
   compacto?: boolean;
   onAcao: (acao: AcaoPainel) => void;
-}> = ({ titulo, data, itens, feriado, podeGerenciar, compacto = false, onAcao }) => {
+  /** Ausente: a atividade só aparece, sem abrir. */
+  onAtividade?: (atividade: AtividadeCalendario) => void;
+}> = ({ titulo, data, itens, atividades = [], feriado, podeGerenciar, compacto = false, onAcao, onAtividade }) => {
   const enviados = itens.filter((i) => i.agendamento.dataEnvio !== null).length;
   const semana = new Date(`${data}T00:00:00Z`).getUTCDay();
   const naoUtil = feriado ? `Feriado: ${feriado.descricao}` : semana === 0 || semana === 6 ? 'Fim de semana' : null;
@@ -119,6 +157,7 @@ export const PainelDia: React.FC<{
           ))}
         </ul>
       )}
+      {atividades.length > 0 && <AtividadesDoDia atividades={atividades} compacto={compacto} onAtividade={onAtividade} />}
     </section>
   );
 };

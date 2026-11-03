@@ -444,6 +444,9 @@ export interface PendenciasFiltros {
   desde?: string;
   /** YYYY-MM-DD — nunca ultrapassa o cutoff de M-1 devolvido em `PendenciasMeta`. */
   ate?: string;
+  /** YYYY-MM — só requisições SOLICITADAS nesse mês (lista e valor), não o lote
+   *  inteiro pela data de criação. Usado pelo card do Dashboard. */
+  mesSolicitacao?: string;
   operadoraId?: number;
   /** Código STLOT — só os valores em STATUS_PENDENCIA (servidor) fazem sentido aqui. */
   status?: number;
@@ -1661,6 +1664,24 @@ export interface FeriadoEnvio {
 /** O que o cadastro de feriados grava (POST salvarFeriado); `id` nulo cria. */
 export type DadosFeriadoEnvio = Pick<FeriadoEnvio, 'data' | 'descricao' | 'abrangencia'> & { id: string | null };
 
+/** Espelha AtividadeCalendario de api/_lib/faturamento/dadosCalendarioEnvios.ts. */
+export interface AtividadeCalendario {
+  id: string;
+  /** 'YYYY-MM-DD'. */
+  data: string;
+  titulo: string;
+  /** 'HH:MM'; null é o dia todo. */
+  horario: string | null;
+  descricao: string | null;
+  criadoPorNome: string | null;
+  alteradoPorNome: string | null;
+  /** ISO. */
+  alteradoEm: string;
+}
+
+/** O que o cadastro de atividades grava (POST salvarAtividade); `id` nulo cria. */
+export type DadosAtividadeCalendario = Pick<AtividadeCalendario, 'data' | 'titulo' | 'horario' | 'descricao'> & { id: string | null };
+
 /** Contrato de GET /api/faturamento/calendario-envios. */
 export interface CalendarioEnvios {
   /** 'YYYY-MM-DD' em America/Sao_Paulo. */
@@ -1675,6 +1696,8 @@ export interface CalendarioEnvios {
   feriados: FeriadoEnvio[];
   /** Os do mês e os de hoje e amanhã. */
   agendamentos: AgendamentoEnvio[];
+  /** Treinamentos, reuniões…: os do mês e os de hoje e amanhã. Só lembretes, sem status. */
+  atividades: AtividadeCalendario[];
   /** Atrasados e fora do prazo de qualquer mês, fora do prazo primeiro. */
   atrasados: AgendamentoEnvio[];
   sugestao: SituacaoSugestaoEnvios;

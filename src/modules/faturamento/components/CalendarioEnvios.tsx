@@ -19,12 +19,14 @@ import {
   Repeat,
   Settings2,
   Sparkles,
+  StickyNote,
 } from 'lucide-react';
 import ConfirmDialog from '../../../components/ConfirmDialog';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { gerarSugestao, removerAgendamento, simularSugestao, useCalendarioEnvios } from '../hooks/useCalendarioEnvios';
 import type {
+  AtividadeCalendario,
   EnvioNaoPlanejado,
   FeriadoEnvio,
   RegraEnvio,
@@ -34,7 +36,8 @@ import type {
 import { formatData } from '../utils/formato';
 import { ANCORA_ATRASADOS, nomeConvenio, organizarCalendario, type ItemAgendado } from '../utils/painelEnvios';
 import AgendamentoAvulsoModal from './AgendamentoAvulsoModal';
-import { ESTILO_STATUS } from './estiloStatusEnvio';
+import AtividadeModal from './AtividadeModal';
+import { ESTILO_ATIVIDADE, ESTILO_STATUS } from './estiloStatusEnvio';
 import { DesmarcarEnvioDialog, PainelDia } from './PainelDiaEnvios';
 import SeloForaDaJanela from './SeloForaDaJanela';
 import DetalheAgendamentoModal from './DetalheAgendamentoModal';
@@ -62,6 +65,8 @@ import RegrasEnvioModal from './RegrasEnvioModal';
 // agendamentos: os casados ganham o selo "confirmado no apLIS" (e, se ninguém tinha
 // marcado, já vêm enviados); os lotes que sobram vão para "Envios não planejados".
 // Se o backup falha, o calendário aparece sem as confirmações novas, com um aviso.
+// Atividades (treinamento, reunião…) entram na grade e nos painéis como lembretes:
+// sem status, fora dos Atrasados e da sugestão; quem gere lança, edita e remove.
 // ============================================================================
 
 const CARD = 'bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700';
@@ -117,7 +122,9 @@ type Acao =
   | { tipo: 'desmarcar'; item: ItemAgendado }
   | { tipo: 'reagendar'; item: ItemAgendado }
   | { tipo: 'remover'; item: ItemAgendado }
-  | { tipo: 'avulso'; data: string; regraId?: string };
+  | { tipo: 'avulso'; data: string; regraId?: string }
+  /** Sem `atividade`: nova atividade no dia. */
+  | { tipo: 'atividade'; data: string; atividade?: AtividadeCalendario };
 
 // ─── Bloco Atrasados ──────────────────────────────────────────────────────────
 
@@ -234,14 +241,32 @@ const ChipAgendamento: React.FC<{
   );
 };
 
+/** Chip de atividade na grade: horário e título; o clique abre a atividade. */
+const ChipAtividade: React.FC<{
+  atividade: AtividadeCalendario;
+  onAcao: (acao: Acao) => void;
+}> = ({ atividade, onAcao }) => (
+  <button
+    type="button"
+    title={[atividade.horario ?? 'Dia todo', atividade.titulo, atividade.descricao].filter(Boolean).join(' · ')}
+    onClick={() => onAcao({ tipo: 'atividade', data: atividade.data, atividade })}
+    className={`w-full flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-left truncate hover:ring-2 hover:ring-violet-400/40 ${ESTILO_ATIVIDADE.chip}`}
+  >
+    <StickyNote className="w-3 h-3 shrink-0" />
+    {atividade.horario && <span className="tabular-nums shrink-0">{atividade.horario}</span>}
+    <span className="truncate">{atividade.titulo}</span>
+  </button>
+);
+
 const GradeMes: React.FC<{
   mes: string;
   hoje: string;
   porDia: Map<string, ItemAgendado[]>;
+  atividadesPorDia: Map<string, AtividadeCalendario[]>;
   feriados: Map<string, FeriadoEnvio>;
   podeGerenciar: boolean;
   onAcao: (acao: Acao) => void;
-}> = ({ mes, hoje, porDia, feriados, podeGerenciar, onAcao }) => (
+}> = ({ mes, hoje, porDia, atividadesPorDia, feriados, podeGerenciar, onAcao }) => (
   <div className="overflow-x-auto -mx-5 px-5">
     <div className="min-w-[640px]">
       <div className="grid grid-cols-5 gap-2 mb-2">
@@ -270,21 +295,37 @@ const GradeMes: React.FC<{
                     <span className={`text-sm font-semibold ${ehHoje ? 'text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-200'}`}>
                       {Number(dia.slice(8))}
                     </span>
-                    {podeGerenciar && !feriado && (
-                      <button
-                        type="button"
-                        onClick={() => onAcao({ tipo: 'avulso', data: dia })}
-                        aria-label={`Novo agendamento em ${formatData(dia)}`}
-                        title="Novo agendamento"
-                        className="p-0.5 rounded-md text-gray-400 opacity-60 group-hover:opacity-100 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30"
-                      >
-                        <Plus className="w-4 h-4" />
-                      </button>
+                    {podeGerenciar && (
+                      <span className="flex items-center">
+                        <button
+                          type="button"
+                          onClick={() => onAcao({ tipo: 'atividade', data: dia })}
+                          aria-label={`Nova atividade em ${formatData(dia)}`}
+                          title="Nova atividade (treinamento, reunião…)"
+                          className="p-0.5 rounded-md text-gray-400 opacity-60 group-hover:opacity-100 hover:text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/30"
+                        >
+                          <StickyNote className="w-4 h-4" />
+                        </button>
+                        {!feriado && (
+                          <button
+                            type="button"
+                            onClick={() => onAcao({ tipo: 'avulso', data: dia })}
+                            aria-label={`Novo agendamento em ${formatData(dia)}`}
+                            title="Novo agendamento"
+                            className="p-0.5 rounded-md text-gray-400 opacity-60 group-hover:opacity-100 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+                          >
+                            <Plus className="w-4 h-4" />
+                          </button>
+                        )}
+                      </span>
                     )}
                   </div>
                   {feriado && (
                     <p className="text-[11px] leading-tight font-medium text-amber-700 dark:text-amber-300">{feriado.descricao}</p>
                   )}
+                  {(atividadesPorDia.get(dia) ?? []).map((atividade) => (
+                    <ChipAtividade key={atividade.id} atividade={atividade} onAcao={onAcao} />
+                  ))}
                   {itens.map((item) => (
                     <ChipAgendamento key={item.agendamento.id} item={item} onAcao={onAcao} />
                   ))}
@@ -433,7 +474,7 @@ const CalendarioEnvios: React.FC = () => {
     }
   }, [carregado, hash]);
 
-  const { porDia, feriados, atrasados, qualquerDia } = useMemo(() => organizarCalendario(calendario), [calendario]);
+  const { porDia, atividadesPorDia, feriados, atrasados, qualquerDia } = useMemo(() => organizarCalendario(calendario), [calendario]);
 
   const concluir = () => {
     setAcao(null);
@@ -523,6 +564,13 @@ const CalendarioEnvios: React.FC = () => {
           )}
           {podeGerenciar && calendario && (
             <>
+              <button
+                onClick={() => setAcao({ tipo: 'atividade', data: diaUtilSugerido })}
+                className={BOTAO_CADASTRO}
+              >
+                <StickyNote size={16} />
+                Nova atividade
+              </button>
               <button
                 onClick={() => setModalCadastro('regras')}
                 className={BOTAO_CADASTRO}
@@ -638,17 +686,21 @@ const CalendarioEnvios: React.FC = () => {
               titulo="Hoje"
               data={calendario.hoje}
               itens={porDia.get(calendario.hoje) ?? []}
+              atividades={atividadesPorDia.get(calendario.hoje)}
               feriado={feriados.get(calendario.hoje)}
               podeGerenciar={podeGerenciar}
               onAcao={setAcao}
+              onAtividade={(atividade) => setAcao({ tipo: 'atividade', data: atividade.data, atividade })}
             />
             <PainelDia
               titulo="Amanhã"
               data={calendario.amanha}
               itens={porDia.get(calendario.amanha) ?? []}
+              atividades={atividadesPorDia.get(calendario.amanha)}
               feriado={undefined}
               podeGerenciar={podeGerenciar}
               onAcao={setAcao}
+              onAtividade={(atividade) => setAcao({ tipo: 'atividade', data: atividade.data, atividade })}
             />
             <PainelAtrasados itens={atrasados} podeGerenciar={podeGerenciar} onAcao={setAcao} />
           </div>
@@ -695,11 +747,13 @@ const CalendarioEnvios: React.FC = () => {
                   <span className="flex items-center gap-1.5"><BadgeCheck className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />Confirmado no apLIS</span>
                   <span className="flex items-center gap-1.5"><CalendarX className="w-3.5 h-3.5" />Fora da janela da regra</span>
                   <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-amber-50 border border-amber-200 dark:bg-amber-900/15 dark:border-amber-800/60" />Feriado</span>
+                  <span className="flex items-center gap-1.5"><span className={`w-3 h-3 rounded ${ESTILO_ATIVIDADE.amostra}`} />Atividade</span>
                 </div>
                 <GradeMes
                   mes={mesExibido}
                   hoje={calendario.hoje}
                   porDia={porDia}
+                  atividadesPorDia={atividadesPorDia}
                   feriados={feriados}
                   podeGerenciar={podeGerenciar}
                   onAcao={setAcao}
@@ -760,6 +814,15 @@ const CalendarioEnvios: React.FC = () => {
           regraInicial={acao.regraId}
           onFechar={() => setAcao(null)}
           onCriado={concluir}
+        />
+      )}
+      {acao?.tipo === 'atividade' && (
+        <AtividadeModal
+          atividade={acao.atividade}
+          dataInicial={acao.data}
+          podeGerenciar={podeGerenciar}
+          onFechar={() => setAcao(null)}
+          onAlterado={concluir}
         />
       )}
       {calendario && modalCadastro === 'regras' && (

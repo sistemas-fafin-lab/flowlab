@@ -14,7 +14,7 @@
  *   historico <id do agendamento> — só `{ historico: [...] }`, do mais antigo ao mais
  *             recente (o detalhe do agendamento)
  * Devolve `hoje` (America/Sao_Paulo), `amanha`, `mes`, `regras`, `feriados`, os
- * `agendamentos` do mês mais os de hoje e amanhã, e os `atrasados` de qualquer mês
+ * `agendamentos` e as `atividades` do mês mais os de hoje e amanhã, e os `atrasados` de qualquer mês
  * (fora do prazo primeiro), e `podeEnviarQualquerDia` (ids das regras ativas de "todos
  * os dias", a lista lateral), e `sugestao`: o mês seguinte, se gerar a sugestão dele já
  * está liberado (a partir do dia 15), se ele já foi planejado, e quantos sugeridos
@@ -47,6 +47,10 @@
  *   'salvarFeriado': { id?, data, descricao, abrangencia: 'nacional' | 'DF' } — cria
  *                ou altera o feriado; data repetida dá 409.
  *   'removerFeriado': { id } — apaga o feriado.
+ *   'salvarAtividade': { id?, data, titulo, horario?: 'HH:MM', descricao? } — cria ou
+ *                altera a Atividade (treinamento, reunião…): só um lembrete no dia, sem
+ *                status, fora dos atrasados e da sugestão. Qualquer dia é aceito.
+ *   'removerAtividade': { id } — apaga a atividade.
  *   'gerarSugestao': { mes: 'YYYY-MM', simular?: boolean } — a sugestão do mês pelas
  *                Regras de envio (gerarSugestaoDoMes): o mês seguinte a partir do dia 15,
  *                ou o mês corrente (regerar depois de mudar uma regra); outro mês dá 400.
@@ -89,13 +93,16 @@ import {
   marcarEnviado,
   reagendar as reagendarAgendamento,
   removerAgendamento,
+  removerAtividade as removerAtividadeCadastrada,
   removerFeriado as removerFeriadoCadastrado,
+  salvarAtividade as salvarAtividadeCadastrada,
   salvarFeriado as salvarFeriadoCadastrado,
   salvarRegra as salvarRegraCadastrada,
   situacaoDaSugestao,
 } from '../faturamento/dadosCalendarioEnvios.js';
 import type {
   AgendamentoEnvio,
+  DadosAtividade,
   DadosFeriado,
   DadosRegraEnvio,
   FalhaCalendario,
@@ -311,6 +318,7 @@ async function consultarMes(req: VercelRequest, res: VercelResponse): Promise<vo
     regras: calendario.regras,
     podeEnviarQualquerDia: regrasDeQualquerDia(calendario.regras).map((regra) => regra.id),
     agendamentos: classificar(calendario.agendamentos, calendario.regras, datasFeriados, hoje),
+    atividades: calendario.atividades,
     atrasados: atrasadosEmOrdem(classificar(vencidos, calendario.regras, datasFeriados, hoje)),
     sugestao: {
       mesSeguinte: seguinte,
@@ -471,6 +479,49 @@ async function removerFeriado(token: string, corpo: Record<string, unknown>, res
   responderGravado(res, 'feriado', await removerFeriadoCadastrado(token, corpo.id));
 }
 
+const HORARIO_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+const TAMANHO_TITULO = 120;
+const TAMANHO_DESCRICAO = 2000;
+
+/** A Atividade vinda do cadastro, ou a mensagem do que está errado. */
+function lerAtividade(corpo: Record<string, unknown>): { dados: DadosAtividade } | { erro: string } {
+  if (!dataValida(corpo.data)) return { erro: 'Parâmetro inválido: data (YYYY-MM-DD).' };
+  const titulo = textoOpcional(corpo.titulo);
+  if (!titulo) return { erro: 'Informe o título da atividade.' };
+  if (titulo.length > TAMANHO_TITULO) return { erro: `O título vai até ${TAMANHO_TITULO} caracteres.` };
+  const horario = textoOpcional(corpo.horario);
+  if (horario !== null && !HORARIO_RE.test(horario)) return { erro: 'Parâmetro inválido: horario (HH:MM).' };
+  const descricao = textoOpcional(corpo.descricao);
+  if (descricao !== null && descricao.length > TAMANHO_DESCRICAO) {
+    return { erro: `A descrição vai até ${TAMANHO_DESCRICAO} caracteres.` };
+  }
+  return { dados: { data: corpo.data, titulo, horario, descricao } };
+}
+
+/** POST salvarAtividade: cria ou altera a atividade. */
+async function salvarAtividade(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  const id = idOpcional(corpo.id);
+  if (id === undefined) {
+    res.status(400).json({ success: false, error: 'Parâmetro inválido: id.' });
+    return;
+  }
+  const lida = lerAtividade(corpo);
+  if ('erro' in lida) {
+    res.status(400).json({ success: false, error: lida.erro });
+    return;
+  }
+  responderGravado(res, 'atividade', await salvarAtividadeCadastrada(token, id, lida.dados));
+}
+
+/** POST removerAtividade: apaga a atividade. */
+async function removerAtividade(token: string, corpo: Record<string, unknown>, res: VercelResponse): Promise<void> {
+  if (!idValido(corpo.id)) {
+    res.status(400).json({ success: false, error: 'Parâmetro inválido: id.' });
+    return;
+  }
+  responderGravado(res, 'atividade', await removerAtividadeCadastrada(token, corpo.id));
+}
+
 /**
  * POST gerarSugestao: a sugestão do mês seguinte (a partir do dia 15) ou do corrente.
  * Com `simular`, só conta o que seria criado e removido, para a confirmação.
@@ -531,6 +582,8 @@ const ACOES: Record<string, (token: string, corpo: Record<string, unknown>, res:
   salvarRegra,
   salvarFeriado,
   removerFeriado,
+  salvarAtividade,
+  removerAtividade,
   gerarSugestao,
 };
 
@@ -545,7 +598,7 @@ async function acaoDeGestao(req: VercelRequest, res: VercelResponse): Promise<vo
   const corpo = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
   const acao = typeof corpo.acao === 'string' && Object.hasOwn(ACOES, corpo.acao) ? ACOES[corpo.acao] : undefined;
   if (!acao) {
-    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar, criar, reagendar, remover, salvarRegra, salvarFeriado, removerFeriado ou gerarSugestao.' });
+    res.status(400).json({ success: false, error: 'Ação inválida: use marcar, desmarcar, criar, reagendar, remover, salvarRegra, salvarFeriado, removerFeriado, salvarAtividade, removerAtividade ou gerarSugestao.' });
     return;
   }
   await acao(token as string, corpo, res);

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type {
   AgendamentoEnvio,
+  AtividadeCalendario,
+  DadosAtividadeCalendario,
   CalendarioEnvios,
   DadosFeriadoEnvio,
   DadosRegraEnvio,
@@ -46,6 +48,7 @@ export function useCalendarioEnvios(mes: string | null) {
         podeEnviarQualquerDia: body.podeEnviarQualquerDia ?? [],
         feriados: body.feriados ?? [],
         agendamentos: body.agendamentos ?? [],
+        atividades: body.atividades ?? [],
         atrasados: body.atrasados ?? [],
         sugestao: body.sugestao ?? {
           mesSeguinte: '',
@@ -166,6 +169,16 @@ export function salvarFeriado({ id, ...dados }: DadosFeriadoEnvio): Promise<Feri
 /** Remove o feriado (canManageCalendarioEnvios). */
 export function removerFeriado(id: string): Promise<FeriadoEnvio> {
   return postarCalendario<FeriadoEnvio>({ acao: 'removerFeriado', id }, 'Não foi possível remover o feriado.', 'feriado');
+}
+
+/** Cria (id nulo) ou altera a atividade do calendário (canManageCalendarioEnvios). */
+export function salvarAtividade({ id, ...dados }: DadosAtividadeCalendario): Promise<AtividadeCalendario> {
+  return postarCalendario<AtividadeCalendario>({ acao: 'salvarAtividade', id, ...dados }, 'Não foi possível gravar a atividade.', 'atividade');
+}
+
+/** Remove a atividade do calendário (canManageCalendarioEnvios). */
+export function removerAtividade(id: string): Promise<AtividadeCalendario> {
+  return postarCalendario<AtividadeCalendario>({ acao: 'removerAtividade', id }, 'Não foi possível remover a atividade.', 'atividade');
 }
 
 /**

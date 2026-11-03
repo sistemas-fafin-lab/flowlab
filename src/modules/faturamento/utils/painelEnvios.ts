@@ -1,4 +1,4 @@
-import type { AgendamentoEnvio, CalendarioEnvios, FeriadoEnvio, RegraEnvio } from '../types';
+import type { AgendamentoEnvio, AtividadeCalendario, CalendarioEnvios, FeriadoEnvio, RegraEnvio } from '../types';
 
 // O que as telas do Calendário de envios mostram a partir do GET: os agendamentos
 // com o convênio da regra, por dia. Usado pela página do Calendário e pelos painéis
@@ -13,6 +13,8 @@ export interface ItemAgendado {
 export interface CalendarioOrganizado {
   /** Por data prevista, em ordem alfabética do convênio. */
   porDia: Map<string, ItemAgendado[]>;
+  /** Por data, na ordem do servidor (dia todo primeiro, depois por horário). */
+  atividadesPorDia: Map<string, AtividadeCalendario[]>;
   /** Por data. */
   feriados: Map<string, FeriadoEnvio>;
   /** Na ordem do servidor (fora do prazo primeiro). */
@@ -36,8 +38,13 @@ export function organizarCalendario(calendario: CalendarioEnvios | null): Calend
     porDia.set(agendamento.dataPrevista, lista);
   }
   for (const lista of porDia.values()) lista.sort((a, b) => nomeConvenio(a).localeCompare(nomeConvenio(b), 'pt-BR'));
+  const atividadesPorDia = new Map<string, AtividadeCalendario[]>();
+  for (const atividade of calendario?.atividades ?? []) {
+    atividadesPorDia.set(atividade.data, [...(atividadesPorDia.get(atividade.data) ?? []), atividade]);
+  }
   return {
     porDia,
+    atividadesPorDia,
     feriados: new Map((calendario?.feriados ?? []).map((f) => [f.data, f])),
     atrasados: (calendario?.atrasados ?? []).map(comRegra),
     qualquerDia: (calendario?.podeEnviarQualquerDia ?? []).flatMap((id) => regras.get(id) ?? []),

@@ -43,7 +43,7 @@ const EnviosHojeAmanha: React.FC = () => {
   const [acao, setAcao] = useState<AcaoPainel | null>(null);
   const [erroAcao, setErroAcao] = useState<string | null>(null);
 
-  const { porDia, feriados, atrasados } = useMemo(() => organizarCalendario(calendario), [calendario]);
+  const { porDia, atividadesPorDia, feriados, atrasados } = useMemo(() => organizarCalendario(calendario), [calendario]);
 
   const concluir = () => {
     setAcao(null);
@@ -93,6 +93,7 @@ const EnviosHojeAmanha: React.FC = () => {
             titulo="Hoje"
             data={calendario.hoje}
             itens={porDia.get(calendario.hoje) ?? []}
+            atividades={atividadesPorDia.get(calendario.hoje)}
             feriado={feriados.get(calendario.hoje)}
             podeGerenciar={podeGerenciar}
             compacto
@@ -102,6 +103,7 @@ const EnviosHojeAmanha: React.FC = () => {
             titulo="Amanhã"
             data={calendario.amanha}
             itens={porDia.get(calendario.amanha) ?? []}
+            atividades={atividadesPorDia.get(calendario.amanha)}
             feriado={undefined}
             podeGerenciar={podeGerenciar}
             compacto

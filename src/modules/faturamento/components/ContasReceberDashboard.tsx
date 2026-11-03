@@ -397,7 +397,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
     meta: metaPendenciasLotes,
     loading: loadingPendenciasLotes,
     error: erroPendenciasLotes,
-  } = usePendenciasNaoFaturadas({ pagina: 1, tamanho: 1, ...periodoPendencias });
+  } = usePendenciasNaoFaturadas({ pagina: 1, tamanho: 1, mesSolicitacao: mesPendencias || undefined });
   const {
     meta: metaPendenciasParticulares,
     loading: loadingPendenciasParticulares,
