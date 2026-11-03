@@ -147,8 +147,6 @@ const VinculoUsuarioSection: React.FC<VinculoUsuarioSectionProps> = ({ colaborad
             </div>
           )}
 
-          {erro && <p className="text-sm text-red-600 dark:text-red-300">{erro}</p>}
-
           <button
             type="button"
             onClick={handleVincular}
@@ -159,6 +157,14 @@ const VinculoUsuarioSection: React.FC<VinculoUsuarioSectionProps> = ({ colaborad
             {salvando ? 'Vinculando...' : 'Vincular usuário'}
           </button>
         </div>
+      )}
+
+      {/* Fora dos dois blocos: o erro do desvincular (ex.: a trava "nenhum departamento sem
+          gestor", 20261027150000) aparecia só no bloco de vincular, e a recusa ficava muda. */}
+      {erro && (
+        <p role="alert" className="mt-2 px-3 py-2 rounded-lg text-sm bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300">
+          {erro}
+        </p>
       )}
     </section>
   );
