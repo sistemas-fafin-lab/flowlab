@@ -87,6 +87,10 @@ const LAYOUTS_ANTIGOS = [
   'flowLab_contas_receber_layout_v9',
 ];
 
+// Mês escolhido no card "Pendências de faturamento" — fica salvo para não
+// voltar ao padrão toda vez que se sai e se volta ao dashboard. '' = todo o período.
+const MES_PENDENCIAS_STORAGE_KEY = 'flowLab_contas_receber_mes_pendencias';
+
 // Aging por operadora: categórica, não sequencial — aqui cada cor identifica uma
 // operadora, não uma intensidade de atraso. "Outras" (a cauda que não coube no
 // gráfico) usa cinza neutro, fora da paleta, para não competir com nenhuma
@@ -368,7 +372,23 @@ const ContasReceberDashboard: React.FC<Props> = ({
   // com o que a aba mostra por padrão. Período: seletor de mês próprio (vazio =
   // todos, até M-1 / até D-1) — sobre a criação do lote e a solicitação da
   // requisição particular, respectivamente; o servidor nunca passa dos limites.
-  const [mesPendencias, setMesPendencias] = useState('');
+  const [mesPendencias, setMesPendenciasState] = useState(() => {
+    try {
+      const salvo = localStorage.getItem(MES_PENDENCIAS_STORAGE_KEY) ?? '';
+      return /^\d{4}-\d{2}$/.test(salvo) ? salvo : '';
+    } catch {
+      return '';
+    }
+  });
+  const setMesPendencias = useCallback((mes: string) => {
+    setMesPendenciasState(mes);
+    try {
+      if (mes) localStorage.setItem(MES_PENDENCIAS_STORAGE_KEY, mes);
+      else localStorage.removeItem(MES_PENDENCIAS_STORAGE_KEY);
+    } catch {
+      /* storage indisponível: o mês vale só nesta visita */
+    }
+  }, []);
   const periodoPendencias = useMemo(
     () => (mesPendencias ? periodoDoMes(mesPendencias) : { desde: undefined, ate: undefined }),
     [mesPendencias],
