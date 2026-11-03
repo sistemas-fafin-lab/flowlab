@@ -1934,6 +1934,12 @@ export interface ListarLotesPendentesParams {
   /** YYYY-MM-DD — limite superior opcional; nunca ESTENDE o cutoff de M-1, só pode
    *  encurtar a janela (ver `ateEfetivo` em `listarLotesPendentes`). */
   ate?: string;
+  /** YYYY-MM — mês de SOLICITAÇÃO das requisições (card do Dashboard). Diferente
+   *  de `desde`/`ate`, que recortam pela criação do lote: aqui só entram — na
+   *  lista, no valor e no resumo de não faturáveis — as requisições solicitadas
+   *  nesse mês, e só os lotes que têm alguma delas. Um lote criado em setembro
+   *  costuma trazer requisições de agosto, e somá-lo inteiro inflava o mês. */
+  mesSolicitacao?: string;
   operadoraId?: number;
   /** Código STLOT — precisa estar em STATUS_PENDENCIA; validado no handler. */
   status?: number;
@@ -2083,7 +2089,7 @@ const SQL_QTD_TAREFAS = `(SELECT COUNT(*) FROM tarefa t
 const cachePendencias = new Map<string, EntradaCache<ListarLotesPendentesResultado>>();
 
 function chavePendencias(params: ListarLotesPendentesParams): string {
-  return `pendencias|${params.desde ?? ''}|${params.ate ?? ''}|${params.operadoraId ?? ''}|${params.status ?? ''}|${params.codEventoFatur ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
+  return `pendencias|${params.desde ?? ''}|${params.ate ?? ''}|${params.mesSolicitacao ?? ''}|${params.operadoraId ?? ''}|${params.status ?? ''}|${params.codEventoFatur ?? ''}|${params.pagina ?? ''}|${params.tamanho ?? ''}|${(params.fontesConsideradas ?? []).join('.')}`;
 }
 
 // Rótulos de `eventofatur` — "Status Faturamento" do apLIS (`autStatusFat`),
@@ -2230,10 +2236,26 @@ export async function listarLotesPendentes(
         valores.push(...params.fontesConsideradas);
       }
     }
+    // Com `mesSolicitacao`, toda junção com `requisicao` ganha o recorte do mês
+    // (`mesReq`), e o lote só entra se tiver requisição cobrável daquele mês. Os
+    // `?` do recorte aparecem antes dos do WHERE nas consultas que o usam no JOIN
+    // ou no SELECT — daí os arrays de valores montados por consulta, abaixo.
+    const mesReq = (alias: string) => (params.mesSolicitacao
+      ? ` AND ${alias}.DtaSolicitacao >= ? AND ${alias}.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 MONTH)`
+      : '');
+    const valoresMes: ParametroSql[] = params.mesSolicitacao
+      ? [`${params.mesSolicitacao}-01 00:00:00`, `${params.mesSolicitacao}-01 00:00:00`]
+      : [];
+
     // Recorte sem o corte de lote 100% não faturável: é o universo do resumo
     // `naoFaturaveis`, que precisa contar justamente esses lotes também.
     const whereRecorte = condicoes.join(' AND ');
-    const where = `${whereRecorte} AND ${SQL_LOTE_COM_REQUISICAO_COBRAVEL}`;
+    const where = params.mesSolicitacao
+      ? `${whereRecorte} AND EXISTS (SELECT 1 FROM requisicao rc
+           WHERE rc.Lote = l.IdLote AND ${sqlEventoCobravel('rc')}${mesReq('rc')}
+             AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = rc.IdRequisicao))`
+      : `${whereRecorte} AND ${SQL_LOTE_COM_REQUISICAO_COBRAVEL}`;
+    const valoresWhere = [...valores, ...valoresMes];
 
     // O total (sem LIMIT — o widget-resumo do Dashboard precisa da pendência
     // inteira, não só da página exibida na tabela) soma por LEFT JOIN + GROUP BY
@@ -2246,12 +2268,12 @@ export async function listarLotesPendentes(
          FROM (
            SELECT l.IdLote, COALESCE(SUM(frp.ValorLiquido), 0) AS ValorLote
              FROM fatlote l
-             LEFT JOIN requisicao r ON r.Lote = l.IdLote AND ${SQL_EVENTO_COBRAVEL}
+             LEFT JOIN requisicao r ON r.Lote = l.IdLote AND ${SQL_EVENTO_COBRAVEL}${mesReq('r')}
              LEFT JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
             WHERE ${where}
             GROUP BY l.IdLote
          ) t`,
-      valores,
+      [...valoresMes, ...valoresWhere],
     );
     const registros = numero(contagem[0]?.n);
     const valorTotal = numero(contagem[0]?.ValorTotal);
@@ -2260,13 +2282,13 @@ export async function listarLotesPendentes(
       `SELECT r.CodEvento, ev.DesEvento,
               COUNT(DISTINCT r.IdRequisicao) AS Qtd, COALESCE(SUM(frp.ValorLiquido), 0) AS Valor
          FROM fatlote l
-         JOIN requisicao r ON r.Lote = l.IdLote AND ${SQL_EVENTO_NAO_COBRAVEL}
+         JOIN requisicao r ON r.Lote = l.IdLote AND ${SQL_EVENTO_NAO_COBRAVEL}${mesReq('r')}
          JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
          LEFT JOIN evento ev ON ev.CodEvento = r.CodEvento
         WHERE ${whereRecorte}
         GROUP BY r.CodEvento, ev.DesEvento
         ORDER BY Valor DESC`,
-      valores,
+      [...valoresMes, ...valores],
     );
 
     const limite = Math.trunc(tamanho);
@@ -2276,19 +2298,19 @@ export async function listarLotesPendentes(
               DATE_FORMAT(l.DtaCriacao, '%Y-%m-%d') AS DtaCriacao,
               fp.NomFantasia, fp.RazaoSocial,
               (SELECT COUNT(*) FROM requisicao r
-                WHERE r.Lote = l.IdLote AND ${SQL_EVENTO_COBRAVEL}
+                WHERE r.Lote = l.IdLote AND ${SQL_EVENTO_COBRAVEL}${mesReq('r')}
                   AND EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao)) AS QtdRequisicoes,
               (SELECT COALESCE(SUM(frp.ValorLiquido), 0)
                  FROM requisicao r
                  JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
-                WHERE r.Lote = l.IdLote AND ${SQL_EVENTO_COBRAVEL}) AS Valor,
+                WHERE r.Lote = l.IdLote AND ${SQL_EVENTO_COBRAVEL}${mesReq('r')}) AS Valor,
               ${SQL_RESUMO_EVENTO_FATUR} AS StatusFaturamentoResumoBruto
          FROM fatlote l
          LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora
         WHERE ${where}
         ORDER BY l.DtaCriacao ASC, l.IdLote ASC
         LIMIT ${limite} OFFSET ${deslocamento}`,
-      valores,
+      [...valoresMes, ...valoresMes, ...valoresWhere],
     );
 
     return {

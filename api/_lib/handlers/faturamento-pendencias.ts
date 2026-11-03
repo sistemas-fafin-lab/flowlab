@@ -11,6 +11,7 @@
  * Query params (todos opcionais):
  *   desde         YYYY-MM-DD — limite inferior
  *   ate           YYYY-MM-DD — limite superior (nunca ultrapassa o cutoff de M-1)
+ *   mesSolicitacao YYYY-MM — só requisições solicitadas nesse mês (lista e valor)
  *   operadoraId   fatinstituicao.IdInstituicao
  *   status        Código STLOT — precisa estar em STATUS_PENDENCIA (bdLab.ts)
  *   codEventoFatur  "Status Faturamento" (eventofatur.CodEvento) — lotes com ao
@@ -30,6 +31,7 @@ import { listarFontesConsideradasMeta } from '../faturamento/fontesConsideradas.
 import { getSupabaseAdminClient } from '../supabase.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
+const MES_ISO_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
 function primeiro(valor: string | string[] | undefined): string | undefined {
   if (Array.isArray(valor)) return valor[0];
@@ -65,6 +67,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const q = req.query as Record<string, string | string[] | undefined>;
     const desde = primeiro(q.desde)?.trim() || undefined;
     const ate = primeiro(q.ate)?.trim() || undefined;
+    const mesSolicitacao = primeiro(q.mesSolicitacao)?.trim() || undefined;
     const operadoraId = inteiroNaFaixa(primeiro(q.operadoraId), 1, Number.MAX_SAFE_INTEGER);
     const statusBruto = inteiroNaFaixa(primeiro(q.status), 1, Number.MAX_SAFE_INTEGER);
     const status = statusBruto != null && !STATUS_PENDENCIA.includes(statusBruto) ? null : statusBruto;
@@ -80,6 +83,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       tamanho === null ? `tamanho (1..${MAX_TAMANHO})` : null,
       desde !== undefined && !DATA_ISO_RE.test(desde) ? 'desde' : null,
       ate !== undefined && !DATA_ISO_RE.test(ate) ? 'ate' : null,
+      mesSolicitacao !== undefined && !MES_ISO_RE.test(mesSolicitacao) ? 'mesSolicitacao' : null,
     ].filter((c): c is string => c !== null);
     if (invalidos.length > 0) {
       res.status(400).json({
@@ -94,6 +98,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const resultado = await listarLotesPendentes({
       desde,
       ate,
+      mesSolicitacao,
       operadoraId: operadoraId ?? undefined,
       status: status ?? undefined,
       codEventoFatur: codEventoFatur ?? undefined,

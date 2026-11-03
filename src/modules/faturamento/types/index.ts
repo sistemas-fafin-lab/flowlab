@@ -444,6 +444,9 @@ export interface PendenciasFiltros {
   desde?: string;
   /** YYYY-MM-DD — nunca ultrapassa o cutoff de M-1 devolvido em `PendenciasMeta`. */
   ate?: string;
+  /** YYYY-MM — só requisições SOLICITADAS nesse mês (lista e valor), não o lote
+   *  inteiro pela data de criação. Usado pelo card do Dashboard. */
+  mesSolicitacao?: string;
   operadoraId?: number;
   /** Código STLOT — só os valores em STATUS_PENDENCIA (servidor) fazem sentido aqui. */
   status?: number;
