@@ -228,7 +228,7 @@ const ITRequestsDashboard: React.FC<ITRequestsDashboardProps> = ({
 
       {/* ── Gráficos ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className={`lg:col-span-2 ${CARD} p-6 shadow-sm hover:shadow-2xl transition-shadow duration-300`}>
+        <div className={`relative lg:col-span-2 ${CARD} p-6 shadow-sm hover:shadow-2xl transition-shadow duration-300`}>
           <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-gradient-to-br from-blue-500 to-violet-600 rounded-xl shadow-lg shadow-blue-500/25">
@@ -317,8 +317,11 @@ const ITRequestsDashboard: React.FC<ITRequestsDashboardProps> = ({
               </ResponsiveContainer>
               </div>
               </div>
-              {/* Mesmos números em tabela, para leitor de tela */}
-              <table className="sr-only">
+              {/* Mesmos números em tabela, para leitor de tela. O sr-only fica numa div:
+                  <table> ignora height e overflow, então ocuparia a altura de todas as
+                  linhas (invisível) e esticaria a página além do fundo do Layout. */}
+              <div className="sr-only">
+              <table>
                 <caption>Chamados abertos e resolvidos nos últimos {periodo} dias</caption>
                 <thead>
                   <tr>
@@ -337,6 +340,7 @@ const ITRequestsDashboard: React.FC<ITRequestsDashboardProps> = ({
                   ))}
                 </tbody>
               </table>
+              </div>
             </>
           )}
         </div>
