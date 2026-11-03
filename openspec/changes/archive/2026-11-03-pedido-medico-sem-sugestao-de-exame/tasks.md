@@ -22,5 +22,5 @@
 ## 4. Verificação
 
 - [x] 4.1 `npm test` e build sem erros (falham só `permissions.test.ts` e `gerarEstruturado.test.ts`, que já falhavam na `main`)
-- [ ] 4.2 No navegador, com o pedido do relato ("Lipo B", "Células LE"): os dois aparecem em "Não encontrados" e nenhum vai ao carrinho; conferir as frases, o "ver mais", o modo claro/escuro e o mobile
+- [ ] 4.2 (relato validado por script, 3/3 não encontrados; PDF e imagem do WhatsApp validados na tela: seção no topo, frases, "ver mais", claro/escuro; falta o mobile. A IA (gemini-3.1-flash-lite) ainda troca "Cortisol (manhã)" → CORTISOL SALIVAR e "COVID IgG e IgM" → anticorpos totais; o gemini-3.8-flash passou de 40s ou, com raciocínio baixo, não leu a imagem) No navegador, com o pedido do relato ("Lipo B", "Células LE"): os dois aparecem em "Não encontrados" e nenhum vai ao carrinho; conferir as frases, o "ver mais", o modo claro/escuro e o mobile
 - [x] 4.3 Com um pedido que tenha siglas comuns (TGO, TGP, TSH, Hemograma): continuam reconhecidos e marcados
