@@ -1,16 +1,19 @@
 // Planos de contingência — cadastro + listagem/filtro, histórico de testes.
 // (.scratch/qualidade-riscos-indicadores/issues/03-riscos-contingencia.md).
 // Independente de risco: não exige vínculo com um risco existente.
+// "Baixar todos" exporta os planos listados (respeita o filtro de setor) num ZIP.
 
-import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, Plus } from 'lucide-react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { ArrowLeft, ChevronDown, Download, Loader2, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { PlanoContingenciaDTO } from '../types';
 import { buscarSetoresContingencia, listarPlanosContingencia } from '../contingencias.js';
+import type { FormatoExportacao } from '../domain/exportacaoContingencia.js';
+import { baixarPlanosContingenciaZip } from '../exportacaoContingencia.js';
 import { useCanManageQualidade } from '../hooks/useCanManageQualidade.js';
-import { NovoPlanoContingenciaDrawer } from './riscos/NovoPlanoContingenciaDrawer.js';
 import { PlanoContingenciaDetalheDrawer } from './riscos/PlanoContingenciaDetalheDrawer.js';
+import { PlanoContingenciaFormDrawer } from './riscos/PlanoContingenciaFormDrawer.js';
 import { BADGE_STATUS_CONTINGENCIA, ROTULO_STATUS_CONTINGENCIA } from './riscos/rotulos.js';
 import { ComboboxBusca } from './ui/ComboboxBusca.js';
 import { ErrorState } from './ui/ErrorState.js';
@@ -36,6 +39,66 @@ const colunas: ColunaTabela<PlanoContingenciaDTO>[] = [
     larguraMin: 'min-w-[8rem]',
   },
 ];
+
+const OPCOES_ZIP: { formato: FormatoExportacao; rotulo: string }[] = [
+  { formato: 'pdf', rotulo: 'Todos em PDF' },
+  { formato: 'docx', rotulo: 'Todos em Word (.docx)' },
+];
+
+function BaixarTodosZip({ planos }: { planos: readonly PlanoContingenciaDTO[] }) {
+  const [aberto, setAberto] = useState(false);
+  const mutacao = useMutation({
+    mutationFn: (formato: FormatoExportacao) => baixarPlanosContingenciaZip(planos, formato),
+  });
+
+  return (
+    <div className="relative flex flex-col items-start gap-1">
+      <button
+        type="button"
+        disabled={planos.length === 0 || mutacao.isPending}
+        onClick={() => setAberto((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={aberto}
+        className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white/70 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+      >
+        {mutacao.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
+        {mutacao.isPending ? 'Gerando ZIP…' : `Baixar todos (${planos.length}) .zip`}
+        <ChevronDown className="h-4 w-4" aria-hidden />
+      </button>
+
+      {aberto && (
+        <>
+          <div className="fixed inset-0 z-10" aria-hidden onClick={() => setAberto(false)} />
+          <div
+            role="menu"
+            className="absolute left-0 top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg dark:border-white/10 dark:bg-gray-800"
+          >
+            {OPCOES_ZIP.map(({ formato, rotulo }) => (
+              <button
+                key={formato}
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setAberto(false);
+                  mutacao.mutate(formato);
+                }}
+                className="block w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50 dark:text-slate-200 dark:hover:bg-white/10"
+              >
+                {rotulo}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+
+      {mutacao.isError && (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          Não foi possível gerar o ZIP.
+        </p>
+      )}
+    </div>
+  );
+}
 
 export function Contingencias() {
   const canManage = useCanManageQualidade();
@@ -68,16 +131,19 @@ export function Contingencias() {
               Ações e testes previstos para quando um risco vira realidade — independente de vínculo com um risco cadastrado.
             </p>
           </div>
-          {canManage && (
-            <button
-              type="button"
-              onClick={() => setNovoAberto(true)}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700"
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-              Novo plano de contingência
-            </button>
-          )}
+          <div className="flex flex-wrap items-start gap-3">
+            <BaixarTodosZip planos={data ?? []} />
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => setNovoAberto(true)}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-4 py-2.5 text-sm font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700"
+              >
+                <Plus className="h-4 w-4" aria-hidden />
+                Novo plano de contingência
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -117,7 +183,7 @@ export function Contingencias() {
         />
       )}
 
-      {novoAberto && <NovoPlanoContingenciaDrawer onFechar={() => setNovoAberto(false)} />}
+      {novoAberto && <PlanoContingenciaFormDrawer onFechar={() => setNovoAberto(false)} />}
       {detalheId && <PlanoContingenciaDetalheDrawer id={detalheId} canManage={canManage} onFechar={() => setDetalheId(null)} />}
     </div>
   );

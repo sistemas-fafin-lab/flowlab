@@ -16,7 +16,7 @@ coisas relacionadas, mas diferentes"). Por isso esta ticket não depende de
 Referência de implementação completa: projeto de origem
 `Flowlab_Controle_Qualidade`, branch `main`, commit `d78e375` —
 `components/ContingenciasPage.tsx`,
-`components/riscos/NovoPlanoContingenciaDrawer.tsx`,
+`components/riscos/PlanoContingenciaFormDrawer.tsx`,
 `components/riscos/PlanoContingenciaDetalheDrawer.tsx`, tabelas
 `qa_planos_contingencia`/`qa_testes_contingencia` em
 `qualidade_riscos_schema.sql`.
@@ -33,7 +33,7 @@ Referência de implementação completa: projeto de origem
 
 ## Comments
 
-Implementado como `ContingenciasPage`/`NovoPlanoContingenciaDrawer`/
+Implementado como `ContingenciasPage`/`PlanoContingenciaFormDrawer`/
 `PlanoContingenciaDetalheDrawer` em `src/modules/qualidade/components/`
 (padrão espelhado de `RiscosPage`/`NovoRiscoDrawer`/`RiscoDetalheDrawer`),
 cliente de dados em `contingencias.ts`, agregação pura em

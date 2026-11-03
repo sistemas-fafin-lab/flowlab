@@ -1,44 +1,52 @@
-// Cadastro de plano de contingência — botão "Novo plano de contingência" de
-// ContingenciasPage. Independente de risco: não pede vínculo com qa_riscos.
+// Cadastro e edição de plano de contingência — "Novo plano de contingência" de
+// ContingenciasPage e "Editar" do drawer de detalhe. Independente de risco: não
+// pede vínculo com qa_riscos. Status fica fora: muda no drawer de detalhe.
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { useState } from 'react';
-import type { NovoPlanoContingenciaInput } from '../../types';
-import { buscarSetoresContingencia, criarPlanoContingencia } from '../../contingencias.js';
+import type { NovoPlanoContingenciaInput, PlanoContingenciaDTO } from '../../types';
+import {
+  ErroApi,
+  atualizarPlanoContingencia,
+  buscarSetoresContingencia,
+  criarPlanoContingencia,
+} from '../../contingencias.js';
 import { ComboboxBusca } from '../ui/ComboboxBusca.js';
 import { DrawerLateral } from '../ui/DrawerLateral.js';
 import { campoInput, campoLabel } from './rotulos.js';
 
-interface NovoPlanoContingenciaDrawerProps {
+interface PlanoContingenciaFormDrawerProps {
+  /** Presente = edição desse plano; ausente = cadastro de um novo. */
+  plano?: PlanoContingenciaDTO;
   onFechar: () => void;
   onCriado?: (id: string) => void;
 }
 
-export function NovoPlanoContingenciaDrawer({ onFechar, onCriado }: NovoPlanoContingenciaDrawerProps) {
+export function PlanoContingenciaFormDrawer({ plano, onFechar, onCriado }: PlanoContingenciaFormDrawerProps) {
   const queryClient = useQueryClient();
   const { data: setores } = useQuery({ queryKey: ['riscos-setores'], queryFn: buscarSetoresContingencia });
 
-  const [codigo, setCodigo] = useState('');
-  const [setorId, setSetorId] = useState('');
-  const [evento, setEvento] = useState('');
-  const [cenario, setCenario] = useState('');
-  const [impactos, setImpactos] = useState('');
-  const [gatilhoAcionamento, setGatilhoAcionamento] = useState('');
-  const [acoesImediatas, setAcoesImediatas] = useState('');
-  const [responsaveis, setResponsaveis] = useState('');
-  const [comunicacao, setComunicacao] = useState('');
-  const [materiais, setMateriais] = useState('');
-  const [fornecedorAlternativo, setFornecedorAlternativo] = useState('');
-  const [prazoMaximoInterrupcao, setPrazoMaximoInterrupcao] = useState('');
+  const [codigo, setCodigo] = useState(plano?.codigo ?? '');
+  const [setorId, setSetorId] = useState(plano?.setorId ?? '');
+  const [evento, setEvento] = useState(plano?.evento ?? '');
+  const [cenario, setCenario] = useState(plano?.cenario ?? '');
+  const [impactos, setImpactos] = useState(plano?.impactos ?? '');
+  const [gatilhoAcionamento, setGatilhoAcionamento] = useState(plano?.gatilhoAcionamento ?? '');
+  const [acoesImediatas, setAcoesImediatas] = useState(plano?.acoesImediatas ?? '');
+  const [responsaveis, setResponsaveis] = useState(plano?.responsaveis ?? '');
+  const [comunicacao, setComunicacao] = useState(plano?.comunicacao ?? '');
+  const [materiais, setMateriais] = useState(plano?.materiais ?? '');
+  const [fornecedorAlternativo, setFornecedorAlternativo] = useState(plano?.fornecedorAlternativo ?? '');
+  const [prazoMaximoInterrupcao, setPrazoMaximoInterrupcao] = useState(plano?.prazoMaximoInterrupcao ?? '');
 
   const podeSalvar = Boolean(
     codigo.trim() && setorId && evento.trim() && cenario.trim() && gatilhoAcionamento.trim() && acoesImediatas.trim(),
   );
 
   const mutacao = useMutation({
-    mutationFn: () =>
-      criarPlanoContingencia({
+    mutationFn: async () => {
+      const input = {
         codigo: codigo.trim(),
         setorId,
         evento: evento.trim(),
@@ -51,17 +59,32 @@ export function NovoPlanoContingenciaDrawer({ onFechar, onCriado }: NovoPlanoCon
         materiais: materiais.trim() || null,
         fornecedorAlternativo: fornecedorAlternativo.trim() || null,
         prazoMaximoInterrupcao: prazoMaximoInterrupcao.trim() || null,
-      } satisfies NovoPlanoContingenciaInput),
+      } satisfies NovoPlanoContingenciaInput;
+      if (!plano) return criarPlanoContingencia(input);
+      await atualizarPlanoContingencia(plano.id, input);
+      return plano.id;
+    },
     onSuccess: async (id) => {
-      await queryClient.invalidateQueries({ queryKey: ['contingencias'] });
-      onCriado?.(id);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['contingencias'] }),
+        queryClient.invalidateQueries({ queryKey: ['plano-contingencia', id] }),
+        queryClient.invalidateQueries({ queryKey: ['painel-riscos'] }),
+      ]);
+      if (!plano) onCriado?.(id);
       onFechar();
     },
   });
 
+  // Código repetido tem mensagem própria (409); o resto cai na genérica.
+  const mensagemErro =
+    mutacao.error instanceof ErroApi && mutacao.error.status === 409
+      ? mutacao.error.message
+      : `Não foi possível ${plano ? 'salvar' : 'cadastrar'} o plano de contingência. Tente novamente.`;
+
   return (
     <DrawerLateral
-      titulo="Novo plano de contingência"
+      titulo={plano ? 'Editar plano de contingência' : 'Novo plano de contingência'}
+      subtitulo={plano?.codigo}
       aoFechar={onFechar}
       footer={
         <>
@@ -80,12 +103,12 @@ export function NovoPlanoContingenciaDrawer({ onFechar, onCriado }: NovoPlanoCon
               className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-2.5 font-medium text-white shadow-md shadow-blue-500/25 transition-all duration-200 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50"
             >
               {mutacao.isPending && <Loader2 className="h-4 w-4 animate-spin" aria-hidden />}
-              Cadastrar plano
+              {plano ? 'Salvar alterações' : 'Cadastrar plano'}
             </button>
           </div>
           {mutacao.isError && (
             <p role="alert" className="px-4 pb-4 text-sm text-red-600 dark:text-red-400 sm:px-6">
-              Não foi possível cadastrar o plano de contingência. Tente novamente.
+              {mensagemErro}
             </p>
           )}
         </>

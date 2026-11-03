@@ -132,11 +132,54 @@ export async function atualizarPlanoContingencia(id: string, input: AtualizarPla
   if (!user) throw new ErroApiQualidade(401, 'Sessão expirada. Faça login novamente.');
 
   const colunas: Record<string, unknown> = { atualizado_por: user.id, atualizado_em: new Date().toISOString() };
-  if (input.status !== undefined) colunas.status = input.status;
+  for (const [campo, coluna] of Object.entries(COLUNA_DO_CAMPO) as [keyof AtualizarPlanoContingenciaInput, string][]) {
+    if (input[campo] !== undefined) colunas[coluna] = input[campo];
+  }
 
   const { error } = await supabase.from('qa_planos_contingencia').update(colunas).eq('id', id);
+  if (error?.code === '23505') throw new ErroApiQualidade(409, 'Já existe um plano de contingência com este código.');
   if (error)
     throw new ErroApiQualidade(error.code === '42501' ? 403 : 500, `Falha ao atualizar plano de contingência: ${error.message}`);
+}
+
+const COLUNA_DO_CAMPO: Record<keyof AtualizarPlanoContingenciaInput, string> = {
+  codigo: 'codigo',
+  setorId: 'setor_id',
+  evento: 'evento',
+  cenario: 'cenario',
+  impactos: 'impactos',
+  gatilhoAcionamento: 'gatilho_acionamento',
+  acoesImediatas: 'acoes_imediatas',
+  responsaveis: 'responsaveis',
+  comunicacao: 'comunicacao',
+  materiais: 'materiais',
+  fornecedorAlternativo: 'fornecedor_alternativo',
+  prazoMaximoInterrupcao: 'prazo_maximo_interrupcao',
+  status: 'status',
+};
+
+/**
+ * Exclui o plano; o histórico de testes sai junto (ON DELETE CASCADE) e tudo fica
+ * em qa_auditoria. Depois apaga a pasta do plano no bucket — inclusive documentos
+ * substituídos. Falha no storage não desfaz a exclusão: só fica o arquivo órfão.
+ */
+export async function excluirPlanoContingencia(id: string): Promise<void> {
+  // Sem `.select()` a RLS negaria em silêncio (0 linhas, sem erro).
+  const { data, error } = await supabase.from('qa_planos_contingencia').delete().eq('id', id).select('id');
+  if (error)
+    throw new ErroApiQualidade(error.code === '42501' ? 403 : 500, `Falha ao excluir plano de contingência: ${error.message}`);
+  if (!data?.length) throw new ErroApiQualidade(403, 'Sem permissão para excluir este plano de contingência.');
+
+  try {
+    const { data: arquivos, error: erroLista } = await supabase.storage.from(BUCKET_DOCUMENTOS).list(id);
+    if (erroLista) throw erroLista;
+    if (arquivos?.length) {
+      const { error: erroRemove } = await supabase.storage.from(BUCKET_DOCUMENTOS).remove(arquivos.map((a) => `${id}/${a.name}`));
+      if (erroRemove) throw erroRemove;
+    }
+  } catch (err) {
+    console.error('Plano excluído, mas os documentos ficaram no storage:', err);
+  }
 }
 
 const BUCKET_DOCUMENTOS = 'qa-contingencia-documentos';

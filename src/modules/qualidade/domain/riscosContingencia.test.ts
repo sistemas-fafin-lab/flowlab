@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ordenarTestesPorData, proximaDataPrevistaAtual, testeMaisRecente } from './riscosContingencia.js';
+import { confirmaExclusaoDoPlano, ordenarTestesPorData, proximaDataPrevistaAtual, testeMaisRecente } from './riscosContingencia.js';
 import type { TesteContingenciaDTO } from '../types';
 
 function teste(overrides: Partial<TesteContingenciaDTO> = {}): TesteContingenciaDTO {
@@ -58,5 +58,19 @@ describe('proximaDataPrevistaAtual', () => {
   it('retorna null quando o teste mais recente não previu próxima data', () => {
     const recente = teste({ id: 'recente', dataTeste: '2026-06-01', proximaDataPrevista: null });
     expect(proximaDataPrevistaAtual([recente])).toBeNull();
+  });
+});
+
+describe('confirmaExclusaoDoPlano', () => {
+  it('confirma só com o código exato do plano', () => {
+    expect(confirmaExclusaoDoPlano('PC-20', 'PC-20')).toBe(true);
+    expect(confirmaExclusaoDoPlano('  PC-20 ', 'PC-20')).toBe(true);
+  });
+
+  it('não confirma com código diferente, em outra caixa ou vazio', () => {
+    expect(confirmaExclusaoDoPlano('PC-2', 'PC-20')).toBe(false);
+    expect(confirmaExclusaoDoPlano('pc-20', 'PC-20')).toBe(false);
+    expect(confirmaExclusaoDoPlano('', 'PC-20')).toBe(false);
+    expect(confirmaExclusaoDoPlano('', '')).toBe(false);
   });
 });

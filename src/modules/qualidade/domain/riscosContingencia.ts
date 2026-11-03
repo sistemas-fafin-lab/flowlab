@@ -17,3 +17,11 @@ export function testeMaisRecente(testes: readonly TesteContingenciaDTO[]): Teste
 export function proximaDataPrevistaAtual(testes: readonly TesteContingenciaDTO[]): string | null {
   return testeMaisRecente(testes)?.proximaDataPrevista ?? null;
 }
+
+/**
+ * Exclusão de plano exige digitar o código dele. Espaços nas pontas não contam;
+ * maiúsculas/minúsculas sim — "pc-20" não confirma "PC-20".
+ */
+export function confirmaExclusaoDoPlano(digitado: string, codigo: string): boolean {
+  return codigo.trim() !== '' && digitado.trim() === codigo.trim();
+}

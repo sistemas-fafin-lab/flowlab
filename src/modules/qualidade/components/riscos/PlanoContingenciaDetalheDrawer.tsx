@@ -1,13 +1,17 @@
-// Gerenciamento de 1 plano de contingência — status, documento anexado e
-// histórico de testes (nunca sobrescreve um teste anterior).
+// Gerenciamento de 1 plano de contingência — status, documento anexado,
+// histórico de testes (nunca sobrescreve um teste anterior), exportação em
+// PDF/Word, edição e exclusão (confirmada digitando o código do plano).
 // (.scratch/qualidade-riscos-indicadores/issues/03-riscos-contingencia.md)
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Paperclip, Plus } from 'lucide-react';
+import { Download, Loader2, Paperclip, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState } from 'react';
+import type { FormatoExportacao } from '../../domain/exportacaoContingencia.js';
 import { proximaDataPrevistaAtual } from '../../domain/riscosContingencia.js';
+import { baixarPlanoContingencia } from '../../exportacaoContingencia.js';
 import type {
   DocumentoPlanoContingencia,
+  PlanoContingenciaDTO,
   NovoTesteContingenciaInput,
   ResultadoTesteContingencia,
   StatusPlanoContingencia,
@@ -21,6 +25,8 @@ import {
   listarTestesContingencia,
 } from '../../contingencias.js';
 import { DrawerLateral } from '../ui/DrawerLateral.js';
+import { ExcluirPlanoContingenciaModal } from './ExcluirPlanoContingenciaModal.js';
+import { PlanoContingenciaFormDrawer } from './PlanoContingenciaFormDrawer.js';
 import { ErrorState } from '../ui/ErrorState.js';
 import { Skeleton } from '../ui/Skeleton.js';
 import {
@@ -50,6 +56,43 @@ function formatarData(iso: string | null): string {
 function formatarDataHora(iso: string): string {
   const [data, hora] = iso.split('T');
   return `${formatarData(data)} ${hora?.slice(0, 5) ?? ''}`;
+}
+
+// ─── Exportação ─────────────────────────────────────────────────────────────
+
+const ROTULO_FORMATO: Record<FormatoExportacao, string> = { pdf: 'PDF', docx: 'Word' };
+
+function BotoesExportar({ plano }: { plano: PlanoContingenciaDTO }) {
+  const mutacao = useMutation({ mutationFn: (formato: FormatoExportacao) => baixarPlanoContingencia(plano, formato) });
+
+  return (
+    <div className="flex flex-col items-end gap-1">
+      <div className="flex items-center gap-2">
+        {(Object.keys(ROTULO_FORMATO) as FormatoExportacao[]).map((formato) => (
+          <button
+            key={formato}
+            type="button"
+            disabled={mutacao.isPending}
+            onClick={() => mutacao.mutate(formato)}
+            title={`Baixar o plano em ${ROTULO_FORMATO[formato]}`}
+            className="flex items-center gap-1 rounded-lg bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-200 disabled:opacity-50 dark:bg-white/10 dark:text-slate-300 dark:hover:bg-white/15"
+          >
+            {mutacao.isPending && mutacao.variables === formato ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+            ) : (
+              <Download className="h-3.5 w-3.5" aria-hidden />
+            )}
+            {ROTULO_FORMATO[formato]}
+          </button>
+        ))}
+      </div>
+      {mutacao.isError && (
+        <p role="alert" className="text-xs text-red-600 dark:text-red-400">
+          Não foi possível gerar o arquivo.
+        </p>
+      )}
+    </div>
+  );
 }
 
 // ─── Seção: status + documento ─────────────────────────────────────────────
@@ -358,6 +401,8 @@ export function PlanoContingenciaDetalheDrawer({ id, canManage, onFechar }: Plan
     queryKey: ['plano-contingencia', id],
     queryFn: () => buscarPlanoContingencia(id),
   });
+  const [editando, setEditando] = useState(false);
+  const [excluindo, setExcluindo] = useState(false);
 
   return (
     <DrawerLateral titulo="Plano de contingência" subtitulo={plano?.codigo} largura="larga" aoFechar={onFechar}>
@@ -378,11 +423,36 @@ export function PlanoContingenciaDetalheDrawer({ id, canManage, onFechar }: Plan
       {plano && (
         <div className="flex-1 space-y-6 overflow-y-auto p-6">
           <section aria-label="Dados do plano">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_STATUS_CONTINGENCIA[plano.status]}`}>
-                {ROTULO_STATUS_CONTINGENCIA[plano.status]}
-              </span>
-              <span className="text-sm text-gray-500 dark:text-slate-400">{plano.setorNome ?? '—'}</span>
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGE_STATUS_CONTINGENCIA[plano.status]}`}>
+                  {ROTULO_STATUS_CONTINGENCIA[plano.status]}
+                </span>
+                <span className="text-sm text-gray-500 dark:text-slate-400">{plano.setorNome ?? '—'}</span>
+              </div>
+              <div className="flex flex-wrap items-start gap-2">
+                {canManage && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setEditando(true)}
+                      className="flex items-center gap-1 rounded-lg bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-300 dark:hover:bg-blue-900/40"
+                    >
+                      <Pencil className="h-3.5 w-3.5" aria-hidden />
+                      Editar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setExcluindo(true)}
+                      className="flex items-center gap-1 rounded-lg bg-red-50 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:bg-red-900/20 dark:text-red-300 dark:hover:bg-red-900/40"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                      Excluir
+                    </button>
+                  </>
+                )}
+                <BotoesExportar plano={plano} />
+              </div>
             </div>
 
             <dl className="mt-3 grid grid-cols-1 gap-x-4 gap-y-3 text-sm sm:grid-cols-2">
@@ -436,6 +506,12 @@ export function PlanoContingenciaDetalheDrawer({ id, canManage, onFechar }: Plan
           <SecaoStatusDocumento planoId={plano.id} statusAtual={plano.status} documento={plano.documento} canManage={canManage} />
           <SecaoTestes planoId={plano.id} canManage={canManage} />
         </div>
+      )}
+
+      {/* Portais: abrem por cima do drawer, fora do fluxo dele. */}
+      {plano && editando && <PlanoContingenciaFormDrawer plano={plano} onFechar={() => setEditando(false)} />}
+      {plano && excluindo && (
+        <ExcluirPlanoContingenciaModal plano={plano} onCancelar={() => setExcluindo(false)} onExcluido={onFechar} />
       )}
     </DrawerLateral>
   );

@@ -718,9 +718,8 @@ export interface NovoPlanoContingenciaInput {
   status?: StatusPlanoContingencia;
 }
 
-export interface AtualizarPlanoContingenciaInput {
-  status?: StatusPlanoContingencia;
-}
+/** Só os campos presentes são gravados — o drawer de detalhe manda só `status`, a edição manda o resto. */
+export type AtualizarPlanoContingenciaInput = Partial<NovoPlanoContingenciaInput>;
 
 /**
  * Histórico de testes — nunca sobrescreve um teste anterior, cada teste é
