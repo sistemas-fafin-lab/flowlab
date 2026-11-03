@@ -53,8 +53,11 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
   const [selectedSupplierFilter, setSelectedSupplierFilter] = useState<string | null>(null);
 
-  // Calculate comparison data
-  const comparisonData = useMemo((): SupplierComparisonData[] => annotateProposals(quotation), [quotation]);
+  // Perdedoras continuam visíveis após a seleção da vencedora, para consulta
+  const comparisonData = useMemo(
+    (): SupplierComparisonData[] => annotateProposals(quotation, { includeRejected: true }),
+    [quotation]
+  );
 
   // Sort data
   const sortedData = useMemo(() => {

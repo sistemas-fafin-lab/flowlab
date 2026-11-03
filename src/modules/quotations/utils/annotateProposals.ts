@@ -2,8 +2,8 @@ import { SupplierProposal, SupplierComparisonData } from '../types';
 
 export interface AnnotateProposalsOptions {
   // Por padrão, propostas perdedoras (status 'rejected' via seleção de
-  // vencedora) somem da lista — comportamento da tabela de comparação. O
-  // modal de aprovação precisa de todas, vencedora incluída, daí a opção.
+  // vencedora) somem da lista. A tabela de comparação, o modal de aprovação
+  // e os e-mails mostram todas, vencedora incluída, daí a opção.
   includeRejected?: boolean;
 }
 
