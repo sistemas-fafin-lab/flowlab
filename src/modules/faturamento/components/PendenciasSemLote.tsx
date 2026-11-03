@@ -140,7 +140,8 @@ const PendenciasSemLote: React.FC<Props> = ({ operadoras }) => {
         {meta?.limite ? <>, solicitadas até {formatData(meta.limite)}</> : null} — dados até ontem
         (D-1), porque o apLIS chega com cerca de um dia de atraso. Não aparecem em "Sem NF
         (lotes)", que só olha requisições já ligadas a um lote; exame cancelado, amostra
-        devolvida e material descartado ficam de fora.
+        devolvida, material descartado, não conformidade em aberto e requisição para pagamento
+        no particular ficam de fora.
       </p>
 
       {error && (
