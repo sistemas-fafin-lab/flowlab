@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, Search, X } from 'lucide-react';
+import Select from '../../../components/Select';
 import { supabase } from '../../../lib/supabase';
 import {
   diasDeAtraso,
@@ -19,6 +20,10 @@ import type { AgingSelecao, OperadoraResumo, TituloStatus } from '../types';
 // range livre (issue 40) e pagina no servidor — aqui o range é derivado da
 // faixa clicada (faixaAgingParaRange) e a lista não precisa de paginação de
 // UI, só de um teto de linhas.
+//
+// Para a cobrança, a lista filtra por operadora e busca pelo número da nota.
+// Os dois filtros vão para a consulta (não recortam só as linhas já carregadas),
+// então o teto de linhas e a contagem valem para o recorte filtrado.
 
 interface ItemAging {
   id: string;
@@ -53,6 +58,12 @@ const STATUS_ENCERRADOS: readonly TituloStatus[] = ['cancelada', 'recebida', 'li
 // a usuária ver "quais operadoras, quais títulos" por trás do agregado.
 const LIMITE_LINHAS = 300;
 
+/** Espera de digitação antes de consultar a busca por nota. */
+const ESPERA_BUSCA_MS = 300;
+
+const CAMPO_FILTRO =
+  'px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-sm text-gray-900 dark:text-gray-100';
+
 const rotuloAtraso = (dias: number | null): string => {
   if (dias === null) return '—';
   if (dias > 0) return `${dias}d em atraso`;
@@ -77,6 +88,28 @@ const AgingDetalheModal: React.FC<Props> = ({
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
+  /** '' = todas as operadoras da meta. */
+  const [operadoraId, setOperadoraId] = useState('');
+  const [buscaNota, setBuscaNota] = useState('');
+  const [notaConsultada, setNotaConsultada] = useState('');
+
+  useEffect(() => {
+    const espera = setTimeout(() => setNotaConsultada(buscaNota.trim()), ESPERA_BUSCA_MS);
+    return () => clearTimeout(espera);
+  }, [buscaNota]);
+
+  const opcoesOperadora = useMemo(
+    () => [
+      { value: '', label: 'Todas as operadoras' },
+      ...operadoras
+        .filter((o) => o.consideradaMeta)
+        .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+        .map((o) => ({ value: o.id, label: o.nome })),
+    ],
+    [operadoras],
+  );
+
+  const saldoTotal = useMemo(() => itens.reduce((soma, item) => soma + item.valorSaldo, 0), [itens]);
 
   useEffect(() => {
     const aoTeclar = (e: KeyboardEvent) => {
@@ -106,7 +139,13 @@ const AgingDetalheModal: React.FC<Props> = ({
           .order('data_vencimento', { ascending: true, nullsFirst: true })
           .limit(LIMITE_LINHAS);
 
-        query = query.in('operadora_id', idsOperadorasConsideradasMeta(operadoras));
+        query = operadoraId
+          ? query.eq('operadora_id', operadoraId)
+          : query.in('operadora_id', idsOperadorasConsideradasMeta(operadoras));
+        if (notaConsultada) {
+          // `%` e `_` digitados viram literais, não curingas do LIKE.
+          query = query.ilike('numero_nota', `%${notaConsultada.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+        }
 
         if (incluirSemVencimento && desde) {
           query = query.or(`data_vencimento.is.null,data_vencimento.gte.${desde}`);
@@ -142,7 +181,9 @@ const AgingDetalheModal: React.FC<Props> = ({
     })();
 
     return () => { cancelado = true; };
-  }, [bucket, operadoras]);
+  }, [bucket, operadoras, operadoraId, notaConsultada]);
+
+  const filtrando = operadoraId !== '' || notaConsultada !== '';
 
   return (
     <div
@@ -176,6 +217,35 @@ const AgingDetalheModal: React.FC<Props> = ({
           </button>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 px-6 pt-4">
+          <Select
+            value={operadoraId}
+            onChange={setOperadoraId}
+            options={opcoesOperadora}
+            ariaLabel="Operadora"
+            controlClass={`${CAMPO_FILTRO} min-w-[14rem]`}
+            searchable
+            searchPlaceholder="Buscar operadora"
+          />
+          <label className="relative flex-1 min-w-[10rem]">
+            <span className="sr-only">Número da nota</span>
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="search"
+              value={buscaNota}
+              onChange={(e) => setBuscaNota(e.target.value)}
+              placeholder="Número da nota"
+              className={`${CAMPO_FILTRO} w-full pl-9`}
+            />
+          </label>
+          {!loading && !erro && (
+            <p className="w-full text-xs text-gray-500 dark:text-gray-400">
+              {total} título{total === 1 ? '' : 's'}
+              {total === itens.length && <> · saldo de <strong className="text-gray-800 dark:text-gray-100">{formatCurrency(saldoTotal)}</strong></>}
+            </p>
+          )}
+        </div>
+
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {erro && (
             <div className="mb-3 p-3 rounded-xl border border-red-200 dark:border-red-900/50 bg-red-50 dark:bg-red-900/20 text-sm text-red-700 dark:text-red-300 flex items-start gap-2">
@@ -188,7 +258,7 @@ const AgingDetalheModal: React.FC<Props> = ({
             <div className="flex justify-center py-16"><LoadingSpinner /></div>
           ) : itens.length === 0 ? (
             <p className="py-16 text-center text-sm text-gray-500 dark:text-gray-400">
-              Nenhum título em aberto nesta faixa.
+              {filtrando ? 'Nenhum título em aberto nesta faixa com esses filtros.' : 'Nenhum título em aberto nesta faixa.'}
             </p>
           ) : (
             <>
@@ -238,7 +308,8 @@ const AgingDetalheModal: React.FC<Props> = ({
 
               {total > itens.length && (
                 <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
-                  Mostrando os {itens.length} títulos mais urgentes de {total} nesta faixa.
+                  Mostrando os {itens.length} títulos mais urgentes de {total} nesta faixa
+                  {!filtrando && ': filtre por operadora para ver todos os dela'}.
                 </p>
               )}
             </>
