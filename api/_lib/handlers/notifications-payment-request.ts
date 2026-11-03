@@ -76,8 +76,13 @@ async function financeiro(supabase: Supabase): Promise<Pessoa[]> {
   return (data ?? []).filter((p) => !!p.email).map((p) => ({ id: p.id as string, email: p.email as string }));
 }
 
-/** Quem chama tem "Gerenciar Departamentos" (pode avisar de uma transferência). */
-async function gereDepartamentos(supabase: Supabase, userId: string): Promise<boolean> {
+// As mesmas permissões que movem pedidos de autorizador: a transferência da aba Departamentos
+// (canManageDepartamentos) e a troca de departamento de quem pediu (departamento_pode_trocar,
+// 20261103150000: também canManageColaboradores e canManageRoles).
+const PODEM_TRANSFERIR = ['canManageDepartamentos', 'canManageColaboradores', 'canManageRoles'];
+
+/** Quem chama pode avisar de uma transferência. */
+async function podeTransferirPedidos(supabase: Supabase, userId: string): Promise<boolean> {
   const { data, error } = await supabase
     .from('user_profiles')
     .select('deleted_at, disabled_at, custom_roles(permissions)')
@@ -87,7 +92,7 @@ async function gereDepartamentos(supabase: Supabase, userId: string): Promise<bo
   if (!data || data.deleted_at || data.disabled_at) return false;
   const cargo = data.custom_roles as { permissions?: unknown } | { permissions?: unknown }[] | null;
   const permissoes = (Array.isArray(cargo) ? cargo[0] : cargo)?.permissions;
-  return Array.isArray(permissoes) && permissoes.includes('canManageDepartamentos');
+  return Array.isArray(permissoes) && PODEM_TRANSFERIR.some((p) => permissoes.includes(p));
 }
 
 async function destinatarios(supabase: Supabase, para: Destinatario, pedido: PedidoPagamentoRow): Promise<Pessoa[]> {
@@ -136,7 +141,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
     const pedido = linha as unknown as PedidoPagamentoRow;
 
-    const podeTransferir = evento === 'transferido' && (await gereDepartamentos(supabase, caller.user.id));
+    const podeTransferir = evento === 'transferido' && (await podeTransferirPedidos(supabase, caller.user.id));
     const plano = planejarEnvios(pedido, evento as EventoPagamento, caller.user.id, new Date(), podeTransferir);
     if (plano.erro) {
       res.status(plano.status ?? 400).json({ success: false, error: plano.erro });

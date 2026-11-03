@@ -11,6 +11,7 @@ import Notification from './Notification';
 import ConfirmDialog from './ConfirmDialog';
 import NewUserForm from './NewUserForm';
 import DepartamentosPage from '../modules/rh/components/DepartamentosPage';
+import { definirDepartamentoDoUsuario } from '../modules/rh/departamentoDoRh';
 
 // Type for approval level configuration from database
 interface ApprovalLevelConfig {
@@ -52,7 +53,7 @@ const GROUP_COLORS: Record<string, {
 
 const UserManagement: React.FC = () => {
   const { userProfile } = useAuth();
-  const { notification, showSuccess, showError, hideNotification } = useNotification();
+  const { notification, showSuccess, showError, showWarning, hideNotification } = useNotification();
   const { confirmDialog, showConfirmDialog, hideConfirmDialog, handleConfirmDialogConfirm } = useDialog();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [userApprovalLimits, setUserApprovalLimits] = useState<Record<string, UserApprovalLimit>>({});
@@ -479,14 +480,37 @@ const UserManagement: React.FC = () => {
           // Don't fail the whole operation, just log
         }
 
-        if (emailAlterado && editingUser.id === userProfile?.id) {
+        // O departamento que vale (quem autoriza os pagamentos, quem aprova as SCs) é o do RH:
+        // a troca vai para o colaborador do usuário (usuario_definir_departamento).
+        let avisoDepartamento: { titulo: string; texto: string } | null = null;
+        let pedidosMovidos: string | undefined;
+        if (formData.department !== editingUser.department) {
+          const { situacao, movidos } = await definirDepartamentoDoUsuario(editingUser.id, formData.department);
+          if (situacao === 'sem_colaborador') {
+            avisoDepartamento = {
+              titulo: 'Usuário atualizado, mas sem colaborador no RH',
+              texto: 'O departamento só passa a valer para quem autoriza os pagamentos e aprova as compras depois que o RH vincular este usuário a um colaborador.',
+            };
+          } else if (situacao === 'sem_departamento') {
+            avisoDepartamento = {
+              titulo: 'Usuário atualizado, mas o departamento não existe no RH',
+              texto: `Não há departamento "${formData.department}" ativo no RH; quem autoriza e aprova continua o do departamento anterior. Crie-o na aba Departamentos ou escolha outro.`,
+            };
+          } else if (movidos > 0) {
+            pedidosMovidos = `${movidos === 1 ? 'O pedido de pagamento que aguardava autorização foi' : `Os ${movidos} pedidos de pagamento que aguardavam autorização foram`} para o gestor do novo departamento, que recebe um e-mail.`;
+          }
+        }
+
+        if (avisoDepartamento) {
+          showWarning(avisoDepartamento.titulo, avisoDepartamento.texto);
+        } else if (emailAlterado && editingUser.id === userProfile?.id) {
           // A sessão atual continua válida (o UUID não mudou), mas o e-mail no JWT
           // em memória é o antigo até o próximo refresh.
           showSuccess(`Usuário atualizado! Você alterou o próprio e-mail — refaça o login com ${novoEmail}.`);
         } else if (emailAlterado) {
           showSuccess(`Usuário atualizado! O login agora é ${novoEmail}.`);
         } else {
-          showSuccess('Usuário atualizado com sucesso!');
+          showSuccess('Usuário atualizado com sucesso!', pedidosMovidos);
         }
       } else {
         // For new users, we would need to handle auth.users creation
