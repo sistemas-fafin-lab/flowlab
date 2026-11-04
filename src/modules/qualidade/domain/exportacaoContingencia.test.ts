@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { camposDoPlano, nomeArquivoPlano, nomeArquivoZip, nomesUnicos, separarParagrafos } from './exportacaoContingencia.js';
+import {
+  camposDoPlano,
+  filtrarPlanosPorBusca,
+  nomeArquivoPlano,
+  nomeArquivoZip,
+  nomesUnicos,
+  separarParagrafos,
+} from './exportacaoContingencia.js';
 import type { PlanoContingenciaDTO } from '../types';
 
 function plano(overrides: Partial<PlanoContingenciaDTO> = {}): PlanoContingenciaDTO {
@@ -110,5 +117,28 @@ describe('nomesUnicos', () => {
 describe('nomeArquivoZip', () => {
   it('usa a data local da exportação', () => {
     expect(nomeArquivoZip(new Date(2026, 10, 3))).toBe('planos-de-contingencia-2026-11-03.zip');
+  });
+});
+
+describe('filtrarPlanosPorBusca', () => {
+  const planos = [
+    plano({ id: 'a', codigo: 'PC_TI-002', evento: 'Ataque de Ransomware', setorNome: 'TI' }),
+    plano({ id: 'b', codigo: 'PC-20', evento: 'Falha no gerenciamento de resíduos', setorNome: 'ÁREA TÉCNICA' }),
+  ];
+
+  it('busca vazia devolve todos', () => {
+    expect(filtrarPlanosPorBusca(planos, '  ').map((p) => p.id)).toEqual(['a', 'b']);
+  });
+
+  it('casa código, evento ou setor sem acento e sem caixa', () => {
+    expect(filtrarPlanosPorBusca(planos, 'pc-20').map((p) => p.id)).toEqual(['b']);
+    expect(filtrarPlanosPorBusca(planos, 'residuos').map((p) => p.id)).toEqual(['b']);
+    expect(filtrarPlanosPorBusca(planos, 'area tecnica').map((p) => p.id)).toEqual(['b']);
+    expect(filtrarPlanosPorBusca(planos, 'RANSOM').map((p) => p.id)).toEqual(['a']);
+  });
+
+  it('exige todas as palavras', () => {
+    expect(filtrarPlanosPorBusca(planos, 'ti ransomware').map((p) => p.id)).toEqual(['a']);
+    expect(filtrarPlanosPorBusca(planos, 'ti residuos')).toEqual([]);
   });
 });

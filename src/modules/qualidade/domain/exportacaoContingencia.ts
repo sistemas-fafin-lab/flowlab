@@ -75,3 +75,23 @@ export function nomeArquivoZip(emitidoEm: Date): string {
   const dia = String(emitidoEm.getDate()).padStart(2, '0');
   return `planos-de-contingencia-${ano}-${mes}-${dia}.zip`;
 }
+
+const normalizar = (texto: string) =>
+  texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+
+/** Busca do seletor de planos: cada palavra precisa aparecer no código, evento ou setor (sem acento/caixa). */
+export function filtrarPlanosPorBusca<T extends Pick<PlanoContingenciaDTO, 'codigo' | 'evento' | 'setorNome'>>(
+  planos: readonly T[],
+  busca: string,
+): T[] {
+  const termos = normalizar(busca).split(/\s+/).filter(Boolean);
+  if (termos.length === 0) return [...planos];
+  return planos.filter((p) => {
+    const texto = normalizar([p.codigo, p.evento, p.setorNome ?? ''].join(' '));
+    return termos.every((t) => texto.includes(t));
+  });
+}
