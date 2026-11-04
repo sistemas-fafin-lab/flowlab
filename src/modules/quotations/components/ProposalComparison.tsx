@@ -231,11 +231,6 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                 <th className="px-3 sm:px-4 py-3 text-center text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                   Prazo
                 </th>
-                {canSelect && (
-                  <th className="px-3 sm:px-4 py-3 text-center text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                    Ação
-                  </th>
-                )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100/70 dark:divide-slate-700/50">
@@ -271,6 +266,18 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                             )}
                             {supplier.isBestOverall && !isSelected && (
                               <Crown className="w-3.5 h-3.5 text-amber-500" />
+                            )}
+                            {/* Junto ao nome, não numa coluna no fim: em tela estreita a coluna ficava fora da vista. */}
+                            {canSelect && !isSelected && (
+                              <button
+                                type="button"
+                                onClick={() => onSelectWinner?.(supplier.proposalId)}
+                                title="Selecionar esta proposta"
+                                className="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
+                              >
+                                <Check className="w-3 h-3" />
+                                Selecionar
+                              </button>
                             )}
                             {onViewProposal && (
                               <button
@@ -369,26 +376,6 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                         </span>
                       </div>
                     </td>
-
-                    {/* Action */}
-                    {canSelect && (
-                      <td className="px-3 sm:px-4 py-3.5 text-center">
-                        {isSelected ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300 rounded-full">
-                            <Check className="w-3 h-3" />
-                            Selecionado
-                          </span>
-                        ) : (
-                          <button
-                            onClick={() => onSelectWinner?.(supplier.proposalId)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
-                          >
-                            <Check className="w-3 h-3" />
-                            Selecionar
-                          </button>
-                        )}
-                      </td>
-                    )}
                   </tr>
                 );
               })}
