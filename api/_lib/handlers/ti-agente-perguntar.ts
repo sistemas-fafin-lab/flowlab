@@ -1,18 +1,19 @@
 // API Route: POST /api/ti/agente-perguntar — chat com a EVA (issue 16).
 // Body: { pergunta, visao: 'team' | 'me', historico: [{ de: 'eva' | 'eu', texto }] }
 // Exige canManageIT, ou um dos papéis da EVA (aprovar ou gestor). A fila do WhatsApp só entra no
-// contexto do gestor (D24, D31), e só ele recebe avisos para confirmar (D32). Limite de 30
-// perguntas por pessoa por dia (RN17).
+// contexto do gestor (D24, D31), e só ele recebe avisos para confirmar: para uma pessoa (D32) ou
+// para a equipe toda (D36), com quem recebe já conferido. Limite de 30 perguntas por pessoa por dia (RN17).
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { getSupabaseAdminClient } from '../supabase.js';
 import { autorizar, ehFalha, tem, tokenDoHeader } from '../ti-agente/autorizacao.js';
+import { checarAvisoEquipe } from '../ti-agente/aviso.js';
 import { lerContexto } from '../ti-agente/dados.js';
 import { gerarEstruturado } from '../ti-agente/ia/gerarEstruturado.js';
 import { dependenciasIA } from '../ti-agente/servicos.js';
 import {
   INSTRUCOES_CHAT, LIMITE_DIARIO, MAX_FILA, MAX_PERGUNTA, SchemaChat, montarContextoChat, montarConteudoChat, recortarParaVisao,
-  validarRespostaChat, type MensagemFila, type MensagemHistorico,
+  validarRespostaChat, type AvisoChat, type MensagemFila, type MensagemHistorico,
 } from '../ti-agente/chat.js';
 
 /** Meia-noite de hoje em Brasília (UTC−3), como instante ISO. */
@@ -88,6 +89,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     }
 
     const ehGestor = tem(auth, 'canManageAgenteTI');
+    // D37: quem aprova e o gestor confirmam a proposta e a EVA aplica na hora; os demais, fila.
+    const executa = ehGestor || tem(auth, 'canApproveAgenteTI');
     const [ctxCompleto, { data: reuniao }, fila] = await Promise.all([
       lerContexto(db),
       db.from('ti_agente_reunioes')
@@ -112,6 +115,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
           hoje,
           fila,
           ehGestor,
+          executa,
         ),
         conteudo: montarConteudoChat(pergunta, historico),
         schema: SchemaChat,
@@ -124,9 +128,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(502).json({ success: false, error: 'Não consegui consultar o board agora. Tente novamente em alguns segundos.', erros: r.erros });
       return;
     }
-    const resposta = validarRespostaChat(r.dados, ctx, { hoje, temReuniao: !!reuniao });
+    const { avisoEquipe, ...resposta } = validarRespostaChat(r.dados, ctx, { hoje, temReuniao: !!reuniao });
     // D32: aviso pelo WhatsApp só para o gestor; a rota agente-avisar confere de novo no envio.
-    res.status(200).json({ success: true, provedor: r.provedor, ...resposta, avisos: ehGestor ? resposta.avisos : [] });
+    const avisos: AvisoChat[] = ehGestor ? resposta.avisos : [];
+    // D36: o cartão da equipe já mostra quem recebe (ou por que não dá para mandar agora).
+    if (ehGestor && avisoEquipe) {
+      const d = await checarAvisoEquipe(db, auth);
+      avisos.unshift({
+        pessoaId: '',
+        nome: 'a equipe',
+        texto: avisoEquipe,
+        todos: true,
+        ...('erro' in d
+          ? { bloqueio: d.erro }
+          : { equipe: { privado: d.privado.map((p) => p.nome), citadosNoGrupo: d.noGrupo?.citados ?? [], grupoNome: d.noGrupo?.nome ?? null, semDestino: d.semDestino } }),
+      });
+    }
+    res.status(200).json({ success: true, provedor: r.provedor, ...resposta, avisos });
   } catch (e) {
     console.error('[ti/agente-perguntar]', e);
     res.status(500).json({ success: false, error: 'Não consegui consultar o board agora. Tente novamente em alguns segundos.' });

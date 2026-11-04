@@ -77,11 +77,13 @@ export const SO_TEXTO = 'Por aqui eu só leio texto (áudio e imagem ainda não)
 
 /**
  * A confirmação montada pelo sistema (§11.3, passo 4). É a reserva da escrita da IA: entra quando
- * o que a IA entendeu não bate com o que de fato foi registrado (D30).
+ * o que a IA entendeu não bate com o que de fato foi registrado (D30). Com `executa` (gestor ou
+ * quem aprova, D37), concluir e mudar prazo saem daqui: quem chama mostra o que vai aplicar e pede o SIM.
  */
-export function montarConfirmacao(nome: string, itens: ItemResposta[]): string {
+export function montarConfirmacao(nome: string, itens: ItemResposta[], opcoes: { executa?: boolean } = {}): string {
   if (itens.length === 0) return NAO_ACHEI_CARD;
-  const linhas = itens.map((i) => {
+  const anotados = opcoes.executa ? itens.filter((i) => !propostaDoItem(i)) : itens;
+  const linhas = anotados.map((i) => {
     const c = i.card.codigo;
     const proposta = propostaDoItem(i);
     if (i.intencao === 'concluir') return proposta ? `${c}: concluída. Mandei para aprovação do gestor.` : `${c}: anotei no card.`;
@@ -109,14 +111,17 @@ export function respostaFiel(saida: SaidaResposta, itens: ItemResposta[]): boole
 
 export interface Remetente { id: string; user_id: string; nome: string }
 
+export interface SugestaoRegistrada { id: string; card: CardTI; proposta: Record<string, unknown> }
+
 /**
  * Comentário em cada card citado, sugestão para concluir/adiar, aviso aos gestores (sugestão
  * nova, bloqueio) e o texto da confirmação. Não enfileira a confirmação: quem chama responde.
+ * Com `executa` (D37), quem aprova não é avisado no sino: quem chama pede o SIM e aplica na hora.
  */
 export async function registrarAtualizacoes(
   db: SupabaseClient,
-  e: { mensagemId: string; membro: Remetente; texto: string; itens: ItemResposta[]; confianca: SaidaResposta['confianca'] },
-): Promise<{ sugestoes: number; confirmacao: string; cardIds: string[] }> {
+  e: { mensagemId: string; membro: Remetente; texto: string; itens: ItemResposta[]; confianca: SaidaResposta['confianca']; executa?: boolean },
+): Promise<{ sugestoes: SugestaoRegistrada[]; confirmacao: string; cardIds: string[] }> {
   const { mensagemId, membro, texto, itens } = e;
   const nome = membro.nome;
   const cardIds = itens.map((i) => i.card.id);
@@ -128,22 +133,24 @@ export async function registrarAtualizacoes(
     if (eCom) throw new Error(eCom.message);
   }
 
-  const sugestoes = itens
+  const comProposta = itens
     .map((i) => ({ i, proposta: propostaDoItem(i) }))
-    .filter((x) => x.proposta)
-    .map(({ i, proposta }) => ({
-      origem: 'whatsapp', mensagem_id: mensagemId, proposta_por: membro.user_id, tipo: 'atualizar_card', card_id: i.card.id,
-      proposta, trecho: texto.slice(0, 1000), confianca: e.confianca, avisos: [],
-    }));
+    .filter((x): x is { i: ItemResposta; proposta: NonNullable<ReturnType<typeof propostaDoItem>> } => !!x.proposta);
+  const sugestoes = comProposta.map(({ i, proposta }) => ({
+    origem: 'whatsapp', mensagem_id: mensagemId, proposta_por: membro.user_id, tipo: 'atualizar_card', card_id: i.card.id,
+    proposta, trecho: texto.slice(0, 1000), confianca: e.confianca, avisos: [],
+  }));
+  let registradas: SugestaoRegistrada[] = [];
   if (sugestoes.length > 0) {
-    const { error: eSug } = await db.from('ti_agente_sugestoes').insert(sugestoes);
+    const { data, error: eSug } = await db.from('ti_agente_sugestoes').insert(sugestoes).select('id');
     if (eSug) throw new Error(eSug.message);
+    registradas = comProposta.map(({ i, proposta }, n) => ({ id: (data ?? [])[n]?.id as string, card: i.card, proposta }));
   }
   await db.from('ti_agente_mensagens').update({ card_ids: cardIds, erro: null }).eq('id', mensagemId);
 
   // Avisos no sino: falha aqui não desfaz o que já foi gravado.
   try {
-    if (sugestoes.length > 0) {
+    if (sugestoes.length > 0 && !e.executa) {
       await avisarQuemTem(db, CHAVE_APROVAR, {
         titulo: 'Sugestão nova da EVA (WhatsApp)',
         conteudo: `${primeiroNome(nome) || 'Um membro'} respondeu pelo WhatsApp: ${sugestoes.length} ${sugestoes.length === 1 ? 'mudança aguarda' : 'mudanças aguardam'} aprovação.`,
@@ -162,5 +169,5 @@ export async function registrarAtualizacoes(
     console.error('[EVA/respostas] Aviso aos gestores falhou:', erro);
   }
 
-  return { sugestoes: sugestoes.length, confirmacao: montarConfirmacao(nome, itens), cardIds };
+  return { sugestoes: registradas, confirmacao: montarConfirmacao(nome, itens, { executa: e.executa }), cardIds };
 }

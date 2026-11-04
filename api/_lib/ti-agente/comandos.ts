@@ -5,20 +5,22 @@
 //   3. "obrigado" recebe um "por nada", e "ok", 👍 não recebem resposta, tudo sem IA;
 //   4. o resto vai para a IA numa chamada só, com a conversa recente e o dia da pessoa, e ela diz
 //      a intenção: atualizar cards (o fluxo da issue 15), pedir uma mudança no Kanban, pergunta,
-//      lembrete, conversa e, para gestor, cobrar, ver sugestões, aprovar, rejeitar e avisar o grupo.
+//      lembrete, conversa e, para gestor, cobrar, ver sugestões, aprovar, rejeitar e avisar (uma
+//      pessoa, a equipe toda ou o grupo).
 // A EVA age como agente pessoal (D30): fala pelo primeiro nome, lembra a conversa, conhece o dia
-// da pessoa. Mas nada muda no Kanban sem aprovação (D28): o pedido de mudança vira sugestão, e
-// quem aprova confirma com SIM. Os papéis são separados (D31), e cada um é conferido de novo no SIM:
-//   - gestor (canManageAgenteTI): cobrar e avisar o grupo;
-//   - quem aprova (canApproveAgenteTI): ver, aprovar e rejeitar sugestões, e aplicar um pedido de
-//     mudança na hora. Aprovar pelo WhatsApp É a aprovação do D28: a mesma lógica da tela
+// da pessoa. Mas nada muda no Kanban sem aprovação (D28): o pedido de mudança vira sugestão. Os
+// papéis são separados (D31), e cada um é conferido de novo no SIM:
+//   - gestor (canManageAgenteTI): cobrar, avisar (D32, D36) e aplicar na hora, com SIM, o PRÓPRIO
+//     pedido de mudança e o andamento que ele conta (D37), sem passar pela fila;
+//   - quem aprova (canApproveAgenteTI): ver, aprovar e rejeitar sugestões, e também aplicar na hora
+//     o próprio pedido. Aprovar pelo WhatsApp É a aprovação do D28: a mesma lógica da tela
 //     (ti_agente_aprovar_sugestao_como), em nome do dono do número.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { diaDaSemana, formatarDiaMes, hojeSP, type Dia } from '../../../src/modules/eva/domain/datas.js';
 import { ehDoUsuario, ordenarAtrasados, type CardTI } from '../../../src/modules/eva/domain/demandas.js';
 import { destinoDaCobranca, proximaJanelaDeCobranca } from '../../../src/modules/eva/domain/cobranca.js';
-import { primeiroNome } from '../../../src/modules/eva/domain/pessoas.js';
+import { juntarNomes, primeiroNome } from '../../../src/modules/eva/domain/pessoas.js';
 import { quandoSera, rotuloDoGrupo } from '../../../src/modules/eva/domain/whatsapp.js';
 import { tem, usuarioPorId, type Usuario } from './autorizacao.js';
 import { blocoReuniao, recortarParaVisao, validarRespostaChat, type UltimaReuniao } from './chat.js';
@@ -26,7 +28,7 @@ import { checarCobranca, cobrarCard, lerCardsAbertos, lerMembrosCobranca } from 
 import { CHAVE_APROVAR, CHAVE_GESTOR } from '../../../src/modules/eva/domain/papeis.js';
 import { avisarQuemTem, lerContexto, lerNomes, lerUltimaReuniao } from './dados.js';
 import { SugestaoIA, montarContexto, type ContextoExtracao } from './extracao.js';
-import { MAX_AVISO_PESSOAL, checarAvisoPessoal, enviarAvisoPessoal } from './aviso.js';
+import { MAX_AVISO_PESSOAL, checarAvisoEquipe, checarAvisoPessoal, enviarAvisoEquipe, enviarAvisoPessoal } from './aviso.js';
 import { enfileirarNoGrupo, lerConfigGrupo, montarAviso, motivoSemGrupo } from './grupo.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
 import {
@@ -70,9 +72,13 @@ export const ERRO_INTERNO = 'Não consegui concluir agora. Tenta de novo em algu
 const DEPOIS = 'Posso ajudar com os seus cards, lembretes ou dúvidas sobre as demandas.';
 export const soGestor = (acao: string) => `Só gestores da EVA podem ${acao} pelo WhatsApp. ${DEPOIS}`;
 export const soQuemAprova = (acao: string) => `Só quem aprova sugestões da EVA pode ${acao} pelo WhatsApp. ${DEPOIS}`;
+export const soQuemExecuta = (acao: string) => `Só gestores e quem aprova sugestões da EVA podem ${acao} pelo WhatsApp. ${DEPOIS}`;
 
 /** O que pesa nos comandos pelo WhatsApp (D31). Configurar a EVA é só na tela. */
 export interface PapeisWhatsApp { gestor: boolean; aprova: boolean }
+
+/** D37: o gestor e quem aprova aplicam o próprio pedido na hora (com SIM), sem passar pela fila. */
+export const executaDireto = (p: PapeisWhatsApp) => p.gestor || p.aprova;
 
 // Reserva para quando a IA não escreve a resposta da conversa.
 export const AJUDA_EQUIPE = [
@@ -87,11 +93,13 @@ export const AJUDA_EQUIPE = [
 /** A ajuda fixa, com as partes de cada papel de quem pergunta. */
 export function ajuda(p: PapeisWhatsApp): string {
   const extras = [
-    ...(p.gestor ? ['• "cobra o IT-045" ou "cobra a Ana"', '• "avisa o Gabriel que …"', '• "avisa no grupo que …"'] : []),
+    ...(p.gestor ? ['• "cobra o IT-045" ou "cobra a Ana"', '• "avisa o Gabriel que …"', '• "avisa todo mundo que …"', '• "avisa no grupo que …"'] : []),
     ...(p.aprova ? ['• "sugestões pendentes", depois "aprovar 1 e 3" ou "rejeitar 2 <motivo>"'] : []),
   ];
   if (extras.length === 0) return AJUDA_EQUIPE;
-  return [AJUDA_EQUIPE, '', 'E também:', ...extras, 'Antes de executar, eu confirmo com você.'].join('\n');
+  // D37: para quem executa direto, a mudança no Kanban não vai para a fila.
+  const base = AJUDA_EQUIPE.replace('Mudança no Kanban vai para aprovação.', 'Mudança no Kanban: eu mostro o que muda e aplico na hora, com o seu SIM.');
+  return [base, '', 'E também:', ...extras, 'Antes de executar, eu confirmo com você.'].join('\n');
 }
 
 /** "(gestor e aprova sugestões)", "(equipe)": o que o contexto diz de quem escreve. */
@@ -248,7 +256,7 @@ const ItemWhatsApp = ItemRespostaIA.extend({
 export const SchemaMensagem = z.object({
   intencao: z.enum([
     'atualizar_cards', 'propor', 'pergunta', 'lembrete_criar', 'lembrete_cancelar', 'conversa',
-    'cobrar', 'ver_sugestoes', 'aprovar', 'rejeitar', 'avisar_grupo', 'avisar_pessoa',
+    'cobrar', 'ver_sugestoes', 'aprovar', 'rejeitar', 'avisar_grupo', 'avisar_pessoa', 'avisar_equipe',
   ]),
   resposta: z.string(),
   itens: z.array(ItemWhatsApp),
@@ -295,8 +303,9 @@ INTENÇÕES (uma por mensagem; os campos das outras ficam vazios: [] nas listas,
 - "conversa": cumprimento, conversa ou pergunta sobre o que você faz. Responda em "resposta", curto e natural. Para "o que você faz?", conte em poucas linhas, com base em O QUE VOCÊ FAZ.
 - Só para gestor ("Quem escreve" diz os papéis da pessoa):
   - "cobrar": "cobra o IT-045", "cobra a Ana". Os códigos vão em "cobrar_codigos"; a pessoa, pelo id de MEMBROS DA EQUIPE, em "cobrar_pessoa_id".
-  - "avisar_grupo": "avisa no grupo que a reunião de amanhã é às 10h". Em "aviso", só o conteúdo do aviso, claro e curto, sem saudação e sem inventar nada.
+  - "avisar_grupo": "avisa no grupo que a reunião de amanhã é às 10h". Só quando a pessoa fala do grupo. Em "aviso", só o conteúdo do aviso, claro e curto, sem saudação e sem inventar nada.
   - "avisar_pessoa": avisar, mandar uma mensagem, falar ou lembrar uma pessoa da equipe de algo ("avisa o Gabriel que a reunião mudou para as 10h", "manda uma mensagem para a Ana dizendo…", "fala para o Bruno…"). Em "aviso_pessoa_id", o id da pessoa (de MEMBROS DA EQUIPE); em "aviso", só o conteúdo, claro e curto, sem saudação, sem assinatura e sem inventar nada. Atenda sempre que o pedido for para outra pessoa; lembrete para a própria pessoa é "lembrete_criar".
+  - "avisar_equipe": avisar a equipe toda, cada um no WhatsApp dele ("avisa todo mundo que…", "manda para todos que…", "fala para a equipe toda que…"). Em "aviso", só o conteúdo, como no avisar_pessoa; "aviso_pessoa_id" fica "". O sistema decide quem recebe.
 - Só para quem aprova sugestões:
   - "ver_sugestoes": "sugestões pendentes", "o que tem para aprovar?".
   - "aprovar": aprova itens da última lista numerada que você mandou ("aprova a 1 e a 3", "pode aprovar todas"). Números em "numeros", ou "todas": true.
@@ -308,7 +317,7 @@ INTENÇÕES (uma por mensagem; os campos das outras ficam vazios: [] nas listas,
 2. "intencao" de cada item: "concluir" (terminou, concluiu, entregou); "adiar" (muda o prazo: "vai para sexta", "fica para dia 24"); "bloquear" (travada, esperando alguém, impedida); "atualizar" (outra informação de andamento).
 3. "nova_data" só em "adiar": data "AAAA-MM-DD" contada a partir de HOJE; sem data clara, "". O texto original do prazo vai em "prazo_texto" ("" se não houver).
 4. Um item por card, no máximo ${MAX_ITENS}.
-5. "resposta": uma ou duas frases dizendo o que você anotou. Concluir e mudar prazo vão para aprovação de um gestor (diga isso); bloqueio, você avisa os gestores; o resto vira comentário no card.
+5. "resposta": uma ou duas frases dizendo o que você anotou. Concluir e mudar prazo vão para aprovação de um gestor (diga isso); se "Quem escreve" é gestor ou aprova sugestões, o sistema pergunta se aplica na hora, então não diga que foi para aprovação. Bloqueio, você avisa os gestores; o resto vira comentário no card.
 
 "propostas" (propor)
 1. O mesmo formato das sugestões de reunião: "card_codigo" de CARDS ABERTOS (null em "criar_card"); "responsaveis" com ids de MEMBROS DA EQUIPE; "prazo" "AAAA-MM-DD"; "prioridade" e "kanban_status" pelos códigos internos; "comentario" para registrar no card; "trecho" com a frase da pessoa.
@@ -321,8 +330,8 @@ GERAL
 
 O QUE VOCÊ FAZ (para explicar quando perguntarem)
 - Para todos: registrar o andamento dos cards ("IT-045 concluída", "IT-052 vai para sexta"); pedir mudanças no Kanban ("cria um card para…", "passa o IT-060 para a Ana"), que vão para aprovação; responder sobre as demandas e o dia ("o que eu tenho hoje?"); e marcar lembretes ("me lembra amanhã às 9h de…"), que saem em dia útil, das 7h às 20h.
-- Para gestores, além disso: cobrar ("cobra o IT-045", "cobra a Ana"), mandar um aviso para uma pessoa ("avisa o Gabriel que…") e avisar o grupo da equipe ("avisa no grupo que…").
-- Para quem aprova sugestões: ver e decidir as sugestões ("sugestões pendentes", "aprovar 1 e 3"), e ter um pedido de mudança aplicado na hora.
+- Para gestores, além disso: cobrar ("cobra o IT-045", "cobra a Ana"), mandar um aviso para uma pessoa ("avisa o Gabriel que…") ou para a equipe toda ("avisa todo mundo que…"), avisar o grupo da equipe ("avisa no grupo que…") e ter os próprios pedidos de mudança e andamentos aplicados na hora, sem fila.
+- Para quem aprova sugestões: ver e decidir as sugestões ("sugestões pendentes", "aprovar 1 e 3"), e ter os próprios pedidos de mudança e andamentos aplicados na hora.
 - Antes de executar algo desses papéis, você mostra o que vai fazer e espera o SIM. Fale só do que a pessoa pode fazer, pelos papéis de "Quem escreve".`;
 
 export function montarContextoMensagem(e: {
@@ -355,7 +364,7 @@ export function montarContextoMensagem(e: {
 
 // ── Banco: comandos, respostas e sugestões ───────────────────────────────────
 
-type TipoComando = 'cobrar' | 'aprovar' | 'rejeitar' | 'avisar_grupo' | 'avisar_pessoa' | 'lista_sugestoes';
+type TipoComando = 'cobrar' | 'aprovar' | 'rejeitar' | 'avisar_grupo' | 'avisar_pessoa' | 'avisar_equipe' | 'lista_sugestoes';
 interface Comando { id: string; tipo: TipoComando; dados: Record<string, unknown>; status: string; expira_em: string; created_at: string }
 
 async function ultimoComando(db: SupabaseClient, membroId: string, status: 'aguardando' | 'lista', expiraDepoisDe: string): Promise<Comando | null> {
@@ -419,14 +428,16 @@ const nomesDasSugestoes = (db: SupabaseClient, itens: SugestaoLista[]) =>
 
 /**
  * "Cria um card para…", "passa o IT-060 para a Ana" (D30): como no chat da tela, vira sugestão
- * (origem whatsapp). Quem aprova sugestões vê a prévia e confirma com SIM, que aprova pela mesma
- * lógica da tela; sem o SIM, a proposta fica na fila. Os demais mandam para a fila, e quem aprova
- * é avisado no sino.
+ * (origem whatsapp). Quem executa direto (gestor ou quem aprova, D37) vê a prévia e confirma com
+ * SIM, que aplica pela mesma lógica da tela; sem o SIM, a proposta fica na fila. Os demais mandam
+ * para a fila, e quem aprova é avisado no sino.
  */
 async function prepararPropostas(
-  db: SupabaseClient, membro: Remetente, s: SaidaMensagem, ctx: ContextoExtracao, podeAprovar: boolean, mensagemId: string, agora: Date,
+  db: SupabaseClient, membro: Remetente, s: SaidaMensagem, ctx: ContextoExtracao, podeExecutar: boolean, mensagemId: string, agora: Date,
 ): Promise<string> {
-  const validas = validarRespostaChat({ resposta: '', cards_citados: [], propostas: s.propostas.slice(0, MAX_PROPOSTAS), avisos: [], blocos: [], proximos_passos: [] }, ctx).propostas;
+  const validas = validarRespostaChat({
+    resposta: '', cards_citados: [], propostas: s.propostas.slice(0, MAX_PROPOSTAS), avisos: [], aviso_equipe: '', blocos: [], proximos_passos: [],
+  }, ctx).propostas;
   if (validas.length === 0) {
     return 'Não consegui montar essa mudança 🤔 Me diz o card e o que mudar (ex.: "muda a prioridade do IT-045 para alta").';
   }
@@ -444,7 +455,7 @@ async function prepararPropostas(
   const avisos = Array.from(new Set(validas.flatMap((p) => p.avisos)));
   const obs = avisos.length ? ['', ...avisos.map((a) => `Obs.: ${a}`)] : [];
 
-  if (podeAprovar) {
+  if (podeExecutar) {
     await criarComando(db, { membro, tipo: 'aprovar', dados: { ids, numeros: ids.map((_, i) => i + 1), motivo: null, daProposta: true }, mensagemId, agora });
     return ['Vou aplicar no Kanban:', ...linhas.map((l, i) => (linhas.length > 1 ? `${i + 1}. ${l}` : `• ${l}`)), ...obs, '', PEDIR_SIM].join('\n');
   }
@@ -596,6 +607,27 @@ async function prepararAvisoPessoa(
   return [cabeca, '', montarAviso(membro.nome, aviso, d.grupo?.citado ?? null), '', ...(horario ? [horario] : []), PEDIR_SIM].join('\n');
 }
 
+/** "Avisa todo mundo que…" (D36): a mesma conferência da tela, quem recebe e onde, o texto e o SIM. */
+async function prepararAvisoEquipe(
+  db: SupabaseClient, usuario: Usuario, membro: Remetente, s: SaidaMensagem, mensagemId: string, agora: Date,
+): Promise<string> {
+  const corpo = (s.aviso ?? '').trim();
+  if (!corpo) return 'O que eu aviso? Ex.: "avisa todo mundo que a reunião mudou para as 10h".';
+  const d = await checarAvisoEquipe(db, usuario);
+  if ('erro' in d) return `Não consigo mandar: ${d.erro}`;
+  const aviso = corpo.slice(0, MAX_AVISO_PESSOAL);
+  // O SIM confere a equipe de novo (enviarAvisoEquipe): vale a aba Membros da hora do envio.
+  await criarComando(db, { membro, tipo: 'avisar_equipe', dados: { de: membro.nome, aviso }, mensagemId, agora });
+  const n = d.privado.length;
+  const linhas = [
+    ...(n ? [`Vou mandar no WhatsApp de ${n === 1 ? '1 pessoa' : `${n} pessoas`}: ${juntar(d.privado.map((p) => primeiroNome(p.nome) || p.nome))}.`] : []),
+    ...(d.noGrupo ? [`${n ? 'E no' : 'Vou mandar no'} ${rotuloDoGrupo(d.noGrupo.nome)}, citando ${juntarNomes(d.noGrupo.citados)}, que não ${d.noGrupo.citados.length === 1 ? 'tem' : 'têm'} WhatsApp na aba Membros.`] : []),
+    ...(d.semDestino.length ? [`Sem WhatsApp e sem grupo escolhido, ${d.semDestino.length === 1 ? 'fica' : 'ficam'} de fora: ${juntar(d.semDestino.map((x) => primeiroNome(x) || x))}.`] : []),
+  ];
+  const horario = notaHorario(agora);
+  return [...linhas, '', montarAviso(membro.nome, aviso), '', ...(horario ? [horario] : []), PEDIR_SIM].join('\n');
+}
+
 // ── Executar (depois do SIM) ─────────────────────────────────────────────────
 
 async function executarCobrar(db: SupabaseClient, cmd: Comando, usuario: Usuario, agora: Date): Promise<string> {
@@ -660,14 +692,35 @@ async function executarAvisoPessoa(db: SupabaseClient, cmd: Comando, usuario: Us
     : `Pronto: o aviso para ${n} sai em instantes.`;
 }
 
+async function executarAvisoEquipe(db: SupabaseClient, cmd: Comando, usuario: Usuario, agora: Date): Promise<string> {
+  const pedido = { de: String(cmd.dados.de ?? ''), aviso: String(cmd.dados.aviso ?? '') };
+  const r = await enviarAvisoEquipe(db, usuario, pedido, agora);
+  if ('erro' in r) return `Não mandei: ${r.erro}`;
+  const n = r.para.length;
+  // "no WhatsApp de 2 pessoas e no grupo "TI FAFIN", citando Dani"
+  const onde = juntar([
+    n ? `no WhatsApp de ${n === 1 ? '1 pessoa' : `${n} pessoas`}` : null,
+    r.citadosNoGrupo.length ? `no ${rotuloDoGrupo(r.grupoNome)}, citando ${juntarNomes(r.citadosNoGrupo)}` : null,
+  ].filter((x): x is string => !!x));
+  return r.agendadaPara
+    ? `Pronto: o aviso fica agendado para ${quandoSera(r.agendadaPara, hojeSP(agora))}, ${onde}.`
+    : `Pronto: o aviso sai em instantes ${onde}.`;
+}
+
 async function executarComando(db: SupabaseClient, cmd: Comando, usuario: Usuario | null, agora: Date): Promise<{ acao: Acao; texto: string }> {
   // A permissão vale na hora do SIM, pelo papel do pedido (D31): quem perdeu o papel nesse
-  // meio-tempo não executa. Cobrar e avisar são do gestor; aprovar e rejeitar, de quem aprova.
-  const deGestor = cmd.tipo === 'cobrar' || cmd.tipo === 'avisar_grupo' || cmd.tipo === 'avisar_pessoa';
-  const chave = deGestor ? CHAVE_GESTOR : CHAVE_APROVAR;
-  if (!usuario || !tem(usuario, chave)) {
-    await fecharComando(db, cmd.id, `Sem ${chave} na hora do SIM.`, agora);
-    return { acao: 'sem_permissao', texto: deGestor ? soGestor('confirmar esse pedido') : soQuemAprova('confirmar esse pedido') };
+  // meio-tempo não executa. Cobrar e avisar são do gestor; aprovar e rejeitar da lista, de quem
+  // aprova; aplicar o próprio pedido (daProposta), do gestor ou de quem aprova (D37).
+  const deGestor = cmd.tipo === 'cobrar' || cmd.tipo === 'avisar_grupo' || cmd.tipo === 'avisar_pessoa' || cmd.tipo === 'avisar_equipe';
+  const proprio = cmd.tipo === 'aprovar' && cmd.dados.daProposta === true;
+  const temPapel = (u: Usuario) => (deGestor ? tem(u, CHAVE_GESTOR)
+    : proprio ? tem(u, CHAVE_GESTOR) || tem(u, CHAVE_APROVAR)
+      : tem(u, CHAVE_APROVAR));
+  if (!usuario || !temPapel(usuario)) {
+    const faltou = deGestor ? CHAVE_GESTOR : proprio ? `${CHAVE_GESTOR} ou ${CHAVE_APROVAR}` : CHAVE_APROVAR;
+    await fecharComando(db, cmd.id, `Sem ${faltou} na hora do SIM.`, agora);
+    const texto = deGestor ? soGestor('confirmar esse pedido') : proprio ? soQuemExecuta('confirmar esse pedido') : soQuemAprova('confirmar esse pedido');
+    return { acao: 'sem_permissao', texto };
   }
   // Marca antes de executar: um segundo SIM (ou o WAHA repetindo o evento) não executa de novo.
   const { data: pego, error } = await db
@@ -684,7 +737,8 @@ async function executarComando(db: SupabaseClient, cmd: Comando, usuario: Usuari
     texto = cmd.tipo === 'cobrar' ? await executarCobrar(db, cmd, usuario, agora)
       : cmd.tipo === 'avisar_grupo' ? await executarAviso(db, cmd, usuario, agora)
         : cmd.tipo === 'avisar_pessoa' ? await executarAvisoPessoa(db, cmd, usuario, agora)
-          : await executarDecisao(db, cmd, usuario);
+          : cmd.tipo === 'avisar_equipe' ? await executarAvisoEquipe(db, cmd, usuario, agora)
+            : await executarDecisao(db, cmd, usuario);
   } catch (e) {
     console.error('[EVA/comandos] Falha ao executar', cmd.tipo, e);
     texto = ERRO_INTERNO;
@@ -811,7 +865,18 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
         if (atualizaveis.length === 0) return fim('atualizar_cards', SEM_CARDS);
         const itens = validarResposta({ itens: itensDaSaida(s), confianca: s.confianca }, atualizaveis, hoje);
         if (itens.length === 0) return fim('atualizar_cards', NAO_ACHEI_CARD);
-        const a = await registrarAtualizacoes(db, { mensagemId: msg.id as string, membro, texto, itens, confianca: s.confianca });
+        const executa = executaDireto(papeis);
+        const a = await registrarAtualizacoes(db, { mensagemId: msg.id as string, membro, texto, itens, confianca: s.confianca, executa });
+        // D37: concluir e mudar prazo de quem executa direto não vão para a fila: o SIM aplica.
+        if (executa && a.sugestoes.length > 0) {
+          const ids = a.sugestoes.map((x) => x.id);
+          await criarComando(db, { membro, tipo: 'aprovar', dados: { ids, numeros: ids.map((_, i) => i + 1), motivo: null, daProposta: true }, mensagemId: msg.id as string, agora });
+          const linhas = a.sugestoes.map((x) => descreverSugestao({
+            id: x.id, tipo: 'atualizar_card', origem: 'whatsapp', status: 'pendente', proposta: x.proposta, proposta_por: null,
+            card: { codigo: x.card.codigo, title: x.card.title }, reuniao: null,
+          }, {}, { semOrigem: true }));
+          return fim('atualizar_cards', [a.confirmacao, '', 'Vou aplicar no Kanban:', ...linhas.map((l) => `• ${l}`), '', PEDIR_SIM].join('\n'), a.cardIds);
+        }
         // A confirmação da IA, na voz dela, só quando bate com o que foi registrado (respostaFiel).
         const daIA = (s.resposta ?? '').trim();
         const fiel = daIA && respostaFiel({ itens: itensDaSaida(s), confianca: s.confianca }, itens);
@@ -819,7 +884,7 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
       }
       case 'propor':
         if (!veEquipe) return fim('sem_permissao', 'Mudança no Kanban pelo WhatsApp é só para a equipe de TI. Mas posso registrar o andamento dos seus cards.');
-        return fim('propor', await prepararPropostas(db, membro, s, ctx, papeis.aprova, msg.id as string, agora));
+        return fim('propor', await prepararPropostas(db, membro, s, ctx, executaDireto(papeis), msg.id as string, agora));
       case 'pergunta': {
         const resp = (s.resposta ?? '').trim();
         return fim('pergunta', resp ? curto(resp, MAX_RESPOSTA) : 'Não sei responder isso com o que tenho aqui 🤔 Dá uma olhada no Início do FlowLab?');
@@ -844,6 +909,9 @@ export async function processarRecebida(db: SupabaseClient, ia: Dependencias, me
       case 'avisar_pessoa':
         if (!papeis.gestor) return fim('sem_permissao', soGestor('mandar avisos para outras pessoas'));
         return fim('avisar_pessoa', await prepararAvisoPessoa(db, usuario!, membro, s, ctxCompleto, msg.id as string, agora));
+      case 'avisar_equipe':
+        if (!papeis.gestor) return fim('sem_permissao', soGestor('mandar avisos para a equipe'));
+        return fim('avisar_equipe', await prepararAvisoEquipe(db, usuario!, membro, s, msg.id as string, agora));
       default: {
         // Conversa: a IA responde na voz dela; sem resposta, a ajuda fixa.
         const resp = (s.resposta ?? '').trim();

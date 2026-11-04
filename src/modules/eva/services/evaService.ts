@@ -153,6 +153,12 @@ export const evaService = {
   sendAviso: (userId: string, texto: string) =>
     chamarEva<{ mensagemId: string; para: string; noGrupo?: boolean; grupoNome?: string | null; agendadaPara: string | null }>('agente-avisar', { user_id: userId, texto }),
 
+  /** Aviso para a equipe toda (D36): no privado de cada um; quem não tem WhatsApp, citado no grupo. */
+  sendAvisoEquipe: (texto: string) =>
+    chamarEva<{
+      mensagemIds: string[]; para: string[]; citadosNoGrupo: string[]; grupoNome: string | null; semDestino: string[]; agendadaPara: string | null;
+    }>('agente-avisar', { todos: true, texto }),
+
   /** Quem não recebe cobrança pelo WhatsApp é citado no grupo da equipe (D35): `citadosNoGrupo`. */
   sendCharge: (cardId: string) =>
     chamarEva<{

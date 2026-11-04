@@ -67,7 +67,12 @@ function criarDb() {
     const q: Record<string, unknown> = {};
     q.eq = () => q;
     q.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data: [], error: null }).then(ok);
-    q.insert = async (linhas: unknown) => { inserts.push({ tabela, linhas }); return { error: null }; };
+    // insert(...) direto ou insert(...).select('id'): os dois devolvem um id por linha.
+    q.insert = (linhas: unknown) => {
+      inserts.push({ tabela, linhas });
+      const r = { data: (Array.isArray(linhas) ? linhas : [linhas]).map((_, i) => ({ id: `s${i + 1}` })), error: null };
+      return { select: async () => r, then: (ok: (v: unknown) => unknown) => Promise.resolve(r).then(ok) };
+    };
     q.update = (dados: Record<string, unknown>) => { updates.push({ tabela, dados }); return q; };
     return q;
   };
@@ -85,7 +90,7 @@ describe('registrarAtualizacoes', () => {
       mensagemId: 'msg1', membro, texto: 'IT-045 concluída', confianca: 'alta',
       itens: [{ card: C1, intencao: 'concluir', novaData: null, prazoTexto: null }],
     });
-    expect(r).toMatchObject({ sugestoes: 1, cardIds: ['c1'] });
+    expect(r).toMatchObject({ sugestoes: [{ id: 's1', card: C1, proposta: { kanban_status: 'done' } }], cardIds: ['c1'] });
     expect(r.confirmacao).toContain('IT-045: concluída. Mandei para aprovação do gestor.');
     expect(inserts.map((i) => i.tabela)).toEqual(['it_task_comments', 'ti_agente_sugestoes']);
     expect(inserts[0].linhas).toEqual([{ task_id: 'c1', user_id: 'u-bruno', content: 'via WhatsApp: IT-045 concluída' }]);
@@ -100,8 +105,24 @@ describe('registrarAtualizacoes', () => {
       mensagemId: 'msg1', membro, texto: 'IT-045 travado esperando o fornecedor', confianca: 'alta',
       itens: [{ card: C1, intencao: 'bloquear', novaData: null, prazoTexto: null }],
     });
-    expect(r.sugestoes).toBe(0);
+    expect(r.sugestoes).toEqual([]);
     expect(inserts.map((i) => i.tabela)).toEqual(['it_task_comments']);
     expect(avisarQuemTem).toHaveBeenCalledWith(expect.anything(), 'canManageAgenteTI', expect.objectContaining({ titulo: 'IT-045 bloqueado', tipo: 'warning' }));
+  });
+
+  it('quem executa direto (D37): a sugestão é gravada para o SIM, sem avisar quem aprova nem dizer "aprovação"', async () => {
+    const { db, inserts } = criarDb();
+    const r = await registrarAtualizacoes(db as never, {
+      mensagemId: 'msg1', membro, texto: 'IT-045 concluída, IT-046 bloqueado', confianca: 'alta', executa: true,
+      itens: [
+        { card: C1, intencao: 'concluir', novaData: null, prazoTexto: null },
+        { card: { ...C1, id: 'c2', codigo: 'IT-046' }, intencao: 'bloquear', novaData: null, prazoTexto: null },
+      ],
+    });
+    expect(r.sugestoes).toMatchObject([{ id: 's1', card: { codigo: 'IT-045' } }]);
+    expect(inserts.map((i) => i.tabela)).toEqual(['it_task_comments', 'ti_agente_sugestoes']);
+    expect(avisarQuemTem).not.toHaveBeenCalledWith(expect.anything(), 'canApproveAgenteTI', expect.anything());
+    expect(avisarQuemTem).toHaveBeenCalledWith(expect.anything(), 'canManageAgenteTI', expect.objectContaining({ titulo: 'IT-046 bloqueado' }));
+    expect(r.confirmacao).toBe('Anotado, Bruno!\nIT-046: anotei o bloqueio e avisei os gestores.');
   });
 });
