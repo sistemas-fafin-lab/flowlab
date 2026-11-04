@@ -742,7 +742,9 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                   <ProposalComparison
                     quotation={quotation}
                     onSelectWinner={onSelectWinner}
-                    canSelect={permissions.canSelectWinner && ['under_review', 'waiting_responses'].includes(quotation.status)}
+                    // Os status vêm de canSelectWinner (stateMachine), que inclui as etapas de
+                    // aprovação: Compras troca a proposta também com a cotação esperando autorização.
+                    canSelect={permissions.canSelectWinner}
                     canEdit={canAddProposal}
                     onEditProposal={(proposal) => setEditingProposal(proposal)}
                     onViewProposal={(proposal) => setViewingProposal(proposal)}
