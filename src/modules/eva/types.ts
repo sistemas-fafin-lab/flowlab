@@ -171,8 +171,17 @@ export interface AvisoEva {
   /** Enviado: foi para o grupo da equipe, citando a pessoa (D35), e o nome do grupo. */
   noGrupo?: boolean;
   grupoNome?: string | null;
+  /** D36: aviso para a equipe toda (pessoaId vazio). */
+  todos?: boolean;
+  /** Quem recebe: a prévia do servidor e, depois de enviado, o que ele de fato gravou. */
+  equipe?: PreviaEquipe;
+  /** Por que o aviso para a equipe não pode sair agora (ex.: WhatsApp desligado). */
+  bloqueio?: string;
   erro?: string;
 }
+
+/** D36: no privado, citados no grupo (sem WhatsApp, D35) e de fora (sem WhatsApp e sem grupo). */
+export interface PreviaEquipe { privado: string[]; citadosNoGrupo: string[]; grupoNome: string | null; semDestino: string[] }
 
 export interface ChatMessage {
   id: string;

@@ -14,6 +14,7 @@ import { WhatsAppQueueCard } from './WhatsAppQueueCard';
 import { EvaStatCards } from './EvaStatCards';
 import { PropostaChatCard } from './PropostaChatCard';
 import { AvisoChatCard } from './AvisoChatCard';
+import { AvisoEquipeChatCard } from './AvisoEquipeChatCard';
 import { mensagensDaFila } from './fila';
 import type { OverdueRow } from '../hooks/useEvaHome';
 import type { MensagemFila } from '../domain/whatsapp';
@@ -72,12 +73,34 @@ describe('blocos do Início (fumaça)', () => {
       proposta: { kanban_status: 'review' },
       card: { id: 'c1', codigo: 'IT-045', title: 'Robô de pré-faturamento', kanban_status: 'in_progress', priority: 'high', due_date: null, assigned_to: [] },
     };
-    const gestor = render(h(PropostaChatCard, { p, podeAprovar: true, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }));
+    const gestor = render(h(PropostaChatCard, { p, podeExecutar: true, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }));
     expect(gestor).toContain('Aprovar e executar');
     expect(gestor).toContain('Em Progresso');
     expect(gestor).toContain('Revisão');
-    expect(render(h(PropostaChatCard, { p, podeAprovar: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviar para aprovação');
-    expect(render(h(PropostaChatCard, { p: { ...p, estado: 'na_fila' }, podeAprovar: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviada para aprovação');
+    expect(render(h(PropostaChatCard, { p, podeExecutar: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviar para aprovação');
+    expect(render(h(PropostaChatCard, { p: { ...p, estado: 'na_fila' }, podeExecutar: false, nome: () => 'Ana', onConfirmar: noop, onDescartar: noop }))).toContain('Enviada para aprovação');
+  });
+
+  it('aviso para a equipe (D36): quem recebe e onde antes de enviar; bloqueado, sem botão de envio', () => {
+    const a: AvisoEva = {
+      id: 'a1', pessoaId: '', nome: 'a equipe', texto: 'Reunião geral às 9h.', estado: 'aberto', todos: true,
+      equipe: { privado: ['Bruno Mendes', 'Caio Lima'], citadosNoGrupo: ['Dani'], grupoNome: 'TI FAFIN', semDestino: ['Edu Alves'] },
+    };
+    const aberto = render(h(AvisoEquipeChatCard, { a, onEnviar: noop, onDescartar: noop }));
+    expect(aberto).toContain('Aviso para a equipe · 3 pessoas');
+    expect(aberto).toContain('No WhatsApp de cada um: Bruno e Caio.');
+    expect(aberto).toContain('citando Dani');
+    expect(aberto).toContain('fica de fora: Edu.');
+    expect(aberto).toContain('Enviar para todos (3)');
+
+    const bloqueado = render(h(AvisoEquipeChatCard, { a: { ...a, equipe: undefined, bloqueio: 'O WhatsApp da EVA está desligado (EVA → Configurações).' }, onEnviar: noop, onDescartar: noop }));
+    expect(bloqueado).toContain('O WhatsApp da EVA está desligado');
+    expect(bloqueado).not.toContain('Enviar para todos');
+    expect(bloqueado).toContain('Descartar');
+
+    const enviado = render(h(AvisoEquipeChatCard, { a: { ...a, estado: 'enviado', agendadaPara: null }, onEnviar: noop, onDescartar: noop }));
+    expect(enviado).toContain('sai em instantes para 2 pessoas e o grupo');
+    expect(enviado).not.toContain('<textarea');
   });
 
   it('Cobrar/Lembrar só onde pode; sem WhatsApp, desabilitado com a dica (D22)', () => {

@@ -13,8 +13,8 @@ const textoDoErro = (e: unknown) => (e instanceof TypeError || !(e instanceof Er
 interface Opcoes {
   primeiroNome: string;
   view: EvaView;
-  /** Gestor confirma e a EVA executa; os demais mandam a proposta para a fila (D28). */
-  podeAprovar: boolean;
+  /** Quem aprova e o gestor (D37) confirmam e a EVA executa; os demais mandam a proposta para a fila (D28). */
+  podeExecutar: boolean;
   /** analisada_em da última reunião, para a abertura do drawer. */
   ultimaReuniaoEm: string | null;
   /** Chamado depois que uma proposta foi executada, para o Início reler o board. */
@@ -22,7 +22,7 @@ interface Opcoes {
 }
 
 /** Chat com a EVA (issue 16): pergunta pela ação `agente-perguntar`; nada muda sem confirmação. */
-export function useEvaChat({ primeiroNome, view, podeAprovar, ultimaReuniaoEm, onExecutada }: Opcoes) {
+export function useEvaChat({ primeiroNome, view, podeExecutar, ultimaReuniaoEm, onExecutada }: Opcoes) {
   const [open, setOpen] = useState(false);
   const [thinking, setThinking] = useState(false);
   const [conversa, setConversa] = useState<ChatMessage[]>([]);
@@ -77,20 +77,20 @@ export function useEvaChat({ primeiroNome, view, podeAprovar, ultimaReuniaoEm, o
       : msg)));
   }, []);
 
-  /** Gestor: aprova e executa numa transação só. Demais: envia para a fila (RN18). */
+  /** Quem aprova e o gestor: aprova e executa numa transação só. Demais: envia para a fila (RN18). */
   const confirmar = useCallback(async (p: PropostaEva) => {
     if (p.estado !== 'aberta') return;
     mudarProposta(p.id, { estado: 'enviando', erro: undefined });
     try {
-      await agenteAdmin.propor({ tipo: p.tipo, cardId: p.card_id, proposta: p.proposta, trecho: p.trecho, origem: 'chat', aprovar: podeAprovar });
+      await agenteAdmin.propor({ tipo: p.tipo, cardId: p.card_id, proposta: p.proposta, trecho: p.trecho, origem: 'chat', aprovar: podeExecutar });
       if (!alive.current) return;
-      mudarProposta(p.id, { estado: podeAprovar ? 'executada' : 'na_fila' });
-      if (podeAprovar) onExecutadaRef.current?.();
+      mudarProposta(p.id, { estado: podeExecutar ? 'executada' : 'na_fila' });
+      if (podeExecutar) onExecutadaRef.current?.();
     } catch (e) {
       if (!alive.current) return;
       mudarProposta(p.id, { estado: 'aberta', erro: e instanceof Error ? e.message : 'Não consegui registrar a proposta.' });
     }
-  }, [podeAprovar, mudarProposta]);
+  }, [podeExecutar, mudarProposta]);
 
   const descartar = useCallback((p: PropostaEva) => {
     if (p.estado === 'aberta') mudarProposta(p.id, { estado: 'descartada', erro: undefined });
@@ -104,9 +104,20 @@ export function useEvaChat({ primeiroNome, view, podeAprovar, ultimaReuniaoEm, o
 
   /** D32: o gestor conferiu (e talvez editou) o texto; o aviso vai para a fila do WhatsApp. */
   const enviarAviso = useCallback(async (a: AvisoEva, texto: string) => {
-    if (a.estado !== 'aberto' || !texto.trim()) return;
+    if (a.estado !== 'aberto' || !texto.trim() || a.bloqueio) return;
     mudarAviso(a.id, { estado: 'enviando', texto, erro: undefined });
     try {
+      if (a.todos) {
+        // D36: a equipe toda. Vale quem o servidor achou na hora do envio, que pode diferir da prévia.
+        const r = await evaService.sendAvisoEquipe(texto.trim());
+        if (alive.current) {
+          mudarAviso(a.id, {
+            estado: 'enviado', agendadaPara: r.agendadaPara,
+            equipe: { privado: r.para, citadosNoGrupo: r.citadosNoGrupo, grupoNome: r.grupoNome, semDestino: r.semDestino },
+          });
+        }
+        return;
+      }
       const r = await evaService.sendAviso(a.pessoaId, texto.trim());
       if (alive.current) mudarAviso(a.id, { estado: 'enviado', agendadaPara: r.agendadaPara, noGrupo: !!r.noGrupo, grupoNome: r.grupoNome ?? null });
     } catch (e) {

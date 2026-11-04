@@ -24,10 +24,19 @@ vi.mock('./aviso.js', async (original) => ({
   ...(await original<typeof import('./aviso.js')>()),
   checarAvisoPessoal: vi.fn(async () => ({ ok: true, membroId: 'm-bruno', userId: 'u-bruno', nome: 'Bruno Mendes', grupo: null })),
   enviarAvisoPessoal: vi.fn(async () => ({ ok: true, id: 'a1', para: 'Bruno Mendes', noGrupo: false, grupoNome: null, agendadaPara: null })),
+  checarAvisoEquipe: vi.fn(async () => ({
+    ok: true,
+    privado: [{ membroId: 'm-bruno', userId: 'u-bruno', nome: 'Bruno Mendes' }, { membroId: 'm-caio', userId: 'u-caio', nome: 'Caio Lima' }],
+    noGrupo: { id: '120363000000000001@g.us', nome: 'TI FAFIN', citados: ['Dani'] },
+    semDestino: [],
+  })),
+  enviarAvisoEquipe: vi.fn(async () => ({
+    ok: true, ids: ['a1', 'a2', 'a3'], para: ['Bruno Mendes', 'Caio Lima'], citadosNoGrupo: ['Dani'], grupoNome: 'TI FAFIN', semDestino: [], agendadaPara: null,
+  })),
 }));
 
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
-import { checarAvisoPessoal, enviarAvisoPessoal } from './aviso.js';
+import { checarAvisoEquipe, checarAvisoPessoal, enviarAvisoEquipe, enviarAvisoPessoal } from './aviso.js';
 import { avisarQuemTem, lerContexto } from './dados.js';
 import { enfileirarNoGrupo, lerConfigGrupo } from './grupo.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
@@ -489,13 +498,73 @@ describe('processarRecebida: gestor', () => {
     expect(checarCobranca).not.toHaveBeenCalled();
   });
 
-  it('pedido de mudança de um gestor que não aprova: vai para a fila, sem SIM', async () => {
+  it('pedido de mudança de um gestor que não aprova (D37): prévia, SIM e aplica em nome dele, sem fila', async () => {
     estado.permissoes = ['canManageIT', 'canManageAgenteTI'];
     ia({ intencao: 'propor', propostas: [proposta({ prioridade: 'low' })] });
-    const r = await mandar('muda a prioridade do IT-045 para baixa');
-    expect(r.resposta).toMatch(/^Anotado, Ana! Mandei para aprovação:/);
+    const r1 = await mandar('muda a prioridade do IT-045 para baixa');
+    expect(r1.resposta).toMatch(/^Vou aplicar no Kanban:\n• IT-045 Robô de pré-faturamento: prioridade baixa/);
+    expect(r1.resposta).toContain(PEDIR_SIM);
+    expect(estado.comandos).toMatchObject([{ tipo: 'aprovar', status: 'aguardando', dados: { daProposta: true } }]);
+    expect(avisarQuemTem).not.toHaveBeenCalled();
+
+    const r2 = await mandar('sim');
+    expect(r2.resposta).toBe('Pronto, já está no Kanban ✅');
+    expect(banco.rpcs).toEqual([{ fn: 'ti_agente_aprovar_sugestao_como', args: { p_id: expect.any(String), p_proposta: null, p_aprovador: 'u-ana' } }]);
+  });
+
+  it('andamento contado por quem executa direto (D37): "IT-045 concluída" pede o SIM e aplica', async () => {
+    estado.permissoes = ['canManageIT', 'canManageAgenteTI'];
+    ia({ intencao: 'atualizar_cards', resposta: 'Anotei e mandei para aprovação.', itens: [{ card_codigo: 'IT-045', intencao: 'concluir', nova_data: '', prazo_texto: '' }] });
+    const r1 = await mandar('IT-045 concluída');
+    // A voz da IA diria "aprovação": aqui vale o texto do sistema, com o que vai ser aplicado.
+    expect(r1.resposta).toBe(`Anotado, Ana!\n\nVou aplicar no Kanban:\n• IT-045 Robô de pré-faturamento: → Concluído\n\n${PEDIR_SIM}`);
+    expect(banco.inserts.map((i) => i.tabela)).toEqual(['it_task_comments', 'ti_agente_sugestoes', 'ti_agente_comandos', 'ti_agente_mensagens']);
+    expect(avisarQuemTem).not.toHaveBeenCalledWith(expect.anything(), 'canApproveAgenteTI', expect.anything());
+
+    expect((await mandar('sim')).resposta).toBe('Pronto, já está no Kanban ✅');
+    expect(banco.rpcs).toMatchObject([{ fn: 'ti_agente_aprovar_sugestao_como', args: { p_aprovador: 'u-ana' } }]);
+  });
+
+  it('o SIM do próprio pedido (D37) vale para o gestor ou para quem aprova; sem nenhum dos dois, não sai', async () => {
+    estado.comandos.push({ id: 'p', membro_id: 'm-ana', tipo: 'aprovar', status: 'aguardando', dados: { ids: ['s1'], numeros: [1], daProposta: true }, expira_em: '2026-10-14T14:20:00.000Z' });
+    estado.permissoes = ['canManageIT'];
+    const r = await mandar('sim');
+    expect(r).toMatchObject({ acao: 'sem_permissao' });
+    expect(r.resposta).toContain('Só gestores e quem aprova sugestões');
+    expect(banco.rpcs).toEqual([]);
+  });
+
+  it('aviso para a equipe toda (D36): quem recebe e onde, o texto exato, e só manda depois do SIM', async () => {
+    ia({ intencao: 'avisar_equipe', aviso: 'Reunião geral amanhã às 9h.' });
+    const r1 = await mandar('avisa todo mundo que a reunião geral é amanhã às 9h');
+    expect(r1.resposta).toBe([
+      'Vou mandar no WhatsApp de 2 pessoas: Bruno e Caio.',
+      'E no grupo "TI FAFIN", citando Dani, que não tem WhatsApp na aba Membros.',
+      '',
+      '📢 Aviso de Ana:\nReunião geral amanhã às 9h.',
+      '',
+      PEDIR_SIM,
+    ].join('\n'));
+    expect(checarAvisoEquipe).toHaveBeenCalledWith(banco.db, expect.objectContaining({ userId: 'u-ana' }));
+    expect(enviarAvisoEquipe).not.toHaveBeenCalled();
+    expect(estado.comandos).toMatchObject([{ tipo: 'avisar_equipe', status: 'aguardando', dados: { de: 'Ana Souza', aviso: 'Reunião geral amanhã às 9h.' } }]);
+
+    const r2 = await mandar('sim');
+    expect(enviarAvisoEquipe).toHaveBeenCalledWith(banco.db, expect.objectContaining({ userId: 'u-ana' }), { de: 'Ana Souza', aviso: 'Reunião geral amanhã às 9h.' }, AGORA);
+    expect(r2.resposta).toBe('Pronto: o aviso sai em instantes no WhatsApp de 2 pessoas e no grupo "TI FAFIN", citando Dani.');
+  });
+
+  it('aviso para a equipe: sem gestor, recusa; sem ninguém para receber, diz o motivo e não espera SIM', async () => {
+    (checarAvisoEquipe as ReturnType<typeof vi.fn>).mockResolvedValueOnce({ ok: false, status: 422, erro: 'O WhatsApp da EVA está desligado (EVA → Configurações).' });
+    ia({ intencao: 'avisar_equipe', aviso: 'Oi' });
+    expect((await mandar('avisa todos que oi')).resposta).toBe('Não consigo mandar: O WhatsApp da EVA está desligado (EVA → Configurações).');
     expect(estado.comandos).toEqual([]);
-    expect(avisarQuemTem).toHaveBeenCalledWith(expect.anything(), 'canApproveAgenteTI', expect.anything());
+
+    estado.permissoes = ['canManageIT', 'canApproveAgenteTI'];
+    ia({ intencao: 'avisar_equipe', aviso: 'Oi' });
+    const r = await mandar('avisa todos que oi');
+    expect(r).toMatchObject({ acao: 'sem_permissao' });
+    expect(r.resposta).toContain('Só gestores da EVA podem mandar avisos para a equipe');
   });
 
   it('o SIM confere o papel do pedido: um pedido de aprovar não sai de quem perdeu a chave de aprovar', async () => {
