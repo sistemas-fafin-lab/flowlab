@@ -1,7 +1,8 @@
 // Planos de contingência — cadastro + listagem/filtro, histórico de testes.
 // (.scratch/qualidade-riscos-indicadores/issues/03-riscos-contingencia.md).
 // Independente de risco: não exige vínculo com um risco existente.
-// "Baixar todos" exporta os planos listados (respeita o filtro de setor) num ZIP.
+// "Baixar planos" exporta os planos listados (respeita o filtro de setor) num ZIP —
+// todos de uma vez ou só os escolhidos no SelecionarPlanosExportacaoModal.
 
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { ArrowLeft, ChevronDown, Download, Loader2, Plus } from 'lucide-react';
@@ -14,6 +15,7 @@ import { baixarPlanosContingenciaZip } from '../exportacaoContingencia.js';
 import { useCanManageQualidade } from '../hooks/useCanManageQualidade.js';
 import { PlanoContingenciaDetalheDrawer } from './riscos/PlanoContingenciaDetalheDrawer.js';
 import { PlanoContingenciaFormDrawer } from './riscos/PlanoContingenciaFormDrawer.js';
+import { SelecionarPlanosExportacaoModal } from './riscos/SelecionarPlanosExportacaoModal.js';
 import { BADGE_STATUS_CONTINGENCIA, ROTULO_STATUS_CONTINGENCIA } from './riscos/rotulos.js';
 import { ComboboxBusca } from './ui/ComboboxBusca.js';
 import { ErrorState } from './ui/ErrorState.js';
@@ -47,6 +49,7 @@ const OPCOES_ZIP: { formato: FormatoExportacao; rotulo: string }[] = [
 
 function BaixarTodosZip({ planos }: { planos: readonly PlanoContingenciaDTO[] }) {
   const [aberto, setAberto] = useState(false);
+  const [escolhendo, setEscolhendo] = useState(false);
   const mutacao = useMutation({
     mutationFn: (formato: FormatoExportacao) => baixarPlanosContingenciaZip(planos, formato),
   });
@@ -62,7 +65,7 @@ function BaixarTodosZip({ planos }: { planos: readonly PlanoContingenciaDTO[] })
         className="flex items-center gap-2 rounded-xl border border-gray-200 bg-white/70 px-4 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
       >
         {mutacao.isPending ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
-        {mutacao.isPending ? 'Gerando ZIP…' : `Baixar todos (${planos.length}) .zip`}
+        {mutacao.isPending ? 'Gerando ZIP…' : `Baixar planos (${planos.length})`}
         <ChevronDown className="h-4 w-4" aria-hidden />
       </button>
 
@@ -87,9 +90,22 @@ function BaixarTodosZip({ planos }: { planos: readonly PlanoContingenciaDTO[] })
                 {rotulo}
               </button>
             ))}
+            <button
+              type="button"
+              role="menuitem"
+              onClick={() => {
+                setAberto(false);
+                setEscolhendo(true);
+              }}
+              className="block w-full border-t border-gray-100 px-4 py-2.5 text-left text-sm font-medium text-blue-700 hover:bg-gray-50 dark:border-white/10 dark:text-blue-300 dark:hover:bg-white/10"
+            >
+              Escolher planos…
+            </button>
           </div>
         </>
       )}
+
+      {escolhendo && <SelecionarPlanosExportacaoModal planos={planos} onFechar={() => setEscolhendo(false)} />}
 
       {mutacao.isError && (
         <p role="alert" className="text-xs text-red-600 dark:text-red-400">

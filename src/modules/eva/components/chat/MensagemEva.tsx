@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { EvaOrb } from '../EvaOrb';
 import { PropostaChatCard } from '../PropostaChatCard';
 import { AvisoChatCard } from '../AvisoChatCard';
+import { AvisoEquipeChatCard } from '../AvisoEquipeChatCard';
 import {
   blocosDoTexto, cardPorCodigo, cardsCitados, codigosNosBlocos, cortarTexto, tamanhoDoTexto, type ContextoVisual,
 } from '../../domain/respostaVisual';
@@ -17,7 +18,7 @@ export interface PropsMensagemEva {
   /** O que o Início já leu; sem ele (ainda carregando), os cards citados ficam como códigos. */
   ctx?: ContextoVisual | null;
   thinking: boolean;
-  podeAprovar: boolean;
+  podeExecutar: boolean;
   nome: (id: string) => string;
   onConfirmar?: (p: PropostaEva) => void;
   onDescartar?: (p: PropostaEva) => void;
@@ -35,7 +36,7 @@ export interface PropsMensagemEva {
 
 /** Uma resposta da EVA (D34): o texto aparece como fala; cartões, blocos e botões entram depois. */
 export const MensagemEva: React.FC<PropsMensagemEva> = ({
-  m, ctx, thinking, podeAprovar, nome, onConfirmar, onDescartar, onEnviarAviso, onDescartarAviso, grupoDoAviso, onOpenCard, onSend,
+  m, ctx, thinking, podeExecutar, nome, onConfirmar, onDescartar, onEnviarAviso, onDescartarAviso, grupoDoAviso, onOpenCard, onSend,
   podeCobrar, onCobrar, onNavegar, aoAvancar,
 }) => {
   const blocosTexto = useMemo(() => blocosDoTexto(m.text), [m.text]);
@@ -92,9 +93,16 @@ export const MensagemEva: React.FC<PropsMensagemEva> = ({
             )}
             {ctx && m.blocos && m.blocos.length > 0 && <BlocosEva blocos={m.blocos} ctx={ctx} onOpenCard={onOpenCard} onNavegar={onNavegar} />}
             {m.propostas?.map((p) => (
-              <PropostaChatCard key={p.id} p={p} podeAprovar={podeAprovar} nome={nome} onConfirmar={() => onConfirmar?.(p)} onDescartar={() => onDescartar?.(p)} />
+              <PropostaChatCard key={p.id} p={p} podeExecutar={podeExecutar} nome={nome} onConfirmar={() => onConfirmar?.(p)} onDescartar={() => onDescartar?.(p)} />
             ))}
-            {m.avisos?.map((a) => (
+            {m.avisos?.map((a) => (a.todos ? (
+              <AvisoEquipeChatCard
+                key={a.id}
+                a={a}
+                onEnviar={(texto) => onEnviarAviso?.(a, texto)}
+                onDescartar={() => onDescartarAviso?.(a)}
+              />
+            ) : (
               <AvisoChatCard
                 key={a.id}
                 a={a}
@@ -102,7 +110,7 @@ export const MensagemEva: React.FC<PropsMensagemEva> = ({
                 onEnviar={(texto) => onEnviarAviso?.(a, texto)}
                 onDescartar={() => onDescartarAviso?.(a)}
               />
-            ))}
+            )))}
             {m.proximosPassos && m.proximosPassos.length > 0 && (
               <ProximosPassos
                 passos={m.proximosPassos}

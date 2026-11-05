@@ -21,7 +21,7 @@ interface Props {
   voiceNotice: string;
   onMic?: () => void;
   /** Propostas (D28): gestor executa, os demais mandam para a fila. */
-  podeAprovar?: boolean;
+  podeExecutar?: boolean;
   nome?: (id: string) => string;
   onConfirmar?: (p: PropostaEva) => void;
   onDescartar?: (p: PropostaEva) => void;
@@ -46,7 +46,7 @@ const semNome = () => 'alguém';
 /** Drawer de conversa (portal no body, mesmo padrão do CategoryEditorModal do Layout). */
 export const EvaChatDrawer: React.FC<Props> = ({
   open, thinking, messages, onClose, onSend, listening, transcript, voiceNotice, onMic,
-  podeAprovar = false, nome = semNome, onConfirmar, onDescartar, onEnviarAviso, onDescartarAviso, grupoDoAviso, onOpenCard,
+  podeExecutar = false, nome = semNome, onConfirmar, onDescartar, onEnviarAviso, onDescartarAviso, grupoDoAviso, onOpenCard,
   visual, podeCobrar, onCobrar, onNavegar,
 }) => {
   const [draft, setDraft] = useState('');
@@ -110,7 +110,7 @@ export const EvaChatDrawer: React.FC<Props> = ({
                     m={m}
                     ctx={visual}
                     thinking={thinking}
-                    podeAprovar={podeAprovar}
+                    podeExecutar={podeExecutar}
                     nome={nome}
                     onConfirmar={onConfirmar}
                     onDescartar={onDescartar}

@@ -60,8 +60,8 @@ describe('contexto e conteúdo do chat', () => {
 
 describe('validarRespostaChat', () => {
   it('descarta códigos citados que não estão no contexto', () => {
-    const r = validarRespostaChat({ resposta: ' ok ', cards_citados: ['it-010', 'IT-999', 'IT-010'], propostas: [], avisos: [], blocos: [], proximos_passos: [] }, CTX);
-    expect(r).toEqual({ resposta: 'ok', cardsCitados: ['IT-010'], propostas: [], nomes: {}, avisos: [], blocos: [], proximosPassos: [] });
+    const r = validarRespostaChat({ resposta: ' ok ', cards_citados: ['it-010', 'IT-999', 'IT-010'], propostas: [], avisos: [], aviso_equipe: '', blocos: [], proximos_passos: [] }, CTX);
+    expect(r).toEqual({ resposta: 'ok', cardsCitados: ['IT-010'], propostas: [], nomes: {}, avisos: [], avisoEquipe: null, blocos: [], proximosPassos: [] });
   });
 
   it('proposta passa pela mesma validação das reuniões e leva o card para exibição', () => {
@@ -69,7 +69,7 @@ describe('validarRespostaChat', () => {
       resposta: 'Preparei a proposta.',
       cards_citados: ['IT-011'],
       propostas: [proposta({ card_codigo: 'IT-011', kanban_status: 'in_progress' }), proposta({ card_codigo: 'IT-010', kanban_status: 'in_progress' })], avisos: [],
-      blocos: [], proximos_passos: [],
+      aviso_equipe: '', blocos: [], proximos_passos: [],
     }, CTX);
     // A segunda não muda nada (o card já está em andamento): fica de fora.
     expect(r.propostas).toHaveLength(1);
@@ -79,7 +79,7 @@ describe('validarRespostaChat', () => {
 
   it('pedido sobre card fora do contexto não vira card novo, como na reunião', () => {
     const r = validarRespostaChat({
-      resposta: 'x', cards_citados: [], propostas: [proposta({ card_codigo: 'IT-999', titulo: 'Algo', kanban_status: 'done' })], avisos: [], blocos: [], proximos_passos: [],
+      resposta: 'x', cards_citados: [], propostas: [proposta({ card_codigo: 'IT-999', titulo: 'Algo', kanban_status: 'done' })], avisos: [], aviso_equipe: '', blocos: [], proximos_passos: [],
     }, CTX);
     expect(r.propostas).toEqual([]);
   });
@@ -92,7 +92,7 @@ describe('validarRespostaChat', () => {
         { pessoa_id: 'u-desconhecido', texto: 'oi' },
         { pessoa_id: 'u-bruno', texto: '   ' },
       ],
-      blocos: [], proximos_passos: [],
+      aviso_equipe: '', blocos: [], proximos_passos: [],
     }, CTX);
     expect(r.avisos).toEqual([{ pessoaId: 'u-bruno', nome: 'Bruno Mendes', texto: 'A reunião mudou para as 10h.' }]);
     expect(INSTRUCOES_CHAT).toContain('"avisos"');
@@ -103,16 +103,35 @@ describe('validarRespostaChat', () => {
     expect(montarContextoChat(CTX, null, '2026-10-13')).toContain('Quem pergunta: equipe (não manda avisos pelo WhatsApp).');
   });
 
+  it('o contexto diz se as propostas de quem pergunta entram na hora ou vão para aprovação (D37)', () => {
+    expect(montarContextoChat(CTX, null, '2026-10-13', null, true, true)).toContain('As propostas dela são aplicadas no Kanban quando ela confirmar no cartão.');
+    expect(montarContextoChat(CTX, null, '2026-10-13')).toContain('As propostas dela vão para aprovação.');
+    expect(INSTRUCOES_CHAT).toContain('senão, que vai para aprovação');
+  });
+
+  it('aviso para a equipe toda (D36): o texto, aparado; vazio, nenhum', () => {
+    const base = { resposta: 'x', cards_citados: [], propostas: [], avisos: [], blocos: [], proximos_passos: [] };
+    expect(validarRespostaChat({ ...base, aviso_equipe: '  Reunião às 10h.  ' }, CTX).avisoEquipe).toBe('Reunião às 10h.');
+    expect(validarRespostaChat({ ...base, aviso_equipe: '   ' }, CTX).avisoEquipe).toBeNull();
+    expect(validarRespostaChat({ ...base, aviso_equipe: 'x'.repeat(1500) }, CTX).avisoEquipe).toHaveLength(1000);
+    expect(INSTRUCOES_CHAT).toContain('"aviso_equipe"');
+  });
+
   it('o schema exige os campos', () => {
-    expect(SchemaChat.safeParse({ resposta: 'oi', cards_citados: [], propostas: [], avisos: [], blocos: [], proximos_passos: [] }).success).toBe(true);
+    const completo = { resposta: 'oi', cards_citados: [], propostas: [], avisos: [], aviso_equipe: '', blocos: [], proximos_passos: [] };
+    expect(SchemaChat.safeParse(completo).success).toBe(true);
     expect(SchemaChat.safeParse({ resposta: 'oi', cards_citados: [], propostas: [], avisos: [] }).success).toBe(false);
-    expect(SchemaChat.safeParse({ resposta: 'oi', cards_citados: [], propostas: [], avisos: [], blocos: [{ tipo: 'grafico', referencia: '' }], proximos_passos: [] }).success).toBe(false);
+    // D36: "aviso_equipe" é obrigatório ("" quando não há), como os campos da D34.
+    const semAvisoEquipe: Partial<typeof completo> = { ...completo };
+    delete semAvisoEquipe.aviso_equipe;
+    expect(SchemaChat.safeParse(semAvisoEquipe).success).toBe(false);
+    expect(SchemaChat.safeParse({ ...completo, blocos: [{ tipo: 'grafico', referencia: '' }] }).success).toBe(false);
   });
 
   it('blocos e próximos passos (D34): só o que dá para montar com o contexto', () => {
     const ctx: ContextoExtracao = { ...CTX, projetos: [{ id: 'p1', name: 'Portal' }] };
     const r = validarRespostaChat({
-      resposta: 'Duas coisas atrasadas.', cards_citados: ['IT-010'], propostas: [], avisos: [],
+      resposta: 'Duas coisas atrasadas.', cards_citados: ['IT-010'], propostas: [], avisos: [], aviso_equipe: '',
       blocos: [{ tipo: 'projeto', referencia: 'p1' }, { tipo: 'projeto', referencia: 'p-inexistente' }, { tipo: 'reuniao', referencia: '' }],
       proximos_passos: [
         { tipo: 'cobrar_card', texto: 'IT-010' }, // prazo 20/10: atrasado em 21/10
@@ -128,7 +147,7 @@ describe('validarRespostaChat', () => {
       { tipo: 'perguntar', texto: 'E o que vence amanhã?' },
     ]);
     // Antes do prazo, não há o que cobrar.
-    const antes = validarRespostaChat({ resposta: 'x', cards_citados: [], propostas: [], avisos: [], blocos: [], proximos_passos: [{ tipo: 'cobrar_card', texto: 'IT-010' }] }, ctx, { hoje: '2026-10-13' });
+    const antes = validarRespostaChat({ resposta: 'x', cards_citados: [], propostas: [], avisos: [], aviso_equipe: '', blocos: [], proximos_passos: [{ tipo: 'cobrar_card', texto: 'IT-010' }] }, ctx, { hoje: '2026-10-13' });
     expect(antes.proximosPassos).toEqual([]);
     expect(INSTRUCOES_CHAT).toContain('"blocos"');
     expect(INSTRUCOES_CHAT).toContain('"proximos_passos"');

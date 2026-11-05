@@ -45,10 +45,12 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
   const { userProfile } = useAuth();
   const navigate = useNavigate();
   const nome = primeiroNome(userProfile?.name ?? '');
-  // D31: o gestor vê a fila e cobra os outros; quem aprova aprova na hora e vê as pendentes.
+  // D31: o gestor vê a fila e cobra os outros; quem aprova vê as pendentes. D37: os dois
+  // confirmam as próprias propostas do chat e dos comentários e a EVA aplica na hora.
   const papeis = usePapeisEva();
   const ehGestor = papeis.gestor;
   const podeAprovar = papeis.aprova;
+  const podeExecutar = papeis.aprova || papeis.gestor;
 
   const eva = useEvaNoInicio(podeAprovar);
   const whatsappAtivo = eva.dados?.config?.whatsapp_ativo === true;
@@ -59,7 +61,7 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
   const chat = useEvaChat({
     primeiroNome: nome,
     view: home.view,
-    podeAprovar,
+    podeExecutar,
     ultimaReuniaoEm: eva.dados?.ultimaReuniao?.analisada_em ?? null,
     onExecutada: () => {
       void home.recarregar();
@@ -135,7 +137,7 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
     [s, home.hoje, home.view, home.usuarioId, home.cards, home.nomes, ehGestor, eva.dados, home.fila, home.agora],
   );
   const acoes = useEvaComentarios({
-    podeAprovar,
+    podeExecutar,
     navegar: navigate,
     abrirCard: (id) => void home.abrirCard(id),
     perguntar: (texto) => void chat.ask(texto),
@@ -279,7 +281,7 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
           transcript={voice.transcript}
           voiceNotice={chat.open ? voice.notice : ''}
           onMic={() => voice.toggle('chat')}
-          podeAprovar={podeAprovar}
+          podeExecutar={podeExecutar}
           nome={nomePessoa}
           onConfirmar={(p) => void chat.confirmar(p)}
           onDescartar={chat.descartar}
@@ -297,7 +299,7 @@ const EvaHomePage: React.FC<EvaHomePageProps> = ({ animatedGlow = true, defaultV
           aberto={!!acoes.dialogo}
           titulo={acoes.dialogo?.acao.titulo ?? ''}
           propostas={acoes.dialogo?.acao.propostas ?? []}
-          podeAprovar={podeAprovar}
+          podeExecutar={podeExecutar}
           nome={nomePessoa}
           enviando={acoes.enviando}
           erro={acoes.erro}
