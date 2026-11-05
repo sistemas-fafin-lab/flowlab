@@ -109,6 +109,7 @@ export const QuotationManagementPage: React.FC = () => {
     sendToSuppliers,
     submitProposal,
     updateProposal,
+    deleteProposal,
     selectWinner,
     submitForApproval,
     changeRequesterManager,
@@ -890,6 +891,10 @@ export const QuotationManagementPage: React.FC = () => {
           }}
           onUpdateProposal={async (quotationId, proposalId, data) => {
             await updateProposal(proposalId, { ...data, quotationId });
+            await handleRefreshAfterAction();
+          }}
+          onDeleteProposal={async (quotationId, proposalId) => {
+            await deleteProposal(quotationId, proposalId);
             await handleRefreshAfterAction();
           }}
           onAdvanceToReview={async () => {

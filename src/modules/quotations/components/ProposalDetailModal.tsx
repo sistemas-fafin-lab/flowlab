@@ -25,6 +25,15 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+const formatUnitPrice = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(value);
+};
+
 export const ProposalDetailModal: React.FC<ProposalDetailModalProps> = ({ isOpen, proposal, onClose }) => {
   if (!isOpen) return null;
 
@@ -78,7 +87,7 @@ export const ProposalDetailModal: React.FC<ProposalDetailModalProps> = ({ isOpen
                         {formatCurrency(item.totalPrice)}
                       </p>
                       <p className="text-xs text-gray-400 dark:text-gray-500">
-                        {formatCurrency(item.unitPrice)}/un
+                        {formatUnitPrice(item.unitPrice)}/un
                       </p>
                       {item.deliveryTime && (
                         <p className="text-xs text-gray-400 dark:text-gray-500 flex items-center justify-end gap-1 mt-0.5">
