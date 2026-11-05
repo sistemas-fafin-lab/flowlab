@@ -1478,6 +1478,47 @@ export const useQuotation = () => {
     return updatedProposal;
   }, [quotations, addAuditLog]);
 
+  const deleteProposal = useCallback(async (quotationId: string, proposalId: string): Promise<void> => {
+    const quotation = quotations.find(q => q.id === quotationId);
+    if (!quotation) throw new Error('Cotação não encontrada');
+
+    const existing = quotation.proposals.find(p => p.id === proposalId);
+    if (!existing) throw new Error('Proposta não encontrada');
+
+    if (!['draft', 'sent_to_suppliers', 'waiting_responses'].includes(quotation.status)) {
+      throw new Error('Não é possível excluir proposta neste status');
+    }
+    if (quotation.selectedProposalId === proposalId) {
+      throw new Error('Não é possível excluir a proposta selecionada');
+    }
+
+    // Itens da proposta saem por ON DELETE CASCADE
+    const { error: dbError } = await supabase
+      .from('quotation_proposals')
+      .delete()
+      .eq('id', proposalId);
+
+    if (dbError) {
+      console.error('Error deleting proposal:', dbError);
+      throw new Error('Erro ao excluir proposta');
+    }
+
+    setQuotations(prev => prev.map(q => q.id !== quotationId ? q : {
+      ...q,
+      proposals: q.proposals.filter(p => p.id !== proposalId),
+      updatedAt: new Date().toISOString(),
+    }));
+
+    await addAuditLog(quotationId, 'updated', {
+      note: 'Proposta excluída',
+      totalAmount: existing.totalAmount,
+    }, {
+      supplierId: existing.supplierId,
+      supplierName: existing.supplierName,
+      amount: existing.totalAmount,
+    });
+  }, [quotations, addAuditLog]);
+
   // Advance directly to under_review (manual flow - skip API sending)
   const advanceToReview = useCallback(async (quotationId: string): Promise<void> => {
     const quotation = quotations.find(q => q.id === quotationId);
@@ -2307,6 +2348,7 @@ export const useQuotation = () => {
     sendToSuppliers,
     submitProposal,
     updateProposal,
+    deleteProposal,
     selectWinner,
     advanceToReview,
     revertStatus,

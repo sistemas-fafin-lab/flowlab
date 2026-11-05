@@ -49,6 +49,15 @@ const formatCurrency = (value: number) => {
   }).format(value);
 };
 
+const formatUnitPrice = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(value);
+};
+
 export const AddProposalModal: React.FC<AddProposalModalProps> = ({
   isOpen,
   quotation,
@@ -458,7 +467,7 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
                                 {item.quantity} {item.unit}
                                 {item.estimatedUnitPrice && (
                                   <span className="ml-2 text-gray-400 dark:text-gray-500">
-                                    (Est: {formatCurrency(item.estimatedUnitPrice)}/un)
+                                    (Est: {formatUnitPrice(item.estimatedUnitPrice)}/un)
                                   </span>
                                 )}
                               </p>
@@ -477,7 +486,7 @@ export const AddProposalModal: React.FC<AddProposalModalProps> = ({
                                   type="number"
                                   value={itemProposal.unitPriceStr}
                                   onChange={(e) => updateItemProposal(item.id, 'unitPriceStr', e.target.value)}
-                                  step="0.01"
+                                  step="any"
                                   min="0"
                                   required
                                   className="w-full pl-9 pr-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"

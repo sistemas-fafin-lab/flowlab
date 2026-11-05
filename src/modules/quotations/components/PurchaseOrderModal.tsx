@@ -15,6 +15,9 @@ interface PurchaseOrderModalProps {
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
+const formatUnitPrice = (value: number) =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', minimumFractionDigits: 2, maximumFractionDigits: 6 }).format(value);
+
 const formatDate = (iso?: string) => {
   if (!iso) return '—';
   return new Date(iso).toLocaleDateString('pt-BR');
@@ -137,7 +140,7 @@ export const PurchaseOrderModal: React.FC<PurchaseOrderModalProps> = ({
         item.productName,
         item.productCode || '—',
         `${item.quantity} ${item.unit}`,
-        formatCurrency(unitPrice),
+        formatUnitPrice(unitPrice),
         formatCurrency(total),
       ];
     });

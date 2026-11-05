@@ -64,6 +64,7 @@ interface QuotationDrawerProps {
   onRevert?: () => void;
   onSubmitProposal?: (quotationId: string, data: SubmitProposalInput) => Promise<void>;
   onUpdateProposal?: (quotationId: string, proposalId: string, data: SubmitProposalInput) => Promise<void>;
+  onDeleteProposal?: (quotationId: string, proposalId: string) => Promise<void>;
   onAdvanceToReview?: () => void;
   onAddItem?: (quotationId: string, item: Omit<QuotationItem, 'id' | 'quotationId' | 'createdAt' | 'updatedAt'>) => Promise<QuotationItem>;
   onRemoveItem?: (quotationId: string, itemId: string) => Promise<void>;
@@ -119,6 +120,7 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
   onRevert,
   onSubmitProposal,
   onUpdateProposal,
+  onDeleteProposal,
   onAdvanceToReview,
   onAddItem,
   onRemoveItem,
@@ -747,6 +749,14 @@ export const QuotationDrawer: React.FC<QuotationDrawerProps> = ({
                     canSelect={permissions.canSelectWinner}
                     canEdit={canAddProposal}
                     onEditProposal={(proposal) => setEditingProposal(proposal)}
+                    onDeleteProposal={onDeleteProposal ? async (proposal) => {
+                      if (!window.confirm(`Excluir a proposta de ${proposal.supplierName}? Essa ação não pode ser desfeita.`)) return;
+                      try {
+                        await onDeleteProposal(quotation.id, proposal.id);
+                      } catch (err) {
+                        window.alert(err instanceof Error ? err.message : 'Erro ao excluir proposta');
+                      }
+                    } : undefined}
                     onViewProposal={(proposal) => setViewingProposal(proposal)}
                   />
                 ) : (

@@ -13,6 +13,7 @@ import {
   SortAsc,
   SortDesc,
   Star,
+  Trash2,
   TrendingDown,
 } from 'lucide-react';
 import { Quotation, SupplierProposal, SupplierComparisonData } from '../types';
@@ -24,6 +25,7 @@ interface ProposalComparisonProps {
   canSelect?: boolean;
   canEdit?: boolean;
   onEditProposal?: (proposal: SupplierProposal) => void;
+  onDeleteProposal?: (proposal: SupplierProposal) => void;
   onViewProposal?: (proposal: SupplierProposal) => void;
 }
 
@@ -31,6 +33,15 @@ const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', {
     style: 'currency',
     currency: 'BRL',
+  }).format(value);
+};
+
+const formatUnitPrice = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', {
+    style: 'currency',
+    currency: 'BRL',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
   }).format(value);
 };
 
@@ -47,6 +58,7 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
   canSelect = false,
   canEdit = false,
   onEditProposal,
+  onDeleteProposal,
   onViewProposal,
 }) => {
   const [sortField, setSortField] = useState<SortField>('totalAmount');
@@ -305,6 +317,19 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
                             )}
+                            {canEdit && !isSelected && onDeleteProposal && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const proposal = quotation.proposals.find(p => p.id === supplier.proposalId);
+                                  if (proposal) onDeleteProposal(proposal);
+                                }}
+                                title="Excluir proposta"
+                                className="p-1 text-slate-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
                           </div>
                           {supplier.paymentTerms && (
                             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{supplier.paymentTerms}</p>
@@ -327,7 +352,7 @@ export const ProposalComparison: React.FC<ProposalComparisonProps> = ({
                                     ? 'text-emerald-600 dark:text-emerald-400'
                                     : 'text-slate-800 dark:text-slate-200'
                                 }`}>
-                                  {formatCurrency(proposalItem.unitPrice)}
+                                  {formatUnitPrice(proposalItem.unitPrice)}
                                 </span>
                                 {proposalItem.isLowestPrice && (
                                   <Star className="w-3 h-3 text-emerald-500 fill-current" />
