@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import { Users, UserCheck, Search } from 'lucide-react';
 import { useColaboradores } from '../hooks/useColaboradores';
 import { useDepartamentos } from '../hooks/useDepartamentos';
-import { useSolicitacoesPendentes } from '../hooks/useSolicitacoesPendentes';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { formatCPF, normalizeCPF } from '../../../utils/cpf';
@@ -36,10 +35,9 @@ const ColaboradoresPage: React.FC = () => {
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<'todos' | ColaboradorStatus>('todos');
   const [selecionadoId, setSelecionadoId] = useState<string | null>(null);
-  const { pendentes, refetch: refetchPendentes } = useSolicitacoesPendentes();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  // ?colaborador=<id> (link da notificação de solicitação) abre a ficha direto.
+  // ?colaborador=<id> (link de notificação) abre a ficha direto.
   const colaboradorDaUrl = searchParams.get('colaborador');
   useEffect(() => {
     if (!colaboradorDaUrl || loading) return;
@@ -51,10 +49,7 @@ const ColaboradoresPage: React.FC = () => {
     }, { replace: true });
   }, [colaboradorDaUrl, colaboradores, loading, setSearchParams]);
 
-  const fecharFicha = () => {
-    setSelecionadoId(null);
-    refetchPendentes();
-  };
+  const fecharFicha = () => setSelecionadoId(null);
   const colaboradorSelecionado = selecionadoId ? colaboradores.find((c) => c.id === selecionadoId) ?? null : null;
 
   const colaboradoresFiltrados = useMemo(() => {
@@ -153,14 +148,7 @@ const ColaboradoresPage: React.FC = () => {
                     className="hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors cursor-pointer"
                   >
                     <td className="px-4 py-3 font-medium text-gray-800 dark:text-gray-100">
-                      <div className="flex flex-wrap items-center gap-2">
-                        {colaborador.nome}
-                        {pendentes.has(colaborador.id) && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                            Alteração pendente
-                          </span>
-                        )}
-                      </div>
+                      {colaborador.nome}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{formatCPF(colaborador.cpf)}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{colaborador.departamentoNome || '—'}</td>

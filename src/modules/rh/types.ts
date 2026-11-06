@@ -56,26 +56,13 @@ export interface DadosPessoais {
   nomePai: string | null;
 }
 
-// ─── Solicitação de alteração de dados (rh-solicitacao-alteracao-dados) ──────
+// ─── Alteração de dados pessoais pelo colaborador (Meu perfil) ───────────────
 
-export type StatusSolicitacaoAlteracao = 'pendente' | 'aprovada' | 'recusada' | 'cancelada';
-
-/** Um item de `alteracoes`: campo de DadosPessoais com o valor anterior e o proposto. */
+/** Um campo de DadosPessoais com o valor anterior e o novo. */
 export interface AlteracaoCampo {
   campo: keyof DadosPessoais;
   de: string | null;
   para: string | null;
-}
-
-export interface SolicitacaoAlteracao {
-  id: string;
-  colaboradorId: string;
-  alteracoes: AlteracaoCampo[];
-  status: StatusSolicitacaoAlteracao;
-  motivoRecusa: string | null;
-  decididoEm: string | null;
-  resultadoVistoEm: string | null;
-  createdAt: string;
 }
 
 // ─── Documentos assinados (rh-documentos-assinados) ───────────────────────────

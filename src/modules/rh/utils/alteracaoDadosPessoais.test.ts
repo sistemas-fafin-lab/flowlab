@@ -1,13 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DadosPessoais } from '../types';
 import { DADOS_PESSOAIS_VAZIOS } from './rotulosDadosPessoais';
-import {
-  alteracoesDoBanco,
-  alteracoesParaRpc,
-  calcularAlteracoes,
-  descreverAlteracao,
-  formatarValorCampo,
-} from './solicitacaoAlteracao';
+import { alteracoesParaRpc, calcularAlteracoes } from './alteracaoDadosPessoais';
 
 const atuais: DadosPessoais = {
   ...DADOS_PESSOAIS_VAZIOS,
@@ -43,24 +37,4 @@ describe('conversão campo/coluna', () => {
     expect(alteracoesParaRpc([{ campo: 'estadoCivil', de: 'solteiro', para: 'casado' }])).toEqual([
       { campo: 'estado_civil', para: 'casado' },
     ]));
-
-  it('lê do banco e ignora o desconhecido', () =>
-    expect(
-      alteracoesDoBanco([
-        { campo: 'data_nascimento', de: null, para: '1995-08-15' },
-        { campo: 'cpf', de: '1', para: '2' },
-      ]),
-    ).toEqual([{ campo: 'dataNascimento', de: null, para: '1995-08-15' }]));
-
-  it('não array vira lista vazia', () => expect(alteracoesDoBanco(null)).toEqual([]));
-});
-
-describe('formatação', () => {
-  it('rótulo do domínio', () => expect(formatarValorCampo('estadoCivil', 'casado')).toBe('Casado(a)'));
-  it('data', () => expect(formatarValorCampo('dataNascimento', '1995-08-15')).toBe('15/08/1995'));
-  it('vazio', () => expect(formatarValorCampo('nomePai', null)).toBe('Não informado'));
-  it('antes → depois', () =>
-    expect(descreverAlteracao({ campo: 'estadoCivil', de: 'solteiro', para: 'casado' })).toBe(
-      'Estado civil: Solteiro(a) → Casado(a)',
-    ));
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
-import type { DadosPessoais } from '../types';
+import type { AlteracaoCampo, DadosPessoais } from '../types';
+import { alteracoesParaRpc } from '../utils/alteracaoDadosPessoais';
 import { DADOS_PESSOAIS_VAZIOS } from '../utils/rotulosDadosPessoais';
 
 interface DadosPessoaisRow {
@@ -36,8 +37,11 @@ interface UseDadosPessoaisResult {
   error: string | null;
   /** Upsert em colaborador_dados_pessoais (RLS: canManageColaboradores). Retorna mensagem de erro, ou null se ok. */
   salvar: (dados: DadosPessoais) => Promise<string | null>;
-  /** Recarrega do banco (ex.: depois que o RH aprova uma solicitação de alteração). */
-  refetch: () => Promise<void>;
+  /**
+   * Meu perfil: grava só os campos alterados pela RPC rh_atualizar_meus_dados_pessoais
+   * (próprio cadastro, sem aprovação do RH) e recarrega. Retorna mensagem de erro, ou null se ok.
+   */
+  salvarMeus: (alteracoes: AlteracaoCampo[]) => Promise<string | null>;
 }
 
 export function useDadosPessoais(colaboradorId: string): UseDadosPessoaisResult {
@@ -102,5 +106,18 @@ export function useDadosPessoais(colaboradorId: string): UseDadosPessoaisResult 
     }
   }, [colaboradorId]);
 
-  return { dados, loading, error, salvar, refetch: carregar };
+  const salvarMeus = useCallback(async (alteracoes: AlteracaoCampo[]): Promise<string | null> => {
+    const { error: erro } = await supabase.rpc('rh_atualizar_meus_dados_pessoais', {
+      p_alteracoes: alteracoesParaRpc(alteracoes),
+    });
+    if (erro) {
+      console.error('Erro ao salvar os próprios dados pessoais:', erro);
+      // Mensagem do RAISE EXCEPTION da RPC (ex.: data futura), ou a genérica.
+      return erro.message?.trim() || 'Não foi possível salvar as alterações. Tente novamente.';
+    }
+    await carregar();
+    return null;
+  }, [carregar]);
+
+  return { dados, loading, error, salvar, salvarMeus };
 }

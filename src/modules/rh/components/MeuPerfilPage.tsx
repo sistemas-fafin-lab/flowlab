@@ -7,7 +7,6 @@ import RecibosPagamentoLista from './recibos/RecibosPagamentoLista';
 import DocumentosAssinadosCard from './documentos/DocumentosAssinadosCard';
 import { useMeuColaborador } from '../hooks/useMeuColaborador';
 import { useRecibosColaborador } from '../hooks/useRecibosColaborador';
-import { useSolicitacaoAlteracao } from '../hooks/useSolicitacaoAlteracao';
 import type { Colaborador } from '../types';
 
 type Aba = 'dados' | 'documentos';
@@ -112,7 +111,6 @@ const DocumentosAba: React.FC<{ colaborador: Colaborador }> = ({ colaborador }) 
 const PerfilConteudo: React.FC<{ colaborador: Colaborador }> = ({ colaborador }) => {
   const [aba, setAba] = useState<Aba>('dados');
   const [editando, setEditando] = useState(false);
-  const solicitacao = useSolicitacaoAlteracao(colaborador.id);
   const abas: { id: Aba; label: string }[] = [
     { id: 'dados', label: 'Dados pessoais' },
     { id: 'documentos', label: 'Documentos' },
@@ -139,9 +137,6 @@ const PerfilConteudo: React.FC<{ colaborador: Colaborador }> = ({ colaborador })
               }`}
             >
               {a.label}
-              {a.id === 'dados' && solicitacao.pendente && (
-                <span className="ml-1.5 inline-block w-2 h-2 rounded-full bg-amber-500 align-middle" aria-label="Alteração em análise" />
-              )}
             </button>
           ))}
         </div>
@@ -155,7 +150,6 @@ const PerfilConteudo: React.FC<{ colaborador: Colaborador }> = ({ colaborador })
               editando={editando}
               bloqueada={false}
               onEditandoChange={setEditando}
-              solicitacao={solicitacao}
             />
           </div>
         ) : (
