@@ -7,6 +7,7 @@ import Select from '../../../components/Select';
 import { useComparativosVolumeEnvio } from '../hooks/useComparativosVolumeEnvio';
 import { mesDeReferenciaPadrao, mesesFechados, periodosComparativos } from '../utils/comparativos';
 import { formatCompetencia } from '../utils/formato';
+import FunilGlosaComparativo from './FunilGlosaComparativo';
 
 // Aba Contas a Receber → Comparativos. Casca da aba: seletor de mês de referência
 // (referência, M-1 e M-2; padrão: último mês fechado) e o primeiro bloco, o volume de
@@ -63,6 +64,8 @@ const ComparativosPage: React.FC = () => {
           Comparando {meses.map((p) => formatCompetencia(p.mes)).join(' · ')}
         </p>
       </div>
+
+      <FunilGlosaComparativo mes={mes} />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
