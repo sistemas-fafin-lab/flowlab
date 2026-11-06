@@ -196,6 +196,7 @@ const SaldoOperadorasWidget: React.FC<Props> = ({
             </table>
             <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1.5">
               Diferença negativa: o sistema está abaixo do apLIS (falta importar baixa ou criar título).
+              O apLIS não abate a glosa acatada e o sistema abate, então parte da diferença pode ser só isso.
               Só informativo — não altera o saldo.
               {totalFora > 0 && ` ${totalFora} título(s) com lote fora do apLIS ficam de fora da conferência.`}
             </p>
