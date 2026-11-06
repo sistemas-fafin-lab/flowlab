@@ -47,6 +47,7 @@ import { useContasReceberDashboard } from '../hooks/useContasReceberDashboard';
 import { useMetaMensal } from '../hooks/useMetaMensal';
 import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
 import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
+import { useRequisicoesSemLote } from '../hooks/useRequisicoesSemLote';
 import { useRecebimentosMes } from '../hooks/useRecebimentosMes';
 import { formatCompetencia, formatCurrency, hojeIso, periodoDoMes } from '../utils/formato';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
@@ -195,6 +196,21 @@ const Alca: React.FC = () => (
   <div className="drag-handle cursor-grab active:cursor-grabbing absolute top-2 right-2 z-10 p-1 rounded-md text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-100/70 dark:hover:bg-slate-700/70 transition-colors opacity-0 group-hover:opacity-100">
     <GripVertical className="w-4 h-4" />
   </div>
+);
+
+/** Aviso de falha do apLIS dentro de um card, com nova tentativa sem abrir a lista. */
+const TentarNovamente: React.FC<{ onRetry: () => void }> = ({ onRetry }) => (
+  <button
+    type="button"
+    onClick={(e) => {
+      e.stopPropagation();
+      onRetry();
+    }}
+    onKeyDown={(e) => e.stopPropagation()}
+    className="mt-1 text-[11px] font-medium text-blue-600 dark:text-blue-400 hover:underline"
+  >
+    Tentar novamente
+  </button>
 );
 
 const Kpi: React.FC<{
@@ -394,14 +410,22 @@ const ContasReceberDashboard: React.FC<Props> = ({
     [mesPendencias],
   );
   const {
+    meta: metaPendenciasSemLote,
+    loading: loadingPendenciasSemLote,
+    error: erroPendenciasSemLote,
+    refetch: refetchPendenciasSemLote,
+  } = useRequisicoesSemLote({ pagina: 1, tamanho: 1, ...periodoPendencias });
+  const {
     meta: metaPendenciasLotes,
     loading: loadingPendenciasLotes,
     error: erroPendenciasLotes,
+    refetch: refetchPendenciasLotes,
   } = usePendenciasNaoFaturadas({ pagina: 1, tamanho: 1, mesSolicitacao: mesPendencias || undefined });
   const {
     meta: metaPendenciasParticulares,
     loading: loadingPendenciasParticulares,
     error: erroPendenciasParticulares,
+    refetch: refetchPendenciasParticulares,
   } = usePendenciasParticulares({ pagina: 1, tamanho: 1, ...periodoPendencias });
 
   // ─── Layout dos widgets ─────────────────────────────────────────────────────
@@ -658,7 +682,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
         <div key="kpis-prazo" className="group">
           <div className={`h-full ${VIDRO} rounded-3xl overflow-y-auto p-3 sm:p-4`}>
             <Alca />
-            <div className="min-h-full grid grid-cols-1 sm:grid-cols-3 gap-3 [grid-auto-rows:1fr]">
+            <div className="min-h-full grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 [grid-auto-rows:1fr]">
               <Kpi
                 icon={<CalendarClock className="w-4 h-4 sm:w-5 sm:h-5" />}
                 label="Previsão contratual"
@@ -690,10 +714,11 @@ const ContasReceberDashboard: React.FC<Props> = ({
         </div>
 
         {/* ── Pendências ───────────────────────────────────────────────────────
-            Resumo das duas listas da aba Pendências (issues 07/08): clicar leva
+            Resumo das três listas da aba Pendências (issues 07/08 e comparativos 01): clicar leva
             direto pra lista, já na sub-aba certa. Requisições canceladas,
-            devolvidas ou aguardando retirada ficam fora do total e aparecem na
-            observação de cada card. */}
+            devolvidas ou aguardando retirada ficam fora do total de Particulares e
+            de Lotes e aparecem na observação desses cards; a lista Sem lote não
+            separa essas requisições, então o card não tem observação. */}
         <div key="kpis-pendencias" className="group">
           <div className={`h-full flex flex-col ${VIDRO} rounded-3xl overflow-y-auto p-3 sm:p-4`}>
             <Alca />
@@ -720,30 +745,30 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 )}
               </div>
             </div>
-            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-3 [grid-auto-rows:1fr]">
+            <div className="flex-1 grid grid-cols-1 sm:grid-cols-3 gap-3 [grid-auto-rows:1fr]">
               <Kpi
                 icon={<FileWarning className="w-4 h-4 sm:w-5 sm:h-5" />}
-                label="Requisições não faturadas (até M-1)"
+                label="Requisições não faturadas"
                 sub={
-                  loadingPendenciasLotes
+                  loadingPendenciasSemLote
                     ? 'carregando…'
-                    : erroPendenciasLotes
-                      ? 'falha ao consultar'
-                      : `${metaPendenciasLotes?.registros ?? 0} lote${metaPendenciasLotes?.registros === 1 ? '' : 's'} sem NF/RPS`
+                    : erroPendenciasSemLote
+                      ? 'apLIS indisponível'
+                      : `${metaPendenciasSemLote?.registros ?? 0} requisiç${metaPendenciasSemLote?.registros === 1 ? 'ão' : 'ões'} sem lote`
                 }
                 valor={
-                  loadingPendenciasLotes || erroPendenciasLotes
+                  loadingPendenciasSemLote || erroPendenciasSemLote
                     ? '—'
-                    : formatCurrency(metaPendenciasLotes?.valorTotal ?? 0)
+                    : formatCurrency(metaPendenciasSemLote?.valorTotal ?? 0)
                 }
                 extra={
-                  !loadingPendenciasLotes && !erroPendenciasLotes && (
-                    <ObservacaoNaoFaturaveis resumo={metaPendenciasLotes?.naoFaturaveis} />
+                  erroPendenciasSemLote && !loadingPendenciasSemLote && (
+                    <TentarNovamente onRetry={() => void refetchPendenciasSemLote(true)} />
                   )
                 }
-                cor="from-amber-500 to-amber-600"
+                cor="from-red-500 to-red-600"
                 atraso={0}
-                onClick={() => onNavegarPendencias('lotes')}
+                onClick={() => onNavegarPendencias('semLote')}
               />
               <Kpi
                 icon={<UserCircle className="w-4 h-4 sm:w-5 sm:h-5" />}
@@ -752,7 +777,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
                   loadingPendenciasParticulares
                     ? 'carregando…'
                     : erroPendenciasParticulares
-                      ? 'falha ao consultar'
+                      ? 'apLIS indisponível'
                       : `${metaPendenciasParticulares?.registros ?? 0} requisiç${metaPendenciasParticulares?.registros === 1 ? 'ão' : 'ões'} pendente${metaPendenciasParticulares?.registros === 1 ? '' : 's'}`
                 }
                 valor={
@@ -761,13 +786,43 @@ const ContasReceberDashboard: React.FC<Props> = ({
                     : formatCurrency(metaPendenciasParticulares?.valorTotal ?? 0)
                 }
                 extra={
-                  !loadingPendenciasParticulares && !erroPendenciasParticulares && (
+                  !loadingPendenciasParticulares &&
+                  (erroPendenciasParticulares ? (
+                    <TentarNovamente onRetry={() => void refetchPendenciasParticulares(true)} />
+                  ) : (
                     <ObservacaoNaoFaturaveis resumo={metaPendenciasParticulares?.naoFaturaveis} />
-                  )
+                  ))
                 }
                 cor="from-orange-500 to-orange-600"
                 atraso={1}
                 onClick={() => onNavegarPendencias('particulares')}
+              />
+              <Kpi
+                icon={<FileWarning className="w-4 h-4 sm:w-5 sm:h-5" />}
+                label="Lotes sem nota fiscal (até M-1)"
+                sub={
+                  loadingPendenciasLotes
+                    ? 'carregando…'
+                    : erroPendenciasLotes
+                      ? 'apLIS indisponível'
+                      : `${metaPendenciasLotes?.registros ?? 0} lote${metaPendenciasLotes?.registros === 1 ? '' : 's'} sem NF/RPS`
+                }
+                valor={
+                  loadingPendenciasLotes || erroPendenciasLotes
+                    ? '—'
+                    : formatCurrency(metaPendenciasLotes?.valorTotal ?? 0)
+                }
+                extra={
+                  !loadingPendenciasLotes &&
+                  (erroPendenciasLotes ? (
+                    <TentarNovamente onRetry={() => void refetchPendenciasLotes(true)} />
+                  ) : (
+                    <ObservacaoNaoFaturaveis resumo={metaPendenciasLotes?.naoFaturaveis} />
+                  ))
+                }
+                cor="from-amber-500 to-amber-600"
+                atraso={2}
+                onClick={() => onNavegarPendencias('lotes')}
               />
             </div>
           </div>

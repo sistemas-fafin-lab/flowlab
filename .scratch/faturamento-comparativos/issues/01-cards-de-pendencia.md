@@ -4,10 +4,10 @@
 
 **Blocked by:** None (can start immediately).
 
-**Status:** ready-for-agent
+**Status:** in-review (falta conferir os valores ao vivo)
 
 - [ ] O valor de "Requisições não faturadas" bate com o total da sub-aba "Sem lote" no mesmo mês.
 - [ ] O valor de "Lotes sem nota fiscal" bate com o card antigo (R$ 93.939,56 / 41 lotes em 06/2026).
-- [ ] Cada card mostra valor e quantidade; o clique abre a sub-aba certa.
-- [ ] Falha do apLIS mostra aviso e "Tentar novamente".
-- [ ] Testes de rota (padrão de `faturamento-pendencias-particulares.test.ts`); `npm test` e typecheck passam.
+- [x] Cada card mostra valor e quantidade; o clique abre a sub-aba certa.
+- [x] Falha do apLIS mostra aviso e "Tentar novamente".
+- [x] Testes de rota (padrão de `faturamento-pendencias-particulares.test.ts`); `npm test` e typecheck passam.
