@@ -27,6 +27,7 @@ const VAZIO: DashboardReceber = {
   previsaoOperadoras: [],
   serieMensal: [],
   porMotivo: [],
+  ultimaBaixa: null,
 };
 
 /** Separador das listas nas deps do efeito. Caractere de controle porque código
@@ -42,6 +43,8 @@ interface UseContasReceberDashboardResult {
 
 export function useContasReceberDashboard(
   filtros: DashboardReceberFiltros,
+  /** "Só emitidas no período" do Saldo por operadora; padrão: carteira total. */
+  saldoSoPeriodo = false,
 ): UseContasReceberDashboardResult {
   const [data, setData] = useState<DashboardReceber>(VAZIO);
   const [loading, setLoading] = useState(true);
@@ -70,6 +73,7 @@ export function useContasReceberDashboard(
         p_operadoras: emLista(operadoras),
         p_lotes: emLista(lotes),
         p_notas: emLista(notas),
+        p_somente_periodo: saldoSoPeriodo,
       });
       if (reqId !== buscaAtual.current) return;
       if (erro) throw new Error(erro.message);
@@ -87,7 +91,7 @@ export function useContasReceberDashboard(
     } finally {
       if (reqId === buscaAtual.current) setLoading(false);
     }
-  }, [desde, ate, operadoras, lotes, notas]);
+  }, [desde, ate, operadoras, lotes, notas, saldoSoPeriodo]);
 
   useEffect(() => {
     void refetch();

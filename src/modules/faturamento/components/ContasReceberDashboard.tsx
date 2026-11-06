@@ -44,6 +44,7 @@ import 'react-grid-layout/css/styles.css';
 import 'react-resizable/css/styles.css';
 import { useTheme } from '../../../hooks/useTheme';
 import { useContasReceberDashboard } from '../hooks/useContasReceberDashboard';
+import { useSaldoOperadorasAplis } from '../hooks/useSaldoOperadorasAplis';
 import { useMetaMensal } from '../hooks/useMetaMensal';
 import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
 import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
@@ -57,6 +58,7 @@ import MetaMensalModal from './MetaMensalModal';
 import RecebimentosMesModal from './RecebimentosMesModal';
 import HistoricoMetasModal from './HistoricoMetasModal';
 import ObservacaoNaoFaturaveis from './ObservacaoNaoFaturaveis';
+import SaldoOperadorasWidget from './SaldoOperadorasWidget';
 import type { AgingBucket, AgingSelecao, DashboardReceberFiltros, OperadoraResumo, SubAbaPendencias } from '../types';
 
 // Painel da aba Dashboard de Contas a Receber. Todos os números vêm agregados da
@@ -142,10 +144,10 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'meta-mensal', x: 0, y: 10, w: 12, h: 3, minW: 4, minH: 3 },
     { i: 'recebimentos-mes', x: 0, y: 13, w: 12, h: 4, minW: 4, minH: 4 },
     { i: 'aging', x: 0, y: 17, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'saldo-operadoras', x: 6, y: 17, w: 6, h: 7, minW: 3, minH: 4 },
-    { i: 'previsao', x: 0, y: 24, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'serie', x: 0, y: 32, w: 12, h: 8, minW: 4, minH: 4 },
-    { i: 'motivos-glosa', x: 0, y: 40, w: 12, h: 8, minW: 3, minH: 4 },
+    { i: 'saldo-operadoras', x: 6, y: 17, w: 6, h: 11, minW: 3, minH: 4 },
+    { i: 'previsao', x: 0, y: 28, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'serie', x: 0, y: 36, w: 12, h: 8, minW: 4, minH: 4 },
+    { i: 'motivos-glosa', x: 0, y: 44, w: 12, h: 8, minW: 3, minH: 4 },
   ],
   md: [
     { i: 'kpis-valor', x: 0, y: 0, w: 10, h: 3 },
@@ -154,10 +156,10 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'meta-mensal', x: 0, y: 10, w: 10, h: 3 },
     { i: 'recebimentos-mes', x: 0, y: 13, w: 10, h: 4 },
     { i: 'aging', x: 0, y: 17, w: 5, h: 7 },
-    { i: 'saldo-operadoras', x: 5, y: 17, w: 5, h: 7 },
-    { i: 'previsao', x: 0, y: 24, w: 10, h: 8 },
-    { i: 'serie', x: 0, y: 32, w: 10, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 40, w: 10, h: 8 },
+    { i: 'saldo-operadoras', x: 5, y: 17, w: 5, h: 11 },
+    { i: 'previsao', x: 0, y: 28, w: 10, h: 8 },
+    { i: 'serie', x: 0, y: 36, w: 10, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 44, w: 10, h: 8 },
   ],
   sm: [
     // 2 colunas: os quatro cards de valor viram duas linhas.
@@ -167,10 +169,10 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'meta-mensal', x: 0, y: 12, w: 6, h: 6 },
     { i: 'recebimentos-mes', x: 0, y: 18, w: 6, h: 6 },
     { i: 'aging', x: 0, y: 24, w: 6, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 31, w: 6, h: 7 },
-    { i: 'previsao', x: 0, y: 38, w: 6, h: 8 },
-    { i: 'serie', x: 0, y: 46, w: 6, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 54, w: 6, h: 8 },
+    { i: 'saldo-operadoras', x: 0, y: 31, w: 6, h: 11 },
+    { i: 'previsao', x: 0, y: 42, w: 6, h: 8 },
+    { i: 'serie', x: 0, y: 50, w: 6, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 58, w: 6, h: 8 },
   ],
   xs: [
     // Empilhado: quatro linhas de card, três, e duas, respectivamente.
@@ -180,10 +182,10 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'meta-mensal', x: 0, y: 19, w: 2, h: 9 },
     { i: 'recebimentos-mes', x: 0, y: 28, w: 2, h: 7 },
     { i: 'aging', x: 0, y: 35, w: 2, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 42, w: 2, h: 7 },
-    { i: 'previsao', x: 0, y: 49, w: 2, h: 8 },
-    { i: 'serie', x: 0, y: 57, w: 2, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 65, w: 2, h: 8 },
+    { i: 'saldo-operadoras', x: 0, y: 42, w: 2, h: 11 },
+    { i: 'previsao', x: 0, y: 53, w: 2, h: 8 },
+    { i: 'serie', x: 0, y: 61, w: 2, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 69, w: 2, h: 8 },
   ],
 };
 
@@ -345,7 +347,12 @@ const ContasReceberDashboard: React.FC<Props> = ({
   onNavegarPendencias,
   onNavegarMeta,
 }) => {
-  const { data, loading, error } = useContasReceberDashboard(filtros);
+  // "Carteira total" reproduz o saldo de sempre; "Só emitidas no período" recorta
+  // pela emissão dentro do período filtrado. Fica fora dos filtros salvos: é um
+  // modo de leitura deste gráfico, não um recorte da tela.
+  const [saldoSoPeriodo, setSaldoSoPeriodo] = useState(false);
+  const { data, loading, error } = useContasReceberDashboard(filtros, saldoSoPeriodo);
+  const comparacaoSaldo = useSaldoOperadorasAplis(filtros, saldoSoPeriodo);
   const { meta, loading: loadingMeta, error: errorMeta, salvarMeta } = useMetaMensal();
   const [metaModalAberto, setMetaModalAberto] = useState(false);
   const [historicoMetasAberto, setHistoricoMetasAberto] = useState(false);
@@ -1083,36 +1090,24 @@ const ContasReceberDashboard: React.FC<Props> = ({
         </div>
 
         <div key="saldo-operadoras" className="group">
-          <Widget titulo="Saldo por operadora" sub="10 maiores devedores">
-            {topOperadoras.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart
-                  data={topOperadoras}
-                  layout="vertical"
-                  margin={{ top: 8, right: 16, left: 8, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
-                  <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={eixoMoeda} />
-                  <YAxis
-                    type="category"
-                    dataKey="nome"
-                    tick={axisTick}
-                    axisLine={false}
-                    tickLine={false}
-                    width={130}
-                  />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    itemStyle={tooltipItem}
-                    labelStyle={tooltipLabel}
-                    formatter={(valor: number) => [formatCurrency(valor), 'Saldo']}
-                  />
-                  <Bar dataKey="saldo" fill={COR_SALDO} radius={[0, 6, 6, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <VazioGrafico icon={<BarChart3 className="w-6 h-6" />} texto="Nenhuma operadora com saldo." />
-            )}
+          <Widget
+            titulo="Saldo por operadora"
+            sub={saldoSoPeriodo ? '10 maiores devedores — títulos emitidos no período' : '10 maiores devedores — carteira total'}
+          >
+            <SaldoOperadorasWidget
+              linhas={topOperadoras}
+              somentePeriodo={saldoSoPeriodo}
+              onAlterarEscopo={setSaldoSoPeriodo}
+              ultimaBaixa={data.ultimaBaixa}
+              comparacao={{
+                operadoras: comparacaoSaldo.operadoras,
+                dadoAte: comparacaoSaldo.dadoAte,
+                loading: comparacaoSaldo.loading,
+                erro: comparacaoSaldo.erro,
+                onTentarNovamente: () => { void comparacaoSaldo.refetch(); },
+              }}
+              estilo={{ axisTick, gridColor, tooltipStyle, tooltipItem, tooltipLabel, corSaldo: COR_SALDO, eixoMoeda }}
+            />
           </Widget>
         </div>
 

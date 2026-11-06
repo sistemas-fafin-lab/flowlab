@@ -1087,6 +1087,50 @@ export async function recebidosDosLotes(idsLote: number[]): Promise<RecebidosDos
   });
 }
 
+/** Totais de um lote no apLIS para o saldo por operadora. */
+export interface SaldoLoteAplis {
+  /** SUM(fatrequisicaoprocedimento.ValorLiquido) das requisições do lote. */
+  liquido: number;
+  /** SUM(fatrequisicaoprocedimento.ValorRecebido) das requisições do lote. */
+  recebido: number;
+}
+
+export type SaldosAplisDosLotesResultado =
+  | { porLote: Record<number, SaldoLoteAplis>; dadoAte: string | null }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Líquido e recebido no apLIS por lote — o saldo do lote é líquido − recebido.
+ * Mesma origem de `recebidosDosLotes` (procedimentos das requisições do lote);
+ * lote que não existe no MySQL fica fora do mapa. Sem cache.
+ */
+export async function saldosAplisDosLotes(idsLote: number[]): Promise<SaldosAplisDosLotesResultado> {
+  const ids = [...new Set(idsLote.map((n) => Math.trunc(n)))];
+  if (ids.length === 0) return { porLote: {}, dadoAte: null };
+
+  return comConexao('saldosAplisDosLotes', async (conn) => {
+    const porLote: Record<number, SaldoLoteAplis> = {};
+    for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
+      const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
+      const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT l.IdLote,
+                SUM(p.ValorLiquido) AS Liquido,
+                SUM(p.ValorRecebido) AS Recebido
+           FROM fatlote l
+           LEFT JOIN requisicao r ON r.Lote = l.IdLote
+           LEFT JOIN fatrequisicaoprocedimento p ON p.IdRequisicao = r.IdRequisicao
+          WHERE l.IdLote IN (${bloco.map(() => '?').join(', ')})
+          GROUP BY l.IdLote`,
+        bloco,
+      );
+      for (const linha of linhas) {
+        porLote[numero(linha.IdLote)] = { liquido: numero(linha.Liquido), recebido: numero(linha.Recebido) };
+      }
+    }
+    return { porLote, dadoAte: await dadoAte(conn, 'requisicao', 'DtaSolicitacao') };
+  });
+}
+
 export type LotesNoStatusResultado =
   | { idsLote: number[]; dadoAte: string | null }
   | { erro: { status: number; mensagem: string } };

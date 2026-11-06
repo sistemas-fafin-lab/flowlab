@@ -909,6 +909,26 @@ export interface DashboardReceber {
     valor: number;
     quantidade: number;
   }[];
+  /** YYYY-MM-DD do recebimento (baixa) mais recente lançado na carteira do
+   *  recorte; null sem nenhuma baixa. Diz até quando as baixas do apLIS foram
+   *  importadas — a importação é manual. */
+  ultimaBaixa: string | null;
+}
+
+/** Saldo no sistema × saldo no apLIS de uma operadora (rota
+ *  saldo-operadoras-aplis). `diferenca` = sistema − apLIS: negativo = o sistema
+ *  está abaixo do apLIS. Só informativo. */
+export interface ComparacaoSaldoOperadora {
+  operadoraId: string;
+  nome: string;
+  /** Saldo do sistema só dos títulos comparáveis (mesma base do apLIS). */
+  saldoSistema: number;
+  saldoAplis: number | null;
+  diferenca: number | null;
+  situacao: 'igual' | 'sistema-menor' | 'sistema-maior' | 'sem-comparacao';
+  titulosComparados: number;
+  /** Títulos com lote fora do apLIS ou ausente no MySQL — fora da conferência. */
+  titulosForaDaComparacao: number;
 }
 
 /** Meta mensal de faturamento (issue 43) — valor único global por mês/ano,

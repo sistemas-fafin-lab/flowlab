@@ -5,6 +5,7 @@
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { TituloConferencia } from './conferenciaAplis.js';
+import type { TituloSaldo } from './saldoOperadoras.js';
 
 /** Título da conferência com o saldo, que a prévia das baixas mostra. */
 export interface TituloParaConferir extends TituloConferencia {
@@ -113,4 +114,52 @@ export async function lotesAplisDosTitulos(
     if (pagina.length < PAGINA_NOTAS) break;
   }
   return [...ids];
+}
+
+/**
+ * Títulos não cancelados com operadora, saldo e lotes, para o saldo por
+ * operadora do Dashboard. Os filtros da tela são aplicados depois, em
+ * `filtrarUniverso` (mesma regra da RPC). Lidos com o cliente do usuário (RLS).
+ */
+export async function titulosParaSaldo(supabase: SupabaseClient): Promise<TituloSaldo[]> {
+  const titulos: TituloSaldo[] = [];
+  for (let offset = 0; ; offset += PAGINA_NOTAS) {
+    const { data, error } = await supabase
+      .from('notas')
+      .select(
+        'id_nota, numero_nota, operadora_id, data_emissao, valor_saldo, '
+        + 'operadoras(nome, is_considerada_meta), nota_lote(lotes(aplis_id, codigo_lote))',
+      )
+      .neq('status', 'cancelada')
+      .order('id_nota', { ascending: true })
+      .range(offset, offset + PAGINA_NOTAS - 1);
+    if (error) throw new ErroSupabase(`notas: ${error.message}`);
+    const pagina = (data ?? []) as unknown as {
+      id_nota: string;
+      numero_nota: string | null;
+      operadora_id: string;
+      data_emissao: string | null;
+      valor_saldo: unknown;
+      operadoras: { nome: string | null; is_considerada_meta: boolean | null } | null;
+      nota_lote: { lotes: { aplis_id: string | null; codigo_lote: string | null } | null }[] | null;
+    }[];
+    for (const nota of pagina) {
+      titulos.push({
+        idNota: nota.id_nota,
+        numeroNota: nota.numero_nota || null,
+        operadoraId: nota.operadora_id,
+        operadora: nota.operadoras?.nome ?? '—',
+        consideradaMeta: nota.operadoras?.is_considerada_meta === true,
+        dataEmissao: nota.data_emissao,
+        saldoSistema: valorNumerico(nota.valor_saldo),
+        lotes: (nota.nota_lote ?? []).flatMap(({ lotes }) => {
+          if (!lotes) return [];
+          const id = Number(lotes.aplis_id ?? NaN);
+          return [{ aplisId: Number.isInteger(id) && id > 0 ? id : null, codigo: lotes.codigo_lote }];
+        }),
+      });
+    }
+    if (pagina.length < PAGINA_NOTAS) break;
+  }
+  return titulos;
 }

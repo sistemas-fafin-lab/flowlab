@@ -28,6 +28,7 @@ import faturamentoTituloLotesEnvio from '../_lib/handlers/faturamento-titulo-lot
 import faturamentoTituloAtualizarNumeroNota from '../_lib/handlers/faturamento-titulo-atualizar-numero-nota.js';
 import faturamentoTituloDesvincularLote from '../_lib/handlers/faturamento-titulo-desvincular-lote.js';
 import faturamentoTitulosAplisPrevia from '../_lib/handlers/faturamento-titulos-aplis-previa.js';
+import faturamentoSaldoOperadorasAplis from '../_lib/handlers/faturamento-saldo-operadoras-aplis.js';
 import faturamentoTitulosConferenciaAplis from '../_lib/handlers/faturamento-titulos-conferencia-aplis.js';
 import faturamentoTitulosLotesStatusAplis from '../_lib/handlers/faturamento-titulos-lotes-status-aplis.js';
 import faturamentoTitulosBaixasAplisPrevia from '../_lib/handlers/faturamento-titulos-baixas-aplis-previa.js';
@@ -72,6 +73,7 @@ const ROTAS: Record<string, Handler> = {
   'titulo-atualizar-numero-nota': faturamentoTituloAtualizarNumeroNota,
   'titulo-desvincular-lote': faturamentoTituloDesvincularLote,
   'titulos-aplis-previa': faturamentoTitulosAplisPrevia,
+  'saldo-operadoras-aplis': faturamentoSaldoOperadorasAplis,
   'titulos-conferencia-aplis': faturamentoTitulosConferenciaAplis,
   'titulos-lotes-status-aplis': faturamentoTitulosLotesStatusAplis,
   'titulos-baixas-aplis-previa': faturamentoTitulosBaixasAplisPrevia,
