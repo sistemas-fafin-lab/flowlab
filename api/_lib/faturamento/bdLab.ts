@@ -36,6 +36,7 @@ import type { RequisicaoGlosaAplis } from './recursoGlosa.js';
 import type { LoteEnviado } from './calendarioEnvios.js';
 import type { LinhaFaturada } from './indicadoresFaturamento.js';
 import type { ConvenioRecebido, ConvenioSemLote } from './pontuacaoSetor.js';
+import type { EnvioMensalConvenio } from '../../../src/modules/faturamento/utils/comparativos.js';
 import type {
   CobrancaAplis,
   LinhaCobranca,
@@ -1755,6 +1756,59 @@ export async function listarEnviosPorConvenio(
   }).then((resultado) => {
     if (!('erro' in resultado)) doCache(cacheEnviosPorConvenio, chave, resultado);
     return resultado;
+  });
+}
+
+// ============================================================================
+// VOLUME DE ENVIO POR CONVÊNIO E MÊS — aba Comparativos (faturamento-comparativos, issue 03)
+// ============================================================================
+
+export interface ListarVolumeEnvioMensalParams {
+  /** YYYY-MM-DD, sobre `fatlote.DtaCriacao` — mesmo campo e mesmos status da aba Envios. */
+  periodoIni: string;
+  periodoFim: string;
+  statusLotes: number[];
+}
+
+export type ListarVolumeEnvioMensalResultado =
+  | { linhas: EnvioMensalConvenio[] }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Lotes e guias por convênio e por mês de criação do lote, numa única consulta para os
+ * 3 meses. Guia = número de guia do convênio distinto dentro do lote (`NumGuiaConvenio`
+ * não vazio); lote sem guia preenchida conta como lote, com zero guias. Sem cache: a
+ * tela tem "Tentar novamente" e o mês de referência padrão já está fechado.
+ */
+export async function listarVolumeEnvioMensal(
+  params: ListarVolumeEnvioMensalParams,
+): Promise<ListarVolumeEnvioMensalResultado> {
+  return comConexao('listarVolumeEnvioMensal', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT DATE_FORMAT(l.DtaCriacao, '%Y-%m') AS Mes,
+              l.IdFontePagadora AS IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
+              COUNT(DISTINCT l.IdLote) AS QtdLotes,
+              COUNT(DISTINCT CASE WHEN r.IdRequisicao IS NOT NULL
+                                  THEN CONCAT(l.IdLote, '|', r.NumGuiaConvenio) END) AS QtdGuias
+         FROM fatlote l
+         LEFT JOIN requisicao r ON r.Lote = l.IdLote AND COALESCE(r.NumGuiaConvenio, '') <> ''
+         LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora
+        WHERE l.DtaCriacao >= ?
+          AND l.DtaCriacao < DATE_ADD(?, INTERVAL 1 DAY)
+          AND l.Status IN (${params.statusLotes.map(() => '?').join(', ')})
+        GROUP BY Mes, l.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial`,
+      [`${params.periodoIni} 00:00:00`, `${params.periodoFim} 00:00:00`, ...params.statusLotes],
+    );
+
+    return {
+      linhas: linhas.map((linha) => ({
+        mes: String(linha.Mes),
+        fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
+        nome: texto(linha.NomFantasia) ?? texto(linha.RazaoSocial),
+        qtdLotes: numero(linha.QtdLotes),
+        qtdGuias: numero(linha.QtdGuias),
+      })),
+    };
   });
 }
 

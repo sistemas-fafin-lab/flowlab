@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BarChart3, CheckCheck, DownloadCloud, ListChecks, RefreshCw, Scale, Send, Wallet } from 'lucide-react';
+import { AlertTriangle, BarChart3, CheckCheck, GitCompare, DownloadCloud, ListChecks, RefreshCw, Scale, Send, Wallet } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
 import { supabase } from '../../../lib/supabase';
@@ -17,6 +17,7 @@ import ContasReceberDashboard from './ContasReceberDashboard';
 import EnviosHojeAmanha from './EnviosHojeAmanha';
 import TitulosList from './TitulosList';
 import EnviosPorConvenio from './EnviosPorConvenio';
+import ComparativosPage from './ComparativosPage';
 import PendenciasNaoFaturadas from './PendenciasNaoFaturadas';
 import PendenciasParticulares from './PendenciasParticulares';
 import PendenciasSemLote from './PendenciasSemLote';
@@ -64,7 +65,7 @@ const filtrosPainelPadrao = (): DashboardReceberFiltros => ({
   notas: [],
 });
 
-type Aba = 'dashboard' | 'titulos' | 'envios' | 'pendencias';
+type Aba = 'dashboard' | 'titulos' | 'envios' | 'pendencias' | 'comparativos';
 
 const ContasReceberPage: React.FC = () => {
   const { userProfile } = useAuth();
@@ -402,6 +403,7 @@ const ContasReceberPage: React.FC = () => {
           { id: 'titulos' as Aba, rotulo: 'Títulos', icone: ListChecks },
           { id: 'envios' as Aba, rotulo: 'Envios', icone: Send },
           { id: 'pendencias' as Aba, rotulo: 'Pendências', icone: AlertTriangle },
+          { id: 'comparativos' as Aba, rotulo: 'Comparativos', icone: GitCompare },
         ]).map(({ id, rotulo, icone: Icone }) => (
           <button
             key={id}
@@ -486,6 +488,8 @@ const ContasReceberPage: React.FC = () => {
       )}
 
       {aba === 'envios' && <EnviosPorConvenio />}
+
+      {aba === 'comparativos' && <ComparativosPage />}
 
       {aba === 'pendencias' && (
         <div className="space-y-4">
