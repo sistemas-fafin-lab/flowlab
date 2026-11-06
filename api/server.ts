@@ -135,6 +135,9 @@ HANDLERS.set('GET /api/atendimento/gerador-orcamento-precos',  () => import('./_
 HANDLERS.set('POST /api/atendimento/gerador-orcamento-pedido-medico', () => import('./_lib/handlers/atendimento-gerador-orcamento-pedido-medico.js'));
 HANDLERS.set('GET /api/integracoes/orcamento-particular', () => import('./_lib/handlers/integracoes-orcamento-particular.js'));
 HANDLERS.set('GET /api/integracoes/tuss-exames',          () => import('./_lib/handlers/integracoes-tuss-exames.js'));
+HANDLERS.set('GET /api/integracoes/lab-brain-apoio-requisicao', () => import('./_lib/handlers/integracoes-lab-brain-apoio-requisicao.js'));
+HANDLERS.set('GET /api/integracoes/lab-brain-apoio-fila',       () => import('./_lib/handlers/integracoes-lab-brain-apoio-fila.js'));
+HANDLERS.set('GET /api/integracoes/lab-brain-apoio-exames',     () => import('./_lib/handlers/integracoes-lab-brain-apoio-exames.js'));
 
 async function parseBody(req: http.IncomingMessage): Promise<unknown> {
   if (!req.headers['content-type']?.includes('application/json')) return undefined;
