@@ -1515,6 +1515,7 @@ const UserManagement: React.FC = () => {
                                   key={perm.key}
                                   type="button"
                                   onClick={() => togglePermission(perm.key)}
+                                  title={perm.description}
                                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-150 select-none ${
                                     isActive
                                       ? `${style.activePill} ${style.activeText} shadow-sm`

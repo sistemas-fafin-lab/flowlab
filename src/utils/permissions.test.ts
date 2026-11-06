@@ -24,6 +24,7 @@ const CHAVES_POSTERIORES: Record<string, string> = {
   canViewIndicadores: '20261028150100_fat_permissoes_por_tela.sql',
   canViewCalendarioEnvios: '20261028150100_fat_permissoes_por_tela.sql',
   canManageCalendarioEnvios: '20261028150100_fat_permissoes_por_tela.sql',
+  canGerirAtendimento: '20261106120000_atendimento_gerir_permissao.sql',
 };
 
 /** As chaves do ARRAY[...] da seção 1 da migration (o cargo Administrador). */

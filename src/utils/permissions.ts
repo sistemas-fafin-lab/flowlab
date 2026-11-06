@@ -1,7 +1,7 @@
 import { Department } from '../types';
 
 // ─── Catálogo de todas as permissões do sistema ───────────────────────────────
-export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[] = [
+export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string; description?: string }[] = [
   { key: 'canViewDashboard', label: 'Visualizar Dashboard', group: 'Dashboard' },
   { key: 'canManageProducts', label: 'Gerenciar Produtos', group: 'Produtos' },
   { key: 'canViewProducts', label: 'Visualizar Produtos', group: 'Produtos' },
@@ -128,6 +128,14 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string }[
   // Custo na resposta da lista de preços e PDF interno (custo × venda × margem). Sem ela, o
   // servidor nem consulta o custo. Só o Administrador recebe por padrão (não o "atendente").
   { key: 'canViewGeradorOrcamentoCustos', label: 'Ver custos e margem no Gerador de Orçamento', group: 'Atendimento' },
+  // Supervisão da Central de Atendimento (WhatsApp): etiquetas, respostas rápidas e
+  // transferir/assumir conversas. Só o Administrador recebe por padrão (20261106120000).
+  {
+    key: 'canGerirAtendimento',
+    label: 'Supervisionar atendimento (Central WhatsApp)',
+    description: 'Criar, editar e excluir etiquetas e respostas rápidas; transferir e assumir conversas.',
+    group: 'Atendimento',
+  },
   // ── Controle de Custos ──────────────────────────────────────────────────────
   // Fora das chaves do Faturamento de propósito: custo e margem são sensíveis e poucos
   // veem (20261026150000). Gerenciar implica ver, na tela e na RLS das tabelas custo_*.
