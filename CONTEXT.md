@@ -42,6 +42,10 @@ _Avoid_: faturado (só conta o que já tem lote), admissões (inclui convênios 
 Cada uma das três candidatas que o modal "Definir meta" calcula a partir dos Elegíveis dos meses anteriores: 90/10 (90% do mês anterior + 10% do retrasado), média de 2 meses e média de 3 meses. Nada é salvo sem ação da coordenação; ao salvar, grava-se a origem (`90_10`, `media_2`, `media_3` ou `manual`).
 _Avoid_: meta calculada, meta automática (a meta salva nunca muda sozinha)
 
+**Glosa da DRE**:
+A glosa que o financeiro leva para a DRE, por mês de solicitação: soma de (líquido − recebido) das cobranças (`fatrequisicaoprocedimento`) com motivo de glosa preenchido e saldo positivo, de requisições cobráveis. É a conta que ele faz sobre a Análise de Faturamento do apLIS; aparece no bloco "Glosa por mês de solicitação" da aba Comparativos. É um saldo: o valor de um mês cai conforme os recursos são pagos.
+_Avoid_: glosa total do funil (é por mês de emissão do título e soma recuperada + acatada + em disputa), glosa da tabela `glosas` (lançamentos importados de planilha)
+
 ### Atendimento
 
 **Gerador de Orçamento**:

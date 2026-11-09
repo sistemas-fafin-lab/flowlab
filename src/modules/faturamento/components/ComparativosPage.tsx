@@ -8,11 +8,12 @@ import { useComparativosVolumeEnvio } from '../hooks/useComparativosVolumeEnvio'
 import { mesDeReferenciaPadrao, mesesFechados, periodosComparativos } from '../utils/comparativos';
 import { formatCompetencia } from '../utils/formato';
 import FunilGlosaComparativo from './FunilGlosaComparativo';
+import GlosaPorMesComparativo from './GlosaPorMesComparativo';
 
 // Aba Contas a Receber → Comparativos. Casca da aba: seletor de mês de referência
-// (referência, M-1 e M-2; padrão: último mês fechado) e o primeiro bloco, o volume de
-// envio por convênio. Os blocos seguintes (funil, SLA, matriz…) entram sob o mesmo
-// seletor. A permissão é a da tela Contas a Receber (ADR 0001): a rota da aba já a exige.
+// (referência, M-1 e M-2; padrão: último mês fechado), o funil de glosa, a Glosa da DRE
+// por mês de solicitação (jan até a referência) e o volume de envio por convênio. Os
+// blocos seguintes (SLA, matriz…) entram sob o mesmo seletor. A permissão é a da tela Contas a Receber (ADR 0001): a rota da aba já a exige.
 
 const MESES_NO_SELETOR = 24;
 const MAX_CONVENIOS_NO_GRAFICO = 12;
@@ -66,6 +67,8 @@ const ComparativosPage: React.FC = () => {
       </div>
 
       <FunilGlosaComparativo mes={mes} />
+
+      <GlosaPorMesComparativo mes={mes} />
 
       <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">

@@ -16,20 +16,26 @@ const MES_RE = /^(\d{4})-(0[1-9]|1[0-2])$/;
 /** Número com 2 dígitos ('03'). */
 const dois = (n: number) => String(n).padStart(2, '0');
 
+/** Ano e mês (1–12) de um 'YYYY-MM' válido; `null` caso contrário. */
+export function anoEMes(mesReferencia: string): { ano: number; mes: number } | null {
+  const m = MES_RE.exec(mesReferencia);
+  return m ? { ano: Number(m[1]), mes: Number(m[2]) } : null;
+}
+
+/** O período de um mês. `mes` fora de 1–12 é normalizado (0 = dezembro do ano anterior). */
+export function periodoDoMes(ano: number, mes: number): PeriodoComparativo {
+  const inicio = new Date(Date.UTC(ano, mes - 1, 1));
+  const ultimoDia = new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() + 1, 0)).getUTCDate();
+  const prefixo = `${inicio.getUTCFullYear()}-${dois(inicio.getUTCMonth() + 1)}`;
+  return { mes: prefixo, desde: `${prefixo}-01`, ate: `${prefixo}-${dois(ultimoDia)}` };
+}
+
 /** Referência, M-1 e M-2 (nessa ordem). `null` se `mesReferencia` não for 'YYYY-MM' válido. */
 export function periodosComparativos(mesReferencia: string): PeriodoComparativo[] | null {
-  const m = MES_RE.exec(mesReferencia);
-  if (!m) return null;
-  const ano = Number(m[1]);
-  const mes = Number(m[2]);
-
-  return [0, 1, 2].map((atras) => {
-    // Date.UTC normaliza meses negativos (janeiro - 1 = dezembro do ano anterior).
-    const inicio = new Date(Date.UTC(ano, mes - 1 - atras, 1));
-    const ultimoDia = new Date(Date.UTC(inicio.getUTCFullYear(), inicio.getUTCMonth() + 1, 0)).getUTCDate();
-    const prefixo = `${inicio.getUTCFullYear()}-${dois(inicio.getUTCMonth() + 1)}`;
-    return { mes: prefixo, desde: `${prefixo}-01`, ate: `${prefixo}-${dois(ultimoDia)}` };
-  });
+  const ref = anoEMes(mesReferencia);
+  if (!ref) return null;
+  // periodoDoMes normaliza meses negativos (janeiro - 1 = dezembro do ano anterior).
+  return [0, 1, 2].map((atras) => periodoDoMes(ref.ano, ref.mes - atras));
 }
 
 /** Os `quantidade` últimos meses fechados ('YYYY-MM'), do mais recente ao mais antigo. */

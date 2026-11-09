@@ -37,6 +37,7 @@ import type { LoteEnviado } from './calendarioEnvios.js';
 import type { LinhaFaturada } from './indicadoresFaturamento.js';
 import type { ConvenioRecebido, ConvenioSemLote } from './pontuacaoSetor.js';
 import type { EnvioMensalConvenio } from '../../../src/modules/faturamento/utils/comparativos.js';
+import type { GlosaMensal } from '../../../src/modules/faturamento/utils/glosaPorMes.js';
 import type {
   CobrancaAplis,
   LinhaCobranca,
@@ -4339,5 +4340,47 @@ export async function usuarioAplisAtivo(
       [idUsuarioAplis],
     );
     return { usuario: usuariosDasLinhas(linhas)[0] ?? null };
+  });
+}
+
+// ============================================================================
+// GLOSA POR MÊS DE SOLICITAÇÃO — aba Comparativos, regra da DRE do financeiro
+// ============================================================================
+
+/**
+ * Glosa em aberto por mês de solicitação, entre `desde` e `ate` ('YYYY-MM-DD'), pela regra
+ * que o financeiro usa na DRE sobre a Análise de Faturamento do apLIS: por cobrança
+ * (`fatrequisicaoprocedimento`), glosa = líquido − recebido, só com motivo de glosa
+ * preenchido e saldo positivo, de requisições cobráveis (fora `EVENTOS_NAO_COBRAVEIS`).
+ * Conferido ao centavo contra a planilha da DRE de jan–set/2026 em 09/11/2026 (o relatório
+ * do apLIS tira os eventos com `StatusExame = 2`; nesse período dá o mesmo valor).
+ * É um saldo: cai conforme os recursos são pagos.
+ */
+export async function listarGlosaPorMesSolicitacao(
+  desde: string,
+  ate: string,
+): Promise<{ linhas: GlosaMensal[] } | { erro: { status: number; mensagem: string } }> {
+  return comConexao('listarGlosaPorMesSolicitacao', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT DATE_FORMAT(r.DtaSolicitacao, '%Y-%m') AS Mes,
+              SUM(p.ValorLiquido - COALESCE(p.ValorRecebido, 0)) AS Valor,
+              COUNT(*) AS QtdCobrancas
+         FROM fatrequisicaoprocedimento p
+         JOIN requisicao r ON r.IdRequisicao = p.IdRequisicao
+        WHERE r.DtaSolicitacao >= ?
+          AND r.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 DAY)
+          AND p.IdMotivoGlosa IS NOT NULL
+          AND p.ValorLiquido - COALESCE(p.ValorRecebido, 0) > 0
+          AND ${SQL_EVENTO_COBRAVEL}
+        GROUP BY Mes`,
+      [`${desde} 00:00:00`, `${ate} 00:00:00`],
+    );
+    return {
+      linhas: linhas.map((linha) => ({
+        mes: String(linha.Mes),
+        valor: numero(linha.Valor),
+        qtdCobrancas: numero(linha.QtdCobrancas),
+      })),
+    };
   });
 }
