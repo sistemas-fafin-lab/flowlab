@@ -209,7 +209,7 @@ const DetalheAgendamentoModal: React.FC<Props> = ({
               ) : (
                 <button
                   onClick={onMarcar}
-                  className={`${BOTAO} text-white bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 shadow-md shadow-green-500/25`}
+                  className={`${BOTAO} text-white bg-gradient-to-r from-green-700 to-green-800 hover:from-green-800 hover:to-green-900 shadow-md shadow-green-700/25`}
                 >
                   <Check className="w-4 h-4" />
                   Marcar enviado
