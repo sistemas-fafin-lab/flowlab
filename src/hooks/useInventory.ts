@@ -1026,14 +1026,17 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
     try {
       // Verificar se já existe cotação ativa para este request + produto
       // (canceladas/rejeitadas não bloqueiam uma nova cotação)
-      const { data: existingQuotation } = await supabase
+      // Item sem produto do catálogo (productId vazio) é identificado pelo nome:
+      // `.eq('product_id', null)` nunca casa e deixava a duplicata passar.
+      let consultaExistente = supabase
         .from('quotations')
         .select('id')
         .eq('request_id', quotationData.requestId)
-        .eq('product_id', quotationData.productId)
-        .not('status', 'in', '(cancelled,rejected)')
-        .limit(1)
-        .maybeSingle();
+        .not('status', 'in', '(cancelled,rejected)');
+      consultaExistente = quotationData.productId
+        ? consultaExistente.eq('product_id', quotationData.productId)
+        : consultaExistente.is('product_id', null).eq('product_name', quotationData.productName);
+      const { data: existingQuotation } = await consultaExistente.limit(1).maybeSingle();
 
       if (existingQuotation) {
         console.log('Cotação já existe para este produto:', existingQuotation.id);
@@ -1044,7 +1047,7 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
         .from('quotations')
         .insert({
           request_id: quotationData.requestId,
-          product_id: quotationData.productId,
+          product_id: quotationData.productId || null,
           product_name: quotationData.productName,
           requested_quantity: quotationData.requestedQuantity,
           status: 'open',
@@ -1053,7 +1056,15 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
         .select()
         .single();
 
-      if (quotationError) throw quotationError;
+      if (quotationError) {
+        // Clique duplo: a outra chamada inseriu entre a consulta e o insert; o índice
+        // único barrou esta. A cotação que já existe é a que vale.
+        if (quotationError.code === '23505') {
+          const { data: jaCriada } = await consultaExistente.limit(1).maybeSingle();
+          if (jaCriada) return jaCriada;
+        }
+        throw quotationError;
+      }
 
       // Criar ONE quotation_item para o produto sendo cotado
       // Isso é necessário para o workflow avançar (requer hasItems)
@@ -1061,7 +1072,7 @@ export const useInventory = ({ include = ALL_DATASETS }: UseInventoryOptions = {
         .from('quotation_items')
         .insert({
           quotation_id: quotation.id,
-          product_id: quotationData.productId,
+          product_id: quotationData.productId || null,
           product_name: quotationData.productName,
           quantity: quotationData.requestedQuantity,
           unit: 'un',
