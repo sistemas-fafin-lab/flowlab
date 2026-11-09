@@ -14,6 +14,8 @@ interface Props {
 }
 
 const TH = 'px-3 py-2 text-right font-normal text-xs text-gray-500 dark:text-gray-400';
+const LINHA = 'text-gray-700 dark:text-gray-300';
+const LINHA_DESTAQUE = 'font-medium text-gray-900 dark:text-gray-100';
 const TD = 'px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300';
 
 const FunilGlosaComparativo: React.FC<Props> = ({ mes }) => {
@@ -58,14 +60,14 @@ const FunilGlosaComparativo: React.FC<Props> = ({ mes }) => {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {([
-                  ['Faturado', (f) => f.faturado, 'font-medium text-gray-900 dark:text-gray-100'],
-                  ['Recebido', (f) => f.recebido, ''],
-                  ['   da qual, glosa recuperada', (f) => f.recuperada, 'text-xs italic'],
-                  ['Glosa total', (f) => f.glosaTotal, 'font-medium text-gray-900 dark:text-gray-100'],
-                  ['   Recuperada', (f) => f.recuperada, 'text-xs'],
-                  ['   Acatada', (f) => f.acatada, 'text-xs'],
-                  ['   Em disputa', (f) => f.emDisputa, 'text-xs'],
-                  ['Saldo pendente', (f) => f.saldo, 'font-medium text-gray-900 dark:text-gray-100'],
+                  ['Faturado', (f) => f.faturado, LINHA_DESTAQUE],
+                  ['Recebido', (f) => f.recebido, LINHA],
+                  ['   da qual, glosa recuperada', (f) => f.recuperada, `${LINHA} text-xs italic`],
+                  ['Glosa total', (f) => f.glosaTotal, LINHA_DESTAQUE],
+                  ['   Recuperada', (f) => f.recuperada, `${LINHA} text-xs`],
+                  ['   Acatada', (f) => f.acatada, `${LINHA} text-xs`],
+                  ['   Em disputa', (f) => f.emDisputa, `${LINHA} text-xs`],
+                  ['Saldo pendente', (f) => f.saldo, LINHA_DESTAQUE],
                 ] as [string, (f: (typeof funil)[number]) => number, string][]).map(([rotulo, valor, classe]) => (
                   <tr key={rotulo} className={classe}>
                     <td className="px-3 py-2 text-left whitespace-pre">{rotulo}</td>
