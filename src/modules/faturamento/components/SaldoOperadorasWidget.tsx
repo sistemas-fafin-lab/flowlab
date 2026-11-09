@@ -183,8 +183,8 @@ const SaldoOperadorasWidget: React.FC<Props> = ({
                 {linhasComparacao.map((c) => (
                   <tr key={c.operadoraId} className="border-b border-slate-100/70 dark:border-slate-700/50 last:border-0">
                     <td className="py-1.5 text-slate-800 dark:text-slate-100">{c.nome}</td>
-                    <td className="py-1.5 text-right tabular-nums">{formatCurrency(c.saldoSistema)}</td>
-                    <td className="py-1.5 text-right tabular-nums">
+                    <td className="py-1.5 text-right tabular-nums text-slate-800 dark:text-slate-100">{formatCurrency(c.saldoSistema)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-slate-800 dark:text-slate-100">
                       {c.saldoAplis === null ? '—' : formatCurrency(c.saldoAplis)}
                     </td>
                     <td className={`py-1.5 text-right tabular-nums font-medium ${classeDiferenca(c.situacao)}`}>
