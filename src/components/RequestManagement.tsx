@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { useSearchParams } from 'react-router-dom';
 import { FileText, Plus, Check, X, User, Package, Building2, Calendar, Download, Search, Filter as FilterIcon, Trash2, Bold, Italic, List, AlertTriangle, Paperclip, FileUp, Eye, Image, Clock, CheckCircle2, XCircle, Play, ChevronDown, Copy } from 'lucide-react';
@@ -227,6 +227,10 @@ const RequestManagement: React.FC = () => {
   
   // Estado para controlar o modal de baixa de estoque seguro
   const [showWithdrawalModal, setShowWithdrawalModal] = useState<null | Request>(null);
+  // Solicitações com "Iniciar Cotação" em andamento. O ref trava já no 2º clique (o state só
+  // atualiza no próximo render); o state desabilita o botão na tela.
+  const cotacaoEmAndamento = useRef(new Set<string>());
+  const [iniciandoCotacao, setIniciandoCotacao] = useState<Set<string>>(new Set());
   
   // Estados para prevenir duplicidade de processamento
   const [processingRequestId, setProcessingRequestId] = useState<string | null>(null);
@@ -909,6 +913,9 @@ const handleCompleteRequest = async (request: Request) => {
 };
 
   const handleStartQuotation = async (request: Request) => {
+    if (cotacaoEmAndamento.current.has(request.id)) return;
+    cotacaoEmAndamento.current.add(request.id);
+    setIniciandoCotacao(new Set(cotacaoEmAndamento.current));
     try {
       // Verificar se há fornecedores ativos
       const activeSuppliers = suppliers.filter(s => s.status === 'active');
@@ -919,8 +926,10 @@ const handleCompleteRequest = async (request: Request) => {
       }
 
       // Deduplicar itens por productId para evitar cotações duplicadas
+      // Item sem productId é distinguido pelo nome (senão todos colapsariam no primeiro).
+      const chaveItem = (i: { productId?: string | null; productName: string }) => i.productId || i.productName;
       const uniqueItems = request.items.filter((item, index, self) =>
-        index === self.findIndex((i) => i.productId === item.productId)
+        index === self.findIndex((i) => chaveItem(i) === chaveItem(item))
       );
 
       console.log(`Criando ${uniqueItems.length} cotação(ões) para requisição ${request.id}`);
@@ -939,6 +948,9 @@ const handleCompleteRequest = async (request: Request) => {
     } catch (error) {
       console.error('Erro ao criar cotação:', error);
       showError('Erro ao criar cotação. Tente novamente.');
+    } finally {
+      cotacaoEmAndamento.current.delete(request.id);
+      setIniciandoCotacao(new Set(cotacaoEmAndamento.current));
     }
   };
 
@@ -2583,7 +2595,8 @@ const handleCompleteRequest = async (request: Request) => {
                 {actions.canStartQuotation && (
                   <button
                     onClick={() => handleStartQuotation(request)}
-                    className="flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30 text-xs sm:text-sm"
+                    disabled={iniciandoCotacao.has(request.id)}
+                    className="disabled:opacity-60 disabled:cursor-not-allowed flex-1 sm:flex-none px-3 sm:px-4 py-2 sm:py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 flex items-center justify-center font-medium shadow-md shadow-emerald-500/25 hover:shadow-lg hover:shadow-emerald-500/30 text-xs sm:text-sm"
                   >
                     <FileText className="w-4 h-4 sm:mr-2" />
                     <span className="hidden sm:inline">Iniciar Cotação</span>
