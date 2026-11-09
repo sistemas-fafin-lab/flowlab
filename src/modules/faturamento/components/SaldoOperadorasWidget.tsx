@@ -20,6 +20,9 @@ import type { ComparacaoSaldoOperadora, DashboardReceber } from '../types';
 
 export const FORMULA_SALDO = 'Total − Recebido − Glosa acatada';
 
+/** Cabe em ~130px do eixo numa linha só; o nome completo continua no tooltip. */
+const TAMANHO_MAX_ROTULO = 19;
+
 type LinhaSaldo = DashboardReceber['porOperadora'][number];
 
 interface EstiloGrafico {
@@ -112,13 +115,26 @@ const SaldoOperadorasWidget: React.FC<Props> = ({
         </span>
       </p>
 
-      <div className="h-56 flex-shrink-0">
+      <div
+        className="flex-shrink-0"
+        // 24px por barra (mín. 224px): com altura fixa o Recharts pulava rótulos do eixo.
+        style={{ height: Math.max(224, linhas.length * 24 + 40) }}
+      >
         {linhas.length > 0 ? (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={linhas} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 0 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} horizontal={false} />
               <XAxis type="number" tick={axisTick} axisLine={false} tickLine={false} tickFormatter={eixoMoeda} />
-              <YAxis type="category" dataKey="nome" tick={axisTick} axisLine={false} tickLine={false} width={130} />
+              <YAxis
+                type="category"
+                dataKey="nome"
+                tick={axisTick}
+                axisLine={false}
+                tickLine={false}
+                width={130}
+                interval={0}
+                tickFormatter={(nome: string) => (nome.length > TAMANHO_MAX_ROTULO ? `${nome.slice(0, TAMANHO_MAX_ROTULO - 1)}…` : nome)}
+              />
               <Tooltip
                 contentStyle={tooltipStyle}
                 itemStyle={tooltipItem}
