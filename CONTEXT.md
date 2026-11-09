@@ -34,6 +34,14 @@ _Avoid_: regra de prazo (é a do recurso de glosa), data de faturamento
 Um convênio numa data prevista do Calendário de envios, pendente ou enviado (com a data do envio e quem marcou); atrasado quando a data passou, fora do prazo quando a janela da Regra de envio acabou.
 _Avoid_: envio (é o lote enviado no apLIS), tarefa
 
+**Elegíveis**:
+O valor (`ValorLiquido` dos procedimentos) das requisições de um mês, pela data de solicitação, de convênios marcados como "considerada na meta" e fora dos status não cobráveis. Base do cálculo da Meta sugerida; vem do apLIS, não do lote faturado.
+_Avoid_: faturado (só conta o que já tem lote), admissões (inclui convênios fora da meta), Exame elegível a desconto (é outra coisa, do Atendimento)
+
+**Meta sugerida**:
+Cada uma das três candidatas que o modal "Definir meta" calcula a partir dos Elegíveis dos meses anteriores: 90/10 (90% do mês anterior + 10% do retrasado), média de 2 meses e média de 3 meses. Nada é salvo sem ação da coordenação; ao salvar, grava-se a origem (`90_10`, `media_2`, `media_3` ou `manual`).
+_Avoid_: meta calculada, meta automática (a meta salva nunca muda sozinha)
+
 ### Atendimento
 
 **Gerador de Orçamento**:
