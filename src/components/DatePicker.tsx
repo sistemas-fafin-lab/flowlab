@@ -55,7 +55,7 @@ const TONS = {
     normal: 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700',
     rodape: 'flex items-center justify-between mt-2 pt-2 border-t border-gray-100 dark:border-gray-700',
     hoje: 'text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline',
-    vazio: 'text-gray-400 dark:text-gray-500',
+    vazio: 'text-gray-500 dark:text-gray-400',
     icone: 'text-gray-400',
   },
   vidro: {
@@ -71,7 +71,7 @@ const TONS = {
     normal: 'text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800',
     rodape: 'flex items-center justify-between mt-2 pt-2 border-t border-slate-100 dark:border-slate-800',
     hoje: 'rounded-md text-xs font-semibold text-violet-700 dark:text-violet-300 hover:underline focus-visible:outline-0 focus-visible:ring-2 focus-visible:ring-violet-500/70',
-    vazio: 'text-slate-400 dark:text-slate-500',
+    vazio: 'text-slate-500 dark:text-slate-400',
     icone: 'text-slate-400',
   },
 } as const;
