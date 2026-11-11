@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildManagerApprovalNotification, buildManagerRejectionNotification, buildQuotationApprovalNotifications } from './notifications';
+import { buildEmailFailureWarning, buildManagerApprovalNotification, buildManagerRejectionNotification, buildQuotationApprovalNotifications, emailSendFailureReason } from './notifications';
 import { formatCurrency } from '../../utils/paymentUtils';
 import { SupplierProposal } from './types';
 
@@ -269,5 +269,30 @@ describe('buildManagerRejectionNotification', () => {
     expect(notification!.variables.rejection_comment).toBe(
       'Preço &quot;alto&quot; &amp; &lt;script&gt;alert(1)&lt;/script&gt;',
     );
+  });
+});
+
+describe('emailSendFailureReason', () => {
+  it('devolve null quando o endpoint confirma o envio', () => {
+    expect(emailSendFailureReason(200, { success: true, messageId: '<x>' })).toBeNull();
+  });
+
+  it('devolve o erro do endpoint quando o envio falha', () => {
+    expect(emailSendFailureReason(500, { success: false, error: 'Invalid login' })).toBe('Invalid login');
+  });
+
+  it('trata 2xx com success: false como falha', () => {
+    expect(emailSendFailureReason(200, { success: false, error: 'Template not found' })).toBe('Template not found');
+  });
+
+  it('usa o status quando a resposta não traz mensagem (ex.: HTML do proxy)', () => {
+    expect(emailSendFailureReason(504, null)).toBe('erro 504 no servidor de email');
+  });
+});
+
+describe('buildEmailFailureWarning', () => {
+  it('nomeia o destinatário e o motivo', () => {
+    expect(buildEmailFailureWarning('louise@ex.com', 'Invalid login'))
+      .toBe('O email para louise@ex.com não foi enviado (Invalid login). Avise a pessoa por outro meio.');
   });
 });

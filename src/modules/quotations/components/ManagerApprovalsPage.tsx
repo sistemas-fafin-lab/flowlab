@@ -3,6 +3,7 @@ import { ChevronRight, ClipboardCheck, Inbox, RefreshCcw, User } from 'lucide-re
 import { useAuth } from '../../../hooks/useAuth';
 import { Quotation, QuotationPermissions, QuotationTypeLabels } from '../types';
 import { useQuotation } from '../hooks/useQuotation';
+import Notification from '../../../components/Notification';
 import { useSyncFromQuotations } from '../hooks/useSyncFromQuotations';
 import { getQuotationAmount } from '../utils/getQuotationAmount';
 import { filterQuotationsAwaitingMyManagerApproval } from '../utils/filterQuotationsAwaitingMyManagerApproval';
@@ -39,6 +40,8 @@ export const ManagerApprovalsPage: React.FC = () => {
     selectWinner,
     approveQuotation,
     rejectQuotation,
+    emailWarning,
+    dismissEmailWarning,
   } = useQuotation();
 
   const [approvalQuotation, setApprovalQuotation] = useState<Quotation | null>(null);
@@ -55,6 +58,14 @@ export const ManagerApprovalsPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <Notification
+        type="warning"
+        title="Email de aviso não enviado"
+        message={emailWarning ?? undefined}
+        isVisible={emailWarning !== null}
+        onClose={dismissEmailWarning}
+        autoClose={false}
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center">

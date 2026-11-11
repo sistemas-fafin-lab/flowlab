@@ -23,9 +23,11 @@ import {
   MANAGER_APPROVAL_LEVEL,
 } from '../types';
 import {
+  buildEmailFailureWarning,
   buildManagerApprovalNotification,
   buildManagerRejectionNotification,
   buildQuotationApprovalNotifications,
+  emailSendFailureReason,
   ApproverWithEmail,
   EmailNotificationRequest,
   ManagerRejection,
@@ -118,6 +120,10 @@ export const useQuotation = () => {
   const [suppliers, setSuppliers] = useState<{ id: string; name: string; email: string; phone?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  // Aviso de email que não saiu (falha no envio ou destinatário sem email).
+  // Separado de `error`: a mudança que originou o email já foi gravada.
+  const [emailWarning, setEmailWarning] = useState<string | null>(null);
+  const dismissEmailWarning = useCallback(() => setEmailWarning(null), []);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
   
   // User approval limits from database
@@ -1632,17 +1638,32 @@ export const useQuotation = () => {
     });
   }, [quotations, addAuditLog]);
 
-  // Dispara os emails pelo endpoint genérico sem esperar a resposta: o envio é
-  // melhor esforço e nunca bloqueia nem reverte a mudança que o originou.
+  // Dispara os emails pelo endpoint genérico sem segurar quem chamou: o envio
+  // é melhor esforço e nunca bloqueia nem reverte a mudança que o originou.
+  // A resposta é conferida em segundo plano — uma falha (SMTP, template, rede)
+  // vira o aviso `emailWarning` em vez de sumir.
   const sendEmailNotifications = useCallback((notifications: EmailNotificationRequest[], context: string): void => {
     for (const notification of notifications) {
-      fetch('/api/notifications/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(notification),
-      }).catch((err) => {
-        console.warn(`Error sending ${context}:`, err);
-      });
+      void (async () => {
+        let reason: string | null;
+        try {
+          const response = await fetch('/api/notifications/email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(notification),
+          });
+          const body: unknown = await response.json().catch(() => null);
+          reason = emailSendFailureReason(response.status, body);
+        } catch (err) {
+          console.warn(`Error sending ${context}:`, err);
+          reason = 'falha de conexão';
+        }
+
+        if (reason) {
+          console.error(`Error sending ${context} to ${notification.to}:`, reason);
+          setEmailWarning(buildEmailFailureWarning(notification.to, reason));
+        }
+      })();
     }
   }, []);
 
@@ -1663,13 +1684,19 @@ export const useQuotation = () => {
 
       if (profileError || !profile) {
         console.error(`Error fetching recipient for ${context}:`, profileError);
+        setEmailWarning('O email de aviso não foi enviado: não foi possível carregar o destinatário. Avise a pessoa por outro meio.');
         return;
       }
 
       const notification = build({ user_email: profile.email });
-      if (notification) sendEmailNotifications([notification], context);
+      if (notification) {
+        sendEmailNotifications([notification], context);
+      } else {
+        setEmailWarning('O email de aviso não foi enviado: o destinatário não tem email cadastrado. Avise a pessoa por outro meio.');
+      }
     } catch (notifyErr) {
       console.error(`Error sending ${context}:`, notifyErr);
+      setEmailWarning('O email de aviso não foi enviado por um erro inesperado. Avise a pessoa por outro meio.');
     }
   }, [sendEmailNotifications]);
 
@@ -1853,13 +1880,19 @@ export const useQuotation = () => {
 
       if (approversError) {
         console.error('Error fetching approvers for quotation approval notification:', approversError);
+        setEmailWarning('Os emails para os aprovadores por alçada não foram enviados: não foi possível carregar os aprovadores.');
         return;
       }
 
       const notifications = buildQuotationApprovalNotifications(quotation, approvers || []);
+      if (notifications.length === 0) {
+        setEmailWarning('Nenhum aprovador com alçada para este valor tem email cadastrado — ninguém foi avisado por email.');
+        return;
+      }
       sendEmailNotifications(notifications, 'quotation approval notification');
     } catch (notifyErr) {
       console.error('Error notifying approvers of quotation awaiting approval:', notifyErr);
+      setEmailWarning('Os emails para os aprovadores por alçada não foram enviados por um erro inesperado.');
     }
   }, [sendEmailNotifications]);
 
@@ -2321,7 +2354,9 @@ export const useQuotation = () => {
     metrics,
     loading,
     error,
-    
+    emailWarning,
+    dismissEmailWarning,
+
     // Filters & Sort
     filters,
     setFilters,

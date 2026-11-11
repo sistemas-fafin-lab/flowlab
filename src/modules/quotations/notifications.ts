@@ -75,6 +75,26 @@ export function buildManagerApprovalNotification(
   };
 }
 
+/**
+ * Lê a resposta de POST /api/notifications/email e devolve o motivo da falha,
+ * ou null quando o email saiu. Um fetch que resolve não quer dizer envio: o
+ * endpoint responde 4xx/5xx (SMTP, template, email inválido) com
+ * `{ success: false, error }`.
+ */
+export function emailSendFailureReason(status: number, body: unknown): string | null {
+  const parsed = (body && typeof body === 'object' ? body : {}) as { success?: unknown; error?: unknown };
+  const isSuccessStatus = status >= 200 && status < 300;
+  if (isSuccessStatus && parsed.success !== false) return null;
+
+  if (typeof parsed.error === 'string' && parsed.error.trim()) return parsed.error.trim();
+  return `erro ${status} no servidor de email`;
+}
+
+/** Texto do aviso mostrado a quem disparou a mudança quando um email não sai. */
+export function buildEmailFailureWarning(recipient: string, reason: string): string {
+  return `O email para ${recipient} não foi enviado (${reason}). Avise a pessoa por outro meio.`;
+}
+
 export interface ManagerRejection {
   rejectedByName: string;
   comment: string;

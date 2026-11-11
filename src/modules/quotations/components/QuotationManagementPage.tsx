@@ -23,6 +23,7 @@ import {
   UserCheck,
 } from 'lucide-react';
 import { useQuotation } from '../hooks/useQuotation';
+import Notification from '../../../components/Notification';
 import { useSyncFromQuotations } from '../hooks/useSyncFromQuotations';
 import {
   Quotation,
@@ -126,6 +127,8 @@ export const QuotationManagementPage: React.FC = () => {
     setSort,
     filters,
     sort,
+    emailWarning,
+    dismissEmailWarning,
   } = useQuotation();
 
   const [showTypeSelectionModal, setShowTypeSelectionModal] = useState(false);
@@ -248,6 +251,14 @@ export const QuotationManagementPage: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      <Notification
+        type="warning"
+        title="Email de aviso não enviado"
+        message={emailWarning ?? undefined}
+        isVisible={emailWarning !== null}
+        onClose={dismissEmailWarning}
+        autoClose={false}
+      />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center">
