@@ -251,7 +251,13 @@ const LeituraPedidoMedicoModal: React.FC<{
           </button>
         </div>
 
-        <div className="px-6 py-5 overflow-y-auto flex-1 space-y-4">
+        {/* Na aba de cobertura, altura mínima para a lista do seletor de convênio
+            abrir inteira, sem ficar cortada pelo rodapé. */}
+        <div
+          className={`px-6 py-5 overflow-y-auto flex-1 space-y-4 ${
+            leitura && aba === 'cobertura' && leitura.reconhecidos.length > 0 ? 'min-h-[27rem]' : ''
+          }`}
+        >
           {!leitura ? (
             <>
               <input
