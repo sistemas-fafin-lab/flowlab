@@ -11,6 +11,7 @@ import type { DadosPdfOrcamento } from '../domain/pdfComum';
 import { carregarLogoPdf } from '../logoPdf';
 import LeituraPedidoMedicoModal from './LeituraPedidoMedicoModal';
 import SeletorConvenio from './SeletorConvenio';
+import SeloCobertura from './SeloCobertura';
 import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
 
 // Renderizar milhares de linhas a cada tecla trava a busca; acima disso, a tela pede
@@ -35,24 +36,6 @@ const SeloElegivel: React.FC = () => (
     <BadgePercent className="w-3 h-3" /> Elegível a desconto
   </span>
 );
-
-/** Selo da Conferência de cobertura num item do carrinho. */
-const SeloCobertura: React.FC<{ coberto: boolean; convenio: string }> = ({ coberto, convenio }) =>
-  coberto ? (
-    <span
-      title={`Coberto pela ${convenio}`}
-      className="inline-flex items-center gap-0.5 px-1.5 py-px text-[10px] font-semibold rounded-full bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300"
-    >
-      <Check className="w-3 h-3" /> Coberto
-    </span>
-  ) : (
-    <span
-      title={`Não coberto pela ${convenio}`}
-      className="inline-flex items-center gap-0.5 px-1.5 py-px text-[10px] font-semibold rounded-full bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
-    >
-      <X className="w-3 h-3" /> Não coberto
-    </span>
-  );
 
 /** Indicador geral da Conferência de cobertura do carrinho. */
 const IndicadorCobertura: React.FC<{ resumo: ResumoCobertura; convenio: string }> = ({ resumo, convenio }) =>
@@ -260,8 +243,8 @@ const GeradorOrcamentoPage: React.FC = () => {
   const orcamento = useMemo(() => orcamentoDoCarrinho(carrinho), [carrinho]);
   const faixa = useMemo(() => proximaFaixaDoCarrinho(carrinho), [carrinho]);
 
-  // Conferência de cobertura: um convênio só para a página (o modal da leitura vai
-  // usar o mesmo). Não persiste — some ao recarregar. Não mexe em preço nem desconto.
+  // Conferência de cobertura: um convênio só para a página, o mesmo no carrinho e no
+  // modal da leitura. Não persiste — some ao recarregar. Não mexe em preço nem desconto.
   const [convenio, setConvenio] = useState<string | null>(null);
   const convenios = useMemo(() => conveniosDaLista(exames), [exames]);
   const conferencia = useMemo(
@@ -509,7 +492,14 @@ const GeradorOrcamentoPage: React.FC = () => {
       )}
 
       {lendoPedido && (
-        <LeituraPedidoMedicoModal exames={exames} onFechar={() => setLendoPedido(false)} onAdicionar={adicionarDoPedido} />
+        <LeituraPedidoMedicoModal
+          exames={exames}
+          convenios={convenios}
+          convenio={convenio}
+          onEscolherConvenio={setConvenio}
+          onFechar={() => setLendoPedido(false)}
+          onAdicionar={adicionarDoPedido}
+        />
       )}
     </div>
   );

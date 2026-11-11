@@ -1,7 +1,10 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { AlertTriangle, FileText, Image as ImageIcon, Loader2, Plus, Sparkles, Upload, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, FileText, Image as ImageIcon, Loader2, Plus, Sparkles, Upload, X } from 'lucide-react';
 import { analisarPedidoMedico } from '../api';
 import { chaveExame } from '../domain/carrinho';
+import { conferirCobertura, type ResumoCobertura } from '../domain/cobertura';
+import SeletorConvenio from './SeletorConvenio';
+import SeloCobertura from './SeloCobertura';
 import {
   MAX_ARQUIVOS_PEDIDO,
   MAX_MB_POR_ARQUIVO,
@@ -54,6 +57,68 @@ const AvisoNaoEncontrado: React.FC<{ exame: ExameNaoEncontrado }> = ({ exame }) 
   );
 };
 
+/**
+ * Aviso fixo do não encontrado na aba de cobertura: fora da tabela o Gerador não sabe
+ * nada do exame — nem se o convênio cobre, nem se o laboratório deixa de realizá-lo.
+ */
+const FRASE_FORA_DA_TABELA = 'Não está na tabela do Gerador — confira a cobertura à mão';
+
+type Aba = 'particular' | 'cobertura';
+const ABAS: { id: Aba; label: string }[] = [
+  { id: 'particular', label: 'Orçamento particular' },
+  { id: 'cobertura', label: 'Cobertura do convênio' },
+];
+
+/** Resumo da Conferência de cobertura dos reconhecidos (só com total > 0). */
+const ResumoCoberturaDoPedido: React.FC<{ resumo: ResumoCobertura; convenio: string }> = ({ resumo, convenio }) =>
+  resumo.todosCobertos ? (
+    <p className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800/60">
+      <CheckCircle2 className="w-4 h-4 shrink-0" />
+      {resumo.total === 1 ? `O exame é coberto pela ${convenio}` : `Todos os ${resumo.total} exames são cobertos pela ${convenio}`}
+    </p>
+  ) : (
+    <p className="flex items-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/60">
+      <AlertCircle className="w-4 h-4 shrink-0" /> {resumo.cobertos} de {resumo.total} cobertos pela {convenio}
+    </p>
+  );
+
+/** Um reconhecido com a marcação para o carrinho — a mesma nas duas abas. */
+const LinhaReconhecido: React.FC<{
+  nomeNoPedido: string;
+  exame: ItemGeradorOrcamento;
+  marcado: boolean;
+  onAlternar: () => void;
+  /** só na aba de cobertura, com convênio escolhido: selo no lugar do preço */
+  coberto?: { valor: boolean; convenio: string };
+}> = ({ nomeNoPedido, exame, marcado, onAlternar, coberto }) => (
+  <li>
+    <label className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40">
+      <input
+        type="checkbox"
+        checked={marcado}
+        onChange={onAlternar}
+        className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+      />
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{exame.nome}</span>
+        <span className="block text-xs text-gray-500 dark:text-gray-400">
+          No pedido: “{nomeNoPedido}” · TUSS {exame.tuss || '—'}
+        </span>
+      </span>
+      {coberto === undefined ? (
+        <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 tabular-nums">
+          {formatCurrency(exame.preco)}
+        </span>
+      ) : (
+        <SeloCobertura coberto={coberto.valor} convenio={coberto.convenio} />
+      )}
+    </label>
+  </li>
+);
+
+const TITULO_GRUPO = 'text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2';
+const LISTA_GRUPO = 'divide-y divide-gray-100 dark:divide-gray-700 rounded-xl border border-gray-200 dark:border-gray-700';
+
 const BOTAO_PRIMARIO =
   'inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-white rounded-xl bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none';
 const BOTAO_SECUNDARIO =
@@ -65,12 +130,20 @@ const BOTAO_SECUNDARIO =
  * com os exames relacionados que o laboratório realiza, para buscar à mão) e depois
  * os reconhecidos (marcados para entrar no carrinho). Nada entra no carrinho sem a revisão.
  * Montada só enquanto aberta: fechar descarta arquivos e resultado.
+ *
+ * O resultado tem duas abas sobre a mesma leitura: "Orçamento particular" e a
+ * Conferência de cobertura do convênio — trocar de aba ou de convênio não chama a IA.
+ * O convênio é o da página (o mesmo do carrinho), por isso sobrevive ao fechar.
  */
 const LeituraPedidoMedicoModal: React.FC<{
   exames: readonly ItemGeradorOrcamento[];
+  /** convênios para o seletor, já em ordem (conveniosDaLista) */
+  convenios: readonly string[];
+  convenio: string | null;
+  onEscolherConvenio: (convenio: string | null) => void;
   onFechar: () => void;
   onAdicionar: (exames: ItemGeradorOrcamento[]) => void;
-}> = ({ exames, onFechar, onAdicionar }) => {
+}> = ({ exames, convenios, convenio, onEscolherConvenio, onFechar, onAdicionar }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [arrastando, setArrastando] = useState(false);
@@ -120,6 +193,30 @@ const LeituraPedidoMedicoModal: React.FC<{
     () => (leitura?.reconhecidos ?? []).filter((r) => marcados.has(chaveExame(r.exame))).map((r) => r.exame),
     [leitura, marcados],
   );
+
+  const [aba, setAba] = useState<Aba>('particular');
+  const conferencia = useMemo(
+    () => (leitura && convenio ? conferirCobertura(leitura.reconhecidos.map((r) => r.exame), convenio) : null),
+    [leitura, convenio],
+  );
+  const nomeNoPedidoPorChave = useMemo(
+    () => new Map((leitura?.reconhecidos ?? []).map((r) => [chaveExame(r.exame), r.nomeNoPedido])),
+    [leitura],
+  );
+
+  const linhaReconhecido = (exame: ItemGeradorOrcamento, coberto?: boolean) => {
+    const chave = chaveExame(exame);
+    return (
+      <LinhaReconhecido
+        key={chave}
+        nomeNoPedido={nomeNoPedidoPorChave.get(chave) ?? exame.nome}
+        exame={exame}
+        marcado={marcados.has(chave)}
+        onAlternar={() => alternarMarcado(chave)}
+        coberto={coberto === undefined || !convenio ? undefined : { valor: coberto, convenio }}
+      />
+    );
+  };
 
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
@@ -242,6 +339,27 @@ const LeituraPedidoMedicoModal: React.FC<{
             </>
           ) : (
             <>
+              <div className="inline-flex p-1 rounded-xl bg-gray-100 dark:bg-slate-800" role="tablist">
+                {ABAS.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={aba === a.id}
+                    onClick={() => setAba(a.id)}
+                    className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      aba === a.id
+                        ? 'bg-white dark:bg-slate-700 text-gray-900 dark:text-white shadow-sm'
+                        : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                    }`}
+                  >
+                    {a.label}
+                  </button>
+                ))}
+              </div>
+
+              {aba === 'particular' ? (
+            <>
               {leitura.semCorrespondencia.length > 0 && (
                 <section className="rounded-xl border border-amber-200 bg-amber-50/60 dark:border-amber-800/60 dark:bg-amber-900/10">
                   <div className="flex items-start gap-2 px-3 pt-3">
@@ -271,35 +389,66 @@ const LeituraPedidoMedicoModal: React.FC<{
                 {leitura.reconhecidos.length === 0 ? (
                   <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum exame do pedido foi achado na lista.</p>
                 ) : (
-                  <ul className="divide-y divide-gray-100 dark:divide-gray-700 rounded-xl border border-gray-200 dark:border-gray-700">
-                    {leitura.reconhecidos.map(({ nomeNoPedido, exame }) => {
-                      const chave = chaveExame(exame);
-                      return (
-                        <li key={chave}>
-                          <label className="flex items-start gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700/40">
-                            <input
-                              type="checkbox"
-                              checked={marcados.has(chave)}
-                              onChange={() => alternarMarcado(chave)}
-                              className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span className="min-w-0 flex-1">
-                              <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{exame.nome}</span>
-                              <span className="block text-xs text-gray-500 dark:text-gray-400">
-                                No pedido: “{nomeNoPedido}” · TUSS {exame.tuss || '—'}
-                              </span>
-                            </span>
-                            <span className="text-sm font-semibold text-gray-800 dark:text-gray-100 tabular-nums">
-                              {formatCurrency(exame.preco)}
-                            </span>
-                          </label>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <ul className={LISTA_GRUPO}>{leitura.reconhecidos.map(({ exame }) => linhaReconhecido(exame))}</ul>
                 )}
               </section>
+            </>
+              ) : (
+            <>
+              {leitura.reconhecidos.length > 0 && (
+                <SeletorConvenio convenios={convenios} convenio={convenio} onEscolher={onEscolherConvenio} />
+              )}
 
+              {leitura.reconhecidos.length > 0 && !conferencia ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">
+                  Escolha o convênio do paciente para conferir quais exames do pedido ele cobre.
+                </p>
+              ) : (
+                <>
+                  {conferencia && convenio && conferencia.resumo.total > 0 && (
+                    <>
+                      <ResumoCoberturaDoPedido resumo={conferencia.resumo} convenio={convenio} />
+                      {conferencia.naoCobertos.length > 0 && (
+                        <section>
+                          <h3 className={TITULO_GRUPO}>Não cobertos ({conferencia.naoCobertos.length})</h3>
+                          <ul className={LISTA_GRUPO}>{conferencia.naoCobertos.map(({ exame }) => linhaReconhecido(exame, false))}</ul>
+                        </section>
+                      )}
+                      {conferencia.cobertos.length > 0 && (
+                        <section>
+                          <h3 className={TITULO_GRUPO}>Cobertos ({conferencia.cobertos.length})</h3>
+                          <ul className={LISTA_GRUPO}>{conferencia.cobertos.map((exame) => linhaReconhecido(exame, true))}</ul>
+                        </section>
+                      )}
+                    </>
+                  )}
+
+                  {leitura.semCorrespondencia.length > 0 && (
+                    <section>
+                      <h3 className={TITULO_GRUPO}>
+                        Não encontrados na tabela ({leitura.semCorrespondencia.length})
+                        <span className="ml-1 font-normal text-xs text-gray-500 dark:text-gray-400">· fora da conta</span>
+                      </h3>
+                      <ul className="divide-y divide-amber-200/70 rounded-xl border border-amber-200 bg-amber-50/60 dark:divide-amber-800/40 dark:border-amber-800/60 dark:bg-amber-900/10">
+                        {leitura.semCorrespondencia.map(({ nomeNoPedido }, i) => (
+                          <li key={`${nomeNoPedido}-${i}`} className="px-3 py-2.5">
+                            <span className="block text-sm font-medium text-gray-800 dark:text-gray-100">“{nomeNoPedido}”</span>
+                            <span className="flex items-center gap-1.5 text-xs text-amber-800 dark:text-amber-200">
+                              <AlertTriangle className="w-3.5 h-3.5 shrink-0" /> {FRASE_FORA_DA_TABELA}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
+                  )}
+
+                  {leitura.reconhecidos.length === 0 && leitura.semCorrespondencia.length === 0 && (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">Nenhum exame foi lido no pedido.</p>
+                  )}
+                </>
+              )}
+            </>
+              )}
             </>
           )}
         </div>
