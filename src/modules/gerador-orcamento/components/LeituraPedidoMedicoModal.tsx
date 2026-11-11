@@ -1,9 +1,10 @@
 import React, { useMemo, useRef, useState } from 'react';
-import { AlertCircle, AlertTriangle, CheckCircle2, FileText, Image as ImageIcon, Loader2, Plus, Sparkles, Upload, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, FileText, Image as ImageIcon, Loader2, Plus, Sparkles, Upload, X } from 'lucide-react';
 import { analisarPedidoMedico } from '../api';
 import { chaveExame } from '../domain/carrinho';
-import { conferirCobertura, type ResumoCobertura } from '../domain/cobertura';
+import { conferirCobertura, type ExameNaoCoberto, type ResumoCobertura } from '../domain/cobertura';
 import SeletorConvenio from './SeletorConvenio';
+import ListaConvenios from './ListaConvenios';
 import SeloCobertura from './SeloCobertura';
 import {
   MAX_ARQUIVOS_PEDIDO,
@@ -116,7 +117,62 @@ const LinhaReconhecido: React.FC<{
   </li>
 );
 
-const TITULO_GRUPO = 'text-sm font-semibold text-gray-800 dark:text-gray-100 mb-2';
+/**
+ * Um não coberto na aba de cobertura: a caixa marca para o carrinho e o resto da linha
+ * expande/recolhe os outros convênios que atendem o exame — para orientar o paciente
+ * ou checar se ele tem outro plano.
+ */
+const LinhaNaoCoberto: React.FC<{
+  nomeNoPedido: string;
+  naoCoberto: ExameNaoCoberto;
+  convenio: string;
+  marcado: boolean;
+  onAlternar: () => void;
+}> = ({ nomeNoPedido, naoCoberto: { exame, outrosConvenios }, convenio, marcado, onAlternar }) => {
+  const [expandido, setExpandido] = useState(false);
+  return (
+    <li className="flex items-start gap-3 px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700/40">
+      <input
+        type="checkbox"
+        aria-label={`Marcar ${exame.nome} para o carrinho`}
+        checked={marcado}
+        onChange={onAlternar}
+        className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+      />
+      <div className="min-w-0 flex-1">
+        <button
+          type="button"
+          aria-expanded={expandido}
+          onClick={() => setExpandido((atual) => !atual)}
+          className="w-full flex items-start gap-3 text-left"
+        >
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-gray-900 dark:text-gray-100">{exame.nome}</span>
+            <span className="block text-xs text-gray-500 dark:text-gray-400">
+              No pedido: “{nomeNoPedido}” · TUSS {exame.tuss || '—'}
+            </span>
+            <span className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
+              Outros convênios ({outrosConvenios.length})
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandido ? 'rotate-180' : ''}`} />
+            </span>
+          </span>
+          <SeloCobertura coberto={false} convenio={convenio} />
+        </button>
+        {expandido &&
+          (outrosConvenios.length > 0 ? (
+            <ListaConvenios convenios={outrosConvenios} />
+          ) : (
+            <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+              Nenhum convênio cadastrado atende este exame.
+            </p>
+          ))}
+      </div>
+    </li>
+  );
+};
+
+const TITULO_GRUPO_TEXTO = 'text-sm font-semibold text-gray-800 dark:text-gray-100';
+const TITULO_GRUPO = `${TITULO_GRUPO_TEXTO} mb-2`;
 const LISTA_GRUPO = 'divide-y divide-gray-100 dark:divide-gray-700 rounded-xl border border-gray-200 dark:border-gray-700';
 
 const BOTAO_PRIMARIO =
@@ -188,6 +244,9 @@ const LeituraPedidoMedicoModal: React.FC<{
       else novo.add(chave);
       return novo;
     });
+
+  const marcarSoNaoCobertos = (naoCobertos: readonly ExameNaoCoberto[]) =>
+    setMarcados(new Set(naoCobertos.map(({ exame }) => chaveExame(exame))));
 
   const selecionados = useMemo(
     () => (leitura?.reconhecidos ?? []).filter((r) => marcados.has(chaveExame(r.exame))).map((r) => r.exame),
@@ -416,8 +475,31 @@ const LeituraPedidoMedicoModal: React.FC<{
                       <ResumoCoberturaDoPedido resumo={conferencia.resumo} convenio={convenio} />
                       {conferencia.naoCobertos.length > 0 && (
                         <section>
-                          <h3 className={TITULO_GRUPO}>Não cobertos ({conferencia.naoCobertos.length})</h3>
-                          <ul className={LISTA_GRUPO}>{conferencia.naoCobertos.map(({ exame }) => linhaReconhecido(exame, false))}</ul>
+                          <div className="flex items-center justify-between gap-3 mb-2">
+                            <h3 className={TITULO_GRUPO_TEXTO}>Não cobertos ({conferencia.naoCobertos.length})</h3>
+                            <button
+                              type="button"
+                              onClick={() => marcarSoNaoCobertos(conferencia.naoCobertos)}
+                              className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                              Marcar só os não cobertos
+                            </button>
+                          </div>
+                          <ul className={LISTA_GRUPO}>
+                            {conferencia.naoCobertos.map((naoCoberto) => {
+                              const chave = chaveExame(naoCoberto.exame);
+                              return (
+                                <LinhaNaoCoberto
+                                  key={chave}
+                                  nomeNoPedido={nomeNoPedidoPorChave.get(chave) ?? naoCoberto.exame.nome}
+                                  naoCoberto={naoCoberto}
+                                  convenio={convenio}
+                                  marcado={marcados.has(chave)}
+                                  onAlternar={() => alternarMarcado(chave)}
+                                />
+                              );
+                            })}
+                          </ul>
                         </section>
                       )}
                       {conferencia.cobertos.length > 0 && (

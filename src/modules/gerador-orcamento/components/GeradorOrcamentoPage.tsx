@@ -11,6 +11,7 @@ import type { DadosPdfOrcamento } from '../domain/pdfComum';
 import { carregarLogoPdf } from '../logoPdf';
 import LeituraPedidoMedicoModal from './LeituraPedidoMedicoModal';
 import SeletorConvenio from './SeletorConvenio';
+import ListaConvenios from './ListaConvenios';
 import SeloCobertura from './SeloCobertura';
 import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
 
@@ -85,20 +86,7 @@ const LinhaExame: React.FC<{
           </button>
         )}
         {mostrarConvenios && exame.conveniosAceitos.length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-1.5">
-            {exame.conveniosAceitos.map((convenio) => (
-              <span
-                key={convenio}
-                className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${
-                  convenioCasaBusca(convenio, busca)
-                    ? 'bg-blue-600 text-white ring-2 ring-blue-300 dark:bg-blue-500 dark:ring-blue-400/50'
-                    : 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                }`}
-              >
-                {convenio}
-              </span>
-            ))}
-          </div>
+          <ListaConvenios convenios={exame.conveniosAceitos} destacar={(convenio) => convenioCasaBusca(convenio, busca)} />
         )}
       </div>
       <div className="flex items-center gap-3 shrink-0">
