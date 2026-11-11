@@ -237,7 +237,6 @@ const LeituraPedidoMedicoModal: React.FC<{
     try {
       const resultado = resolverLeituraDoPedido(await analisarPedidoMedico(arquivos), exames);
       setLeitura(resultado);
-      setMarcados(new Set(resultado.reconhecidos.map((r) => chaveExame(r.exame))));
     } catch (err) {
       setErro(err instanceof Error && err.message ? err.message : 'Não foi possível analisar o pedido médico.');
     } finally {
@@ -253,9 +252,6 @@ const LeituraPedidoMedicoModal: React.FC<{
       return novo;
     });
 
-  const marcarSoNaoCobertos = (naoCobertos: readonly ExameNaoCoberto[]) =>
-    setMarcados(new Set(naoCobertos.map(({ exame }) => chaveExame(exame))));
-
   const selecionados = useMemo(
     () => (leitura?.reconhecidos ?? []).filter((r) => marcados.has(chaveExame(r.exame))).map((r) => r.exame),
     [leitura, marcados],
@@ -267,6 +263,21 @@ const LeituraPedidoMedicoModal: React.FC<{
     () => (leitura && escolha ? conferirCobertura(leitura.reconhecidos.map((r) => r.exame), escolha) : null),
     [leitura, escolha],
   );
+  const todosOsReconhecidos = () => new Set((leitura?.reconhecidos ?? []).map((r) => chaveExame(r.exame)));
+  const soNaoCobertos = (naoCobertos: readonly ExameNaoCoberto[]) =>
+    new Set(naoCobertos.map(({ exame }) => chaveExame(exame)));
+
+  // Na aba de cobertura, com a fonte pagadora escolhida, o pedido vem só com os não cobertos
+  // marcados (são os que o paciente paga); no orçamento particular, vem tudo marcado. Volta ao
+  // padrão a cada leitura, troca de fonte ou troca de aba.
+  const conferenciaDaAba = aba === 'cobertura' ? conferencia : null;
+  const [conferidoAntes, setConferidoAntes] = useState({ leitura, conferenciaDaAba });
+  if (conferidoAntes.leitura !== leitura || conferidoAntes.conferenciaDaAba !== conferenciaDaAba) {
+    setConferidoAntes({ leitura, conferenciaDaAba });
+    setMarcados(conferenciaDaAba ? soNaoCobertos(conferenciaDaAba.naoCobertos) : todosOsReconhecidos());
+  }
+  const todosMarcados = (leitura?.reconhecidos ?? []).every((r) => marcados.has(chaveExame(r.exame)));
+
   const nomeNoPedidoPorChave = useMemo(
     () => new Map((leitura?.reconhecidos ?? []).map((r) => [chaveExame(r.exame), r.nomeNoPedido])),
     [leitura],
@@ -482,18 +493,20 @@ const LeituraPedidoMedicoModal: React.FC<{
                   {conferencia && convenio && conferencia.resumo.total > 0 && (
                     <>
                       <ResumoCoberturaDoPedido resumo={conferencia.resumo} convenio={convenio} />
+                      <div className="flex justify-end -mt-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setMarcados(todosMarcados ? soNaoCobertos(conferencia.naoCobertos) : todosOsReconhecidos())
+                          }
+                          className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+                        >
+                          {todosMarcados ? 'Marcar só os não cobertos' : 'Marcar todos'}
+                        </button>
+                      </div>
                       {conferencia.naoCobertos.length > 0 && (
                         <section>
-                          <div className="flex items-center justify-between gap-3 mb-2">
-                            <h3 className={TITULO_GRUPO_TEXTO}>Não cobertos ({conferencia.naoCobertos.length})</h3>
-                            <button
-                              type="button"
-                              onClick={() => marcarSoNaoCobertos(conferencia.naoCobertos)}
-                              className="text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
-                            >
-                              Marcar só os não cobertos
-                            </button>
-                          </div>
+                          <h3 className={TITULO_GRUPO}>Não cobertos ({conferencia.naoCobertos.length})</h3>
                           <ul className={LISTA_GRUPO}>
                             {conferencia.naoCobertos.map((naoCoberto) => {
                               const chave = chaveExame(naoCoberto.exame);

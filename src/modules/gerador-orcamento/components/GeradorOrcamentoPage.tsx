@@ -403,6 +403,9 @@ const GeradorOrcamentoPage: React.FC = () => {
               {carrinho.length > 0 && (
                 // Sempre os dois valores, iguais quando não há desconto; sem percentual nem selo.
                 <dl className="mt-2 space-y-2">
+                  <p className="flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Valores da tabela particular
+                  </p>
                   <div className="flex items-center justify-between text-sm text-gray-600 dark:text-gray-300">
                     <dt>Valor Total</dt>
                     <dd className="font-semibold tabular-nums">{brl(orcamento.valorTotal)}</dd>
