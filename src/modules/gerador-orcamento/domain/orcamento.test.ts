@@ -121,6 +121,7 @@ describe('orcamentoDoCarrinho', () => {
     preco,
     elegivelDescontoParticular,
     conveniosAceitos: [],
+    coberturaConvenios: [],
   });
 
   it('usa a elegibilidade da lista de preços e a quantidade do carrinho', () => {

@@ -3,7 +3,14 @@ import { AlertCircle, AlertTriangle, BadgePercent, Calculator, Check, CheckCircl
 import { useListaPrecos } from '../hooks/useListaPrecos';
 import { buscaCasaConvenio, convenioCasaBusca, filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
-import { conferirCobertura, conveniosDaLista, type ResumoCobertura } from '../domain/cobertura';
+import {
+  conferirCobertura,
+  conveniosDaFonte,
+  fontesDaLista,
+  nomeDaEscolha,
+  type EscolhaCobertura,
+  type ResumoCobertura,
+} from '../domain/cobertura';
 import { orcamentoDoCarrinho, proximaFaixaDoCarrinho, type ProximaFaixa } from '../domain/orcamento';
 import { montarPdfOrcamentoCliente } from '../domain/pdfCliente';
 import { montarPdfOrcamentoInterno } from '../domain/pdfInterno';
@@ -231,13 +238,16 @@ const GeradorOrcamentoPage: React.FC = () => {
   const orcamento = useMemo(() => orcamentoDoCarrinho(carrinho), [carrinho]);
   const faixa = useMemo(() => proximaFaixaDoCarrinho(carrinho), [carrinho]);
 
-  // Conferência de cobertura: um convênio só para a página, o mesmo no carrinho e no
-  // modal da leitura. Não persiste — some ao recarregar. Não mexe em preço nem desconto.
-  const [convenio, setConvenio] = useState<string | null>(null);
-  const convenios = useMemo(() => conveniosDaLista(exames), [exames]);
+  // Conferência de cobertura: uma escolha só para a página (fonte pagadora e, se quiser,
+  // um convênio dela), a mesma no carrinho e no modal da leitura. Não persiste — some ao
+  // recarregar. Não mexe em preço nem desconto.
+  const [escolha, setEscolha] = useState<EscolhaCobertura | null>(null);
+  const fontes = useMemo(() => fontesDaLista(exames), [exames]);
+  const convenios = useMemo(() => (escolha ? conveniosDaFonte(exames, escolha.fonte) : []), [exames, escolha]);
+  const convenio = escolha && nomeDaEscolha(escolha);
   const conferencia = useMemo(
-    () => (convenio && carrinho.length > 0 ? conferirCobertura(carrinho.map((c) => c.item), convenio) : null),
-    [carrinho, convenio],
+    () => (escolha && carrinho.length > 0 ? conferirCobertura(carrinho.map((c) => c.item), escolha) : null),
+    [carrinho, escolha],
   );
   const chavesCobertas = useMemo(() => new Set(conferencia?.cobertos.map(chaveExame)), [conferencia]);
 
@@ -387,7 +397,7 @@ const GeradorOrcamentoPage: React.FC = () => {
             </div>
             <div className="shrink-0 pb-4 mb-2 border-b border-gray-200 dark:border-gray-700">
               <div className="mb-3">
-                <SeletorConvenio convenios={convenios} convenio={convenio} onEscolher={setConvenio} />
+                <SeletorConvenio fontes={fontes} convenios={convenios} escolha={escolha} onEscolher={setEscolha} empilhado />
                 {conferencia && convenio && <IndicadorCobertura resumo={conferencia.resumo} convenio={convenio} />}
               </div>
               {carrinho.length > 0 && (
@@ -482,9 +492,10 @@ const GeradorOrcamentoPage: React.FC = () => {
       {lendoPedido && (
         <LeituraPedidoMedicoModal
           exames={exames}
+          fontes={fontes}
           convenios={convenios}
-          convenio={convenio}
-          onEscolherConvenio={setConvenio}
+          escolha={escolha}
+          onEscolher={setEscolha}
           onFechar={() => setLendoPedido(false)}
           onAdicionar={adicionarDoPedido}
         />

@@ -56,6 +56,14 @@ _Avoid_: Tabela Particular, Pardini, Álvaro (como nome da ferramenta; "Álvaro"
 O documento entregue ao cliente particular com os exames, as quantidades, os preços, o Valor Total e o Valor com Desconto. Não fica guardado no sistema.
 _Avoid_: Cotação (é o processo de compras), orçamento particular
 
+**Conferência de cobertura**:
+A checagem, no Gerador de Orçamento, de quais exames do carrinho ou do pedido médico lido a fonte pagadora escolhida atende — ou, com um convênio escolhido, aquele convênio (tabela associada da fonte), com `atendido` no cadastro. Só indica coberto / não coberto: sem preço de convênio e sem PDF.
+_Avoid_: orçamento de convênio (Orçamento é só do cliente particular), autorização (é o processo junto ao convênio, fora do flowlab)
+
+**Fonte pagadora × convênio**:
+A fonte pagadora é quem paga a conta (ex.: AMHP-DF); o convênio é uma tabela associada dela (ex.: BACEN, BACEN - MEDICINA LABORATORIAL), como cadastrada em `custo_tabelas_associadas`. Uma fonte pode ter um ou vários convênios.
+_Avoid_: plano (no cadastro é tabela associada)
+
 **Exame elegível a desconto**:
 Exame marcado, no cadastro de fontes pagadoras, com a marcação de desconto particular (`elegivel_desconto_particular`); só ele recebe e conta para o Desconto automático por volume.
 _Avoid_: exame com desconto, exame promocional

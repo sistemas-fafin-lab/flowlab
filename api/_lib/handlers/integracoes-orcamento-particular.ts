@@ -48,7 +48,11 @@ export default async function handler(
 
   try {
     const supabase = getSupabaseAdminClient();
-    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: true });
+    // coberturaConvenios é só do Gerador de Orçamento: o contrato da integração não muda.
+    const itens = (await buildOrcamentoParticular(supabase, { incluirCusto: true })).map(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars -- o campo é tirado de propósito
+      ({ coberturaConvenios, ...item }) => item,
+    );
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json(itens);
   } catch (err) {

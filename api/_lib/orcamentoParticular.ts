@@ -38,8 +38,19 @@ export interface OrcamentoParticularItem {
   /** custo_direto + custo_indireto; null quando o tuss não tem correspondência em custo_exames. */
   custo: number | null;
   elegivelDescontoParticular: boolean;
-  /** Nomes de fonte_pagadora (exceto 'Particular') com atendido=true pra esse tuss. Sem valor — não expõe preço negociado. */
+  /** Fontes pagadoras distintas de `coberturaConvenios`. Sem valor — não expõe preço negociado. */
   conveniosAceitos: string[];
+  /**
+   * Convênios (tabela associada de uma fonte não-Particular) que atendem o exame, sem valor.
+   * Só para o Gerador de Orçamento: a integração da Tabela Particular não recebe o campo.
+   */
+  coberturaConvenios: CoberturaConvenio[];
+}
+
+/** Um convênio que atende o exame: a fonte pagadora e a tabela associada dela (o convênio). */
+export interface CoberturaConvenio {
+  fonte: string;
+  convenio: string;
 }
 
 /** Item com custo opcional: com `incluirCusto: false` a chave `custo` não existe. */
@@ -193,30 +204,47 @@ export async function buildOrcamentoParticular(
     else grupo[indice] = exame;
   }
 
-  // Convênios (fontes não-Particular) por TUSS (linhas gerais) e por exame
-  // (linhas de exame) — fonte -> atendido. Linha de exame de um convênio
-  // substitui a linha geral dele só praquele exame.
-  const conveniosGeraisPorTuss = new Map<string, Map<string, boolean>>();
-  const conveniosPorExame = new Map<string, Map<string, boolean>>();
+  // Cobertura por convênio (tabela associada de uma fonte não-Particular), a
+  // regra de examesPorFontePagadora: linha de exame tem precedência sobre a
+  // linha geral do TUSS da MESMA tabela, e exclusão tira o exame da linha
+  // geral. Mapas: chave (exame_id ou tuss) -> tabela -> linhas.
+  const nomeDaTabela = new Map(tabelas.map(t => [t.id, t.nome]));
+  const linhasGeraisPorTuss = new Map<string, Map<string, FonteRow[]>>();
+  const linhasPorExame = new Map<string, Map<string, FonteRow[]>>();
   for (const fonte of fontes) {
     if (fonte.fonte_pagadora === FONTE_PARTICULAR) continue;
     const chave = fonte.exame_id ?? fonte.tuss;
     if (!chave) continue;
-    const mapa = fonte.exame_id ? conveniosPorExame : conveniosGeraisPorTuss;
+    const mapa = fonte.exame_id ? linhasPorExame : linhasGeraisPorTuss;
     if (!mapa.has(chave)) mapa.set(chave, new Map());
-    const porFonte = mapa.get(chave)!;
-    porFonte.set(fonte.fonte_pagadora, (porFonte.get(fonte.fonte_pagadora) ?? false) || fonte.atendido);
+    const porTabela = mapa.get(chave)!;
+    porTabela.set(fonte.tabela_associada_id, [...(porTabela.get(fonte.tabela_associada_id) ?? []), fonte]);
   }
-  const conveniosAceitos = (tuss: string, exameId: string | null): string[] => {
-    const doExame = exameId ? conveniosPorExame.get(exameId) : undefined;
-    const aceitos = new Set<string>();
-    for (const [nome, atendido] of conveniosGeraisPorTuss.get(tuss) ?? []) {
-      if (atendido && !doExame?.has(nome)) aceitos.add(nome);
+  const coberturaConvenios = (tuss: string, exameId: string | null): CoberturaConvenio[] => {
+    const doExame = exameId ? linhasPorExame.get(exameId) : undefined;
+    const pares = new Map<string, CoberturaConvenio>();
+    const cobre = (linha: FonteRow) => {
+      // Sem cadastro da tabela (não acontece com a FK), o convênio leva o nome da fonte.
+      const convenio = nomeDaTabela.get(linha.tabela_associada_id) ?? linha.fonte_pagadora;
+      pares.set(`${linha.fonte_pagadora}\u0000${convenio}`, { fonte: linha.fonte_pagadora, convenio });
+    };
+    for (const [tabelaId, linhas] of linhasGeraisPorTuss.get(tuss) ?? []) {
+      if (doExame?.has(tabelaId)) continue;
+      for (const linha of linhas) {
+        if (linha.atendido && !(exameId && exclusoesPorChave.has(`${linha.id}:${exameId}`))) cobre(linha);
+      }
     }
-    for (const [nome, atendido] of doExame ?? []) {
-      if (atendido) aceitos.add(nome);
+    for (const linhas of doExame?.values() ?? []) {
+      for (const linha of linhas) if (linha.atendido) cobre(linha);
     }
-    return Array.from(aceitos);
+    return Array.from(pares.values());
+  };
+  const coberturaDoItem = (tuss: string, exameId: string | null) => {
+    const cobertura = coberturaConvenios(tuss, exameId);
+    return {
+      conveniosAceitos: Array.from(new Set(cobertura.map(c => c.fonte))),
+      coberturaConvenios: cobertura,
+    };
   };
 
   const tabelasParticular = new Set(
@@ -247,7 +275,7 @@ export async function buildOrcamentoParticular(
       preco: valoresPersonalizadosPorChave.get(`${fonte.id}:${exame.id}`) ?? Number(fonte.valor),
       ...comCusto(() => Number(exame.custo_direto) + Number(exame.custo_indireto)),
       elegivelDescontoParticular: fonte.elegivel_desconto_particular,
-      conveniosAceitos: conveniosAceitos(tuss, exame.id),
+      ...coberturaDoItem(tuss, exame.id),
     };
   };
 
@@ -278,7 +306,7 @@ export async function buildOrcamentoParticular(
         preco: Number(fonte.valor),
         ...comCusto(() => null), // sem exame correspondente
         elegivelDescontoParticular: fonte.elegivel_desconto_particular,
-        conveniosAceitos: conveniosAceitos(fonte.tuss, null),
+        ...coberturaDoItem(fonte.tuss, null),
       });
       continue;
     }

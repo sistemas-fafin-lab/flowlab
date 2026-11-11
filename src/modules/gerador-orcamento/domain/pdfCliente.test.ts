@@ -13,6 +13,7 @@ const exame = (nome: string, preco: number, elegivelDescontoParticular: boolean)
   preco,
   elegivelDescontoParticular,
   conveniosAceitos: ['Amil'],
+  coberturaConvenios: [],
 });
 
 // 1 elegível de R$1.000 → 15% sobre ele; o não elegível (2 × R$50) fica sem desconto.

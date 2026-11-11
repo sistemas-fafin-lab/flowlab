@@ -51,6 +51,7 @@ describe('resolverLeituraDoPedido', () => {
     custo: 3,
     elegivelDescontoParticular: true,
     conveniosAceitos: [],
+    coberturaConvenios: [],
   });
   const hemograma = exame('40304361', 'Hemograma Completo');
   const glicemia = exame('40302040', 'Glicemia de Jejum');

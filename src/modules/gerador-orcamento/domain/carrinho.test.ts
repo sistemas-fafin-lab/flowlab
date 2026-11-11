@@ -3,7 +3,7 @@ import type { ItemGeradorOrcamento } from '../types';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from './carrinho';
 
 function exame(nome: string, tuss: string, preco = 10): ItemGeradorOrcamento {
-  return { tuss, nome, preco, elegivelDescontoParticular: false, conveniosAceitos: [] };
+  return { tuss, nome, preco, elegivelDescontoParticular: false, conveniosAceitos: [], coberturaConvenios: [] };
 }
 
 const HEMOGRAMA = exame('Hemograma Completo', '40304361', 25);

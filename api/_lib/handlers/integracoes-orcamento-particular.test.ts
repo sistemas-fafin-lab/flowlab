@@ -77,25 +77,26 @@ describe('GET /api/integracoes/orcamento-particular', () => {
     expect(buildOrcamentoParticularMock).not.toHaveBeenCalled();
   });
 
-  it('chave válida devolve 200 com o array de itens', async () => {
+  it('chave válida devolve 200 com o array de itens, sem coberturaConvenios (campo só do Gerador)', async () => {
     isTabelaParticularApiKeyValidMock.mockReturnValue(true);
-    const itens = [
-      {
-        tuss: '40301060',
-        nome: 'Hemograma',
-        preco: 100,
-        custo: 15,
-        elegivelDescontoParticular: true,
-        conveniosAceitos: ['Convênio A'],
-      },
-    ];
-    buildOrcamentoParticularMock.mockResolvedValue(itens);
+    const item = {
+      tuss: '40301060',
+      nome: 'Hemograma',
+      preco: 100,
+      custo: 15,
+      elegivelDescontoParticular: true,
+      conveniosAceitos: ['Convênio A'],
+    };
+    buildOrcamentoParticularMock.mockResolvedValue([
+      { ...item, coberturaConvenios: [{ fonte: 'Convênio A', convenio: 'Convênio A' }] },
+    ]);
     const res = criarRes();
 
     await handler(criarReq('GET', 'Bearer segredo-teste'), res);
 
     expect(res.statusCode).toBe(200);
-    expect(res.body).toEqual(itens);
+    expect(res.body).toEqual([item]);
+    expect((res.body as object[])[0]).not.toHaveProperty('coberturaConvenios');
     expect(buildOrcamentoParticularMock).toHaveBeenCalledWith(expect.anything(), { incluirCusto: true });
   });
 

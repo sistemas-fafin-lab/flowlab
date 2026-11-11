@@ -18,6 +18,7 @@ const exame = (
   ...(custo === undefined ? {} : { custo }),
   elegivelDescontoParticular,
   conveniosAceitos: [],
+  coberturaConvenios: [],
 });
 
 // Elegível: venda 1.000,00, custo 400,00, margem +600,00.

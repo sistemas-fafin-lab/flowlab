@@ -2,9 +2,15 @@ import React, { useMemo, useRef, useState } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle2, ChevronDown, FileText, Image as ImageIcon, Loader2, Plus, Sparkles, Upload, X } from 'lucide-react';
 import { analisarPedidoMedico } from '../api';
 import { chaveExame } from '../domain/carrinho';
-import { conferirCobertura, type ExameNaoCoberto, type ResumoCobertura } from '../domain/cobertura';
+import {
+  conferirCobertura,
+  nomeDaEscolha,
+  type EscolhaCobertura,
+  type ExameNaoCoberto,
+  type ResumoCobertura,
+} from '../domain/cobertura';
 import SeletorConvenio from './SeletorConvenio';
-import ListaConvenios from './ListaConvenios';
+import { ConveniosPorFonte } from './ListaConvenios';
 import SeloCobertura from './SeloCobertura';
 import {
   MAX_ARQUIVOS_PEDIDO,
@@ -152,7 +158,7 @@ const LinhaNaoCoberto: React.FC<{
               No pedido: “{nomeNoPedido}” · TUSS {exame.tuss || '—'}
             </span>
             <span className="inline-flex items-center gap-1 mt-1 text-xs font-medium text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300">
-              Outros convênios ({outrosConvenios.length})
+              Outros convênios ({outrosConvenios.reduce((n, g) => n + g.convenios.length, 0)})
               <ChevronDown className={`w-3.5 h-3.5 transition-transform ${expandido ? 'rotate-180' : ''}`} />
             </span>
           </span>
@@ -160,7 +166,7 @@ const LinhaNaoCoberto: React.FC<{
         </button>
         {expandido &&
           (outrosConvenios.length > 0 ? (
-            <ListaConvenios convenios={outrosConvenios} />
+            <ConveniosPorFonte grupos={outrosConvenios} />
           ) : (
             <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
               Nenhum convênio cadastrado atende este exame.
@@ -193,13 +199,15 @@ const BOTAO_SECUNDARIO =
  */
 const LeituraPedidoMedicoModal: React.FC<{
   exames: readonly ItemGeradorOrcamento[];
-  /** convênios para o seletor, já em ordem (conveniosDaLista) */
+  /** fontes para o seletor, já em ordem (fontesDaLista) */
+  fontes: readonly string[];
+  /** convênios da fonte escolhida, já em ordem (conveniosDaFonte) */
   convenios: readonly string[];
-  convenio: string | null;
-  onEscolherConvenio: (convenio: string | null) => void;
+  escolha: EscolhaCobertura | null;
+  onEscolher: (escolha: EscolhaCobertura | null) => void;
   onFechar: () => void;
   onAdicionar: (exames: ItemGeradorOrcamento[]) => void;
-}> = ({ exames, convenios, convenio, onEscolherConvenio, onFechar, onAdicionar }) => {
+}> = ({ exames, fontes, convenios, escolha, onEscolher, onFechar, onAdicionar }) => {
   const inputRef = useRef<HTMLInputElement>(null);
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [arrastando, setArrastando] = useState(false);
@@ -254,9 +262,10 @@ const LeituraPedidoMedicoModal: React.FC<{
   );
 
   const [aba, setAba] = useState<Aba>('particular');
+  const convenio = escolha && nomeDaEscolha(escolha);
   const conferencia = useMemo(
-    () => (leitura && convenio ? conferirCobertura(leitura.reconhecidos.map((r) => r.exame), convenio) : null),
-    [leitura, convenio],
+    () => (leitura && escolha ? conferirCobertura(leitura.reconhecidos.map((r) => r.exame), escolha) : null),
+    [leitura, escolha],
   );
   const nomeNoPedidoPorChave = useMemo(
     () => new Map((leitura?.reconhecidos ?? []).map((r) => [chaveExame(r.exame), r.nomeNoPedido])),
@@ -461,12 +470,12 @@ const LeituraPedidoMedicoModal: React.FC<{
               ) : (
             <>
               {leitura.reconhecidos.length > 0 && (
-                <SeletorConvenio convenios={convenios} convenio={convenio} onEscolher={onEscolherConvenio} />
+                <SeletorConvenio fontes={fontes} convenios={convenios} escolha={escolha} onEscolher={onEscolher} />
               )}
 
               {leitura.reconhecidos.length > 0 && !conferencia ? (
                 <p className="text-sm text-gray-500 dark:text-gray-400">
-                  Escolha o convênio do paciente para conferir quais exames do pedido ele cobre.
+                  Escolha a fonte pagadora do paciente (e, se quiser, o convênio dela) para conferir quais exames do pedido são cobertos.
                 </p>
               ) : (
                 <>

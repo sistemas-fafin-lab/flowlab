@@ -154,6 +154,7 @@ describe('buildOrcamentoParticular', () => {
         custo: 15,
         elegivelDescontoParticular: true,
         conveniosAceitos: [],
+        coberturaConvenios: [],
       },
     ]);
   });
@@ -182,6 +183,7 @@ describe('buildOrcamentoParticular', () => {
         custo: null,
         elegivelDescontoParticular: false,
         conveniosAceitos: [],
+        coberturaConvenios: [],
       },
     ]);
   });
@@ -502,6 +504,136 @@ describe('buildOrcamentoParticular — linha de exame (exame_id) vs. linha geral
   });
 });
 
+describe('buildOrcamentoParticular — coberturaConvenios (fonte pagadora + convênio)', () => {
+  const exames = [
+    { id: 'e1', tuss: '40601200', nome: 'BIOPSIA SEXTANTE', custo_direto: 10, custo_indireto: 0 },
+    { id: 'e2', tuss: '40601200', nome: 'BIOPSIA SIMPLES', custo_direto: 10, custo_indireto: 0 },
+  ];
+  const tabelas = [
+    TABELA_PARTICULAR,
+    { id: 't-bacen', fonte_pagadora: 'AMHP-DF', nome: 'BACEN' },
+    { id: 't-bacen-ml', fonte_pagadora: 'AMHP-DF', nome: 'BACEN - MEDICINA LABORATORIAL' },
+    { id: 't-affego', fonte_pagadora: 'AMHP-DF', nome: 'AFFEGO' },
+    { id: 't-cassi', fonte_pagadora: 'CASSI', nome: 'CASSI' },
+  ];
+  const linha = (over: Partial<FonteRow>): FonteRow => ({
+    id: 'p1',
+    fonte_pagadora: 'Particular',
+    tuss: '40601200',
+    exame_id: null,
+    valor: 250,
+    atendido: true,
+    elegivel_desconto_particular: false,
+    ...over,
+  });
+  const coberturaPorExame = (itens: { nome: string | null; coberturaConvenios: unknown }[]) =>
+    itens.map(i => [i.nome, i.coberturaConvenios]);
+
+  it('cada tabela associada que atende vira um par fonte + convênio, como está cadastrada', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linha({}),
+        linha({ id: 'a1', fonte_pagadora: 'AMHP-DF', tabela_associada_id: 't-bacen' }),
+        linha({ id: 'a2', fonte_pagadora: 'AMHP-DF', tabela_associada_id: 't-bacen-ml' }),
+        linha({ id: 'a3', fonte_pagadora: 'AMHP-DF', tabela_associada_id: 't-affego', atendido: false }),
+        linha({ id: 'c1', fonte_pagadora: 'CASSI', tabela_associada_id: 't-cassi' }),
+      ],
+      custo_exames: [exames[0]],
+      custo_tabelas_associadas: tabelas,
+    });
+
+    const [item] = await buildOrcamentoParticular(supabase, { incluirCusto: false });
+
+    expect(item.coberturaConvenios).toEqual([
+      { fonte: 'AMHP-DF', convenio: 'BACEN' },
+      { fonte: 'AMHP-DF', convenio: 'BACEN - MEDICINA LABORATORIAL' },
+      { fonte: 'CASSI', convenio: 'CASSI' },
+    ]);
+    expect(item.conveniosAceitos).toEqual(['AMHP-DF', 'CASSI']);
+  });
+
+  it('linha de exame substitui a geral só da mesma tabela; as outras tabelas da fonte seguem valendo', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linha({}),
+        linha({ id: 'a1', fonte_pagadora: 'AMHP-DF', tabela_associada_id: 't-bacen' }),
+        linha({ id: 'a2', fonte_pagadora: 'AMHP-DF', tabela_associada_id: 't-affego' }),
+        linha({ id: 'a3', fonte_pagadora: 'AMHP-DF', tabela_associada_id: 't-bacen', exame_id: 'e1', atendido: false }),
+      ],
+      custo_exames: exames,
+      custo_tabelas_associadas: tabelas,
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false });
+
+    expect(coberturaPorExame(itens)).toEqual([
+      ['BIOPSIA SEXTANTE', [{ fonte: 'AMHP-DF', convenio: 'AFFEGO' }]],
+      [
+        'BIOPSIA SIMPLES',
+        [
+          { fonte: 'AMHP-DF', convenio: 'BACEN' },
+          { fonte: 'AMHP-DF', convenio: 'AFFEGO' },
+        ],
+      ],
+    ]);
+    expect(itens.map(i => i.conveniosAceitos)).toEqual([['AMHP-DF'], ['AMHP-DF']]);
+  });
+
+  it('linha de exame atendida cobre o exame mesmo sem linha geral da tabela', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linha({}),
+        linha({ id: 'a1', fonte_pagadora: 'AMHP-DF', tabela_associada_id: 't-bacen', exame_id: 'e2' }),
+      ],
+      custo_exames: exames,
+      custo_tabelas_associadas: tabelas,
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false });
+
+    expect(coberturaPorExame(itens)).toEqual([
+      ['BIOPSIA SEXTANTE', []],
+      ['BIOPSIA SIMPLES', [{ fonte: 'AMHP-DF', convenio: 'BACEN' }]],
+    ]);
+  });
+
+  it('exame excluído da linha geral de um convênio não conta como coberto por ele', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linha({}),
+        linha({ id: 'a1', fonte_pagadora: 'AMHP-DF', tabela_associada_id: 't-bacen' }),
+      ],
+      custo_exames: exames,
+      custo_tabelas_associadas: tabelas,
+      custo_fontes_pagadoras_exclusoes: [{ payor_id: 'a1', exame_id: 'e1' }],
+    });
+
+    const itens = await buildOrcamentoParticular(supabase, { incluirCusto: false });
+
+    expect(itens.map(i => [i.nome, i.conveniosAceitos])).toEqual([
+      ['BIOPSIA SEXTANTE', []],
+      ['BIOPSIA SIMPLES', ['AMHP-DF']],
+    ]);
+  });
+
+  it('duas linhas da mesma tabela: basta uma atendida, e o par sai uma vez só', async () => {
+    const supabase = criarSupabaseMock({
+      custo_fontes_pagadoras: [
+        linha({}),
+        linha({ id: 'c1', fonte_pagadora: 'CASSI', tabela_associada_id: 't-cassi', atendido: false }),
+        linha({ id: 'c2', fonte_pagadora: 'CASSI', tabela_associada_id: 't-cassi' }),
+        linha({ id: 'c3', fonte_pagadora: 'CASSI', tabela_associada_id: 't-cassi' }),
+      ],
+      custo_exames: [exames[0]],
+      custo_tabelas_associadas: tabelas,
+    });
+
+    const [item] = await buildOrcamentoParticular(supabase, { incluirCusto: false });
+
+    expect(item.coberturaConvenios).toEqual([{ fonte: 'CASSI', convenio: 'CASSI' }]);
+  });
+});
+
 describe('buildOrcamentoParticular — só a tabela associada "Particular" do cadastro', () => {
   const exames = [
     { id: 'e1', tuss: '40601200', nome: 'BIOPSIA SEXTANTE', custo_direto: 10, custo_indireto: 0 },
@@ -617,6 +749,7 @@ describe('buildOrcamentoParticular — sem custo', () => {
         preco: 100,
         elegivelDescontoParticular: true,
         conveniosAceitos: ['Convênio A'],
+        coberturaConvenios: [{ fonte: 'Convênio A', convenio: 'Convênio A' }],
       },
       {
         tuss: '99999999',
@@ -624,6 +757,7 @@ describe('buildOrcamentoParticular — sem custo', () => {
         preco: 50,
         elegivelDescontoParticular: false,
         conveniosAceitos: [],
+        coberturaConvenios: [],
       },
     ]);
     for (const item of itens) expect(item).not.toHaveProperty('custo');
