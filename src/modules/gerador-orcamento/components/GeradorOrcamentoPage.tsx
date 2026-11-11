@@ -1,14 +1,16 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { AlertTriangle, BadgePercent, Calculator, Check, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Trash2, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, BadgePercent, Calculator, Check, CheckCircle2, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Trash2, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
 import { buscaCasaConvenio, convenioCasaBusca, filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
+import { conferirCobertura, conveniosDaLista, type ResumoCobertura } from '../domain/cobertura';
 import { orcamentoDoCarrinho, proximaFaixaDoCarrinho, type ProximaFaixa } from '../domain/orcamento';
 import { montarPdfOrcamentoCliente } from '../domain/pdfCliente';
 import { montarPdfOrcamentoInterno } from '../domain/pdfInterno';
 import type { DadosPdfOrcamento } from '../domain/pdfComum';
 import { carregarLogoPdf } from '../logoPdf';
 import LeituraPedidoMedicoModal from './LeituraPedidoMedicoModal';
+import SeletorConvenio from './SeletorConvenio';
 import type { ItemCarrinho, ItemGeradorOrcamento } from '../types';
 
 // Renderizar milhares de linhas a cada tecla trava a busca; acima disso, a tela pede
@@ -33,6 +35,36 @@ const SeloElegivel: React.FC = () => (
     <BadgePercent className="w-3 h-3" /> Elegível a desconto
   </span>
 );
+
+/** Selo da Conferência de cobertura num item do carrinho. */
+const SeloCobertura: React.FC<{ coberto: boolean; convenio: string }> = ({ coberto, convenio }) =>
+  coberto ? (
+    <span
+      title={`Coberto pela ${convenio}`}
+      className="inline-flex items-center gap-0.5 px-1.5 py-px text-[10px] font-semibold rounded-full bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-300"
+    >
+      <Check className="w-3 h-3" /> Coberto
+    </span>
+  ) : (
+    <span
+      title={`Não coberto pela ${convenio}`}
+      className="inline-flex items-center gap-0.5 px-1.5 py-px text-[10px] font-semibold rounded-full bg-amber-50 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300"
+    >
+      <X className="w-3 h-3" /> Não coberto
+    </span>
+  );
+
+/** Indicador geral da Conferência de cobertura do carrinho. */
+const IndicadorCobertura: React.FC<{ resumo: ResumoCobertura; convenio: string }> = ({ resumo, convenio }) =>
+  resumo.todosCobertos ? (
+    <p className="mt-2 flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-green-50 text-green-800 border border-green-200 dark:bg-green-900/20 dark:text-green-300 dark:border-green-800/60">
+      <CheckCircle2 className="w-4 h-4 shrink-0" /> Todos os exames são aceitos pela {convenio}
+    </p>
+  ) : (
+    <p className="mt-2 flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-900/20 dark:text-amber-300 dark:border-amber-800/60">
+      <AlertCircle className="w-4 h-4 shrink-0" /> {resumo.cobertos} de {resumo.total} cobertos pela {convenio}
+    </p>
+  );
 
 const LinhaExame: React.FC<{
   exame: ItemGeradorOrcamento;
@@ -109,9 +141,11 @@ LinhaExame.displayName = 'LinhaExame';
 
 const LinhaCarrinho: React.FC<{
   linha: ItemCarrinho;
+  /** só com convênio escolhido na Conferência de cobertura; sem ele, nenhum selo */
+  cobertura: { convenio: string; coberto: boolean } | null;
   onQuantidade: (chave: string, quantidade: number) => void;
   onRemover: (chave: string) => void;
-}> = ({ linha, onQuantidade, onRemover }) => {
+}> = ({ linha, cobertura, onQuantidade, onRemover }) => {
   const chave = chaveExame(linha.item);
   // Rascunho do campo: deixa apagar e redigitar a quantidade; ao sair do campo, volta
   // para a quantidade válida do carrinho.
@@ -125,6 +159,7 @@ const LinhaCarrinho: React.FC<{
         <p className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1">
           {brl(linha.item.preco)} · TUSS {linha.item.tuss || '—'}
           {linha.item.elegivelDescontoParticular && <SeloElegivel />}
+          {cobertura && <SeloCobertura coberto={cobertura.coberto} convenio={cobertura.convenio} />}
         </p>
       </div>
       <div className="flex items-center rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
@@ -224,6 +259,16 @@ const GeradorOrcamentoPage: React.FC = () => {
   const chavesNoCarrinho = useMemo(() => new Set(carrinho.map((c) => chaveExame(c.item))), [carrinho]);
   const orcamento = useMemo(() => orcamentoDoCarrinho(carrinho), [carrinho]);
   const faixa = useMemo(() => proximaFaixaDoCarrinho(carrinho), [carrinho]);
+
+  // Conferência de cobertura: um convênio só para a página (o modal da leitura vai
+  // usar o mesmo). Não persiste — some ao recarregar. Não mexe em preço nem desconto.
+  const [convenio, setConvenio] = useState<string | null>(null);
+  const convenios = useMemo(() => conveniosDaLista(exames), [exames]);
+  const conferencia = useMemo(
+    () => (convenio && carrinho.length > 0 ? conferirCobertura(carrinho.map((c) => c.item), convenio) : null),
+    [carrinho, convenio],
+  );
+  const chavesCobertas = useMemo(() => new Set(conferencia?.cobertos.map(chaveExame)), [conferencia]);
 
   // Busca dentro do carrinho: só filtra as linhas mostradas; os totais e os PDFs
   // continuam valendo para o carrinho inteiro.
@@ -370,6 +415,10 @@ const GeradorOrcamentoPage: React.FC = () => {
               </h2>
             </div>
             <div className="shrink-0 pb-4 mb-2 border-b border-gray-200 dark:border-gray-700">
+              <div className="mb-3">
+                <SeletorConvenio convenios={convenios} convenio={convenio} onEscolher={setConvenio} />
+                {conferencia && convenio && <IndicadorCobertura resumo={conferencia.resumo} convenio={convenio} />}
+              </div>
               {carrinho.length > 0 && (
                 // Sempre os dois valores, iguais quando não há desconto; sem percentual nem selo.
                 <dl className="mt-2 space-y-2">
@@ -444,6 +493,11 @@ const GeradorOrcamentoPage: React.FC = () => {
                   <LinhaCarrinho
                     key={chaveExame(linha.item)}
                     linha={linha}
+                    cobertura={
+                      conferencia && convenio
+                        ? { convenio, coberto: chavesCobertas.has(chaveExame(linha.item)) }
+                        : null
+                    }
                     onQuantidade={mudarQuantidade}
                     onRemover={remover}
                   />
