@@ -7,11 +7,11 @@
  *
  * Tudo passa pelo SITE do apLIS (api/_lib/aplisSite): cada chamada faz login, a operação e
  * logout. O reset regrava o cadastro inteiro da instituição. Ver senhaLaudoWeb.ts.
- * O log do apLIS registra o usuário de serviço (APLIS_WEB_USUARIO), não o operador: quem
+ * O log do apLIS registra o usuário de serviço (APLIS_USUARIO), não o operador: quem
  * resetou o quê fica em public.atendimento_reset_senha_clinica (sem a senha).
  *
  * Autorização: `Authorization: Bearer <access_token>` da sessão, com canResetarSenhaClinica.
- * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APLIS_WEB_URL, APLIS_WEB_USUARIO, APLIS_WEB_SENHA.
+ * Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, APLIS_BASE_URL, APLIS_USUARIO, APLIS_SENHA.
  */
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';

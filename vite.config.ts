@@ -550,7 +550,7 @@ function atendimentoApiPlugin(env: Record<string, string>): Plugin {
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
     'GEMINI_API_KEY', 'GEMINI_MODEL',
-    'APLIS_WEB_URL', 'APLIS_WEB_USUARIO', 'APLIS_WEB_SENHA',
+    'APLIS_BASE_URL', 'APLIS_USUARIO', 'APLIS_SENHA',
   ];
 
   const ensureProcessEnv = () => {

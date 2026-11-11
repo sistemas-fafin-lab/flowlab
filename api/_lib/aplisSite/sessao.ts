@@ -5,7 +5,9 @@
 // cifrados em AES (chave e IV da própria página de login), aceite LGPD, `au` da sessão em
 // toda chamada e logout no fim. Nada disso é contrato do fornecedor: pode mudar sem aviso.
 //
-// Env: APLIS_WEB_URL (padrão https://lab.aplis.inf.br), APLIS_WEB_USUARIO, APLIS_WEB_SENHA.
+// Env: as mesmas da API de integração (api/_lib/apoio/aplis.ts) — APLIS_USUARIO e APLIS_SENHA
+// são o usuário do laboratório que também entra no site; o endereço do site é a origem de
+// APLIS_BASE_URL (padrão https://lab.aplis.inf.br).
 //
 // Login recusado várias vezes ativa captcha para TODOS que usam o mesmo usuário (inclusive o
 // backend do projeto-admissao). Depois de uma recusa, esta instância não tenta de novo por
@@ -21,11 +23,21 @@ let recusadoEm = 0;
 
 export class ErroAplisSite extends Error {}
 
+/** Origem do site a partir de APLIS_BASE_URL (".../api/integracao.php" → "https://host"). */
+export function urlDoSite(baseUrl: string | undefined): string {
+  try {
+    return new URL((baseUrl ?? '').trim()).origin;
+  } catch {
+    return URL_PADRAO;
+  }
+}
+
 function config() {
-  const url = (process.env.APLIS_WEB_URL ?? '').trim().replace(/\/+$/, '') || URL_PADRAO;
-  const usuario = (process.env.APLIS_WEB_USUARIO ?? '').trim();
-  const senha = (process.env.APLIS_WEB_SENHA ?? '').trim();
-  if (!usuario || !senha) throw new ErroAplisSite('APLIS_WEB_USUARIO/APLIS_WEB_SENHA não configurados no servidor.');
+  const url = urlDoSite(process.env.APLIS_BASE_URL);
+  const usuario = (process.env.APLIS_USUARIO ?? '').trim();
+  const senha = (process.env.APLIS_SENHA ?? '').trim();
+  // Com só APLIS_TOKEN a API de integração funciona, mas o site exige usuário e senha.
+  if (!usuario || !senha) throw new ErroAplisSite('APLIS_USUARIO/APLIS_SENHA não configurados no servidor (o site do apLIS não aceita APLIS_TOKEN).');
   return { url, usuario, senha };
 }
 
@@ -111,7 +123,7 @@ export class SessaoAplisSite {
     const { resp, corpo, au } = await this.autenticar(this.cfg.usuario, this.cfg.senha);
     if (!corpo?.sucesso) {
       recusadoEm = Date.now();
-      throw new ErroAplisSite(`Login no apLIS recusado (${motivoRecusa(resp, corpo)}). Confira APLIS_WEB_USUARIO/APLIS_WEB_SENHA.`);
+      throw new ErroAplisSite(`Login no apLIS recusado (${motivoRecusa(resp, corpo)}). Confira APLIS_USUARIO/APLIS_SENHA.`);
     }
     recusadoEm = 0;
     this.au = au;

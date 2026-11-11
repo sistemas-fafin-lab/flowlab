@@ -8,7 +8,7 @@
 
   2. Tabela `atendimento_reset_senha_clinica`: quem resetou a senha de qual usuário de qual
      clínica e o resultado. O log do apLIS registra o usuário de serviço do flowlab
-     (APLIS_WEB_USUARIO), não o operador — esta tabela é o rastro de quem foi. A senha
+     (APLIS_USUARIO), não o operador — esta tabela é o rastro de quem foi. A senha
      NUNCA é gravada. `cadastro_intacto = false` quer dizer que a releitura do cadastro
      depois de gravar mostrou outra diferença além da senha (`diferencas` traz só as chaves).
      `login_conferido`: resultado do login de teste feito logo depois de gravar, com o
