@@ -53,6 +53,7 @@ import { BoardPage } from './modules/board';
 import { ColaboradoresPage, DepartamentosPage, HoleritesPage, MeuPerfilPage } from './modules/rh';
 import { FinopsDashboardPage, DespesasPage, MesAMesPage, OrcamentoPage } from './modules/gastos-ti';
 import { GeradorOrcamentoPage, GERADOR_ORCAMENTO_PATH } from './modules/gerador-orcamento';
+import { ResetarSenhaClinicaPage, RESETAR_SENHA_CLINICA_PATH } from './modules/senha-clinica';
 import { EvaHomePage, EvaSugestoesPage, EvaReunioesPage, EvaMembrosPage, EvaPermissoesPage, EvaConfiguracoesPage } from './modules/eva';
 
 // Protected Route Component
@@ -529,6 +530,14 @@ const AuthenticatedApp: React.FC = () => {
           element={
             <ProtectedRoute permission="canUseGeradorOrcamento" permissions={userPermissions}>
               <GeradorOrcamentoPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={RESETAR_SENHA_CLINICA_PATH}
+          element={
+            <ProtectedRoute permission="canResetarSenhaClinica" permissions={userPermissions}>
+              <ResetarSenhaClinicaPage />
             </ProtectedRoute>
           }
         />

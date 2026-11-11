@@ -543,10 +543,14 @@ function atendimentoApiPlugin(env: Record<string, string>): Plugin {
   const ATENDIMENTO_ROUTES: Record<string, string> = {
     'gerador-orcamento-precos': 'GET',
     'gerador-orcamento-pedido-medico': 'POST',
+    'senha-clinica-buscar': 'GET',
+    'senha-clinica-usuarios': 'GET',
+    'senha-clinica-resetar': 'POST',
   };
   const SERVER_ENV_KEYS = [
     'SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY',
     'GEMINI_API_KEY', 'GEMINI_MODEL',
+    'APLIS_WEB_URL', 'APLIS_WEB_USUARIO', 'APLIS_WEB_SENHA',
   ];
 
   const ensureProcessEnv = () => {
@@ -588,7 +592,8 @@ function atendimentoApiPlugin(env: Record<string, string>): Plugin {
           }
         }
 
-        const vReq = Object.assign(req, { body, query: { action } });
+        // A query da URL vai junto (senha-clinica-buscar lê `termo`, senha-clinica-usuarios lê `id`).
+        const vReq = Object.assign(req, { body, query: { ...Object.fromEntries(url.searchParams), action } });
         const vRes = Object.assign(res, {
           status(code: number) { res.statusCode = code; return vRes; },
           json(payload: unknown) {

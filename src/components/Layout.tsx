@@ -53,11 +53,13 @@ import {
   Coins,
   Sparkles,
   Bot,
+  KeyRound,
 } from 'lucide-react';
 import { motion, AnimatePresence, Reorder } from 'framer-motion';
 import { useAuth } from '../hooks/useAuth';
 import { hasPermission } from '../utils/permissions';
 import { GERADOR_ORCAMENTO_PATH } from '../modules/gerador-orcamento/constants';
+import { RESETAR_SENHA_CLINICA_PATH } from '../modules/senha-clinica/constants';
 import { chavesQueAbremTela, primeiraTelaPermitida } from '../modules/faturamento/utils/permissoesTelas';
 import { useContadorAtrasados } from '../modules/faturamento/hooks/useCalendarioEnvios';
 import { ThemeToggle } from './ThemeToggle';
@@ -492,7 +494,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     if (['/analises-clinicas/agendamentos', '/analises-clinicas/coletas', '/analises-clinicas/culturas', '/analises-clinicas/recoletas', '/analises-clinicas/laudos', '/analises-clinicas/envio-alvaro', '/analises-clinicas/temperatura', '/analises-clinicas/indicadores', '/analises-clinicas/postos', '/analises-clinicas/correcao-identidade'].includes(path)) return ['Análises Clínicas'];
     if (['/qualidade', '/qualidade/ocorrencias', '/qualidade/cortesias', '/qualidade/cortesias/cotas', '/qualidade/ihq', '/qualidade/cancer', '/qualidade/riscos', '/qualidade/riscos/matriz', '/qualidade/riscos/mapa', '/qualidade/riscos/contingencias', '/qualidade/indicadores'].includes(path)) return ['Qualidade'];
     if (['/rh/colaboradores', '/rh/departamentos', '/rh/holerites'].includes(path)) return ['RH'];
-    if ([GERADOR_ORCAMENTO_PATH].includes(path)) return ['Atendimento'];
+    if ([GERADOR_ORCAMENTO_PATH, RESETAR_SENHA_CLINICA_PATH].includes(path)) return ['Atendimento'];
     return [];
   });
   const [isCollapsed, setIsCollapsed] = useState(() => {
@@ -679,10 +681,11 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
         name: 'Atendimento',
         href: GERADOR_ORCAMENTO_PATH,
         icon: Headphones,
-        permission: 'canUseGeradorOrcamento',
+        anyOf: ['canUseGeradorOrcamento', 'canResetarSenhaClinica'],
         category: 'OPERAÇÕES',
         subItems: [
           { name: 'Gerador de Orçamento', href: GERADOR_ORCAMENTO_PATH, icon: Calculator, permission: 'canUseGeradorOrcamento' },
+          { name: 'Resetar senha clínica', href: RESETAR_SENHA_CLINICA_PATH, icon: KeyRound, permission: 'canResetarSenhaClinica' },
         ],
       },
       {

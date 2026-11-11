@@ -25,12 +25,14 @@ export interface AcessoGeradorOrcamento {
 // strictNullChecks o TS não estreita a união por um discriminante booleano.
 export type ResultadoAutorizacao = { acesso: AcessoGeradorOrcamento } | { falha: FalhaAutorizacao };
 
-const negar = (status: number, error: string): ResultadoAutorizacao => ({
+const negar = (status: number, error: string): { falha: FalhaAutorizacao } => ({
   falha: { status, payload: { success: false, error } },
 });
 
-/** Exige canUseGeradorOrcamento; devolve o acesso do usuário ou a falha a responder. */
-export async function autorizarGeradorOrcamento(token: string | null): Promise<ResultadoAutorizacao> {
+/** Permissões do cargo de quem chamou, ou a falha a responder (token ausente/inválido). */
+async function permissoesDoChamador(
+  token: string | null,
+): Promise<{ userId: string; permissoes: string[] } | { falha: FalhaAutorizacao }> {
   if (!token) return negar(401, 'Token de autenticação ausente.');
   const supabase = getSupabaseAdminClient();
 
@@ -43,17 +45,36 @@ export async function autorizarGeradorOrcamento(token: string | null): Promise<R
     .eq('id', caller.user.id)
     .single();
 
-  const callerPermissions: string[] =
+  const permissoes: string[] =
     (callerProfile?.custom_roles as { permissions?: string[] } | null)?.permissions ?? [];
-  if (!callerPermissions.includes('canUseGeradorOrcamento')) {
+  return { userId: caller.user.id, permissoes };
+}
+
+/** Exige canUseGeradorOrcamento; devolve o acesso do usuário ou a falha a responder. */
+export async function autorizarGeradorOrcamento(token: string | null): Promise<ResultadoAutorizacao> {
+  const chamador = await permissoesDoChamador(token);
+  if ('falha' in chamador) return chamador;
+  if (!chamador.permissoes.includes('canUseGeradorOrcamento')) {
     return negar(403, 'Sem permissão para usar o Gerador de Orçamento.');
   }
   return {
     acesso: {
-      userId: caller.user.id,
-      podeVerCustos: callerPermissions.includes('canViewGeradorOrcamentoCustos'),
+      userId: chamador.userId,
+      podeVerCustos: chamador.permissoes.includes('canViewGeradorOrcamentoCustos'),
     },
   };
+}
+
+/** Exige canResetarSenhaClinica (Resetar senha clínica: grava no cadastro da clínica no apLIS). */
+export async function autorizarResetSenhaClinica(
+  token: string | null,
+): Promise<{ acesso: { userId: string } } | { falha: FalhaAutorizacao }> {
+  const chamador = await permissoesDoChamador(token);
+  if ('falha' in chamador) return chamador;
+  if (!chamador.permissoes.includes('canResetarSenhaClinica')) {
+    return negar(403, 'Sem permissão para resetar senha de clínica.');
+  }
+  return { acesso: { userId: chamador.userId } };
 }
 
 /** Extrai o access_token do header `Authorization: Bearer <jwt>`. */

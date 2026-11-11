@@ -136,6 +136,14 @@ export const ALL_PERMISSION_KEYS: { key: string; label: string; group: string; d
     description: 'Criar, editar e excluir etiquetas e respostas rápidas; transferir e assumir conversas.',
     group: 'Atendimento',
   },
+  // Resetar senha clínica: troca a senha de um usuário do Laudo Web regravando o cadastro
+  // da clínica no site do apLIS (20261111160000). Só o Administrador recebe por padrão.
+  {
+    key: 'canResetarSenhaClinica',
+    label: 'Resetar senha de clínica (Laudo Web)',
+    description: 'Trocar a senha de um usuário do Laudo Web de uma clínica no apLIS.',
+    group: 'Atendimento',
+  },
   // ── Controle de Custos ──────────────────────────────────────────────────────
   // Fora das chaves do Faturamento de propósito: custo e margem são sensíveis e poucos
   // veem (20261026150000). Gerenciar implica ver, na tela e na RLS das tabelas custo_*.
