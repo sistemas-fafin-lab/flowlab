@@ -1,5 +1,5 @@
 import React, { useDeferredValue, useMemo, useState } from 'react';
-import { AlertCircle, AlertTriangle, BadgePercent, Calculator, Check, CheckCircle2, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Trash2, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, BadgePercent, Calculator, Check, CheckCircle2, ChevronDown, FileDown, FileLock2, Loader2, Minus, Plus, RotateCcw, Search, ShoppingCart, Sparkles, Tag, Trash2, X } from 'lucide-react';
 import { useListaPrecos } from '../hooks/useListaPrecos';
 import { buscaCasaConvenio, convenioCasaBusca, filtrarExames } from '../domain/busca';
 import { adicionarAoCarrinho, alterarQuantidade, chaveExame, removerDoCarrinho } from '../domain/carrinho';
@@ -42,6 +42,16 @@ const SeloElegivel: React.FC = () => (
     className="inline-flex items-center gap-0.5 px-1.5 py-px text-[10px] font-semibold rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300"
   >
     <BadgePercent className="w-3 h-3" /> Elegível a desconto
+  </span>
+);
+
+/** Marca, na linha do carrinho, que o valor é o da tabela particular (mesmo com convênio escolhido). */
+const SeloParticular: React.FC = () => (
+  <span
+    title="Valor da tabela particular"
+    className="inline-flex items-center gap-0.5 px-1.5 py-px text-[10px] font-semibold rounded-full bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300"
+  >
+    <Tag className="w-3 h-3" /> Valor particular
   </span>
 );
 
@@ -136,6 +146,7 @@ const LinhaCarrinho: React.FC<{
         </p>
         <p className="text-xs text-gray-500 dark:text-gray-400 flex flex-wrap items-center gap-x-2 gap-y-1">
           {brl(linha.item.preco)} · TUSS {linha.item.tuss || '—'}
+          <SeloParticular />
           {linha.item.elegivelDescontoParticular && <SeloElegivel />}
           {cobertura && <SeloCobertura coberto={cobertura.coberto} convenio={cobertura.convenio} />}
         </p>
