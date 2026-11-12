@@ -333,6 +333,15 @@ const desvioContratual = (real: number | null, previsto: number | null): string 
   return dif > 0 ? `${dif} dias além do contrato` : `${Math.abs(dif)} dias antes do contrato`;
 };
 
+/** Fim da dica dos cards que vêm da foto de recursos do apLIS. */
+const DICA_ESCOPO_APLIS = 'Segue só o período e a operadora: os filtros de lote e de nota não se aplicam.';
+
+/** Texto de apoio de um card da rota dashboard-glosa-saldo; nada enquanto não há dado. */
+const subCardGlosaSaldo = (
+  estado: EstadoCardsGlosaSaldo,
+  texto: (cards: CardsGlosaSaldo) => string,
+): string | undefined => (estado.cards ? texto(estado.cards) : undefined);
+
 /** Valor de um card da rota dashboard-glosa-saldo: "…" carregando, "—" na falha. */
 const valorCardGlosaSaldo = (estado: EstadoCardsGlosaSaldo, campo: (cards: CardsGlosaSaldo) => number): string => {
   if (estado.loading) return '…';
@@ -373,6 +382,9 @@ const ContasReceberDashboard: React.FC<Props> = ({
   const { data, loading, error } = useContasReceberDashboard(filtros, saldoSoPeriodo);
   const comparacaoSaldo = useSaldoOperadorasAplis(filtros, saldoSoPeriodo);
   const cardsGlosaSaldo = useCardsGlosaSaldo(filtros);
+  const tentarCardsGlosaSaldo = cardsGlosaSaldo.erro
+    ? <TentarNovamente onRetry={cardsGlosaSaldo.recarregar} />
+    : undefined;
   const { meta, loading: loadingMeta, error: errorMeta, salvarMeta } = useMetaMensal();
   const [metaModalAberto, setMetaModalAberto] = useState(false);
   const [historicoMetasAberto, setHistoricoMetasAberto] = useState(false);
@@ -652,12 +664,11 @@ const ContasReceberDashboard: React.FC<Props> = ({
         containerPadding={[0, 0]}
       >
         {/* ── Valor ────────────────────────────────────────────────────────────
-            Os quatro primeiros saem do mesmo conjunto de títulos e por isso podem
-            ser lidos como uma decomposição: do faturado, quanto entrou, quanto foi
-            recusado e quanto dessa recusa já é perda assumida. Glosa recuperada e
-            Saldo pendente vêm de rota própria (useCardsGlosaSaldo) e só obedecem
-            ao período e à operadora: a Recuperada vem da foto de recursos do apLIS
-            (issue 10 de faturamento-comparativos). */}
+            Faturado e Recebido vêm da RPC e seguem todos os filtros. Glosado,
+            Acatado, Recuperada e Saldo pendente vêm da foto de recursos do apLIS
+            (useCardsGlosaSaldo, issue 10 de faturamento-comparativos) e só seguem o
+            período e a operadora. Sem filtro de lote ou nota, os seis fecham:
+            Saldo pendente = Faturado − Recebido − Acatado. */}
         <div key="kpis-valor" className="group">
           {/* overflow-y-auto e não hidden: se o usuário encolher o widget além
               do que os cards ocupam, rolar é melhor do que cortar um número. */}
@@ -686,8 +697,13 @@ const ContasReceberDashboard: React.FC<Props> = ({
               <Kpi
                 icon={<Scissors className="w-4 h-4 sm:w-5 sm:h-5" />}
                 label="Valor glosado"
-                sub={`${percentual(kpis.glosado, kpis.faturado)}% do faturado`}
-                valor={formatCurrency(kpis.glosado)}
+                sub={subCardGlosaSaldo(cardsGlosaSaldo, (c) => `${percentual(c.glosaTotal, c.faturado)}% do faturado`)}
+                extra={tentarCardsGlosaSaldo}
+                dica={
+                  'Glosa da foto de recursos do apLIS: recuperada + acatada + em disputa, a "Glosa total" do funil '
+                  + 'da aba Comparativos. "% do faturado" é sobre os títulos emitidos no período. ' + DICA_ESCOPO_APLIS
+                }
+                valor={valorCardGlosaSaldo(cardsGlosaSaldo, (c) => c.glosaTotal)}
                 cor="from-rose-500 to-rose-600"
                 atraso={2}
               />
@@ -695,25 +711,25 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 icon={<Gavel className="w-4 h-4 sm:w-5 sm:h-5" />}
                 label="Valor acatado"
                 // Glosa definitiva: perda assumida, já não é mais recorrível.
-                sub={`${percentual(kpis.acatado, kpis.glosado)}% do glosado`}
-                valor={formatCurrency(kpis.acatado)}
+                sub={subCardGlosaSaldo(cardsGlosaSaldo, (c) => `${percentual(c.acatado, c.glosaTotal)}% do glosado`)}
+                extra={tentarCardsGlosaSaldo}
+                dica={
+                  'Glosa acatada do apLIS (recebido a menor – acatado e glosa definitiva – acatada diretoria) nos lotes '
+                  + 'dos títulos emitidos no período: é o que sai do saldo. ' + DICA_ESCOPO_APLIS
+                }
+                valor={valorCardGlosaSaldo(cardsGlosaSaldo, (c) => c.acatado)}
                 cor="from-amber-500 to-amber-600"
                 atraso={3}
               />
               <Kpi
                 icon={<Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />}
                 label="Glosa recuperada"
-                sub={
-                  cardsGlosaSaldo.cards
-                    ? `${percentual(cardsGlosaSaldo.cards.recuperada, cardsGlosaSaldo.cards.glosaTotal)}% do glosado`
-                    : undefined
-                }
-                extra={cardsGlosaSaldo.erro ? <TentarNovamente onRetry={cardsGlosaSaldo.recarregar} /> : undefined}
+                sub={subCardGlosaSaldo(cardsGlosaSaldo, (c) => `${percentual(c.recuperada, c.glosaTotal)}% do glosado`)}
+                extra={tentarCardsGlosaSaldo}
                 dica={
                   'Regra provisória, ainda a confirmar: glosa que entrou em recurso no apLIS e depois teve valor '
                   + 'recebido (recurso pago, glosa recebida ou recurso que já voltou). É a mesma conta do funil da aba '
-                  + 'Comparativos. "% do glosado" é sobre a glosa da foto de recursos do apLIS (recuperada + acatada + '
-                  + 'em disputa). Segue só o período e a operadora: os filtros de lote e de nota não se aplicam.'
+                  + 'Comparativos. ' + DICA_ESCOPO_APLIS
                 }
                 valor={valorCardGlosaSaldo(cardsGlosaSaldo, (c) => c.recuperada)}
                 cor="from-cyan-500 to-cyan-600"
@@ -723,11 +739,10 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 icon={<Hourglass className="w-4 h-4 sm:w-5 sm:h-5" />}
                 label="Saldo pendente"
                 sub="Total a receber"
-                extra={cardsGlosaSaldo.erro ? <TentarNovamente onRetry={cardsGlosaSaldo.recarregar} /> : undefined}
+                extra={tentarCardsGlosaSaldo}
                 dica={
                   'Faturado − Recebido − Acatado dos títulos emitidos no período, com a glosa acatada do apLIS: '
-                  + 'a mesma conta do Saldo por operadora. Segue só o período e a operadora: os filtros de lote e '
-                  + 'de nota não se aplicam.'
+                  + 'a mesma conta do Saldo por operadora. ' + DICA_ESCOPO_APLIS
                 }
                 valor={valorCardGlosaSaldo(cardsGlosaSaldo, (c) => c.saldoPendente)}
                 cor="from-blue-500 to-blue-600"

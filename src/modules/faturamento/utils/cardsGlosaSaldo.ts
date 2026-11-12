@@ -1,5 +1,7 @@
-// Dashboard do Contas a Receber: cards "Glosa recuperada" e "Saldo pendente"
-// (.scratch/faturamento-comparativos/issues/10-cards-glosa-recuperada-e-saldo-pendente.md).
+// Dashboard do Contas a Receber: cards "Valor glosado", "Valor acatado", "Glosa recuperada" e
+// "Saldo pendente" (.scratch/faturamento-comparativos/issues/10-cards-glosa-recuperada-e-saldo-pendente.md).
+// Glosado e Acatado vêm daqui, e não da RPC fat_dashboard_receber (tabela `glosas`, só histórico),
+// para que Saldo pendente = Faturado − Recebido − Acatado feche na tela.
 //
 // Função pura sobre as mesmas linhas do funil de glosa da aba Comparativos (funilGlosa.ts),
 // compartilhada pela rota e pelos testes. Os valores são somados em centavos inteiros.

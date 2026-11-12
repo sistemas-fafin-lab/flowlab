@@ -1,8 +1,10 @@
 /**
  * API Route: GET /api/faturamento/dashboard-glosa-saldo
  *
- * Dashboard do Contas a Receber, cards "Glosa recuperada" e "Saldo pendente"
- * (.scratch/faturamento-comparativos/issues/10-cards-glosa-recuperada-e-saldo-pendente.md).
+ * Dashboard do Contas a Receber, cards "Valor glosado", "Valor acatado", "Glosa recuperada" e
+ * "Saldo pendente" (.scratch/faturamento-comparativos/issues/10-cards-glosa-recuperada-e-saldo-pendente.md).
+ * Glosado = glosa total da foto do apLIS (recuperada + acatada + em disputa); Acatado =
+ * `notas.valor_glosa_acatada` dos títulos do período.
  * Cálculo em utils/cardsGlosaSaldo.ts, sobre as mesmas leituras do funil de glosa da aba
  * Comparativos (faturamento/dadosFunilGlosa.ts):
  *   - Recuperada: mapeamento proposto em faturamento/glosaRecuperada.ts (a confirmar), na data
