@@ -31,10 +31,12 @@
 --         Gama (conta duplicada de junho, e-mail "bdr.labratorio") e Kauã Larsson
 --         (whitelist inativa). Lista fechada por id, e só se a conta ainda estiver
 --         ativa e barrada pela regra antiga: em outro banco (teste, local) não faz
---         nada, e conta de setor ou criada depois nunca é tocada. O status do
+--         nada, e conta de setor ou criada depois nunca é tocada. Fora o Kauã, o status do
 --         colaborador no RH NÃO muda (o trigger de sync fica desligado nesse
 --         UPDATE): a desativação só preserva o bloqueio que já existia. Para liberar
 --         alguém, reative pela tela de Usuários.
+--      c) Kauã Larsson saiu do laboratório (confirmado em 12/11/2026): o colaborador
+--         dele passa a desligado (data_desligamento fica para o RH preencher).
 --   5. cpf_ja_cadastrado deixa de ser chamável sem login: só se justificava pelo
 --      auto-cadastro e pela whitelist já ser pública (20260728130000).
 --
@@ -99,6 +101,12 @@ UPDATE auth.users
  WHERE id IN (SELECT id FROM barrados_pela_whitelist);
 DELETE FROM auth.sessions       WHERE user_id IN (SELECT id FROM barrados_pela_whitelist);
 DELETE FROM auth.refresh_tokens WHERE user_id IN (SELECT id::text FROM barrados_pela_whitelist);
+
+-- 4c. Kauã saiu: desligado também no RH.
+UPDATE public.colaboradores
+   SET status = 'desligado'
+ WHERE user_profile_id = '41f7c6bb-f58a-4a14-8526-b93599e750aa'
+   AND status = 'ativo';
 
 -- 5. CPF de funcionário não é consultável sem login.
 REVOKE EXECUTE ON FUNCTION public.cpf_ja_cadastrado(text) FROM PUBLIC, anon;
