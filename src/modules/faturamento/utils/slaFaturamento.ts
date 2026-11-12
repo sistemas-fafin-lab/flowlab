@@ -28,16 +28,17 @@ export interface LinhaSlaRequisicao {
   criacaoLote: string | null;
   /** 'YYYY-MM-DD' do recebimento (última baixa); `null` se ainda não recebida. */
   recebimento: string | null;
+  /** Valor recebido até a última baixa. Zero com data = retorno glosando tudo, não pagamento. */
+  valorRecebido: number | null;
 }
 
 /** De onde vem cada marco. Hoje tudo é apLIS; a bipagem do Flow (issue 08) entra aqui. */
 export const FONTES_MARCOS = {
   cadastro: 'apLIS: evento "Admissão" do histórico; sem ele, data de solicitação',
-  // A usuária ainda precisa confirmar que a tarefa 34 é o envio ao faturamento.
-  envio: 'apLIS: primeira tarefa tipo 34 ("Envio de autorização"), a confirmar com o Faturamento',
+  envio: 'apLIS: primeira tarefa tipo 34 ("Envio de autorização")',
   recebido: 'apLIS: primeira tarefa tipo 37 ou 44 ("Recebido no Faturamento")',
   faturado: 'apLIS: fechamento do lote; sem ele, criação do lote',
-  liquidado: 'apLIS: data de recebimento da requisição (última baixa)',
+  liquidado: 'apLIS: data de recebimento da requisição (última baixa), só com valor recebido',
 } as const;
 
 export interface EtapaSla {
@@ -51,7 +52,7 @@ export interface EtapaSla {
 }
 
 export interface LiquidacaoSla extends EtapaSla {
-  /** Requisições com data de recebimento (inclusive glosa total, recebida a zero). */
+  /** Requisições com data e valor recebido maior que zero (glosa total recebida a zero não conta). */
   qtdRecebidas: number;
   /** recebidas ÷ requisições do grupo, em %, 1 casa; `null` num grupo vazio. */
   percentualRecebido: number | null;
@@ -88,6 +89,8 @@ const cadastro: Marco = (l) => l.admissao ?? l.solicitacao;
 const faturado: Marco = (l) => l.fechamentoLote ?? l.criacaoLote;
 /** Só o dia: a data de recebimento do apLIS não tem hora. */
 const faturadoNoDia: Marco = (l) => faturado(l)?.slice(0, 10) ?? null;
+/** Data do recebimento só quando entrou dinheiro: com valor zero é o retorno glosando tudo. */
+const recebidoComValor: Marco = (l) => ((l.valorRecebido ?? 0) > 0 ? l.recebimento : null);
 
 const umaCasa = (n: number) => Math.round(n * 10) / 10;
 
@@ -120,9 +123,9 @@ function etapa(linhas: LinhaSlaRequisicao[], de: Marco, ate: Marco): EtapaSla {
 }
 
 function liquidacao(linhas: LinhaSlaRequisicao[]): LiquidacaoSla {
-  const qtdRecebidas = linhas.filter((l) => l.recebimento).length;
+  const qtdRecebidas = linhas.filter((l) => recebidoComValor(l)).length;
   return {
-    ...etapa(linhas, faturadoNoDia, (l) => l.recebimento),
+    ...etapa(linhas, faturadoNoDia, recebidoComValor),
     qtdRecebidas,
     percentualRecebido: linhas.length > 0 ? umaCasa((qtdRecebidas / linhas.length) * 100) : null,
   };

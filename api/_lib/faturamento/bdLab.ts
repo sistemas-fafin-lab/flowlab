@@ -1897,8 +1897,8 @@ export async function listarVolumeEnvioMensal(
 
 // Marcos do SLA no apLIS (conferidos no banco em 12/11/2026):
 //   evento 1 "Admissão" de `requisicaohistorico` (96% das requisições de ago–out/2026);
-//   tarefa 34 "Envio de autorização" — A USUÁRIA AINDA PRECISA CONFIRMAR que é o envio
-//   ao faturamento; se não for, troque esta constante e o texto de FONTES_MARCOS.envio;
+//   tarefa 34 "Envio de autorização" = envio da guia ao Faturamento: quem recebe a 34 cria
+//   a 37 em 99,3% dos pares, e a 37 vem depois em 99,9% (set–nov/2026, 7.963 pares);
 //   tarefas 37/44 "Recebido no Faturamento" (TIPOS_TAREFA_RECEBIDO_FATURAMENTO).
 const COD_EVENTO_ADMISSAO = 1;
 const TIPO_TAREFA_ENVIO_FATURAMENTO = 34;
@@ -1936,7 +1936,7 @@ export async function listarMarcosSla(params: ListarMarcosSlaParams): Promise<Li
                   AND t.CodTarefaTipo IN (${TIPOS_TAREFA_RECEBIDO_FATURAMENTO.join(', ')})) AS RecebidoFaturamento,
               DATE_FORMAT(l.DtaFechamento, '%Y-%m-%d %H:%i') AS DtaFechamento,
               DATE_FORMAT(l.DtaCriacao, '%Y-%m-%d %H:%i') AS DtaCriacao,
-              DATE_FORMAT(s.DtaRecebido, '%Y-%m-%d') AS DtaRecebido
+              DATE_FORMAT(s.DtaRecebido, '%Y-%m-%d') AS DtaRecebido, s.VlrRecebido
          FROM fatlote l
          JOIN requisicao r ON r.Lote = l.IdLote
          JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora AND fp.Particular = 0
@@ -1965,6 +1965,8 @@ export async function listarMarcosSla(params: ListarMarcosSlaParams): Promise<Li
         fechamentoLote: texto(linha.DtaFechamento),
         criacaoLote: texto(linha.DtaCriacao),
         recebimento: dataIso(linha.DtaRecebido),
+        // DECIMAL vem como string do driver.
+        valorRecebido: linha.VlrRecebido === null ? null : numero(linha.VlrRecebido),
       })),
     };
   });

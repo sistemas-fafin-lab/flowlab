@@ -62,6 +62,7 @@ const LINHAS = [
     fechamentoLote: '2026-10-20 08:00',
     criacaoLote: '2026-10-15 08:00',
     recebimento: '2026-11-19',
+    valorRecebido: 250.5,
   },
 ];
 

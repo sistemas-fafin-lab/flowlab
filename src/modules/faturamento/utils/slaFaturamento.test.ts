@@ -17,6 +17,7 @@ function linha(parcial: Partial<LinhaSlaRequisicao> = {}): LinhaSlaRequisicao {
     fechamentoLote: '2026-10-20 08:00',
     criacaoLote: '2026-10-15 08:00',
     recebimento: null,
+    valorRecebido: null,
     ...parcial,
   };
 }
@@ -88,8 +89,8 @@ describe('montarSlaFaturamento', () => {
 
   it('liquidação: faturado → recebido só das requisições já recebidas, em dias de calendário, com o % já recebido', () => {
     const [outubro] = montarSlaFaturamento(periodos, [
-      linha({ idRequisicao: 1, recebimento: '2026-11-19' }), // 30 dias depois de 20/10
-      linha({ idRequisicao: 2, recebimento: '2026-11-29' }), // 40
+      linha({ idRequisicao: 1, recebimento: '2026-11-19', valorRecebido: 100 }), // 30 dias depois de 20/10
+      linha({ idRequisicao: 2, recebimento: '2026-11-29', valorRecebido: 100 }), // 40
       linha({ idRequisicao: 3, recebimento: null }),
       linha({ idRequisicao: 4, recebimento: null }),
     ]);
@@ -105,8 +106,8 @@ describe('montarSlaFaturamento', () => {
 
   it('liquidação: recebido no mesmo dia do fechamento conta 0 dias; antes do faturado é descartado', () => {
     const [outubro] = montarSlaFaturamento(periodos, [
-      linha({ idRequisicao: 1, fechamentoLote: '2026-10-20 17:30', recebimento: '2026-10-20' }),
-      linha({ idRequisicao: 2, recebimento: '2026-10-19' }),
+      linha({ idRequisicao: 1, fechamentoLote: '2026-10-20 17:30', recebimento: '2026-10-20', valorRecebido: 100 }),
+      linha({ idRequisicao: 2, recebimento: '2026-10-19', valorRecebido: 100 }),
       linha({ idRequisicao: 3, recebimento: null }),
     ]);
     expect(outubro.convenios[0].liquidacao).toEqual({
@@ -116,6 +117,21 @@ describe('montarSlaFaturamento', () => {
       descartados: 1,
       qtdRecebidas: 2,
       percentualRecebido: 66.7,
+    });
+  });
+
+  it('recebimento com valor zero (glosa total, ainda em disputa) não conta como recebida nem entra na média', () => {
+    const [outubro] = montarSlaFaturamento(periodos, [
+      linha({ idRequisicao: 1, recebimento: '2026-11-19', valorRecebido: 100 }), // 30 dias
+      linha({ idRequisicao: 2, recebimento: '2026-10-25', valorRecebido: 0 }),
+    ]);
+    expect(outubro.convenios[0].liquidacao).toEqual({
+      mediaDias: 30,
+      medianaDias: 30,
+      qtd: 1,
+      descartados: 0,
+      qtdRecebidas: 1,
+      percentualRecebido: 50,
     });
   });
 

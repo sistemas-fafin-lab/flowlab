@@ -132,7 +132,7 @@ const SlaConvenioComparativo: React.FC<Props> = ({ mes }) => {
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">SLA por convênio e tempo de liquidação</h2>
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Dias médios entre os marcos de cada requisição, no mês em que ela foi faturada (passe o mouse para ver a mediana).
-          A liquidação conta só as requisições já recebidas; o % já recebido mostra quantas são.
+          A liquidação conta só as requisições que já receberam algum valor (glosa total recebida a zero não conta); o % já recebido mostra quantas são.
         </p>
       </div>
 
