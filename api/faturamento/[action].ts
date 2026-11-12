@@ -59,6 +59,7 @@ import faturamentoComparativosGlosaPorMes from '../_lib/handlers/faturamento-com
 import faturamentoComparativosRankingGlosa from '../_lib/handlers/faturamento-comparativos-ranking-glosa.js';
 import faturamentoComparativosSla from '../_lib/handlers/faturamento-comparativos-sla.js';
 import faturamentoComparativosConversao from '../_lib/handlers/faturamento-comparativos-conversao.js';
+import faturamentoMetaSugerida from '../_lib/handlers/faturamento-meta-sugerida.js';
 import faturamentoPontuacao from '../_lib/handlers/faturamento-pontuacao.js';
 import faturamentoCalendarioEnvios from '../_lib/handlers/faturamento-calendario-envios.js';
 
@@ -111,6 +112,7 @@ const ROTAS: Record<string, Handler> = {
   'glosas-recursos-recentes': faturamentoGlosasRecursosRecentes,
   'glosas-recursos-dashboard': faturamentoGlosasRecursosDashboard,
   indicadores: faturamentoIndicadores,
+  'meta-sugerida': faturamentoMetaSugerida,
   pontuacao: faturamentoPontuacao,
   'calendario-envios': faturamentoCalendarioEnvios,
 };

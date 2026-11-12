@@ -636,7 +636,7 @@ function faturamentoApiPlugin(env: Record<string, string>): Plugin {
     'indicadores', 'pontuacao', 'calendario-envios',
     'comparativos-funil-glosa', 'comparativos-volume-envio', 'comparativos-glosa-por-mes', 'comparativos-ranking-glosa', 'comparativos-sla',
     'comparativos-conversao',
-    'saldo-operadoras-aplis', 'dashboard-glosa-saldo',
+    'saldo-operadoras-aplis', 'dashboard-glosa-saldo', 'meta-sugerida',
   ]);
   // O nome do arquivo do handler segue a action, exceto estas duas: os handlers
   // de pendências (issues 07/08) nasceram com nome mais curto que a action

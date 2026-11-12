@@ -22,6 +22,7 @@ import {
   History,
   Hourglass,
   Info,
+  Lightbulb,
   ListChecks,
   Lock,
   Pencil,
@@ -938,15 +939,18 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 >
                   <History className="w-3.5 h-3.5" /> Histórico
                 </button>
-                {podeEditar && (
-                  <button
-                    type="button"
-                    onClick={() => setMetaModalAberto(true)}
-                    className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-1.5"
-                  >
-                    <Pencil className="w-3.5 h-3.5" /> {meta.valorMeta === null ? 'Definir meta' : 'Editar meta'}
-                  </button>
-                )}
+                {/* Sempre visível (Meta sugerida, issue 02): quem só vê abre as opções em modo leitura. */}
+                <button
+                  type="button"
+                  onClick={() => setMetaModalAberto(true)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 flex items-center gap-1.5"
+                >
+                  {podeEditar ? (
+                    <><Pencil className="w-3.5 h-3.5" /> {meta.valorMeta === null ? 'Definir meta' : 'Editar meta'}</>
+                  ) : (
+                    <><Lightbulb className="w-3.5 h-3.5" /> Ver sugestões</>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -960,7 +964,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
             ) : meta.valorMeta === null ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">
                 Meta não definida para este mês.
-                {podeEditar && ' Use "Definir meta" acima para cadastrar o valor.'}
+                {podeEditar && ' Use "Definir meta" acima para escolher uma sugestão ou digitar o valor.'}
               </p>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1341,6 +1345,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
       <MetaMensalModal
         aberto={metaModalAberto}
         meta={meta}
+        podeEditar={podeEditar}
         onFechar={() => setMetaModalAberto(false)}
         onSalvar={salvarMeta}
       />

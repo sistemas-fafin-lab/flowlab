@@ -4621,3 +4621,59 @@ export async function listarGlosaPorMesSolicitacao(
     };
   });
 }
+
+// ============================================================================
+// ELEGÍVEIS POR MÊS — Meta sugerida (faturamento-meta-sugerida, issue 02)
+// ============================================================================
+
+/** Elegíveis de um mês de solicitação ('YYYY-MM'), em R$. */
+export interface ElegiveisMensais {
+  mes: string;
+  valor: number;
+}
+
+export interface ListarElegiveisParams {
+  /** Primeiro dia do mês mais antigo, 'YYYY-MM-DD'. */
+  periodoIni: string;
+  /** Último dia do mês mais recente, 'YYYY-MM-DD'. */
+  periodoFim: string;
+  /** `aplis_id` das fontes com `operadoras.is_considerada_meta` (listarFontesConsideradasMeta). */
+  fontesConsideradas: number[];
+}
+
+export type ListarElegiveisResultado =
+  | { elegiveis: ElegiveisMensais[]; dadoAte: string | null }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Elegíveis por mês de solicitação: soma de `ValorLiquido` dos procedimentos das
+ * requisições com `DtaSolicitacao` no período, com e sem lote, só das fontes consideradas
+ * na meta e fora dos `EVENTOS_NAO_COBRAVEIS` (`CodEvento` nulo entra), a mesma regra das
+ * Pendências. Mês sem nenhuma linha não vem no resultado (a candidata que o usa fica
+ * indisponível). Lista de fontes vazia vira `1 = 0`, nunca `IN ()`. `dadoAte` é a
+ * `DtaSolicitacao` mais recente do backup, para o modal avisar "dados até DD/MM".
+ */
+export async function listarElegiveisPorMes(params: ListarElegiveisParams): Promise<ListarElegiveisResultado> {
+  const filtroFontes = params.fontesConsideradas.length === 0
+    ? '1 = 0'
+    : `r.IdFontePagadora IN (${params.fontesConsideradas.map(() => '?').join(', ')})`;
+
+  return comConexao('listarElegiveisPorMes', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT DATE_FORMAT(r.DtaSolicitacao, '%Y-%m') AS Mes,
+              COALESCE(SUM(p.ValorLiquido), 0) AS Valor
+         FROM fatrequisicaoprocedimento p
+         JOIN requisicao r ON r.IdRequisicao = p.IdRequisicao
+        WHERE r.DtaSolicitacao >= ?
+          AND r.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 DAY)
+          AND ${filtroFontes}
+          AND ${SQL_EVENTO_COBRAVEL}
+        GROUP BY Mes`,
+      [`${params.periodoIni} 00:00:00`, `${params.periodoFim} 00:00:00`, ...params.fontesConsideradas],
+    );
+    return {
+      elegiveis: linhas.map((linha) => ({ mes: String(linha.Mes), valor: numero(linha.Valor) })),
+      dadoAte: await dadoAte(conn, 'requisicao', 'DtaSolicitacao'),
+    };
+  });
+}
