@@ -84,6 +84,9 @@ export async function titulosParaFunil(
 
 interface LinhaFoto {
   id_requisicao: number;
+  cod_requisicao?: string | null;
+  num_guia?: string | null;
+  fonte_pagadora_nome?: string | null;
   id_lote_faturamento: number;
   competencia: string;
   status_aplis: number | null;
@@ -99,8 +102,10 @@ interface LinhaFoto {
   glosa_recurso_lotes: { data_envio_aplis: string | null; data_envio_editada: string | null } | null;
 }
 
+// Sem `paciente`: nenhuma tela dos Comparativos mostra nome de paciente.
 const COLUNAS_FOTO =
-  'id_requisicao, id_lote_faturamento, competencia, status_aplis, liquido, recebido, glosa_fixada, '
+  'id_requisicao, cod_requisicao, num_guia, fonte_pagadora_nome, id_lote_faturamento, competencia, '
+  + 'status_aplis, liquido, recebido, glosa_fixada, '
   + 'recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado, '
   + 'id_fonte_pagadora, id_lote_recurso, glosa_recurso_lotes(data_envio_aplis, data_envio_editada)';
 
@@ -151,6 +156,17 @@ function primeiraEmissao(lote: LinhaLote): string | null {
   return maisAntiga;
 }
 
+/** Glosa do funil com a identificação da requisição, para o ranking de códigos (issue 05). */
+export interface GlosaFunilDetalhada extends GlosaFunil {
+  idRequisicao: number;
+  codRequisicao: string | null;
+  numGuia: string | null;
+  convenio: string | null;
+  statusAplis: number | null;
+  /** `id_lote_faturamento` do apLIS; mostrado quando o lote não tem título no Supabase. */
+  idLoteFaturamento: number;
+}
+
 /**
  * Acatada, em disputa e recuperada da foto de recursos do apLIS, uma entrada por requisição
  * (classificação em glosaRecuperada.ts). Lê as requisições dos lotes dos títulos e, à parte, as
@@ -167,7 +183,7 @@ export async function glosasParaFunil(
   loteDoAplis: Map<number, LoteRef>,
   competencias: string[],
   fontesMeta: Set<number>,
-): Promise<{ glosas: GlosaFunil[]; primeiraEmissaoDoLote: Map<string, string> }> {
+): Promise<{ glosas: GlosaFunilDetalhada[]; primeiraEmissaoDoLote: Map<string, string> }> {
   const primeiraEmissaoDoLote = new Map<string, string>();
   const idsDosTitulos = [...new Set(titulos.flatMap((t) => t.lotes.map((l) => l.id)))];
   for (const lote of await lerLotes(supabase, 'id_lote', idsDosTitulos)) {
@@ -193,7 +209,7 @@ export async function glosasParaFunil(
   }
   for (const l of avulsas) porRequisicao.set(l.id_requisicao, l);
 
-  const glosas: GlosaFunil[] = [];
+  const glosas: GlosaFunilDetalhada[] = [];
   for (const l of porRequisicao.values()) {
     const classificada = classificarParaFunil(
       {
@@ -214,7 +230,17 @@ export async function glosasParaFunil(
       numeroOuNulo(l.glosa_fixada),
     );
     if (!classificada || classificada.valor === 0) continue;
-    glosas.push({ lote: loteDaFoto.get(l.id_lote_faturamento) ?? null, competencia: l.competencia, ...classificada });
+    glosas.push({
+      lote: loteDaFoto.get(l.id_lote_faturamento) ?? null,
+      competencia: l.competencia,
+      ...classificada,
+      idRequisicao: l.id_requisicao,
+      codRequisicao: l.cod_requisicao ?? null,
+      numGuia: l.num_guia ?? null,
+      convenio: l.fonte_pagadora_nome ?? null,
+      statusAplis: l.status_aplis,
+      idLoteFaturamento: l.id_lote_faturamento,
+    });
   }
   return { glosas, primeiraEmissaoDoLote };
 }

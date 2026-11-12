@@ -38,6 +38,7 @@ import type { LinhaFaturada } from './indicadoresFaturamento.js';
 import type { ConvenioRecebido, ConvenioSemLote } from './pontuacaoSetor.js';
 import type { EnvioMensalConvenio } from '../../../src/modules/faturamento/utils/comparativos.js';
 import type { GlosaMensal } from '../../../src/modules/faturamento/utils/glosaPorMes.js';
+import type { ProcedimentoGlosado } from '../../../src/modules/faturamento/utils/rankingCodigosGlosa.js';
 import type {
   CobrancaAplis,
   LinhaCobranca,
@@ -1495,6 +1496,82 @@ function acumularProcedimento(
     dtaRecebido,
     pendente,
     valorPendente,
+  });
+}
+
+// --- Códigos de glosa das requisições (aba Comparativos → ranking de códigos, issue 05) ---
+// Os mesmos procedimentos e a mesma resolução de código da tela do lote
+// (`resolverCodigoGlosa`), por requisição e sem o paciente.
+
+export type GlosasDasRequisicoesResultado =
+  | { porRequisicao: Map<number, ProcedimentoGlosado[]> }
+  | { erro: { status: number; mensagem: string } };
+
+/** Requisições por consulta: a lista vai em `IN (...)`, e o demonstrativo varre a tabela uma vez por bloco. */
+const REQUISICOES_POR_CONSULTA = 2000;
+
+const SQL_GLOSAS_DAS_REQUISICOES = `
+  SELECT frp.IdRequisicao, tp.Codigo, tp.Descricao,
+         frp.ValorLiquido, frp.ValorRecebido,
+         DATE_FORMAT(frp.DtaRecebido, '%Y-%m-%d') AS DtaRecebido,
+         frp.DesMotivoGlosa, frp.IdMotivoGlosa,
+         fmg.Codigo AS MotivoGlosaCodigo, fmg.Descricao AS MotivoGlosaDescricao
+    FROM fatrequisicaoprocedimento frp
+    LEFT JOIN fatconvenioprocedimento cp ON cp.IdConvenioProcedimento = frp.IdConvenioProcedimento
+    LEFT JOIN fattabelaprocedimento tp ON tp.IdTabelaProcedimento = cp.IdTabelaProcedimento
+    LEFT JOIN fatmotivoglosa fmg ON fmg.IdMotivoGlosa = frp.IdMotivoGlosa
+   WHERE frp.IdRequisicao IN (__IDS__)
+   ORDER BY frp.IdRequisicao, tp.Codigo`;
+
+/** Procedimentos com sinal de glosa de cada requisição, com o código resolvido. Requisição sem nenhum fica de fora. */
+export async function glosasDasRequisicoes(idsRequisicao: number[]): Promise<GlosasDasRequisicoesResultado> {
+  const ids = [...new Set(idsRequisicao.map((n) => Math.trunc(n)))];
+  if (ids.length === 0) return { porRequisicao: new Map() };
+
+  return comConexao('glosasDasRequisicoes', async (conn) => {
+    const porRequisicao = new Map<number, ProcedimentoGlosado[]>();
+    for (let i = 0; i < ids.length; i += REQUISICOES_POR_CONSULTA) {
+      const bloco = ids.slice(i, i + REQUISICOES_POR_CONSULTA);
+      const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+        SQL_GLOSAS_DAS_REQUISICOES.replace('__IDS__', bloco.map(() => '?').join(', ')),
+        bloco,
+      );
+      const demonstrativo = await glosasDoDemonstrativo(conn, bloco);
+      for (const linha of linhas) {
+        const idRequisicao = numero(linha.IdRequisicao);
+        const codigo = texto(linha.Codigo);
+        const valor = numero(linha.ValorLiquido);
+        const valorRecebido = numero(linha.ValorRecebido);
+        const dtaRecebido = dataIso(linha.DtaRecebido);
+        const desMotivoGlosa = texto(linha.DesMotivoGlosa);
+        const idMotivoGlosa = inteiroOuNulo(linha.IdMotivoGlosa);
+        const glosaDemonstrativo = demonstrativo.get(chaveGlosaDemonstrativo(idRequisicao, codigo)) ?? null;
+        // A requisição já é glosada (está no funil). Aqui não vale `procedimentoTemGlosa`: no recurso
+        // pago o apLIS sobrescreve o recebido, e o procedimento "recebido por inteiro" sumiria. Conta
+        // qualquer sinal de glosa, como em SQL_PROCEDIMENTOS_GLOSADOS.
+        const temSinal = glosaDemonstrativo !== null || idMotivoGlosa !== null || desMotivoGlosa !== null
+          || valorRecebido < valor;
+        if (!temSinal) continue;
+        const glosa = resolverCodigoGlosa({
+          demonstrativo: glosaDemonstrativo,
+          motivoCodigo: inteiroOuNulo(linha.MotivoGlosaCodigo),
+          motivoDescricao: texto(linha.MotivoGlosaDescricao),
+          desMotivoGlosa,
+          valorNaoRecebido: dtaRecebido !== null ? calcularPendenciaProcedimento(valor, valorRecebido).valorPendente : null,
+        });
+        const lista = porRequisicao.get(idRequisicao) ?? [];
+        lista.push({
+          procedimento: codigo,
+          procedimentoDescricao: texto(linha.Descricao),
+          codigo: glosa.codigo,
+          descricao: glosa.descricao,
+          valor: glosa.valor,
+          data: dtaRecebido,
+        });
+        porRequisicao.set(idRequisicao, lista);
+      }
+    }
+    return { porRequisicao };
   });
 }
 

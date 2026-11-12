@@ -1,7 +1,7 @@
 // Rótulos e cores da tela Glosas e Recursos, comuns à lista de lotes de
 // recurso e ao card "Detalhes do recurso".
 
-import type { SeloAtrasoLote, StatusGlosaDashboard, StatusLoteRecurso } from '../types';
+import type { SeloAtrasoLote, StatusGlosaDashboard, StatusLoteRecurso } from '../types/index.js';
 
 export const STATUS_LOTE_CORES: Record<StatusLoteRecurso, string> = {
   Criado: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',

@@ -9,9 +9,11 @@ import { mesDeReferenciaPadrao, mesesFechados, periodosComparativos } from '../u
 import { formatCompetencia } from '../utils/formato';
 import FunilGlosaComparativo from './FunilGlosaComparativo';
 import GlosaPorMesComparativo from './GlosaPorMesComparativo';
+import RankingCodigosGlosaComparativo from './RankingCodigosGlosaComparativo';
 
 // Aba Contas a Receber → Comparativos. Casca da aba: seletor de mês de referência
-// (referência, M-1 e M-2; padrão: último mês fechado), o funil de glosa, a Glosa da DRE
+// (referência, M-1 e M-2; padrão: último mês fechado), o funil de glosa, o ranking de códigos de
+// glosa, a Glosa da DRE
 // por mês de solicitação (jan até a referência) e o volume de envio por convênio. Os
 // blocos seguintes (SLA, matriz…) entram sob o mesmo seletor. A permissão é a da tela Contas a Receber (ADR 0001): a rota da aba já a exige.
 
@@ -67,6 +69,8 @@ const ComparativosPage: React.FC = () => {
       </div>
 
       <FunilGlosaComparativo mes={mes} />
+
+      <RankingCodigosGlosaComparativo mes={mes} />
 
       <GlosaPorMesComparativo mes={mes} />
 

@@ -5,7 +5,7 @@
 // Funções puras sobre linhas já lidas, compartilhadas pela rota e pela tela: não importam
 // nada do navegador. Os valores são somados em centavos inteiros.
 
-import type { PeriodoComparativo } from './comparativos';
+import type { PeriodoComparativo } from './comparativos.js';
 
 /** Rótulo da linha das glosas (e do saldo) que não têm lote. */
 export const FORA_DE_LOTE = 'Fora de lote';
@@ -100,6 +100,26 @@ function dividir(centavos: number, partes: number): number[] {
 }
 
 /**
+ * Mês (YYYY-MM) em que cada glosa entra no funil: o da emissão mais antiga entre os títulos do
+ * lote dela (`primeiraEmissaoDoLote` completa os títulos fora dos meses lidos); sem título, o
+ * mês de criação do lote no apLIS. O ranking de códigos usa a mesma regra, para bater com o funil.
+ */
+export function mesDaGlosaNoFunil(
+  titulos: TituloFunil[],
+  primeiraEmissaoDoLote: ReadonlyMap<string, string> = new Map(),
+): (g: GlosaFunil) => string {
+  const emissaoDoLote = new Map(primeiraEmissaoDoLote);
+  for (const t of titulos) {
+    if (!t.dataEmissao) continue;
+    for (const l of t.lotes) {
+      const atual = emissaoDoLote.get(l.id);
+      if (atual === undefined || t.dataEmissao < atual) emissaoDoLote.set(l.id, t.dataEmissao);
+    }
+  }
+  return (g) => (g.lote ? emissaoDoLote.get(g.lote.id)?.slice(0, 7) : undefined) ?? g.competencia;
+}
+
+/**
  * Funil de cada período (referência, M-1, M-2, na ordem de `periodos`).
  *
  * - Competência: o título entra no mês da sua data de emissão. A glosa segue o lote: vale o
@@ -118,16 +138,7 @@ export function montarFunilGlosa(
   glosas: GlosaFunil[],
   primeiraEmissaoDoLote: ReadonlyMap<string, string> = new Map(),
 ): FunilGlosaMes[] {
-  // Mês em que cada lote "nasce": o da emissão mais antiga entre os títulos dele.
-  const emissaoDoLote = new Map(primeiraEmissaoDoLote);
-  for (const t of titulos) {
-    if (!t.dataEmissao) continue;
-    for (const l of t.lotes) {
-      const atual = emissaoDoLote.get(l.id);
-      if (atual === undefined || t.dataEmissao < atual) emissaoDoLote.set(l.id, t.dataEmissao);
-    }
-  }
-  const mesDaGlosa = (g: GlosaFunil) => (g.lote ? emissaoDoLote.get(g.lote.id)?.slice(0, 7) : undefined) ?? g.competencia;
+  const mesDaGlosa = mesDaGlosaNoFunil(titulos, primeiraEmissaoDoLote);
 
   return periodos.map((periodo): FunilGlosaMes => {
     const dosTitulos = titulos.filter((t) => t.dataEmissao?.slice(0, 7) === periodo.mes);
