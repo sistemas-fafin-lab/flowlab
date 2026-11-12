@@ -3,15 +3,15 @@
 // permissão `canManageUsers`. Agnóstico de framework: retorna { status, payload }
 // para ser relayed tanto pela rota Vercel quanto pelo middleware de dev do Vite.
 //
-// Fluxo (ordem importa — a whitelist precede o CPF por causa da FK):
+// Fluxo:
 //   1. Autoriza o chamador (token JWT) → exige canManageUsers no cargo.
 //   2. Valida entradas e CPF.
 //   3. Recusa se o CPF já pertence a outro perfil (antes de criar qualquer coisa).
-//   4. Upsert em user_whitelist.
-//   5. auth.admin.createUser (não afeta a sessão do admin).
-//   6. Grava o profile (UPDATE, ou INSERT se a linha não existir). Se falhar,
-//      desfaz a conta no Auth — perfil incompleto = usuário barrado no login.
-//   7. Envia e-mail de boas-vindas com senha temporária + link do Slack.
+//   4. auth.admin.createUser (não afeta a sessão do admin).
+//   5. Grava o profile (UPDATE, ou INSERT se a linha não existir). Se falhar,
+//      desfaz a conta no Auth — sem perfil = usuário barrado no login. O trigger
+//      do perfil cria o colaborador do RH, já no departamento com esse nome.
+//   6. Envia e-mail de boas-vindas com senha temporária + link do Slack.
 
 import { randomBytes } from 'node:crypto';
 import { getSupabaseAdminClient } from './supabase.js';
@@ -114,8 +114,8 @@ export async function createUserFlow(
   // ── 3. CPF já vinculado a outro perfil? ─────────────────────────────────────
   // user_profiles.cpf é UNIQUE (20250525130000_user_whitelist.sql). Sem esta
   // checagem a conta no Auth é criada primeiro e só depois o perfil leva 23505 —
-  // sobrando um usuário que autentica mas é barrado no login por não ter CPF
-  // (AuthContext.tsx:239). Foi assim que nasceram as contas duplicadas.
+  // sobrando uma conta no Auth sem perfil. Foi assim que nasceram as contas
+  // duplicadas.
   const { data: cpfOwner, error: cpfLookupErr } = await supabase
     .from('user_profiles')
     .select('name, email')
@@ -137,17 +137,7 @@ export async function createUserFlow(
     };
   }
 
-  // ── 4. Whitelist (antes do CPF, por causa da FK) ────────────────────────────
-  const { error: whitelistErr } = await supabase
-    .from('user_whitelist')
-    .upsert({ cpf: normalizedCpf, name, activity: true }, { onConflict: 'cpf' });
-
-  if (whitelistErr) {
-    console.error('[createUser] Erro ao gravar whitelist:', whitelistErr.message);
-    return { status: 500, payload: { success: false, error: 'Erro ao registrar o CPF na whitelist.' } };
-  }
-
-  // ── 5. Cria o usuário no Auth (não afeta a sessão do admin) ──────────────────
+  // ── 4. Cria o usuário no Auth (não afeta a sessão do admin) ──────────────────
   const tempPassword = generateTempPassword();
   const { data: created, error: createErr } = await supabase.auth.admin.createUser({
     email,
@@ -171,7 +161,7 @@ export async function createUserFlow(
 
   const userId = created.user.id;
 
-  // ── 6. Grava o perfil ───────────────────────────────────────────────────────
+  // ── 5. Grava o perfil ───────────────────────────────────────────────────────
   // As permissões vêm só do cargo, que vem do formulário e nunca fica nulo (cai em
   // Solicitante). A coluna legada role não é gravada: o default do banco basta e
   // nada a lê (20261015180000_perm_sem_role_legado). Em bancos onde o trigger de
@@ -227,7 +217,7 @@ export async function createUserFlow(
     };
   }
 
-  // ── 7. E-mail de boas-vindas (best-effort) ──────────────────────────────────
+  // ── 6. E-mail de boas-vindas (best-effort) ──────────────────────────────────
   const emailResult = await sendTemplatedEmail({
     to: email,
     templateSlug: 'welcome_new_user',

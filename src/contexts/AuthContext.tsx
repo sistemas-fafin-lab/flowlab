@@ -3,6 +3,7 @@ import { User, Session } from "@supabase/supabase-js";
 import { supabase } from "../lib/supabase";
 import { UserProfile } from "../types";
 import { comPapeisDaPessoa } from "../modules/eva/domain/papeis";
+import { podeEntrar } from "./acessoLogin";
 
 interface AuthContextType {
   user: User | null;
@@ -53,6 +54,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (error && error.code !== "PGRST116") {
         console.error("Erro ao carregar perfil:", error);
         setLoading(false);
+        return;
+      }
+
+      // Sessão restaurada (ou link de recuperação) não passa por signIn: a mesma regra vale aqui.
+      if (data && !podeEntrar(data)) {
+        setPendingAuthError("Acesso não autorizado. Contate o administrador.");
+        setUserProfile(null);
+        await supabase.auth.signOut({ scope: "local" });
         return;
       }
 
@@ -150,28 +159,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { data, error };
     }
 
-    const { data: profileData, error: profileError } = await supabase
+    // Quem pode entrar: conta com perfil, nem desativada nem excluída (acessoLogin.ts).
+    const { data: perfil, error: profileError } = await supabase
       .from("user_profiles")
-      .select("cpf")
+      .select("disabled_at, deleted_at")
       .eq("id", data.user.id)
-      .single();
+      .maybeSingle();
 
-    if (profileError || !profileData?.cpf) {
-      setPendingAuthError("Acesso não autorizado. Contate o administrador.");
-      await supabase.auth.signOut({ scope: "local" });
-      return {
-        data: null as any,
-        error: new Error("Acesso não autorizado. Contate o administrador.") as any,
-      };
-    }
-
-    const { data: whitelistEntry, error: whitelistError } = await supabase
-      .from("user_whitelist")
-      .select("activity")
-      .eq("cpf", profileData.cpf)
-      .single();
-
-    if (whitelistError || !whitelistEntry || !whitelistEntry.activity) {
+    if (profileError || !podeEntrar(perfil)) {
       setPendingAuthError("Acesso não autorizado. Contate o administrador.");
       await supabase.auth.signOut({ scope: "local" });
       return {
