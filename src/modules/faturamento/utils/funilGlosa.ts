@@ -34,7 +34,7 @@ export type ClasseGlosaFunil = 'recuperada' | 'acatada' | 'em-disputa';
  * requisição entra uma vez, em uma classe só.
  */
 export interface GlosaFunil {
-  /** Lote de faturamento no Supabase; null quando o lote do apLIS não tem título aqui. */
+  /** Lote de faturamento no Supabase; null quando o lote do apLIS não tem título (não cancelado) aqui. */
   lote: LoteRef | null;
   /** YYYY-MM do lote de faturamento no apLIS; só dá o mês quando o lote não tem título. */
   competencia: string;
@@ -65,7 +65,12 @@ export interface FunilGlosaMes {
   emDisputa: number;
   /** recuperada + acatada + em disputa. */
   glosaTotal: number;
-  /** faturado − recebido − acatada − em disputa. */
+  /**
+   * Acatada + em disputa de "Fora de lote": entram nos totais (para bater com a tela Glosas e
+   * Recursos), mas não abatem o saldo, porque o faturado delas não está no mês.
+   */
+  foraDeLote: number;
+  /** faturado − recebido − (acatada + em disputa − fora de lote). */
   saldo: number;
   lotes: LinhaLoteFunil[];
 }
@@ -98,20 +103,23 @@ function dividir(centavos: number, partes: number): number[] {
  * Funil de cada período (referência, M-1, M-2, na ordem de `periodos`).
  *
  * - Competência: o título entra no mês da sua data de emissão. A glosa segue o lote: vale o
- *   mês do título de emissão mais antiga do lote; sem título, o mês de criação do lote no apLIS.
+ *   mês do título de emissão mais antiga do lote, em qualquer data (`primeiraEmissaoDoLote`
+ *   completa os títulos fora dos 3 meses); sem título, o mês de criação do lote no apLIS.
  * - Acatada, em disputa e recuperada vêm da foto do apLIS (a mesma regra que abate o saldo: acatada
  *   = status 18 e 8). A recuperada é detalhe do recebido: não entra na conta do saldo.
- * - Glosa de lote sem título vai para a linha "Fora de lote".
- * - Saldo da linha = parte do (total − recebido) dos títulos do lote − acatada − em disputa dela.
- *   A soma das linhas é o saldo do mês.
+ * - Glosa de lote sem título vai para a linha "Fora de lote" e entra nos totais, mas não abate
+ *   o saldo: não há faturado dela no mês.
+ * - Saldo da linha = parte do (total − recebido) dos títulos do lote − acatada − em disputa dela
+ *   (na linha "Fora de lote", só a parte dos títulos sem lote). A soma das linhas é o saldo do mês.
  */
 export function montarFunilGlosa(
   periodos: PeriodoComparativo[],
   titulos: TituloFunil[],
   glosas: GlosaFunil[],
+  primeiraEmissaoDoLote: ReadonlyMap<string, string> = new Map(),
 ): FunilGlosaMes[] {
   // Mês em que cada lote "nasce": o da emissão mais antiga entre os títulos dele.
-  const emissaoDoLote = new Map<string, string>();
+  const emissaoDoLote = new Map(primeiraEmissaoDoLote);
   for (const t of titulos) {
     if (!t.dataEmissao) continue;
     for (const l of t.lotes) {
@@ -138,6 +146,7 @@ export function montarFunilGlosa(
     let recuperada = 0;
     let acatada = 0;
     let emDisputa = 0;
+    let foraDeLote = 0;
     for (const g of glosas) {
       if (mesDaGlosa(g) !== periodo.mes) continue;
       const valor = paraCentavos(g.valor);
@@ -145,15 +154,17 @@ export function montarFunilGlosa(
       if (g.classe === 'recuperada') {
         recuperada += valor;
         alvo.recuperada += valor;
-      } else if (g.classe === 'acatada') {
+        continue;
+      }
+      if (g.classe === 'acatada') {
         acatada += valor;
         alvo.acatada += valor;
-        alvo.saldo -= valor;
       } else {
         emDisputa += valor;
         alvo.emDisputa += valor;
-        alvo.saldo -= valor;
       }
+      if (g.lote) alvo.saldo -= valor;
+      else foraDeLote += valor;
     }
 
     let faturado = 0;
@@ -195,7 +206,8 @@ export function montarFunilGlosa(
       acatada: emReais(acatada),
       emDisputa: emReais(emDisputa),
       glosaTotal: emReais(recuperada + acatada + emDisputa),
-      saldo: emReais(faturado - recebido - acatada - emDisputa),
+      foraDeLote: emReais(foraDeLote),
+      saldo: emReais(faturado - recebido - (acatada + emDisputa - foraDeLote)),
       lotes,
     };
   });

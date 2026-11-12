@@ -11,8 +11,10 @@ import { classificarParaFunil } from './glosaRecuperada.js';
 import { ErroSupabase, valorNumerico } from './titulosConferencia.js';
 
 const PAGINA = 1000;
-/** Ids por consulta `.in()`: a lista vai na URL do PostgREST. */
-const LOTE_IN = 150;
+/** Ids inteiros (lote do apLIS) por consulta `.in()`: a lista vai na URL do PostgREST. */
+const IDS_POR_IN = 300;
+/** UUIDs (36 caracteres) por consulta `.in()`, pelo mesmo limite de URL. */
+const UUIDS_POR_IN = 100;
 
 function emBlocos<T>(itens: T[], tamanho: number): T[][] {
   const blocos: T[][] = [];
@@ -92,6 +94,7 @@ interface LinhaFoto {
   valor_recursado: unknown;
   valor_recursado_editado: unknown;
   valor_recebido_glosa_editado: unknown;
+  id_fonte_pagadora: number | null;
   id_lote_recurso: number | null;
   glosa_recurso_lotes: { data_envio_aplis: string | null; data_envio_editada: string | null } | null;
 }
@@ -99,7 +102,7 @@ interface LinhaFoto {
 const COLUNAS_FOTO =
   'id_requisicao, id_lote_faturamento, competencia, status_aplis, liquido, recebido, glosa_fixada, '
   + 'recebido_fixacao, valor_recursado, valor_recursado_editado, valor_recebido_glosa_editado, '
-  + 'id_lote_recurso, glosa_recurso_lotes(data_envio_aplis, data_envio_editada)';
+  + 'id_fonte_pagadora, id_lote_recurso, glosa_recurso_lotes(data_envio_aplis, data_envio_editada)';
 
 async function lerFoto(supabase: SupabaseClient, coluna: string, valores: (string | number)[]): Promise<LinhaFoto[]> {
   const linhas: LinhaFoto[] = [];
@@ -117,24 +120,78 @@ async function lerFoto(supabase: SupabaseClient, coluna: string, valores: (strin
   }
 }
 
+interface LinhaLote {
+  id_lote: string;
+  codigo_lote: string | null;
+  aplis_id: string | null;
+  nota_lote: { notas: { data_emissao: string | null; status: string | null } | null }[] | null;
+}
+
+/** Lotes do Supabase com a data de emissão de todos os títulos deles, de qualquer mês. */
+async function lerLotes(supabase: SupabaseClient, coluna: 'id_lote' | 'aplis_id', valores: string[]): Promise<LinhaLote[]> {
+  const linhas: LinhaLote[] = [];
+  for (const bloco of emBlocos(valores, coluna === 'id_lote' ? UUIDS_POR_IN : IDS_POR_IN)) {
+    const { data, error } = await supabase
+      .from('lotes')
+      .select('id_lote, codigo_lote, aplis_id, nota_lote(notas(data_emissao, status))')
+      .in(coluna, bloco);
+    if (error) throw new ErroSupabase(`lotes: ${error.message}`);
+    linhas.push(...((data ?? []) as unknown as LinhaLote[]));
+  }
+  return linhas;
+}
+
+/** Emissão (YYYY-MM-DD) do título não cancelado mais antigo do lote; null sem título. */
+function primeiraEmissao(lote: LinhaLote): string | null {
+  let maisAntiga: string | null = null;
+  for (const { notas } of lote.nota_lote ?? []) {
+    if (!notas?.data_emissao || notas.status === 'cancelada') continue;
+    if (maisAntiga === null || notas.data_emissao < maisAntiga) maisAntiga = notas.data_emissao;
+  }
+  return maisAntiga;
+}
+
 /**
  * Acatada, em disputa e recuperada da foto de recursos do apLIS, uma entrada por requisição
  * (classificação em glosaRecuperada.ts). Lê as requisições dos lotes dos títulos e, à parte, as
- * dos meses comparados (`competencias`, YYYY-MM do lote no apLIS) cujo lote não tem título aqui:
- * essas vão para "Fora de lote".
+ * dos meses comparados (`competencias`, YYYY-MM do lote no apLIS) das operadoras da meta
+ * (`fontesMeta`) cujo lote não veio com os títulos. Dessas, o lote que tem título (não
+ * cancelado) em outro mês fica com o lote; só o que não tem título vai para "Fora de lote".
+ *
+ * Devolve também a emissão mais antiga de cada lote, em qualquer data: a glosa vai para o mês
+ * dela, mesmo quando o título mais antigo está fora dos 3 meses.
  */
 export async function glosasParaFunil(
   supabase: SupabaseClient,
+  titulos: TituloFunil[],
   loteDoAplis: Map<number, LoteRef>,
   competencias: string[],
-): Promise<GlosaFunil[]> {
+  fontesMeta: Set<number>,
+): Promise<{ glosas: GlosaFunil[]; primeiraEmissaoDoLote: Map<string, string> }> {
+  const primeiraEmissaoDoLote = new Map<string, string>();
+  const idsDosTitulos = [...new Set(titulos.flatMap((t) => t.lotes.map((l) => l.id)))];
+  for (const lote of await lerLotes(supabase, 'id_lote', idsDosTitulos)) {
+    const emissao = primeiraEmissao(lote);
+    if (emissao) primeiraEmissaoDoLote.set(lote.id_lote, emissao);
+  }
+
   const porRequisicao = new Map<number, LinhaFoto>();
-  for (const bloco of emBlocos([...loteDoAplis.keys()], LOTE_IN * 2)) {
+  for (const bloco of emBlocos([...loteDoAplis.keys()], IDS_POR_IN)) {
     for (const l of await lerFoto(supabase, 'id_lote_faturamento', bloco)) porRequisicao.set(l.id_requisicao, l);
   }
-  for (const l of await lerFoto(supabase, 'competencia', competencias)) {
-    if (!loteDoAplis.has(l.id_lote_faturamento)) porRequisicao.set(l.id_requisicao, l);
+  const loteDaFoto = new Map(loteDoAplis);
+  const avulsas = (await lerFoto(supabase, 'competencia', competencias)).filter(
+    (l) => !loteDoAplis.has(l.id_lote_faturamento) && l.id_fonte_pagadora !== null && fontesMeta.has(l.id_fonte_pagadora),
+  );
+  const semTitulo = [...new Set(avulsas.map((l) => String(l.id_lote_faturamento)))];
+  for (const lote of await lerLotes(supabase, 'aplis_id', semTitulo)) {
+    const emissao = primeiraEmissao(lote);
+    const aplisId = Number(lote.aplis_id ?? NaN);
+    if (!emissao || !Number.isInteger(aplisId)) continue;
+    loteDaFoto.set(aplisId, { id: lote.id_lote, codigo: lote.codigo_lote });
+    primeiraEmissaoDoLote.set(lote.id_lote, emissao);
   }
+  for (const l of avulsas) porRequisicao.set(l.id_requisicao, l);
 
   const glosas: GlosaFunil[] = [];
   for (const l of porRequisicao.values()) {
@@ -157,9 +214,9 @@ export async function glosasParaFunil(
       numeroOuNulo(l.glosa_fixada),
     );
     if (!classificada || classificada.valor === 0) continue;
-    glosas.push({ lote: loteDoAplis.get(l.id_lote_faturamento) ?? null, competencia: l.competencia, ...classificada });
+    glosas.push({ lote: loteDaFoto.get(l.id_lote_faturamento) ?? null, competencia: l.competencia, ...classificada });
   }
-  return glosas;
+  return { glosas, primeiraEmissaoDoLote };
 }
 
 /** `operadoras.aplis_id` (= `IdFontePagadora`) das operadoras consideradas na meta, para o caixa. */

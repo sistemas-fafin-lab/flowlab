@@ -16,7 +16,9 @@
 
 Rota `GET /api/faturamento/comparativos-funil-glosa?mes=YYYY-MM`; cálculo puro em `src/modules/faturamento/utils/funilGlosa.ts`; bloco na aba Comparativos (`FunilGlosaComparativo.tsx`).
 
-Fontes: faturado e recebido vêm dos títulos (`notas`, operadoras consideradas na meta, emissão no mês). Acatada, em disputa e recuperada vêm da **foto de recursos** (`glosa_recurso_requisicoes`); a tabela `glosas` não é usada (virou histórico em `20261026120000`). O saldo do mês é `faturado − recebido − acatada − em disputa`, então o funil fecha.
+Fontes: faturado e recebido vêm dos títulos (`notas`, operadoras consideradas na meta, emissão no mês). Acatada, em disputa e recuperada vêm da **foto de recursos** (`glosa_recurso_requisicoes`); a tabela `glosas` não é usada (virou histórico em `20261026120000`). O saldo do mês é `faturado − recebido − (acatada + em disputa − fora de lote)`: a glosa "Fora de lote" entra nos totais (para bater com Glosas e Recursos), mas não abate o saldo, porque o faturado dela não está no mês. O funil fecha como `Faturado = Recebido + Acatada + Em disputa − Fora de lote + Saldo`, e a tela mostra a linha "fora de lote" para conferir.
+
+Correções da revisão de 12/11/2026: a glosa fora de lote deixou de abater o saldo (que podia ficar negativo); a leitura por competência passou a filtrar as operadoras da meta (`id_fonte_pagadora`); o lote com título emitido fora dos 3 meses deixou de cair em "Fora de lote"; e a emissão mais antiga do lote passou a considerar títulos de qualquer data.
 
 ### Mapeamento proposto de status do apLIS → Glosa recuperada (para a usuária revisar)
 
@@ -32,6 +34,7 @@ Constante revisável: `STATUS_APLIS_RECUPERADA` em `api/_lib/faturamento/glosaRe
 
 ### Decisões a confirmar
 
-- **"Fora de lote"**: a foto sempre tem lote de faturamento, então "sem lote" foi lido como *lote do apLIS que não tem título no Supabase* (o mês vem da competência do lote) e como título sem lote. Se a intenção era "fora de lote de **recurso**" (a sub-aba de mesmo nome da tela Glosas e Recursos), é outra regra.
-- Lote ligado a dois títulos: a glosa conta uma vez, no mês da emissão mais antiga; o (total − recebido) dos títulos é dividido igualmente entre os lotes deles.
+- **"Fora de lote"**: a foto sempre tem lote de faturamento, então "sem lote" foi lido como *lote do apLIS que não tem título (não cancelado) no Supabase, em data nenhuma* (o mês vem da competência do lote) e como título sem lote. Se a intenção era "fora de lote de **recurso**" (a sub-aba de mesmo nome da tela Glosas e Recursos), é outra regra.
+- Lote ligado a dois títulos: a glosa conta uma vez, no mês da emissão mais antiga (de qualquer data, mesmo fora dos 3 meses); o (total − recebido) dos títulos é dividido igualmente entre os lotes deles. Se o título mais antigo está fora dos 3 meses, a glosa não aparece e o saldo do título mais novo não a abate.
+- Abertos da revisão, para a usuária decidir: recuperação parcial (7/16 com ΔRec < recursado) põe só o ΔRec em Recuperada e o resto cai no saldo, não em Em disputa; status 33 sem retorno não entra em Em disputa; e nada garante Recuperada ≤ Recebido (a foto do apLIS anda na frente das baixas do Supabase).
 - Acatada/disputa/recuperada só aparecem para meses cujos lotes têm título ou competência dentro dos 3 meses.

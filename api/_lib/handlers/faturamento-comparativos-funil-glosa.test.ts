@@ -32,17 +32,25 @@ interface Corpo {
     acatada: number;
     emDisputa: number;
     glosaTotal: number;
+    foraDeLote: number;
     saldo: number;
     lotes: { codigo: string; glosaTotal: number; saldo: number }[];
   }[];
   recebidoNoMes?: { mes: string; valor: number }[];
 }
 
-// Query builder mínimo do supabase-js: encadeável e aguardável. Os filtros são ignorados:
-// cada tabela devolve as linhas do cenário, e a página única (< 1000) encerra a paginação.
-function consulta(linhas: Linha[], erro: string | null = null) {
+// Query builder mínimo do supabase-js: encadeável e aguardável. Só o `.in()` filtra (é ele que
+// separa as leituras por lote e por competência); os outros filtros são ignorados, e a página
+// única (< 1000) encerra a paginação.
+function consulta(linhasDaTabela: Linha[], erro: string | null = null) {
+  let linhas = linhasDaTabela;
   const builder: Record<string, unknown> = {};
-  for (const metodo of ['select', 'eq', 'neq', 'gte', 'lte', 'in', 'order', 'range']) builder[metodo] = () => builder;
+  for (const metodo of ['select', 'eq', 'neq', 'gte', 'lte', 'order', 'range']) builder[metodo] = () => builder;
+  builder.in = (coluna: string, valores: unknown[]) => {
+    const aceitos = new Set(valores.map(String));
+    linhas = linhas.filter((l) => aceitos.has(String(l[coluna])));
+    return builder;
+  };
   builder.single = async () => ({ data: linhas[0] ?? null, error: null });
   builder.then = (resolve: (v: unknown) => unknown, reject?: (e: unknown) => unknown) =>
     Promise.resolve(erro ? { data: null, error: { message: erro } } : { data: linhas, error: null }).then(resolve, reject);
@@ -90,7 +98,29 @@ const CENARIO: Record<string, Linha[]> = {
     {
       id_requisicao: 3, id_lote_faturamento: 777, competencia: '2026-10', status_aplis: 6, liquido: '90', recebido: '40',
       glosa_fixada: '50', recebido_fixacao: '40', valor_recursado: null, valor_recursado_editado: null,
-      valor_recebido_glosa_editado: null, id_lote_recurso: null, glosa_recurso_lotes: null,
+      valor_recebido_glosa_editado: null, id_lote_recurso: null, glosa_recurso_lotes: null, id_fonte_pagadora: 7,
+    },
+    // Operadora fora da meta: não entra, nem como "Fora de lote".
+    {
+      id_requisicao: 4, id_lote_faturamento: 778, competencia: '2026-10', status_aplis: 6, liquido: '900', recebido: '0',
+      glosa_fixada: '900', recebido_fixacao: '0', valor_recursado: null, valor_recursado_editado: null,
+      valor_recebido_glosa_editado: null, id_lote_recurso: null, glosa_recurso_lotes: null, id_fonte_pagadora: 99,
+    },
+    // Lote 888 tem título, emitido em junho (fora dos 3 meses): não é "Fora de lote" e não entra.
+    {
+      id_requisicao: 5, id_lote_faturamento: 888, competencia: '2026-10', status_aplis: 6, liquido: '70', recebido: '0',
+      glosa_fixada: '70', recebido_fixacao: '0', valor_recursado: null, valor_recursado_editado: null,
+      valor_recebido_glosa_editado: null, id_lote_recurso: null, glosa_recurso_lotes: null, id_fonte_pagadora: 7,
+    },
+  ],
+  lotes: [
+    { ...LOTE, nota_lote: [{ notas: { data_emissao: '2026-10-05', status: 'emitida' } }] },
+    {
+      id_lote: 'lote-2', codigo_lote: '1002', aplis_id: '888',
+      nota_lote: [
+        { notas: { data_emissao: '2026-06-01', status: 'emitida' } },
+        { notas: { data_emissao: '2026-01-01', status: 'cancelada' } },
+      ],
     },
   ],
   operadoras: [{ aplis_id: '7' }],
@@ -144,9 +174,11 @@ describe('GET /api/faturamento/comparativos-funil-glosa', () => {
       acatada: 150,
       emDisputa: 50,
       glosaTotal: 500,
-      saldo: 400,
+      foraDeLote: 50,
+      saldo: 450, // 1000 − 400 − 150: a disputa fora de lote não tem faturado no mês
     });
-    expect(outubro.recebido + outubro.acatada + outubro.emDisputa + outubro.saldo).toBe(outubro.faturado);
+    expect(outubro.recebido + outubro.acatada + outubro.emDisputa - outubro.foraDeLote + outubro.saldo).toBe(outubro.faturado);
+    expect(res.body!.funil!.reduce((s, f) => s + f.emDisputa, 0)).toBe(50);
     expect(outubro.lotes.map((l) => l.codigo)).toEqual(['1001', 'Fora de lote']);
 
     expect(res.body?.recebidoNoMes?.[0]).toEqual({ mes: '2026-10', valor: 123.45 });

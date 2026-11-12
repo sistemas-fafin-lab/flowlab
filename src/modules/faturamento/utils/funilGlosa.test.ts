@@ -67,9 +67,19 @@ describe('montarFunilGlosa', () => {
     const lote1 = out.lotes.find((l) => l.codigo === '1001')!;
     const fora = out.lotes.find((l) => l.codigo === FORA_DE_LOTE)!;
     expect(lote1).toMatchObject({ acatada: 80, emDisputa: 0, glosaTotal: 80, saldo: 920 });
-    expect(fora).toMatchObject({ acatada: 30, emDisputa: 20, glosaTotal: 50, saldo: 250 });
+    // A glosa fora de lote não tem faturado no mês: entra nos totais, mas não abate o saldo.
+    expect(fora).toMatchObject({ acatada: 30, emDisputa: 20, glosaTotal: 50, saldo: 300 });
+    expect(out).toMatchObject({ acatada: 110, emDisputa: 20, foraDeLote: 50, saldo: 1220 });
     expect(out.lotes.reduce((s, l) => s + l.glosaTotal, 0)).toBe(out.glosaTotal);
     expect(out.lotes.reduce((s, l) => s + l.saldo, 0)).toBe(out.saldo);
+  });
+
+  it('glosa fora de lote não deixa o saldo negativo nem quebra o fechamento', () => {
+    const titulos = [titulo({ idNota: 'n1', dataEmissao: '2026-10-05', valorTotal: 100, valorRecebido: 100, lotes: [L1] })];
+    const out = mesDe(montarFunilGlosa(PERIODOS, titulos, [glosa(null, 'em-disputa', 500)]), '2026-10');
+
+    expect(out).toMatchObject({ emDisputa: 500, foraDeLote: 500, saldo: 0 });
+    expect(out.recebido + out.acatada + out.emDisputa - out.foraDeLote + out.saldo).toBe(out.faturado);
   });
 
   it('glosa fora de lote usa a competência do lote no apLIS; fora dos 3 meses, não entra', () => {
@@ -98,6 +108,20 @@ describe('montarFunilGlosa', () => {
     const funil = montarFunilGlosa(PERIODOS, titulos, [glosa(L1, 'recuperada', 30)]);
     expect(mesDe(funil, '2026-09').recuperada).toBe(30);
     expect(mesDe(funil, '2026-10').recuperada).toBe(0);
+  });
+
+  it('lote com título mais antigo fora dos 3 meses: a glosa vai para o mês desse título', () => {
+    const titulos = [titulo({ idNota: 'n2', dataEmissao: '2026-10-10', valorTotal: 100, lotes: [L1] })];
+    const funil = montarFunilGlosa(PERIODOS, titulos, [glosa(L1, 'acatada', 30)], new Map([[L1.id, '2026-07-20']]));
+
+    expect(funil.reduce((s, f) => s + f.acatada, 0)).toBe(0);
+    expect(mesDe(funil, '2026-10')).toMatchObject({ faturado: 100, saldo: 100 });
+  });
+
+  it('a emissão de fora da janela só vale se for mais antiga que a dos títulos lidos', () => {
+    const titulos = [titulo({ idNota: 'n1', dataEmissao: '2026-09-10', valorTotal: 100, lotes: [L1] })];
+    const funil = montarFunilGlosa(PERIODOS, titulos, [glosa(L1, 'acatada', 30)], new Map([[L1.id, '2026-11-02']]));
+    expect(mesDe(funil, '2026-09').acatada).toBe(30);
   });
 
   it('virada de ano: janeiro tem dezembro e novembro do ano anterior', () => {

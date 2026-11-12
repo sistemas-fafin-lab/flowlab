@@ -61,16 +61,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     let funil;
     let fontesMeta;
     try {
-      const { titulos, loteDoAplis } = await titulosParaFunil(
-        supabase,
-        periodos[periodos.length - 1].desde,
-        periodos[0].ate,
-      );
-      const [glosas, fontes] = await Promise.all([
-        glosasParaFunil(supabase, loteDoAplis, periodos.map((p) => p.mes)),
+      const [{ titulos, loteDoAplis }, fontes] = await Promise.all([
+        titulosParaFunil(supabase, periodos[periodos.length - 1].desde, periodos[0].ate),
         fontesDaMeta(supabase),
       ]);
-      funil = montarFunilGlosa(periodos, titulos, glosas);
+      const { glosas, primeiraEmissaoDoLote } = await glosasParaFunil(
+        supabase,
+        titulos,
+        loteDoAplis,
+        periodos.map((p) => p.mes),
+        fontes,
+      );
+      funil = montarFunilGlosa(periodos, titulos, glosas, primeiraEmissaoDoLote);
       fontesMeta = fontes;
     } catch (err) {
       if (!(err instanceof ErroSupabase)) throw err;

@@ -27,8 +27,9 @@ const FunilGlosaComparativo: React.FC<Props> = ({ mes }) => {
       <div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Funil de glosa por competência</h2>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          Competência = mês de emissão do título. Faturado = Recebido + Acatada + Em disputa + Saldo pendente.
-          A Recuperada é detalhe do Recebido, não soma de novo.
+          Competência = mês de emissão do título. Faturado = Recebido + Acatada + Em disputa + Saldo pendente,
+          sem a glosa fora de lote: ela entra nos totais, mas não tem faturado no mês. A Recuperada é detalhe
+          do Recebido, não soma de novo.
         </p>
       </div>
 
@@ -67,6 +68,7 @@ const FunilGlosaComparativo: React.FC<Props> = ({ mes }) => {
                   ['   Recuperada', (f) => f.recuperada, `${LINHA} text-xs`],
                   ['   Acatada', (f) => f.acatada, `${LINHA} text-xs`],
                   ['   Em disputa', (f) => f.emDisputa, `${LINHA} text-xs`],
+                  ['   da acatada e em disputa, fora de lote', (f) => f.foraDeLote, `${LINHA} text-xs italic`],
                   ['Saldo pendente', (f) => f.saldo, LINHA_DESTAQUE],
                 ] as [string, (f: (typeof funil)[number]) => number, string][]).map(([rotulo, valor, classe]) => (
                   <tr key={rotulo} className={classe}>
