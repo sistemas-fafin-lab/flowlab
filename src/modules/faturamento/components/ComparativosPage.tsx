@@ -5,8 +5,9 @@ import { useTheme } from '../../../hooks/useTheme';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import { useComparativosVolumeEnvio } from '../hooks/useComparativosVolumeEnvio';
-import { mesDeReferenciaPadrao, mesesFechados, periodosComparativos } from '../utils/comparativos';
+import { CORES_MESES, mesDeReferenciaPadrao, mesesFechados, periodosComparativos } from '../utils/comparativos';
 import { formatCompetencia } from '../utils/formato';
+import ConversaoRequisicoesComparativo from './ConversaoRequisicoesComparativo';
 import FunilGlosaComparativo from './FunilGlosaComparativo';
 import GlosaPorMesComparativo from './GlosaPorMesComparativo';
 import RankingCodigosGlosaComparativo from './RankingCodigosGlosaComparativo';
@@ -15,13 +16,11 @@ import SlaConvenioComparativo from './SlaConvenioComparativo';
 // Aba Contas a Receber → Comparativos. Casca da aba: seletor de mês de referência
 // (referência, M-1 e M-2; padrão: último mês fechado), o funil de glosa, o ranking de códigos de
 // glosa, a Glosa da DRE
-// por mês de solicitação (jan até a referência), o SLA por convênio e o volume de envio
-// por convênio. Os blocos seguintes entram sob o mesmo seletor. A permissão é a da tela Contas a Receber (ADR 0001): a rota da aba já a exige.
+// por mês de solicitação (jan até a referência), o SLA por convênio, o volume de envio
+// por convênio e a conversão de requisições. Os blocos seguintes entram sob o mesmo seletor. A permissão é a da tela Contas a Receber (ADR 0001): a rota da aba já a exige.
 
 const MESES_NO_SELETOR = 24;
 const MAX_CONVENIOS_NO_GRAFICO = 12;
-// Referência na cor de destaque; os meses anteriores mais claros, para ler a tendência.
-const CORES_MESES = ['#2563eb', '#60a5fa', '#bfdbfe'];
 
 type Medida = 'qtdGuias' | 'qtdLotes';
 const ROTULO_MEDIDA: Record<Medida, string> = { qtdGuias: 'Guias', qtdLotes: 'Lotes' };
@@ -186,6 +185,8 @@ const ComparativosPage: React.FC = () => {
           </>
         )}
       </section>
+
+      <ConversaoRequisicoesComparativo mes={mes} />
     </div>
   );
 };

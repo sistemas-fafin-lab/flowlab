@@ -38,6 +38,13 @@ import type { LinhaFaturada } from './indicadoresFaturamento.js';
 import type { ConvenioRecebido, ConvenioSemLote } from './pontuacaoSetor.js';
 import type { EnvioMensalConvenio } from '../../../src/modules/faturamento/utils/comparativos.js';
 import type { LinhaSlaRequisicao } from '../../../src/modules/faturamento/utils/slaFaturamento.js';
+import {
+  EVENTOS_NAO_COBRAVEIS,
+  ID_FONTE_PAGADORA_CORTESIA,
+  ID_FONTE_PAGADORA_PARTICULAR,
+  STATUS_LOTE_NAO_FATURADO,
+} from '../../../src/modules/faturamento/utils/regrasCobranca.js';
+import type { LinhaConversaoRequisicao } from '../../../src/modules/faturamento/utils/conversaoRequisicoes.js';
 import type { GlosaMensal } from '../../../src/modules/faturamento/utils/glosaPorMes.js';
 import type { ProcedimentoGlosado } from '../../../src/modules/faturamento/utils/rankingCodigosGlosa.js';
 import type {
@@ -1902,8 +1909,8 @@ export async function listarVolumeEnvioMensal(
 //   tarefas 37/44 "Recebido no Faturamento" (TIPOS_TAREFA_RECEBIDO_FATURAMENTO).
 const COD_EVENTO_ADMISSAO = 1;
 const TIPO_TAREFA_ENVIO_FATURAMENTO = 34;
-// Lote cancelado (5) e em prejuízo (8) não conta como faturado — mesma regra da conversão.
-const STATUS_LOTE_NAO_FATURADO = [5, 8];
+// Lote cancelado (5) e em prejuízo (8) não conta como faturado (STATUS_LOTE_NAO_FATURADO,
+// a mesma regra da conversão).
 
 export interface ListarMarcosSlaParams {
   /** YYYY-MM-DD, sobre a data de faturado (fechamento do lote; sem ele, criação). */
@@ -1967,6 +1974,65 @@ export async function listarMarcosSla(params: ListarMarcosSlaParams): Promise<Li
         recebimento: dataIso(linha.DtaRecebido),
         // DECIMAL vem como string do driver.
         valorRecebido: linha.VlrRecebido === null ? null : numero(linha.VlrRecebido),
+      })),
+    };
+  });
+}
+
+// ============================================================================
+// CONVERSÃO DE REQUISIÇÕES — aba Comparativos (faturamento-comparativos, issue 07)
+// ============================================================================
+
+export interface ListarRequisicoesConversaoParams {
+  /** YYYY-MM-DD, sobre a data de solicitação (o recorte das Pendências). */
+  periodoIni: string;
+  periodoFim: string;
+  /** Mesma whitelist da sub-aba "Sem lote"; lista vazia não qualifica nenhuma fonte. */
+  fontesConsideradas: number[];
+}
+
+export type ListarRequisicoesConversaoResultado =
+  | { linhas: LinhaConversaoRequisicao[] }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Uma linha por requisição solicitada no período, com o que decide se ela é apta e se foi
+ * faturada. A regra é de `montarConversaoRequisicoes`, por isso o SQL só recorta data e
+ * whitelist. Ago–out/2026: ~12,8 mil requisições. Sem cache: a tela tem "Tentar novamente".
+ */
+export async function listarRequisicoesConversao(
+  params: ListarRequisicoesConversaoParams,
+): Promise<ListarRequisicoesConversaoResultado> {
+  if (params.fontesConsideradas.length === 0) return { linhas: [] };
+
+  return comConexao('listarRequisicoesConversao', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT r.IdRequisicao, DATE_FORMAT(r.DtaSolicitacao, '%Y-%m') AS Mes,
+              r.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial, r.CodEvento,
+              EXISTS (SELECT 1 FROM fatrequisicaoprocedimento f WHERE f.IdRequisicao = r.IdRequisicao) AS TemProcedimento,
+              r.Lote IS NOT NULL AS TemLote, l.Status AS StatusLote,
+              EXISTS (SELECT 1 FROM fatrpsrequisicao frr JOIN fatrps rps ON rps.IdRPS = frr.IdRps
+                       WHERE frr.IdRequisicao = r.IdRequisicao AND rps.DataCancelamento IS NULL) AS TemRpsAtivo
+         FROM requisicao r
+         LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = r.IdFontePagadora
+         LEFT JOIN fatlote l ON l.IdLote = r.Lote
+        WHERE r.DtaSolicitacao >= ?
+          AND r.DtaSolicitacao < DATE_ADD(?, INTERVAL 1 DAY)
+          AND r.IdFontePagadora IN (${params.fontesConsideradas.map(() => '?').join(', ')})`,
+      [`${params.periodoIni} 00:00:00`, `${params.periodoFim} 00:00:00`, ...params.fontesConsideradas],
+    );
+
+    return {
+      linhas: linhas.map((linha) => ({
+        idRequisicao: numero(linha.IdRequisicao),
+        mes: texto(linha.Mes) ?? '',
+        fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
+        nome: texto(linha.NomFantasia) ?? texto(linha.RazaoSocial),
+        codEvento: inteiroOuNulo(linha.CodEvento),
+        temProcedimento: numero(linha.TemProcedimento) === 1,
+        temLote: numero(linha.TemLote) === 1,
+        statusLote: inteiroOuNulo(linha.StatusLote),
+        temRpsAtivo: numero(linha.TemRpsAtivo) === 1,
       })),
     };
   });
@@ -2277,7 +2343,7 @@ async function limiteEAteEfetivoHoje(
 // larga e também cobre eventos faturáveis como "Exame adicional"/"FAT. EXTERNO").
 // "DEVOLVIDO" do Status Faturamento (`eventofatur` 26) NÃO entra: é guia devolvida
 // pelo convênio, que ainda pode ser corrigida e reenviada.
-const EVENTOS_NAO_COBRAVEIS = [8, 58, 64, 1015, 1020, 1023, 1037, 1040];
+// A lista fica em regrasCobranca.ts, compartilhada com a conversão da aba Comparativos.
 
 function sqlEventoCobravel(alias: string): string {
   return `(${alias}.CodEvento IS NULL OR ${alias}.CodEvento NOT IN (${EVENTOS_NAO_COBRAVEIS.join(', ')}))`;
@@ -2715,7 +2781,7 @@ export async function detalharLotePendencia(
 // Fonte pagadora: só 1102 (PARTICULAR, ativa). A 101 é a mesma razão social mas
 // está INATIVA no apLIS (fatinstituicao.Inativo = 1) — confirmado no banco real,
 // não é erro de digitação, são dois IDs legítimos; a regra do grilling fixou 1102.
-export const ID_FONTE_PAGADORA_PARTICULAR = 1102;
+// (ID_FONTE_PAGADORA_PARTICULAR fica em src/modules/faturamento/utils/regrasCobranca.ts.)
 
 export interface RequisicaoParticularPendencia {
   idRequisicao: number;
@@ -2960,7 +3026,7 @@ export async function listarParticularesPendentes(
 //
 // `100` veio da mesma investigação direta no MySQL da issue 21 (27/08) que
 // levantou o volume de requisições sem lote — não é um palpite.
-export const ID_FONTE_PAGADORA_CORTESIA = 100;
+// (ID_FONTE_PAGADORA_CORTESIA fica em src/modules/faturamento/utils/regrasCobranca.ts.)
 
 export interface RequisicaoSemLotePendencia {
   idRequisicao: number;

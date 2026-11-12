@@ -2,6 +2,9 @@
 // Funções puras, compartilhadas pela rota (api/) e pela tela, como permissoesTelas.ts —
 // por isso não importam nada do navegador.
 
+/** Cores dos meses nos gráficos da aba: referência em destaque, M-1 e M-2 mais claros. */
+export const CORES_MESES = ['#2563eb', '#60a5fa', '#bfdbfe'];
+
 export interface PeriodoComparativo {
   /** 'YYYY-MM' */
   mes: string;
