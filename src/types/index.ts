@@ -219,6 +219,8 @@ export interface UserProfile {
   disabledAt?: string | null;
   /** Remoção/anonimização definitiva. NULL = não removido. Ver soft_delete_user/restore_user. */
   deletedAt?: string | null;
+  /** CPF da conta (só dígitos); liga o login ao colaborador do RH. NULL em contas de setor. */
+  cpf?: string | null;
 }
 
 export interface CustomRole {

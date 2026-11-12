@@ -12,6 +12,7 @@ import ConfirmDialog from './ConfirmDialog';
 import NewUserForm from './NewUserForm';
 import DepartamentosPage from '../modules/rh/components/DepartamentosPage';
 import { definirDepartamentoDoUsuario } from '../modules/rh/departamentoDoRh';
+import { cpfDaEdicao, formatCPF } from '../utils/cpf';
 
 // Type for approval level configuration from database
 interface ApprovalLevelConfig {
@@ -96,6 +97,7 @@ const UserManagement: React.FC = () => {
   const [formData, setFormData] = useState({
     name: '',
     email: '',
+    cpf: '',
     customRoleId: '' as string,
     department: 'AREA_TECNICA' as Department,
     approvalLevel: 'none',
@@ -166,6 +168,7 @@ const UserManagement: React.FC = () => {
           roleName: customRole?.name,
           disabledAt: user.disabled_at,
           deletedAt: user.deleted_at,
+          cpf: user.cpf,
         };
       });
 
@@ -285,6 +288,7 @@ const UserManagement: React.FC = () => {
     setFormData({
       name: user.name,
       email: user.email,
+      cpf: formatCPF(user.cpf ?? ''),
       customRoleId: user.customRoleId || '',
       department: user.department,
       approvalLevel: userLimit?.approvalLevel || 'none',
@@ -398,6 +402,16 @@ const UserManagement: React.FC = () => {
 
     try {
       if (editingUser) {
+        // CPF validado antes de gravar qualquer coisa; vai no mesmo UPDATE do perfil, abaixo.
+        // Ao ganhar CPF, o trigger do perfil cria (ou vincula) o colaborador do RH; o banco
+        // recusa um CPF que diverge do colaborador já ligado ou que é de outra pessoa
+        // (user_profiles_cpf_igual_ao_do_rh).
+        const cpfEditado = cpfDaEdicao(formData.cpf, editingUser.cpf ?? null);
+        if ('erro' in cpfEditado) {
+          showError(cpfEditado.erro);
+          return;
+        }
+
         // O e-mail vive em auth.users (login) e em user_profiles (exibição e
         // destino das notificações). A RPC troca os dois no mesmo commit — vale na
         // hora, sem e-mail de confirmação. Precisa vir antes do update abaixo, que
@@ -451,10 +465,15 @@ const UserManagement: React.FC = () => {
             name: formData.name,
             custom_role_id: formData.customRoleId || null,
             department: formData.department,
+            ...(cpfEditado.mudou ? { cpf: cpfEditado.cpf } : {}),
             updated_at: new Date().toISOString()
           })
           .eq('id', editingUser.id);
 
+        if (error && cpfEditado.mudou && (error.code === '23514' || error.message.includes('user_profiles_cpf_key'))) {
+          showError(error.code === '23514' ? error.message : 'Este CPF já está cadastrado em outro usuário.');
+          return;
+        }
         if (error) throw error;
 
         // Update approval limits (upsert)
@@ -534,6 +553,7 @@ const UserManagement: React.FC = () => {
     setFormData({
       name: '',
       email: '',
+      cpf: '',
       customRoleId: '',
       department: 'AREA_TECNICA',
       approvalLevel: 'none',
@@ -956,6 +976,27 @@ const UserManagement: React.FC = () => {
                 </p>
               )}
             </div>
+
+            {editingUser && (
+              <div>
+                <label htmlFor="editar-usuario-cpf" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  CPF
+                </label>
+                <input
+                  id="editar-usuario-cpf"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={formData.cpf}
+                  onChange={(e) => setFormData(prev => ({ ...prev, cpf: formatCPF(e.target.value) }))}
+                  className="w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 hover:border-gray-300 dark:hover:border-gray-500 bg-gray-50/50 dark:bg-gray-700/50 text-gray-800 dark:text-gray-100 tabular-nums"
+                  placeholder="000.000.000-00"
+                />
+                <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                  Liga a conta ao colaborador do RH. Contas de setor podem ficar sem CPF.
+                </p>
+              </div>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">

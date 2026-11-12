@@ -27,3 +27,18 @@ export const validateCPF = (cpf: string): boolean => {
   };
   return calc(9) === +digits[9] && calc(10) === +digits[10];
 };
+
+export type CpfDaEdicao = { cpf: string | null; mudou: boolean } | { erro: string };
+
+/**
+ * CPF digitado na edição de um usuário, comparado ao que ele já tem. Vazio só vale para
+ * quem ainda não tem CPF (não muda nada); cadastrado, não pode voltar a ficar em branco.
+ */
+export const cpfDaEdicao = (digitado: string, atual: string | null): CpfDaEdicao => {
+  const cpf = normalizeCPF(digitado);
+  if (!cpf) {
+    return atual ? { erro: "O CPF não pode ficar em branco depois de cadastrado." } : { cpf: null, mudou: false };
+  }
+  if (!validateCPF(cpf)) return { erro: "CPF inválido." };
+  return { cpf, mudou: cpf !== atual };
+};
