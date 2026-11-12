@@ -268,7 +268,7 @@ const Kpi: React.FC<{
               </span>
             )}
           </p>
-          <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
+          <p className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
             {valor}
           </p>
           {sub && <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 truncate">{sub}</p>}

@@ -97,7 +97,7 @@ const FunilGlosaComparativo: React.FC<Props> = ({ mes }) => {
               “{FORA_DE_LOTE}”.
             </p>
             {funil.map((f) => (
-              <details key={f.mes} className="border border-gray-100 dark:border-gray-700 rounded-xl" open={f.mes === mes}>
+              <details key={f.mes} className="border border-gray-100 dark:border-gray-700 rounded-xl">
                 <summary className="px-3 py-2 text-sm cursor-pointer text-gray-900 dark:text-gray-100">
                   {formatCompetencia(f.mes)} · {f.lotes.length} {f.lotes.length === 1 ? 'linha' : 'linhas'}
                 </summary>
