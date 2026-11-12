@@ -24,6 +24,8 @@ export interface TituloFunil {
   dataEmissao: string | null;
   valorTotal: number;
   valorRecebido: number;
+  /** `notas.valor_glosa_acatada` (foto do apLIS, status 18 e 8); só os cards do Dashboard usam. */
+  valorGlosaAcatada?: number;
   lotes: LoteRef[];
 }
 
@@ -100,11 +102,12 @@ function dividir(centavos: number, partes: number): number[] {
 }
 
 /**
- * Mês (YYYY-MM) em que cada glosa entra no funil: o da emissão mais antiga entre os títulos do
- * lote dela (`primeiraEmissaoDoLote` completa os títulos fora dos meses lidos); sem título, o
- * mês de criação do lote no apLIS. O ranking de códigos usa a mesma regra, para bater com o funil.
+ * Data em que cada glosa entra no funil: a emissão (YYYY-MM-DD) mais antiga entre os títulos
+ * do lote dela (`primeiraEmissaoDoLote` completa os títulos fora dos meses lidos); sem título,
+ * o mês (YYYY-MM) de criação do lote no apLIS. O ranking de códigos e os cards do Dashboard
+ * usam a mesma regra, para bater com o funil.
  */
-export function mesDaGlosaNoFunil(
+export function dataDaGlosaNoFunil(
   titulos: TituloFunil[],
   primeiraEmissaoDoLote: ReadonlyMap<string, string> = new Map(),
 ): (g: GlosaFunil) => string {
@@ -116,7 +119,16 @@ export function mesDaGlosaNoFunil(
       if (atual === undefined || t.dataEmissao < atual) emissaoDoLote.set(l.id, t.dataEmissao);
     }
   }
-  return (g) => (g.lote ? emissaoDoLote.get(g.lote.id)?.slice(0, 7) : undefined) ?? g.competencia;
+  return (g) => (g.lote ? emissaoDoLote.get(g.lote.id) : undefined) ?? g.competencia;
+}
+
+/** Mês (YYYY-MM) de `dataDaGlosaNoFunil`. */
+export function mesDaGlosaNoFunil(
+  titulos: TituloFunil[],
+  primeiraEmissaoDoLote: ReadonlyMap<string, string> = new Map(),
+): (g: GlosaFunil) => string {
+  const dataDaGlosa = dataDaGlosaNoFunil(titulos, primeiraEmissaoDoLote);
+  return (g) => dataDaGlosa(g).slice(0, 7);
 }
 
 /**

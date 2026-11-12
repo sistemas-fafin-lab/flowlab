@@ -29,32 +29,37 @@ interface LinhaNota {
   data_emissao: string | null;
   valor_total: unknown;
   valor_recebido: unknown;
+  valor_glosa_acatada: unknown;
   operadoras: { is_considerada_meta: boolean | null } | null;
   nota_lote: { lotes: { id_lote: string; codigo_lote: string | null; aplis_id: string | null } | null }[] | null;
 }
 
 /**
  * Títulos não cancelados emitidos entre `desde` e `ate` (YYYY-MM-DD), de operadoras
- * consideradas na meta — o mesmo universo do Dashboard. `loteDoAplis` liga o
+ * consideradas na meta — o mesmo universo do Dashboard. `operadoraIds` (`notas.operadora_id`)
+ * recorta pelas operadoras do filtro do Dashboard; vazio = todas. `loteDoAplis` liga o
  * `lotes.aplis_id` de cada lote ao lote do Supabase, para casar a foto de recursos.
  */
 export async function titulosParaFunil(
   supabase: SupabaseClient,
   desde: string,
   ate: string,
+  operadoraIds: string[] = [],
 ): Promise<{ titulos: TituloFunil[]; loteDoAplis: Map<number, LoteRef> }> {
   const titulos: TituloFunil[] = [];
   const loteDoAplis = new Map<number, LoteRef>();
   for (let offset = 0; ; offset += PAGINA) {
-    const { data, error } = await supabase
+    let consulta = supabase
       .from('notas')
       .select(
-        'id_nota, data_emissao, valor_total, valor_recebido, operadoras(is_considerada_meta), '
+        'id_nota, data_emissao, valor_total, valor_recebido, valor_glosa_acatada, operadoras(is_considerada_meta), '
         + 'nota_lote(lotes(id_lote, codigo_lote, aplis_id))',
       )
       .neq('status', 'cancelada')
       .gte('data_emissao', desde)
-      .lte('data_emissao', ate)
+      .lte('data_emissao', ate);
+    if (operadoraIds.length > 0) consulta = consulta.in('operadora_id', operadoraIds);
+    const { data, error } = await consulta
       .order('id_nota', { ascending: true })
       .range(offset, offset + PAGINA - 1);
     if (error) throw new ErroSupabase(`notas: ${error.message}`);
@@ -74,6 +79,7 @@ export async function titulosParaFunil(
         dataEmissao: nota.data_emissao,
         valorTotal: valorNumerico(nota.valor_total),
         valorRecebido: valorNumerico(nota.valor_recebido),
+        valorGlosaAcatada: valorNumerico(nota.valor_glosa_acatada),
         lotes,
       });
     }
@@ -245,9 +251,14 @@ export async function glosasParaFunil(
   return { glosas, primeiraEmissaoDoLote };
 }
 
-/** `operadoras.aplis_id` (= `IdFontePagadora`) das operadoras consideradas na meta, para o caixa. */
-export async function fontesDaMeta(supabase: SupabaseClient): Promise<Set<number>> {
-  const { data, error } = await supabase.from('operadoras').select('aplis_id').eq('is_considerada_meta', true);
+/**
+ * `operadoras.aplis_id` (= `IdFontePagadora`) das operadoras consideradas na meta, para o caixa.
+ * `operadoraIds` (`operadoras.id_operadora`) recorta pelo filtro do Dashboard; vazio = todas.
+ */
+export async function fontesDaMeta(supabase: SupabaseClient, operadoraIds: string[] = []): Promise<Set<number>> {
+  let consulta = supabase.from('operadoras').select('aplis_id').eq('is_considerada_meta', true);
+  if (operadoraIds.length > 0) consulta = consulta.in('id_operadora', operadoraIds);
+  const { data, error } = await consulta;
   if (error) throw new ErroSupabase(`operadoras: ${error.message}`);
   const ids = new Set<number>();
   for (const { aplis_id: bruto } of (data ?? []) as { aplis_id: string | number | null }[]) {

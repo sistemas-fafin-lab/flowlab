@@ -52,6 +52,7 @@ import faturamentoGlosasRecursosForaDeLote from '../_lib/handlers/faturamento-gl
 import faturamentoGlosasRecursosRecentes from '../_lib/handlers/faturamento-glosas-recursos-recentes.js';
 import faturamentoGlosasRecursosDashboard from '../_lib/handlers/faturamento-glosas-recursos-dashboard.js';
 import faturamentoIndicadores from '../_lib/handlers/faturamento-indicadores.js';
+import faturamentoDashboardGlosaSaldo from '../_lib/handlers/faturamento-dashboard-glosa-saldo.js';
 import faturamentoComparativosFunilGlosa from '../_lib/handlers/faturamento-comparativos-funil-glosa.js';
 import faturamentoComparativosVolumeEnvio from '../_lib/handlers/faturamento-comparativos-volume-envio.js';
 import faturamentoComparativosGlosaPorMes from '../_lib/handlers/faturamento-comparativos-glosa-por-mes.js';
@@ -67,6 +68,7 @@ type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 const ROTAS: Record<string, Handler> = {
   lotes: faturamentoLotes,
   'envios-por-convenio': faturamentoEnviosPorConvenio,
+  'dashboard-glosa-saldo': faturamentoDashboardGlosaSaldo,
   'comparativos-funil-glosa': faturamentoComparativosFunilGlosa,
   'comparativos-volume-envio': faturamentoComparativosVolumeEnvio,
   'comparativos-glosa-por-mes': faturamentoComparativosGlosaPorMes,

@@ -20,6 +20,8 @@ import {
   Gavel,
   GripVertical,
   History,
+  Hourglass,
+  Info,
   ListChecks,
   Lock,
   Pencil,
@@ -30,6 +32,7 @@ import {
   Target,
   Timer,
   TrendingUp,
+  Undo2,
   Unlock,
   UserCircle,
   Wallet,
@@ -45,6 +48,8 @@ import 'react-resizable/css/styles.css';
 import { useTheme } from '../../../hooks/useTheme';
 import { useContasReceberDashboard } from '../hooks/useContasReceberDashboard';
 import { useSaldoOperadorasAplis } from '../hooks/useSaldoOperadorasAplis';
+import { useCardsGlosaSaldo, type EstadoCardsGlosaSaldo } from '../hooks/useCardsGlosaSaldo';
+import type { CardsGlosaSaldo } from '../utils/cardsGlosaSaldo';
 import { useMetaMensal } from '../hooks/useMetaMensal';
 import { usePendenciasNaoFaturadas } from '../hooks/usePendenciasNaoFaturadas';
 import { usePendenciasParticulares } from '../hooks/usePendenciasParticulares';
@@ -132,7 +137,7 @@ interface LinhaAgingFaixa {
 }
 
 // Altura de um bloco de KPI = quantas LINHAS de card o Tailwind forma naquela
-// largura (4 → 2 → 1 coluna) × ~110px, mais o respiro do widget. Uma linha cabe
+// largura (6 → 3 → 2 → 1 coluna nos cards de valor) × ~110px, mais o respiro do widget. Uma linha cabe
 // em h3 (182px); reservar mais do que isso é o que deixava metade do card vazia.
 // Dentro do widget os cards esticam para preencher, então uma sobra pequena
 // vira card mais alto, e não faixa cinza.
@@ -150,42 +155,43 @@ const DEFAULT_LAYOUTS: ResponsiveLayouts = {
     { i: 'motivos-glosa', x: 0, y: 44, w: 12, h: 8, minW: 3, minH: 4 },
   ],
   md: [
-    { i: 'kpis-valor', x: 0, y: 0, w: 10, h: 3 },
-    { i: 'kpis-prazo', x: 0, y: 3, w: 10, h: 3 },
-    { i: 'kpis-pendencias', x: 0, y: 6, w: 10, h: 4 },
-    { i: 'meta-mensal', x: 0, y: 10, w: 10, h: 3 },
-    { i: 'recebimentos-mes', x: 0, y: 13, w: 10, h: 4 },
-    { i: 'aging', x: 0, y: 17, w: 5, h: 7 },
-    { i: 'saldo-operadoras', x: 5, y: 17, w: 5, h: 11 },
-    { i: 'previsao', x: 0, y: 28, w: 10, h: 8 },
-    { i: 'serie', x: 0, y: 36, w: 10, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 44, w: 10, h: 8 },
+    // 3 colunas: os seis cards de valor viram duas linhas.
+    { i: 'kpis-valor', x: 0, y: 0, w: 10, h: 5 },
+    { i: 'kpis-prazo', x: 0, y: 5, w: 10, h: 3 },
+    { i: 'kpis-pendencias', x: 0, y: 8, w: 10, h: 4 },
+    { i: 'meta-mensal', x: 0, y: 12, w: 10, h: 3 },
+    { i: 'recebimentos-mes', x: 0, y: 15, w: 10, h: 4 },
+    { i: 'aging', x: 0, y: 19, w: 5, h: 7 },
+    { i: 'saldo-operadoras', x: 5, y: 19, w: 5, h: 11 },
+    { i: 'previsao', x: 0, y: 30, w: 10, h: 8 },
+    { i: 'serie', x: 0, y: 38, w: 10, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 46, w: 10, h: 8 },
   ],
   sm: [
-    // 2 colunas: os quatro cards de valor viram duas linhas.
-    { i: 'kpis-valor', x: 0, y: 0, w: 6, h: 5 },
-    { i: 'kpis-prazo', x: 0, y: 5, w: 6, h: 3 },
-    { i: 'kpis-pendencias', x: 0, y: 8, w: 6, h: 4 },
-    { i: 'meta-mensal', x: 0, y: 12, w: 6, h: 6 },
-    { i: 'recebimentos-mes', x: 0, y: 18, w: 6, h: 6 },
-    { i: 'aging', x: 0, y: 24, w: 6, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 31, w: 6, h: 11 },
-    { i: 'previsao', x: 0, y: 42, w: 6, h: 8 },
-    { i: 'serie', x: 0, y: 50, w: 6, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 58, w: 6, h: 8 },
+    // 2 colunas: os seis cards de valor viram três linhas.
+    { i: 'kpis-valor', x: 0, y: 0, w: 6, h: 7 },
+    { i: 'kpis-prazo', x: 0, y: 7, w: 6, h: 3 },
+    { i: 'kpis-pendencias', x: 0, y: 10, w: 6, h: 4 },
+    { i: 'meta-mensal', x: 0, y: 14, w: 6, h: 6 },
+    { i: 'recebimentos-mes', x: 0, y: 20, w: 6, h: 6 },
+    { i: 'aging', x: 0, y: 26, w: 6, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 33, w: 6, h: 11 },
+    { i: 'previsao', x: 0, y: 44, w: 6, h: 8 },
+    { i: 'serie', x: 0, y: 52, w: 6, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 60, w: 6, h: 8 },
   ],
   xs: [
-    // Empilhado: quatro linhas de card, três, e duas, respectivamente.
-    { i: 'kpis-valor', x: 0, y: 0, w: 2, h: 8 },
-    { i: 'kpis-prazo', x: 0, y: 8, w: 2, h: 6 },
-    { i: 'kpis-pendencias', x: 0, y: 14, w: 2, h: 5 },
-    { i: 'meta-mensal', x: 0, y: 19, w: 2, h: 9 },
-    { i: 'recebimentos-mes', x: 0, y: 28, w: 2, h: 7 },
-    { i: 'aging', x: 0, y: 35, w: 2, h: 7 },
-    { i: 'saldo-operadoras', x: 0, y: 42, w: 2, h: 11 },
-    { i: 'previsao', x: 0, y: 53, w: 2, h: 8 },
-    { i: 'serie', x: 0, y: 61, w: 2, h: 8 },
-    { i: 'motivos-glosa', x: 0, y: 69, w: 2, h: 8 },
+    // Empilhado: seis linhas de card, três, e duas, respectivamente.
+    { i: 'kpis-valor', x: 0, y: 0, w: 2, h: 12 },
+    { i: 'kpis-prazo', x: 0, y: 12, w: 2, h: 6 },
+    { i: 'kpis-pendencias', x: 0, y: 18, w: 2, h: 5 },
+    { i: 'meta-mensal', x: 0, y: 23, w: 2, h: 9 },
+    { i: 'recebimentos-mes', x: 0, y: 32, w: 2, h: 7 },
+    { i: 'aging', x: 0, y: 39, w: 2, h: 7 },
+    { i: 'saldo-operadoras', x: 0, y: 46, w: 2, h: 11 },
+    { i: 'previsao', x: 0, y: 57, w: 2, h: 8 },
+    { i: 'serie', x: 0, y: 65, w: 2, h: 8 },
+    { i: 'motivos-glosa', x: 0, y: 73, w: 2, h: 8 },
   ],
 };
 
@@ -222,12 +228,14 @@ const Kpi: React.FC<{
   sub?: string;
   /** Linha extra sob o `sub` (ex.: observação das requisições não faturáveis). */
   extra?: React.ReactNode;
+  /** Explicação do número, num ícone ao lado do rótulo (tooltip nativo). */
+  dica?: string;
   cor: string;
   atraso?: number;
   /** Quando presente, o card vira um atalho de navegação (ex.: widget-resumo →
    *  aba Pendências) em vez de só exibir o número. */
   onClick?: () => void;
-}> = ({ icon, label, valor, sub, extra, cor, atraso = 0, onClick }) => {
+}> = ({ icon, label, valor, sub, extra, dica, cor, atraso = 0, onClick }) => {
   const clicavel = Boolean(onClick);
   return (
     // h-full: o card preenche a fatia que o widget lhe dá, então redimensionar o
@@ -251,8 +259,13 @@ const Kpi: React.FC<{
     >
       <div className="w-full flex items-center justify-between gap-2">
         <div className="min-w-0 flex-1">
-          <p className="text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider truncate">
-            {label}
+          <p className="flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <span className="truncate">{label}</span>
+            {dica && (
+              <span title={dica} aria-label={dica} role="img" className="shrink-0 cursor-help normal-case">
+                <Info className="w-3.5 h-3.5" />
+              </span>
+            )}
           </p>
           <p className="text-xl sm:text-2xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 mt-1 tabular-nums">
             {valor}
@@ -320,6 +333,12 @@ const desvioContratual = (real: number | null, previsto: number | null): string 
   return dif > 0 ? `${dif} dias além do contrato` : `${Math.abs(dif)} dias antes do contrato`;
 };
 
+/** Valor de um card da rota dashboard-glosa-saldo: "…" carregando, "—" na falha. */
+const valorCardGlosaSaldo = (estado: EstadoCardsGlosaSaldo, campo: (cards: CardsGlosaSaldo) => number): string => {
+  if (estado.loading) return '…';
+  return estado.cards ? formatCurrency(campo(estado.cards)) : '—';
+};
+
 interface Props {
   filtros: DashboardReceberFiltros;
   /** Recebe o recorte inteiro de uma vez, no "Aplicar" do modal de filtros. */
@@ -353,6 +372,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
   const [saldoSoPeriodo, setSaldoSoPeriodo] = useState(false);
   const { data, loading, error } = useContasReceberDashboard(filtros, saldoSoPeriodo);
   const comparacaoSaldo = useSaldoOperadorasAplis(filtros, saldoSoPeriodo);
+  const cardsGlosaSaldo = useCardsGlosaSaldo(filtros);
   const { meta, loading: loadingMeta, error: errorMeta, salvarMeta } = useMetaMensal();
   const [metaModalAberto, setMetaModalAberto] = useState(false);
   const [historicoMetasAberto, setHistoricoMetasAberto] = useState(false);
@@ -632,9 +652,12 @@ const ContasReceberDashboard: React.FC<Props> = ({
         containerPadding={[0, 0]}
       >
         {/* ── Valor ────────────────────────────────────────────────────────────
-            Os quatro saem do mesmo conjunto de títulos e por isso podem ser
-            lidos como uma decomposição: do faturado, quanto entrou, quanto foi
-            recusado e quanto dessa recusa já é perda assumida. */}
+            Os quatro primeiros saem do mesmo conjunto de títulos e por isso podem
+            ser lidos como uma decomposição: do faturado, quanto entrou, quanto foi
+            recusado e quanto dessa recusa já é perda assumida. Glosa recuperada e
+            Saldo pendente vêm de rota própria (useCardsGlosaSaldo) e só obedecem
+            ao período e à operadora: a Recuperada vem da foto de recursos do apLIS
+            (issue 10 de faturamento-comparativos). */}
         <div key="kpis-valor" className="group">
           {/* overflow-y-auto e não hidden: se o usuário encolher o widget além
               do que os cards ocupam, rolar é melhor do que cortar um número. */}
@@ -643,7 +666,7 @@ const ContasReceberDashboard: React.FC<Props> = ({
             {/* grid-auto-rows:1fr divide a altura igualmente entre as linhas de
                 card, mas nunca abaixo do conteúdo — o widget rola em vez de
                 cortar um número. */}
-            <div className="min-h-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 [grid-auto-rows:1fr]">
+            <div className="min-h-full grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 [grid-auto-rows:1fr]">
               <Kpi
                 icon={<Receipt className="w-4 h-4 sm:w-5 sm:h-5" />}
                 label="Valor faturado"
@@ -676,6 +699,39 @@ const ContasReceberDashboard: React.FC<Props> = ({
                 valor={formatCurrency(kpis.acatado)}
                 cor="from-amber-500 to-amber-600"
                 atraso={3}
+              />
+              <Kpi
+                icon={<Undo2 className="w-4 h-4 sm:w-5 sm:h-5" />}
+                label="Glosa recuperada"
+                sub={
+                  cardsGlosaSaldo.cards
+                    ? `${percentual(cardsGlosaSaldo.cards.recuperada, cardsGlosaSaldo.cards.glosaTotal)}% do glosado`
+                    : undefined
+                }
+                extra={cardsGlosaSaldo.erro ? <TentarNovamente onRetry={cardsGlosaSaldo.recarregar} /> : undefined}
+                dica={
+                  'Regra provisória, ainda a confirmar: glosa que entrou em recurso no apLIS e depois teve valor '
+                  + 'recebido (recurso pago, glosa recebida ou recurso que já voltou). É a mesma conta do funil da aba '
+                  + 'Comparativos. "% do glosado" é sobre a glosa da foto de recursos do apLIS (recuperada + acatada + '
+                  + 'em disputa). Segue só o período e a operadora: os filtros de lote e de nota não se aplicam.'
+                }
+                valor={valorCardGlosaSaldo(cardsGlosaSaldo, (c) => c.recuperada)}
+                cor="from-cyan-500 to-cyan-600"
+                atraso={4}
+              />
+              <Kpi
+                icon={<Hourglass className="w-4 h-4 sm:w-5 sm:h-5" />}
+                label="Saldo pendente"
+                sub="Total a receber"
+                extra={cardsGlosaSaldo.erro ? <TentarNovamente onRetry={cardsGlosaSaldo.recarregar} /> : undefined}
+                dica={
+                  'Faturado − Recebido − Acatado dos títulos emitidos no período, com a glosa acatada do apLIS: '
+                  + 'a mesma conta do Saldo por operadora. Segue só o período e a operadora: os filtros de lote e '
+                  + 'de nota não se aplicam.'
+                }
+                valor={valorCardGlosaSaldo(cardsGlosaSaldo, (c) => c.saldoPendente)}
+                cor="from-blue-500 to-blue-600"
+                atraso={5}
               />
             </div>
           </div>
