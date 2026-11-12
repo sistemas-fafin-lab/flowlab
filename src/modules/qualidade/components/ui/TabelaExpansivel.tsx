@@ -31,6 +31,8 @@ export interface ColunaTabela<T> {
   className?: string;
   /** Quebra o texto em várias linhas em vez de truncar/cortar — para textos livres longos (nome de clínica, descrição, observações). */
   quebrarLinha?: boolean;
+  /** Fixa a coluna à esquerda ao rolar na horizontal (fundo opaco + separador). */
+  fixa?: boolean;
 }
 
 interface TabelaExpansivelProps<T> {
@@ -43,6 +45,14 @@ interface TabelaExpansivelProps<T> {
   cor?: CorTabela;
   caption?: string;
   alturaCompacta?: string;
+  /** Conteúdo no cabeçalho do card, entre o título e "Expandir" (filtro segmentado, legenda, chip de filtro). */
+  extraCabecalho?: ReactNode;
+  /** Classes extras da célula da coluna `fixa` por linha — ex.: faixa colorida de status à esquerda (`TOM[x].faixa`). */
+  classeCelulaFixa?: (item: T) => string;
+  /** Cabeçalho em caixa-alta (padrão histórico) ou em texto normal 13px (worklists). */
+  cabecalhoCaixaAlta?: boolean;
+  /** Exibida no lugar das linhas quando `dados` vem vazio (ex.: filtro do cabeçalho zerou a lista). */
+  mensagemVazia?: string;
 }
 
 type Direcao = 'asc' | 'desc' | null;
@@ -241,7 +251,11 @@ function Corpo<T>({
   caption,
   ordenacao,
   alternarOrdenacao,
+  classeCelulaFixa,
+  cabecalhoCaixaAlta = true,
 }: {
+  classeCelulaFixa?: (item: T) => string;
+  cabecalhoCaixaAlta?: boolean;
   colunas: ColunaTabela<T>[];
   dados: T[];
   chaveLinha: (item: T) => string;
@@ -264,7 +278,9 @@ function Corpo<T>({
             return (
               <th
                 key={coluna.chave}
-                className={`sticky top-0 z-10 whitespace-nowrap border-b px-4 py-2.5 text-left text-xs font-medium uppercase tracking-wide ${accent.headerBg} ${
+                className={`sticky top-0 whitespace-nowrap border-b px-4 py-2.5 text-left ${
+                  cabecalhoCaixaAlta ? 'text-xs font-medium uppercase tracking-wide' : 'text-[13px] font-semibold'
+                } ${coluna.fixa ? 'left-0 z-20 shadow-[inset_-1px_0_0_rgba(148,163,184,.2)]' : 'z-10'} ${accent.headerBg} ${
                   ativo ? accent.borda : accent.headerBorda
                 } ${coluna.larguraMin ?? ''} ${coluna.className ?? ''}`}
               >
@@ -297,6 +313,12 @@ function Corpo<T>({
                 key={coluna.chave}
                 className={`px-4 py-3 align-top text-sm text-gray-700 dark:text-slate-300 ${
                   coluna.quebrarLinha ? 'max-w-xs whitespace-normal break-words' : 'whitespace-nowrap'
+                } ${
+                  coluna.fixa
+                    ? `sticky left-0 z-[1] bg-white transition-colors group-hover:bg-gray-50 dark:bg-gray-800 dark:group-hover:bg-[#2b3545] ${
+                        classeCelulaFixa?.(item) ?? 'shadow-[inset_-1px_0_0_rgba(148,163,184,.2)]'
+                      }`
+                    : ''
                 } ${coluna.larguraMin ?? ''} ${coluna.className ?? ''}`}
               >
                 {coluna.render ? coluna.render(item) : (coluna.valor(item) ?? '—')}
@@ -319,6 +341,10 @@ export function TabelaExpansivel<T>({
   cor = 'blue',
   caption,
   alturaCompacta = 'max-h-[26rem]',
+  extraCabecalho,
+  classeCelulaFixa,
+  cabecalhoCaixaAlta,
+  mensagemVazia,
 }: TabelaExpansivelProps<T>) {
   const [expandido, setExpandido] = useState(false);
   const estado = useOrdenacaoEFiltro(colunas, dados);
@@ -330,10 +356,12 @@ export function TabelaExpansivel<T>({
     <>
       <div className="w-full min-w-0">
         <div className="glass-surface relative overflow-hidden rounded-2xl">
-          <div className={`flex items-center justify-between gap-3 border-b ${accent.headerBorda} px-4 py-3`}>
-            <h3 className="text-sm font-semibold text-gray-700 dark:text-slate-300">
+          <div className={`flex flex-wrap items-center gap-x-4 gap-y-3 border-b ${accent.headerBorda} px-4 py-3`}>
+            <h3 className="whitespace-nowrap text-sm font-semibold text-gray-700 dark:text-slate-300">
               {titulo} <span className="font-normal text-gray-400 dark:text-slate-500">({dados.length})</span>
             </h3>
+            {extraCabecalho}
+            <div className="flex-1" />
             <button
               type="button"
               onClick={() => setExpandido(true)}
@@ -354,7 +382,12 @@ export function TabelaExpansivel<T>({
               caption={caption}
               ordenacao={estado.ordenacao}
               alternarOrdenacao={estado.alternarOrdenacao}
+              classeCelulaFixa={classeCelulaFixa}
+              cabecalhoCaixaAlta={cabecalhoCaixaAlta}
             />
+            {dados.length === 0 && mensagemVazia && (
+              <p className="border-t border-gray-200 px-4 py-7 text-sm text-gray-500 dark:border-white/5 dark:text-slate-400">{mensagemVazia}</p>
+            )}
           </div>
         </div>
       </div>
@@ -474,6 +507,8 @@ export function TabelaExpansivel<T>({
                 cor={cor}
                 ordenacao={estado.ordenacao}
                 alternarOrdenacao={estado.alternarOrdenacao}
+                classeCelulaFixa={classeCelulaFixa}
+                cabecalhoCaixaAlta={cabecalhoCaixaAlta}
               />
             </div>
             </div>

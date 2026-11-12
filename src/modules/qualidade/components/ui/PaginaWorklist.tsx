@@ -36,6 +36,10 @@ interface PaginaWorklistProps<TResposta, TLinha> {
   chaveLinha: (item: TLinha) => string;
   onClickLinha: (item: TLinha) => void;
   classeLinha?: (item: TLinha) => string;
+  /** Classes da célula da coluna `fixa` por linha (faixa colorida de status). */
+  classeCelulaFixa?: (item: TLinha) => string;
+  /** Conteúdo no cabeçalho do card da tabela (filtro segmentado, legenda, chip de filtro ativo). */
+  extraCabecalhoTabela?: (resposta: TResposta) => ReactNode;
   /** Conteúdo extra no header, antes do botão Sincronizar (sino de notificação, link "Cotas"). */
   extraHeader?: ReactNode;
   /** Conteúdo acima da tabela (métricas, alertas, card-filtro) — recebe a resposta mesmo antes de carregar (`undefined`), cada página decide o que mostrar nesse meio-tempo. */
@@ -72,6 +76,8 @@ export function PaginaWorklist<TResposta, TLinha>({
   chaveLinha,
   onClickLinha,
   classeLinha,
+  classeCelulaFixa,
+  extraCabecalhoTabela,
   extraHeader,
   acimaDaTabela,
   abaixoDaTabela,
@@ -147,13 +153,13 @@ export function PaginaWorklist<TResposta, TLinha>({
             />
           )}
 
-          {!isLoading && !isError && data && linhasExibidas.length === 0 && (
+          {!isLoading && !isError && data && linhasExibidas.length === 0 && !extraCabecalhoTabela && (
             <p className="glass-surface rounded-2xl p-8 text-center text-sm text-gray-500 dark:text-slate-400">
               {mensagemVazio(data)}
             </p>
           )}
 
-          {!isLoading && !isError && data && linhasExibidas.length > 0 && (
+          {!isLoading && !isError && data && (linhasExibidas.length > 0 || extraCabecalhoTabela) && (
             <TabelaExpansivel
               titulo={tituloTabela}
               caption={tituloTabela}
@@ -162,6 +168,11 @@ export function PaginaWorklist<TResposta, TLinha>({
               chaveLinha={chaveLinha}
               onClickLinha={onClickLinha}
               classeLinha={classeLinha}
+              classeCelulaFixa={classeCelulaFixa}
+              extraCabecalho={extraCabecalhoTabela?.(data)}
+              cabecalhoCaixaAlta={false}
+              mensagemVazia={mensagemVazio(data)}
+              alturaCompacta="max-h-[32rem]"
               cor={cor}
             />
           )}

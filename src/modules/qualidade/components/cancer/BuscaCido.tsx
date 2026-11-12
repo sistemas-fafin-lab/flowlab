@@ -15,6 +15,8 @@ interface BuscaCidoProps {
   className?: string;
   /** `valorAtual`/`descricaoAtual` vêm de uma sugestão automática, ainda não confirmada pelo humano (R2/R3) — estilo esmaecido + amarelado. */
   sugerido?: boolean;
+  /** Já abre a lista de busca ao montar (ex.: botão "Outro código" da sugestão). */
+  abrirAoMontar?: boolean;
 }
 
 const campoBase = 'glass-field w-full rounded-xl px-3 py-2 text-left text-sm text-slate-800 dark:text-slate-200';
@@ -34,8 +36,9 @@ export function BuscaCido({
   placeholder,
   className,
   sugerido,
+  abrirAoMontar,
 }: BuscaCidoProps) {
-  const [aberto, setAberto] = useState(false);
+  const [aberto, setAberto] = useState(abrirAoMontar ?? false);
   const [busca, setBusca] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
   const buscaRef = useRef<HTMLInputElement>(null);

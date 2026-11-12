@@ -5,9 +5,10 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { CuradoriaDrawer } from './cortesias/CuradoriaDrawer.js';
 import { NotificacoesModal } from './cortesias/NotificacoesModal.js';
-import { BadgeRevisaoPendente } from './ui/BadgeRevisaoPendente.js';
 import { PaginaWorklist } from './ui/PaginaWorklist.js';
 import type { ColunaTabela } from './ui/TabelaExpansivel.js';
+import type { Tom } from './ui/tons.js';
+import { ChipAClassificar, Etiqueta, Pilula, TEXTO_FORTE, TEXTO_FRACO } from './ui/tons.js';
 import { buscarCortesias, buscarNotificacoesCortesias, sincronizarCortesias } from '../cortesias.js';
 import { useCanManageQualidade } from '../hooks/useCanManageQualidade.js';
 import {
@@ -30,11 +31,11 @@ const ROTULO_STATUS_CURADORIA: Record<StatusCuradoriaCortesia, string> = {
   descartada: 'Descartada',
 };
 
-const BADGE_STATUS: Record<StatusCuradoriaCortesia, string> = {
-  pendente: 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200',
-  em_analise: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300',
-  concluida: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-  descartada: 'bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400',
+const TOM_STATUS: Record<StatusCuradoriaCortesia, Tom> = {
+  pendente: 'slate',
+  em_analise: 'blue',
+  concluida: 'emerald',
+  descartada: 'apagado',
 };
 
 const OPCOES_FILTRO_STATUS_CURADORIA: { valor: StatusCuradoriaCortesia; rotulo: string; cor: 'gray' | 'blue' | 'green' }[] = [
@@ -48,11 +49,11 @@ const OPCOES_FILTRO_STATUS_CURADORIA: { valor: StatusCuradoriaCortesia; rotulo: 
 // (R1, ver cortesiasRegras.ts). Nunca foi de fato aprovada, por isso tem cor
 // e destaque de linha diferentes de "fora do prazo" (que É aprovada, só que
 // tarde).
-const BADGE_PRAZO: Record<CortesiaDTO['situacaoPrazo'], string> = {
-  dentro_prazo: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
-  fora_prazo: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
-  sem_autorizacao: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
-  nao_autorizada: 'bg-rose-200 text-rose-900 dark:bg-rose-900/60 dark:text-rose-200',
+const TOM_PRAZO: Record<CortesiaDTO['situacaoPrazo'], Tom> = {
+  dentro_prazo: 'emerald',
+  fora_prazo: 'red',
+  sem_autorizacao: 'slate',
+  nao_autorizada: 'rose',
 };
 
 const ROTULO_PRAZO: Record<CortesiaDTO['situacaoPrazo'], string> = {
@@ -69,10 +70,28 @@ function formatarMoeda(valor: number | null): string {
 
 // Split manual (sem `new Date`) para não sofrer deslocamento de fuso horário
 // ao formatar uma data `YYYY-MM-DD` vinda do banco.
-function formatarData(data: string | null): string {
+function formatarDiaMes(data: string | null): string {
   if (!data) return '—';
-  const [ano, mes, dia] = data.slice(0, 10).split('-');
-  return `${dia}/${mes}/${ano}`;
+  const [, mes, dia] = data.slice(0, 10).split('-');
+  return `${dia}/${mes}`;
+}
+
+function quantidadeDias(n: number): string {
+  if (n === 0) return 'no mesmo dia';
+  return n === 1 ? '1 dia' : `${n} dias`;
+}
+
+function resumoAutorizacao(item: CortesiaDTO): string {
+  if (item.dtaAutorizacao) {
+    const dias = item.diasAteAutorizacao === null ? '' : ` · ${quantidadeDias(item.diasAteAutorizacao)}`;
+    return `Solic. ${formatarDiaMes(item.dtaSolicitacao)} · Aut. ${formatarDiaMes(item.dtaAutorizacao)}${dias}`;
+  }
+  if (item.situacaoPrazo === 'nao_autorizada') return `Solicitada em ${formatarDiaMes(item.dtaSolicitacao)} · prazo vencido`;
+  return `Solicitada em ${formatarDiaMes(item.dtaSolicitacao)} · aguardando`;
+}
+
+function autorizadoPor(item: CortesiaDTO): string {
+  return item.autorizadoPorCorrigidoNome ?? item.autorizadoPorLis ?? '';
 }
 
 const INTERVALO_POLL_NOTIFICACOES_MS = 60_000;
@@ -82,118 +101,112 @@ function pendentesDeAutorizacao(dados: CortesiaDTO[]): CortesiaDTO[] {
 }
 
 const colunas: ColunaTabela<CortesiaDTO>[] = [
-  { chave: 'requisicao', titulo: 'Requisição', valor: (item) => item.codRequisicao, filtravel: true, larguraMin: 'min-w-[8rem]' },
   {
     chave: 'paciente',
-    titulo: 'Paciente',
+    titulo: 'Paciente · Requisição',
     // PII (P10) — lida do LIS sob demanda a cada carregamento, nunca persistida em qa_cortesias.
-    valor: (item) => item.nomePacienteLis ?? '',
+    valor: (item) => `${item.nomePacienteLis ?? ''} ${item.codRequisicao}`.trim(),
+    render: (item) => (
+      <>
+        <div className={`font-medium ${TEXTO_FORTE}`}>{item.nomePacienteLis ?? '—'}</div>
+        <div className={`${TEXTO_FRACO} tabular-nums`}>Req. {item.codRequisicao}</div>
+      </>
+    ),
     quebrarLinha: true,
     filtravel: true,
-    larguraMin: 'min-w-[14rem]',
+    larguraMin: 'min-w-[11rem]',
   },
   {
     chave: 'clinica',
-    titulo: 'Clínica',
-    valor: (item) => item.clinicaNome ?? '',
+    titulo: 'Clínica · Exame',
+    valor: (item) => `${item.clinicaNome ?? ''} · ${item.exameNome ?? ''}`,
+    render: (item) => (
+      <>
+        <div>{item.clinicaNome ?? '—'}</div>
+        <div className={TEXTO_FRACO}>{item.exameNome ?? '—'}</div>
+      </>
+    ),
     quebrarLinha: true,
     filtravel: true,
-    larguraMin: 'min-w-[14rem]',
+    larguraMin: 'min-w-[12rem]',
   },
-  {
-    chave: 'exame',
-    titulo: 'Exame',
-    valor: (item) => item.exameNome ?? '',
-    quebrarLinha: true,
-    larguraMin: 'min-w-[14rem]',
-  },
-  { chave: 'dtaSolicitacao', titulo: 'Data solicitação', valor: (item) => item.dtaSolicitacao, render: (item) => formatarData(item.dtaSolicitacao), larguraMin: 'min-w-[9rem]' },
-  { chave: 'dtaAutorizacao', titulo: 'Data autorização', valor: (item) => item.dtaAutorizacao, render: (item) => formatarData(item.dtaAutorizacao), larguraMin: 'min-w-[9rem]' },
   {
     chave: 'prazo',
-    titulo: 'Prazo',
+    titulo: 'Autorização e prazo',
     valor: (item) => ROTULO_PRAZO[item.situacaoPrazo],
     filtravel: true,
     tipoFiltro: 'select',
     render: (item) => (
-      <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_PRAZO[item.situacaoPrazo]}`}>
-        {ROTULO_PRAZO[item.situacaoPrazo]}
-      </span>
+      <div className="flex flex-col items-start gap-[5px]">
+        <Pilula tom={TOM_PRAZO[item.situacaoPrazo]}>{ROTULO_PRAZO[item.situacaoPrazo]}</Pilula>
+        <span className={TEXTO_FRACO}>{resumoAutorizacao(item)}</span>
+      </div>
     ),
+    quebrarLinha: true,
+    larguraMin: 'min-w-[12.5rem]',
+  },
+  {
+    chave: 'motivo',
+    titulo: 'Motivo · Classificação',
+    valor: (item) => `${item.motivoNome ?? ''} · ${item.classificacaoNome ?? ''}`,
+    render: (item) => (
+      <>
+        {item.motivoNome ? <div>{item.motivoNome}</div> : <ChipAClassificar />}
+        {item.classificacaoNome && <div className={TEXTO_FRACO}>{item.classificacaoNome}</div>}
+      </>
+    ),
+    quebrarLinha: true,
+    filtravel: true,
     larguraMin: 'min-w-[10rem]',
   },
-  { chave: 'motivo', titulo: 'Motivo', valor: (item) => item.motivoNome ?? '', filtravel: true, larguraMin: 'min-w-[10rem]' },
-  { chave: 'classificacao', titulo: 'Classificação', valor: (item) => item.classificacaoNome ?? '', filtravel: true, larguraMin: 'min-w-[10rem]' },
-  {
-    chave: 'valorParticular',
-    titulo: 'Valor particular',
-    valor: (item) => item.valorParticular ?? item.valorParticularCorrigido ?? undefined,
-    render: (item) => {
-      const valorEfetivo = item.valorParticular ?? item.valorParticularCorrigido;
-      return (
-        <>
-          {valorEfetivo === null ? (
-            <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-              Não cadastrado
-            </span>
-          ) : (
-            <span className="text-gray-700 dark:text-slate-300">{formatarMoeda(valorEfetivo)}</span>
-          )}
-          {item.valorParticular === null && item.valorParticularCorrigido !== null && (
-            <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-              ajustado
-            </span>
-          )}
-        </>
-      );
-    },
-    larguraMin: 'min-w-[8rem]',
-  },
-  { chave: 'valorCobrado', titulo: 'Valor cobrado', valor: (item) => item.valorCobrado ?? undefined, render: (item) => formatarMoeda(item.valorCobrado), larguraMin: 'min-w-[8rem]' },
   {
     chave: 'valorConcedido',
     titulo: 'Valor concedido',
     valor: (item) => item.valorConcedidoCorrigido ?? item.valorConcedido ?? undefined,
     render: (item) => {
-      const valorEfetivo = item.valorConcedidoCorrigido ?? item.valorConcedido;
+      const concedido = item.valorConcedidoCorrigido ?? item.valorConcedido;
+      const particular = item.valorParticular ?? item.valorParticularCorrigido;
+      const particularAjustado = item.valorParticular === null && item.valorParticularCorrigido !== null;
       return (
         <>
-          {valorEfetivo === null ? (
-            <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
-              <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
-              Não cadastrado
-            </span>
-          ) : (
-            <span className="text-gray-700 dark:text-slate-300">{formatarMoeda(valorEfetivo)}</span>
-          )}
-          {item.valorConcedidoCorrigido !== null && (
-            <span className="ml-2 rounded-full bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
-              ajustado
-            </span>
-          )}
-          {item.divergenciaValores && (
-            <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-              divergência
-            </span>
-          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            {concedido === null ? (
+              <span className="inline-flex items-center gap-1 font-medium text-amber-600 dark:text-amber-400">
+                <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
+                Não cadastrado
+              </span>
+            ) : (
+              <span className={`whitespace-nowrap font-semibold tabular-nums ${TEXTO_FORTE}`}>{formatarMoeda(concedido)}</span>
+            )}
+            {item.valorConcedidoCorrigido !== null && <Etiqueta tom="blue">ajustado</Etiqueta>}
+            {item.divergenciaValores && <Etiqueta tom="amber">divergência</Etiqueta>}
+          </div>
+          <div className={`${TEXTO_FRACO} mt-0.5`}>
+            Particular {particular === null ? 'não cadastrado' : `${formatarMoeda(particular)}${particularAjustado ? ' (ajustado)' : ''}`} ·
+            Cobrado {formatarMoeda(item.valorCobrado)}
+          </div>
         </>
       );
     },
-    larguraMin: 'min-w-[10rem]',
-  },
-  {
-    chave: 'autorizadoPor',
-    titulo: 'Autorizado por',
-    valor: (item) => item.autorizadoPorCorrigidoNome ?? item.autorizadoPorLis ?? '',
     quebrarLinha: true,
-    filtravel: true,
-    larguraMin: 'min-w-[10rem]',
+    larguraMin: 'min-w-[12rem]',
   },
   {
-    chave: 'solicitadoPor',
-    titulo: 'Solicitado por',
-    valor: (item) => item.solicitadoPorLis ?? '',
+    chave: 'responsaveis',
+    titulo: 'Responsáveis',
+    valor: (item) => `${autorizadoPor(item)} ${item.solicitadoPorLis ?? ''}`.trim(),
+    render: (item) => (
+      <div className="text-[13px] leading-[18px]">
+        <div>
+          <span className="text-gray-500 dark:text-slate-400">Autorizou </span>
+          {autorizadoPor(item) || '—'}
+        </div>
+        <div className="mt-0.5">
+          <span className="text-gray-500 dark:text-slate-400">Solicitou </span>
+          {item.solicitadoPorLis ?? '—'}
+        </div>
+      </div>
+    ),
     quebrarLinha: true,
     filtravel: true,
     larguraMin: 'min-w-[10rem]',
@@ -202,20 +215,18 @@ const colunas: ColunaTabela<CortesiaDTO>[] = [
   // completo no CuradoriaDrawer (clique na linha) — não repetir na tabela.
   {
     chave: 'status',
-    titulo: 'Status da curadoria',
+    titulo: 'Curadoria',
     valor: (item) => item.statusCuradoria,
     filtravel: true,
     tipoFiltro: 'select',
     opcoesFiltro: OPCOES_FILTRO_STATUS_CURADORIA,
     render: (item) => (
-      <>
-        <span className={`rounded-full px-2 py-1 text-xs font-medium ${BADGE_STATUS[item.statusCuradoria]}`}>
-          {ROTULO_STATUS_CURADORIA[item.statusCuradoria]}
-        </span>
-        <BadgeRevisaoPendente revisaoPendente={item.revisaoPendente} />
-      </>
+      <div className="flex flex-col items-start gap-[5px]">
+        <Pilula tom={TOM_STATUS[item.statusCuradoria]}>{ROTULO_STATUS_CURADORIA[item.statusCuradoria]}</Pilula>
+        {item.revisaoPendente && <Etiqueta tom="purple">revisão pendente</Etiqueta>}
+      </div>
     ),
-    larguraMin: 'min-w-[12rem]',
+    larguraMin: 'min-w-[9.5rem]',
   },
 ];
 
