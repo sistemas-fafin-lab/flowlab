@@ -29,6 +29,13 @@ const MAX_CONVENIOS_NO_GRAFICO = 15;
 
 const ROTULO_MEDIDA: Record<MedidaVolumeEnvio, string> = { qtdGuias: 'Guias', qtdLotes: 'Lotes', valor: 'Valor' };
 
+/** Legenda do gráfico de volume: o que a barra mede e qual dos 3 meses ela é. */
+const LEGENDA_MEDIDA: Record<MedidaVolumeEnvio, string> = {
+  qtdGuias: 'Guias enviadas',
+  qtdLotes: 'Lotes enviados',
+  valor: 'Valor enviado',
+};
+
 /** Eixo e tooltip do gráfico de volume, conforme a medida: R$ compacto no eixo, completo no tooltip. */
 const FORMATO_MEDIDA: Record<MedidaVolumeEnvio, { eixo: (n: number) => string; tooltip: (n: number) => string }> = {
   qtdGuias: { eixo: formatInteiro, tooltip: formatInteiro },
@@ -134,6 +141,7 @@ const ComparativosPage: React.FC = () => {
               meses={meses.map((p) => p.mes)}
               formatarEixo={FORMATO_MEDIDA[medida].eixo}
               formatarTooltip={FORMATO_MEDIDA[medida].tooltip}
+              descricao={LEGENDA_MEDIDA[medida]}
             />
             {volume.length > MAX_CONVENIOS_NO_GRAFICO && (
               <p className="text-xs text-gray-500 dark:text-gray-400">

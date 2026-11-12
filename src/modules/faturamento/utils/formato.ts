@@ -276,6 +276,14 @@ export function formatPercentual(valor: number): string {
   return `${valor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
 
+const POSICAO_MES_COMPARATIVO = ['mês selecionado', '1 mês antes', '2 meses antes'];
+
+/** Legenda dos gráficos da aba Comparativos: "Guias enviadas em 10/2026 (mês selecionado)".
+ *  `indice` é a posição do mês na comparação (0 = referência, 1 = M-1, 2 = M-2). */
+export function rotuloMesComparativo(descricao: string, mes: string, indice: number): string {
+  return `${descricao} em ${formatCompetencia(mes)} (${POSICAO_MES_COMPARATIVO[indice] ?? `${indice} meses antes`})`;
+}
+
 export function plural(n: number, singular: string, pluralTexto: string): string {
   return `${n} ${n === 1 ? singular : pluralTexto}`;
 }

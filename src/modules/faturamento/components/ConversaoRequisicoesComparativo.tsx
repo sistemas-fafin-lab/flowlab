@@ -4,11 +4,11 @@ import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import { useComparativosConversao } from '../hooks/useComparativosConversao';
 import { formatCompetencia, formatPercentual } from '../utils/formato';
 import type { ConversaoMes } from '../utils/conversaoRequisicoes';
-import BarrasHorizontaisPorConvenio from './BarrasHorizontaisPorConvenio';
+import PontosPercentualPorConvenio from './PontosPercentualPorConvenio';
 
 // Aba Comparativos → Conversão de requisições (issue 07). Aptas × faturadas por mês da data
 // de solicitação: totais dos 3 meses, o % de conversão dos convênios com mais aptas no mês
-// de referência em barras horizontais e a tabela com todos. Sem aptas no mês, o % é "—".
+// de referência em pontos ligados e a tabela com todos. Sem aptas no mês, o % é "—".
 
 interface Props {
   mes: string;
@@ -21,7 +21,6 @@ const TD = 'px-3 py-2 tabular-nums text-right text-gray-700 dark:text-gray-300';
 
 const inteiro = (n: number) => n.toLocaleString('pt-BR');
 const percentual = (p: number | null) => (p === null ? '—' : formatPercentual(p));
-const eixoPercentual = (p: number) => `${p}%`;
 
 // Cada medida com o rótulo curto (cabeçalho por mês da tabela) e o longo (linha de totais).
 const COLUNAS: { rotulo: string; rotuloTotal: string; valor: (m: ConversaoMes) => string; destaque?: boolean }[] = [
@@ -110,7 +109,7 @@ const ConversaoRequisicoesComparativo: React.FC<Props> = ({ mes }) => {
 
           {linhasGrafico.length > 0 && (
             <>
-              <BarrasHorizontaisPorConvenio linhas={linhasGrafico} meses={meses} formatarEixo={eixoPercentual} dominio={[0, 100]} />
+              <PontosPercentualPorConvenio linhas={linhasGrafico} meses={meses} descricao="% de conversão" />
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 % de conversão dos {Math.min(linhasGrafico.length, MAX_CONVENIOS_NO_GRAFICO)} convênios com mais aptas em {formatCompetencia(mes)}; a tabela lista todos.
               </p>

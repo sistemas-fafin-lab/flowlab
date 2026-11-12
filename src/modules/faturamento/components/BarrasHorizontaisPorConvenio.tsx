@@ -2,7 +2,7 @@ import React from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useTheme } from '../../../hooks/useTheme';
 import { CORES_MESES } from '../utils/comparativos';
-import { formatCompetencia } from '../utils/formato';
+import { rotuloMesComparativo } from '../utils/formato';
 
 // Barras horizontais agrupadas da aba Comparativos: convênio no eixo vertical e uma barra por
 // mês (referência, M-1, M-2), no estilo do ranking dos Indicadores. O spec pede o mesmo
@@ -30,9 +30,12 @@ interface Props {
   formatarTooltip?: (valor: number) => string;
   /** Domínio do eixo de valores; padrão: de 0 ao maior valor. */
   dominio?: [number, number];
+  /** O que a barra mede, para a legenda e o tooltip: "Guias enviadas" vira
+   *  "Guias enviadas em 10/2026 (mês selecionado)". */
+  descricao: string;
 }
 
-const BarrasHorizontaisPorConvenio: React.FC<Props> = ({ linhas, meses, formatarEixo, formatarTooltip = formatarEixo, dominio }) => {
+const BarrasHorizontaisPorConvenio: React.FC<Props> = ({ linhas, meses, formatarEixo, formatarTooltip = formatarEixo, dominio, descricao }) => {
   const { isDark } = useTheme();
   const axisTick = { fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' };
   const tooltipStyle: React.CSSProperties = {
@@ -58,7 +61,7 @@ const BarrasHorizontaisPorConvenio: React.FC<Props> = ({ linhas, meses, formatar
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {meses.map((m, i) => (
-            <Bar key={m} dataKey={m} name={formatCompetencia(m)} fill={CORES_MESES[i]} radius={[0, 4, 4, 0]} maxBarSize={10} />
+            <Bar key={m} dataKey={m} name={rotuloMesComparativo(descricao, m, i)} fill={CORES_MESES[i]} radius={[0, 4, 4, 0]} maxBarSize={10} />
           ))}
         </BarChart>
       </ResponsiveContainer>
