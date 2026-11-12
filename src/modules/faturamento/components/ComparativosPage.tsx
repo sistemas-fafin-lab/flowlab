@@ -4,9 +4,9 @@ import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import { useComparativosVolumeEnvio } from '../hooks/useComparativosVolumeEnvio';
 import {
-  conveniosDoGraficoDeVolume,
   mesDeReferenciaPadrao,
   mesesFechados,
+  ordenarVolumePelaReferencia,
   periodosComparativos,
   type MedidaVolumeEnvio,
 } from '../utils/comparativos';
@@ -49,14 +49,16 @@ const ComparativosPage: React.FC = () => {
   // Enquanto a resposta não chega, os cabeçalhos já mostram os 3 meses escolhidos.
   const meses = useMemo(() => (periodos.length > 0 ? periodos : periodosComparativos(mes) ?? []), [periodos, mes]);
 
-  // Os MAX_CONVENIOS_NO_GRAFICO de maior volume no mês de referência, na medida escolhida; a tabela segue com todos.
+  // Gráfico e tabela na mesma ordem: maior volume no mês de referência, na medida escolhida.
+  // O gráfico mostra os MAX_CONVENIOS_NO_GRAFICO primeiros; a tabela, todos.
+  const volumeOrdenado = useMemo(() => ordenarVolumePelaReferencia(volume, medida), [volume, medida]);
   const linhasGrafico = useMemo(
     () =>
-      conveniosDoGraficoDeVolume(volume, medida, MAX_CONVENIOS_NO_GRAFICO).map((convenio) => ({
+      volumeOrdenado.slice(0, MAX_CONVENIOS_NO_GRAFICO).map((convenio) => ({
         convenio: convenio.nome ?? 'Não identificado',
         valores: Object.fromEntries(convenio.meses.map((m) => [m.mes, m[medida]])),
       })),
-    [volume, medida],
+    [volumeOrdenado, medida],
   );
 
   return (
@@ -158,7 +160,7 @@ const ComparativosPage: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                    {volume.map((convenio) => (
+                    {volumeOrdenado.map((convenio) => (
                       <tr key={convenio.fontePagadoraId ?? `sem-id-${convenio.nome}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
                         <td className="px-3 py-2 text-gray-900 dark:text-gray-100 truncate max-w-[320px]">
                           {convenio.nome ?? 'Não identificado'}

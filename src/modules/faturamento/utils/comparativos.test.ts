@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  conveniosDoGraficoDeVolume,
   mesDeReferenciaPadrao,
   mesesFechados,
   montarVolumeEnvio,
+  ordenarVolumePelaReferencia,
   periodosComparativos,
 } from './comparativos';
 
@@ -119,7 +119,7 @@ describe('montarVolumeEnvio', () => {
   });
 });
 
-describe('conveniosDoGraficoDeVolume', () => {
+describe('ordenarVolumePelaReferencia', () => {
   const periodos = periodosComparativos('2026-10')!;
   // ALFA lidera em guias na referência, BETA em valor; GAMA só enviou em M-1.
   const volume = montarVolumeEnvio(periodos, [
@@ -129,13 +129,9 @@ describe('conveniosDoGraficoDeVolume', () => {
   ]);
 
   it('ordena pela medida escolhida no mês de referência, não pela soma dos 3 meses', () => {
-    expect(conveniosDoGraficoDeVolume(volume, 'qtdGuias', 15).map((c) => c.nome)).toEqual(['ALFA', 'BETA', 'GAMA']);
-    expect(conveniosDoGraficoDeVolume(volume, 'valor', 15).map((c) => c.nome)).toEqual(['BETA', 'ALFA', 'GAMA']);
-    expect(conveniosDoGraficoDeVolume(volume, 'qtdLotes', 15).map((c) => c.nome)).toEqual(['BETA', 'ALFA', 'GAMA']);
-  });
-
-  it('corta nos N primeiros', () => {
-    expect(conveniosDoGraficoDeVolume(volume, 'valor', 2).map((c) => c.nome)).toEqual(['BETA', 'ALFA']);
+    expect(ordenarVolumePelaReferencia(volume, 'qtdGuias').map((c) => c.nome)).toEqual(['ALFA', 'BETA', 'GAMA']);
+    expect(ordenarVolumePelaReferencia(volume, 'valor').map((c) => c.nome)).toEqual(['BETA', 'ALFA', 'GAMA']);
+    expect(ordenarVolumePelaReferencia(volume, 'qtdLotes').map((c) => c.nome)).toEqual(['BETA', 'ALFA', 'GAMA']);
   });
 
   it('no empate na referência, desempata pelo nome', () => {
@@ -143,7 +139,7 @@ describe('conveniosDoGraficoDeVolume', () => {
       { mes: '2026-10', fontePagadoraId: 1, nome: 'ZETA', qtdLotes: 1, qtdGuias: 10, valor: 100 },
       { mes: '2026-10', fontePagadoraId: 2, nome: 'ALFA', qtdLotes: 1, qtdGuias: 10, valor: 100 },
     ]);
-    expect(conveniosDoGraficoDeVolume(empate, 'qtdGuias', 15).map((c) => c.nome)).toEqual(['ALFA', 'ZETA']);
+    expect(ordenarVolumePelaReferencia(empate, 'qtdGuias').map((c) => c.nome)).toEqual(['ALFA', 'ZETA']);
   });
 });
 

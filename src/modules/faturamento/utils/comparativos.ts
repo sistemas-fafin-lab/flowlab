@@ -114,16 +114,15 @@ export function montarVolumeEnvio(
 export type MedidaVolumeEnvio = 'qtdGuias' | 'qtdLotes' | 'valor';
 
 /**
- * Os `maximo` convênios do gráfico de volume: os de maior `medida` no mês de referência
- * (o primeiro mês de cada convênio), do maior para o menor; no empate, pelo nome.
+ * Ordem do gráfico e da tabela de volume: maior `medida` no mês de referência (o primeiro
+ * mês de cada convênio) primeiro; no empate, pelo nome.
  */
-export function conveniosDoGraficoDeVolume(
+export function ordenarVolumePelaReferencia(
   volume: VolumeEnvioConvenio[],
   medida: MedidaVolumeEnvio,
-  maximo: number,
 ): VolumeEnvioConvenio[] {
   const naReferencia = (v: VolumeEnvioConvenio) => v.meses[0]?.[medida] ?? 0;
-  return [...volume]
-    .sort((a, b) => naReferencia(b) - naReferencia(a) || (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'))
-    .slice(0, maximo);
+  return [...volume].sort(
+    (a, b) => naReferencia(b) - naReferencia(a) || (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'),
+  );
 }
