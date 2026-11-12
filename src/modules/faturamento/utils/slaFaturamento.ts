@@ -32,7 +32,7 @@ export interface LinhaSlaRequisicao {
   valorRecebido: number | null;
 }
 
-/** De onde vem cada marco. Hoje tudo é apLIS; a bipagem do Flow (issue 08) entra aqui. */
+/** De onde vem cada marco. Tudo vem do apLIS (a bipagem no Flow foi descartada, issue 08). */
 export const FONTES_MARCOS = {
   cadastro: 'apLIS: evento "Admissão" do histórico; sem ele, data de solicitação',
   envio: 'apLIS: primeira tarefa tipo 34 ("Envio de autorização")',

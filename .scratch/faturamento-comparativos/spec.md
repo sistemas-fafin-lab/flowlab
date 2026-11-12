@@ -56,7 +56,7 @@ A gestora do Faturamento usa o Dashboard do Contas a Receber para decidir onde c
 29. Como gestora, quero o tempo médio entre cadastro e envio ao faturamento por convênio, para saber se o cadastro demora.
 30. Como gestora, quero o tempo médio entre envio e recebimento no faturamento por convênio, para achar atraso no trânsito de guias.
 31. Como gestora, quero o tempo médio entre recebido no faturamento e faturado por convênio, para medir o meu próprio setor.
-32. Como gestora, quero ver de qual fonte vem cada marco (apLIS hoje, Flow quando existir bipagem), para saber a confiabilidade.
+32. Como gestora, quero ver de qual fonte vem cada marco (sempre o apLIS), para saber a confiabilidade.
 33. Como gestora, quero o tempo médio de liquidação por convênio, para prever fluxo de caixa.
 34. Como gestora, quero ver junto o "% já recebido", para a média não parecer melhor do que é.
 35. Como gestora, quero a matriz faturado × glosado × recebido por convênio nos 3 meses, para dizer "em setembro faturei X, glosei Y".
@@ -92,7 +92,8 @@ A gestora do Faturamento usa o Dashboard do Contas a Receber para decidir onde c
   - Recebido no faturamento = primeira tarefa tipo 37 ou 44 (regra já usada no módulo).
   - Faturado = data de fechamento do lote, com a de criação como fallback; envio ao convênio **não** é usado (13% dos lotes não têm).
   - Intervalos negativos ou fora de ordem (ex.: recebimento antes do envio) são descartados da média e contados à parte.
-  - Cada marco indica a fonte (apLIS hoje; Flow no futuro).
+  - Cada marco indica a fonte (sempre o apLIS; a bipagem no Flow foi descartada, ver issue 08).
+  - Requisições faturadas sem tarefa de recebido (37/44) ou de envio (34) aparecem numa lista no próprio bloco (issue 13), para cobrar o lançamento no apLIS.
 - **Tempo médio de liquidação**: faturado → data de recebimento, só para requisições já recebidas; acompanhado de "% já recebido".
 - **Conversão**: aptas = requisição cadastrada no mês, convênio cobrável (fora Particular e Cortesia, evento cobrável, com procedimento). Faturada = com lote em status diferente de cancelado e prejuízo. Sem prazo de "perda de janela" por convênio: mostra "aptas sem lote".
 - **Aba Comparativos**: nova aba do Contas a Receber, com permissão por tela na estrutura existente (ADR 0001). Seletor de mês único; 3 colunas fixas (referência, M-1, M-2). Padrão: último mês fechado. Gráficos de barras agrupadas por convênio mais tabela de detalhe, no visual do módulo.
@@ -116,7 +117,7 @@ A gestora do Faturamento usa o Dashboard do Contas a Receber para decidir onde c
 
 ## Out of Scope
 
-- **Bipagem** (cadastro bipa o envio; faturamento bipa o recebimento) e o protocolo físico no Flow: issue futura separada.
+- **Bipagem e protocolo de guias no Flow**: descartados no grilling de 12/11/2026 (issue 08, `wontfix`). O envio e o recebido já são registrados nas tarefas 34 e 37/44 do apLIS; a falta de marco (28% sem recebido) é esquecimento de lançar, tratado pela lista da issue 13.
 - Baixa automática do apLIS por cron.
 - Corrigir ou recalcular o saldo; só se mostra a divergência.
 - Prazo de "perda de janela" por convênio.
