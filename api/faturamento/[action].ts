@@ -56,6 +56,7 @@ import faturamentoComparativosFunilGlosa from '../_lib/handlers/faturamento-comp
 import faturamentoComparativosVolumeEnvio from '../_lib/handlers/faturamento-comparativos-volume-envio.js';
 import faturamentoComparativosGlosaPorMes from '../_lib/handlers/faturamento-comparativos-glosa-por-mes.js';
 import faturamentoComparativosRankingGlosa from '../_lib/handlers/faturamento-comparativos-ranking-glosa.js';
+import faturamentoComparativosSla from '../_lib/handlers/faturamento-comparativos-sla.js';
 import faturamentoPontuacao from '../_lib/handlers/faturamento-pontuacao.js';
 import faturamentoCalendarioEnvios from '../_lib/handlers/faturamento-calendario-envios.js';
 
@@ -69,6 +70,7 @@ const ROTAS: Record<string, Handler> = {
   'comparativos-volume-envio': faturamentoComparativosVolumeEnvio,
   'comparativos-glosa-por-mes': faturamentoComparativosGlosaPorMes,
   'comparativos-ranking-glosa': faturamentoComparativosRankingGlosa,
+  'comparativos-sla': faturamentoComparativosSla,
   'lote-detalhe': faturamentoLoteDetalhe,
   'pendencias-nao-faturadas': faturamentoPendencias,
   'pendencia-lote-detalhe': faturamentoPendenciaDetalhe,

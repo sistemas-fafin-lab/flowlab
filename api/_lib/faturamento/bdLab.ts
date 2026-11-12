@@ -37,6 +37,7 @@ import type { LoteEnviado } from './calendarioEnvios.js';
 import type { LinhaFaturada } from './indicadoresFaturamento.js';
 import type { ConvenioRecebido, ConvenioSemLote } from './pontuacaoSetor.js';
 import type { EnvioMensalConvenio } from '../../../src/modules/faturamento/utils/comparativos.js';
+import type { LinhaSlaRequisicao } from '../../../src/modules/faturamento/utils/slaFaturamento.js';
 import type { GlosaMensal } from '../../../src/modules/faturamento/utils/glosaPorMes.js';
 import type { ProcedimentoGlosado } from '../../../src/modules/faturamento/utils/rankingCodigosGlosa.js';
 import type {
@@ -1885,6 +1886,85 @@ export async function listarVolumeEnvioMensal(
         nome: texto(linha.NomFantasia) ?? texto(linha.RazaoSocial),
         qtdLotes: numero(linha.QtdLotes),
         qtdGuias: numero(linha.QtdGuias),
+      })),
+    };
+  });
+}
+
+// ============================================================================
+// SLA POR CONVÊNIO — aba Comparativos (faturamento-comparativos, issue 06)
+// ============================================================================
+
+// Marcos do SLA no apLIS (conferidos no banco em 12/11/2026):
+//   evento 1 "Admissão" de `requisicaohistorico` (96% das requisições de ago–out/2026);
+//   tarefa 34 "Envio de autorização" — A USUÁRIA AINDA PRECISA CONFIRMAR que é o envio
+//   ao faturamento; se não for, troque esta constante e o texto de FONTES_MARCOS.envio;
+//   tarefas 37/44 "Recebido no Faturamento" (TIPOS_TAREFA_RECEBIDO_FATURAMENTO).
+const COD_EVENTO_ADMISSAO = 1;
+const TIPO_TAREFA_ENVIO_FATURAMENTO = 34;
+// Lote cancelado (5) e em prejuízo (8) não conta como faturado — mesma regra da conversão.
+const STATUS_LOTE_NAO_FATURADO = [5, 8];
+
+export interface ListarMarcosSlaParams {
+  /** YYYY-MM-DD, sobre a data de faturado (fechamento do lote; sem ele, criação). */
+  periodoIni: string;
+  periodoFim: string;
+}
+
+export type ListarMarcosSlaResultado =
+  | { linhas: LinhaSlaRequisicao[] }
+  | { erro: { status: number; mensagem: string } };
+
+/**
+ * Uma linha por requisição em lote faturado no período (fora cancelado, prejuízo e fonte
+ * Particular), com os marcos do SLA. A regra (médias, fallbacks, descartes) é de
+ * `montarSlaFaturamento`. Ago–out/2026: ~12 mil requisições em ~4 s; as subconsultas usam
+ * os índices de `requisicaohistorico.IdRequisicao` e `tarefa.IdRequisicao`. Sem cache: a
+ * tela tem "Tentar novamente".
+ */
+export async function listarMarcosSla(params: ListarMarcosSlaParams): Promise<ListarMarcosSlaResultado> {
+  return comConexao('listarMarcosSla', async (conn) => {
+    const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+      `SELECT r.IdRequisicao, l.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
+              (SELECT DATE_FORMAT(MIN(h.DtaEvento), '%Y-%m-%d %H:%i') FROM requisicaohistorico h
+                WHERE h.IdRequisicao = r.IdRequisicao AND h.CodEvento = ?) AS Admissao,
+              DATE_FORMAT(r.DtaSolicitacao, '%Y-%m-%d %H:%i') AS DtaSolicitacao,
+              (SELECT DATE_FORMAT(MIN(t.DtaInclusao), '%Y-%m-%d %H:%i') FROM tarefa t
+                WHERE t.IdRequisicao = r.IdRequisicao AND t.CodTarefaTipo = ?) AS EnvioFaturamento,
+              (SELECT DATE_FORMAT(MIN(t.DtaInclusao), '%Y-%m-%d %H:%i') FROM tarefa t
+                WHERE t.IdRequisicao = r.IdRequisicao
+                  AND t.CodTarefaTipo IN (${TIPOS_TAREFA_RECEBIDO_FATURAMENTO.join(', ')})) AS RecebidoFaturamento,
+              DATE_FORMAT(l.DtaFechamento, '%Y-%m-%d %H:%i') AS DtaFechamento,
+              DATE_FORMAT(l.DtaCriacao, '%Y-%m-%d %H:%i') AS DtaCriacao,
+              DATE_FORMAT(s.DtaRecebido, '%Y-%m-%d') AS DtaRecebido
+         FROM fatlote l
+         JOIN requisicao r ON r.Lote = l.IdLote
+         JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora AND fp.Particular = 0
+         LEFT JOIN fatrequisicaostatus s ON s.IdRequisicao = r.IdRequisicao
+        WHERE l.Status NOT IN (${STATUS_LOTE_NAO_FATURADO.map(() => '?').join(', ')})
+          AND COALESCE(l.DtaFechamento, l.DtaCriacao) >= ?
+          AND COALESCE(l.DtaFechamento, l.DtaCriacao) < DATE_ADD(?, INTERVAL 1 DAY)`,
+      [
+        COD_EVENTO_ADMISSAO,
+        TIPO_TAREFA_ENVIO_FATURAMENTO,
+        ...STATUS_LOTE_NAO_FATURADO,
+        `${params.periodoIni} 00:00:00`,
+        `${params.periodoFim} 00:00:00`,
+      ],
+    );
+
+    return {
+      linhas: linhas.map((linha) => ({
+        idRequisicao: numero(linha.IdRequisicao),
+        fontePagadoraId: inteiroOuNulo(linha.IdFontePagadora),
+        nome: texto(linha.NomFantasia) ?? texto(linha.RazaoSocial),
+        admissao: texto(linha.Admissao),
+        solicitacao: texto(linha.DtaSolicitacao),
+        envioFaturamento: texto(linha.EnvioFaturamento),
+        recebidoFaturamento: texto(linha.RecebidoFaturamento),
+        fechamentoLote: texto(linha.DtaFechamento),
+        criacaoLote: texto(linha.DtaCriacao),
+        recebimento: dataIso(linha.DtaRecebido),
       })),
     };
   });
