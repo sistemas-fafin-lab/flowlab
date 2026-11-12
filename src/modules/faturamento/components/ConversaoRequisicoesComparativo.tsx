@@ -110,7 +110,7 @@ const ConversaoRequisicoesComparativo: React.FC<Props> = ({ mes }) => {
 
           {linhasGrafico.length > 0 && (
             <>
-              <BarrasHorizontaisPorConvenio linhas={linhasGrafico} meses={meses} formatarValor={eixoPercentual} dominio={[0, 100]} />
+              <BarrasHorizontaisPorConvenio linhas={linhasGrafico} meses={meses} formatarEixo={eixoPercentual} dominio={[0, 100]} />
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 % de conversão dos {Math.min(linhasGrafico.length, MAX_CONVENIOS_NO_GRAFICO)} convênios com mais aptas em {formatCompetencia(mes)}; a tabela lista todos.
               </p>

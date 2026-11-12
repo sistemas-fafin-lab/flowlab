@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { mesDeReferenciaPadrao, mesesFechados, montarVolumeEnvio, periodosComparativos } from './comparativos';
+import {
+  conveniosDoGraficoDeVolume,
+  mesDeReferenciaPadrao,
+  mesesFechados,
+  montarVolumeEnvio,
+  periodosComparativos,
+} from './comparativos';
 
 describe('periodosComparativos', () => {
   it('devolve referência, M-1 e M-2 com o primeiro e o último dia de cada mês', () => {
@@ -38,11 +44,11 @@ describe('mesDeReferenciaPadrao', () => {
 describe('montarVolumeEnvio', () => {
   const periodos = periodosComparativos('2026-10')!;
 
-  it('uma linha por convênio com lotes e guias nos 3 meses, na ordem referência, M-1, M-2', () => {
+  it('uma linha por convênio com lotes, guias e valor nos 3 meses, na ordem referência, M-1, M-2', () => {
     const volume = montarVolumeEnvio(periodos, [
-      { mes: '2026-10', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 4, qtdGuias: 120 },
-      { mes: '2026-09', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 3, qtdGuias: 90 },
-      { mes: '2026-08', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 5, qtdGuias: 150 },
+      { mes: '2026-10', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 4, qtdGuias: 120, valor: 0 },
+      { mes: '2026-09', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 3, qtdGuias: 90, valor: 0 },
+      { mes: '2026-08', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 5, qtdGuias: 150, valor: 0 },
     ]);
 
     expect(volume).toEqual([
@@ -50,9 +56,9 @@ describe('montarVolumeEnvio', () => {
         fontePagadoraId: 1,
         nome: 'BRADESCO',
         meses: [
-          { mes: '2026-10', qtdLotes: 4, qtdGuias: 120 },
-          { mes: '2026-09', qtdLotes: 3, qtdGuias: 90 },
-          { mes: '2026-08', qtdLotes: 5, qtdGuias: 150 },
+          { mes: '2026-10', qtdLotes: 4, qtdGuias: 120, valor: 0 },
+          { mes: '2026-09', qtdLotes: 3, qtdGuias: 90, valor: 0 },
+          { mes: '2026-08', qtdLotes: 5, qtdGuias: 150, valor: 0 },
         ],
       },
     ]);
@@ -60,21 +66,21 @@ describe('montarVolumeEnvio', () => {
 
   it('convênio sem envio em um mês fica com zero nele, não some', () => {
     const [linha] = montarVolumeEnvio(periodos, [
-      { mes: '2026-10', fontePagadoraId: 2, nome: 'PMDF', qtdLotes: 2, qtdGuias: 40 },
+      { mes: '2026-10', fontePagadoraId: 2, nome: 'PMDF', qtdLotes: 2, qtdGuias: 40, valor: 0 },
     ]);
 
     expect(linha.meses).toEqual([
-      { mes: '2026-10', qtdLotes: 2, qtdGuias: 40 },
-      { mes: '2026-09', qtdLotes: 0, qtdGuias: 0 },
-      { mes: '2026-08', qtdLotes: 0, qtdGuias: 0 },
+      { mes: '2026-10', qtdLotes: 2, qtdGuias: 40, valor: 0 },
+      { mes: '2026-09', qtdLotes: 0, qtdGuias: 0, valor: 0 },
+      { mes: '2026-08', qtdLotes: 0, qtdGuias: 0, valor: 0 },
     ]);
   });
 
   it('ordena pelo maior volume de guias somado nos 3 meses e desempata pelo nome', () => {
     const volume = montarVolumeEnvio(periodos, [
-      { mes: '2026-10', fontePagadoraId: 1, nome: 'ZETA', qtdLotes: 1, qtdGuias: 10 },
-      { mes: '2026-10', fontePagadoraId: 2, nome: 'ALFA', qtdLotes: 1, qtdGuias: 10 },
-      { mes: '2026-09', fontePagadoraId: 3, nome: 'MEIO', qtdLotes: 9, qtdGuias: 500 },
+      { mes: '2026-10', fontePagadoraId: 1, nome: 'ZETA', qtdLotes: 1, qtdGuias: 10, valor: 0 },
+      { mes: '2026-10', fontePagadoraId: 2, nome: 'ALFA', qtdLotes: 1, qtdGuias: 10, valor: 0 },
+      { mes: '2026-09', fontePagadoraId: 3, nome: 'MEIO', qtdLotes: 9, qtdGuias: 500, valor: 0 },
     ]);
 
     expect(volume.map((v) => v.nome)).toEqual(['MEIO', 'ALFA', 'ZETA']);
@@ -82,20 +88,62 @@ describe('montarVolumeEnvio', () => {
 
   it('ignora linhas de meses fora dos 3 períodos', () => {
     const volume = montarVolumeEnvio(periodos, [
-      { mes: '2026-07', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 9, qtdGuias: 9 },
+      { mes: '2026-07', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 9, qtdGuias: 9, valor: 0 },
     ]);
     expect(volume).toEqual([]);
   });
 
+  it('soma o valor (R$) por convênio e mês, com mês sem envio em zero', () => {
+    const [linha] = montarVolumeEnvio(periodos, [
+      { mes: '2026-10', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 2, qtdGuias: 30, valor: 1500.25 },
+      { mes: '2026-10', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 1, qtdGuias: 10, valor: 499.75 },
+      { mes: '2026-09', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 1, qtdGuias: 5, valor: 320 },
+    ]);
+
+    expect(linha.meses).toEqual([
+      { mes: '2026-10', qtdLotes: 3, qtdGuias: 40, valor: 2000 },
+      { mes: '2026-09', qtdLotes: 1, qtdGuias: 5, valor: 320 },
+      { mes: '2026-08', qtdLotes: 0, qtdGuias: 0, valor: 0 },
+    ]);
+  });
+
   it('soma linhas repetidas do mesmo convênio e mês e mantém convênio sem identificação', () => {
     const volume = montarVolumeEnvio(periodos, [
-      { mes: '2026-10', fontePagadoraId: null, nome: null, qtdLotes: 1, qtdGuias: 3 },
-      { mes: '2026-10', fontePagadoraId: null, nome: null, qtdLotes: 2, qtdGuias: 4 },
+      { mes: '2026-10', fontePagadoraId: null, nome: null, qtdLotes: 1, qtdGuias: 3, valor: 0 },
+      { mes: '2026-10', fontePagadoraId: null, nome: null, qtdLotes: 2, qtdGuias: 4, valor: 0 },
     ]);
 
     expect(volume).toHaveLength(1);
     expect(volume[0].nome).toBeNull();
-    expect(volume[0].meses[0]).toEqual({ mes: '2026-10', qtdLotes: 3, qtdGuias: 7 });
+    expect(volume[0].meses[0]).toEqual({ mes: '2026-10', qtdLotes: 3, qtdGuias: 7, valor: 0 });
+  });
+});
+
+describe('conveniosDoGraficoDeVolume', () => {
+  const periodos = periodosComparativos('2026-10')!;
+  // ALFA lidera em guias na referência, BETA em valor; GAMA só enviou em M-1.
+  const volume = montarVolumeEnvio(periodos, [
+    { mes: '2026-10', fontePagadoraId: 1, nome: 'ALFA', qtdLotes: 1, qtdGuias: 50, valor: 1000 },
+    { mes: '2026-10', fontePagadoraId: 2, nome: 'BETA', qtdLotes: 3, qtdGuias: 20, valor: 9000 },
+    { mes: '2026-09', fontePagadoraId: 3, nome: 'GAMA', qtdLotes: 9, qtdGuias: 900, valor: 90000 },
+  ]);
+
+  it('ordena pela medida escolhida no mês de referência, não pela soma dos 3 meses', () => {
+    expect(conveniosDoGraficoDeVolume(volume, 'qtdGuias', 15).map((c) => c.nome)).toEqual(['ALFA', 'BETA', 'GAMA']);
+    expect(conveniosDoGraficoDeVolume(volume, 'valor', 15).map((c) => c.nome)).toEqual(['BETA', 'ALFA', 'GAMA']);
+    expect(conveniosDoGraficoDeVolume(volume, 'qtdLotes', 15).map((c) => c.nome)).toEqual(['BETA', 'ALFA', 'GAMA']);
+  });
+
+  it('corta nos N primeiros', () => {
+    expect(conveniosDoGraficoDeVolume(volume, 'valor', 2).map((c) => c.nome)).toEqual(['BETA', 'ALFA']);
+  });
+
+  it('no empate na referência, desempata pelo nome', () => {
+    const empate = montarVolumeEnvio(periodos, [
+      { mes: '2026-10', fontePagadoraId: 1, nome: 'ZETA', qtdLotes: 1, qtdGuias: 10, valor: 100 },
+      { mes: '2026-10', fontePagadoraId: 2, nome: 'ALFA', qtdLotes: 1, qtdGuias: 10, valor: 100 },
+    ]);
+    expect(conveniosDoGraficoDeVolume(empate, 'qtdGuias', 15).map((c) => c.nome)).toEqual(['ALFA', 'ZETA']);
   });
 });
 

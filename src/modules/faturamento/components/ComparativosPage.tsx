@@ -1,12 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
-import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { useTheme } from '../../../hooks/useTheme';
 import { LoadingSpinner } from '../../../components/PageLoadingSkeleton';
 import Select from '../../../components/Select';
 import { useComparativosVolumeEnvio } from '../hooks/useComparativosVolumeEnvio';
-import { CORES_MESES, mesDeReferenciaPadrao, mesesFechados, periodosComparativos } from '../utils/comparativos';
-import { formatCompetencia } from '../utils/formato';
+import {
+  conveniosDoGraficoDeVolume,
+  mesDeReferenciaPadrao,
+  mesesFechados,
+  periodosComparativos,
+  type MedidaVolumeEnvio,
+} from '../utils/comparativos';
+import { formatCompetencia, formatCurrency, formatInteiro, formatMoedaCompacta } from '../utils/formato';
+import BarrasHorizontaisPorConvenio from './BarrasHorizontaisPorConvenio';
 import ConversaoRequisicoesComparativo from './ConversaoRequisicoesComparativo';
 import FunilGlosaComparativo from './FunilGlosaComparativo';
 import GlosaPorMesComparativo from './GlosaPorMesComparativo';
@@ -20,41 +25,39 @@ import SlaConvenioComparativo from './SlaConvenioComparativo';
 // por convênio e a conversão de requisições. Os blocos seguintes entram sob o mesmo seletor. A permissão é a da tela Contas a Receber (ADR 0001): a rota da aba já a exige.
 
 const MESES_NO_SELETOR = 24;
-const MAX_CONVENIOS_NO_GRAFICO = 12;
+const MAX_CONVENIOS_NO_GRAFICO = 15;
 
-type Medida = 'qtdGuias' | 'qtdLotes';
-const ROTULO_MEDIDA: Record<Medida, string> = { qtdGuias: 'Guias', qtdLotes: 'Lotes' };
+const ROTULO_MEDIDA: Record<MedidaVolumeEnvio, string> = { qtdGuias: 'Guias', qtdLotes: 'Lotes', valor: 'Valor' };
+
+/** Eixo e tooltip do gráfico de volume, conforme a medida: R$ compacto no eixo, completo no tooltip. */
+const FORMATO_MEDIDA: Record<MedidaVolumeEnvio, { eixo: (n: number) => string; tooltip: (n: number) => string }> = {
+  qtdGuias: { eixo: formatInteiro, tooltip: formatInteiro },
+  qtdLotes: { eixo: formatInteiro, tooltip: formatInteiro },
+  valor: { eixo: formatMoedaCompacta, tooltip: formatCurrency },
+};
 
 const opcoesDeMes = () => mesesFechados(MESES_NO_SELETOR).map((value) => ({ value, label: formatCompetencia(value) }));
 
 const CAMPO_SELECT = 'mt-1 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-100';
 
 const ComparativosPage: React.FC = () => {
-  const { isDark } = useTheme();
   const [mes, setMes] = useState(() => mesDeReferenciaPadrao());
-  const [medida, setMedida] = useState<Medida>('qtdGuias');
+  const [medida, setMedida] = useState<MedidaVolumeEnvio>('qtdGuias');
   const opcoes = useMemo(opcoesDeMes, []);
 
   const { periodos, volume, loading, erro, recarregar } = useComparativosVolumeEnvio(mes);
   // Enquanto a resposta não chega, os cabeçalhos já mostram os 3 meses escolhidos.
   const meses = useMemo(() => (periodos.length > 0 ? periodos : periodosComparativos(mes) ?? []), [periodos, mes]);
 
-  const dadosGrafico = useMemo(
+  // Os MAX_CONVENIOS_NO_GRAFICO de maior volume no mês de referência, na medida escolhida; a tabela segue com todos.
+  const linhasGrafico = useMemo(
     () =>
-      volume.slice(0, MAX_CONVENIOS_NO_GRAFICO).map((convenio) => ({
+      conveniosDoGraficoDeVolume(volume, medida, MAX_CONVENIOS_NO_GRAFICO).map((convenio) => ({
         convenio: convenio.nome ?? 'Não identificado',
-        ...Object.fromEntries(convenio.meses.map((m) => [m.mes, m[medida]])),
+        valores: Object.fromEntries(convenio.meses.map((m) => [m.mes, m[medida]])),
       })),
     [volume, medida],
   );
-
-  const axisTick = { fontSize: 11, fill: isDark ? '#94a3b8' : '#64748b' };
-  const tooltipStyle: React.CSSProperties = {
-    background: isDark ? '#0f172a' : '#ffffff',
-    border: `1px solid ${isDark ? '#1e293b' : '#e2e8f0'}`,
-    borderRadius: 8,
-    fontSize: 12,
-  };
 
   return (
     <div className="space-y-4">
@@ -81,11 +84,11 @@ const ComparativosPage: React.FC = () => {
           <div>
             <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-100">Volume de envio por convênio</h2>
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              Lotes enviados (Conciliação + Faturado), pela data de criação do lote. Guia = número de guia distinto no lote.
+              Lotes enviados (Conciliação + Faturado), pela data de criação do lote. Guia = número de guia distinto no lote. Valor = líquido das requisições do lote.
             </p>
           </div>
           <div className="flex gap-1">
-            {(Object.keys(ROTULO_MEDIDA) as Medida[]).map((m) => (
+            {(Object.keys(ROTULO_MEDIDA) as MedidaVolumeEnvio[]).map((m) => (
               <button
                 key={m}
                 type="button"
@@ -124,28 +127,15 @@ const ComparativosPage: React.FC = () => {
           </div>
         ) : (
           <>
-            <div className="h-80 border border-gray-100 dark:border-gray-700 rounded-2xl p-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={dadosGrafico} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke={isDark ? 'rgba(51,65,85,0.4)' : 'rgba(226,232,240,0.8)'} vertical={false} />
-                  <XAxis dataKey="convenio" tick={axisTick} axisLine={false} tickLine={false} interval={0} angle={-25} textAnchor="end" height={70} />
-                  <YAxis tick={axisTick} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    itemStyle={{ color: isDark ? '#e2e8f0' : '#334155' }}
-                    labelStyle={{ color: isDark ? '#94a3b8' : '#64748b', fontWeight: 600 }}
-                    formatter={(valor: number, nome: string) => [valor, `${ROTULO_MEDIDA[medida]} ${nome}`]}
-                  />
-                  <Legend wrapperStyle={{ fontSize: 11 }} />
-                  {meses.map((p, i) => (
-                    <Bar key={p.mes} dataKey={p.mes} name={formatCompetencia(p.mes)} fill={CORES_MESES[i]} radius={[4, 4, 0, 0]} />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <BarrasHorizontaisPorConvenio
+              linhas={linhasGrafico}
+              meses={meses.map((p) => p.mes)}
+              formatarEixo={FORMATO_MEDIDA[medida].eixo}
+              formatarTooltip={FORMATO_MEDIDA[medida].tooltip}
+            />
             {volume.length > MAX_CONVENIOS_NO_GRAFICO && (
               <p className="text-xs text-gray-500 dark:text-gray-400">
-                O gráfico mostra os {MAX_CONVENIOS_NO_GRAFICO} convênios de maior volume; a tabela lista todos.
+                O gráfico mostra os {MAX_CONVENIOS_NO_GRAFICO} convênios de maior volume em {formatCompetencia(meses[0]?.mes)}; a tabela lista todos.
               </p>
             )}
 
@@ -156,13 +146,14 @@ const ComparativosPage: React.FC = () => {
                     <tr className="text-xs text-gray-500 dark:text-gray-400">
                       <th rowSpan={2} className="px-3 py-2 text-left align-bottom">Convênio</th>
                       {meses.map((p) => (
-                        <th key={p.mes} colSpan={2} className="px-3 py-2 text-center">{formatCompetencia(p.mes)}</th>
+                        <th key={p.mes} colSpan={3} className="px-3 py-2 text-center">{formatCompetencia(p.mes)}</th>
                       ))}
                     </tr>
                     <tr className="text-xs text-gray-500 dark:text-gray-400">
                       {meses.flatMap((p) => [
                         <th key={`${p.mes}-l`} className="px-3 py-1 text-right font-normal">Lotes</th>,
                         <th key={`${p.mes}-g`} className="px-3 py-1 text-right font-normal">Guias</th>,
+                        <th key={`${p.mes}-v`} className="px-3 py-1 text-right font-normal">Valor</th>,
                       ])}
                     </tr>
                   </thead>
@@ -175,6 +166,7 @@ const ComparativosPage: React.FC = () => {
                         {convenio.meses.flatMap((m) => [
                           <td key={`${m.mes}-l`} className="px-3 py-2 text-right tabular-nums text-gray-700 dark:text-gray-300">{m.qtdLotes}</td>,
                           <td key={`${m.mes}-g`} className="px-3 py-2 text-right tabular-nums font-medium text-gray-900 dark:text-gray-100">{m.qtdGuias}</td>,
+                          <td key={`${m.mes}-v`} className="px-3 py-2 text-right tabular-nums whitespace-nowrap text-gray-700 dark:text-gray-300">{formatCurrency(m.valor)}</td>,
                         ])}
                       </tr>
                     ))}

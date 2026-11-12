@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  formatMoedaCompacta,
   diasDeAtraso,
   faixaAgingParaRange,
   faixaSaldo,
@@ -188,5 +189,16 @@ describe('faixaAgingParaRange', () => {
       if (desde) expect(vencimentoIso >= desde).toBe(true);
       if (ate) expect(vencimentoIso <= ate).toBe(true);
     }
+  });
+});
+
+describe('formatMoedaCompacta', () => {
+  // Intl separa 'R$' do número com espaço não separável; normaliza para comparar.
+  const fmt = (n: number) => formatMoedaCompacta(n).replace(/\s/g, ' ');
+
+  it('abrevia milhares e milhões com uma casa decimal', () => {
+    expect(fmt(18450.9)).toBe('R$ 18,5 mil');
+    expect(fmt(1042383.48)).toBe('R$ 1 mi');
+    expect(fmt(950)).toBe('R$ 950');
   });
 });

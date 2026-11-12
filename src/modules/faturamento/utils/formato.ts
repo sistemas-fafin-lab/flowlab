@@ -265,6 +265,13 @@ export const faixaAgingParaRange = (bucket: AgingBucket, hoje: string = hojeIso(
 
 /** "1 título" / "3 títulos": a contagem com o texto no singular ou no plural. */
 /** Percentual com uma casa decimal: 33.3 → "33,3%". */
+/** Inteiro com separador de milhar ('1.234'). */
+export const formatInteiro = (n: number): string => n.toLocaleString('pt-BR');
+
+/** R$ compacto para eixo de gráfico ('R$ 1,2 mil', 'R$ 1 mi'); no detalhe, use `formatCurrency`. */
+export const formatMoedaCompacta = (n: number): string =>
+  new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', notation: 'compact', maximumFractionDigits: 1 }).format(n);
+
 export function formatPercentual(valor: number): string {
   return `${valor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }

@@ -54,20 +54,22 @@ export function mesDeReferenciaPadrao(hoje: Date = new Date()): string {
   return mesesFechados(1, hoje)[0];
 }
 
-/** Lotes e guias de um convênio em um mês, como a consulta devolve. */
+/** Lotes, guias e valor de um convênio em um mês, como a consulta devolve. */
 export interface EnvioMensalConvenio {
   mes: string;
   fontePagadoraId: number | null;
   nome: string | null;
   qtdLotes: number;
   qtdGuias: number;
+  /** R$: soma do `ValorLiquido` das requisições dos lotes (o `VlrLote` do apLIS). */
+  valor: number;
 }
 
 export interface VolumeEnvioConvenio {
   fontePagadoraId: number | null;
   nome: string | null;
   /** Um item por período, na ordem de `periodos` (referência, M-1, M-2). */
-  meses: { mes: string; qtdLotes: number; qtdGuias: number }[];
+  meses: { mes: string; qtdLotes: number; qtdGuias: number; valor: number }[];
 }
 
 /**
@@ -90,7 +92,7 @@ export function montarVolumeEnvio(
       convenio = {
         fontePagadoraId: linha.fontePagadoraId,
         nome: linha.nome,
-        meses: periodos.map((p) => ({ mes: p.mes, qtdLotes: 0, qtdGuias: 0 })),
+        meses: periodos.map((p) => ({ mes: p.mes, qtdLotes: 0, qtdGuias: 0, valor: 0 })),
       };
       porConvenio.set(chave, convenio);
     }
@@ -98,6 +100,7 @@ export function montarVolumeEnvio(
     if (alvo) {
       alvo.qtdLotes += linha.qtdLotes;
       alvo.qtdGuias += linha.qtdGuias;
+      alvo.valor += linha.valor;
     }
   }
 
@@ -105,4 +108,22 @@ export function montarVolumeEnvio(
   return [...porConvenio.values()].sort(
     (a, b) => totalGuias(b) - totalGuias(a) || (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'),
   );
+}
+
+/** Medidas do alternador do bloco "Volume de envio por convênio". */
+export type MedidaVolumeEnvio = 'qtdGuias' | 'qtdLotes' | 'valor';
+
+/**
+ * Os `maximo` convênios do gráfico de volume: os de maior `medida` no mês de referência
+ * (o primeiro mês de cada convênio), do maior para o menor; no empate, pelo nome.
+ */
+export function conveniosDoGraficoDeVolume(
+  volume: VolumeEnvioConvenio[],
+  medida: MedidaVolumeEnvio,
+  maximo: number,
+): VolumeEnvioConvenio[] {
+  const naReferencia = (v: VolumeEnvioConvenio) => v.meses[0]?.[medida] ?? 0;
+  return [...volume]
+    .sort((a, b) => naReferencia(b) - naReferencia(a) || (a.nome ?? '').localeCompare(b.nome ?? '', 'pt-BR'))
+    .slice(0, maximo);
 }

@@ -51,8 +51,8 @@ function prepararSupabase(permissoes: string[]) {
 }
 
 const LINHAS = [
-  { mes: '2026-10', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 4, qtdGuias: 120 },
-  { mes: '2026-09', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 3, qtdGuias: 90 },
+  { mes: '2026-10', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 4, qtdGuias: 120, valor: 18450.9 },
+  { mes: '2026-09', fontePagadoraId: 1, nome: 'BRADESCO', qtdLotes: 3, qtdGuias: 90, valor: 12000 },
 ];
 
 function criarRes() {
@@ -89,7 +89,7 @@ afterEach(() => {
 });
 
 describe('GET /api/faturamento/comparativos-volume-envio', () => {
-  it('devolve o mês, os 3 períodos e o volume por convênio, sem cache', async () => {
+  it('devolve o mês, os 3 períodos e o volume (lotes, guias e valor) por convênio, sem cache', async () => {
     const res = await executar(['canViewBilling']);
 
     expect(res.statusCode).toBe(200);
@@ -107,9 +107,9 @@ describe('GET /api/faturamento/comparativos-volume-envio', () => {
           fontePagadoraId: 1,
           nome: 'BRADESCO',
           meses: [
-            { mes: '2026-10', qtdLotes: 4, qtdGuias: 120 },
-            { mes: '2026-09', qtdLotes: 3, qtdGuias: 90 },
-            { mes: '2026-08', qtdLotes: 0, qtdGuias: 0 },
+            { mes: '2026-10', qtdLotes: 4, qtdGuias: 120, valor: 18450.9 },
+            { mes: '2026-09', qtdLotes: 3, qtdGuias: 90, valor: 12000 },
+            { mes: '2026-08', qtdLotes: 0, qtdGuias: 0, valor: 0 },
           ],
         },
       ],

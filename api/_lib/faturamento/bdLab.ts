@@ -1861,28 +1861,39 @@ export type ListarVolumeEnvioMensalResultado =
   | { erro: { status: number; mensagem: string } };
 
 /**
- * Lotes e guias por convênio e por mês de criação do lote, numa única consulta para os
- * 3 meses. Guia = número de guia do convênio distinto dentro do lote (`NumGuiaConvenio`
- * não vazio); lote sem guia preenchida conta como lote, com zero guias. Sem cache: a
- * tela tem "Tentar novamente" e o mês de referência padrão já está fechado.
+ * Lotes, guias e valor por convênio e por mês de criação do lote, numa única consulta para
+ * os 3 meses. Guia = número de guia do convênio distinto dentro do lote (`NumGuiaConvenio`
+ * não vazio); lote sem guia preenchida conta como lote, com zero guias. Valor = soma do
+ * `ValorLiquido` das requisições do lote, a mesma regra do `VlrLote` do apLIS (coluna
+ * `Valor` de SQL_LISTA). Guias e valor são calculados por lote (subconsultas) e só depois
+ * somados, para o JOIN das guias não multiplicar o valor. Sem cache: a tela tem "Tentar
+ * novamente" e o mês de referência padrão já está fechado (issue 09).
  */
 export async function listarVolumeEnvioMensal(
   params: ListarVolumeEnvioMensalParams,
 ): Promise<ListarVolumeEnvioMensalResultado> {
   return comConexao('listarVolumeEnvioMensal', async (conn) => {
     const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
-      `SELECT DATE_FORMAT(l.DtaCriacao, '%Y-%m') AS Mes,
-              l.IdFontePagadora AS IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
-              COUNT(DISTINCT l.IdLote) AS QtdLotes,
-              COUNT(DISTINCT CASE WHEN r.IdRequisicao IS NOT NULL
-                                  THEN CONCAT(l.IdLote, '|', r.NumGuiaConvenio) END) AS QtdGuias
-         FROM fatlote l
-         LEFT JOIN requisicao r ON r.Lote = l.IdLote AND COALESCE(r.NumGuiaConvenio, '') <> ''
-         LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = l.IdFontePagadora
-        WHERE l.DtaCriacao >= ?
-          AND l.DtaCriacao < DATE_ADD(?, INTERVAL 1 DAY)
-          AND l.Status IN (${params.statusLotes.map(() => '?').join(', ')})
-        GROUP BY Mes, l.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial`,
+      `SELECT t.Mes, t.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial,
+              COUNT(*) AS QtdLotes,
+              SUM(t.QtdGuias) AS QtdGuias,
+              SUM(t.Valor) AS Valor
+         FROM (
+           SELECT DATE_FORMAT(l.DtaCriacao, '%Y-%m') AS Mes, l.IdFontePagadora,
+                  (SELECT COUNT(DISTINCT r.NumGuiaConvenio)
+                     FROM requisicao r
+                    WHERE r.Lote = l.IdLote AND COALESCE(r.NumGuiaConvenio, '') <> '') AS QtdGuias,
+                  (SELECT COALESCE(SUM(frp.ValorLiquido), 0)
+                     FROM requisicao r
+                     JOIN fatrequisicaoprocedimento frp ON frp.IdRequisicao = r.IdRequisicao
+                    WHERE r.Lote = l.IdLote) AS Valor
+             FROM fatlote l
+            WHERE l.DtaCriacao >= ?
+              AND l.DtaCriacao < DATE_ADD(?, INTERVAL 1 DAY)
+              AND l.Status IN (${params.statusLotes.map(() => '?').join(', ')})
+         ) t
+         LEFT JOIN fatinstituicao fp ON fp.IdInstituicao = t.IdFontePagadora
+        GROUP BY t.Mes, t.IdFontePagadora, fp.NomFantasia, fp.RazaoSocial`,
       [`${params.periodoIni} 00:00:00`, `${params.periodoFim} 00:00:00`, ...params.statusLotes],
     );
 
@@ -1893,6 +1904,7 @@ export async function listarVolumeEnvioMensal(
         nome: texto(linha.NomFantasia) ?? texto(linha.RazaoSocial),
         qtdLotes: numero(linha.QtdLotes),
         qtdGuias: numero(linha.QtdGuias),
+        valor: numero(linha.Valor),
       })),
     };
   });
