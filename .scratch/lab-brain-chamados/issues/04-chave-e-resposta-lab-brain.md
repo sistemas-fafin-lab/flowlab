@@ -18,7 +18,7 @@
 > • **Autenticação:** header `Authorization: Bearer <chave>`. A chave é dedicada à abertura de chamados, separada da que você já usa para o Envio ao Álvaro. Ela fica guardada nas variáveis de ambiente do FlowLab, na Vercel, e eu entrego por outro canal, não por aqui.
 > • **Campos (JSON):** `titulo` (obrigatório, até 255), `descricao` (obrigatório, até 5.000), `solicitante_email` (obrigatório; precisa ser um usuário ativo do FlowLab, senão volta 422), `prioridade` (`low|medium|high|critical`, padrão `medium`), `tipo` (`suporte|desenvolvimento`, faz o papel de categoria, padrão `suporte`) e `id_externo` (obrigatório, o seu identificador; se reenviar o mesmo, devolvo o chamado que já existe).
 > • **Resposta:** `{ id, codigo }`, ex.: `IT-123`.
-> • **Acompanhamento:** `GET https://flow-lab.vercel.app/api/integracoes/lab-brain-chamado?id_externo=…` devolve a situação, o responsável e a resolução.
+> • **Acompanhamento:** `GET https://flow-lab.vercel.app/api/integracoes/lab-brain-chamado-consultar?id_externo=…` devolve a situação, o responsável e a resolução.
 > • **Limite:** 10 chamadas por minuto.
 > • Hoje não existe webhook nem e-mail de entrada de chamados; o caminho é esse endpoint.
 >
