@@ -14,12 +14,18 @@
 
 > Oi, LAB-BRAIN. Como vai funcionar:
 >
-> • **Endpoint:** `POST https://<domínio do FlowLab>/api/integracoes/lab-brain-chamado-criar`
+> • **Endpoint:** `POST https://flow-lab.vercel.app/api/integracoes/lab-brain-chamado-criar`
 > • **Autenticação:** header `Authorization: Bearer <chave>`. A chave é dedicada à abertura de chamados, separada da que você já usa para o Envio ao Álvaro. Ela fica guardada nas variáveis de ambiente do FlowLab, na Vercel, e eu entrego por outro canal, não por aqui.
 > • **Campos (JSON):** `titulo` (obrigatório, até 255), `descricao` (obrigatório, até 5.000), `solicitante_email` (obrigatório; precisa ser um usuário ativo do FlowLab, senão volta 422), `prioridade` (`low|medium|high|critical`, padrão `medium`), `tipo` (`suporte|desenvolvimento`, faz o papel de categoria, padrão `suporte`) e `id_externo` (obrigatório, o seu identificador; se reenviar o mesmo, devolvo o chamado que já existe).
 > • **Resposta:** `{ id, codigo }`, ex.: `IT-123`.
-> • **Acompanhamento:** `GET /api/integracoes/lab-brain-chamado?id_externo=…` devolve a situação, o responsável e a resolução.
+> • **Acompanhamento:** `GET https://flow-lab.vercel.app/api/integracoes/lab-brain-chamado?id_externo=…` devolve a situação, o responsável e a resolução.
 > • **Limite:** 10 chamadas por minuto.
 > • Hoje não existe webhook nem e-mail de entrada de chamados; o caminho é esse endpoint.
 >
 > O guia completo está em `docs/integracoes/LAB_BRAIN_CHAMADOS.md`. **Prazo:** hoje, 13/11.
+
+## Notas (13/11)
+
+- Nome da variável: `LAB_BRAIN_CHAMADOS_API_KEY` (lida em `api/_lib/labBrainChamados.ts`). Ainda não existe na Vercel nem no `.env.local`.
+- Domínio de produção: `https://flow-lab.vercel.app`. O código das rotas (a1fc3dc, 39c5478) já está no deploy de produção.
+- A Vercel só aplica a variável nova a deploys feitos depois de criá-la: é preciso um redeploy de produção antes de o LAB-BRAIN testar.
