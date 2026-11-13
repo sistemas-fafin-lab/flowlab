@@ -180,3 +180,66 @@ export function refechamentoDoTitulo(
     emissaoNova: maisRecente,
   };
 }
+
+/** Divergência dispensada com justificativa (tabela fat_conferencia_aplis_dispensas). */
+export interface DispensaConferencia {
+  idNota: string;
+  tipo: TipoDivergenciaAplis;
+  recebidoSistema: number;
+  recebidoAplis: number | null;
+  /** `lotes.aplis_id` do título quando foi dispensada. */
+  lotes: number[];
+  justificativa: string;
+  dispensadoPorNome: string | null;
+  dispensadoEm: string;
+}
+
+export interface DivergenciaDispensada extends DivergenciaAplis {
+  dispensa: Pick<DispensaConferencia, 'justificativa' | 'dispensadoPorNome' | 'dispensadoEm'>;
+}
+
+function mesmosLotes(a: number[], b: number[]): boolean {
+  const x = [...new Set(a)].sort((m, n) => m - n);
+  const y = [...new Set(b)].sort((m, n) => m - n);
+  return x.length === y.length && x.every((id, i) => id === y[i]);
+}
+
+/**
+ * A dispensa ainda vale para esta divergência? Só enquanto tipo, recebido aqui,
+ * recebido no apLIS (em centavos) e lotes estão como estavam ao dispensar:
+ * qualquer mudança traz a divergência de volta.
+ */
+export function dispensaVale(divergencia: DivergenciaAplis, dispensa: DispensaConferencia): boolean {
+  if (dispensa.idNota !== divergencia.idNota || dispensa.tipo !== divergencia.tipo) return false;
+  if (centavos(dispensa.recebidoSistema) !== centavos(divergencia.recebidoSistema)) return false;
+  const aplisAntes = dispensa.recebidoAplis === null ? null : centavos(dispensa.recebidoAplis);
+  const aplisAgora = divergencia.recebidoAplis === null ? null : centavos(divergencia.recebidoAplis);
+  if (aplisAntes !== aplisAgora) return false;
+  return mesmosLotes(dispensa.lotes, divergencia.lotes.map((l) => l.aplisId));
+}
+
+/** Separa as divergências em ativas e dispensadas (dispensa que ainda vale). */
+export function separarDispensadas(
+  divergencias: DivergenciaAplis[],
+  dispensas: DispensaConferencia[],
+): { ativas: DivergenciaAplis[]; dispensadas: DivergenciaDispensada[] } {
+  const porTitulo = new Map(dispensas.map((d) => [d.idNota, d]));
+  const ativas: DivergenciaAplis[] = [];
+  const dispensadas: DivergenciaDispensada[] = [];
+  for (const divergencia of divergencias) {
+    const dispensa = porTitulo.get(divergencia.idNota);
+    if (dispensa && dispensaVale(divergencia, dispensa)) {
+      dispensadas.push({
+        ...divergencia,
+        dispensa: {
+          justificativa: dispensa.justificativa,
+          dispensadoPorNome: dispensa.dispensadoPorNome,
+          dispensadoEm: dispensa.dispensadoEm,
+        },
+      });
+    } else {
+      ativas.push(divergencia);
+    }
+  }
+  return { ativas, dispensadas };
+}

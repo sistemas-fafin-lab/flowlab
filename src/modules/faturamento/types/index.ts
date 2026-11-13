@@ -278,10 +278,17 @@ export interface RefechamentoAplicado {
   emissaoNova: string;
 }
 
+/** Divergência dispensada com justificativa; volta sozinha se os valores mudarem. */
+export interface DivergenciaDispensada extends DivergenciaAplis {
+  dispensa: { justificativa: string; dispensadoPorNome: string | null; dispensadoEm: string };
+}
+
 export interface ConferenciaAplis {
   /** Último dia que a réplica do apLIS tem (YYYY-MM-DD). */
   dadoAte: string | null;
+  /** Divergências ativas (sem as dispensadas). */
   titulos: DivergenciaAplis[];
+  dispensados: DivergenciaDispensada[];
   refechamentos: RefechamentoAplis[];
 }
 

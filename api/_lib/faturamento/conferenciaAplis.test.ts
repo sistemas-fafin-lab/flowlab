@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { classificarDivergencia, conferirTitulo } from './conferenciaAplis.js';
-import type { RecebidoLoteAplis, TituloConferencia } from './conferenciaAplis.js';
+import { classificarDivergencia, conferirTitulo, dispensaVale, separarDispensadas } from './conferenciaAplis.js';
+import type { DispensaConferencia, DivergenciaAplis, RecebidoLoteAplis, TituloConferencia } from './conferenciaAplis.js';
 
 describe('classificarDivergencia', () => {
   it.each([
@@ -131,5 +131,37 @@ describe('conferirTitulo', () => {
 
   it('título sem lote do apLIS não tem o que conferir', () => {
     expect(conferirTitulo(titulo({ idsLote: [] }), {})).toBeNull();
+  });
+});
+
+describe('dispensaVale', () => {
+  const divergencia: DivergenciaAplis = {
+    idNota: 'n1', numeroNota: null, operadora: 'Medigest', status: 'parcialmente_recebida',
+    dataEmissao: '2026-10-14', valorTotal: 150, recebidoSistema: 150, glosadoSistema: 0,
+    recebidoAplis: 0, primeiroRecebimentoAplis: null, ultimoRecebimentoAplis: null,
+    lotes: [{ aplisId: 7014, statusAplis: 'Recebido', recebidoAplis: 0 }, { aplisId: 7000, statusAplis: 'Recebido', recebidoAplis: 0 }],
+    tipo: 'sistema-maior',
+  };
+  const dispensa: DispensaConferencia = {
+    idNota: 'n1', tipo: 'sistema-maior', recebidoSistema: 150.001, recebidoAplis: 0, lotes: [7000, 7014],
+    justificativa: 'ok', dispensadoPorNome: null, dispensadoEm: '2026-11-13T10:00:00Z',
+  };
+
+  it('vale com os mesmos valores (em centavos) e os mesmos lotes em qualquer ordem', () => {
+    expect(dispensaVale(divergencia, dispensa)).toBe(true);
+  });
+
+  it('não vale quando tipo, recebido aqui, recebido no apLIS ou lotes mudam', () => {
+    expect(dispensaVale(divergencia, { ...dispensa, tipo: 'aplis-maior' })).toBe(false);
+    expect(dispensaVale(divergencia, { ...dispensa, recebidoSistema: 151 })).toBe(false);
+    expect(dispensaVale(divergencia, { ...dispensa, recebidoAplis: null })).toBe(false);
+    expect(dispensaVale(divergencia, { ...dispensa, lotes: [7014] })).toBe(false);
+  });
+
+  it('separarDispensadas mantém a ordem e leva a justificativa', () => {
+    const outra = { ...divergencia, idNota: 'n2' };
+    const { ativas, dispensadas } = separarDispensadas([divergencia, outra], [dispensa]);
+    expect(ativas.map((d) => d.idNota)).toEqual(['n2']);
+    expect(dispensadas[0].dispensa).toEqual({ justificativa: 'ok', dispensadoPorNome: null, dispensadoEm: '2026-11-13T10:00:00Z' });
   });
 });

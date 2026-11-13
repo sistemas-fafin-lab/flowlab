@@ -4,7 +4,7 @@
 // (titulos-conferencia-aplis) e pela prévia das baixas (titulos-baixas-aplis-previa).
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { TituloConferencia } from './conferenciaAplis.js';
+import type { DispensaConferencia, TipoDivergenciaAplis, TituloConferencia } from './conferenciaAplis.js';
 import type { TituloSaldo } from './saldoOperadoras.js';
 
 /** Título da conferência com o saldo, que a prévia das baixas mostra. */
@@ -80,6 +80,44 @@ export async function titulosParaConferir(supabase: SupabaseClient): Promise<Tit
     if (pagina.length < PAGINA_NOTAS) break;
   }
   return titulos;
+}
+
+/** Dispensas ativas da conferência com o apLIS (fat_conferencia_aplis_dispensas). */
+export async function dispensasAtivas(supabase: SupabaseClient): Promise<DispensaConferencia[]> {
+  const dispensas: DispensaConferencia[] = [];
+  for (let offset = 0; ; offset += PAGINA_NOTAS) {
+    const { data, error } = await supabase
+      .from('fat_conferencia_aplis_dispensas')
+      .select('id_nota, tipo, recebido_sistema, recebido_aplis, lotes, justificativa, dispensado_por_nome, dispensado_em')
+      .is('encerrada_em', null)
+      .order('id_nota', { ascending: true })
+      .range(offset, offset + PAGINA_NOTAS - 1);
+    if (error) throw new ErroSupabase(`dispensas: ${error.message}`);
+    const pagina = (data ?? []) as unknown as {
+      id_nota: string;
+      tipo: TipoDivergenciaAplis;
+      recebido_sistema: unknown;
+      recebido_aplis: unknown;
+      lotes: number[] | null;
+      justificativa: string;
+      dispensado_por_nome: string | null;
+      dispensado_em: string;
+    }[];
+    for (const d of pagina) {
+      dispensas.push({
+        idNota: d.id_nota,
+        tipo: d.tipo,
+        recebidoSistema: valorNumerico(d.recebido_sistema),
+        recebidoAplis: d.recebido_aplis === null || d.recebido_aplis === undefined ? null : valorNumerico(d.recebido_aplis),
+        lotes: (d.lotes ?? []).map(Number),
+        justificativa: d.justificativa,
+        dispensadoPorNome: d.dispensado_por_nome,
+        dispensadoEm: d.dispensado_em,
+      });
+    }
+    if (pagina.length < PAGINA_NOTAS) break;
+  }
+  return dispensas;
 }
 
 /**

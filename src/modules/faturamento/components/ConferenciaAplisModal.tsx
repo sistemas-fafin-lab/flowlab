@@ -1,9 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Download, ExternalLink, Loader2, RefreshCw, Wallet, X } from 'lucide-react';
-import { buscarConferenciaAplis } from '../hooks/useConferenciaAplis';
-import type { ConferenciaAplis, DivergenciaAplis, TipoDivergenciaAplis } from '../types';
-import { formatCurrency, formatData, hojeIso } from '../utils/formato';
-import { COR_TIPO, csvConferencia, diferencaAplis, secoesConferencia, statusLoteAplis } from '../utils/conferenciaAplis';
+import {
+  AlertTriangle, CheckCircle2, Download, ExternalLink, EyeOff, Loader2, RefreshCw, RotateCcw, Wallet, X,
+} from 'lucide-react';
+import { buscarConferenciaAplis, rpcDispensarDivergencia, rpcReativarDivergencia } from '../hooks/useConferenciaAplis';
+import type { ConferenciaAplis, DivergenciaAplis, DivergenciaDispensada, TipoDivergenciaAplis } from '../types';
+import { formatCurrency, formatData, formatDataHora, hojeIso } from '../utils/formato';
+import { COR_TIPO, ROTULO_TIPO, csvConferencia, diferencaAplis, secoesConferencia, statusLoteAplis } from '../utils/conferenciaAplis';
 import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
 
 // "Conferir baixas com o apLIS" (.scratch/faturamento-conferencia-baixas-aplis):
@@ -12,14 +14,19 @@ import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
 // abre o "Lançar baixa" (falta lançar) ou o "Editar título" (corrigir o que já
 // foi lançado). Uma leitura por abertura, sem cache: o operador quer ver o
 // efeito da baixa que acabou de lançar (a página troca `versao` depois de salvar).
+// Divergência sem ação possível (lote excluído no apLIS, lote que não entra no
+// faturamento) é dispensada com justificativa e vai para "Dispensadas"; volta
+// sozinha se os valores mudarem (regra no servidor, separarDispensadas).
 
 interface Props {
   aberto: boolean;
   onFechar: () => void;
   /** Muda depois que um título aberto daqui foi salvo: refaz a conferência. */
   versao: number;
-  /** Sem canManageBilling a linha não tem ações (os dois modais escrevem). */
+  /** Sem canManageBilling a linha não tem ações (os dois modais e a dispensa escrevem). */
   podeAbrirTitulo: boolean;
+  /** Uma dispensa foi gravada ou desfeita: a página relê a conferência (selos e filtro). */
+  onDispensasAlteradas: () => void;
   /** Abre o título no "Lançar baixa" ou no "Editar título"; devolve a mensagem
    *  de erro, ou null. */
   onAbrirTitulo: (idNota: string, acao: AcaoTituloConferencia) => Promise<string | null>;
@@ -76,12 +83,150 @@ function AcaoLinha({ rotulo, icone: Icone, carregando, desabilitado, onClick }: 
   );
 }
 
-const ConferenciaAplisModal: React.FC<Props> = ({ aberto, onFechar, versao, podeAbrirTitulo, onAbrirTitulo }) => {
+function DispensarDialogo({ divergencia, onCancelar, onConfirmar }: {
+  divergencia: DivergenciaAplis;
+  onCancelar: () => void;
+  onConfirmar: (justificativa: string) => Promise<string | null>;
+}) {
+  const [justificativa, setJustificativa] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const valida = justificativa.trim().length >= 3;
+
+  const confirmar = async () => {
+    if (!valida) return;
+    setSalvando(true);
+    setErro(null);
+    const falha = await onConfirmar(justificativa.trim());
+    setSalvando(false);
+    if (falha) setErro(falha);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md p-5 space-y-4">
+        <div>
+          <h3 className="text-base font-semibold text-gray-800 dark:text-gray-100">Dispensar divergência</h3>
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            Título {divergencia.numeroNota ?? 'sem número'} · {divergencia.operadora} · lote{divergencia.lotes.length === 1 ? '' : 's'}{' '}
+            {divergencia.lotes.map((l) => l.aplisId).join(', ')}
+          </p>
+        </div>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-200">
+          Justificativa
+          <textarea
+            value={justificativa}
+            onChange={(e) => setJustificativa(e.target.value)}
+            rows={3}
+            autoFocus
+            placeholder="Ex.: lote excluído no apLIS"
+            className="mt-1 w-full rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-800 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </label>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          O título sai da conferência, do selo e do filtro "Divergente do apLIS". Volta sozinho se o recebido aqui,
+          o recebido no apLIS ou os lotes mudarem.
+        </p>
+        {erro && (
+          <div className="p-2 rounded-xl bg-red-50 dark:bg-red-900/20 text-xs text-red-700 dark:text-red-300">{erro}</div>
+        )}
+        <div className="flex justify-end gap-2">
+          <button type="button" onClick={onCancelar} disabled={salvando} className={BOTAO_SECUNDARIO}>Cancelar</button>
+          <button
+            type="button"
+            onClick={() => void confirmar()}
+            disabled={!valida || salvando}
+            className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {salvando ? <Loader2 className="w-4 h-4 animate-spin" /> : <EyeOff className="w-4 h-4" />} Dispensar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SecaoDispensadas({ dispensados, podeReativar, reativando, onReativar }: {
+  dispensados: DivergenciaDispensada[];
+  podeReativar: boolean;
+  reativando: string | null;
+  onReativar: (idNota: string) => void;
+}) {
+  return (
+    <details className="group border border-gray-100 dark:border-gray-700 rounded-2xl">
+      <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-gray-700 dark:text-gray-200">
+        Dispensadas
+        <span className="ml-2 font-normal text-gray-500 dark:text-gray-400 tabular-nums">
+          {dispensados.length} título{dispensados.length === 1 ? '' : 's'}
+        </span>
+      </summary>
+      <div className="overflow-x-auto border-t border-gray-100 dark:border-gray-700">
+        <table className="min-w-full text-sm divide-y divide-gray-200 dark:divide-gray-700">
+          <thead className="bg-gray-50 dark:bg-gray-900/50">
+            <tr className="text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">
+              <th className="px-3 py-2">Título</th>
+              <th className="px-3 py-2">Operadora</th>
+              <th className="px-3 py-2">Divergência</th>
+              <th className="px-3 py-2">Lotes</th>
+              <th className="px-3 py-2 text-right">Diferença</th>
+              <th className="px-3 py-2">Justificativa</th>
+              <th className="px-3 py-2">Dispensada por</th>
+              {podeReativar && <th className="px-3 py-2" />}
+            </tr>
+          </thead>
+          <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            {dispensados.map((titulo) => (
+              <tr key={titulo.idNota}>
+                <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900 dark:text-gray-100 tabular-nums">
+                  {titulo.numeroNota ?? 'sem número'}
+                </td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-200 truncate max-w-[160px]" title={titulo.operadora}>
+                  {titulo.operadora}
+                </td>
+                <td className="px-3 py-2 whitespace-nowrap">
+                  <span className={`px-2 py-0.5 text-[11px] font-medium rounded-full ${COR_TIPO[titulo.tipo]}`}>
+                    {ROTULO_TIPO[titulo.tipo]}
+                  </span>
+                </td>
+                <td className="px-3 py-2 tabular-nums text-gray-600 dark:text-gray-300 whitespace-nowrap">
+                  {titulo.lotes.map((l) => l.aplisId).join(', ')}
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums whitespace-nowrap"><Diferenca titulo={titulo} /></td>
+                <td className="px-3 py-2 text-gray-700 dark:text-gray-200 max-w-[280px]">{titulo.dispensa.justificativa}</td>
+                <td className="px-3 py-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                  {titulo.dispensa.dispensadoPorNome ?? '—'}
+                  <div>{formatDataHora(titulo.dispensa.dispensadoEm)}</div>
+                </td>
+                {podeReativar && (
+                  <td className="px-2 py-1">
+                    <AcaoLinha
+                      rotulo="Reativar"
+                      icone={RotateCcw}
+                      carregando={reativando === titulo.idNota}
+                      desabilitado={reativando !== null}
+                      onClick={() => onReativar(titulo.idNota)}
+                    />
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </details>
+  );
+}
+
+const ConferenciaAplisModal: React.FC<Props> = ({
+  aberto, onFechar, versao, podeAbrirTitulo, onAbrirTitulo, onDispensasAlteradas,
+}) => {
   const [conferencia, setConferencia] = useState<ConferenciaAplis | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [abrindo, setAbrindo] = useState<{ idNota: string; acao: AcaoTituloConferencia } | null>(null);
   const [erroAbrir, setErroAbrir] = useState<string | null>(null);
+  const [dispensando, setDispensando] = useState<DivergenciaAplis | null>(null);
+  const [reativando, setReativando] = useState<string | null>(null);
   // Descarta a resposta de uma leitura que já foi substituída (fechar e
   // reabrir, ou salvar um título enquanto a anterior ainda estava no ar).
   const leituraRef = useRef(0);
@@ -125,9 +270,35 @@ const ConferenciaAplisModal: React.FC<Props> = ({ aberto, onFechar, versao, pode
     if (falha) setErroAbrir(falha);
   };
 
+  const dispensar = async (justificativa: string): Promise<string | null> => {
+    if (!dispensando) return null;
+    try {
+      await rpcDispensarDivergencia(dispensando, justificativa);
+    } catch (err) {
+      return err instanceof Error ? err.message : 'Não foi possível dispensar a divergência.';
+    }
+    setDispensando(null);
+    onDispensasAlteradas();
+    return null;
+  };
+
+  const reativar = async (idNota: string) => {
+    setReativando(idNota);
+    setErroAbrir(null);
+    try {
+      await rpcReativarDivergencia(idNota);
+      onDispensasAlteradas();
+    } catch (err) {
+      setErroAbrir(err instanceof Error ? err.message : 'Não foi possível reativar a divergência.');
+    } finally {
+      setReativando(null);
+    }
+  };
+
   if (!aberto) return null;
 
   const titulos = conferencia?.titulos ?? [];
+  const dispensados = conferencia?.dispensados ?? [];
   const secoes = secoesConferencia(titulos);
   const dadoAte = conferencia?.dadoAte ? `até ${formatData(conferencia.dadoAte)}` : 'até ontem';
 
@@ -182,7 +353,10 @@ const ConferenciaAplisModal: React.FC<Props> = ({ aberto, onFechar, versao, pode
             <div className="py-16 flex flex-col items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
               <CheckCircle2 className="w-8 h-8 text-green-500 dark:text-green-400" />
               <span className="font-medium text-gray-700 dark:text-gray-200">Nenhuma divergência</span>
-              <span>O recebido de todos os títulos bate com o apLIS ({dadoAte}).</span>
+              <span>
+                O recebido de todos os títulos bate com o apLIS ({dadoAte})
+                {dispensados.length > 0 && ', fora as divergências dispensadas'}.
+              </span>
             </div>
           ) : (
             <>
@@ -310,6 +484,13 @@ const ConferenciaAplisModal: React.FC<Props> = ({ aberto, onFechar, versao, pode
                                     desabilitado={abrindo !== null}
                                     onClick={() => void abrir(titulo.idNota, 'editar')}
                                   />
+                                  <AcaoLinha
+                                    rotulo="Dispensar"
+                                    icone={EyeOff}
+                                    carregando={false}
+                                    desabilitado={abrindo !== null}
+                                    onClick={() => setDispensando(titulo)}
+                                  />
                                 </div>
                               </td>
                             )}
@@ -321,6 +502,15 @@ const ConferenciaAplisModal: React.FC<Props> = ({ aberto, onFechar, versao, pode
                 </section>
               ))}
             </>
+          )}
+
+          {conferencia && !erro && dispensados.length > 0 && (
+            <SecaoDispensadas
+              dispensados={dispensados}
+              podeReativar={podeAbrirTitulo}
+              reativando={reativando}
+              onReativar={(idNota) => void reativar(idNota)}
+            />
           )}
         </div>
 
@@ -361,6 +551,13 @@ const ConferenciaAplisModal: React.FC<Props> = ({ aberto, onFechar, versao, pode
           </div>
         </div>
       </div>
+      {dispensando && (
+        <DispensarDialogo
+          divergencia={dispensando}
+          onCancelar={() => setDispensando(null)}
+          onConfirmar={dispensar}
+        />
+      )}
     </div>
   );
 };

@@ -542,6 +542,7 @@ const ContasReceberPage: React.FC = () => {
         versao={versaoConferencia}
         podeAbrirTitulo={podeEditar}
         onAbrirTitulo={abrirTituloDaConferencia}
+        onDispensasAlteradas={() => setVersaoConferencia((v) => v + 1)}
       />
 
       <AplicarBaixasAplisModal

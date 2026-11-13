@@ -25,6 +25,7 @@ interface CorpoResposta {
   error?: string;
   meta: { dadoAte: string | null };
   titulos: (Record<string, unknown> & { idNota: string; tipo: string })[];
+  dispensados: (Record<string, unknown> & { idNota: string; dispensa: Record<string, unknown> })[];
   refechamentos: { idNota: string; lotes: number[]; emissaoAtual: string; emissaoNova: string }[];
 }
 
@@ -36,6 +37,10 @@ function consulta(linhas: Linha[], erro: string | undefined) {
     select: () => builder,
     eq: (coluna: string, valor: unknown) => {
       resultado = resultado.filter((l) => l[coluna] === valor);
+      return builder;
+    },
+    is: (coluna: string, valor: unknown) => {
+      resultado = resultado.filter((l) => (l[coluna] ?? null) === valor);
       return builder;
     },
     neq: (coluna: string, valor: unknown) => {
@@ -61,6 +66,8 @@ interface Cenario {
   permissoes?: string[];
   notas?: Linha[];
   erroNotas?: string;
+  dispensas?: Linha[];
+  erroDispensas?: string;
 }
 
 function mockarSupabase(cenario: Cenario = {}) {
@@ -79,6 +86,7 @@ function mockarSupabase(cenario: Cenario = {}) {
   });
   getSupabaseUserClientMock.mockReturnValue({
     from: vi.fn((tabela: string) => {
+      if (tabela === 'fat_conferencia_aplis_dispensas') return consulta(cenario.dispensas ?? [], cenario.erroDispensas);
       if (tabela !== 'notas') throw new Error(`tabela inesperada no mock: ${tabela}`);
       return consulta(cenario.notas ?? [], cenario.erroNotas);
     }),
@@ -303,6 +311,68 @@ describe('GET /api/faturamento/titulos-conferencia-aplis', () => {
     expect(res.statusCode).toBe(502);
     expect(res.body.success).toBe(false);
     expect(recebidosDosLotesMock).not.toHaveBeenCalled();
+  });
+
+  describe('dispensas', () => {
+    // Dispensa como a tabela devolve (numeric como string do PostgREST).
+    function dispensa(idNota: string, extra: Linha = {}): Linha {
+      return {
+        id_nota: idNota,
+        tipo: 'sistema-maior',
+        recebido_sistema: '150.00',
+        recebido_aplis: '0.00',
+        lotes: [7014],
+        justificativa: 'Lote não entra no faturamento',
+        dispensado_por_nome: 'Ana',
+        dispensado_em: '2026-11-13T10:00:00Z',
+        encerrada_em: null,
+        ...extra,
+      };
+    }
+    const notaMedigest = nota('medigest', ['7014'], { status: 'parcialmente_recebida', valor_recebido: 150 });
+
+    it('divergência dispensada sai de titulos e vai para dispensados com a justificativa', async () => {
+      const res = await executar({ notas: [notaMedigest], dispensas: [dispensa('medigest')] }, { 7014: recebido(0) });
+      expect(res.statusCode).toBe(200);
+      expect(res.body.titulos).toEqual([]);
+      expect(res.body.dispensados).toHaveLength(1);
+      expect(res.body.dispensados[0]).toMatchObject({
+        idNota: 'medigest',
+        tipo: 'sistema-maior',
+        dispensa: { justificativa: 'Lote não entra no faturamento', dispensadoPorNome: 'Ana', dispensadoEm: '2026-11-13T10:00:00Z' },
+      });
+    });
+
+    it('valor mudou depois de dispensar: a divergência volta', async () => {
+      const res = await executar(
+        { notas: [{ ...notaMedigest, valor_recebido: 200 }], dispensas: [dispensa('medigest')] },
+        { 7014: recebido(0) },
+      );
+      expect(res.body.titulos.map((t) => t.idNota)).toEqual(['medigest']);
+      expect(res.body.dispensados).toEqual([]);
+    });
+
+    it('lote ausente dispensado (recebido no apLIS nulo) continua dispensado', async () => {
+      const res = await executar({
+        notas: [nota('cassi', ['6124'])],
+        dispensas: [dispensa('cassi', { tipo: 'lote-ausente', recebido_sistema: '0', recebido_aplis: null, lotes: [6124] })],
+      });
+      expect(res.body.titulos).toEqual([]);
+      expect(res.body.dispensados.map((t) => t.idNota)).toEqual(['cassi']);
+    });
+
+    it('dispensa encerrada (reativada) não esconde nada', async () => {
+      const res = await executar(
+        { notas: [notaMedigest], dispensas: [dispensa('medigest', { encerrada_em: '2026-11-13T11:00:00Z' })] },
+        { 7014: recebido(0) },
+      );
+      expect(res.body.titulos.map((t) => t.idNota)).toEqual(['medigest']);
+    });
+
+    it('falha ao ler as dispensas devolve 502', async () => {
+      const res = await executar({ notas: [notaMedigest], erroDispensas: 'boom' });
+      expect(res.statusCode).toBe(502);
+    });
   });
 
   describe('refechamentos', () => {

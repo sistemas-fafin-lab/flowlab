@@ -1,7 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../../../lib/supabase';
 import { chamarApi } from './useContasReceber';
-import type { ConferenciaAplis, DivergenciaAplis, RefechamentoAplicado, RefechamentoAplis } from '../types';
+import type {
+  ConferenciaAplis,
+  DivergenciaAplis,
+  DivergenciaDispensada,
+  RefechamentoAplicado,
+  RefechamentoAplis,
+} from '../types';
 
 // Conferência das baixas com o apLIS (.scratch/faturamento-conferencia-baixas-aplis)
 // para a aba Títulos: selo na linha e filtro "Divergente do apLIS". A rota não
@@ -14,13 +20,40 @@ export async function buscarConferenciaAplis(): Promise<ConferenciaAplis> {
   const body = await chamarApi<{
     meta?: { dadoAte?: string | null };
     titulos?: DivergenciaAplis[];
+    dispensados?: DivergenciaDispensada[];
     refechamentos?: RefechamentoAplis[];
   }>('/api/faturamento/titulos-conferencia-aplis', MENSAGEM_PADRAO);
   return {
     dadoAte: body.meta?.dadoAte ?? null,
     titulos: body.titulos ?? [],
+    dispensados: body.dispensados ?? [],
     refechamentos: body.refechamentos ?? [],
   };
+}
+
+/**
+ * Dispensa a divergência do título com justificativa (RPC
+ * fat_dispensar_divergencia_aplis, canManageBilling). Guarda os valores de agora:
+ * se mudarem, a conferência volta a apontar o título.
+ */
+export async function rpcDispensarDivergencia(divergencia: DivergenciaAplis, justificativa: string): Promise<void> {
+  const { error } = await supabase.rpc('fat_dispensar_divergencia_aplis', {
+    p: {
+      idNota: divergencia.idNota,
+      tipo: divergencia.tipo,
+      recebidoSistema: divergencia.recebidoSistema,
+      recebidoAplis: divergencia.recebidoAplis,
+      lotes: divergencia.lotes.map((l) => l.aplisId),
+      justificativa,
+    },
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Desfaz a dispensa: a divergência volta à conferência (RPC fat_reativar_divergencia_aplis). */
+export async function rpcReativarDivergencia(idNota: string): Promise<void> {
+  const { error } = await supabase.rpc('fat_reativar_divergencia_aplis', { p_id_nota: idNota });
+  if (error) throw new Error(error.message);
 }
 
 /**
