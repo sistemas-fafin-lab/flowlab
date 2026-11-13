@@ -68,7 +68,7 @@ Ficam de fora de propósito: o XML enviado (`xml_envio`), a resposta crua do web
 ## Limite e auditoria
 
 - **Limite:** 120 chamadas por minuto (janela deslizante), somando as três rotas. A 121ª responde `429` com o header `Retry-After` (segundos até liberar uma vaga).
-- **Auditoria:** cada chamada liberada grava uma linha em `integracao_chamadas` (integração `lab-brain`, rota, parâmetros consultados e horário). Chamadas recusadas por chave (`401`), parâmetro (`400`) ou limite (`429`) não entram na auditoria nem consomem cota.
+- **Auditoria:** cada chamada liberada grava uma linha em `integracao_chamadas` (integração `lab-brain`, rota, parâmetros consultados e horário). Chamadas recusadas por chave (`401`), permissão (`403`), parâmetro (`400`) ou limite (`429`) não entram na auditoria nem consomem cota.
 - Se a auditoria não puder ser gravada, a chamada responde `500` sem consultar as tabelas.
 
 ## Erros
@@ -79,6 +79,7 @@ Todos no formato `{ "success": false, "error": "<mensagem>" }`.
 | --- | --- | --- |
 | 400 | Parâmetro inválido (a mensagem diz qual) | Corrigir a chamada; não repetir igual |
 | 401 | Chave ausente ou errada | Parar e avisar o admin |
+| 403 | Operação fora das permissões do agente | Parar e avisar o admin |
 | 404 | Requisição fora do Envio ao Álvaro | Tratar como "não enviada" |
 | 405 | Método diferente de GET | Corrigir a chamada |
 | 429 | Limite por minuto atingido | Esperar `Retry-After` segundos |

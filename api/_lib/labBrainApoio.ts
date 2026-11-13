@@ -7,8 +7,9 @@
 //   GET /api/integracoes/lab-brain-apoio-fila?status=&desde=&ate=&limite=&pagina=
 //   GET /api/integracoes/lab-brain-apoio-exames
 //
-// Ordem de cada chamada: método → chave (LAB_BRAIN_API_KEY) → parâmetros →
-// cota + auditoria (integracao_registrar_chamada) → consulta. 401 e 400 não
+// Ordem de cada chamada: método → chave (LAB_BRAIN_API_KEY) → permissão
+// `apoio.ler` no manifesto (agentes/permissoes.ts) → parâmetros → cota +
+// auditoria (integracao_registrar_chamada) → consulta. 401, 403 e 400 não
 // consomem cota nem entram na auditoria. Guia: docs/apoio-alvaro/INTEGRACAO_LAB_BRAIN.md.
 //
 // Fora do payload de propósito: xml_envio e alvaro_response (XML/resposta crua
@@ -20,7 +21,11 @@ import { isBearerApiKeyValid } from './bearerAuth.js';
 import { buscarTodasPaginado } from './supabasePaginado.js';
 import { getSupabaseAdminClient } from './supabase.js';
 import { describeError } from './errors.js';
+import { agentePode, type Agente } from './agentes/permissoes.js';
 
+/** Agente no manifesto de permissões (agentes/permissoes.ts). */
+export const AGENTE_LAB_BRAIN: Agente = 'lab-brain';
+/** Integração na auditoria e na cota (integracao_registrar_chamada). */
 export const LAB_BRAIN_INTEGRACAO = 'lab-brain';
 export const LAB_BRAIN_LIMITE_POR_MINUTO = 120;
 const JANELA_SEGUNDOS = 60;
@@ -247,6 +252,11 @@ export function criarHandlerLabBrainApoio(recurso: RecursoLabBrain) {
     }
     if (!autorizado) {
       res.status(401).json({ success: false, error: 'Não autorizado' });
+      return;
+    }
+
+    if (!agentePode(AGENTE_LAB_BRAIN, 'apoio.ler')) {
+      res.status(403).json({ success: false, error: 'Operação não permitida para este agente' });
       return;
     }
 

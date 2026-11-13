@@ -33,6 +33,14 @@ vi.mock('./supabase.js', () => ({
   getSupabaseAdminClient: () => ({ from: criarConsulta, rpc: estado.rpc }),
 }));
 
+// Manifesto real, com a pergunta espionável: o teste de recusa tira a operação
+// de um agente sem inventar um agente novo no código de produção.
+vi.mock('./agentes/permissoes.js', async (importOriginal) => {
+  const real = await importOriginal<typeof import('./agentes/permissoes.js')>();
+  return { ...real, agentePode: vi.fn(real.agentePode) };
+});
+
+import { agentePode } from './agentes/permissoes.js';
 import { criarHandlerLabBrainApoio, parseParametros } from './labBrainApoio.js';
 
 const CHAVE = 'segredo-lab-brain';
@@ -107,6 +115,16 @@ describe('autenticação, cota e auditoria', () => {
     await exames(criarReq(), res);
     expect(res.statusCode).toBe(500);
     expect(res.body).toEqual({ success: false, error: 'Erro interno' });
+  });
+
+  it('agente sem apoio.ler devolve 403 antes de parâmetros, cota e consulta', async () => {
+    vi.mocked(agentePode).mockReturnValueOnce(false);
+    const res = criarRes();
+    await requisicao(criarReq({ cod: "1'; drop" }), res);
+    expect(res.statusCode).toBe(403);
+    expect(res.body).toEqual({ success: false, error: 'Operação não permitida para este agente' });
+    expect(estado.rpc).not.toHaveBeenCalled();
+    expect(estado.consultas).toHaveLength(0);
   });
 
   it('parâmetro inválido devolve 400 sem consumir cota', async () => {
