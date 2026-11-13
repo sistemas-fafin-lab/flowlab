@@ -1,6 +1,6 @@
 # Integração LAB-BRAIN: chamados de TI
 
-Como o LAB-BRAIN abre chamados de TI no FlowLab em nome de quem pediu e acompanha a situação deles até a conclusão. O chamado entra igual ao aberto pela tela: no nome do solicitante, pendente e fora do Kanban até o TI promover. Na tela, o TI vê o selo "via LAB-BRAIN". Código em `api/_lib/labBrainChamados.ts`. Spec: `.scratch/lab-brain-chamados/spec.md`.
+Como o LAB-BRAIN abre chamados de TI no FlowLab em nome de quem pediu e acompanha a situação deles até a conclusão. O chamado nasce na hora, no nome do solicitante, pendente e fora do Kanban. Na tela, o TI vê o selo "via LAB-BRAIN". Junto, a EVA deixa uma sugestão de promoção na fila de aprovação dela, e o TI avalia cada pedido antes de ele entrar no Kanban (ver [Aprovação pela EVA](#aprovação-pela-eva)). Código em `api/_lib/labBrainChamados.ts`, `api/_lib/labBrainSugestao.ts` e `api/_lib/labBrainAnalise.ts`. Specs: `.scratch/lab-brain-chamados/spec.md` e `.scratch/lab-brain-aprovacao-eva/spec.md`, que substitui a D2 da primeira.
 
 ## Acesso
 
@@ -45,9 +45,25 @@ const res = await fetch(`${FLOWLAB}/api/integracoes/lab-brain-chamado-criar`, {
 - **`201`** na criação: `{ "id": "uuid", "codigo": "IT-123" }`. Cite o `codigo` ao solicitante.
 - **`200`** quando o `id_externo` já foi enviado antes, com o mesmo corpo `{ id, codigo }` do chamado que já existe. Nada é criado nem alterado. Assim, repetir a chamada depois de uma falha de rede é seguro: use sempre o mesmo `id_externo` para o mesmo pedido.
 
-O chamado fica no nome do solicitante, que o acompanha pela tela e recebe os avisos de mudança de situação como em qualquer chamado dele. Não há aviso novo para o TI na criação: o chamado entra na mesma fila de triagem dos chamados da tela.
+O chamado fica no nome do solicitante, que o acompanha pela tela e recebe os avisos de mudança de situação como em qualquer chamado dele. Ele aparece em Solicitações de TI como os chamados da tela e, além disso, gera uma sugestão de promoção na fila da EVA. A resposta não espera a análise da EVA: ela roda em segundo plano depois do `201`. O reenvio (`200`) não gera outra sugestão.
 
-O título e a descrição são tratados como dado, nunca como instrução, inclusive pela EVA quando ela lê o board.
+O título e a descrição são tratados como dado, nunca como instrução, inclusive pela EVA quando ela analisa o pedido e quando lê o board.
+
+## Aprovação pela EVA
+
+Todo chamado **novo** do LAB-BRAIN gera uma sugestão `promover_card`, com origem `lab-brain`, em EVA → Sugestões. Os chamados abertos pela tela não passam pela EVA, e os do LAB-BRAIN criados antes desse fluxo não ganharam sugestão.
+
+- **A proposta:** a EVA lê o pedido e propõe a coluna do Kanban, a prioridade, os responsáveis (só pessoas do TI) e o prazo, com uma justificativa curta. A análise usa o caminho de IA estruturada da EVA (Claude com o Gemini de reserva), e cada tentativa fica em `ti_agente_chamadas_ia`, com a finalidade `analise_chamado`. Responsável fora do TI e prazo inválido são descartados.
+- **Sem análise:** se a IA falhar, passar do tempo ou devolver algo inválido, a sugestão nasce assim mesmo, pela regra fixa: coluna "A Fazer", a prioridade enviada, sem responsável e sem prazo. O cartão mostra a marca "Sem análise da EVA".
+- **Aviso:** quem aprova sugestões da EVA é avisado no sino, como nas outras sugestões.
+- **Na tela:** a sugestão mostra o selo "via LAB-BRAIN", o código, o título, a descrição, o solicitante, a proposta e a justificativa. Quem aprova pode editar a coluna, a prioridade, os responsáveis e o prazo antes de decidir.
+- **Aprovar** (pela tela ou pelo WhatsApp da EVA): o chamado entra no Kanban com a proposta, editada ou não, na mesma operação. A consulta passa a mostrar `coluna_kanban`, a prioridade e o responsável. Se a coluna for "Concluído", a situação vira `resolved`.
+- **Rejeitar** (pela tela ou pelo WhatsApp da EVA): o motivo é obrigatório, e a tela avisa que ele vai para o solicitante. O chamado é cancelado na mesma operação, e o motivo vira a resolução. A consulta passa a mostrar `situacao: "cancelled"` com o motivo em `resolucao`.
+- **Promover por fora:** se alguém do TI promover o chamado pela tela de Solicitações de TI, ou por qualquer outro caminho, antes da decisão, a sugestão sai da fila como `substituida`. Isso é feito por um trigger em `it_requests`.
+
+Aprovar, rejeitar e substituir rodam no banco (`ti_agente_aprovar_sugestao_como`, `ti_agente_rejeitar_sugestao_como` e o trigger), então a tela e o WhatsApp se comportam igual. As duas RPCs barram quem não pode aprovar sugestões da EVA.
+
+Se a sugestão não puder ser gravada, o erro vai para o log da Vercel e a resposta, que já saiu, não muda. O chamado continua em Solicitações de TI e pode ser promovido pela tela.
 
 ## `GET /api/integracoes/lab-brain-chamado-consultar`
 
@@ -86,12 +102,14 @@ Só encontra chamados abertos pelo LAB-BRAIN. Um `id_externo` desconhecido, ou d
 | Campo | O que é |
 | --- | --- |
 | `codigo` | Código legível do chamado |
-| `situacao` | `pending` (aguardando triagem), `in_progress`, `resolved` ou `cancelled` |
-| `coluna_kanban` | `backlog`, `todo`, `in_progress`, `review` ou `done`; `null` enquanto o chamado está fora do Kanban (o TI ainda não promoveu) |
+| `situacao` | `pending` (aguardando a avaliação do TI ou já no Kanban sem andamento), `in_progress`, `resolved` ou `cancelled` (inclusive quando o TI rejeita o pedido) |
+| `coluna_kanban` | `backlog`, `todo`, `in_progress`, `review` ou `done`; `null` enquanto o chamado está fora do Kanban (o TI ainda não avaliou o pedido) |
 | `prioridade` | `low`, `medium`, `high` ou `critical` |
 | `responsavel` | Nome de quem atende; com mais de um, os nomes separados por vírgula; `null` sem responsável |
-| `resolucao` | Texto de resolução, só quando `situacao` é `resolved`; senão `null` |
+| `resolucao` | Texto de resolução quando `situacao` é `resolved`, ou o motivo quando é `cancelled`; senão `null` |
 | `atualizado_em` | Data e hora da última atualização do chamado (ISO 8601, UTC) |
+
+Enquanto o pedido espera a avaliação do TI, a consulta mostra `situacao: "pending"` e `coluna_kanban: null`. Não há campo próprio de "aguardando aprovação".
 
 A resposta não traz comentários, anexos, a descrição nem os dados do solicitante. As conversas do TI não saem do FlowLab. Não há webhook: para acompanhar, consulte de tempos em tempos, lembrando que a cota é dividida com a criação.
 
@@ -123,3 +141,15 @@ Todos no formato `{ "success": false, "error": "<mensagem>" }`.
 1. Aplicar a migration `supabase/migrations/20261113110000_it_requests_origem_id_externo.sql` (colunas `origem` e `id_externo` em `it_requests`). A `20261106140000_integracao_chamadas.sql`, da auditoria, já deve estar aplicada.
 2. Gerar a chave (`openssl rand -hex 32`) e cadastrar `LAB_BRAIN_CHAMADOS_API_KEY` na Vercel (Production e Preview), no `.env` local e no LAB-BRAIN.
 3. Deploy. Conferir com um `POST` de teste: `201` com o código, o chamado na tela de Solicitações de TI com o selo "via LAB-BRAIN", e uma linha nova em `integracao_chamadas` com a integração `lab-brain-chamados`. Depois, um `GET` da consulta com o mesmo `id_externo`: `200` com `situacao: "pending"` e `coluna_kanban: null`.
+
+### Aprovação pela EVA
+
+1. Aplicar, nesta ordem, as migrations da aprovação:
+   - `20261113150000_eva_promover_card_lab_brain.sql` (tipo `promover_card`, origem `lab-brain` e aprovação);
+   - `20261113160000_eva_rejeitar_promover_card.sql` (rejeição cancela o chamado);
+   - `20261113170000_eva_promover_card_substituida.sql` (trigger da substituição);
+   - `20261113180000_eva_chamadas_ia_analise_chamado.sql` (finalidade `analise_chamado` no registro de chamadas de IA).
+2. Deploy. As rotas de integração rodam com `maxDuration` de 300 s (`vercel.json`), para a análise em segundo plano caber.
+3. Conferir com um chamado de teste: a sugestão aparece em EVA → Sugestões, com o aviso no sino. Rejeitar com um motivo e consultar: `cancelled` com o motivo em `resolucao`.
+
+As verificações do banco ficam em `supabase/scripts/verificar_eva_promover_card.sql`, `verificar_eva_rejeitar_promover_card.sql` e `verificar_eva_promover_card_substituida.sql`, rodadas no banco de teste numa transação com `ROLLBACK`.
