@@ -9,9 +9,9 @@
 - [x] O guia da integração de chamados do LAB-BRAIN descreve:
   - a sugestão de promoção e o que a aprovação e a rejeição fazem;
   - o `resolucao` no cancelado.
-- [ ] O documento entregue ao dev do LAB-BRAIN ganha as duas notas: o TI avalia cada pedido antes de ele entrar no Kanban, e `resolucao` também aparece no cancelado.
-- [ ] Os chamados de teste IT-132 e IT-133 são cancelados no banco de teste antes do roteiro.
-- [ ] Roteiro local (API em `localhost:3000`, front em `localhost:5173`, banco de teste), conferido passo a passo:
+- [ ] O documento entregue ao dev do LAB-BRAIN ganha as duas notas: o TI avalia cada pedido antes de ele entrar no Kanban, e `resolucao` também aparece no cancelado. (O documento não está no repositório; as notas estão prontas nos Comments, falta colá-las.)
+- [x] Os chamados de teste IT-132 e IT-133 são cancelados no banco de teste antes do roteiro.
+- [x] Roteiro local (API em `localhost:3000`, front em `localhost:5173`, banco de teste), conferido passo a passo:
   1. criar o chamado;
   2. a sugestão aparece na fila, com o aviso no sino;
   3. aprovar promove, e a consulta mostra a coluna;
@@ -30,3 +30,12 @@
   > **`resolucao` no cancelado.** O campo `resolucao` agora vem preenchido também quando `situacao` é `cancelled`, além de `resolved`. No cancelado, ele traz o motivo da recusa, escrito pelo TI para o solicitante. Repasse esse texto à pessoa que fez o pedido.
 
 - 13/11/2026: no banco de teste, a `20261113170000_eva_promover_card_substituida` estava aplicada (trigger e RPC com o GUC `ti_agente.aprovando` presentes), mas sem registro em `supabase_migrations.schema_migrations`.
+- 13/11/2026: IT-132 e IT-133 cancelados no banco de teste, e a `20261113170000` registrada no histórico.
+- 13/11/2026: roteiro local rodado (`vercel dev` na 3000 e Vite na 5173, os dois no banco de teste `eqz`), com o solicitante `teste.calendario.cr@flowlab.test`:
+  1. `POST` → `201` IT-224. A sugestão `promover_card` nasceu pendente, com origem `lab-brain` e proposta da IA (`versao_prompt: promover-card-v1`). No local não há `CLAUDE_API_KEY`: a tentativa do Claude ficou como `configuracao` em `ti_agente_chamadas_ia`, e o Gemini de reserva respondeu `ok` em 5,6 s.
+  2. O aviso "Chamado do LAB-BRAIN para aprovar" chegou ao sino dos 12 aprovadores. **Bug achado:** o clique levava a Solicitações de TI e não a EVA → Sugestões, porque `resolveNotificationTarget` manda todo aviso do módulo IT que cita `IT-nnn` para o modal do chamado. Corrigido em `src/utils/itRequestLink.ts`: o link para `/it/eva` vence (os avisos de `/it/kanban` continuam abrindo o chamado). Depois da correção, o clique abre `/it/eva`, e o cartão mostra o selo, o código, o título, a descrição, o solicitante, a proposta e a justificativa.
+  3. Aprovar pela tela → consulta `pending`, `coluna_kanban: "todo"`, `prioridade: "high"`. A sugestão ficou `aprovada`, não `substituida`.
+  4. IT-225 rejeitado pela tela, com o modal avisando que o motivo vai para o solicitante → consulta `cancelled`, com o motivo em `resolucao`. A sugestão ficou `rejeitada`.
+  5. IT-226 promovido por Solicitações de TI → Kanban → "Adicionar como Card" → a sugestão ficou `substituida`.
+
+  IT-224 e IT-226 cancelados no fim. O IT-225 já estava cancelado pela rejeição.

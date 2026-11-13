@@ -21,6 +21,13 @@ export type ITRequestTab = 'details' | 'chat';
 /** Rota da lista de chamados de TI. */
 export const IT_REQUESTS_PATH = '/requests/it';
 
+/** Administração da EVA; um aviso com link para cá vai para lá, mesmo citando um chamado. */
+const EVA_PATH = '/it/eva';
+
+function levaParaEva(link: string | null): boolean {
+  return link === EVA_PATH || !!link?.startsWith(`${EVA_PATH}/`);
+}
+
 /** Título das notificações de nova mensagem — abrem o modal já na aba do chat. */
 export const IT_NEW_REPLY_TITLE = 'Nova resposta da TI';
 
@@ -52,10 +59,12 @@ interface NotificationLike {
  *
  * No módulo IT, o código citado no texto identifica o chamado e manda abrir o
  * modal — ignorando o `link` gravado, que nas linhas antigas é o hub genérico.
+ * A exceção é o aviso que leva à EVA (ex.: sugestão de um chamado do LAB-BRAIN
+ * para aprovar): ele cita o chamado, mas a decisão é na fila da EVA.
  * Nos demais casos, vale o `link` da própria notificação.
  */
 export function resolveNotificationTarget(n: NotificationLike): NotificationTarget | null {
-  if (n.module === 'IT') {
+  if (n.module === 'IT' && !levaParaEva(n.link)) {
     const code = TICKET_CODE_RE.exec(n.content ?? '')?.[0];
     if (code) {
       return {

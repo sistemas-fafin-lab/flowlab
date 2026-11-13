@@ -142,7 +142,7 @@ Todos no formato `{ "success": false, "error": "<mensagem>" }`.
 2. Gerar a chave (`openssl rand -hex 32`) e cadastrar `LAB_BRAIN_CHAMADOS_API_KEY` na Vercel (Production e Preview), no `.env` local e no LAB-BRAIN.
 3. Deploy. Conferir com um `POST` de teste: `201` com o código, o chamado na tela de Solicitações de TI com o selo "via LAB-BRAIN", e uma linha nova em `integracao_chamadas` com a integração `lab-brain-chamados`. Depois, um `GET` da consulta com o mesmo `id_externo`: `200` com `situacao: "pending"` e `coluna_kanban: null`.
 
-### Aprovação pela EVA
+### Migrations e deploy da aprovação pela EVA
 
 1. Aplicar, nesta ordem, as migrations da aprovação:
    - `20261113150000_eva_promover_card_lab_brain.sql` (tipo `promover_card`, origem `lab-brain` e aprovação);
