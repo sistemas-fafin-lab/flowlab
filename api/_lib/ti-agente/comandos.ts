@@ -582,9 +582,15 @@ async function prepararDecisao(db: SupabaseClient, membro: Remetente, pedido: Pe
   const cabeca = pedido.acao === 'aprovar'
     ? `Vou aprovar ${quantas}; a mudança vai direto para o Kanban:`
     : `Vou rejeitar ${quantas} (motivo: "${curto(pedido.motivo ?? '', 120)}"):`;
+  // Rejeitar promover_card cancela o chamado do LAB-BRAIN, e o motivo é o que o solicitante recebe.
+  const chamados = pedido.acao === 'rejeitar' ? prontas.filter((p) => p.s.tipo === 'promover_card').length : 0;
+  const avisoChamados = chamados === 0 ? []
+    : chamados === 1 ? ['', 'O chamado do LAB-BRAIN é cancelado, e o motivo vai para quem pediu.']
+    : ['', 'Os chamados do LAB-BRAIN são cancelados, e o motivo vai para quem pediu.'];
   return [
     cabeca,
     ...prontas.map((p) => `${p.n}. ${descreverSugestao(p.s, nomes)}`),
+    ...avisoChamados,
     ...(decididas.length || foraDaLista.length ? ['', ...decididas, ...foraDaLista] : []),
     '',
     PEDIR_SIM,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { CheckCheck, ClipboardCheck, RefreshCw } from 'lucide-react';
+import { CheckCheck, ClipboardCheck, RefreshCw, Send } from 'lucide-react';
 import EvaAdminShell from './EvaAdminShell';
 import SugestaoCard from './SugestaoCard';
 import EditarPropostaModal from './EditarPropostaModal';
@@ -12,6 +12,29 @@ import type { AvisoEva } from '../../hooks/useEvaHome';
 import { BOTAO_PERIGO, BOTAO_SECUNDARIO, CAMPO, ROTULO } from './estilos';
 
 type Filtro = StatusSugestao | 'todas';
+
+interface TextosRejeicao { titulo: string; subtitulo: string; rotulo: string; aviso: string | null; exemplo: string; botao: string }
+
+const TEXTOS_REJEITAR: TextosRejeicao = {
+  titulo: 'Rejeitar sugestão',
+  subtitulo: 'O motivo fica registrado e ajuda a calibrar a EVA.',
+  rotulo: 'Motivo',
+  aviso: null,
+  exemplo: 'Ex.: já existe um card para isso (IT-050)',
+  botao: 'Rejeitar',
+};
+
+/** Rejeitar promover_card cancela o chamado do LAB-BRAIN (se ainda aberto), e o motivo vai para quem pediu. */
+function textosRejeitarChamado(s: Sugestao): TextosRejeicao {
+  return {
+    titulo: 'Rejeitar chamado do LAB-BRAIN',
+    subtitulo: `O chamado ${s.card?.codigo ?? 'do LAB-BRAIN'} é cancelado, se ainda estiver aberto.`,
+    rotulo: 'Motivo para o solicitante',
+    aviso: 'Este texto vai para o solicitante pelo LAB-BRAIN. Escreva como explicaria a ele por que o pedido não seguiu.',
+    exemplo: 'Ex.: esse acesso é liberado pelo RH. Peça por lá.',
+    botao: 'Rejeitar e cancelar',
+  };
+}
 
 /** /it/eva — fila de sugestões (issue 11). Gestor aprova (a EVA executa), edita ou rejeita. */
 const SugestoesPage: React.FC = () => {
@@ -26,6 +49,8 @@ const SugestoesPage: React.FC = () => {
   const [rejeitando, setRejeitando] = useState<Sugestao | null>(null);
   const [motivo, setMotivo] = useState('');
   const [aviso, setAviso] = useState<AvisoEva | null>(null);
+
+  const textosRejeicao = rejeitando?.tipo === 'promover_card' ? textosRejeitarChamado(rejeitando) : TEXTOS_REJEITAR;
 
   const avisar = (texto: string, tom: AvisoEva['tom']) => setAviso({ id: Date.now(), texto, tom });
 
@@ -130,8 +155,8 @@ const SugestoesPage: React.FC = () => {
 
       <EvaModal
         aberto={!!rejeitando}
-        titulo="Rejeitar sugestão"
-        subtitulo="O motivo fica registrado e ajuda a calibrar a EVA."
+        titulo={textosRejeicao.titulo}
+        subtitulo={textosRejeicao.subtitulo}
         onFechar={() => setRejeitando(null)}
         rodape={
           <>
@@ -142,13 +167,27 @@ const SugestoesPage: React.FC = () => {
               disabled={!motivo.trim() || ocupado !== null}
               onClick={() => rejeitando && void executar(rejeitando, () => agenteAdmin.rejeitar(rejeitando.id, motivo), 'Sugestão rejeitada.')}
             >
-              Rejeitar
+              {textosRejeicao.botao}
             </button>
           </>
         }
       >
-        <label className={ROTULO} htmlFor="eva-motivo">Motivo</label>
-        <textarea id="eva-motivo" rows={3} className={CAMPO} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ex.: já existe um card para isso (IT-050)" />
+        <label className={ROTULO} htmlFor="eva-motivo">{textosRejeicao.rotulo}</label>
+        {textosRejeicao.aviso && (
+          <p id="eva-motivo-aviso" className="mb-2 flex items-start gap-1.5 text-xs text-amber-700 dark:text-amber-400">
+            <Send className="w-3.5 h-3.5 mt-0.5 shrink-0" aria-hidden />
+            {textosRejeicao.aviso}
+          </p>
+        )}
+        <textarea
+          id="eva-motivo"
+          rows={3}
+          className={CAMPO}
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+          aria-describedby={textosRejeicao.aviso ? 'eva-motivo-aviso' : undefined}
+          placeholder={textosRejeicao.exemplo}
+        />
       </EvaModal>
 
       <EvaToast aviso={aviso} onClose={() => setAviso(null)} />

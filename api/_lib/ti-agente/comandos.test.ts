@@ -436,6 +436,18 @@ describe('processarRecebida: gestor', () => {
     expect(banco.rpcs).toEqual([{ fn: 'ti_agente_rejeitar_sugestao_como', args: { p_id: 's1', p_motivo: 'já existe', p_aprovador: 'u-ana' } }]);
   });
 
+  it('rejeitar a sugestão de um chamado do LAB-BRAIN avisa que ele é cancelado e o motivo vai para o solicitante', async () => {
+    estado.sugestoes = [
+      sug({ id: 's1' }),
+      sug({ id: 's2', tipo: 'promover_card', origem: 'lab-brain', proposta: { kanban_status: 'todo', prioridade: 'high' } }),
+    ];
+    estado.comandos.push({ id: 'lista', membro_id: 'm-ana', tipo: 'lista_sugestoes', status: 'lista', dados: { ids: ['s1', 's2'] }, expira_em: '2026-10-14T15:00:00.000Z' });
+    const pedido = await mandar('rejeitar 2 é com o RH');
+    expect(pedido.resposta).toMatch(/O chamado do LAB-BRAIN é cancelado, e o motivo vai para quem pediu\./);
+    const outra = await mandar('rejeitar 1 já existe');
+    expect(outra.resposta).not.toMatch(/LAB-BRAIN/);
+  });
+
   it('pedido de mudança do gestor: prévia, SIM aplica em nome dele; NÃO deixa a proposta na fila', async () => {
     ia({ intencao: 'propor', propostas: [proposta({ card_codigo: 'IT-099', responsaveis: ['u-bruno'], trecho: 'passa o IT-099 para o Bruno' })] });
     const previa = await mandar('passa o IT-099 para o Bruno');

@@ -288,7 +288,7 @@ export interface SituacaoChamado {
   prioridade: string;
   /** Nomes dos responsáveis separados por vírgula; null sem responsável. */
   responsavel: string | null;
-  /** Só quando a situação é resolved. */
+  /** Só quando a situação é resolved ou cancelled (o motivo da rejeição pela EVA). */
   resolucao: string | null;
   atualizado_em: string;
 }
@@ -303,6 +303,9 @@ interface LinhaSituacao {
   resolution: string | null;
   updated_at: string;
 }
+
+/** Resolvido traz a resolução; cancelado, o motivo de quem rejeitou a sugestão da EVA. */
+const SITUACOES_COM_RESOLUCAO = new Set(['resolved', 'cancelled']);
 
 async function nomesDosResponsaveis(supabase: SupabaseClient, ids: string[]): Promise<string | null> {
   if (ids.length === 0) return null;
@@ -342,7 +345,7 @@ async function buscarSituacao(supabase: SupabaseClient, idExterno: string): Prom
     coluna_kanban: linha.kanban_hidden ? null : linha.kanban_status,
     prioridade: linha.priority,
     responsavel: await nomesDosResponsaveis(supabase, linha.assigned_to ?? []),
-    resolucao: linha.status === 'resolved' ? linha.resolution : null,
+    resolucao: SITUACOES_COM_RESOLUCAO.has(linha.status) ? linha.resolution : null,
     atualizado_em: linha.updated_at,
   };
 }

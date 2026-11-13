@@ -257,6 +257,33 @@ describe('consulta', () => {
     });
   });
 
+  it('chamado cancelado devolve 200 com o motivo em resolucao', async () => {
+    // Rejeitar a sugestão da EVA cancela o chamado fora do Kanban e grava o motivo como resolução.
+    estado.chamados = [
+      chamado({
+        status: 'cancelled',
+        kanban_status: 'backlog',
+        kanban_hidden: true,
+        assigned_to: [],
+        resolution: 'Esse acesso é liberado pelo RH, não pelo TI.',
+      }),
+    ];
+    const res = await chamar();
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({
+      situacao: 'cancelled',
+      coluna_kanban: null,
+      resolucao: 'Esse acesso é liberado pelo RH, não pelo TI.',
+    });
+  });
+
+  it('chamado pendente não devolve resolução, mesmo com uma antiga gravada', async () => {
+    estado.chamados = [chamado({ status: 'pending', kanban_hidden: true, resolution: 'Texto antigo.' })];
+    const res = await chamar();
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ situacao: 'pending', resolucao: null });
+  });
+
   it('chamado pendente, fora do Kanban e sem responsável: coluna e responsável nulos', async () => {
     estado.chamados = [chamado({ status: 'pending', kanban_status: 'backlog', kanban_hidden: true, assigned_to: [] })];
     const res = await chamar();
