@@ -16,14 +16,20 @@
 // Kanban (kanban_hidden) até o TI promover, no nome do solicitante. O que muda
 // é `origem = 'lab-brain'` e o `id_externo`, únicos juntos: reenviar o mesmo
 // `id_externo` devolve o chamado que já existe (200) em vez de criar outro.
+//
+// Chamado novo (201) agenda em segundo plano a sugestão de promoção na fila da EVA
+// (labBrainSugestao.ts); aprovar a sugestão o põe no Kanban. O reenvio (200) não agenda nada.
+// Spec: .scratch/lab-brain-aprovacao-eva/spec.md.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { waitUntil } from '@vercel/functions';
 import { isBearerApiKeyValid } from './bearerAuth.js';
 import { getSupabaseAdminClient } from './supabase.js';
 import { describeError } from './errors.js';
 import { autorizarAgente, recusarSemCota } from './agentes/rotaAgente.js';
 import { AGENTE_LAB_BRAIN, primeiro, registrarChamada, type Cota } from './labBrainApoio.js';
+import { criarSugestaoDePromocao } from './labBrainSugestao.js';
 
 /** Valor de it_requests.origem para os chamados abertos pelo LAB-BRAIN. Mesmo valor em src/components/IT/OrigemChamadoBadge.tsx. */
 export const ORIGEM_LAB_BRAIN = 'lab-brain';
@@ -192,6 +198,22 @@ async function inserirChamado(
   return { criado: resposta(data) };
 }
 
+/** A sugestão da EVA não segura a resposta: falhar ao agendar só vai para o log. */
+function agendarSugestao(supabase: SupabaseClient, chamado: NovoChamado, criado: ChamadoCriado): void {
+  try {
+    waitUntil(
+      criarSugestaoDePromocao(supabase, {
+        id: criado.id,
+        codigo: criado.codigo,
+        titulo: chamado.titulo,
+        prioridade: chamado.prioridade,
+      }),
+    );
+  } catch (err) {
+    console.error(`${LOG_CRIACAO} waitUntil indisponível; o chamado ${criado.codigo} fica sem sugestão:`, describeError(err));
+  }
+}
+
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 export async function criarChamadoHandler(req: VercelRequest, res: VercelResponse): Promise<void> {
@@ -247,6 +269,7 @@ export async function criarChamadoHandler(req: VercelRequest, res: VercelRespons
       res.status(200).json(resultado.existente);
       return;
     }
+    agendarSugestao(supabase, chamado, resultado.criado);
     res.status(201).json(resultado.criado);
   } catch (err) {
     console.error(`${LOG_CRIACAO} erro:`, describeError(err));

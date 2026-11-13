@@ -31,6 +31,7 @@ import { SugestaoIA, montarContexto, type ContextoExtracao } from './extracao.js
 import { MAX_AVISO_PESSOAL, checarAvisoEquipe, checarAvisoPessoal, enviarAvisoEquipe, enviarAvisoPessoal } from './aviso.js';
 import { enfileirarNoGrupo, lerConfigGrupo, montarAviso, motivoSemGrupo } from './grupo.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
+import { ORIGEM_SUGESTAO_LAB_BRAIN } from '../labBrainSugestao.js';
 import {
   cancelarLembrete, criarLembrete, lerConversa, lerDiaDaPessoa, lerQuando, montarBlocoDia, montarConteudoConversa,
 } from './pessoal.js';
@@ -184,7 +185,7 @@ export function lerPedidoDeLista(texto: string): PedidoDeLista | null {
 
 export interface SugestaoLista {
   id: string;
-  tipo: 'criar_card' | 'atualizar_card' | 'comentar_card';
+  tipo: 'criar_card' | 'atualizar_card' | 'comentar_card' | 'promover_card';
   origem: string;
   status: string;
   proposta: Record<string, unknown>;
@@ -195,11 +196,26 @@ export interface SugestaoLista {
 
 /** "IT-045 Robô de pré-faturamento: → Concluído (WhatsApp, Bruno)"; `semOrigem` para o pedido da própria pessoa. */
 export function descreverSugestao(s: SugestaoLista, nomes: Record<string, string>, opcoes: { semOrigem?: boolean } = {}): string {
-  const p = s.proposta as { titulo?: string; responsaveis?: unknown; prazo?: string | null; prioridade?: string | null; kanban_status?: string | null; comentario?: string | null };
+  const p = s.proposta as {
+    titulo?: string; responsaveis?: unknown; prazo?: string | null; prioridade?: string | null; kanban_status?: string | null;
+    comentario?: string | null; sem_analise?: boolean;
+  };
   const pessoas = (ids: unknown) => (Array.isArray(ids) ? ids : []).map((id) => primeiroNome(nomes[id as string] ?? '')).filter(Boolean).join(', ');
   const prazo = typeof p.prazo === 'string' && /^\d{4}-\d{2}-\d{2}/.test(p.prazo) ? formatarDiaMes(p.prazo.slice(0, 10)) : null;
   let corpo: string;
-  if (s.tipo === 'criar_card') {
+  if (s.tipo === 'promover_card') {
+    // Chamado do LAB-BRAIN fora do Kanban: aprovar o põe na coluna proposta.
+    const card = s.card ? `${s.card.codigo} ${curto(s.card.title, 40)}` : 'chamado removido';
+    const coluna = p.kanban_status ?? 'todo';
+    const mudancas = [
+      `entrar no Kanban → ${COLUNA[coluna] ?? coluna}`,
+      p.prioridade ? `prioridade ${PRIORIDADE[p.prioridade] ?? p.prioridade}` : null,
+      pessoas(p.responsaveis) ? `responsáveis: ${pessoas(p.responsaveis)}` : 'sem responsável',
+      prazo ? `prazo ${prazo}` : null,
+      p.sem_analise ? 'sem análise' : null,
+    ].filter(Boolean);
+    corpo = `${card}: ${mudancas.join('; ')}`;
+  } else if (s.tipo === 'criar_card') {
     corpo = [`Novo card: "${curto(p.titulo ?? 'sem título', 60)}"`, pessoas(p.responsaveis) || null, prazo ? `prazo ${prazo}` : null].filter(Boolean).join(' · ');
   } else {
     const card = s.card ? `${s.card.codigo} ${curto(s.card.title, 40)}` : 'card removido';
@@ -219,6 +235,7 @@ export function descreverSugestao(s: SugestaoLista, nomes: Record<string, string
   }
   if (opcoes.semOrigem) return corpo;
   const quem = s.proposta_por && nomes[s.proposta_por] ? `, ${primeiroNome(nomes[s.proposta_por])}` : '';
+  if (s.origem === ORIGEM_SUGESTAO_LAB_BRAIN) return `${corpo} (LAB-BRAIN)`;
   const origem = s.origem === 'reuniao'
     ? (s.reuniao ? `reunião "${curto(s.reuniao.titulo, 30)}"` : 'reunião')
     : `${s.origem === 'whatsapp' ? 'WhatsApp' : s.origem === 'chat' ? 'chat' : 'comentário'}${quem}`;

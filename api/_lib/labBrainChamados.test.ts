@@ -21,7 +21,12 @@ const estado = {
   inserts: [] as Array<Record<string, unknown>>,
   /** Simula outra chamada que gravou o mesmo id_externo entre a busca e o insert. */
   corridaNoInsert: null as Chamado | null,
+  sugestoes: [] as Array<Record<string, unknown>>,
+  /** Erro devolvido ao gravar a sugestão de promoção. */
+  erroSugestao: null as { message: string } | null,
   rpc: vi.fn(),
+  /** Trabalho agendado com waitUntil: o teste espera tudo antes de olhar o banco. */
+  emSegundoPlano: [] as Promise<unknown>[],
 };
 
 type Filtro = (linha: Record<string, unknown>) => boolean;
@@ -48,6 +53,10 @@ function criarConsulta(tabela: string) {
       Promise.resolve({ data: resultado(), error: null }).then(ok, falha),
     maybeSingle: () => Promise.resolve({ data: resultado()[0] ?? null, error: null }),
     insert: (linha: Record<string, unknown>) => {
+      if (tabela === 'ti_agente_sugestoes') {
+        if (!estado.erroSugestao) estado.sugestoes.push(linha);
+        return Promise.resolve({ data: null, error: estado.erroSugestao });
+      }
       estado.inserts.push(linha);
       return {
         select: () => ({
@@ -78,12 +87,21 @@ vi.mock('./supabase.js', () => ({
   getSupabaseAdminClient: () => ({ from: criarConsulta, rpc: estado.rpc }),
 }));
 
+vi.mock('@vercel/functions', () => ({
+  waitUntil: (p: Promise<unknown>) => {
+    estado.emSegundoPlano.push(p);
+  },
+}));
+
+vi.mock('./ti-agente/dados.js', () => ({ avisarQuemTem: vi.fn(async () => undefined) }));
+
 vi.mock('./agentes/permissoes.js', async (importOriginal) => {
   const real = await importOriginal<typeof import('./agentes/permissoes.js')>();
   return { ...real, agentePode: vi.fn(real.agentePode) };
 });
 
 import { agentePode } from './agentes/permissoes.js';
+import { avisarQuemTem } from './ti-agente/dados.js';
 import criarChamado from './handlers/integracoes-lab-brain-chamado-criar.js';
 
 const CHAVE = 'segredo-chamados';
@@ -130,6 +148,7 @@ function criarRes() {
 async function chamar(req = criarReq()) {
   const res = criarRes();
   await criarChamado(req, res);
+  await Promise.all(estado.emSegundoPlano.splice(0));
   return res;
 }
 
@@ -140,6 +159,9 @@ beforeEach(() => {
   estado.chamados = [];
   estado.inserts = [];
   estado.corridaNoInsert = null;
+  estado.sugestoes = [];
+  estado.erroSugestao = null;
+  estado.emSegundoPlano = [];
   estado.rpc.mockResolvedValue({ data: [{ permitido: true, retry_after: 0 }], error: null });
 });
 
@@ -335,5 +357,66 @@ describe('reenvio do mesmo id_externo', () => {
     const res = await chamar();
     expect(res.statusCode).toBe(200);
     expect(res.body).toEqual({ id: 'uuid-outra', codigo: 'IT-777' });
+  });
+});
+
+describe('sugestão de promoção na fila da EVA', () => {
+  it('chamado novo gera uma sugestão promover_card pendente, origem lab-brain, ligada a ele', async () => {
+    const res = await chamar();
+    expect(res.statusCode).toBe(201);
+    expect(estado.sugestoes).toHaveLength(1);
+    expect(estado.sugestoes[0]).toMatchObject({
+      tipo: 'promover_card',
+      origem: 'lab-brain',
+      card_id: 'uuid-1',
+    });
+    // Pendente é o padrão da coluna status.
+    expect(estado.sugestoes[0]).not.toHaveProperty('status');
+  });
+
+  it('a proposta segue a regra fixa: A Fazer, a prioridade enviada, sem responsável, sem prazo e sem análise', async () => {
+    await chamar(criarReq({ ...CORPO_VALIDO, prioridade: 'critical' }));
+    expect(estado.sugestoes[0].proposta).toMatchObject({
+      kanban_status: 'todo',
+      prioridade: 'critical',
+      responsaveis: [],
+      prazo: null,
+      sem_analise: true,
+    });
+  });
+
+  it('avisa no sino quem aprova sugestões da EVA', async () => {
+    await chamar();
+    expect(avisarQuemTem).toHaveBeenCalledTimes(1);
+    expect(avisarQuemTem).toHaveBeenCalledWith(
+      expect.anything(),
+      'canApproveAgenteTI',
+      expect.objectContaining({ link: '/it/eva', conteudo: expect.stringContaining('IT-101') }),
+    );
+  });
+
+  it('o reenvio do mesmo id_externo não gera outra sugestão nem outro aviso', async () => {
+    await chamar();
+    const segunda = await chamar();
+    expect(segunda.statusCode).toBe(200);
+    expect(estado.sugestoes).toHaveLength(1);
+    expect(avisarQuemTem).toHaveBeenCalledTimes(1);
+  });
+
+  it('o chamado que perde a corrida do insert não gera sugestão', async () => {
+    estado.corridaNoInsert = { id: 'uuid-outra', codigo: 'IT-777', origem: 'lab-brain', id_externo: 'lb-001' };
+    await chamar();
+    expect(estado.sugestoes).toHaveLength(0);
+  });
+
+  it('falha ao gravar a sugestão vai para o log, não avisa e mantém o 201', async () => {
+    estado.erroSugestao = { message: 'violates check constraint' };
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const res = await chamar();
+    expect(res.statusCode).toBe(201);
+    expect(res.body).toEqual({ id: 'uuid-1', codigo: 'IT-101' });
+    expect(avisarQuemTem).not.toHaveBeenCalled();
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('sugestão'), expect.stringContaining('violates check constraint'));
+    log.mockRestore();
   });
 });

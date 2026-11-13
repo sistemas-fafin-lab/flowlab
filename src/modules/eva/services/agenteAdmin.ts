@@ -6,9 +6,9 @@ import { supabase } from '../../../lib/supabase';
 import { origemDosPapeis, papeisDoCargo, papeisDoPerfil, type LinhaPapeis, type OrigemPapeis, type PapeisEva } from '../domain/papeis';
 import { chamarEva } from './agenteApi';
 
-export type TipoSugestao = 'criar_card' | 'atualizar_card' | 'comentar_card';
+export type TipoSugestao = 'criar_card' | 'atualizar_card' | 'comentar_card' | 'promover_card';
 export type StatusSugestao = 'pendente' | 'aprovada' | 'rejeitada' | 'substituida';
-export type OrigemSugestao = 'reuniao' | 'whatsapp' | 'comentario' | 'chat';
+export type OrigemSugestao = 'reuniao' | 'whatsapp' | 'comentario' | 'chat' | 'lab-brain';
 
 export interface PropostaCard {
   titulo?: string;
@@ -21,6 +21,10 @@ export interface PropostaCard {
   projeto_id?: string | null;
   sprint_id?: string | null;
   comentario?: string;
+  /** promover_card: por que a EVA propõe isso. */
+  justificativa?: string;
+  /** promover_card: a proposta veio da regra fixa, sem análise da EVA. */
+  sem_analise?: boolean;
 }
 
 export interface CardResumo {
@@ -31,6 +35,10 @@ export interface CardResumo {
   priority: string;
   due_date: string | null;
   assigned_to: string[] | null;
+  /** Para mostrar o pedido do chamado do LAB-BRAIN (promover_card). */
+  description?: string | null;
+  requested_by?: string | null;
+  origem?: string | null;
 }
 
 export interface Sugestao {
@@ -140,7 +148,7 @@ const porPessoa = (linhas: LinhaComCarimbo[] | null) =>
 const SELECT_SUGESTAO = `id, reuniao_id, origem, proposta_por, tipo, card_id, proposta, trecho, confianca, avisos, status,
   decidido_por, decidido_em, motivo_rejeicao, card_resultante_id, created_at,
   reuniao:ti_agente_reunioes(titulo, provedor, motivo_reserva),
-  card:it_requests!ti_agente_sugestoes_card_id_fkey(id, codigo, title, kanban_status, priority, due_date, assigned_to)`;
+  card:it_requests!ti_agente_sugestoes_card_id_fkey(id, codigo, title, kanban_status, priority, due_date, assigned_to, description, requested_by, origem)`;
 
 function erro(e: { message: string } | null) {
   if (e) throw new Error(e.message);

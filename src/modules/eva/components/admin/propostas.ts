@@ -8,6 +8,7 @@ export const ROTULO_TIPO: Record<TipoSugestao, string> = {
   criar_card: 'Card novo',
   atualizar_card: 'Mudança no card',
   comentar_card: 'Comentário no card',
+  promover_card: 'Entrar no Kanban',
 };
 
 const rotuloColuna = (c?: string | null) => (c ? KANBAN_STATUS_LABELS[c as keyof typeof KANBAN_STATUS_LABELS] ?? c : '—');
@@ -24,6 +25,15 @@ export interface LinhaMudanca {
 export function descreverProposta(tipo: TipoSugestao, p: PropostaCard, card: CardResumo | null, nome: (id: string) => string): LinhaMudanca[] {
   const pessoas = (ids?: string[] | null) => (ids && ids.length ? ids.map(nome).join(', ') : 'ninguém');
   if (tipo === 'comentar_card') return [{ campo: 'Comentário', depois: p.comentario ?? '' }];
+  if (tipo === 'promover_card') {
+    // O chamado está fora do Kanban: não há "antes" para mostrar.
+    return [
+      { campo: 'Coluna', depois: rotuloColuna(p.kanban_status) },
+      { campo: 'Prioridade', depois: rotuloPrioridade(p.prioridade) },
+      { campo: 'Responsáveis', depois: pessoas(p.responsaveis) },
+      { campo: 'Prazo', depois: rotuloPrazo(p.prazo) },
+    ];
+  }
   if (tipo === 'criar_card') {
     const linhas: LinhaMudanca[] = [{ campo: 'Título', depois: p.titulo ?? '' }];
     if (p.descricao) linhas.push({ campo: 'Descrição', depois: p.descricao });

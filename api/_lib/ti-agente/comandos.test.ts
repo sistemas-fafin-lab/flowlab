@@ -219,6 +219,16 @@ describe('textos', () => {
     expect(descreverSugestao(sug({ proposta: { prazo: '2026-10-16', prazo_texto: 'sexta' } }), nomes)).toContain('IT-045 Robô de pré-faturamento: prazo 16/10');
   });
 
+  it('chamado do LAB-BRAIN: entra no Kanban com coluna, prioridade e responsáveis', () => {
+    const s = sug({
+      tipo: 'promover_card', origem: 'lab-brain', proposta_por: null,
+      card: { codigo: 'IT-132', title: 'Escrita na API do TiqueTaque' },
+      proposta: { kanban_status: 'todo', prioridade: 'high', responsaveis: [], prazo: null, sem_analise: true },
+    });
+    expect(descreverSugestao(s, {}))
+      .toBe('IT-132 Escrita na API do TiqueTaque: entrar no Kanban → A Fazer; prioridade alta; sem responsável; sem análise (LAB-BRAIN)');
+  });
+
   it('lista numerada, com "e mais N no Início" e como responder', () => {
     const t = montarListaSugestoes([sug({}), sug({ id: 's2' })], 12, {});
     expect(t).toMatch(/^Sugestões aguardando aprovação \(12\):\n1\. .*\n2\. /);

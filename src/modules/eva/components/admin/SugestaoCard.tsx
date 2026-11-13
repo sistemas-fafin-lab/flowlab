@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { Bot, MessageSquare, Sparkles, Users } from 'lucide-react';
 import { IT_REQUESTS_PATH } from '../../../../utils/itRequestLink';
+import OrigemChamadoBadge from '../../../../components/IT/OrigemChamadoBadge';
 import { StatusBadge } from '../ui';
 import type { BadgeTone } from '../../types';
 import type { Sugestao } from '../../services/agenteAdmin';
@@ -27,6 +28,7 @@ const ORIGEM: Record<Sugestao['origem'], { rotulo: string; Icon: React.Component
   chat: { rotulo: 'Chat', Icon: MessageSquare },
   comentario: { rotulo: 'Comentário da EVA', Icon: Sparkles },
   whatsapp: { rotulo: 'WhatsApp', Icon: Bot },
+  'lab-brain': { rotulo: 'Chamado do LAB-BRAIN', Icon: Bot },
 };
 
 const SugestaoCard: React.FC<Props> = ({ s, nome, podeAprovar, ocupado, onAprovar, onEditar, onRejeitar }) => {
@@ -34,6 +36,7 @@ const SugestaoCard: React.FC<Props> = ({ s, nome, podeAprovar, ocupado, onAprova
   const linhas = descreverProposta(s.tipo, s.proposta, s.card, nome);
   const pendente = s.status === 'pendente';
   const cardFinal = s.card_resultante_id ?? s.card_id;
+  const promover = s.tipo === 'promover_card';
 
   return (
     <div className={`${LINHA} flex flex-col gap-3`}>
@@ -41,6 +44,7 @@ const SugestaoCard: React.FC<Props> = ({ s, nome, podeAprovar, ocupado, onAprova
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <StatusBadge tone="info">{ROTULO_TIPO[s.tipo]}</StatusBadge>
+            {promover && <OrigemChamadoBadge origem={s.card?.origem} />}
             {s.card && <span className="text-[13px] font-semibold text-slate-800 dark:text-slate-100">{s.card.codigo} · {s.card.title}</span>}
             {!s.card && s.tipo !== 'criar_card' && <span className="text-[13px] text-red-600 dark:text-red-400">O card não existe mais</span>}
           </div>
@@ -53,6 +57,11 @@ const SugestaoCard: React.FC<Props> = ({ s, nome, podeAprovar, ocupado, onAprova
           </p>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap">
+          {promover && s.proposta.sem_analise && (
+            <span title="A EVA não analisou o pedido: a proposta veio da regra fixa (A Fazer e a prioridade enviada).">
+              <StatusBadge tone="warning">Sem análise da EVA</StatusBadge>
+            </span>
+          )}
           {s.reuniao?.provedor === 'gemini' && (
             <span title={s.reuniao.motivo_reserva ?? undefined}><StatusBadge tone="neutral">Analisada pelo Gemini</StatusBadge></span>
           )}
@@ -61,10 +70,23 @@ const SugestaoCard: React.FC<Props> = ({ s, nome, podeAprovar, ocupado, onAprova
         </div>
       </div>
 
+      {promover && s.card && (
+        <div className="rounded-xl bg-slate-50/80 dark:bg-slate-800/40 ring-1 ring-slate-200/70 dark:ring-slate-700/60 px-3 py-2.5 flex flex-col gap-1">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Pedido de {s.card.requested_by ? nome(s.card.requested_by) : 'solicitante desconhecido'}
+          </p>
+          {s.card.description && (
+            <p className="text-[13px] text-slate-700 dark:text-slate-200 whitespace-pre-line [overflow-wrap:anywhere] max-h-40 overflow-y-auto">
+              {s.card.description}
+            </p>
+          )}
+        </div>
+      )}
+
       <MudancasProposta linhas={linhas} />
 
       <blockquote className="pl-3 border-l-2 border-indigo-300 dark:border-indigo-600 text-xs italic text-slate-500 dark:text-slate-400 [overflow-wrap:anywhere]">
-        “{s.trecho}”
+        “{promover ? s.proposta.justificativa ?? s.trecho : s.trecho}”
       </blockquote>
 
       {s.avisos.length > 0 && (
