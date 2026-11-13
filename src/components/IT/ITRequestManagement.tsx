@@ -35,6 +35,7 @@ import Notification from '../Notification';
 import Select from '../Select';
 import KanbanPromoteModal from './KanbanPromoteModal';
 import SLABadge from './SLABadge';
+import OrigemChamadoBadge from './OrigemChamadoBadge';
 import ITRequestsDashboard from './ITRequestsDashboard';
 import ITResolucaoModal, { type ResultadoResolucao } from './ITResolucaoModal';
 import { AnexosPendentes, BotaoAnexar, ListaAnexos } from './ITAnexos';
@@ -71,6 +72,8 @@ interface ITRequest {
   kanban_status: 'backlog' | 'todo' | 'in_progress' | 'review' | 'done';
   kanban_hidden: boolean;
   is_internal?: boolean;
+  /** null = aberto pela tela; 'lab-brain' = aberto pela integração do LAB-BRAIN. */
+  origem?: string | null;
   project_id?: string | null;
   sprint_id?: string | null;
   requested_by: string;
@@ -1219,6 +1222,7 @@ const ITRequestManagement: React.FC = () => {
                       <span className="text-xs font-mono font-semibold text-violet-600 dark:text-violet-400">{req.codigo}</span>
                       <span className="text-xs text-slate-300 dark:text-slate-600">•</span>
                       <span className="text-xs text-slate-400 dark:text-slate-500">{typeConf.label}</span>
+                      <OrigemChamadoBadge origem={req.origem} />
                     </div>
                     <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{req.title}</p>
                     {req.status === 'resolved' && req.resolution ? (
@@ -1417,6 +1421,7 @@ const ITRequestManagement: React.FC = () => {
                             <span className={`w-1.5 h-1.5 rounded-full ${modalPrioConf.dot}`} />
                             {modalPrioConf.label}
                           </span>
+                          <OrigemChamadoBadge origem={selectedRequest.origem} />
                           {/* SLA badge — controle interno da TI, escondido do solicitante */}
                           {canViewSla && (
                             <SLABadge

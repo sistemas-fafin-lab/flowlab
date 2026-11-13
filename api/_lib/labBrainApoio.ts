@@ -138,16 +138,25 @@ export interface ResultadoCota {
   retryAfter: number;
 }
 
+/** Integração e limite por minuto da cota; o padrão é a leitura do apoio. */
+export interface Cota {
+  integracao: string;
+  limitePorMinuto: number;
+}
+
+const COTA_APOIO: Cota = { integracao: LAB_BRAIN_INTEGRACAO, limitePorMinuto: LAB_BRAIN_LIMITE_POR_MINUTO };
+
 export async function registrarChamada(
   supabase: SupabaseClient,
   rota: string,
   parametros: Record<string, unknown>,
+  cota: Cota = COTA_APOIO,
 ): Promise<ResultadoCota> {
   const { data, error } = await supabase.rpc('integracao_registrar_chamada', {
-    p_integracao: LAB_BRAIN_INTEGRACAO,
+    p_integracao: cota.integracao,
     p_rota: rota,
     p_parametros: parametros,
-    p_limite: LAB_BRAIN_LIMITE_POR_MINUTO,
+    p_limite: cota.limitePorMinuto,
     p_janela_segundos: JANELA_SEGUNDOS,
   });
   if (error) throw new Error(`Falha ao registrar chamada: ${describeError(error)}`);

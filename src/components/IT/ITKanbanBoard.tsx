@@ -70,6 +70,8 @@ export interface ITRequest {
   resolved_at?: string | null;
   // ITSM upgrade fields
   is_internal?: boolean;
+  /** null = aberto pela tela; 'lab-brain' = aberto pela integração do LAB-BRAIN. */
+  origem?: string | null;
   estimated_hours?: number | null;
   function_quantity?: number | null;
   due_date?: string | null;

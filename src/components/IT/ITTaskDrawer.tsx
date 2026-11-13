@@ -45,6 +45,7 @@ import { descartarAnexosIT, enviarAnexosIT } from '../../lib/itStorage';
 import { useAuth } from '../../hooks/useAuth';
 import { hasPermission } from '../../utils/permissions';
 import { useNotificationCenter } from '../../hooks/useNotificationCenter';
+import OrigemChamadoBadge from './OrigemChamadoBadge';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // LOCAL TYPES
@@ -857,6 +858,7 @@ const ITTaskDrawer: React.FC<ITTaskDrawerProps> = ({ task, onClose, onUpdate }) 
               <span className="text-xs font-mono font-bold text-violet-600 dark:text-violet-400 tracking-wide">{task.codigo}</span>
               <span className="text-xs text-gray-400 dark:text-gray-500">·</span>
               <span className="text-xs text-slate-600 dark:text-gray-400">{typeConf.label}</span>
+              <OrigemChamadoBadge origem={task.origem} />
             </div>
             <h2 className="text-sm font-semibold text-slate-900 dark:text-gray-100 truncate">{task.title}</h2>
           </div>
