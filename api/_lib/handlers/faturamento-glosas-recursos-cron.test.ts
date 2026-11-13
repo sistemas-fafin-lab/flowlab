@@ -6,6 +6,7 @@ vi.mock('../supabase.js', () => ({
 }));
 vi.mock('../faturamento/bdLab.js', () => ({
   glosasRecursosDoPeriodo: vi.fn(),
+  requisicoesAindaGlosadas: vi.fn(async () => new Set<number>()),
 }));
 
 import { getSupabaseAdminClient } from '../supabase.js';
@@ -44,6 +45,9 @@ function mockarSupabase(sincronizacoes: Linha[] = []): Record<string, Linha[]> {
         resultado = resultado.filter((l) => l[coluna] === valor);
         return builder;
       },
+      order: () => builder,
+      range: () => builder,
+      delete: () => builder,
       upsert: () => builder,
       insert: (nova: Linha | Linha[]) => {
         (inserts[tabela] ??= []).push(...(Array.isArray(nova) ? nova : [nova]));

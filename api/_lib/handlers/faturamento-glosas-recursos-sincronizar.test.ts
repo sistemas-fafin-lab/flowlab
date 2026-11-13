@@ -6,15 +6,17 @@ vi.mock('../supabase.js', () => ({
 }));
 vi.mock('../faturamento/bdLab.js', () => ({
   glosasRecursosDoPeriodo: vi.fn(),
+  requisicoesAindaGlosadas: vi.fn(async () => new Set<number>()),
 }));
 
 import { getSupabaseAdminClient } from '../supabase.js';
-import { glosasRecursosDoPeriodo } from '../faturamento/bdLab.js';
+import { glosasRecursosDoPeriodo, requisicoesAindaGlosadas } from '../faturamento/bdLab.js';
 import type { LoteRecursoAplis, RequisicaoGlosaRecursoAplis } from '../faturamento/bdLab.js';
 import handler from './faturamento-glosas-recursos-sincronizar.js';
 
 const getSupabaseAdminClientMock = getSupabaseAdminClient as ReturnType<typeof vi.fn>;
 const glosasRecursosDoPeriodoMock = glosasRecursosDoPeriodo as ReturnType<typeof vi.fn>;
+const requisicoesAindaGlosadasMock = requisicoesAindaGlosadas as ReturnType<typeof vi.fn>;
 
 type Linha = Record<string, unknown>;
 
@@ -38,19 +40,40 @@ interface Cenario {
 interface Gravado {
   upserts: Record<string, { linhas: Linha[]; opcoes: unknown }[]>;
   inserts: Record<string, Linha[]>;
+  /** Ids apagados, por tabela. */
+  deletes: Record<string, unknown[]>;
 }
 
 // Query builder mínimo do supabase-js: select/eq/in encadeáveis, single(),
 // `await` direto, e upsert/insert registrados em `gravado`.
 function consulta(tabela: string, linhas: Linha[], gravado: Gravado) {
   let resultado = [...linhas];
+  let apagando = false;
   const builder = {
     select: () => builder,
+    is: (coluna: string, valor: unknown) => {
+      resultado = resultado.filter((l) => (l[coluna] ?? null) === valor);
+      return builder;
+    },
+    order: () => builder,
+    range: (de: number, ate: number) => {
+      resultado = resultado.slice(de, ate + 1);
+      return builder;
+    },
+    delete: () => {
+      apagando = true;
+      return builder;
+    },
     eq: (coluna: string, valor: unknown) => {
       resultado = resultado.filter((l) => l[coluna] === valor);
       return builder;
     },
     in: (coluna: string, valores: unknown[]) => {
+      if (apagando) {
+        (gravado.deletes[tabela] ??= []).push(...valores);
+        resultado = [];
+        return builder;
+      }
       resultado = resultado.filter((l) => valores.includes(l[coluna]));
       return builder;
     },
@@ -74,7 +97,7 @@ function consulta(tabela: string, linhas: Linha[], gravado: Gravado) {
 function mockarSupabase(cenario: Cenario = {}): Gravado {
   const usuario = cenario.usuario === undefined ? { id: 'user-1' } : cenario.usuario;
   const perfil = { id: 'user-1', custom_roles: { permissions: cenario.permissoes ?? ['canViewBilling'] } };
-  const gravado: Gravado = { upserts: {}, inserts: {} };
+  const gravado: Gravado = { upserts: {}, inserts: {}, deletes: {} };
   const tabelas: Record<string, Linha[]> = {
     user_profiles: [perfil],
     glosa_recurso_requisicoes: cenario.fotos ?? [],
@@ -197,7 +220,7 @@ describe('POST /api/faturamento/glosas-recursos-sincronizar', () => {
       const { res, gravado } = await executar({ permissoes: ['canViewRequests'] }, { competencia: '2026-09' });
       expect(res.statusCode).toBe(403);
       expect(glosasRecursosDoPeriodoMock).not.toHaveBeenCalled();
-      expect(gravado).toEqual({ upserts: {}, inserts: {} });
+      expect(gravado).toEqual({ upserts: {}, inserts: {}, deletes: {} });
     });
 
     it('método diferente de POST devolve 405', async () => {
@@ -398,7 +421,44 @@ describe('POST /api/faturamento/glosas-recursos-sincronizar', () => {
       const res = criarRes();
       await handler(criarReq({ competencia: '2026-09' }), res);
       expect(res.statusCode).toBe(502);
-      expect(gravado).toEqual({ upserts: {}, inserts: {} });
+      expect(gravado).toEqual({ upserts: {}, inserts: {}, deletes: {} });
+    });
+  });
+
+  describe('saída da glosa', () => {
+    const foto = (id: number, extra: Linha = {}): Linha => ({
+      id_requisicao: id, competencia: '2026-09', id_fonte_pagadora: 1000, status_aplis: 6,
+      recebido: '700.00', id_lote_recurso: null, glosa_fixada: 300, recebido_fixacao: 700, valor_inicial_estimado: false,
+      valor_recursado_editado: null, valor_recebido_glosa_editado: null, ...extra,
+    });
+
+    it('apaga a requisição do mês que o apLIS não devolve e não é glosada em outro mês', async () => {
+      // 601 saiu da glosa; 602 só mudou de mês (ainda glosada); 603 tem edição manual; 501 continua.
+      requisicoesAindaGlosadasMock.mockResolvedValueOnce(new Set([602]));
+      const { res, gravado } = await executar(
+        { fotos: [foto(501), foto(601), foto(602), foto(603, { valor_recebido_glosa_editado: 100 }), foto(604, { competencia: '2026-08' })] },
+        { competencia: '2026-09' },
+        { requisicoes: [requisicao()] },
+      );
+      expect(res.statusCode).toBe(200);
+      expect(requisicoesAindaGlosadasMock).toHaveBeenCalledWith([601, 602]);
+      expect(gravado.deletes.glosa_recurso_requisicoes).toEqual([601]);
+    });
+
+    it('recorte de um convênio só olha as requisições dele', async () => {
+      await executar(
+        { fotos: [foto(601), foto(605, { id_fonte_pagadora: 2000 })] },
+        { competencia: '2026-09', fontePagadoraId: 1000 },
+        { requisicoes: [] },
+      );
+      expect(requisicoesAindaGlosadasMock).toHaveBeenCalledWith([601]);
+    });
+
+    it('falha no apLIS ao conferir as saídas devolve erro e não apaga nada', async () => {
+      requisicoesAindaGlosadasMock.mockResolvedValueOnce({ erro: { status: 502, mensagem: 'túnel fora do ar' } });
+      const { res, gravado } = await executar({ fotos: [foto(601)] }, { competencia: '2026-09' }, { requisicoes: [] });
+      expect(res.statusCode).toBe(502);
+      expect(gravado.deletes).toEqual({});
     });
   });
 

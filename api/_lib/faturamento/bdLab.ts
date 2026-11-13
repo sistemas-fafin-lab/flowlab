@@ -4018,6 +4018,34 @@ export async function glosasRecursosDoPeriodo(
   });
 }
 
+/**
+ * Das requisições pedidas, as que ainda são glosadas no apLIS em QUALQUER mês
+ * (mesma regra da foto, SQL_REQUISICAO_GLOSADA, sem o filtro de período). A
+ * sincronização usa para separar a requisição que saiu da glosa (some da foto)
+ * da que só mudou de mês (fica, com a glosa fixada, até o mês novo sincronizar).
+ */
+export async function requisicoesAindaGlosadas(
+  ids: number[],
+): Promise<Set<number> | { erro: { status: number; mensagem: string } }> {
+  if (ids.length === 0) return new Set();
+  return comConexao('requisicoesAindaGlosadas', async (conn) => {
+    const glosadas = new Set<number>();
+    for (let i = 0; i < ids.length; i += BLOCO_RECEBIDOS) {
+      const bloco = ids.slice(i, i + BLOCO_RECEBIDOS);
+      const [linhas] = await conn.execute<mysql.RowDataPacket[]>(
+        `SELECT r.IdRequisicao
+           FROM requisicao r
+           JOIN fatlote l ON l.IdLote = r.Lote${SQL_JOIN_LOTE_RECURSO}
+          WHERE r.IdRequisicao IN (${bloco.map(() => '?').join(', ')})
+            AND ${SQL_REQUISICAO_GLOSADA}`,
+        bloco,
+      );
+      for (const linha of linhas) glosadas.add(numero(linha.IdRequisicao));
+    }
+    return glosadas;
+  });
+}
+
 /** Setor "GLOSA - FATURAMENTO" (`setor.CodSetor`): as tarefas dele são as observações do card. */
 const SETOR_GLOSA_FATURAMENTO = 22;
 

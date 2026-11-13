@@ -21,12 +21,19 @@
  * sincronização não as sobrescreve. O campo editado também não gera evento —
  * o valor do apLIS é ignorado nele.
  *
+ * Saída da glosa: requisição da foto do recorte (mês e convênio) que o apLIS
+ * não devolve mais e que não é glosada em nenhum outro mês
+ * (`requisicoesAindaGlosadas`) saiu da glosa — voltou a "Recebido",
+ * "Faturado - cobrança enviada"… — e é apagada da foto. A que só mudou de mês
+ * (refechamento do lote) fica, com a glosa fixada, até o mês novo sincronizar.
+ * Requisição com edição manual (lápis) nunca é apagada.
+ *
  * Fonte do apLIS: MySQL de backup, ~1 dia de atraso; `dadoAte` diz até
  * quando. Falha na réplica → erro, sem gravar nada.
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { glosasRecursosDoPeriodo } from './bdLab.js';
+import { glosasRecursosDoPeriodo, requisicoesAindaGlosadas } from './bdLab.js';
 import type { LoteRecursoAplis, RequisicaoGlosaRecursoAplis } from './bdLab.js';
 import { eventosDaRequisicao, eventosDoLote, fixarGlosa } from './recursoGlosa.js';
 import type {
@@ -251,8 +258,34 @@ export interface RecorteSincronizacao {
 }
 
 export type ResultadoSincronizacao =
-  | { dadoAte: string | null; sincronizadoEm: string; requisicoes: number; lotes: number }
+  | { dadoAte: string | null; sincronizadoEm: string; requisicoes: number; lotes: number; removidas: number }
   | { erro: { status: number; mensagem: string } };
+
+/** Requisições gravadas no recorte (mês e, se houver, convênio) que o apLIS não
+ *  devolveu agora e não têm edição manual: candidatas a sair da foto. */
+async function foraDoApLis(
+  supabase: SupabaseClient,
+  competencia: string,
+  fontePagadoraId: number | undefined,
+  devolvidas: Set<number>,
+): Promise<number[]> {
+  const ids: number[] = [];
+  for (let de = 0; ; de += 1000) {
+    let consulta = supabase
+      .from('glosa_recurso_requisicoes')
+      .select('id_requisicao')
+      .eq('competencia', competencia)
+      .is('valor_recursado_editado', null)
+      .is('valor_recebido_glosa_editado', null);
+    if (fontePagadoraId !== undefined) consulta = consulta.eq('id_fonte_pagadora', fontePagadoraId);
+    const { data, error } = await consulta.order('id_requisicao').range(de, de + 999);
+    if (error) throw new ErroGravacao(`foto do recorte: ${error.message}`);
+    const linhas = (data ?? []) as { id_requisicao: number }[];
+    for (const l of linhas) if (!devolvidas.has(Number(l.id_requisicao))) ids.push(Number(l.id_requisicao));
+    if (linhas.length < 1000) break;
+  }
+  return ids;
+}
 
 /** Lê o recorte do apLIS e grava a foto e o histórico. Erros inesperados sobem. */
 export async function sincronizarRecorte(
@@ -263,6 +296,7 @@ export async function sincronizarRecorte(
   if ('erro' in aplis) return { erro: aplis.erro };
 
   const agora = new Date().toISOString();
+  let removidas = 0;
 
   try {
     const anteriores = await requisicoesGravadas(supabase, aplis.requisicoes.map((r) => r.idRequisicao));
@@ -304,6 +338,19 @@ export async function sincronizarRecorte(
       'id_requisicao',
     );
 
+    // Saída da glosa: depois do upsert, para nunca apagar quem acabou de ser gravado.
+    const candidatas = await foraDoApLis(
+      supabase, competencia, fontePagadoraId, new Set(aplis.requisicoes.map((r) => r.idRequisicao)),
+    );
+    const aindaGlosadas = await requisicoesAindaGlosadas(candidatas);
+    if ('erro' in aindaGlosadas) return { erro: aindaGlosadas.erro };
+    const saidas = candidatas.filter((id) => !aindaGlosadas.has(id));
+    for (const bloco of blocos(saidas)) {
+      const { error: erroSaida } = await supabase.from('glosa_recurso_requisicoes').delete().in('id_requisicao', bloco);
+      if (erroSaida) throw new ErroGravacao(`saída da glosa: ${erroSaida.message}`);
+    }
+    removidas = saidas.length;
+
     const { error } = await supabase.from('glosa_recurso_sincronizacoes').insert({
       competencia,
       id_fonte_pagadora: fontePagadoraId ?? null,
@@ -330,5 +377,6 @@ export async function sincronizarRecorte(
     sincronizadoEm: agora,
     requisicoes: aplis.requisicoes.length,
     lotes: aplis.lotesRecurso.length,
+    removidas,
   };
 }
