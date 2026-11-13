@@ -1,6 +1,7 @@
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- Verificação: rejeitar a sugestão de um chamado do LAB-BRAIN cancela o chamado
 -- Migration verificada: 20261113160000_eva_rejeitar_promover_card.sql
+-- (o caso 5 também conta com 20261113170000_eva_promover_card_substituida.sql)
 -- (.scratch/lab-brain-aprovacao-eva/issues/02-rejeitar-cancela-o-chamado.md)
 --
 -- Roda no banco de teste, numa transação que termina em ROLLBACK (docs/guides/BANCO_DE_TESTE.md):
@@ -168,8 +169,24 @@ DECLARE
   c record;
   recusada boolean := false;
 BEGIN
+  -- Promovido por fora: desde 20261113170000 a sugestão vira substituída e a rejeição é recusada.
   c := pg_temp.chamado_com_sugestao('verificacao-rejeitar-5');
   UPDATE public.it_requests SET kanban_hidden = false, kanban_status = 'todo' WHERE id = c.chamado;
+  BEGIN
+    PERFORM public.ti_agente_rejeitar_sugestao_como(c.sugestao, 'Não é do TI.', (SELECT aprovador FROM _v));
+  EXCEPTION WHEN no_data_found THEN recusada := true;
+  END;
+  ASSERT recusada, 'rejeitar a sugestão substituída é recusado';
+  ASSERT (SELECT status FROM public.it_requests WHERE id = c.chamado) = 'pending', 'o chamado do Kanban não é cancelado';
+
+  -- Sugestão pendente de um chamado que já estava no Kanban (o trigger não a viu): a RPC recusa.
+  c := pg_temp.chamado_com_sugestao('verificacao-rejeitar-5b');
+  DELETE FROM public.ti_agente_sugestoes WHERE id = c.sugestao;
+  UPDATE public.it_requests SET kanban_hidden = false, kanban_status = 'todo' WHERE id = c.chamado;
+  INSERT INTO public.ti_agente_sugestoes (origem, tipo, card_id, proposta, trecho, confianca)
+  VALUES ('lab-brain', 'promover_card', c.chamado, jsonb_build_object('kanban_status', 'todo'), 'Regra fixa.', 'baixa')
+  RETURNING id INTO c.sugestao;
+  recusada := false;
   BEGIN
     PERFORM public.ti_agente_rejeitar_sugestao_como(c.sugestao, 'Não é do TI.', (SELECT aprovador FROM _v));
   EXCEPTION WHEN invalid_parameter_value THEN recusada := true;

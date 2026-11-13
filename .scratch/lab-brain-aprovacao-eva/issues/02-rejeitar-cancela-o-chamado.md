@@ -24,5 +24,6 @@
 - O motivo também entra na conversa do chamado como mensagem `resolution`, como faz `it_resolver_chamado`.
 - Chamado já resolvido, já cancelado ou apagado: só a sugestão é rejeitada, e o chamado fica como está.
 - Chamado já no Kanban (promovido por fora): a rejeição é recusada, como a aprovação. Até a issue 03 (trigger de substituição) chegar, essa sugestão fica presa na fila. **A 02 não vai para produção sem a 03.**
+- **Atualizado pela issue 03:** promover por fora agora marca a sugestão como `substituida`, então rejeitá-la depois cai em "Sugestão não encontrada ou já decidida" (P0002), e não mais em "já está no Kanban" (22023). Esse ramo da RPC continua como defesa, para uma sugestão pendente de um chamado que já estava no Kanban.
 - No WhatsApp, a confirmação de "rejeitar" avisa que o chamado do LAB-BRAIN é cancelado e que o motivo vai para quem pediu.
 - Migration `20261113160000_eva_rejeitar_promover_card.sql` aplicada no `eqz` e registrada no histórico. Verificação em `supabase/scripts/verificar_eva_rejeitar_promover_card.sql`. O script da issue 01 continua passando.
