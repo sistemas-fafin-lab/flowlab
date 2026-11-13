@@ -17,8 +17,8 @@
 // é `origem = 'lab-brain'` e o `id_externo`, únicos juntos: reenviar o mesmo
 // `id_externo` devolve o chamado que já existe (200) em vez de criar outro.
 //
-// Chamado novo (201) agenda em segundo plano a sugestão de promoção na fila da EVA
-// (labBrainSugestao.ts); aprovar a sugestão o põe no Kanban. O reenvio (200) não agenda nada.
+// Chamado novo (201) agenda em segundo plano a análise da EVA e a sugestão de promoção na
+// fila dela (labBrainSugestao.ts); aprovar a sugestão o põe no Kanban. O reenvio (200) não agenda nada.
 // Spec: .scratch/lab-brain-aprovacao-eva/spec.md.
 
 import type { VercelRequest, VercelResponse } from '@vercel/node';
@@ -30,6 +30,8 @@ import { describeError } from './errors.js';
 import { autorizarAgente, recusarSemCota } from './agentes/rotaAgente.js';
 import { AGENTE_LAB_BRAIN, primeiro, registrarChamada, type Cota } from './labBrainApoio.js';
 import { criarSugestaoDePromocao } from './labBrainSugestao.js';
+import { PRIORIDADES } from './labBrainAnalise.js';
+import { dependenciasIA } from './ti-agente/servicos.js';
 
 /** Valor de it_requests.origem para os chamados abertos pelo LAB-BRAIN. Mesmo valor em src/components/IT/OrigemChamadoBadge.tsx. */
 export const ORIGEM_LAB_BRAIN = 'lab-brain';
@@ -45,7 +47,6 @@ const MAX_TITULO = 255;
 const MAX_DESCRICAO = 5000;
 const MAX_EMAIL = 255;
 const MAX_ID_EXTERNO = 255;
-const PRIORIDADES = ['low', 'medium', 'high', 'critical'] as const;
 const TIPOS = ['suporte', 'desenvolvimento'] as const;
 
 type Prioridade = (typeof PRIORIDADES)[number];
@@ -202,11 +203,13 @@ async function inserirChamado(
 function agendarSugestao(supabase: SupabaseClient, chamado: NovoChamado, criado: ChamadoCriado): void {
   try {
     waitUntil(
-      criarSugestaoDePromocao(supabase, {
+      criarSugestaoDePromocao(supabase, dependenciasIA(supabase), {
         id: criado.id,
         codigo: criado.codigo,
         titulo: chamado.titulo,
+        descricao: chamado.descricao,
         prioridade: chamado.prioridade,
+        tipo: chamado.tipo,
       }),
     );
   } catch (err) {

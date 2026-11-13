@@ -134,7 +134,8 @@ export interface SugestaoValidada {
 }
 
 const DATA = /^\d{4}-\d{2}-\d{2}$/;
-const dataValida = (d: string) => DATA.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().startsWith(d);
+/** "AAAA-MM-DD" que existe no calendário. Mesma regra para o prazo de todas as propostas. */
+export const dataValida = (d: string) => DATA.test(d) && !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().startsWith(d);
 const mesmoConjunto = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
 
 /** RN08–RN10: só ids e códigos que existem; datas válidas; sprint resolvida; nada duplicado. */

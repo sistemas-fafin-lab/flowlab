@@ -4,6 +4,7 @@
   ],
   "functions": {
     "api/ti/*.ts": { "maxDuration": 300 },
+    "api/integracoes/*.ts": { "maxDuration": 300 },
     "api/atendimento/*.ts": { "maxDuration": 60 },
     "api/faturamento/*.ts": { "maxDuration": 300 }
   },

@@ -11,7 +11,12 @@ import { BOTAO_PRIMARIO, CAMPO, LINHA, ROTULO } from './estilos';
 import GrupoEquipeCard from './GrupoEquipeCard';
 
 const quando = (iso: string | null) => (iso ? new Date(iso).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'nunca');
-const FINALIDADE: Record<string, string> = { analise_reuniao: 'Reuniões', chat: 'Chat', resposta_whatsapp: 'WhatsApp' };
+const FINALIDADE: Record<string, string> = {
+  analise_reuniao: 'Reuniões',
+  chat: 'Chat',
+  resposta_whatsapp: 'WhatsApp',
+  analise_chamado: 'Chamados do LAB-BRAIN',
+};
 
 /** /it/eva/configuracoes — liga/desliga, pasta do Granola e a saúde das integrações (issue 07). */
 const ConfiguracoesPage: React.FC = () => {

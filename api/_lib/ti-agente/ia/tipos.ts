@@ -3,7 +3,8 @@
 
 export type ProvedorIA = 'claude' | 'gemini';
 export type Esforco = 'low' | 'medium' | 'high';
-export type Finalidade = 'analise_reuniao' | 'resposta_whatsapp' | 'chat';
+/** Mesmos valores do CHECK de ti_agente_chamadas_ia.finalidade. */
+export type Finalidade = 'analise_reuniao' | 'resposta_whatsapp' | 'chat' | 'analise_chamado';
 
 /** Mesmos valores do CHECK de ti_agente_chamadas_ia.resultado. */
 export type ResultadoChamada = 'ok' | 'erro' | 'configuracao' | 'recusa' | 'cortada' | 'schema_invalido';
