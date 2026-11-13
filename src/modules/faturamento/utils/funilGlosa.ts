@@ -104,7 +104,7 @@ function dividir(centavos: number, partes: number): number[] {
 /**
  * Data em que cada glosa entra no funil: a emissão (YYYY-MM-DD) mais antiga entre os títulos
  * do lote dela (`primeiraEmissaoDoLote` completa os títulos fora dos meses lidos); sem título,
- * o mês (YYYY-MM) de criação do lote no apLIS. O ranking de códigos e os cards do Dashboard
+ * o mês (YYYY-MM) de fechamento do lote no apLIS. O ranking de códigos e os cards do Dashboard
  * usam a mesma regra, para bater com o funil.
  */
 export function dataDaGlosaNoFunil(
@@ -136,7 +136,7 @@ export function mesDaGlosaNoFunil(
  *
  * - Competência: o título entra no mês da sua data de emissão. A glosa segue o lote: vale o
  *   mês do título de emissão mais antiga do lote, em qualquer data (`primeiraEmissaoDoLote`
- *   completa os títulos fora dos 3 meses); sem título, o mês de criação do lote no apLIS.
+ *   completa os títulos fora dos 3 meses); sem título, o mês de fechamento do lote no apLIS.
  * - Acatada, em disputa e recuperada vêm da foto do apLIS (a mesma regra que abate o saldo: acatada
  *   = status 18 e 8). A recuperada é detalhe do recebido: não entra na conta do saldo.
  * - Glosa de lote sem título vai para a linha "Fora de lote" e entra nos totais, mas não abate

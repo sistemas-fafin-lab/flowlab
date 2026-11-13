@@ -3780,7 +3780,7 @@ export interface RequisicaoGlosaRecursoAplis extends RequisicaoGlosaAplis {
   paciente: string | null;
   /** Lote de faturamento original (`requisicao.Lote`). */
   idLoteFaturamento: number;
-  /** YYYY-MM de `fatlote.DtaCriacao` do lote de faturamento original. */
+  /** YYYY-MM do fechamento (`fatlote.DtaFechamento`; sem ele, `DtaCriacao`) do lote de faturamento original. */
   competencia: string;
   fontePagadora: { id: number | null; nome: string | null };
   /** Lote de recurso mais recente da requisição; null fora de lote. */
@@ -3837,9 +3837,14 @@ const SQL_JOIN_LOTE_RECURSO = `
 // setor (zero glosa) usa a mesma. Pede `SQL_JOIN_LOTE_RECURSO`.
 const SQL_REQUISICAO_GLOSADA = `(r.CodEventoFatur IN (${STATUS_FOTO.join(', ')}) OR lr.IdRequisicao IS NOT NULL)`;
 
+// Mês de faturamento da foto: o fechamento do lote, como a emissão do título
+// (lote criado em 31/12/2025 e fechado em 12/01/2026 — 4799 — é de janeiro e
+// cai nos meses que a rotina diária sincroniza). Lote sem fechamento fica na criação.
+const SQL_MES_FATURAMENTO = 'COALESCE(l.DtaFechamento, l.DtaCriacao)';
+
 const SQL_REQUISICOES_GLOSA_RECURSO = `
   SELECT r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente,
-         r.Lote, DATE_FORMAT(l.DtaCriacao, '%Y-%m') AS Competencia,
+         r.Lote, DATE_FORMAT(${SQL_MES_FATURAMENTO}, '%Y-%m') AS Competencia,
          r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial, r.CodEventoFatur,
          SUM(p.ValorLiquido) AS Liquido, SUM(COALESCE(p.ValorRecebido, 0)) AS Recebido,
          DATE_FORMAT(MAX(p.DtaRecebido), '%Y-%m-%d') AS DtaRecebido
@@ -3850,7 +3855,7 @@ const SQL_REQUISICOES_GLOSA_RECURSO = `
     LEFT JOIN fatinstituicao fi ON fi.IdInstituicao = r.IdFontePagadora
    WHERE %WHERE%
    GROUP BY r.IdRequisicao, r.CodRequisicao, r.NumGuiaConvenio, pa.NomPaciente, r.Lote,
-            l.DtaCriacao, r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial, r.CodEventoFatur`;
+            l.DtaCriacao, l.DtaFechamento, r.IdFontePagadora, fi.NomFantasia, fi.RazaoSocial, r.CodEventoFatur`;
 
 // Procedimento glosado: com motivo de glosa ou recebido abaixo do líquido
 // (o recurso pago sobrescreve o recebido, mas o motivo fica).
@@ -3872,7 +3877,7 @@ function codigoEDescricao(codigo: unknown, descricao: unknown): string | null {
 }
 
 /**
- * Requisições do mês de faturamento (`fatlote.DtaCriacao` do lote original)
+ * Requisições do mês de faturamento (fechamento do lote original — SQL_MES_FATURAMENTO)
  * nos status de glosa/recurso, ou presentes em algum lote de recurso criado a
  * partir do lote de faturamento atual, e os
  * lotes de recurso delas. Requisição em mais de um lote de recurso (32 em
@@ -3883,8 +3888,8 @@ export async function glosasRecursosDoPeriodo(
   params: GlosasRecursosDoPeriodoParams,
 ): Promise<GlosasRecursosDoPeriodoResultado> {
   const condicoes = [
-    'l.DtaCriacao >= ?',
-    'l.DtaCriacao < DATE_ADD(?, INTERVAL 1 MONTH)',
+    `${SQL_MES_FATURAMENTO} >= ?`,
+    `${SQL_MES_FATURAMENTO} < DATE_ADD(?, INTERVAL 1 MONTH)`,
     SQL_REQUISICAO_GLOSADA,
   ];
   const inicio = `${params.competencia}-01 00:00:00`;
