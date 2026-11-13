@@ -24,6 +24,7 @@ import type {
   TituloLote,
 } from '../types';
 import { STATUS_GLOSA_EM_DISPUTA, STATUS_TITULOS_PENDENTES } from '../types';
+import { ALIAS_ENVIO_LOTE, EMBED_ENVIO_LOTE, mesesDoPeriodo } from '../utils/basePeriodoTitulos';
 
 // Títulos a receber, suas baixas e glosas.
 //
@@ -343,7 +344,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
   // Desestruturado para que as deps do useCallback sejam primitivas — com o
   // objeto `filtros` cru, um novo literal a cada render refetcharia em loop.
   const {
-    desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
+    desde, ate, basePeriodo = 'emissao', status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
     divergenteAplis, idsDivergentesAplis, statusLote, idsLotesStatusAplis, pagina, tamanho,
   } = filtros;
 
@@ -439,18 +440,33 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
         : [];
 
       const filtrarStatusLote = Boolean(statusLote);
+      const porEnvio = basePeriodo === 'envio';
+      const embedsRecorte = `${glosa ? ', glosas(id_glosa)' : ''}${filtrarStatusLote ? `, ${EMBED_STATUS_LOTE}` : ''}`
+        + `${porEnvio ? `, ${EMBED_ENVIO_LOTE}` : ''}`;
 
       /** `notas` com todos os filtros da tela, sem ordem nem paginação. */
       const filtrada = (colunas: string, opcoes?: { count: 'exact' }) => {
         let query = supabase
           .from('notas')
-          .select(`${colunas}${glosa ? ', glosas(id_glosa)' : ''}${filtrarStatusLote ? `, ${EMBED_STATUS_LOTE}` : ''}`, opcoes)
-          // Referência do período é a EMISSÃO (revisão de 2026-09-24 sobre a
-          // issue 40, que tinha escolhido vencimento): filtrar por vencimento
-          // fazia um título emitido em agosto sumir do período de agosto. A
-          // emissão nunca é nula, então nenhum título fica fora de todo range.
-          .gte('data_emissao', desde)
-          .lte('data_emissao', ate);
+          .select(`${colunas}${embedsRecorte}`, opcoes);
+        // Referência padrão do período é a EMISSÃO (revisão de 2026-09-24 sobre a
+        // issue 40, que tinha escolhido vencimento): filtrar por vencimento
+        // fazia um título emitido em agosto sumir do período de agosto. A
+        // emissão nunca é nula, então nenhum título fica fora de todo range.
+        // O seletor "Período por" troca para a competência ou o envio dos lotes
+        // (utils/basePeriodoTitulos.ts).
+        if (basePeriodo === 'competencia') {
+          const meses = mesesDoPeriodo(desde, ate);
+          query = query.gte('competencia', meses.de).lte('competencia', meses.ate);
+        } else if (porEnvio) {
+          // Um vínculo com os lotes só para o recorte, como o do status do lote:
+          // o título entra se algum lote foi enviado no período.
+          query = query
+            .gte(`${ALIAS_ENVIO_LOTE}.lotes.data_envio`, desde)
+            .lte(`${ALIAS_ENVIO_LOTE}.lotes.data_envio`, ate);
+        } else {
+          query = query.gte('data_emissao', desde).lte('data_emissao', ate);
+        }
 
         if (status) {
           query = query.eq('status', status);
@@ -570,7 +586,7 @@ export function useContasReceber(filtros: TitulosFiltros): UseContasReceberResul
       if (reqId === buscaAtual.current) setLoading(false);
     }
   }, [
-    desde, ate, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
+    desde, ate, basePeriodo, status, operadoraId, busca, ocultarParceiras, somentePendentes, glosa,
     divergenteAplis, idsDivergentesAplis, statusLote, idsLotesStatusAplis, pagina, tamanho, operadoras,
   ]);
 

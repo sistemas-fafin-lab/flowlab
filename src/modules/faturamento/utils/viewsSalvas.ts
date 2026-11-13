@@ -7,6 +7,7 @@
 // campo faltando ou valor fora do union.
 
 import { STLOT_LABELS } from '../types';
+import { ehBasePeriodoTitulos } from './basePeriodoTitulos';
 import type {
   DashboardReceberFiltros,
   FiltroGlosaTitulo,
@@ -114,6 +115,8 @@ export function sanitizarFiltrosTitulos(
   return {
     desde: dataOu(obj.desde, base.desde),
     ate: dataOu(obj.ate, base.ate),
+    // View sem o campo é anterior ao seletor: o período dela era sobre a emissão.
+    basePeriodo: ehBasePeriodoTitulos(obj.basePeriodo) ? obj.basePeriodo : 'emissao',
     status,
     operadoraId: textoOu(obj.operadoraId, base.operadoraId),
     busca: textoOu(obj.busca, ''),

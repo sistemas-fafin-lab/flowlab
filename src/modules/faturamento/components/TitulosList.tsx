@@ -49,6 +49,20 @@ import Select from '../../../components/Select';
 import DatePicker from '../../../components/DatePicker';
 import { Atraso, SeloAplis } from './TituloSelos';
 import TituloPainelLateral from './TituloPainelLateral';
+import { BASES_PERIODO_TITULOS } from '../utils/basePeriodoTitulos';
+import type { BasePeriodoTitulos } from '../utils/basePeriodoTitulos';
+
+const ROTULO_BASE_PERIODO: Record<BasePeriodoTitulos, string> = {
+  emissao: 'Emissão',
+  competencia: 'Competência',
+  envio: 'Envio',
+};
+
+const TITULO_BASE_PERIODO: Record<BasePeriodoTitulos, string> = {
+  emissao: 'O período recorta pela data de emissão do título',
+  competencia: 'O período recorta pelo mês de competência do título (usa os meses das duas datas)',
+  envio: 'O período recorta pela data de envio dos lotes: entra o título com algum lote enviado no período',
+};
 
 // Lista de títulos a receber. O olho de cada linha abre os detalhes (baixas,
 // glosas, alterações, lotes → guias) no painel lateral, TituloPainelLateral.
@@ -110,6 +124,8 @@ interface Props {
   filtros: {
     desde: string;
     ate: string;
+    /** Sobre qual data o período recorta: emissão, competência ou envio dos lotes. */
+    basePeriodo: BasePeriodoTitulos;
     status: TituloStatus | '';
     operadoraId: string;
     busca: string;
@@ -292,8 +308,9 @@ const TitulosList: React.FC<Props> = ({
   useEffect(() => {
     setIdAberto(null);
   }, [
-    filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, filtros.busca, filtros.ocultarParceiras,
-    filtros.somentePendentes, filtros.glosa, filtros.divergenteAplis, filtros.statusLote, filtros.pagina, filtros.tamanho,
+    filtros.desde, filtros.ate, filtros.basePeriodo, filtros.status, filtros.operadoraId, filtros.busca,
+    filtros.ocultarParceiras, filtros.somentePendentes, filtros.glosa, filtros.divergenteAplis, filtros.statusLote,
+    filtros.pagina, filtros.tamanho,
   ]);
 
   // ...ou quando o título sai da lista depois de um refetch.
@@ -329,6 +346,7 @@ const TitulosList: React.FC<Props> = ({
     () => ({
       desde: filtros.desde,
       ate: filtros.ate,
+      basePeriodo: filtros.basePeriodo,
       status: filtros.status,
       operadoraId: filtros.operadoraId,
       busca,
@@ -339,7 +357,7 @@ const TitulosList: React.FC<Props> = ({
       statusLote: filtros.statusLote,
     }),
     [
-      filtros.desde, filtros.ate, filtros.status, filtros.operadoraId, busca,
+      filtros.desde, filtros.ate, filtros.basePeriodo, filtros.status, filtros.operadoraId, busca,
       filtros.ocultarParceiras, filtros.somentePendentes, filtros.glosa, filtros.divergenteAplis,
       filtros.statusLote,
     ],
@@ -360,8 +378,20 @@ const TitulosList: React.FC<Props> = ({
         {/* Linha 1: período, status/operadora, checkboxes e views/atualizar. */}
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex flex-wrap items-end gap-2">
+            <label
+              className="text-xs text-gray-500 dark:text-gray-400"
+              title={TITULO_BASE_PERIODO[filtros.basePeriodo]}
+            >
+              Período por
+              <Select
+                value={filtros.basePeriodo}
+                onChange={(v) => onFiltrar({ basePeriodo: v as BasePeriodoTitulos, pagina: 1 })}
+                options={BASES_PERIODO_TITULOS}
+                controlClass={CAMPO}
+              />
+            </label>
             <label className="text-xs text-gray-500 dark:text-gray-400">
-              Emissão de
+              {ROTULO_BASE_PERIODO[filtros.basePeriodo]} de
               <DatePicker
                 value={filtros.desde}
                 onChange={(v) => onFiltrar({ desde: v, pagina: 1 })}

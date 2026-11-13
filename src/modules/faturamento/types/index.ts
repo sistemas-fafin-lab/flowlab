@@ -1,3 +1,4 @@
+import type { BasePeriodoTitulos } from '../utils/basePeriodoTitulos';
 import type { GlosasTitulo } from '../../../../api/_lib/faturamento/recursoGlosa.js';
 
 export type { GlosasTitulo };
@@ -741,9 +742,11 @@ export interface TituloReceber {
 }
 
 export interface TitulosFiltros {
-  /** YYYY-MM-DD, sobre a data de vencimento (issue 40 — antes era emissão). */
+  /** YYYY-MM-DD, sobre a data de `basePeriodo` (emissão por padrão). */
   desde: string;
   ate: string;
+  /** Sobre qual data o período recorta — ver utils/basePeriodoTitulos.ts. */
+  basePeriodo?: BasePeriodoTitulos;
   status?: TituloStatus | '';
   operadoraId?: string;
   /** Número da nota (busca parcial). */
@@ -782,6 +785,7 @@ export type FiltroGlosaTitulo = '' | 'com' | 'aberta' | 'sem';
 export interface TitulosViewFiltros {
   desde: string;
   ate: string;
+  basePeriodo: BasePeriodoTitulos;
   status: TituloStatus | '';
   operadoraId: string;
   busca: string;

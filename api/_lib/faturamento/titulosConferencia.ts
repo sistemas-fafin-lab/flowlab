@@ -6,6 +6,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { DispensaConferencia, TipoDivergenciaAplis, TituloConferencia } from './conferenciaAplis.js';
 import type { TituloSaldo } from './saldoOperadoras.js';
+import { EMBED_ENVIO_LOTE, ALIAS_ENVIO_LOTE, mesesDoPeriodo } from '../../../src/modules/faturamento/utils/basePeriodoTitulos.js';
+import type { BasePeriodoTitulos } from '../../../src/modules/faturamento/utils/basePeriodoTitulos.js';
 
 /** Título da conferência com o saldo, que a prévia das baixas mostra. */
 export interface TituloParaConferir extends TituloConferencia {
@@ -121,22 +123,31 @@ export async function dispensasAtivas(supabase: SupabaseClient): Promise<Dispens
 }
 
 /**
- * Ids no apLIS dos lotes dos títulos emitidos no período (`desde`/`ate`,
- * YYYY-MM-DD, inclusivos) — o universo do filtro "Status do lote (apLIS)" da
- * aba Títulos. Lote sem `aplis_id` (criado fora do apLIS) fica de fora.
+ * Ids no apLIS dos lotes dos títulos do período (`desde`/`ate`, YYYY-MM-DD,
+ * inclusivos, sobre a `base` da tela — ver utils/basePeriodoTitulos.ts) — o
+ * universo do filtro "Status do lote (apLIS)" da aba Títulos. Lote sem
+ * `aplis_id` (criado fora do apLIS) fica de fora.
  */
 export async function lotesAplisDosTitulos(
   supabase: SupabaseClient,
   desde: string,
   ate: string,
+  base: BasePeriodoTitulos = 'emissao',
 ): Promise<number[]> {
   const ids = new Set<number>();
+  const meses = mesesDoPeriodo(desde, ate);
   for (let offset = 0; ; offset += PAGINA_NOTAS) {
-    const { data, error } = await supabase
+    let consulta = supabase
       .from('notas')
-      .select('id_nota, nota_lote(lotes(aplis_id))')
-      .gte('data_emissao', desde)
-      .lte('data_emissao', ate)
+      .select(`id_nota, nota_lote(lotes(aplis_id))${base === 'envio' ? `, ${EMBED_ENVIO_LOTE}` : ''}`);
+    if (base === 'competencia') {
+      consulta = consulta.gte('competencia', meses.de).lte('competencia', meses.ate);
+    } else if (base === 'envio') {
+      consulta = consulta.gte(`${ALIAS_ENVIO_LOTE}.lotes.data_envio`, desde).lte(`${ALIAS_ENVIO_LOTE}.lotes.data_envio`, ate);
+    } else {
+      consulta = consulta.gte('data_emissao', desde).lte('data_emissao', ate);
+    }
+    const { data, error } = await consulta
       .order('id_nota', { ascending: true })
       .range(offset, offset + PAGINA_NOTAS - 1);
     if (error) throw new ErroSupabase(`notas: ${error.message}`);

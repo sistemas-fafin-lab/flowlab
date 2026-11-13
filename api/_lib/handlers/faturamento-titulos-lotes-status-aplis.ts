@@ -1,5 +1,5 @@
 /**
- * API Route: GET /api/faturamento/titulos-lotes-status-aplis?status=N&desde=YYYY-MM-DD&ate=YYYY-MM-DD
+ * API Route: GET /api/faturamento/titulos-lotes-status-aplis?status=N&desde=YYYY-MM-DD&ate=YYYY-MM-DD[&base=emissao|competencia|envio]
  *
  * Filtro "Status do lote (apLIS)" da aba Títulos: dos lotes dos títulos
  * emitidos no período, os que estão hoje no status STLOT `status` no apLIS.
@@ -20,6 +20,7 @@ import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
 import { lotesNoStatus, STLOT_LABELS } from '../faturamento/bdLab.js';
 import { ErroSupabase, lotesAplisDosTitulos } from '../faturamento/titulosConferencia.js';
+import { ehBasePeriodoTitulos } from '../../../src/modules/faturamento/utils/basePeriodoTitulos.js';
 import { getSupabaseUserClient } from '../supabase.js';
 
 const DATA_ISO_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -57,10 +58,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       res.status(400).json({ success: false, error: 'Informe desde e ate no formato YYYY-MM-DD.' });
       return;
     }
+    // Base do período da tela (emissão, competência ou envio); sem = emissão.
+    const baseBruta = primeiro(q.base)?.trim() || 'emissao';
+    if (!ehBasePeriodoTitulos(baseBruta)) {
+      res.status(400).json({ success: false, error: 'Parâmetro inválido: base (emissao, competencia ou envio).' });
+      return;
+    }
 
     let idsDosTitulos: number[];
     try {
-      idsDosTitulos = await lotesAplisDosTitulos(getSupabaseUserClient(token as string), desde, ate);
+      idsDosTitulos = await lotesAplisDosTitulos(getSupabaseUserClient(token as string), desde, ate, baseBruta);
     } catch (err) {
       if (!(err instanceof ErroSupabase)) throw err;
       console.error('[faturamento/titulos-lotes-status-aplis] Supabase:', err.message);

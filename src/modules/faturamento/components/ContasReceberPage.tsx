@@ -32,6 +32,7 @@ import ClinicasParceirasModal from './ClinicasParceirasModal';
 import RegraNfModal from './RegraNfModal';
 import ConsideradaMetaModal from './ConsideradaMetaModal';
 import EditarTituloModal from './EditarTituloModal';
+import type { BasePeriodoTitulos } from '../utils/basePeriodoTitulos';
 
 // ============================================================================
 // COMPONENTE: ContasReceberPage
@@ -84,6 +85,8 @@ const ContasReceberPage: React.FC = () => {
     // base inteira na primeira abertura.
     desde: mesesAtras(3),
     ate: fimDoMes(),
+    // "Período por": emissão, competência ou envio dos lotes (utils/basePeriodoTitulos.ts).
+    basePeriodo: 'emissao' as BasePeriodoTitulos,
     status: '' as TituloStatus | '',
     operadoraId: '',
     busca: '',
@@ -138,8 +141,11 @@ const ContasReceberPage: React.FC = () => {
   const chaveIdsDivergentes = useMemo(() => {
     if (!filtros.divergenteAplis) return undefined;
     if (!conferencia.titulos) return null;
+    // O recorte prévio é pela emissão; com outra base vão todos (são dezenas) e a
+    // própria lista recorta pelo período.
+    if (filtros.basePeriodo !== 'emissao') return conferencia.titulos.map((t) => t.idNota).join(',');
     return idsDivergentesNoPeriodo(conferencia.titulos, filtros.desde, filtros.ate).join(',');
-  }, [filtros.divergenteAplis, filtros.desde, filtros.ate, conferencia.titulos]);
+  }, [filtros.divergenteAplis, filtros.desde, filtros.ate, filtros.basePeriodo, conferencia.titulos]);
   const idsDivergentesAplis = useMemo((): string[] | null | undefined => {
     if (typeof chaveIdsDivergentes !== 'string') return chaveIdsDivergentes;
     return chaveIdsDivergentes === '' ? [] : chaveIdsDivergentes.split(',');
@@ -153,11 +159,13 @@ const ContasReceberPage: React.FC = () => {
     filtros.desde,
     filtros.ate,
     versaoLotesStatus,
+    filtros.basePeriodo,
   );
 
   const parametros = useMemo(() => ({
     desde: filtros.desde,
     ate: filtros.ate,
+    basePeriodo: filtros.basePeriodo,
     status: filtros.status,
     operadoraId: filtros.operadoraId,
     busca: filtros.busca,

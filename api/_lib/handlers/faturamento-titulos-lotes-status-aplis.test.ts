@@ -128,9 +128,22 @@ describe('GET /api/faturamento/titulos-lotes-status-aplis', () => {
   });
 
   it.each([
+    ['competencia', { 'competencia>=': '2026-10', 'competencia<=': '2026-10' }],
+    ['envio', { 'filtro_envio_lote.lotes.data_envio>=': '2026-10-01', 'filtro_envio_lote.lotes.data_envio<=': '2026-10-31' }],
+  ])('base %s recorta os títulos por ela', async (base, esperado) => {
+    const filtros = mockarSupabase({ notas: [nota(['7047'])] });
+    lotesNoStatusMock.mockResolvedValue({ idsLote: [7047], dadoAte: '2026-10-29' });
+    const res = criarRes();
+    await handler(criarReq({ ...QUERY_VALIDA, base }), res);
+    expect(res.statusCode).toBe(200);
+    expect(filtros).toEqual(esperado);
+  });
+
+  it.each([
     ['status fora do catálogo', { ...QUERY_VALIDA, status: '99' }],
     ['status ausente', { desde: '2026-10-01', ate: '2026-10-31' }],
     ['data mal formatada', { ...QUERY_VALIDA, desde: '01/10/2026' }],
+    ['base fora da lista', { ...QUERY_VALIDA, base: 'vencimento' }],
   ])('%s devolve 400 sem consultar nada', async (_caso, query) => {
     mockarSupabase();
     const res = criarRes();

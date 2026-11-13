@@ -17,6 +17,7 @@ const PADRAO_PAINEL: DashboardReceberFiltros = {
 const BASE_TITULOS: TitulosViewFiltros = {
   desde: '2025-06-01',
   ate: '2025-08-13',
+  basePeriodo: 'emissao',
   status: '',
   operadoraId: '',
   busca: '',
@@ -97,6 +98,7 @@ describe('sanitizarFiltrosTitulos', () => {
     const view: TitulosViewFiltros = {
       desde: '2025-07-01',
       ate: '2025-07-31',
+      basePeriodo: 'envio',
       status: 'recebida',
       operadoraId: 'op1',
       busca: '123',
@@ -107,6 +109,12 @@ describe('sanitizarFiltrosTitulos', () => {
       statusLote: 14,
     };
     expect(sanitizarFiltrosTitulos(view, BASE_TITULOS)).toEqual(view);
+  });
+
+  it('base do período: view sem o campo é sobre a emissão, mesmo com a tela em outra base', () => {
+    expect(sanitizarFiltrosTitulos({}, { ...BASE_TITULOS, basePeriodo: 'envio' }).basePeriodo).toBe('emissao');
+    expect(sanitizarFiltrosTitulos({ basePeriodo: 'competencia' }, BASE_TITULOS).basePeriodo).toBe('competencia');
+    expect(sanitizarFiltrosTitulos({ basePeriodo: 'vencimento' }, BASE_TITULOS).basePeriodo).toBe('emissao');
   });
 
   it('view antiga sem ocultarParceiras cai na base (issue 16)', () => {

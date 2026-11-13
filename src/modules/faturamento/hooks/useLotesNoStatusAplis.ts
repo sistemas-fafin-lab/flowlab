@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { chamarApi } from './useContasReceber';
+import type { BasePeriodoTitulos } from '../utils/basePeriodoTitulos';
 
 // Filtro "Status do lote (apLIS)" da aba Títulos: ids no apLIS dos lotes dos
 // títulos do período que estão hoje no status escolhido. A rota não tem cache —
@@ -23,6 +24,7 @@ export function useLotesNoStatusAplis(
   desde: string,
   ate: string,
   versao: number,
+  base: BasePeriodoTitulos = 'emissao',
 ): UseLotesNoStatusAplisResult {
   const [idsLote, setIdsLote] = useState<number[] | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -39,7 +41,7 @@ export function useLotesNoStatusAplis(
       return;
     }
     setCarregando(true);
-    const params = new URLSearchParams({ status: String(status), desde, ate });
+    const params = new URLSearchParams({ status: String(status), desde, ate, base });
     chamarApi<{ idsLote?: number[] }>(`/api/faturamento/titulos-lotes-status-aplis?${params}`, MENSAGEM_PADRAO)
       .then((body) => {
         if (leitura === leituraRef.current) setIdsLote(body.idsLote ?? []);
@@ -50,7 +52,7 @@ export function useLotesNoStatusAplis(
       .finally(() => {
         if (leitura === leituraRef.current) setCarregando(false);
       });
-  }, [status, desde, ate, versao]);
+  }, [status, desde, ate, versao, base]);
 
   return { idsLote, carregando, erro };
 }
