@@ -3,6 +3,7 @@
 // quais operações cada agente pode fazer. Toda rota de agente pergunta aqui
 // ("o agente X pode a operação Y?") depois de validar a chave e antes de ler
 // os parâmetros. Spec: .scratch/lab-brain-chamados/spec.md (D3, D8).
+// As rotas HTTP fazem essa pergunta por autorizarAgente (agentes/rotaAgente.ts).
 //
 // Sem tabela nem tela na v1: mudar uma permissão é mudar este arquivo.
 

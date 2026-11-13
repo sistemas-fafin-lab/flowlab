@@ -142,6 +142,7 @@ HANDLERS.set('GET /api/integracoes/lab-brain-apoio-requisicao', () => import('./
 HANDLERS.set('GET /api/integracoes/lab-brain-apoio-fila',       () => import('./_lib/handlers/integracoes-lab-brain-apoio-fila.js'));
 HANDLERS.set('GET /api/integracoes/lab-brain-apoio-exames',     () => import('./_lib/handlers/integracoes-lab-brain-apoio-exames.js'));
 HANDLERS.set('POST /api/integracoes/lab-brain-chamado-criar',   () => import('./_lib/handlers/integracoes-lab-brain-chamado-criar.js'));
+HANDLERS.set('GET /api/integracoes/lab-brain-chamado-consultar', () => import('./_lib/handlers/integracoes-lab-brain-chamado-consultar.js'));
 
 async function parseBody(req: http.IncomingMessage): Promise<unknown> {
   if (!req.headers['content-type']?.includes('application/json')) return undefined;

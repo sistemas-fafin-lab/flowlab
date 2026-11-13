@@ -1,12 +1,13 @@
 // api/_lib/labBrainChamados.ts
 // O LAB-BRAIN abre chamados de TI no FlowLab, server-to-server, em nome do
-// solicitante. Spec: .scratch/lab-brain-chamados/spec.md.
+// solicitante, e acompanha a situação deles. Spec: .scratch/lab-brain-chamados/spec.md.
 //
-// Rota (despachada por api/integracoes/[action].ts):
+// Rotas (despachadas por api/integracoes/[action].ts):
 //   POST /api/integracoes/lab-brain-chamado-criar
+//   GET  /api/integracoes/lab-brain-chamado-consultar?id_externo=
 //
 // Ordem de cada chamada (D8): método → chave (LAB_BRAIN_CHAMADOS_API_KEY) →
-// permissão `chamados.criar` no manifesto → corpo → cota + auditoria
+// permissão no manifesto (`chamados.criar` ou `chamados.ler`) → corpo ou query → cota + auditoria
 // (integracao_registrar_chamada, integração `lab-brain-chamados`) → operação.
 // 401, 403 e 400 não consomem cota nem entram na auditoria.
 // Guia: docs/integracoes/LAB_BRAIN_CHAMADOS.md.
@@ -21,16 +22,18 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { isBearerApiKeyValid } from './bearerAuth.js';
 import { getSupabaseAdminClient } from './supabase.js';
 import { describeError } from './errors.js';
-import { agentePode } from './agentes/permissoes.js';
-import { AGENTE_LAB_BRAIN, registrarChamada, type Cota } from './labBrainApoio.js';
+import { autorizarAgente, recusarSemCota } from './agentes/rotaAgente.js';
+import { AGENTE_LAB_BRAIN, primeiro, registrarChamada, type Cota } from './labBrainApoio.js';
 
 /** Valor de it_requests.origem para os chamados abertos pelo LAB-BRAIN. Mesmo valor em src/components/IT/OrigemChamadoBadge.tsx. */
 export const ORIGEM_LAB_BRAIN = 'lab-brain';
-/** Cota própria de escrita, dividida entre criação e consulta (D9). */
+/** Cota própria dos chamados, dividida entre criação e consulta (D9). */
 export const COTA_LAB_BRAIN_CHAMADOS: Cota = { integracao: 'lab-brain-chamados', limitePorMinuto: 10 };
 
-const ROTA = 'lab-brain-chamado-criar';
-const LOG = `[integracoes/${ROTA}]`;
+const ROTA_CRIACAO = 'lab-brain-chamado-criar';
+const LOG_CRIACAO = `[integracoes/${ROTA_CRIACAO}]`;
+const ROTA_CONSULTA = 'lab-brain-chamado-consultar';
+const LOG_CONSULTA = `[integracoes/${ROTA_CONSULTA}]`;
 
 const MAX_TITULO = 255;
 const MAX_DESCRICAO = 5000;
@@ -192,29 +195,14 @@ async function inserirChamado(
 // ─── Handler ─────────────────────────────────────────────────────────────────
 
 export async function criarChamadoHandler(req: VercelRequest, res: VercelResponse): Promise<void> {
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', 'POST');
-    res.status(405).json({ success: false, error: 'Método não permitido' });
-    return;
-  }
-
-  let autorizado: boolean;
-  try {
-    autorizado = isLabBrainChamadosApiKeyValid(req);
-  } catch (err) {
-    console.error(`${LOG} erro de configuração:`, describeError(err));
-    res.status(500).json({ success: false, error: 'Erro interno' });
-    return;
-  }
-  if (!autorizado) {
-    res.status(401).json({ success: false, error: 'Não autorizado' });
-    return;
-  }
-
-  if (!agentePode(AGENTE_LAB_BRAIN, 'chamados.criar')) {
-    res.status(403).json({ success: false, error: 'Operação não permitida para este agente' });
-    return;
-  }
+  const porta = {
+    metodo: 'POST',
+    chaveValida: isLabBrainChamadosApiKeyValid,
+    agente: AGENTE_LAB_BRAIN,
+    operacao: 'chamados.criar',
+    log: LOG_CRIACAO,
+  } as const;
+  if (!autorizarAgente(req, res, porta)) return;
 
   const parse = parseCorpo(req.body);
   if ('erro' in parse) {
@@ -229,7 +217,7 @@ export async function criarChamadoHandler(req: VercelRequest, res: VercelRespons
     // Na auditoria vai o que identifica o pedido; título e descrição ficam no chamado.
     const resultadoCota = await registrarChamada(
       supabase,
-      ROTA,
+      ROTA_CRIACAO,
       {
         id_externo: chamado.idExterno,
         solicitante_email: chamado.solicitanteEmail,
@@ -238,14 +226,7 @@ export async function criarChamadoHandler(req: VercelRequest, res: VercelRespons
       },
       COTA_LAB_BRAIN_CHAMADOS,
     );
-    if (!resultadoCota.permitido) {
-      res.setHeader('Retry-After', String(resultadoCota.retryAfter));
-      res.status(429).json({
-        success: false,
-        error: `Limite de ${COTA_LAB_BRAIN_CHAMADOS.limitePorMinuto} chamadas por minuto atingido.`,
-      });
-      return;
-    }
+    if (recusarSemCota(res, resultadoCota, COTA_LAB_BRAIN_CHAMADOS.limitePorMinuto)) return;
 
     res.setHeader('Cache-Control', 'no-store');
 
@@ -268,7 +249,118 @@ export async function criarChamadoHandler(req: VercelRequest, res: VercelRespons
     }
     res.status(201).json(resultado.criado);
   } catch (err) {
-    console.error(`${LOG} erro:`, describeError(err));
+    console.error(`${LOG_CRIACAO} erro:`, describeError(err));
+    res.status(500).json({ success: false, error: 'Erro interno' });
+  }
+}
+
+// ─── Consulta ────────────────────────────────────────────────────────────────
+
+/** O que o LAB-BRAIN vê de um chamado (D7): nada de descrição, solicitante, comentários ou anexos. */
+export interface SituacaoChamado {
+  codigo: string;
+  situacao: string;
+  /** null enquanto o chamado está fora do Kanban (kanban_hidden). */
+  coluna_kanban: string | null;
+  prioridade: string;
+  /** Nomes dos responsáveis separados por vírgula; null sem responsável. */
+  responsavel: string | null;
+  /** Só quando a situação é resolved. */
+  resolucao: string | null;
+  atualizado_em: string;
+}
+
+interface LinhaSituacao {
+  codigo: string;
+  status: string;
+  kanban_status: string;
+  kanban_hidden: boolean;
+  priority: string;
+  assigned_to: string[] | null;
+  resolution: string | null;
+  updated_at: string;
+}
+
+async function nomesDosResponsaveis(supabase: SupabaseClient, ids: string[]): Promise<string | null> {
+  if (ids.length === 0) return null;
+  const { data, error } = await supabase.from('user_profiles').select('id, name').in('id', ids);
+  if (error) throw new Error(`Falha ao ler user_profiles: ${describeError(error)}`);
+  const nomePorId = new Map(((data ?? []) as Array<{ id: string; name: string | null }>).map((p) => [p.id, p.name]));
+  // Na ordem de assigned_to; quem sumiu de user_profiles fica de fora.
+  const nomes = ids.map((id) => nomePorId.get(id)?.trim()).filter((n): n is string => !!n);
+  return nomes.length > 0 ? nomes.join(', ') : null;
+}
+
+/** Só enxerga chamados abertos pelo LAB-BRAIN (D7); qualquer outro é "não encontrado". */
+export function parseConsulta(
+  query: VercelRequest['query'],
+): { ok: true; valor: { idExterno: string } } | { ok: false; erro: string } {
+  const idExterno = texto(primeiro(query.id_externo), MAX_ID_EXTERNO);
+  if (idExterno === null) {
+    return { ok: false, erro: `Parâmetro id_externo obrigatório (até ${MAX_ID_EXTERNO} caracteres).` };
+  }
+  return { ok: true, valor: { idExterno } };
+}
+
+async function buscarSituacao(supabase: SupabaseClient, idExterno: string): Promise<SituacaoChamado | null> {
+  const { data, error } = await supabase
+    .from('it_requests')
+    .select('codigo, status, kanban_status, kanban_hidden, priority, assigned_to, resolution, updated_at')
+    .eq('origem', ORIGEM_LAB_BRAIN)
+    .eq('id_externo', idExterno)
+    .maybeSingle();
+  if (error) throw new Error(`Falha ao ler it_requests: ${describeError(error)}`);
+  if (!data) return null;
+
+  const linha = data as LinhaSituacao;
+  return {
+    codigo: linha.codigo,
+    situacao: linha.status,
+    coluna_kanban: linha.kanban_hidden ? null : linha.kanban_status,
+    prioridade: linha.priority,
+    responsavel: await nomesDosResponsaveis(supabase, linha.assigned_to ?? []),
+    resolucao: linha.status === 'resolved' ? linha.resolution : null,
+    atualizado_em: linha.updated_at,
+  };
+}
+
+export async function consultarChamadoHandler(req: VercelRequest, res: VercelResponse): Promise<void> {
+  const porta = {
+    metodo: 'GET',
+    chaveValida: isLabBrainChamadosApiKeyValid,
+    agente: AGENTE_LAB_BRAIN,
+    operacao: 'chamados.ler',
+    log: LOG_CONSULTA,
+  } as const;
+  if (!autorizarAgente(req, res, porta)) return;
+
+  const parse = parseConsulta(req.query ?? {});
+  if ('erro' in parse) {
+    res.status(400).json({ success: false, error: parse.erro });
+    return;
+  }
+  const { idExterno } = parse.valor;
+
+  try {
+    const supabase = getSupabaseAdminClient();
+
+    const resultadoCota = await registrarChamada(
+      supabase,
+      ROTA_CONSULTA,
+      { id_externo: idExterno },
+      COTA_LAB_BRAIN_CHAMADOS,
+    );
+    if (recusarSemCota(res, resultadoCota, COTA_LAB_BRAIN_CHAMADOS.limitePorMinuto)) return;
+
+    res.setHeader('Cache-Control', 'no-store');
+    const situacao = await buscarSituacao(supabase, idExterno);
+    if (!situacao) {
+      res.status(404).json({ success: false, error: 'Chamado não encontrado entre os abertos pelo LAB-BRAIN.' });
+      return;
+    }
+    res.status(200).json(situacao);
+  } catch (err) {
+    console.error(`${LOG_CONSULTA} erro:`, describeError(err));
     res.status(500).json({ success: false, error: 'Erro interno' });
   }
 }

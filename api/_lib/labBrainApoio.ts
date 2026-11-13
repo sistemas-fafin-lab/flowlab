@@ -21,7 +21,8 @@ import { isBearerApiKeyValid } from './bearerAuth.js';
 import { buscarTodasPaginado } from './supabasePaginado.js';
 import { getSupabaseAdminClient } from './supabase.js';
 import { describeError } from './errors.js';
-import { agentePode, type Agente } from './agentes/permissoes.js';
+import type { Agente } from './agentes/permissoes.js';
+import { autorizarAgente, recusarSemCota } from './agentes/rotaAgente.js';
 
 /** Agente no manifesto de permissões (agentes/permissoes.ts). */
 export const AGENTE_LAB_BRAIN: Agente = 'lab-brain';
@@ -73,7 +74,8 @@ export function isLabBrainApiKeyValid(req: VercelRequest): boolean {
 
 // ─── Parâmetros ──────────────────────────────────────────────────────────────
 
-function primeiro(valor: string | string[] | undefined): string | undefined {
+/** Primeiro valor de um parâmetro de query, sem espaço sobrando; undefined se vazio. */
+export function primeiro(valor: string | string[] | undefined): string | undefined {
   const v = Array.isArray(valor) ? valor[0] : valor;
   const limpo = v?.trim();
   return limpo ? limpo : undefined;
@@ -244,30 +246,16 @@ export function criarHandlerLabBrainApoio(recurso: RecursoLabBrain) {
   const rota = `lab-brain-apoio-${recurso}`;
   const log = `[integracoes/${rota}]`;
 
+  const porta = {
+    metodo: 'GET',
+    chaveValida: isLabBrainApiKeyValid,
+    agente: AGENTE_LAB_BRAIN,
+    operacao: 'apoio.ler',
+    log,
+  } as const;
+
   return async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
-    if (req.method !== 'GET') {
-      res.setHeader('Allow', 'GET');
-      res.status(405).json({ success: false, error: 'Método não permitido' });
-      return;
-    }
-
-    let autorizado: boolean;
-    try {
-      autorizado = isLabBrainApiKeyValid(req);
-    } catch (err) {
-      console.error(`${log} erro de configuração:`, describeError(err));
-      res.status(500).json({ success: false, error: 'Erro interno' });
-      return;
-    }
-    if (!autorizado) {
-      res.status(401).json({ success: false, error: 'Não autorizado' });
-      return;
-    }
-
-    if (!agentePode(AGENTE_LAB_BRAIN, 'apoio.ler')) {
-      res.status(403).json({ success: false, error: 'Operação não permitida para este agente' });
-      return;
-    }
+    if (!autorizarAgente(req, res, porta)) return;
 
     const parse = parseParametros(recurso, req.query ?? {});
     if ('erro' in parse) {
@@ -280,14 +268,7 @@ export function criarHandlerLabBrainApoio(recurso: RecursoLabBrain) {
       const supabase = getSupabaseAdminClient();
 
       const cota = await registrarChamada(supabase, rota, parametrosAuditoria(params));
-      if (!cota.permitido) {
-        res.setHeader('Retry-After', String(cota.retryAfter));
-        res.status(429).json({
-          success: false,
-          error: `Limite de ${LAB_BRAIN_LIMITE_POR_MINUTO} chamadas por minuto atingido.`,
-        });
-        return;
-      }
+      if (recusarSemCota(res, cota, LAB_BRAIN_LIMITE_POR_MINUTO)) return;
 
       res.setHeader('Cache-Control', 'no-store');
       if (params.recurso === 'requisicao') {

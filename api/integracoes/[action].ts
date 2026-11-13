@@ -20,6 +20,7 @@ import labBrainApoioRequisicao from '../_lib/handlers/integracoes-lab-brain-apoi
 import labBrainApoioFila from '../_lib/handlers/integracoes-lab-brain-apoio-fila.js';
 import labBrainApoioExames from '../_lib/handlers/integracoes-lab-brain-apoio-exames.js';
 import labBrainChamadoCriar from '../_lib/handlers/integracoes-lab-brain-chamado-criar.js';
+import labBrainChamadoConsultar from '../_lib/handlers/integracoes-lab-brain-chamado-consultar.js';
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<void>;
 
@@ -33,6 +34,7 @@ const ROTAS: Record<string, Handler> = {
   'lab-brain-apoio-exames': labBrainApoioExames,
   // LAB-BRAIN → chamados de TI (LAB_BRAIN_CHAMADOS_API_KEY, 10/min, auditado)
   'lab-brain-chamado-criar': labBrainChamadoCriar,
+  'lab-brain-chamado-consultar': labBrainChamadoConsultar,
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse): Promise<void> {
