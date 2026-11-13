@@ -84,6 +84,7 @@ Todos no formato `{ "success": false, "error": "<mensagem>" }`.
 | 405 | Método diferente de GET | Corrigir a chamada |
 | 429 | Limite por minuto atingido | Esperar `Retry-After` segundos |
 | 500 | Erro interno (detalhe só no log da Vercel) | Tentar de novo mais tarde |
+| 503 | A chave da integração não está configurada no FlowLab | Parar e avisar o admin |
 
 ## Implantação
 

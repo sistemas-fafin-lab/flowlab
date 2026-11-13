@@ -116,6 +116,7 @@ Todos no formato `{ "success": false, "error": "<mensagem>" }`.
 | 422 | Nenhum usuário do FlowLab tem o e-mail, ou ele está removido ou desativado | Orientar a pessoa a corrigir o e-mail ou pedir o cadastro |
 | 429 | Limite por minuto atingido | Esperar `Retry-After` segundos e repetir com o mesmo `id_externo` |
 | 500 | Erro interno (detalhe só no log da Vercel) | Tentar de novo mais tarde, com o mesmo `id_externo` |
+| 503 | A chave da integração não está configurada no FlowLab | Parar e avisar o admin |
 
 ## Implantação
 

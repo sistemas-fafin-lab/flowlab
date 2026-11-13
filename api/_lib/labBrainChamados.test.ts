@@ -167,6 +167,15 @@ describe('método e chave', () => {
     expect(estado.rpc).not.toHaveBeenCalled();
     expect(estado.inserts).toHaveLength(0);
   });
+
+  it('LAB_BRAIN_CHAMADOS_API_KEY não configurada devolve 503 sem consumir cota', async () => {
+    delete process.env.LAB_BRAIN_CHAMADOS_API_KEY;
+    const res = await chamar(criarReq(CORPO_VALIDO, { auth: `Bearer ${CHAVE}` }));
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({ success: false, error: 'Integração não configurada' });
+    expect(estado.rpc).not.toHaveBeenCalled();
+    expect(estado.inserts).toHaveLength(0);
+  });
 });
 
 describe('permissão e corpo', () => {

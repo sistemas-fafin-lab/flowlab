@@ -18,7 +18,7 @@ export interface PortaDoAgente {
 }
 
 /**
- * Responde 405, 500 (chave sem configuração), 401 ou 403 e devolve false;
+ * Responde 405, 503 (chave sem configuração no ambiente), 401 ou 403 e devolve false;
  * devolve true quando a rota pode seguir. Nenhuma recusa daqui consome cota.
  */
 export function autorizarAgente(req: VercelRequest, res: VercelResponse, porta: PortaDoAgente): boolean {
@@ -33,7 +33,8 @@ export function autorizarAgente(req: VercelRequest, res: VercelResponse, porta: 
     autorizado = porta.chaveValida(req);
   } catch (err) {
     console.error(`${porta.log} erro de configuração:`, describeError(err));
-    res.status(500).json({ success: false, error: 'Erro interno' });
+    // 503 e não 500: a rota está fechada por falta de configuração, não quebrada.
+    res.status(503).json({ success: false, error: 'Integração não configurada' });
     return false;
   }
   if (!autorizado) {

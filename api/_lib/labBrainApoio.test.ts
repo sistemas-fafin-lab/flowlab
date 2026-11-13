@@ -109,12 +109,13 @@ describe('autenticação, cota e auditoria', () => {
     expect(estado.rpc).not.toHaveBeenCalled();
   });
 
-  it('LAB_BRAIN_API_KEY não configurada devolve 500 genérico', async () => {
+  it('LAB_BRAIN_API_KEY não configurada devolve 503 sem consumir cota', async () => {
     delete process.env.LAB_BRAIN_API_KEY;
     const res = criarRes();
     await exames(criarReq(), res);
-    expect(res.statusCode).toBe(500);
-    expect(res.body).toEqual({ success: false, error: 'Erro interno' });
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({ success: false, error: 'Integração não configurada' });
+    expect(estado.rpc).not.toHaveBeenCalled();
   });
 
   it('agente sem apoio.ler devolve 403 antes de parâmetros, cota e consulta', async () => {

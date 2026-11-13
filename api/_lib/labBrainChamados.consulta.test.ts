@@ -127,6 +127,14 @@ describe('método, chave e permissão', () => {
     expect(estado.rpc).not.toHaveBeenCalled();
   });
 
+  it('LAB_BRAIN_CHAMADOS_API_KEY não configurada devolve 503 sem consumir cota', async () => {
+    delete process.env.LAB_BRAIN_CHAMADOS_API_KEY;
+    const res = await chamar(criarReq({ id_externo: 'lb-001' }, { auth: `Bearer ${CHAVE}` }));
+    expect(res.statusCode).toBe(503);
+    expect(res.body).toEqual({ success: false, error: 'Integração não configurada' });
+    expect(estado.rpc).not.toHaveBeenCalled();
+  });
+
   it('agente sem chamados.ler devolve 403 antes dos parâmetros e da cota', async () => {
     vi.mocked(agentePode).mockReturnValueOnce(false);
     const res = await chamar(criarReq({}));
