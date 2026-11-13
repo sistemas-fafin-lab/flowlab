@@ -17,8 +17,8 @@
   3. aprovar promove, e a consulta mostra a coluna;
   4. criar outro chamado e rejeitar a sugestão, e a consulta mostra `cancelled` com o motivo;
   5. criar um terceiro e promover pela tela de sempre, e a sugestão fica substituída.
-- [ ] Migrations aplicadas em produção, com o ok do usuário, depois do teste.
-- [ ] Teste rápido em produção com um chamado de teste, cancelado no fim.
+- [x] Migrations aplicadas em produção, com o ok do usuário, depois do teste.
+- [x] Teste rápido em produção com um chamado de teste, cancelado no fim.
 
 ## Comments
 
@@ -39,3 +39,5 @@
   5. IT-226 promovido por Solicitações de TI → Kanban → "Adicionar como Card" → a sugestão ficou `substituida`.
 
   IT-224 e IT-226 cancelados no fim. O IT-225 já estava cancelado pela rejeição.
+
+- 13/11/2026: produção. As migrations `20261113150000` a `20261113180000` já constavam aplicadas no projeto `jqx`. Push da `main` (`bf03fac`), deploy `Ready` em `flow-lab.vercel.app`. `POST` com o solicitante `tech2.laboratorio.lab@gmail.com` → `201` IT-434, e a consulta mostrou `pending` com `coluna_kanban: null`. O aviso "Chamado do LAB-BRAIN para aprovar" chegou ao sino e o clique abriu a EVA. O usuário rejeitou a sugestão pela tela. A consulta passou a `cancelled`, com o motivo em `resolucao`. O IT-434 ficou cancelado pela rejeição.

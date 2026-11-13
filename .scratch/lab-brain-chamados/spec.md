@@ -64,7 +64,7 @@ Junto nasce a **camada de permissões por agente**: um manifesto único no códi
 - **D1, solicitante:** o solicitante é o usuário do FlowLab procurado pelo e-mail enviado (sem diferenciar maiúsculas).
   - E-mail inexistente, ou de usuário removido ou desativado: a chamada é recusada com 422.
   - Não existe usuário técnico "LAB-BRAIN" como solicitante. É a mesma regra de "inativo = sem permissão" que a EVA já aplica a quem escreve pelo WhatsApp.
-- **D2, como o chamado entra:** como um chamado comum, igual ao da tela: situação pendente, fora do Kanban até o TI promover. Não passa pela fila de aprovação da EVA. Abrir chamado já é direito de qualquer usuário.
+- **D2, como o chamado entra:** como um chamado comum, igual ao da tela: situação pendente, fora do Kanban até o TI promover. Não passa pela fila de aprovação da EVA. Abrir chamado já é direito de qualquer usuário. **Substituída em 13/11/2026** por `.scratch/lab-brain-aprovacao-eva/spec.md`: o chamado nasce igual, mas gera junto uma sugestão de promoção na fila da EVA.
 - **D3, manifesto de permissões:** um módulo novo e pequeno declara, para cada agente, as operações permitidas. Na v1: LAB-BRAIN → ler apoio, criar chamado, ler chamado.
   - A interface é uma pergunta simples: "o agente X pode a operação Y?".
   - As rotas de consulta do Envio ao Álvaro, que já existem, passam a perguntar ao manifesto, sem mudar o comportamento.
@@ -147,3 +147,4 @@ Junto nasce a **camada de permissões por agente**: um manifesto único no códi
   - `issues/04-chave-e-resposta-lab-brain.md` (humano, sem bloqueio)
   - `issues/05-teste-ponta-a-ponta.md` (humano, depende da 03 e da 04)
   - `issues/06-eva-na-camada-de-operacoes.md` (etapa 2, needs-triage, depende da 01)
+  - `issues/07-chamado-lab-brain-na-aprovacao-da-eva.md` (needs-triage, sem bloqueio; muda a D2)
