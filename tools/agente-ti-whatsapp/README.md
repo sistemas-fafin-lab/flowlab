@@ -24,6 +24,13 @@ A rotina fica em `api/_lib/ti-agente/outbox.ts`, com testes. Este diretório só
 
 10. Por até 50 s, relê a fila a cada 5 s e repete os passos acima quando há mensagem pronta. Assim, a resposta da EVA a uma mensagem sai em segundos, e não no minuto seguinte. Com o envio desligado ou a sessão fora de `WORKING`, a execução termina logo.
 
+**Alertas de gestão (D38, plano §11.7):** nos minutos 0, 10, 20…, antes do passo 1, a execução confere os alertas:
+- chamado de prioridade alta ou crítica fora do prazo para iniciar;
+- card crítico que atrasou;
+- projeto em risco.
+
+O que encontrar vai para a fila dos gestores que marcaram "Recebe alertas" na aba Membros e sai nos passos seguintes. A conferência mora aqui porque a Vercel do plano Hobby só agenda cron uma vez por dia. Ela só roda no horário da EVA e com o WhatsApp ligado, e uma falha vai para o log sem segurar a fila. **Para ligar, gere o pacote de novo e reinstale** (abaixo).
+
 **Se o WAHA ou a VPS caírem, o resto da EVA continua funcionando:** Início, chat, reuniões, sugestões, aprovações e o botão Cobrar. As mensagens esperam na fila e saem quando o WAHA voltar, se ainda estiverem dentro da validade.
 
 O systemd não abre uma execução nova enquanto a anterior está rodando (`Type=oneshot`), então uma mensagem não sai duas vezes. A janela de 50 s termina antes do minuto seguinte, então o timer não pula nenhuma execução.

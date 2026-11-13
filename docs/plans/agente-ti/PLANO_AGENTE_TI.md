@@ -12,6 +12,7 @@
 > - **Cobrança e aviso pelo grupo (16/Out/2026, D35):** nos pedidos do gestor, quem não recebe pelo WhatsApp é citado no grupo da equipe (§10, §11.6, issue 24).
 > - **Aviso para a equipe toda (04/Nov/2026, D36):** "avisa todo mundo que…", no privado de cada um, pelo chat e pelo WhatsApp, com uma confirmação só (§11.6, issue 25).
 > - **Gestor executa direto (04/Nov/2026, D37):** o gestor confirma e a EVA aplica o pedido dele na hora, sem passar pela fila, pelo chat e pelo WhatsApp (§11.4, issue 26).
+> - **EVA para a gestão (13/Nov/2026, D38):** relatório de gestão no WhatsApp (todo dia útil, e o da semana na segunda), "relatório" na hora, perguntas de gestão com os números do sistema e alertas na hora (§11.7, issue 27).
 > - **Falta, fora do código:** variáveis na Vercel, a sessão do WAHA e o timer da VPS (issues 04 e 13), e as conferências no navegador.
 >
 > Protótipo da interface em `docs/flowlab_agent/` (§12).
@@ -102,6 +103,7 @@ Entregáveis, na ordem em que geram valor:
 | **D35** | Cobrança e aviso pelo grupo para quem não recebe pelo WhatsApp | ✅ **Fechado (16/Out), pedido do usuário, combinado com a equipe** ("quando eu pedir pra EVA comunicar um membro que não recebe cobrança pelo WhatsApp, ela pode enviar a mensagem ao grupo e citar o nome da pessoa"). Detalhes na §10 e na §11.6.<br>• **Só nos pedidos do gestor:** botão Cobrar, passo "Cobrar" do chat, "cobra…" e "avisa…" pelo WhatsApp. A cobrança da manhã não muda: continua só para quem tem adesão.<br>• **Cobrança:** o responsável ativo na aba Membros sem adesão ou sem número é citado numa mensagem no grupo: "⏰ Bruno, a task "…" (IT-045) está atrasada há 3 dias. Consegue atualizar o status no Kanban?". Quem tem adesão continua recebendo no privado. No Lembrar (o próprio card), nada muda.<br>• **Aviso:** quem não tem WhatsApp recebe no grupo, como "📢 Aviso de Ana para Bruno: …". Quem tem WhatsApp continua no privado, com ou sem adesão (D32).<br>• **Citar** é o nome no texto: o primeiro nome, ou o nome inteiro quando há outra pessoa na equipe com o mesmo primeiro nome. Não é a menção do WhatsApp (@), que pediria o número da pessoa e mudança no script da VPS.<br>• **Mesmas regras:** a mensagem no grupo é `cobranca_manual` (ou `aviso`) com `chat_id_destino`, então valem a janela de 4 h por card, o horário da EVA e a contagem do dia. Sem grupo escolhido em Configurações, a recusa diz o que falta.<br>• **Antes de sair:** a prévia do WhatsApp, o cartão de aviso do chat e o botão Cobrar (na dica) dizem que vai para o grupo.<br>• Sem migration. | Fase 4 |
 | **D36** | Aviso para a equipe toda | ✅ **Fechado (04/Nov), pedido do usuário** ("ela não consegue encaminhar para todos os membros de uma vez"). Detalhes na §11.6.<br>• **Como chega (escolha do usuário):** no privado de cada um, "📢 Aviso de <quem pediu>: …". Quem não tem WhatsApp é citado numa mensagem só no grupo da equipe (D35); sem grupo escolhido, fica de fora, e a prévia diz quem. "Avisa no grupo" continua sendo o post no grupo (D29).<br>• **Quem recebe (escolha do usuário):** todos os ativos da aba Membros, menos quem pede, com ou sem a adesão à cobrança (como na D32). Usuário removido ou desativado, não.<br>• **Onde (escolha do usuário):** no chat do Início, um cartão só ("Aviso para a equipe"), com quem recebe, o texto editável e "Enviar para todos"; pelo WhatsApp, a intenção `avisar_equipe` ("avisa todo mundo que…"), com a prévia e um SIM só.<br>• **Só gestor** (`canManageAgenteTI`), conferido de novo no envio. Segue o horário da EVA.<br>• O limite de 3 avisos por resposta do chat continua para os avisos a pessoas específicas.<br>• Migration `20261104120000_eva_aviso_equipe_gestor_direto.sql`: o comando `avisar_equipe`. | Fase 4 |
 | **D37** | Gestor executa direto, sem a fila | ✅ **Fechado (04/Nov), pedido do usuário** ("se o usuário for gestor, ele pode pedir para a eva executar ações diretamente, sem necessidade de ir para a fila de aprovação, tanto via chat quanto whatsapp"). Muda a D28 e a D31 só para o próprio pedido do gestor. Detalhes na §11.4.<br>• **O que muda:** o gestor (`canManageAgenteTI`) passa a fazer o que quem aprova já fazia: confirma e a EVA aplica na hora. No chat e nos comentários da EVA, o botão é "Aprovar e executar". Pelo WhatsApp, a prévia e o SIM, no pedido de mudança e também no andamento contado ("IT-045 concluída", "IT-052 vai para sexta"), que antes ia para a fila para qualquer pessoa.<br>• **A confirmação continua:** nada muda sem o clique ou o SIM (interpretação, para conferir com o usuário: "diretamente" é sem a fila, não sem confirmar).<br>• **Só o próprio pedido:** no banco, o gestor aplica só a sugestão que ele pediu (chat, comentário ou WhatsApp). Sugestão de reunião ou de outra pessoa continua sendo de quem aprova (`canApproveAgenteTI`), na tela de Sugestões e no "aprovar 1 e 3".<br>• **O histórico não muda:** a sugestão continua gravada, "aprovada" pelo gestor, em EVA → Sugestões; o responsável do card é avisado como antes.<br>• Quem aprova também passa a ter o andamento que conta aplicado na hora, com SIM.<br>• Migration `20261104120000_eva_aviso_equipe_gestor_direto.sql`: `ti_agente_aprovar_sugestao_como` e `ti_agente_propor_sugestao` aceitam o gestor no próprio pedido. | Fase 4 |
+| **D38** | A EVA para a gestão | ✅ **Fechado (13/Nov), pedido do usuário** ("preciso que a EVA passe a me encaminhar no WhatsApp um relatório de gestão, diferente do de cobrança"; "ela precisa funcionar melhor para função de gestão"). Ele escolheu as quatro partes propostas. Detalhes na §11.7.<br>• **Relatório (escolha do usuário: diário e semanal):** todo dia útil por volta das 8h, o retrato do Kanban e dos chamados e o que pede atenção; na segunda, o da semana anterior, com entregas, chamados e tempo médio de resolução comparados com a semana de antes, por pessoa e por projeto.<br>• **Conteúdo (escolha do usuário: tudo):** Kanban e atrasos, chamados dos usuários (fila, fora do prazo para iniciar, tempo médio de resolução), pessoas e projetos, e as pendências do gestor (sugestões aguardando, cobranças sem resposta). Os números saem das regras do Início e do painel das Solicitações de TI; nada é escrito pela IA.<br>• **Quem recebe (escolha do usuário):** o gestor que marcar "Recebe o relatório de gestão" na aba Membros, com WhatsApp. O papel é conferido no envio.<br>• **Na hora:** "relatório" ou "como foi a semana?" pelo WhatsApp.<br>• **Perguntas de gestão:** no chat e no WhatsApp, o gestor recebe o PAINEL DE GESTÃO no contexto, e a IA responde com os números dele.<br>• **Alertas na hora:** chamado de prioridade alta ou crítica fora do prazo para iniciar, card crítico que atrasou e projeto em risco, para o gestor que marcar "Recebe alertas". Uma vez por acontecimento, até 5 por dia, no horário da EVA. Rodam no script da VPS a cada 10 min, porque a Vercel do plano Hobby só agenda cron uma vez por dia.<br>• Migration `20261113150000_eva_relatorio_gestao.sql`: as duas adesões e os tipos `relatorio` e `alerta`. | Fase 4 |
 
 ---
 
@@ -908,6 +910,66 @@ Para "o que eu tenho hoje?", a EVA ordena (atrasado, o que vence, parado) e suge
 - **WhatsApp:** intenção `avisar_equipe` e comando `avisar_equipe`, com o SIM. A prévia lista quem recebe no privado, quem vai citado no grupo e quem fica de fora.
 - **Quem recebe:** os ativos da aba Membros, menos quem pede, sem usuário removido ou desativado. Quem tem WhatsApp recebe no privado; quem não tem é citado numa mensagem só no grupo ("📢 Aviso de Ana para Bruno e Carla: …"). Sem grupo escolhido, quem não tem WhatsApp fica de fora; se ninguém puder receber, a recusa diz o motivo.
 - **Envio:** uma linha `aviso` por pessoa e uma do grupo, num insert só, com `enviada_por`. A equipe é conferida de novo no envio: vale a aba Membros da hora, que pode diferir da prévia.
+
+### 11.7 A EVA para a gestão (D38)
+
+O painel do gestor fica em `src/modules/eva/domain/gestao.ts` (`montarPainelGestao`), e dele saem o relatório, o bloco das perguntas e os alertas. É puro, e os números saem das regras que já existem:
+- **Kanban:** abertos, atrasados, vencem hoje e parados, as regras do Início (RN01 a RN04). "Novos" são os atrasados que venceram desde o último dia útil.
+- **Entregas:** cards concluídos no período, pelo `updated_at`. Não há coluna de conclusão; é a mesma aproximação de `concluidoNaSemana`.
+- **Chamados dos usuários** (`it_requests` com `is_internal = false`):
+  - na fila e fora do prazo para iniciar: o SLA de `src/utils/itSla.ts`;
+  - em andamento;
+  - abertos e resolvidos no período;
+  - tempo médio de resolução (`resolved_at − created_at`), no formato do painel das Solicitações (`formatarDuracao`).
+- **Por pessoa:** os membros ativos com card, com abertos, atrasados, parados e concluídos. O nome é o primeiro, ou o inteiro quando há xará (`nomeParaCitar`).
+- **Projetos:** `projetosEmAndamento`, com os concluídos dos últimos 14 dias, o mesmo recorte do Início, e a fração da sprint que já passou.
+- **Pendências:** as sugestões aguardando aprovação, com a idade da mais antiga, e as cobranças sem resposta há mais de 4 h (a regra dos comentários do Início, `ultimoContato`).
+- **Período:** os últimos 7 dias, e o anterior do mesmo tamanho para comparar. No relatório de segunda, a semana anterior, de segunda a domingo.
+
+**Relatório pelo WhatsApp** (tipo `relatorio`):
+- **Quando:** sai no cron da cobrança (`agente-cobranca-cron`, 8h dos dias úteis), por `gerarRelatoriosDeGestao`. Os dois rodam separados, e um não segura o outro.
+  - Nos dias úteis, o do dia: o retrato do Kanban e dos chamados, e o que pede atenção, em até 6 itens.
+  - Na segunda, o da semana anterior: entregas, chamados e tempo médio, comparados com a semana de antes, o retrato de agora, a lista por pessoa e os projetos, e a atenção.
+- **Para quem:** o gestor da EVA, ativo na aba Membros, com WhatsApp e "Recebe o relatório de gestão" marcado. O papel é conferido no envio: quem o perde deixa de receber.
+- **Uma vez por dia:** `chave_dia = relatorio:<membro>:<dia>`. Como a cobrança, o `?dryRun=true` monta o texto sem gravar, mesmo no fim de semana.
+- **Ordem da atenção:** cards críticos atrasados, chamados fora do prazo para iniciar, pessoa com 3 ou mais atrasados, projetos atrasados ou em risco, sugestões aguardando e cobranças sem resposta.
+
+**"relatório" na hora:**
+- Pelo WhatsApp, o gestor manda "relatório" ou "manda o relatório da semana". Isso é lido sem IA (`lerPedidoDeRelatorio`).
+- "Como foi a semana?" e "resumo da semana" passam pela IA, na intenção `relatorio` com `relatorio_periodo`.
+- O texto é montado pelo sistema. O do dia é o mesmo da manhã; o da semana cobre os últimos 7 dias.
+- Para quem não é gestor, a recusa de sempre (`soGestor`).
+
+**Perguntas de gestão:**
+- O gestor recebe o painel no contexto da IA (`montarBlocoGestao`, "PAINEL DE GESTÃO"), no chat do Início (`agente-perguntar`) e no WhatsApp.
+- As instruções pedem que as perguntas de gestão ("quem está sobrecarregado?", "como está o Bruno?", "o que travou?", "tempo médio de resolução") usem os números dele, sem contar por conta própria.
+- Se o painel não puder ser lido, a pergunta é respondida assim mesmo, só com os cards.
+- **Conferido com o Claude real, dados fictícios:** as 8 perguntas vieram com os números do painel, e "como foi a semana?" e "me manda o resumo da semana" viraram pedido de relatório.
+
+**Alertas na hora** (tipo `alerta`, `detectarAlertas` e `verificarAlertas`):
+- **O que dispara:**
+  - chamado de prioridade alta ou crítica que passou do prazo para iniciar;
+  - card crítico que atrasou;
+  - projeto que entrou em risco ou em atraso.
+- **Só o recente:** o que aconteceu há até 3 dias. O mais antigo já está no relatório.
+- **Uma vez por acontecimento e pessoa**, pela `chave_dia`:
+  - o chamado, pelo id;
+  - o card, pelo prazo (se o prazo mudar e vencer de novo, alerta de novo);
+  - o projeto, pela sprint e pela situação.
+- **Até 5 por pessoa por dia** (`MAX_ALERTAS_DIA`); o resto fica para o relatório.
+- **Onde roda:** no script da VPS, a cada 10 min, antes de esvaziar a fila. A Vercel do plano Hobby só agenda cron uma vez por dia, e a VPS já roda o tempo todo.
+  - Só no horário da EVA (dia útil, das 7h às 20h) e com o WhatsApp ligado.
+  - Uma falha vai para o log e não segura a fila.
+  - Para valer, o pacote da VPS precisa ser gerado e instalado de novo (`npm run eva-build-outbox`, `install.sh`).
+- **Para quem:** o gestor com "Recebe alertas de gestão na hora" marcado na aba Membros, com as mesmas regras do relatório.
+
+**Aba Membros:** as duas adesões aparecem em Editar só para quem é gestor e só valem com WhatsApp. Na lista, os selos "Relatório" e "Alertas".
+
+**Migration `20261113150000_eva_relatorio_gestao.sql`:**
+- `ti_agente_membros.recebe_relatorio` e `recebe_alertas`;
+- os tipos `relatorio` e `alerta` em `ti_agente_mensagens`.
+
+O relatório e o alerta entram na conversa recente do gestor (§11.5), para ele perguntar "e a Ana?" em cima deles. O histórico do membro mostra "Relatório de gestão" e "Alerta de gestão".
 
 ---
 

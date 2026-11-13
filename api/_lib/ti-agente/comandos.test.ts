@@ -34,15 +34,21 @@ vi.mock('./aviso.js', async (original) => ({
     ok: true, ids: ['a1', 'a2', 'a3'], para: ['Bruno Mendes', 'Caio Lima'], citadosNoGrupo: ['Dani'], grupoNome: 'TI FAFIN', semDestino: [], agendadaPara: null,
   })),
 }));
+vi.mock('./gestao.js', () => ({
+  relatorioAgora: vi.fn(async (_db: unknown, recorte: string) => `RELATÓRIO (${recorte})`),
+  lerBlocoGestao: vi.fn(async () => 'PAINEL DE GESTÃO (teste)'),
+}));
 
 import { checarCobranca, cobrarCard, lerCardsAbertos } from './cobranca.js';
+import { lerBlocoGestao, relatorioAgora } from './gestao.js';
 import { checarAvisoEquipe, checarAvisoPessoal, enviarAvisoEquipe, enviarAvisoPessoal } from './aviso.js';
 import { avisarQuemTem, lerContexto } from './dados.js';
 import { enfileirarNoGrupo, lerConfigGrupo } from './grupo.js';
 import { gerarEstruturado, type Dependencias } from './ia/gerarEstruturado.js';
 import {
   CANCELADO, CANCELADO_PROPOSTA, EXPIROU, INSTRUCOES_WHATSAPP, PEDIR_SIM, SEM_LISTA, descreverSugestao, ehNao, ehSim,
-  ajuda, fechoDeConversa, lerPedidoDeLista, montarContextoMensagem, montarListaSugestoes, processarRecebida, type SaidaMensagem, type SugestaoLista,
+  ajuda, fechoDeConversa, lerPedidoDeLista, lerPedidoDeRelatorio, montarContextoMensagem, montarListaSugestoes, processarRecebida,
+  type SaidaMensagem, type SugestaoLista,
 } from './comandos.js';
 import { SEM_INTERPRETACAO } from './respostas.js';
 import type { CardTI } from '../../../src/modules/eva/domain/demandas.js';
@@ -71,7 +77,8 @@ const sug = (s: Partial<SugestaoLista>): SugestaoLista => ({
 
 const saida = (s: Partial<SaidaMensagem>): SaidaMensagem => ({
   intencao: 'conversa', resposta: '', itens: [], propostas: [], lembrete_texto: '', lembrete_quando: '', lembrete_id: '',
-  cobrar_codigos: [], cobrar_pessoa_id: '', numeros: [], todas: false, motivo: '', aviso: '', aviso_pessoa_id: '', confianca: 'alta', ...s,
+  cobrar_codigos: [], cobrar_pessoa_id: '', numeros: [], todas: false, motivo: '', aviso: '', aviso_pessoa_id: '', relatorio_periodo: '',
+  confianca: 'alta', ...s,
 });
 const proposta = (p: Partial<SaidaMensagem['propostas'][number]>): SaidaMensagem['propostas'][number] => ({
   tipo: 'atualizar_card', card_codigo: 'IT-045', titulo: null, descricao: null, responsaveis: [], prazo: null, prazo_texto: null,
@@ -653,5 +660,62 @@ describe('processarRecebida: gestor', () => {
     ia({ intencao: 'cobrar', cobrar_codigos: ['IT-045'] });
     const r = await mandar('cobra o IT-045', new Date('2026-10-17T13:00:00Z'));
     expect(r.resposta).toContain('Fora do horário (dia útil, 7h às 20h): sai segunda (19/10) às 07:00.');
+  });
+});
+
+describe('relatório e perguntas de gestão (D38)', () => {
+  it('"relatório" do gestor sai sem IA; "da semana" pede os últimos 7 dias', async () => {
+    const r = await mandar('Relatório');
+    expect(r).toMatchObject({ acao: 'relatorio', resposta: 'RELATÓRIO (dia)' });
+    expect(gerarMock).not.toHaveBeenCalled();
+    expect(relatorioAgora).toHaveBeenCalledWith(banco.db, 'dia', expect.stringMatching(/\/it\/inicio$/), AGORA);
+    expect((await mandar('manda o relatório da semana!')).resposta).toBe('RELATÓRIO (semana)');
+    expect(respostas(banco.inserts)).toEqual(['RELATÓRIO (dia)', 'RELATÓRIO (semana)']);
+  });
+
+  it('"como foi a semana?": a IA reconhece o pedido e o sistema monta o relatório', async () => {
+    ia({ intencao: 'relatorio', relatorio_periodo: 'semana' });
+    expect(await mandar('como foi a semana?')).toMatchObject({ acao: 'relatorio', resposta: 'RELATÓRIO (semana)' });
+  });
+
+  it('quem não é gestor não recebe o relatório (e "relatório" não pega o atalho)', async () => {
+    estado.permissoes = ['canManageIT'];
+    ia({ intencao: 'relatorio', relatorio_periodo: 'dia' });
+    const r = await mandar('relatório');
+    expect(gerarMock).toHaveBeenCalledTimes(1);
+    expect(r).toMatchObject({ acao: 'sem_permissao' });
+    expect(r.resposta).toContain('Só gestores da EVA podem receber o relatório de gestão');
+    expect(relatorioAgora).not.toHaveBeenCalled();
+  });
+
+  it('o PAINEL DE GESTÃO entra no contexto só do gestor, para as perguntas de gestão', async () => {
+    ia({ intencao: 'pergunta', resposta: 'A Ana está com 3 atrasados.' });
+    expect((await mandar('quem está sobrecarregado?')).resposta).toBe('A Ana está com 3 atrasados.');
+    expect(gerarMock.mock.calls[0][0].contexto).toContain('PAINEL DE GESTÃO (teste)');
+
+    estado.permissoes = ['canManageIT'];
+    ia({ intencao: 'pergunta', resposta: 'ok' });
+    await mandar('quem está sobrecarregado?');
+    expect(gerarMock.mock.calls[1][0].contexto).not.toContain('PAINEL DE GESTÃO');
+    expect(lerBlocoGestao).toHaveBeenCalledTimes(1);
+  });
+
+  it('sem o painel (falha de leitura), a pergunta é respondida assim mesmo', async () => {
+    (lerBlocoGestao as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('banco fora'));
+    ia({ intencao: 'pergunta', resposta: 'Sem os números agora, mas a Ana tem cards atrasados.' });
+    expect(await mandar('quem está sobrecarregado?')).toMatchObject({ acao: 'pergunta', resposta: 'Sem os números agora, mas a Ana tem cards atrasados.' });
+  });
+
+  it('o atalho só pega o pedido do relatório, não uma pergunta sobre ele', () => {
+    for (const t of ['relatório', 'Relatorio!', 'manda o relatório', 'me manda o relatório de gestão', 'relatório do dia', 'ver relatório']) {
+      expect(lerPedidoDeRelatorio(t)).toBe('dia');
+    }
+    for (const t of ['relatório da semana', 'manda o relatório semanal']) expect(lerPedidoDeRelatorio(t)).toBe('semana');
+    for (const t of ['o relatório de ontem estava certo?', 'relatório de vendas', 'como foi a semana?']) expect(lerPedidoDeRelatorio(t)).toBeNull();
+  });
+
+  it('a ajuda fixa do gestor mostra o relatório e as perguntas de gestão', () => {
+    expect(ajuda({ gestor: true, aprova: false })).toContain('"relatório" ou "como foi a semana?"');
+    expect(ajuda({ gestor: false, aprova: false })).not.toContain('relatório');
   });
 });
