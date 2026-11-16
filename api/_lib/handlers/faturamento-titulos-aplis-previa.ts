@@ -18,13 +18,6 @@
  * registro do lote em notas_lote_audit_logs — elegível de novo, mas a tela o traz
  * desmarcado).
  *
- * `nfsAPreencher`: títulos não cancelados sem número da nota — de qualquer
- * origem e independentes da data de corte — em que TODOS os lotes têm NF-e no
- * apLIS. Mesma NF-e em todos → 'preenchivel'; mais de uma → 'divergente' (a
- * tela lista, mas não deixa marcar). Algum lote ainda sem NF-e → fora. O
- * preenchimento é da tela, por titulo-atualizar-numero-nota com somenteSeVazio;
- * o vencimento nunca muda (o do RPS erra o pagamento em 42 dias, mediana).
- *
  * Autorização: `Authorization: Bearer <access_token>` da sessão, exigindo
  * canManageBilling — a prévia só serve a quem vai criar.
  *
@@ -36,7 +29,7 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { describeError } from '../errors.js';
 import { autorizarFaturamento, tokenDoHeader } from '../faturamento/autorizacao.js';
-import { listarLotesFechadosDesde, nfesDosLotes } from '../faturamento/bdLab.js';
+import { listarLotesFechadosDesde } from '../faturamento/bdLab.js';
 import type { LoteFaturamento } from '../faturamento/bdLab.js';
 import { getSupabaseAdminClient } from '../supabase.js';
 
@@ -67,28 +60,6 @@ interface LotePrevia {
   semNf: boolean;
   desvinculado: Desvinculo | null;
 }
-
-interface NfAPreencher {
-  idNota: string;
-  idsLote: number[];
-  operadora: string;
-  situacao: 'preenchivel' | 'divergente';
-  /** Uma quando preenchível; as distintas quando divergente. */
-  nfeNumeros: string[];
-}
-
-/** Título sem número e os `aplis_id` dos seus lotes. `completo` é falso quando
- *  algum lote não tem `aplis_id` (criado fora do apLIS): aí não há NF-e a
- *  conferir e o título fica fora da prévia. */
-interface TituloSemNumero {
-  idNota: string;
-  operadora: string;
-  idsLote: number[];
-  completo: boolean;
-}
-
-/** Página do PostgREST (max-rows padrão do Supabase). */
-const PAGINA_NOTAS = 1000;
 
 class ErroSupabase extends Error {}
 
@@ -180,64 +151,6 @@ async function situacaoNoReceber(
   return { comTitulo, desvinculos };
 }
 
-/**
- * Títulos não cancelados com `numero_nota` vazio, de qualquer data. Número só
- * com espaços não entra aqui (o filtro do PostgREST não faz TRIM) — continua
- * sendo tratado como vazio pela RPC, só não é oferecido na prévia.
- */
-async function titulosSemNumero(supabase: SupabaseClient): Promise<TituloSemNumero[]> {
-  const titulos: TituloSemNumero[] = [];
-  for (let offset = 0; ; offset += PAGINA_NOTAS) {
-    const { data, error } = await supabase
-      .from('notas')
-      .select('id_nota, operadoras(nome), nota_lote(lotes(aplis_id))')
-      .neq('status', 'cancelada')
-      .or('numero_nota.is.null,numero_nota.eq.')
-      .order('id_nota', { ascending: true })
-      .range(offset, offset + PAGINA_NOTAS - 1);
-    if (error) throw new ErroSupabase(`notas: ${error.message}`);
-    const pagina = (data ?? []) as unknown as {
-      id_nota: string;
-      operadoras: { nome: string | null } | null;
-      nota_lote: { lotes: { aplis_id: string | null } | null }[] | null;
-    }[];
-    for (const nota of pagina) {
-      const vinculos = nota.nota_lote ?? [];
-      const idsLote = vinculos
-        .map((vinculo) => Number(vinculo.lotes?.aplis_id ?? NaN))
-        .filter((id) => Number.isInteger(id) && id > 0);
-      titulos.push({
-        idNota: nota.id_nota,
-        operadora: nota.operadoras?.nome ?? '—',
-        idsLote,
-        completo: vinculos.length > 0 && idsLote.length === vinculos.length,
-      });
-    }
-    if (pagina.length < PAGINA_NOTAS) break;
-  }
-  return titulos;
-}
-
-/** Cruza os títulos sem número com as NF-e dos lotes no apLIS. */
-function montarNfsAPreencher(titulos: TituloSemNumero[], nfes: Record<number, string>): NfAPreencher[] {
-  const nfs: NfAPreencher[] = [];
-  for (const titulo of titulos) {
-    const { idsLote } = titulo;
-    // Algum lote sem apLIS ou sem NF-e: o número do título ainda não está decidido.
-    if (!titulo.completo || idsLote.some((id) => !nfes[id])) continue;
-    const nfeNumeros = [...new Set(idsLote.map((id) => nfes[id]))]
-      .sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
-    nfs.push({
-      idNota: titulo.idNota,
-      idsLote: [...idsLote].sort((a, b) => a - b),
-      operadora: titulo.operadora,
-      situacao: nfeNumeros.length === 1 ? 'preenchivel' : 'divergente',
-      nfeNumeros,
-    });
-  }
-  return nfs.sort((a, b) => a.operadora.localeCompare(b.operadora, 'pt-BR') || a.idsLote[0] - b.idsLote[0]);
-}
-
 function mensagemErroAplis(mensagem: string): string {
   return `Não foi possível ler os lotes do apLIS agora — tente novamente em alguns minutos. (${mensagem})`;
 }
@@ -277,12 +190,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
     const supabase = getSupabaseAdminClient();
     const candidatos = resultado.lotes.filter((item) => !item.particular).map((item) => item.lote);
     let situacao: Awaited<ReturnType<typeof situacaoNoReceber>>;
-    let semNumero: TituloSemNumero[];
     try {
-      [situacao, semNumero] = await Promise.all([
-        situacaoNoReceber(supabase, candidatos.map((l) => l.idLote)),
-        titulosSemNumero(supabase),
-      ]);
+      situacao = await situacaoNoReceber(supabase, candidatos.map((l) => l.idLote));
     } catch (err) {
       if (!(err instanceof ErroSupabase)) throw err;
       console.error('[faturamento/titulos-aplis-previa] Supabase:', err.message);
@@ -290,14 +199,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
         success: false,
         error: 'Não foi possível conferir os títulos já lançados — tente novamente em alguns minutos.',
       });
-      return;
-    }
-
-    const idsSemNumero = semNumero.filter((t) => t.completo).flatMap((t) => t.idsLote);
-    // Sem título a completar, nem abre outra conexão ao túnel.
-    const nfes = idsSemNumero.length > 0 ? await nfesDosLotes(idsSemNumero) : { porLote: {} };
-    if ('erro' in nfes) {
-      res.status(nfes.erro.status).json({ success: false, error: mensagemErroAplis(nfes.erro.mensagem) });
       return;
     }
 
@@ -317,7 +218,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse): 
       success: true,
       desde,
       lotes,
-      nfsAPreencher: montarNfsAPreencher(semNumero, nfes.porLote),
     });
   } catch (err) {
     console.error('[faturamento/titulos-aplis-previa] erro:', describeError(err));

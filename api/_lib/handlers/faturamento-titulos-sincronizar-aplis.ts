@@ -1,7 +1,7 @@
 /**
  * API Route: POST /api/faturamento/titulos-sincronizar-aplis
  *
- * "Atualizar" da aba Títulos do Contas a Receber: roda a mesma sincronização
+ * Chamada ao abrir o "Atualizar do apLIS" do Contas a Receber: roda a mesma sincronização
  * dos títulos com o apLIS que a rotina diária e o "Atualizar" de Glosas e
  * Recursos rodam (faturamento/sincronizarTitulosAplis.ts) — status, envio,
  * protocolo, NF-e, RPS e responsável dos lotes, número da nota dos títulos sem

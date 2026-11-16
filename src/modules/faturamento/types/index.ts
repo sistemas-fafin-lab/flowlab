@@ -219,19 +219,9 @@ export interface LotePreviaAplis {
   desvinculado: { idNota: string; numeroNota: string | null; em: string; motivo: string } | null;
 }
 
-/** Título existente sem número da nota cujo lote já tem NF-e no apLIS (issue 04). */
-export interface NfAPreencherAplis {
-  idNota: string;
-  idsLote: number[];
-  operadora: string;
-  situacao: 'preenchivel' | 'divergente';
-  nfeNumeros: string[];
-}
-
 export interface PreviaAplis {
   desde: string;
   lotes: LotePreviaAplis[];
-  nfsAPreencher: NfAPreencherAplis[];
 }
 
 /** Tipos da conferência das baixas com o apLIS

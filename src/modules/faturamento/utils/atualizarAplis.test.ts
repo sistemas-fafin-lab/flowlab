@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { LoteFaturamento, LotePreviaAplis, NfAPreencherAplis } from '../types';
+import type { LoteFaturamento, LotePreviaAplis } from '../types';
 import {
   competenciaDaEmissao,
   corpoTituloAplis,
@@ -9,7 +9,6 @@ import {
   PISO_CORTE_APLIS,
   resumoExecucao,
   selecaoPadraoAplis,
-  selecaoPadraoNfs,
 } from './atualizarAplis';
 
 describe('corteAplisPadrao', () => {
@@ -113,7 +112,6 @@ describe('resumoExecucao', () => {
     expect(resumoExecucao(['criado', 'criado', 'falhou', 'criado'])).toEqual({
       criados: 3,
       falharam: 1,
-      nfsPreenchidas: 0,
       texto: '3 títulos criados, 1 falhou',
     });
   });
@@ -130,40 +128,6 @@ describe('resumoExecucao', () => {
     expect(resumoExecucao(['criado', 'aguardando', 'criando']).criados).toBe(1);
   });
 
-  it('inclui as NFs preenchidas', () => {
-    expect(
-      resumoExecucao(
-        ['criado', 'criado', 'falhou'],
-        ['preenchido', 'preenchido', 'ja-preenchido', 'falhou', 'aguardando'],
-      ),
-    ).toEqual({
-      criados: 2,
-      falharam: 1,
-      nfsPreenchidas: 2,
-      texto: '2 títulos criados, 1 falhou, 2 NFs preenchidas, 1 NF já preenchida, 1 NF falhou',
-    });
-  });
-
-  it('só NFs: não fala de títulos', () => {
-    expect(resumoExecucao([], ['preenchido']).texto).toBe('1 NF preenchida');
-  });
-
-  it('"já preenchido" não conta como falha nem como preenchida', () => {
-    const resumo = resumoExecucao([], ['ja-preenchido', 'ja-preenchido']);
-    expect(resumo.nfsPreenchidas).toBe(0);
-    expect(resumo.texto).toBe('0 NFs preenchidas, 2 NFs já preenchidas');
-  });
-});
-
-describe('selecaoPadraoNfs', () => {
-  const nf = (idNota: string, situacao: NfAPreencherAplis['situacao']): NfAPreencherAplis => ({
-    idNota, idsLote: [1], operadora: 'X', situacao, nfeNumeros: ['1'],
-  });
-
-  it('marca as preenchíveis e deixa as divergentes de fora', () => {
-    expect(selecaoPadraoNfs([nf('a', 'preenchivel'), nf('b', 'divergente'), nf('c', 'preenchivel')]))
-      .toEqual(new Set(['a', 'c']));
-  });
 });
 
 describe('emParalelo', () => {

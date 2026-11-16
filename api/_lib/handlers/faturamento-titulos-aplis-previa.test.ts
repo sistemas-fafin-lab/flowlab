@@ -6,17 +6,15 @@ vi.mock('../supabase.js', () => ({
 }));
 vi.mock('../faturamento/bdLab.js', () => ({
   listarLotesFechadosDesde: vi.fn(),
-  nfesDosLotes: vi.fn(),
 }));
 
 import { getSupabaseAdminClient } from '../supabase.js';
-import { listarLotesFechadosDesde, nfesDosLotes } from '../faturamento/bdLab.js';
+import { listarLotesFechadosDesde } from '../faturamento/bdLab.js';
 import type { LoteFaturamento } from '../faturamento/bdLab.js';
 import handler from './faturamento-titulos-aplis-previa.js';
 
 const getSupabaseAdminClientMock = getSupabaseAdminClient as ReturnType<typeof vi.fn>;
 const listarLotesFechadosDesdeMock = listarLotesFechadosDesde as ReturnType<typeof vi.fn>;
-const nfesDosLotesMock = nfesDosLotes as ReturnType<typeof vi.fn>;
 
 type Linha = Record<string, unknown>;
 
@@ -24,7 +22,6 @@ interface CorpoResposta {
   success: boolean;
   error?: string;
   lotes: (Record<string, unknown> & { lote: Record<string, unknown> & { idLote: number } })[];
-  nfsAPreencher: Record<string, unknown>[];
 }
 
 interface Cenario {
@@ -32,8 +29,6 @@ interface Cenario {
   perfil?: { custom_roles: { permissions: string[] } | null } | null;
   tabelas?: Record<string, Linha[]>;
   erros?: Record<string, string>;
-  /** NF-e por lote no apLIS (mock de nfesDosLotes). */
-  nfes?: Record<number, string>;
 }
 
 // Query builder mínimo do supabase-js: select/in/eq/neq/or/order/range
@@ -167,14 +162,10 @@ function criarRes() {
 }
 
 async function executar(cenario: Cenario, lotes: LoteFixture[], query?: Record<string, string>) {
-  const nfes = cenario.nfes ?? {};
   getSupabaseAdminClientMock.mockReturnValue(criarSupabaseMock(cenario));
   listarLotesFechadosDesdeMock.mockResolvedValue({
     lotes: lotes.map(({ particular = false, ...l }) => ({ lote: l, particular })),
   });
-  nfesDosLotesMock.mockImplementation(async (ids: number[]) => ({
-    porLote: Object.fromEntries(ids.filter((id) => id in nfes).map((id) => [id, nfes[id]])),
-  }));
   const res = criarRes();
   await handler(criarReq(query), res);
   return res;
@@ -234,7 +225,7 @@ describe('GET /api/faturamento/titulos-aplis-previa', () => {
       const res = await executar({}, [], { desde: '2026-10-01' });
       expect(res.statusCode).toBe(200);
       expect(listarLotesFechadosDesdeMock).toHaveBeenCalledWith('2026-10-01');
-      expect(res.body).toEqual({ success: true, desde: '2026-10-01', lotes: [], nfsAPreencher: [] });
+      expect(res.body).toEqual({ success: true, desde: '2026-10-01', lotes: [] });
     });
   });
 
@@ -350,107 +341,5 @@ describe('GET /api/faturamento/titulos-aplis-previa', () => {
 
     expect(res.statusCode).toBe(502);
     expect(res.body.success).toBe(false);
-  });
-  describe('nfsAPreencher', () => {
-    // Título no formato do select aninhado: notas → operadoras, nota_lote → lotes.
-    function titulo(idNota: string, aplisIds: string[], extra: Linha = {}): Linha {
-      return {
-        id_nota: idNota,
-        numero_nota: null,
-        status: 'aberta',
-        operadoras: { nome: 'AMHP-DF' },
-        nota_lote: aplisIds.map((aplis) => ({ lotes: { aplis_id: aplis } })),
-        ...extra,
-      };
-    }
-
-    async function nfs(titulos: Linha[], nfes: Record<number, string>) {
-      const res = await executar({ tabelas: { notas: titulos }, nfes }, []);
-      expect(res.statusCode).toBe(200);
-      return res.body.nfsAPreencher;
-    }
-
-    it('título sem número cujo lote tem NF-e vem preenchível', async () => {
-      expect(await nfs([titulo('nota-1', ['5001'])], { 5001: '9182' })).toEqual([
-        { idNota: 'nota-1', idsLote: [5001], operadora: 'AMHP-DF', situacao: 'preenchivel', nfeNumeros: ['9182'] },
-      ]);
-    });
-
-    it('independe da data de corte e dos lotes da prévia', async () => {
-      await nfs([titulo('nota-1', ['4826'])], { 4826: '9126' });
-      expect(nfesDosLotesMock).toHaveBeenCalledWith([4826]);
-    });
-
-    it('número vazio ("") conta como sem número', async () => {
-      const lista = await nfs([titulo('nota-1', ['5001'], { numero_nota: '' })], { 5001: '9182' });
-      expect(lista.map((n) => n.idNota)).toEqual(['nota-1']);
-    });
-
-    it('título com número não entra', async () => {
-      expect(await nfs([titulo('nota-1', ['5001'], { numero_nota: '9000' })], { 5001: '9182' })).toEqual([]);
-    });
-
-    it('título cancelado não entra', async () => {
-      expect(await nfs([titulo('nota-1', ['5001'], { status: 'cancelada' })], { 5001: '9182' })).toEqual([]);
-    });
-
-    it('lote sem NF-e no apLIS não entra', async () => {
-      expect(await nfs([titulo('nota-1', ['5001'])], {})).toEqual([]);
-    });
-
-    it('título sem lote não entra (nada a conferir no apLIS)', async () => {
-      expect(await nfs([titulo('nota-1', [])], {})).toEqual([]);
-    });
-
-    it('multi-lote com a mesma NF-e em todos entra preenchível', async () => {
-      // Caso real: lotes 4828 e 4898 saíram no mesmo RPS 9108 (NF-e 9124).
-      expect(await nfs([titulo('nota-1', ['4828', '4898'])], { 4828: '9124', 4898: '9124' })).toEqual([
-        {
-          idNota: 'nota-1', idsLote: [4828, 4898], operadora: 'AMHP-DF',
-          situacao: 'preenchivel', nfeNumeros: ['9124'],
-        },
-      ]);
-    });
-
-    it('multi-lote com NF-e diferentes vem divergente, listando as NF-e', async () => {
-      expect(await nfs([titulo('nota-1', ['5001', '5002'])], { 5001: '9182', 5002: '9190' })).toEqual([
-        {
-          idNota: 'nota-1', idsLote: [5001, 5002], operadora: 'AMHP-DF',
-          situacao: 'divergente', nfeNumeros: ['9182', '9190'],
-        },
-      ]);
-    });
-
-    it('multi-lote com um lote ainda sem NF-e não entra', async () => {
-      expect(await nfs([titulo('nota-1', ['5001', '5002'])], { 5001: '9182' })).toEqual([]);
-    });
-
-    it('lote sem aplis_id (criado fora do apLIS) deixa o título de fora', async () => {
-      const semAplis = { ...titulo('nota-1', ['5001']), nota_lote: [{ lotes: { aplis_id: '5001' } }, { lotes: { aplis_id: null } }] };
-      expect(await nfs([semAplis], { 5001: '9182' })).toEqual([]);
-    });
-
-    it('sem títulos sem número não consulta o apLIS', async () => {
-      expect(await nfs([], {})).toEqual([]);
-      expect(nfesDosLotesMock).not.toHaveBeenCalled();
-    });
-
-    it('erro do apLIS na consulta das NF-e vira mensagem clara', async () => {
-      getSupabaseAdminClientMock.mockReturnValue(criarSupabaseMock({ tabelas: { notas: [titulo('nota-1', ['5001'])] } }));
-      listarLotesFechadosDesdeMock.mockResolvedValue({ lotes: [] });
-      nfesDosLotesMock.mockResolvedValue({ erro: { status: 504, mensagem: 'timeout' } });
-      const res = criarRes();
-      await handler(criarReq(), res);
-
-      expect(res.statusCode).toBe(504);
-      expect(res.body.error).toMatch(/apLIS/);
-      expect(res.body.error).toMatch(/tente novamente/i);
-    });
-
-    it('falha ao ler os títulos no Supabase devolve 502', async () => {
-      const res = await executar({ erros: { notas: 'boom' } }, [lote()]);
-      expect(res.statusCode).toBe(502);
-      expect(res.body.success).toBe(false);
-    });
   });
 });

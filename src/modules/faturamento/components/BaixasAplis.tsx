@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, X, XCircle } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Loader2, RefreshCw, XCircle } from 'lucide-react';
 import { chamarApi, rpcRegistrarBaixa } from '../hooks/useContasReceber';
 import type { PreviaBaixasAplis, TituloPreviaBaixasAplis } from '../types';
 import { formatCurrency, formatData, plural } from '../utils/formato';
@@ -14,7 +14,7 @@ import {
 } from '../utils/aplicarBaixasAplis';
 import type { ResultadoTitulo } from '../utils/aplicarBaixasAplis';
 
-// "Aplicar baixas do apLIS" (.scratch/faturamento-baixas-automaticas-aplis):
+// Aba "Baixas" do "Atualizar do apLIS" (.scratch/faturamento-baixas-automaticas-aplis):
 // prévia das baixas que faltam lançar, uma por data de recebimento no apLIS. O
 // operador marca os títulos e confirma. Título a título, em sequência, pela
 // mesma RPC do "Registrar baixa" (`fat_registrar_baixa`, uma por vez — a RPC
@@ -31,10 +31,13 @@ const BOTAO_SECUNDARIO =
   'px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-gray-300 dark:hover:border-gray-500 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed';
 
 interface Props {
-  aberto: boolean;
+  /** Aba visível: a prévia só é montada na primeira vez que a aba é aberta. */
+  ativo: boolean;
   onFechar: () => void;
-  /** Fechou depois de lançar ao menos uma baixa: relê a lista e a conferência. */
+  /** Lançou ao menos uma baixa: relê a lista e a conferência. */
   onAlterados: () => void;
+  /** Lançamento em andamento: o modal pede confirmação antes de fechar. */
+  onExecutando: (executando: boolean) => void;
 }
 
 async function buscarPrevia(): Promise<PreviaBaixasAplis> {
@@ -72,7 +75,7 @@ function EstadoTitulo({ resultado, total }: { resultado: ResultadoTitulo | undef
   );
 }
 
-const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterados }) => {
+const BaixasAplis: React.FC<Props> = ({ ativo, onFechar, onAlterados, onExecutando }) => {
   const [previa, setPrevia] = useState<PreviaBaixasAplis | null>(null);
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -80,12 +83,15 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
   const [resultados, setResultados] = useState<Map<string, ResultadoTitulo>>(new Map());
   const [executando, setExecutando] = useState(false);
   const [resumo, setResumo] = useState<string | null>(null);
-  // Leitura e execução em curso. Fechar troca o id: a leitura velha é
-  // descartada e a execução para de iniciar lançamentos (o que está no ar
-  // termina no servidor; reabrir mostra o que falta).
+  // Leitura e execução em curso. Fechar o modal desmonta o painel e troca o id:
+  // a leitura velha é descartada e a execução para de iniciar lançamentos (o
+  // que está no ar termina no servidor; reabrir mostra o que falta).
   const execucaoRef = useRef(0);
-  // Ao menos um lançamento desde que abriu: fechar relê lista e conferência.
-  const lancouRef = useRef(false);
+  const carregouRef = useRef(false);
+
+  useEffect(() => {
+    onExecutando(executando);
+  }, [executando, onExecutando]);
 
   const carregar = useCallback(async () => {
     const leitura = ++execucaoRef.current;
@@ -108,11 +114,14 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
     }
   }, []);
 
+  // Só na primeira vez que a aba aparece: a prévia consulta o apLIS.
   useEffect(() => {
-    if (aberto) void carregar();
-  }, [aberto, carregar]);
+    if (!ativo || carregouRef.current) return;
+    carregouRef.current = true;
+    void carregar();
+  }, [ativo, carregar]);
 
-  // Sair da página também encerra a execução.
+  // Fechar o modal (ou sair da página) desmonta o painel e encerra a execução.
   useEffect(() => () => {
     execucaoRef.current += 1;
   }, []);
@@ -123,30 +132,6 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
     window.addEventListener('beforeunload', avisar);
     return () => window.removeEventListener('beforeunload', avisar);
   }, [executando]);
-
-  const fechar = () => {
-    if (
-      executando &&
-      !window.confirm(
-        'As baixas ainda estão sendo lançadas. Se fechar agora, o que ainda não começou fica para a próxima vez (o que já foi lançado não é desfeito). Fechar mesmo assim?',
-      )
-    ) {
-      return;
-    }
-    execucaoRef.current += 1;
-    setPrevia(null);
-    setErro(null);
-    setCarregando(false);
-    setMarcadas(new Set());
-    setResultados(new Map());
-    setExecutando(false);
-    setResumo(null);
-    if (lancouRef.current) {
-      lancouRef.current = false;
-      onAlterados();
-    }
-    onFechar();
-  };
 
   const alternar = (idNota: string) => {
     setMarcadas((atual) => {
@@ -175,8 +160,8 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
     setResumo(null);
     setExecutando(true);
 
-    // Lançou algo nesta execução — se o modal fechar no meio, o lançamento que
-    // estava no ar só entra depois do fechar, e a releitura fica para o fim.
+    // Lançou algo nesta execução: relê a lista ao terminar, mesmo que o modal
+    // tenha sido fechado no meio (o lançamento que estava no ar entra depois).
     let lancou = false;
     for (const alvo of alvos) {
       if (!vigente()) break;
@@ -189,22 +174,17 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
         continuar: vigente,
         onProgresso: (parcial) => {
           lancou = true;
-          if (vigente()) lancouRef.current = true;
           marcar(idNota, parcial);
         },
       });
       marcar(idNota, resultado);
     }
 
-    if (!vigente()) {
-      if (lancou) onAlterados();
-      return;
-    }
+    if (lancou) onAlterados();
+    if (!vigente()) return;
     setExecutando(false);
     setResumo(resumoAplicacao(estados.values()).texto);
   };
-
-  if (!aberto) return null;
 
   const { aplicaveis, pulados } = separarPrevia(previa?.titulos ?? []);
   // Lote vinculado a mais de um título: a baixa dele começa desmarcada.
@@ -219,25 +199,10 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
   const dadoAte = previa?.dadoAte ? `até ${formatData(previa.dadoAte)}` : 'até ontem';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col animate-scale-in">
-        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-100 dark:border-gray-700">
-          <div>
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Aplicar baixas do apLIS</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Baixas recebidas no apLIS que faltam lançar aqui, uma por data de recebimento · dados do apLIS {dadoAte}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={fechar}
-            className="p-1.5 rounded-full text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 hover:rotate-90"
-            aria-label="Fechar"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
+    <>
+        <p className="px-6 pt-4 text-xs text-gray-500 dark:text-gray-400">
+          Baixas recebidas no apLIS que faltam lançar aqui, uma por data de recebimento · dados do apLIS {dadoAte}
+        </p>
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {/* Sem prévia e sem erro = ainda não respondeu: nunca cai no "nada a lançar". */}
           {!previa && !erro ? (
@@ -425,7 +390,7 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
             {travado ? (
               <button
                 type="button"
-                onClick={fechar}
+                onClick={onFechar}
                 disabled={executando}
                 className="px-4 py-2 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 shadow-md shadow-blue-500/25 hover:from-blue-600 hover:to-blue-700 disabled:opacity-50"
               >
@@ -445,9 +410,8 @@ const AplicarBaixasAplisModal: React.FC<Props> = ({ aberto, onFechar, onAlterado
             )}
           </div>
         </div>
-      </div>
-    </div>
+    </>
   );
 };
 
-export default AplicarBaixasAplisModal;
+export default BaixasAplis;

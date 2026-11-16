@@ -1,12 +1,10 @@
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, BarChart3, CheckCheck, GitCompare, DownloadCloud, ListChecks, RefreshCw, Scale, Send, Wallet } from 'lucide-react';
+import { AlertTriangle, BarChart3, GitCompare, DownloadCloud, ListChecks, Scale, Send, Wallet } from 'lucide-react';
 import { useAuth } from '../../../hooks/useAuth';
 import { hasPermission } from '../../../utils/permissions';
-import { supabase } from '../../../lib/supabase';
-import { chamarApi, useContasReceber } from '../hooks/useContasReceber';
+import { useContasReceber } from '../hooks/useContasReceber';
 import { useConferenciaAplis } from '../hooks/useConferenciaAplis';
 import { periodoEsteMes } from '../utils/formato';
-import { textoSincronizacaoTitulos, type ResumoSincronizacaoTitulos } from '../utils/sincronizacaoTitulos';
 import { idsDivergentesNoPeriodo } from '../utils/conferenciaAplis';
 import { podeVerTela } from '../utils/permissoesTelas';
 import type { AcaoTituloConferencia } from '../utils/conferenciaAplis';
@@ -26,7 +24,6 @@ import AtualizarAplisModal from './AtualizarAplisModal';
 import ConferenciaAplisModal from './ConferenciaAplisModal';
 import RefechamentosAplisAviso from './RefechamentosAplisAviso';
 import RefechamentosAplicadosAviso from './RefechamentosAplicadosAviso';
-import AplicarBaixasAplisModal from './AplicarBaixasAplisModal';
 import BaixaModal from './BaixaModal';
 import ClinicasParceirasModal from './ClinicasParceirasModal';
 import RegraNfModal from './RegraNfModal';
@@ -109,7 +106,6 @@ const ContasReceberPage: React.FC = () => {
   const [novoAberto, setNovoAberto] = useState(false);
   const [atualizarAplisAberto, setAtualizarAplisAberto] = useState(false);
   const [conferenciaAberta, setConferenciaAberta] = useState(false);
-  const [aplicarBaixasAberto, setAplicarBaixasAberto] = useState(false);
   // Trocada quando o "Lançar baixa" ou o "Editar título" fecha depois de salvar
   // (e no cancelamento e no "Atualizar" da lista): a conferência com o apLIS — a
   // do modal, se aberto, e a dos selos da aba Títulos — refaz a leitura e o
@@ -121,10 +117,7 @@ const ContasReceberPage: React.FC = () => {
   const [consideradaMetaAberto, setConsideradaMetaAberto] = useState(false);
   const [tituloBaixa, setTituloBaixa] = useState<TituloReceber | null>(null);
   const [tituloEditar, setTituloEditar] = useState<TituloReceber | null>(null);
-  const [sincronizando, setSincronizando] = useState(false);
-  // Tipado para o card poder distinguir sucesso de falha — antes os dois caíam
-  // no mesmo card azul de informação, e "Falha ao sincronizar operadoras" saía
-  // com cara de aviso positivo.
+  // Tipado para o card poder distinguir sucesso de falha.
   const [aviso, setAviso] = useState<{ tipo: 'sucesso' | 'erro'; texto: string } | null>(null);
 
   // Selos e filtro "Divergente do apLIS" da aba Títulos: lida a cada entrada na
@@ -209,31 +202,13 @@ const ContasReceberPage: React.FC = () => {
     }));
   }, []);
 
-  // "Atualizar" da aba Títulos: roda a sincronização dos títulos com o apLIS (a
-  // mesma da rotina diária: status, dados dos lotes, número da nota e
-  // refechamento), relê a lista e a conferência e, para quem edita, aplica a
-  // emissão nova dos refechamentos que a sincronização não pegou. Uma falha ao
-  // ler o apLIS ou ao aplicar não mexe na lista: só avisa.
-  const [sincronizandoTitulos, setSincronizandoTitulos] = useState(false);
+  // "Atualizar" da aba Títulos: relê a lista e a conferência e, para quem
+  // edita, aplica a emissão nova dos títulos com lote refechado no apLIS. Uma
+  // falha ao ler o apLIS ou ao aplicar não mexe na lista: só avisa. A
+  // sincronização com o apLIS fica no "Atualizar do apLIS" e na rotina diária.
   const atualizarTitulos = useCallback(async () => {
-    setRefechamentosAplicados([]);
-    setSincronizandoTitulos(true);
-    try {
-      const resumo = await chamarApi<ResumoSincronizacaoTitulos>(
-        '/api/faturamento/titulos-sincronizar-aplis',
-        'Não foi possível atualizar os títulos com o apLIS.',
-        { method: 'POST' },
-      );
-      setAviso({ tipo: 'sucesso', texto: textoSincronizacaoTitulos(resumo) });
-    } catch (err) {
-      setAviso({
-        tipo: 'erro',
-        texto: err instanceof Error ? err.message : 'Não foi possível atualizar os títulos com o apLIS.',
-      });
-    } finally {
-      setSincronizandoTitulos(false);
-    }
     void refetch();
+    setRefechamentosAplicados([]);
     try {
       const aplicados = await atualizarConferencia(podeEditar);
       if (aplicados.length === 0) return;
@@ -251,40 +226,6 @@ const ContasReceberPage: React.FC = () => {
   // Recalculado só na montagem: as datas do padrão dependem de "hoje", e um
   // literal novo a cada render invalidaria o memo do painel a cada digitação.
   const padraoPainel = useMemo(filtrosPainelPadrao, []);
-
-  // Espelha as fontes pagadoras do apLIS para que o financeiro possa cadastrar o
-  // prazo de pagamento antes do primeiro título daquela operadora.
-  const sincronizarOperadoras = async () => {
-    setSincronizando(true);
-    setAviso(null);
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
-      if (!token) throw new Error('Sessão expirada. Faça login novamente.');
-
-      const res = await fetch('/api/faturamento/operadoras-sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({}),
-      });
-      const body = (await res.json().catch(() => ({}))) as {
-        success?: boolean; error?: string; sincronizadas?: number;
-      };
-      if (!res.ok || !body.success) throw new Error(body.error || 'Falha ao sincronizar operadoras.');
-      setAviso({ tipo: 'sucesso', texto: `${body.sincronizadas ?? 0} operadora(s) sincronizada(s) do apLIS.` });
-      // refetch() só relê os títulos da página atual; o seletor de operadoras vem
-      // de uma consulta à parte que só rodava na montagem — sem isto, as fontes
-      // pagadoras recém-importadas ficavam de fora do <select> até um F5.
-      await Promise.all([refetch(), refetchOperadoras()]);
-    } catch (err) {
-      setAviso({
-        tipo: 'erro',
-        texto: err instanceof Error ? err.message : 'Falha ao sincronizar operadoras.',
-      });
-    } finally {
-      setSincronizando(false);
-    }
-  };
 
   const abrirBaixa = useCallback((titulo: TituloReceber) => {
     tituloSalvoRef.current = false;
@@ -367,32 +308,11 @@ const ContasReceberPage: React.FC = () => {
           {podeEditar && (
             <button
               type="button"
-              onClick={() => setAplicarBaixasAberto(true)}
-              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
-            >
-              <CheckCheck className="w-4 h-4" />
-              Aplicar baixas do apLIS
-            </button>
-          )}
-          {podeEditar && (
-            <button
-              type="button"
               onClick={() => setAtualizarAplisAberto(true)}
               className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2"
             >
               <DownloadCloud className="w-4 h-4" />
               Atualizar do apLIS
-            </button>
-          )}
-          {podeEditar && (
-            <button
-              type="button"
-              onClick={sincronizarOperadoras}
-              disabled={sincronizando}
-              className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-600 text-sm text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 flex items-center gap-2 disabled:opacity-50"
-            >
-              <RefreshCw className={`w-4 h-4 ${sincronizando ? 'animate-spin' : ''}`} />
-              Sincronizar operadoras
             </button>
           )}
         </div>
@@ -480,7 +400,6 @@ const ContasReceberPage: React.FC = () => {
           podeEditar={podeEditar}
           filtros={filtros}
           onFiltrar={aplicarFiltro}
-          atualizando={sincronizandoTitulos}
           onAtualizar={() => void atualizarTitulos()}
           onNovoTitulo={() => setNovoAberto(true)}
           onGerenciarParceiras={() => setParceirasAberto(true)}
@@ -544,9 +463,12 @@ const ContasReceberPage: React.FC = () => {
         onFechar={() => setAtualizarAplisAberto(false)}
         onAlterados={() => {
           void refetch();
-          // Títulos novos ou lotes revinculados mudam a conferência.
+          // Títulos novos, baixas lançadas ou lotes sincronizados mudam a conferência.
           setVersaoConferencia((v) => v + 1);
         }}
+        // O seletor de operadoras vem de uma consulta à parte: sem isto, as fontes
+        // pagadoras recém-importadas ficavam de fora do <select> até um F5.
+        onOperadorasAtualizadas={() => void refetchOperadoras()}
       />
 
       <ConferenciaAplisModal
@@ -556,15 +478,6 @@ const ContasReceberPage: React.FC = () => {
         podeAbrirTitulo={podeEditar}
         onAbrirTitulo={abrirTituloDaConferencia}
         onDispensasAlteradas={() => setVersaoConferencia((v) => v + 1)}
-      />
-
-      <AplicarBaixasAplisModal
-        aberto={aplicarBaixasAberto}
-        onFechar={() => setAplicarBaixasAberto(false)}
-        onAlterados={() => {
-          void refetch();
-          setVersaoConferencia((v) => v + 1);
-        }}
       />
 
       <BaixaModal

@@ -1,7 +1,7 @@
 import { formatData } from './formato';
 
-// Resumo do "Atualizar" da aba Títulos, que roda a sincronização dos títulos
-// com o apLIS (POST /api/faturamento/titulos-sincronizar-aplis).
+// Resumo da sincronização dos títulos com o apLIS que o "Atualizar do apLIS"
+// roda ao abrir (POST /api/faturamento/titulos-sincronizar-aplis).
 
 export interface ResumoSincronizacaoTitulos {
   meta?: { dadoAte: string | null };
